@@ -10519,16 +10519,12 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * Two datasets must not share a fold, and this pins the resolver's whole part in that: it reads the
-     * definition version off the config and addresses by it. The endpoint that used to be the subject of this
-     * case is one edit among many that moves that version - an endpoint is a data source setting, and
-     * {@code DefinitionVersionTests} pins field by field that every such edit moves it. Asserting the endpoint
-     * again here would assert {@code ofDataset}'s contract twice and the resolver's not at all.
+     * The resolver's whole part in keeping two datasets apart: it reads the definition version off the config and
+     * addresses by it. Which EDITS move that version is {@code ofDataset}'s contract, pinned in
+     * {@code DefinitionVersionTests}, so it is not asserted again here.
      * <p>
-     * The second half is the one that would catch a regression to the previous shape, where this tier was
-     * addressed by things that are not the definition: two configs carrying ONE version must mint ONE address,
-     * so nothing else in the config may reach it. Without it, a key that folded the config wholesale would pass
-     * the first half and quietly stop sharing a fold between two resolves of the same dataset.
+     * The second half catches a regression to the previous shape: two configs carrying one version must mint one
+     * address, so nothing else in the config may reach it.
      */
     public void testTheDatasetAddressIsTheDefinitionVersionAndNothingElse() {
         ExternalSourceResolver resolver = datasetGateResolver(null);
@@ -10673,15 +10669,12 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * The two addressing derivations, pinned directly. Every other gate on this defect is an integration arm, and an
-     * arm is slower to run and easier to mute than a unit test; these are the two expressions a refactor would break.
+     * The two addressing derivations, pinned directly rather than only through an integration arm.
+     * {@code ffwBoundRead} answers for the whole first-file-wins listing; {@code overlaidBoundReadOf} answers per
+     * record. Each must name the OVERLAID read, and naming the pre-overlay one is the defect.
      * <p>
-     * {@code ffwBoundRead} answers for the whole first-file-wins listing, because that rail reads every file at the
-     * anchor's schema. {@code overlaidBoundReadOf} answers per record, for the anchor resolve, the explicit single
-     * file and union_by_name. Each must name the OVERLAID read; naming the pre-overlay one is the defect.
-     * <p>
-     * The expectation is hand-built from the schema the reader will bind, not taken from another call of the
-     * production helper, so the test cannot pass by both sides being the same wrong expression.
+     * The expectation is hand-built from the schema the reader will bind, so the test cannot pass by both sides
+     * being the same wrong expression.
      */
     public void testTheBoundReadHandedToAStatisticsLookupIsTheOverlaidRead() {
         List<Attribute> inferred = List.of(attr("id", DataType.INTEGER), attr("order_id", DataType.INTEGER));

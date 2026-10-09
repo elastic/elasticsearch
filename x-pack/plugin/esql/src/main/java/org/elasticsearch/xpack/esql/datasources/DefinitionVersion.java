@@ -105,31 +105,20 @@ public final class DefinitionVersion {
         return String.format(Locale.ROOT, "%016x%016x", hash.h1, hash.h2);
     }
 
-    /**
-     * Key under which the DATASET-TIER version travels in a query's merged config map. Distinct from
-     * {@link #CONFIG_KEY} because the two address different tiers; see {@link #ofDataset}.
-     */
+    /** Key under which the dataset-tier version travels in a query's merged config map. See {@link #ofDataset}. */
     public static final String DATASET_CONFIG_KEY = "_dataset_version";
 
     /**
-     * The version of one dataset <em>as a dataset</em>: everything {@link #of} folds, plus the names the
-     * definitions were stored under and the declared mapping.
+     * The version of one dataset <em>as a dataset</em>: everything {@link #of} folds, plus the two names and the
+     * declared mapping. A dataset-level fact is determined by one definition entire, where a per-file fact is
+     * reusable by any dataset reading that file. Neither metadata type carries a version counter, so the content
+     * IS the version and a field left out is an edit that silently reuses the previous measurements;
+     * {@code description} is left out on purpose, changing nothing a reader does.
      * <p>
-     * {@link #of} answers "which bytes, read with which settings", which is the right address for a fact about a
-     * FILE: one file's schema is reusable by any dataset that reads it, so two definitions equal in content
-     * should share that work. A fact about a DATASET is not reusable that way. A dataset-level fold is
-     * determined by one definition in its entirety, and a count measured under one mapping is not another
-     * mapping's to serve - a declaration that drops rows under a lenient policy counts fewer of them.
-     * <p>
-     * So this folds the two things {@link #of} deliberately omits. The names, because two datasets over
-     * identical bytes with identical settings are still two datasets. The mapping, because an edit to it must
-     * move every address derived from this: there is no version counter on either metadata type to fold
-     * instead - {@code Dataset} carries name, data source, resource, description, settings and mapping, and
-     * {@code DatasetMetadata} carries only the map of them - so the content IS the version, and a field left
-     * out of it is an edit that silently reuses what the previous definition measured.
-     * <p>
-     * {@code description} is left out on purpose: it changes nothing a reader does, so an edit to it should not
-     * cost a cold scan.
+     * A secret contributes what {@link #renderSettingValue} renders - the key id, for the encrypted shape - so a
+     * rotation under the same key id does NOT move this version, where the {@code secretIdentity} this replaced
+     * did. Two data sources are still separated by {@code parent.name()}; one source across a rotation is not,
+     * and the fold it holds is a count over a file set the fingerprint pins.
      */
     public static String ofDataset(Dataset dataset, DataSource parent) {
         StringBuilder encoded = new StringBuilder();
@@ -167,8 +156,14 @@ public final class DefinitionVersion {
         }
     }
 
-    /** Sorted, so two equal definitions encode identically whatever order their settings were stored in. */
+    /**
+     * Sorted, so order of storage does not matter, and COUNT-prefixed so the block is self-delimiting. The count
+     * is what stops a setting key bridging the two blocks: their only fixed separator is {@code ("type", …)}, so
+     * without it a key named {@code type} merges them and two definitions share every address. No registered key
+     * is named that today, which made it unreachable rather than safe.
+     */
     private static void encodeSettings(StringBuilder encoded, Map<String, Object> settings) {
+        append(encoded, "n", String.valueOf(settings.size()));
         for (Map.Entry<String, Object> e : new TreeMap<>(settings).entrySet()) {
             append(encoded, e.getKey(), e.getValue() == null ? null : e.getValue().toString());
         }
@@ -183,6 +178,7 @@ public final class DefinitionVersion {
         for (Map.Entry<String, DataSourceSetting> e : parent.settings()) {
             sorted.put(e.getKey(), renderSettingValue(e.getValue().rawValue()));
         }
+        append(encoded, "n", String.valueOf(sorted.size()));
         for (Map.Entry<String, String> e : sorted.entrySet()) {
             append(encoded, e.getKey(), e.getValue());
         }
@@ -206,9 +202,14 @@ public final class DefinitionVersion {
     }
 
     /**
-     * One field of the pre-image, length-prefixed like {@code ReadConfigFingerprint} so that no
-     * user-controlled value can forge a field boundary: without it the single setting
+     * One field of the pre-image, length-prefixed like {@code ReadConfigFingerprint}. The VALUE prefix is what
+     * defends user text: every setting value, and every declared column name, type, {@code path} and
+     * {@code format}, sits in a value slot under a fixed tag. Without it the single setting
      * {@code {"a": "1\u0000b=2"}} and the pair {@code {"a":"1","b":"2"}} encode identically.
+     * <p>
+     * The name is prefixed too, for symmetry and because the only user-controlled name slot is a setting key.
+     * That one is separated by {@code encodeSettings}' count rather than by this prefix, and no collision was
+     * found that the count does not already rule out - so this half is belt-and-braces, not a pinned defence.
      */
     private static void append(StringBuilder out, String name, String value) {
         out.append(name.length()).append(':').append(name);

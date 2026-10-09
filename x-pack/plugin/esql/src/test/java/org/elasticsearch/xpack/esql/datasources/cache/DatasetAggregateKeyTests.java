@@ -11,26 +11,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.FileSetFingerprint;
 
 /**
- * Locks the identity contract of {@link DatasetAggregateKey}: the address of a memoized multi-file fold must
- * change with the listing's file-set fingerprint, with the pattern it was resolved from, and with the version of
- * the dataset definition it belongs to.
+ * Locks the identity contract of {@link DatasetAggregateKey}. The fingerprint makes the key correct-or-miss over
+ * the bytes; the pattern separates two globs that resolve to one file set; the version separates two dataset
+ * definitions. What the version itself folds is {@code DefinitionVersion.ofDataset}'s contract, pinned field by
+ * field in {@code DefinitionVersionTests}.
  * <p>
- * The three components are the whole address, and each is here for a different reason. The fingerprint makes the
- * key correct-or-miss over the bytes: any file added, removed or modified derives a different key and the stale
- * fold ages out with no invalidation protocol. The pattern separates two globs that happen to resolve to one
- * file set. The version separates two dataset definitions, and carries every edit to either definition - that is
- * {@code DefinitionVersion.ofDataset}'s contract, pinned field by field in {@code DefinitionVersionTests}
- * rather than restated here, because what the version folds is that method's business and not this address's.
- * <p>
- * What this type no longer carries is a read configuration. One dataset definition over one file set performs
- * one read, so there is nothing for a read configuration to separate at this tier - and the properties that
- * reasoning used to be needed for (two principals, two regions, two readers must not share a fold) hold now
- * because each of those is an edit to a definition, and so moves the version. They are pinned where they are
- * decided.
- * <p>
- * It also cannot be mistaken for a per-file address, and that is a property of the type rather than something
- * asserted here: {@link DatasetAggregateKey} and {@link SchemaCacheKey} are different types, so the per-file
- * reconcile and lookup paths cannot be handed one.
+ * It carries no read configuration: one definition over one file set performs one read, so there is nothing for
+ * one to separate at this tier.
  */
 public class DatasetAggregateKeyTests extends ESTestCase {
 

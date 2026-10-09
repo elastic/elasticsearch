@@ -756,12 +756,13 @@ public class ExternalSourceCacheService implements Closeable {
      */
     @Nullable
     private static Map<String, Object> foldQueryDeltaStripes(StripeDelta delta) {
-        // TRIPWIRE — coercion asymmetry vs foldCommittedStripes: the stripes folded here are the delta's
-        // RAW per-stripe stats, while foldCommittedStripes folds entry-committed stripes that went through
-        // coerceColumnStatsToResolvedTypes. Safe today because this fold's only consumer is the dataset
-        // aggregate (sumIfFullyCovered), which reads row_count/mtime/fingerprint — never per-column
-        // min/max. If GA extends the dataset aggregate to MIN/MAX, this fold must coerce like the
-        // committed path (or the two folds must share the coercion) before per-column keys are served.
+        // TRIPWIRE — coercion asymmetry vs foldCommittedStripes. Three cases now, not two: the stripes folded
+        // HERE are the delta's RAW per-stripe stats; foldCommittedStripes folds entry-committed stripes, which
+        // went through coerceColumnStatsToResolvedTypes where the delta's read was the record's own and are
+        // stored as harvested where it was not. Safe today because this fold's only consumer is the dataset
+        // aggregate (sumIfFullyCovered), which reads row_count/mtime/fingerprint — never per-column min/max.
+        // If GA extends the dataset aggregate to MIN/MAX, this fold must coerce like the committed path (or the
+        // two folds must share the coercion) before per-column keys are served.
         return foldStripes(
             delta.lastStripeOrdinal(),
             k -> delta.stripes().get(k),
@@ -832,8 +833,8 @@ public class ExternalSourceCacheService implements Closeable {
             }
             // Load-bearing on the stripes.size() == 1 branch, which bypasses mergeStatistics entirely; on the fold
             // branch this is now an idempotent overwrite, since the merge folds the read configuration itself. The
-            // value written here is the entry's own, and stripes within one entry are same-configuration by the
-            // read-configuration gate in applyStripeDelta, so the two agree by construction.
+            // value written here is the entry's own, and stripes within one entry are same-configuration because
+            // the statistics address carries the read: a foreign read's stripes accumulate in their own record.
             if (readConfig != null && readConfig.isEmpty() == false) {
                 whole.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, readConfig);
             }
@@ -1356,17 +1357,10 @@ public class ExternalSourceCacheService implements Closeable {
             // of fact. The check this replaces existed because both kinds shared a store, and the sibling
             // whole-file arm had it while this one did not — which was a shipped defect.
             StatisticsKey statsKey = StatisticsKey.of(key, delta.readConfig());
-            // Whether this delta is the read the schema record itself was resolved under. The address above already
-            // separates the two, so a foreign read's stripes accumulate in their OWN record and can never mix into
-            // this record's cover - which is what the refusal this replaces was protecting. The refusal cost the
-            // whole measurement: a non-strict declaration that retypes a column resolves to a read whose stamp
-            // never equals the record's, so a segmented text read of a mapped dataset filed nothing, on any
-            // address, forever. Its whole-file sibling has filed a foreign read at its own
-            // address all along, and this is that rule for the chunked path - but only half of it. The whole-file
-            // arm files a foreign contribution TWICE: the licensed row count at the record's own address, and the
-            // whole harvest at the read's. A stripe delta is an accumulating cover, so a licensed count from
-            // another read cannot be folded into this record's own cover without mixing two reads' stripes; only
-            // the second of those two writes has a chunked analogue, and it is the one made here.
+            // A foreign read's stripes accumulate in their own record, which the address above already separates,
+            // so they cannot mix into this record's cover. Refusing them instead cost the whole measurement: a
+            // retyping declaration resolves to a read whose stamp never equals the record's, so a segmented read
+            // of a mapped dataset filed nothing anywhere. This is the whole-file arm's rule for the chunked path.
             boolean deltaIsTheRecordsOwnRead = Objects.equals(readConfigStampOf(schemaRecord), delta.readConfig());
             StatisticsRecord priorStats = statisticsStore.get(statsKey);
             Map<String, Object> enriched = new HashMap<>(priorStats == null ? Map.of() : priorStats.measurements());
@@ -1391,10 +1385,8 @@ public class ExternalSourceCacheService implements Closeable {
                 // dropUnrepresentable=false: an unrepresentable value is left for that fold's POISON to
                 // safe-miss the whole column (a per-stripe drop would fold a subset).
                 //
-                // A foreign read is stored AS HARVESTED, exactly as the whole-file path stores it: there is no
-                // record whose types are the right ones to normalise its values against, and inventing one is the
-                // defect that split the two stores apart in the first place. Its values are already in the types
-                // its own address names, so every stripe in that record agrees; a pair that still cannot fold is
+                // A foreign read is stored as harvested: no record holds the right types to normalise it against,
+                // and its values are already in the types its own address names. A pair that still cannot fold is
                 // poisoned by mergeStatistics and safe-misses the column, never a wrong number.
                 Map<String, Object> stripeStats = deltaIsTheRecordsOwnRead
                     ? coerceColumnStatsToResolvedTypes(stripe.getValue(), schemaRecord.columnNames(), schemaRecord.columnTypes(), false)
@@ -1408,12 +1400,9 @@ public class ExternalSourceCacheService implements Closeable {
             if (wholeFile != null) {
                 clearStripeState(enriched); // compaction: the fold subsumes the stripes; weight back to O(1)
                 enriched.putAll(wholeFile);
-                // Only the record's own read returns a fold to the caller. That is not what keeps a foreign read's
-                // numbers off the pending dataset-aggregate promise this feeds: the caller folds the query's own
-                // delta when nothing is returned, so they reach that promise regardless, and its key carries no
-                // read configuration to tell them apart. What the test keeps is this method's own contract - the
-                // value returned describes the record it was matched against - and with it the promise channel's
-                // behaviour, unchanged by this commit. Stamping that channel is separate work.
+                // Only the record's own read returns a fold, which is this method's contract: the value returned
+                // describes the record it was matched against. It is not what keeps a foreign read off the pending
+                // dataset-aggregate promise - the caller folds its own delta when nothing is returned.
                 if (completedFold == null && deltaIsTheRecordsOwnRead) {
                     completedFold = wholeFile;
                 }
@@ -1573,8 +1562,9 @@ public class ExternalSourceCacheService implements Closeable {
      */
     private static Map<String, Object> foldCommittedStripes(Map<String, Object> enriched, StripeDelta delta) {
         long lastIndex = enriched.get(ExternalStats.STRIPE_LAST_INDEX_KEY) instanceof Number n ? n.longValue() : -1L;
-        // The stripes folded here went through coerceColumnStatsToResolvedTypes when committed — see the
-        // TRIPWIRE on foldQueryDeltaStripes for the coercion asymmetry between the two foldStripes callers.
+        // Coerced on commit only where the delta's read was the record's own; a foreign read's stripes are stored
+        // as harvested, in their own record, where they are already in that address's types. See the TRIPWIRE on
+        // foldQueryDeltaStripes.
         return foldStripes(lastIndex, k -> {
             if (enriched.get(ExternalStats.STRIPE_ENTRY_PREFIX + k) instanceof Map<?, ?> stripe) {
                 @SuppressWarnings("unchecked")

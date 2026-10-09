@@ -283,14 +283,12 @@ public class ReadConfigFingerprintDerivationSitesTests extends ESTestCase {
     }
 
     /**
-     * The first-file-wins statistics lookup under a NON-STRICT declaration. Every file on this rail is read at the
-     * anchor's schema, and a declaration retypes that schema before the reader binds it - so the address the lookup
-     * asks must be the OVERLAID anchor read, which is what the data node hashes when it stamps a harvest.
+     * The first-file-wins statistics lookup under a NON-STRICT declaration: every file is read at the anchor's
+     * schema, and a declaration retypes that schema before the reader binds it, so the address asked must be the
+     * OVERLAID anchor read.
      * <p>
-     * Its sibling above derives both sides with {@link DeclaredReadSpec#NONE} and so cannot reach this: with no
-     * mapping the pre-fix derivation {@code of(base.schema(), declaredReadSpecOf(null))} is byte-identical to the
-     * overlaid value. That blindness is why the defect shipped, and the third assertion here is the one that
-     * would have caught it.
+     * Its sibling above derives both sides with {@link DeclaredReadSpec#NONE} and cannot reach this - with no
+     * mapping the pre-fix derivation is byte-identical to the overlaid value, which is why the defect shipped.
      */
     public void testFirstFileWinsStatisticsLookupAddressesTheOverlaidAnchorRead() {
         List<Attribute> anchor = List.of(attr("id", DataType.INTEGER), attr("order_id", DataType.INTEGER));

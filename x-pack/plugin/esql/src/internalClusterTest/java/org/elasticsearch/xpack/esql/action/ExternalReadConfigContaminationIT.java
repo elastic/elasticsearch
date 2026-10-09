@@ -183,19 +183,13 @@ public class ExternalReadConfigContaminationIT extends AbstractExternalDataSourc
     }
 
     /**
-     * The other direction, so the fix cannot be an over-restriction: under the default FAIL_FAST policy the physical
-     * record count is the same number for every declaration, the producers stamp a licence saying so, and that
-     * licence survives the multi-file fold as an AND.
+     * The other direction, so the fix cannot be an over-restriction: under FAIL_FAST the physical record count is
+     * the same number for every declaration, and the licence saying so survives the multi-file fold.
      * <p>
-     * What the licence does NOT do is carry one dataset's memoized fold to another dataset. A dataset-level fold is
-     * addressed by the definition it belongs to, so these two - same files, same settings, different mapping - hold
-     * separate folds, and the second pays one cold scan to measure its own. The licence governs which READS a count
-     * may answer for within a definition; it is not a licence to answer for a different definition. The cost is
-     * bounded and asserted here rather than left implied: one scan per definition, not one per query.
-     * <p>
-     * This arm previously asserted that the declared dataset is served without reading at all, which it was - a
-     * fold carrying no read configuration and no definition was served to everybody, which is the sharing the
-     * dataset tier's addressing exists to stop.
+     * What the licence does not do is carry one dataset's fold to another. A dataset-level fold is addressed by the
+     * definition it belongs to, so these two - same files, same settings, different mapping - hold separate folds
+     * and the second pays one cold scan to measure its own. The cost is asserted rather than implied: one scan per
+     * definition, not one per query.
      */
     public void testLicensedCountCrossesReadsWithinADatasetButNotBetweenDatasets() throws Exception {
         String uris = writeTwoFileFixture(false);

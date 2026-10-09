@@ -362,27 +362,10 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
     }
 
     /**
-     * A retyping declaration over a corpus whose files are SPLIT, which is the ordinary shape: parse parallelism
-     * defaults to the allocated processors, so any file past the reader's minimum segment is read as byte ranges
-     * and publishes stripe fragments rather than one whole-file measurement.
-     * <p>
-     * The two publish through different commit paths, and only the whole-file one filed a foreign read's
-     * measurement. A retyping declaration resolves to a read whose stamp never equals the schema record's, so no
-     * per-file record was written for a segmented read of such a dataset and it re-read every byte forever.
-     * A file reaches that path two ways, and size is only one of them: it is split when it
-     * is at least twice its reader's own minimum segment (1 MiB for csv, the 4 MiB {@code segment_size} for
-     * ndjson), which is what this arm arranges; or a declaration that binds by header name forces the streaming
-     * whole-file path, which publishes per-stripe fragments at ANY size. {@code testDeclaringAnAbsentColumnWarmsCount}
-     * takes the second route - its appended column upgrades csv provenance to DECLARED - so it reaches the chunked
-     * commit on ~0.5 MiB files. No arm in this class is large enough to be split except this one: the biggest
-     * unmapped writers stay under their readers' thresholds.
-     * <p>
-     * {@code segment_size} is 64 KiB (the minimum) so the files need only be ~360 KiB rather than megabytes. It is
-     * identity-inert, so it does not move the cache address this test is about.
-     * <p>
-     * That the corpus really is split is not asserted directly - no response field reports it. It is established by
-     * the mutation: restoring the stripe path's refusal to file a foreign read turns this arm red, which it can only
-     * do if the read published stripes.
+     * A retyping declaration over SPLIT files - the ordinary shape, since a file splits once it reaches twice its
+     * reader's minimum segment. A split file publishes per-stripe fragments, and that commit path refused any
+     * measurement whose read was not the record's own, so such a dataset filed nothing anywhere. The only arm here
+     * large enough to split; {@code segment_size} sits at its 64 KiB minimum so ~360 KiB files suffice.
      */
     public void testRetypingMappingWarmsASegmentedRead() throws Exception {
         Path dir = createTempDir();
@@ -408,17 +391,10 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
     }
 
     /**
-     * The {@code fail_fast} discriminator, and the arm the ticket's acceptance asks for by name. Extrema are the
-     * statistics no licence ever carries across reads: {@code applicableStats} admits only the physical row count
-     * from a foreign read, and the dataset-level aggregate holds a bare count and no extrema at all. So a warm
-     * MIN/MAX can only have come from a record at this read's own address.
-     * <p>
-     * {@code value} is declared by nothing, so the declared-overlay poison does not reach it. MIN/MAX on the
-     * RETYPED column itself still re-scans - its harvested extrema are pre-coercion - which this arm does not
-     * cover.
-     * <p>
-     * The homogeneous corpus, because {@code fail_fast} is the default here and the heterogeneous one leaves
-     * {@code order_id} empty in some files, which a strict read of an integer column refuses.
+     * The {@code fail_fast} discriminator: no licence carries extrema across reads and the dataset aggregate holds
+     * none, so a warm MIN/MAX can only have come from a record at this read's own address. {@code value} is
+     * declared by nothing, so the overlay poison does not reach it. Homogeneous corpus, because {@code fail_fast}
+     * refuses the heterogeneous one's empty {@code order_id}.
      */
     public void testRetypingMappingWarmsMinMaxOnAnUntouchedColumn() throws Exception {
         Path dir = createTempDir();
@@ -444,16 +420,10 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
      * The ticket's acceptance shape: a plain dataset and a retyping one over the same corpus under the default
      * {@code fail_fast}, both warming their repeated COUNT(*).
      * <p>
-     * Separate directories, because of the LICENCE and not the addresses. Under {@code fail_fast} a row count is
-     * licensed to cross read configurations, so over one corpus the retyping dataset could be served the plain
-     * one's count on its first query and the cold assertion would fail for a legitimate reason. The two do not
-     * share a dataset-level fold whatever corpus they sit on - that is what the definition version decides, and
-     * {@code testStrictAndInferredDatasetsOverOneGlobNeverShareAnAggregate} pins it over a single glob.
-     * <p>
-     * That licence also makes this arm acceptance rather than a discriminator:
-     * {@code testRetypingMappingWarmsMinMaxOnAnUntouchedColumn} and the {@code null_field} count arm are what fail
-     * without the fix. The fallback guard is here so it cannot pass by way of the dataset aggregate instead of the
-     * per-file records.
+     * Separate directories because of the LICENCE, not the addresses: under {@code fail_fast} a row count crosses
+     * read configurations, so over one corpus the retyping dataset could be served the plain one's count and the
+     * cold assertion would fail for a legitimate reason. That licence also makes this arm acceptance rather than a
+     * discriminator. The fallback guard keeps it from passing by way of the dataset aggregate.
      */
     public void testPlainAndRetypingDatasetsBothWarmTheirCount() throws Exception {
         Path plainDir = createTempDir();

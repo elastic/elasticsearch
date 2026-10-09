@@ -11,18 +11,22 @@ import org.elasticsearch.cluster.metadata.DataSourceReference;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * The version exists so that everything derived from a dataset's definitions is addressed by those
@@ -495,15 +499,10 @@ public class DefinitionVersionTests extends ESTestCase {
     }
 
     /**
-     * A declared column name is user-controlled text in the pre-image, so it gets the same length-prefix defence
-     * the settings have. Without it, a name containing the encoding's own separators makes one declaration encode
-     * identically to a different one, and two different datasets then share every address derived from it.
-     * <p>
-     * The forgery is constructed against the encoder rather than guessed, because a guessed one does not collide
-     * and the case passes while proving nothing: a two-column declaration is impersonated by a ONE-column
-     * declaration whose single name embeds the first column's remaining fields and the next column's {@code col}
-     * marker. Length-prefixing the name is exactly what makes the two encodings differ, so dropping the prefix
-     * makes this case fail - which is how it was checked.
+     * A declared column name is user-controlled text in a VALUE slot, so what defends it is the value length
+     * prefix. The forgery is constructed against the encoder rather than guessed, because a guessed one does not
+     * collide and the case then proves nothing: a two-column declaration is impersonated by a one-column one
+     * whose single name embeds the first column's remaining fields and the next column's {@code col} marker.
      */
     public void testADeclaredColumnNameCannotForgeAFieldBoundary() {
         DataSource src = source(Map.of("endpoint", "https://s3.example"));
@@ -524,6 +523,28 @@ public class DefinitionVersionTests extends ESTestCase {
         );
     }
 
+    /**
+     * The two settings blocks are separated only by the fixed {@code ("type", …)} pair, so a key named
+     * {@code type} could otherwise bridge them: a dataset with no settings over an {@code s3} source encodes
+     * like a dataset whose settings are {@code {"type":"s3"}} over a source of another type. Count-prefixing each
+     * block is what makes it self-delimiting. No registered key is named {@code type} today, which made this
+     * unreachable rather than safe - and nothing enforces that it stays unreachable.
+     */
+    public void testASettingKeyCannotBridgeTheTwoSettingsBlocks() {
+        // No dataset settings, source type s3, and the source carrying type=gcs ...
+        Dataset bare = dataset("s3://b/*.csv", Map.of());
+        DataSource s3WithGcsSetting = new DataSource("src", "s3", null, Map.of("type", new DataSourceSetting("gcs", false)));
+        // ... encodes, unseparated, exactly like type=s3 in the DATASET's settings over a gcs source.
+        Dataset carriesType = dataset("s3://b/*.csv", Map.of("type", "s3"));
+        DataSource gcsBare = new DataSource("src", "gcs", null, Map.<String, DataSourceSetting>of());
+
+        assertNotEquals(
+            "a setting named like the fixed field between the two blocks must not merge them",
+            DefinitionVersion.ofDataset(bare, s3WithGcsSetting),
+            DefinitionVersion.ofDataset(carriesType, gcsBare)
+        );
+    }
+
     public void testTheDatasetVersionIsFixedWidth() {
         DataSource src = source(Map.of("endpoint", "https://s3.example"));
         for (int i = 0; i < 64; i++) {
@@ -533,45 +554,116 @@ public class DefinitionVersionTests extends ESTestCase {
     }
 
     /**
-     * The census, and the only case here that survives someone ADDING a field. Every other case pins a field
-     * that exists today; this one fails the build when a new one appears, because the decision it then needs -
-     * does this field change what a reader does? - cannot be made by a hash function and must not be made by
-     * omission. A field left out of the fold is an edit that silently serves the previous definition's
-     * measurements, which is the failure mode this tier has no other defence against: there is no version
-     * counter to fold instead and no invalidation message, so the content is the whole of the protocol.
+     * The census, and the only case here that survives someone ADDING a field. The decision a new field needs -
+     * does it change what a reader does? - cannot be made by a hash function and must not be made by omission.
+     * <p>
+     * Read from the SOURCE, because {@code getDeclaredFields} is a forbidden API here and {@code getFields} cannot
+     * see a private field. It is also the better instrument: a declaration is what a person adds.
      */
-    public void testTheFoldAccountsForEveryFieldOfBothDefinitions() {
+    public void testTheFoldAccountsForEveryFieldOfBothDefinitions() throws Exception {
         assertEquals(
             "a field was added to Dataset. Decide whether DefinitionVersion.ofDataset must fold it - anything that "
-                + "changes what a reader does MUST - then list it here.",
+                + "changes what a reader does MUST - then list it here. This asserts the DECLARED set, not that "
+                + "each one is folded: dataSource is folded as the resolved parent's name, and description is "
+                + "folded by nothing on purpose.",
             Set.of("name", "dataSource", "resource", "description", "settings", "mapping"),
-            instanceFieldNames(Dataset.class)
+            declaredFieldsOf("server/src/main/java/org/elasticsearch/cluster/metadata/Dataset.java", "Dataset")
         );
         assertEquals(
             "a field was added to DataSource. Same decision as above.",
             Set.of("name", "type", "description", "settings"),
-            instanceFieldNames(DataSource.class)
+            declaredFieldsOf(
+                "x-pack/plugin/esql/src/main/java/org/elasticsearch/xpack/esql/datasources/metadata/DataSource.java",
+                "DataSource"
+            )
         );
         assertEquals(
             "a field was added to a declared column. Same decision as above.",
             Set.of("type", "path", "format"),
-            instanceFieldNames(DatasetFieldMapping.class)
+            declaredFieldsOf("server/src/main/java/org/elasticsearch/cluster/metadata/DatasetFieldMapping.java", "DatasetFieldMapping")
         );
-        assertEquals("a field was added to DatasetMapping.", Set.of("mappings"), instanceFieldNames(DatasetMapping.class));
         assertEquals(
-            "a component was added to a mapping block.",
-            Set.of("dynamic", "properties"),
-            instanceFieldNames(DatasetMapping.Mappings.class)
+            "a field or mapping-block component was added to DatasetMapping.",
+            Set.of("mappings", "dynamic", "properties"),
+            declaredFieldsOf("server/src/main/java/org/elasticsearch/cluster/metadata/DatasetMapping.java", "DatasetMapping")
+        );
+        // One level below DataSource.settings, which is where the fold actually reaches. `secret` is deliberately
+        // NOT folded: it decides whether a value is masked on read-back, and mergeSettings yields the same merged
+        // config for a given rawValue either way, so it changes nothing a reader does.
+        assertEquals(
+            "a field was added to a data source setting. Same decision as above.",
+            Set.of("value", "secret"),
+            declaredFieldsOf(
+                "x-pack/plugin/esql/src/main/java/org/elasticsearch/xpack/esql/datasources/metadata/DataSourceSetting.java",
+                "DataSourceSetting"
+            )
         );
     }
 
-    private static Set<String> instanceFieldNames(Class<?> type) {
+    /** Instance fields and record components declared in one source file. */
+    private static Set<String> declaredFieldsOf(String relativePath, String simpleName) throws IOException {
+        Path root = PathUtils.get("").toAbsolutePath();
+        for (int i = 0; i < 12 && root != null && Files.exists(root.resolve(relativePath)) == false; i++) {
+            root = root.getParent();
+        }
+        assertNotNull("cannot locate " + relativePath + " from " + PathUtils.get("").toAbsolutePath(), root);
+        Set<String> names = declaredFieldsIn(Files.readString(root.resolve(relativePath), StandardCharsets.UTF_8));
+        assertFalse(simpleName + " declares no fields - the census would pass vacuously", names.isEmpty());
+        return names;
+    }
+
+    /**
+     * The parser, separated from the file it reads so {@link #testTheFieldScannerSeesBothShapes} can hold it to a
+     * fixture. It was wrong once - splitting a record header on every comma tore {@code Map<String, V>} in half -
+     * and a scanner that silently finds the wrong set makes the census above pass while checking nothing.
+     */
+    static Set<String> declaredFieldsIn(String source) {
         Set<String> names = new TreeSet<>();
-        for (Field field : type.getDeclaredFields()) {
-            if (Modifier.isStatic(field.getModifiers()) == false && field.isSynthetic() == false) {
-                names.add(field.getName());
+        Matcher field = Pattern.compile("^\\s{4}private final [\\w<>,\\[\\] ?.]+ (\\w+);", Pattern.MULTILINE).matcher(source);
+        while (field.find()) {
+            names.add(field.group(1));
+        }
+        Matcher rec = Pattern.compile("record \\w+\\(([^)]*)\\)", Pattern.DOTALL).matcher(source);
+        while (rec.find()) {
+            // Split on commas at angle-bracket depth 0: a component's own type may carry one, as
+            // Map<String, DatasetFieldMapping> does.
+            String header = rec.group(1);
+            int depth = 0;
+            int start = 0;
+            for (int i = 0; i <= header.length(); i++) {
+                char ch = i < header.length() ? header.charAt(i) : ',';
+                if (ch == '<') {
+                    depth++;
+                } else if (ch == '>') {
+                    depth--;
+                } else if (ch == ',' && depth == 0) {
+                    String trimmed = header.substring(start, i).trim().replaceAll("@\\w+\\s+", "");
+                    if (trimmed.isEmpty() == false) {
+                        names.add(trimmed.substring(trimmed.lastIndexOf(' ') + 1));
+                    }
+                    start = i + 1;
+                }
             }
         }
         return names;
+    }
+
+    public void testTheFieldScannerSeesBothShapes() {
+        String source = """
+            public final class Thing {
+                private static final String IGNORED = "not an instance field";
+                private final String name;
+                @Nullable
+                private final Map<String, List<Integer>> settings;
+                private final String withInitializer = "x";
+
+                public record Inner(Dynamic dynamic, Map<String, Field> properties) {}
+            }
+            """;
+        assertEquals(
+            "a plain field, a generic field, and both components of a record whose type carries a comma",
+            Set.of("name", "settings", "dynamic", "properties"),
+            declaredFieldsIn(source)
+        );
     }
 }

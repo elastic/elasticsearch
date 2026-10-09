@@ -1017,17 +1017,9 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     }
 
     /**
-     * A stripe delta from another read keeps out of this record's cover - and lands in its OWN, which is what makes a
-     * segmented read of a declared dataset warm at all.
-     * <p>
-     * The cover is an accumulating fold, so mixing two reads' stripes into one would let a partial read answer as a
-     * whole one. The address is what keeps them apart; refusing the delta outright also kept them apart but threw the
-     * measurement away, and a non-strict declaration that retypes a column resolves to a read whose stamp never
-     * equals the record's - so a segmented text read of such a dataset filed nothing anywhere, forever.
-     * <p>
-     * Asserting only that the foreign delta is absent from this record would pass either way: stripe state lives in
-     * the statistics store and the schema record is never written by this path. The assertions that discriminate are
-     * the two addresses.
+     * A stripe delta from another read keeps out of this record's cover and lands in its OWN, which is what makes a
+     * segmented read of a declared dataset warm at all. Asserting only its absence here would pass either way,
+     * since this path never writes the schema record; the two addresses are what discriminate.
      */
     public void testForeignStripeDeltaIsFiledAtItsOwnReadNotTheRecords() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
@@ -1092,8 +1084,8 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
      * cover. That is worse on this rail than on the whole-file one: the cover accumulates, so a foreign fragment can
      * complete a span and make a partial read answer as a whole one.
      * <p>
-     * Distinct from {@link #testForeignStripeDeltaIsFiledAtItsOwnReadNotTheRecords}: there the read configs differ and the
-     * read-shape gate rejects the delta. Here they agree, and only refusing an unattributable match stops it.
+     * Distinct from {@link #testForeignStripeDeltaIsFiledAtItsOwnReadNotTheRecords}: there the read configs differ, so
+     * the delta lands in its own record. Here they agree, and only refusing an unattributable match stops it.
      */
     public void testStripeDeltaFromAnotherStoreEntersNeitherCover() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
@@ -2136,7 +2128,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
      * normalise one read's extrema against another read's types — which it did, because the sibling whole-file
      * arm had that check and this one did not. There is nothing left to guard. The schema store holds one kind
      * of fact, so the delta cannot be handed the wrong thing, and the types it coerces against are the schema
-     * record's own because the read-shape gate established that the delta's read IS that record's read.
+     * record's own, which is now established by the address rather than by a refusal.
      * <p>
      * What is asserted now is the placement, and that the coercion still happens where it should: a DOUBLE
      * column and a long past 2^53 show the extremum rounding in the committed stripe, which is the behaviour
@@ -3399,8 +3391,8 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
     /**
      * The read-configuration arm. The entry is seeded carrying {@code rcA} deliberately: with an unstamped entry the
-     * entry-level read-configuration gate in applyStripeDelta refuses the delta first and this test passes even with
-     * the fold's own arm disabled -- measured, so the seeding is what makes it discriminate.
+     * delta reaches a different address and this test passes even with the fold's own arm disabled -- measured, so
+     * the seeding is what makes it discriminate.
      */
     public void testReadConfigMismatchInsideFoldBails() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
@@ -3806,9 +3798,9 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
      * whole-file sibling has stored a foreign read as harvested all along.
      * <p>
      * The per-stripe coercion targets the schema record's resolved types, and that is sound only when the
-     * delta's read IS that record's read — which is what the read-shape gate establishes. Without the gate the
-     * delta lands at the foreign read's own address and its extrema are coerced through a resolution that
-     * belongs to neither: this read did not produce those types, and the record that did is not this one.
+     * delta's read IS that record's read, which {@code deltaIsTheRecordsOwnRead} decides. Coercing a foreign
+     * read's extrema would push them through a resolution belonging to neither: this read did not produce those
+     * types, and the record that did is not this one.
      * <p>
      * It is asserted at the FOREIGN address, which is the part the sibling cases cannot see: they read through
      * the record's own stamp, so a delta misfiled under another read is invisible to them. That is why

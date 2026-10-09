@@ -821,15 +821,12 @@ public class ExternalSourceResolver {
             if (declaredMapping != null && isDeclaredSchema(declaredMapping) == false) {
                 finalSource = applyNonStrictOverlay(resolvedSource, declaredMapping, schemaInterner);
                 // When the overlay appended absent declared columns for a CSV/TSV source (which binds positionally
-                // under INFERRED provenance), the reader must bind by name instead, which is a provenance upgrade to
-                // DECLARED. The overlay grows the schema by exactly those columns, so comparing the two sizes is how
-                // this rail learns there were any.
+                // under INFERRED provenance), the reader must bind by name instead. The overlay grows the schema by
+                // exactly those columns, so comparing sizes is how this rail learns there were any.
                 //
-                // The upgrade itself is overlaidReadSpec's, not written again here: the spec it returns is what the
-                // read PERFORMS, and the same method decides the spec a statistics address is derived from. Two
-                // copies of this rule is how the address and the read came to disagree - a declaration that retyped
-                // a column addressed a configuration nothing performed, and every repeated aggregate over such a
-                // dataset re-read every byte.
+                // The upgrade is overlaidReadSpec's and is not written again here: one method decides both the spec
+                // the read PERFORMS and the spec a statistics address is derived from, and two copies of that rule
+                // is how the two came to disagree.
                 boolean appendedAbsent = finalSource.metadata().schema().size() > resolvedSource.metadata().schema().size();
                 effectiveReadSpec = overlaidReadSpec(declaredMapping, appendedAbsent, resolvedSource.metadata().sourceType());
             } else {
@@ -5520,11 +5517,9 @@ public class ExternalSourceResolver {
      */
     record OverlaidRead(List<Attribute> readSchema, DeclaredReadSpec spec) {
         /**
-         * The address this read's measurements live at, and the expectation the serve gate compares against.
-         * <p>
-         * One derivation for both, so a change to either moves both. It is NOT a guarantee that the two agree on
-         * every input: a caller that cannot see the unified schema passes the file's own in its place, which
-         * decides {@code absent()} differently. {@link #overlaidBoundReadOf} names the cell where that bites.
+         * One derivation for both the address and the serve expectation, so a change to either moves both. Not a
+         * guarantee that they agree on every input: a caller that cannot see the unified schema passes the file's
+         * own, deciding {@code absent()} differently. {@link #overlaidBoundReadOf} names the cell where that bites.
          */
         String fingerprint() {
             return ReadConfigFingerprint.of(readSchema, spec);
@@ -5532,8 +5527,8 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Where this read's measurements live: the bound read when the schema record cannot answer it, else the record's
-     * own. One owner, because the single-file rail and the per-file gather must agree on the question they ask.
+     * Where this read's measurements live: the bound read when the schema record cannot answer it, else the
+     * record's own. One owner, so the single-file rail and the per-file gather ask the same question.
      */
     @Nullable
     private static String statisticsAddressFor(SchemaCacheEntry record, @Nullable Function<SchemaCacheEntry, String> boundReadOf) {
@@ -5547,13 +5542,11 @@ public class ExternalSourceResolver {
 
     /**
      * The read every file on the first-file-wins rail is bound under. This rail reads every file at the ANCHOR's
-     * schema, so the whole listing performs ONE read and a single value addresses all of it; the caller derives it
-     * once and hands the same value to each consumer.
+     * schema, so one value addresses the whole listing and the caller derives it once.
      * <p>
-     * Under a non-strict declaration that read is the OVERLAID anchor schema - the schema the data node hashes when
-     * it stamps a harvest. Without the overlay this derived a configuration no read performs whenever the declaration
-     * changed a column's type, date format or column set, so every such dataset re-read every byte on every
-     * repeated aggregate. An undeclared or strict read keeps the derivation it had.
+     * Under a non-strict declaration that read is the OVERLAID anchor schema, which is what the data node hashes
+     * when it stamps a harvest. Without the overlay it names a configuration no read performs. An undeclared or
+     * strict read keeps the derivation it had.
      */
     // Package-private for testing.
     static String ffwBoundRead(ExternalSourceMetadata base, @Nullable DatasetMapping declaredMapping) {
@@ -5563,19 +5556,12 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * How a rail addresses one file's statistics: the read that file will be bound under, derived from the schema
-     * record describing it. {@code null} for an undeclared read, where the record's own stamp IS the bound read.
+     * How a rail addresses one file's statistics: the read that file will be bound under, via
+     * {@link #overlaidReadOf}. {@code null} for an undeclared or strict read, where the record's own stamp IS the
+     * bound read.
      * <p>
-     * A non-strict declaration is applied AFTER resolution produces the inferred schema, so a rail that addressed
-     * statistics by the record's own stamp asked the pre-overlay read while the data node harvested under the
-     * post-overlay one, which is the defect this exists to close. Derived through {@link #overlaidReadOf} so the address
-     * asked and the expectation {@code applyNonStrictOverlay} compares against come from one place.
-     * <p>
-     * {@code datasetFormat} is the RESOLVED source type and takes precedence over the record's own, mirroring
-     * {@link #withSourceType}: a dataset declaring {@code format} is read by that reader whatever the object name
-     * suggests, and the overlay's provenance upgrade is format-dependent ({@link #bindsAbsentDeclaredColumnsByName}
-     * admits csv and tsv only). Addressing by the record's extension-derived type would ask a different read than the
-     * one the data node performs.
+     * {@code datasetFormat} is the RESOLVED source type and wins over the record's own, because the provenance
+     * upgrade is format-dependent ({@link #bindsAbsentDeclaredColumnsByName} admits csv and tsv only).
      */
     @Nullable
     // Package-private for testing.
@@ -5587,13 +5573,9 @@ public class ExternalSourceResolver {
             return null;
         }
         // The record's own schema stands in for the unified one, because a function built before the gather cannot
-        // see the union. For the rails whose record IS the unified schema - the explicit single file, the anchor
-        // resolve - that is exact. Under union_by_name it is exact for a declared column every file carries and for
-        // one no file carries; it diverges for a column SOME files carry and this one does not, where the union
-        // makes it present while this file's own schema makes it absent, so this derivation appends it and (for
-        // csv/tsv) upgrades the binding while the read does neither. Such a file is read at a schema other than its
-        // own, which is a separate defect and stays cold either way - it simply misses at an address of its own
-        // rather than at the record's stamp.
+        // see the union. Exact for the explicit single file and the anchor resolve, whose record IS the unified
+        // schema. Under union_by_name it diverges only for a column SOME files carry and this one does not, which
+        // is a separate defect: such a file stays cold either way, missing at an address of its own.
         return record -> {
             List<Attribute> own = record.toAttributes();
             return overlaidReadOf(own, own, declaredMapping, datasetFormat != null ? datasetFormat : record.sourceType()).fingerprint();
@@ -5604,15 +5586,13 @@ public class ExternalSourceResolver {
      * The per-file overlaid read schema: the lenient per-file overlay, plus any declared column absent from the
      * unified inferred schema.
      * <p>
-     * Absent declared columns (missing from the unified inferred schema, because the sample did not reach them or the
-     * source does not carry them) are appended to every per-file schema. NDJSON resolves field values by JSON key and
+     * Absent declared columns are appended to every per-file schema. NDJSON resolves values by JSON key and
      * Parquet/ORC by column name; for CSV/TSV {@link #resolveNextPath} upgrades provenance to
-     * {@link SchemaProvenance#DECLARED} so the reader binds by header name (or {@code col<N>} to field N) rather than
-     * by schema position. In every case, rows that do not carry the field null-fill the slot and the reader warns.
+     * {@link SchemaProvenance#DECLARED} so the reader binds by header name rather than by position. Rows not
+     * carrying the field null-fill the slot and the reader warns.
      * <p>
-     * Under union-by-name, {@code absent} is empty whenever the column appeared in at least one file's inferred
-     * schema - the lenient per-file overlay correctly skips truly absent columns in the other files, leaving their
-     * column-mapping slots as null-fill, which is the intended behavior.
+     * Under union-by-name {@code absent} is empty whenever the column appeared in any file's inferred schema; the
+     * lenient per-file overlay leaves the other files' slots as null-fill.
      */
     private static List<Attribute> overlaidPerFileSchema(
         List<Attribute> fileSchema,
@@ -5629,9 +5609,8 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * The read spec a non-strict declaration resolves to, including the provenance upgrade a by-name binding requires.
-     * Mirrors the upgrade the outer resolver applies (see {@link #resolveNextPath}) so the fingerprint hashes what the
-     * data node's read will produce.
+     * The read spec a non-strict declaration resolves to, provenance upgrade included. {@link #resolveNextPath}
+     * asks this too, so the spec the read performs and the spec an address is derived from cannot diverge.
      */
     private static DeclaredReadSpec overlaidReadSpec(DatasetMapping declaredMapping, boolean hasAbsentColumns, String sourceType) {
         DeclaredReadSpec spec = declaredReadSpecOf(declaredMapping);
@@ -5642,10 +5621,9 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * The read one file resolves to under a non-strict declaration, computed from the file's own inferred schema and
-     * the unified inferred schema the declaration is overlaid onto. Used where only a resolved schema is in hand (a
-     * statistics lookup); {@link #applyNonStrictOverlay} composes the two halves directly, because it already holds
-     * one unified overlay for the whole listing and must not recompute it per file.
+     * The read one file resolves to under a non-strict declaration, from the file's own inferred schema and the
+     * unified one the declaration is overlaid onto. {@link #applyNonStrictOverlay} composes the halves directly
+     * instead, holding one unified overlay for the listing rather than recomputing it per file.
      */
     // Package-private for testing.
     static OverlaidRead overlaidReadOf(

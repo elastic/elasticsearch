@@ -104,7 +104,7 @@ public class FileSourceFactoryValidationTests extends ESTestCase {
      */
     public void testFrameworkKeysStripEveryDefinitionVersion() throws Exception {
         Set<String> versionKeys = new TreeSet<>();
-        for (Field field : DefinitionVersion.class.getDeclaredFields()) {
+        for (Field field : DefinitionVersion.class.getFields()) {
             if (Modifier.isStatic(field.getModifiers()) && field.getType() == String.class && field.getName().endsWith("CONFIG_KEY")) {
                 versionKeys.add((String) field.get(null));
             }

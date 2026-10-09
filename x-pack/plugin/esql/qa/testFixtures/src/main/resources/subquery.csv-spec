@@ -260,6 +260,24 @@ count:long | emp_no:integer | _index:keyword | _index_mode:keyword
 // end::subquery_with_metadata_outer-result[]
 ;
 
+subqueryClassAndNameOuter
+required_capability: subquery_in_from_command
+required_capability: metadata_class_and_name
+
+// tag::subquery_with_class_and_name[]
+FROM employees, (FROM sample_data) METADATA _class, _name
+| STATS count = COUNT(*) BY _class, _name
+// end::subquery_with_class_and_name[]
+| SORT _class
+;
+
+// tag::subquery_with_class_and_name-result[]
+count:long | _class:keyword | _name:keyword
+100        | index          | employees
+7          | subquery       | null
+// end::subquery_with_class_and_name-result[]
+;
+
 subqueryInFromWithWhereInSubquery
 required_capability: subquery_in_from_command
 

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.view;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedMetadataAttributeExpression;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -17,8 +18,8 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
-import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
@@ -49,8 +50,7 @@ import static org.elasticsearch.common.util.set.Sets.haveNonEmptyIntersection;
  *   <li>{@link #postIndexResolution(LogicalPlan, boolean)} — runs as an analyzer rule after {@code ResolveTable}.
  *       Strips any {@link ViewShadowRelation} that lenient field-caps did not fold into a sibling
  *       {@code EsRelation} (in Phase A this is all of them, since lenient field-caps is not yet
- *       wired up — see esql-planning#543), then flattens nested {@link ViewUnionAll}s and unwraps
- *       remaining {@link NamedSubquery} wrappers.</li>
+ *       wired up — see esql-planning#543), then flattens nested {@link ViewUnionAll}s.</li>
  * </ol>
  * <p>
  * The split is what lets a colleague implement lenient field-caps purely as a Phase B analyzer
@@ -69,7 +69,8 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
 
     /**
      * Backward-compatible helper: runs {@link #preIndexResolution(LogicalPlan)} followed by
-     * {@link #postIndexResolution(LogicalPlan, boolean)}. Production code calls the two phases separately;
+     * {@link #postIndexResolution(LogicalPlan, boolean)} and the {@link NamedSubquery} unwrap the analyzer
+     * performs right after ({@code Analyzer.UnwrapNamedSubqueries}). Production code calls the phases separately;
      * tests that exercise the compaction logic without going through the full analyzer call
      * this to get the same end state as the live pipeline produces.
      * <p>
@@ -98,14 +99,13 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
      * boundary, so it needs no knowledge of the request filter.
      */
     public static LogicalPlan preIndexResolution(LogicalPlan plan) {
-        return rewriteUnionAllsWithNamedSubqueries(plan);
+        return rewriteUnionAllsWithNamedSubqueries(plan, keepsBranchWrappers(plan));
     }
 
     /**
      * Phase 2, runs as an analyzer rule after {@code ResolveTable}. Strips
      * {@link ViewShadowRelation} siblings that lenient field-caps did not resolve, then flattens
-     * nested {@link ViewUnionAll} structures and unwraps remaining {@link NamedSubquery}
-     * wrappers. By the time this runs, all reachable {@link UnresolvedRelation}s have been
+     * nested {@link ViewUnionAll} structures. By the time this runs, all reachable {@link UnresolvedRelation}s have been
      * replaced by {@code EsRelation}s, so the {@link UnresolvedRelation}-merge step inside
      * {@link #compactNestedViewUnionAlls} is effectively a no-op — sibling {@code EsRelation}s
      * stay separate (Strategy A from esql-planning#543).
@@ -127,10 +127,19 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
         // pattern (and a parent {@link UnionAll} containing a {@link NamedSubquery} child) that
         // {@link #rewriteUnionAllsWithNamedSubqueries} needs to see in order to unwrap and convert
         // to {@link ViewUnionAll}, so we re-run the rewrite after the strip.
-        plan = rewriteUnionAllsWithNamedSubqueries(plan);
-        plan = compactNestedViewUnionAlls(plan, preserveViewBoundaries);
-        plan = plan.transformDown(NamedSubquery.class, UnaryPlan::child);
+        boolean keepBranchWrappers = keepsBranchWrappers(plan);
+        plan = rewriteUnionAllsWithNamedSubqueries(plan, keepBranchWrappers);
+        plan = compactNestedViewUnionAlls(plan, preserveViewBoundaries, keepBranchWrappers);
         return plan;
+    }
+
+    /**
+     * Whether any {@code FROM} in the plan, view bodies included, asks for {@code _class} or {@code _name}. The analyzer answers
+     * those from the {@link Subquery} and {@link NamedSubquery} wrappers, so compaction must then keep the outermost wrapper of
+     * every branch it rewrites or lifts.
+     */
+    private static boolean keepsBranchWrappers(LogicalPlan plan) {
+        return plan.anyMatch(p -> p instanceof UnresolvedMetadata um && MetadataAttribute.requestsRelationColumn(um.metadataFields()));
     }
 
     /**
@@ -187,61 +196,101 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
      * {@link ViewUnionAll} so that {@link org.elasticsearch.xpack.esql.dsltranslate.ViewRequestFilterRewriter}
      * can identify and filter view boundaries after analysis).
      */
-    static LogicalPlan rewriteUnionAllsWithNamedSubqueries(LogicalPlan plan) {
+    static LogicalPlan rewriteUnionAllsWithNamedSubqueries(LogicalPlan plan, boolean keepBranchWrappers) {
         // Unwrap Subquery[NamedSubquery[X]] → NamedSubquery[X]
         // Unwrap Subquery[ViewUnionAll[...]] → ViewUnionAll[...] so the parent UnionAll can inline it.
+        // When branch wrappers are kept, the outer wrapper wins instead: a NamedSubquery drops an inner one, a plain
+        // Subquery stays around its view, and the inlined entries of a ViewUnionAll are each wrapped in the Subquery.
         plan = plan.transformDown(Subquery.class, sq -> switch (sq.child()) {
+            case NamedSubquery n when keepBranchWrappers -> sq instanceof NamedSubquery ? sq.replaceChild(n.child()) : sq;
             case NamedSubquery n -> n;
+            case ViewUnionAll vua when keepBranchWrappers -> wrapEntries(vua, sq);
             case ViewUnionAll vua -> vua;
             default -> sq;
         });
 
-        plan = plan.transformDown(UnionAll.class, unionAll -> {
-            if (unionAll instanceof ViewUnionAll) {
-                return unionAll;
-            }
-            boolean hasViewChildren = unionAll.children().stream().anyMatch(c -> c instanceof NamedSubquery || c instanceof ViewUnionAll);
-            if (hasViewChildren == false) {
-                return unionAll;
-            }
-            LinkedHashMap<String, LogicalPlan> subPlans = new LinkedHashMap<>();
-            // Structural truth only: which branches came from views. Recorded unconditionally —
-            // whether a boundary must survive compaction is decided separately, from
-            // preserveViewBoundaries, at the points that would collapse it.
-            Set<String> viewBranchKeys = new HashSet<>();
-            for (LogicalPlan child : unionAll.children()) {
-                if (child instanceof NamedSubquery named) {
-                    assertSubqueryDoesNotExist(subPlans, named.name());
-                    subPlans.put(named.name(), named.child());
-                    // A NamedSubquery is by construction a resolved view branch.
-                    viewBranchKeys.add(named.name());
-                } else if (child instanceof ViewUnionAll vua) {
-                    // Inline the ViewUnionAll's named entries directly into this level, preserving
-                    // their view-branch status. This handles the case where view resolution wraps
-                    // a single view in a ViewUnionAll (e.g. FROM emp2, (FROM my_view) where the
-                    // user-written Subquery wrapper was unwrapped above and the inner ViewUnionAll
-                    // now appears as a direct child of this UnionAll).
-                    for (Map.Entry<String, LogicalPlan> entry : vua.namedSubqueries().entrySet()) {
-                        assertSubqueryDoesNotExist(subPlans, entry.getKey());
-                        subPlans.put(entry.getKey(), entry.getValue());
-                        if (vua.isViewBranch(entry.getKey())) {
-                            viewBranchKeys.add(entry.getKey());
-                        }
-                    }
-                } else if (child instanceof Subquery unnamed) {
-                    String name = "unnamed_view_" + Integer.toHexString(unnamed.toString().hashCode());
-                    assertSubqueryDoesNotExist(subPlans, name);
-                    subPlans.put(name, unnamed.child());
-                    // Literal user-written subquery: NOT a view branch.
-                } else {
-                    assertSubqueryDoesNotExist(subPlans, null);
-                    subPlans.put(null, child);
-                    // Bare plan: NOT a view branch.
-                }
-            }
-            return new ViewUnionAll(unionAll.source(), subPlans, viewBranchKeys, unionAll.output());
-        });
+        plan = plan.transformDown(UnionAll.class, unionAll -> toViewUnionAll(unionAll, keepBranchWrappers));
         return plan;
+    }
+
+    /** Wraps every entry of {@code vua} in a copy of {@code outerWrapper}; a {@link ViewShadowRelation} stays bare for the strip. */
+    private static ViewUnionAll wrapEntries(ViewUnionAll vua, Subquery outerWrapper) {
+        LinkedHashMap<String, LogicalPlan> wrapped = new LinkedHashMap<>();
+        for (Map.Entry<String, LogicalPlan> entry : vua.namedSubqueries().entrySet()) {
+            LogicalPlan value = entry.getValue();
+            wrapped.put(entry.getKey(), value instanceof ViewShadowRelation ? value : rewrap(outerWrapper, value));
+        }
+        return new ViewUnionAll(vua.source(), wrapped, vua.viewBranchKeys(), vua.output());
+    }
+
+    /** {@code plan} with its own {@link Subquery} wrappers replaced by a copy of {@code outerWrapper}. */
+    private static LogicalPlan rewrap(Subquery outerWrapper, LogicalPlan plan) {
+        return outerWrapper.replaceChild(unwrapAll(plan));
+    }
+
+    private static LogicalPlan unwrapAll(LogicalPlan plan) {
+        while (plan instanceof Subquery sq) {
+            plan = sq.child();
+        }
+        return plan;
+    }
+
+    private static LogicalPlan toViewUnionAll(UnionAll unionAll, boolean keepBranchWrappers) {
+        if (unionAll instanceof ViewUnionAll) {
+            return unionAll;
+        }
+        boolean hasViewChildren = unionAll.children()
+            .stream()
+            .anyMatch(c -> c instanceof NamedSubquery || c instanceof ViewUnionAll || isSubqueryOfAView(c));
+        if (hasViewChildren == false) {
+            return unionAll;
+        }
+        LinkedHashMap<String, LogicalPlan> subPlans = new LinkedHashMap<>();
+        // Structural truth only: which branches came from views. Recorded unconditionally —
+        // whether a boundary must survive compaction is decided separately, from
+        // preserveViewBoundaries, at the points that would collapse it.
+        Set<String> viewBranchKeys = new HashSet<>();
+        for (LogicalPlan child : unionAll.children()) {
+            if (child instanceof NamedSubquery named) {
+                assertSubqueryDoesNotExist(subPlans, named.name());
+                subPlans.put(named.name(), keepBranchWrappers ? named : named.child());
+                // A NamedSubquery is by construction a resolved view branch.
+                viewBranchKeys.add(named.name());
+            } else if (child instanceof ViewUnionAll vua) {
+                // Inline the ViewUnionAll's named entries directly into this level, preserving
+                // their view-branch status. This handles the case where view resolution wraps
+                // a single view in a ViewUnionAll (e.g. FROM emp2, (FROM my_view) where the
+                // user-written Subquery wrapper was unwrapped above and the inner ViewUnionAll
+                // now appears as a direct child of this UnionAll).
+                for (Map.Entry<String, LogicalPlan> entry : vua.namedSubqueries().entrySet()) {
+                    assertSubqueryDoesNotExist(subPlans, entry.getKey());
+                    subPlans.put(entry.getKey(), entry.getValue());
+                    if (vua.isViewBranch(entry.getKey())) {
+                        viewBranchKeys.add(entry.getKey());
+                    }
+                }
+            } else if (isSubqueryOfAView(child)) {
+                // Only reachable when branch wrappers are kept: the Subquery answers _class, its view still takes the filter.
+                String name = ((NamedSubquery) ((Subquery) child).child()).name();
+                assertSubqueryDoesNotExist(subPlans, name);
+                subPlans.put(name, child);
+                viewBranchKeys.add(name);
+            } else if (child instanceof Subquery unnamed) {
+                String name = "unnamed_view_" + Integer.toHexString(unnamed.toString().hashCode());
+                assertSubqueryDoesNotExist(subPlans, name);
+                subPlans.put(name, keepBranchWrappers ? unnamed : unnamed.child());
+                // Literal user-written subquery: NOT a view branch.
+            } else {
+                assertSubqueryDoesNotExist(subPlans, null);
+                subPlans.put(null, child);
+                // Bare plan: NOT a view branch.
+            }
+        }
+        return new ViewUnionAll(unionAll.source(), subPlans, viewBranchKeys, unionAll.output());
+    }
+
+    private static boolean isSubqueryOfAView(LogicalPlan plan) {
+        return plan instanceof Subquery sq && sq instanceof NamedSubquery == false && sq.child() instanceof NamedSubquery;
     }
 
     /**
@@ -256,12 +305,12 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
      * seeing it. Exclusion-bearing {@link UnresolvedRelation}s stay wrapped to preserve their
      * narrow scope (see exclusion-leak tests).
      */
-    static LogicalPlan compactNestedViewUnionAlls(LogicalPlan plan, boolean preserveViewBoundaries) {
+    static LogicalPlan compactNestedViewUnionAlls(LogicalPlan plan, boolean preserveViewBoundaries, boolean keepBranchWrappers) {
         List<LogicalPlan> children = plan.children();
         List<LogicalPlan> newChildren = null;
         for (int i = 0; i < children.size(); i++) {
             LogicalPlan child = children.get(i);
-            LogicalPlan newChild = compactNestedViewUnionAlls(child, preserveViewBoundaries);
+            LogicalPlan newChild = compactNestedViewUnionAlls(child, preserveViewBoundaries, keepBranchWrappers);
             if (newChild != child) {
                 if (newChildren == null) {
                     newChildren = new ArrayList<>(children);
@@ -271,16 +320,19 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
         }
         LogicalPlan current = (newChildren != null) ? plan.replaceChildren(newChildren) : plan;
 
-        if (current instanceof NamedSubquery ns && ns.child() instanceof UnresolvedRelation ur && containsExclusion(ur) == false) {
+        if (keepBranchWrappers == false
+            && current instanceof NamedSubquery ns
+            && ns.child() instanceof UnresolvedRelation ur
+            && containsExclusion(ur) == false) {
             return ur;
         }
         if (current instanceof ViewUnionAll vua) {
-            return tryFlattenViewUnionAll(vua, preserveViewBoundaries);
+            return tryFlattenViewUnionAll(vua, preserveViewBoundaries, keepBranchWrappers);
         }
         return current;
     }
 
-    private static LogicalPlan tryFlattenViewUnionAll(ViewUnionAll vua, boolean preserveViewBoundaries) {
+    private static LogicalPlan tryFlattenViewUnionAll(ViewUnionAll vua, boolean preserveViewBoundaries, boolean keepBranchWrappers) {
         // Trial pass: collect all entries from full flattening and check for conflicts.
         // Inner ViewUnionAlls that only contain UnresolvedRelations are lifted into the parent,
         // eliminating nesting that the runtime doesn't yet support.
@@ -298,7 +350,7 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
         for (Map.Entry<String, LogicalPlan> entry : vua.namedSubqueries().entrySet()) {
             String key = entry.getKey();
             LogicalPlan value = entry.getValue();
-            LogicalPlan inner = (value instanceof NamedSubquery ns) ? ns.child() : value;
+            LogicalPlan inner = keepBranchWrappers ? unwrapAll(value) : (value instanceof NamedSubquery ns) ? ns.child() : value;
             if (inner instanceof MergePlan) {
                 mergeEntries.add(entry);
             } else if (value instanceof UnresolvedRelation) {
@@ -324,7 +376,9 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
         for (Map.Entry<String, LogicalPlan> entry : mergeEntries) {
             String parentKey = entry.getKey();
             LogicalPlan value = entry.getValue();
-            LogicalPlan inner = (value instanceof NamedSubquery ns) ? ns.child() : value;
+            LogicalPlan inner = keepBranchWrappers ? unwrapAll(value) : (value instanceof NamedSubquery ns) ? ns.child() : value;
+            // A lifted piece answers _class and _name for the branch it was lifted out of, not for itself.
+            Subquery outerWrapper = keepBranchWrappers && value instanceof Subquery sq ? sq : null;
             if (inner instanceof ViewUnionAll innerVua) {
                 // Named branches from inner ViewUnionAll: lift with their own names. A bare
                 // UnresolvedRelation with an exclusion must be wrapped in a NamedSubquery before
@@ -334,7 +388,9 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
                 for (Map.Entry<String, LogicalPlan> innerEntry : innerVua.namedSubqueries().entrySet()) {
                     String innerKey = innerEntry.getKey();
                     LogicalPlan innerValue = innerEntry.getValue();
-                    if (innerValue instanceof UnresolvedRelation innerUr && containsExclusion(innerUr)) {
+                    if (outerWrapper != null && innerValue instanceof ViewShadowRelation == false) {
+                        innerValue = rewrap(outerWrapper, innerValue);
+                    } else if (innerValue instanceof UnresolvedRelation innerUr && containsExclusion(innerUr)) {
                         innerValue = new NamedSubquery(innerUr.source(), innerUr, innerKey);
                     }
                     String assignedKey = makeUniqueKey(flat, innerKey);
@@ -359,7 +415,9 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
                 for (LogicalPlan child : mergePlan.children()) {
                     LogicalPlan unwrapped = (child instanceof Subquery sq) ? sq.child() : child;
                     String childKey = parentKey + "#" + childIndex++;
-                    if (unwrapped instanceof UnresolvedRelation childUr && containsExclusion(childUr)) {
+                    if (outerWrapper != null) {
+                        unwrapped = rewrap(outerWrapper, unwrapped);
+                    } else if (unwrapped instanceof UnresolvedRelation childUr && containsExclusion(childUr)) {
                         unwrapped = new NamedSubquery(childUr.source(), childUr, childKey);
                     }
                     String assignedKey = makeUniqueKey(flat, childKey);

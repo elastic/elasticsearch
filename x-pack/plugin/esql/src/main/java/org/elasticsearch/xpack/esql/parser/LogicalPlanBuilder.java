@@ -417,8 +417,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
             LogicalPlan inner;
             if (mainQueryAndSubqueries.size() == 1) {
-                // if there is only one child, return it directly, no need for UnionAll
-                inner = subqueries.get(0).plan();
+                Subquery only = subqueries.get(0);
+                // if there is only one child without metadata - return it directly, no need for UnionAll
+                inner = metadataFields.isEmpty() ? only.plan() : only;
             } else {
                 // the output of UnionAll is resolved by analyzer
                 inner = new UnionAll(source(ctxs.getFirst(), ctxs.getLast()), mainQueryAndSubqueries, List.of());

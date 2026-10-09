@@ -339,11 +339,11 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
     private Path writeRaggedCorpus() throws IOException {
         Path dir = createTempDir();
         Files.writeString(dir.resolve("part-00.csv"), "id,color,value\n1,red,10\n2,blue,20\n", StandardCharsets.UTF_8);
-        Files.writeString(
-            dir.resolve("part-01.csv"),
-            "id,color,value,extra\n3,green,30,x\n4,black,40,y\n5,white,50,z\n",
-            StandardCharsets.UTF_8
-        );
+        // A three-column header with four-field rows. Since elastic/elasticsearch#161120 a headered file binds
+        // by its OWN header, so a wider header would simply put `extra` outside the read schema and drop
+        // nothing; what still drops a row is being malformed against the header it declares. A strict
+        // four-column declaration reads the same rows whole, which is the asymmetry this case needs.
+        Files.writeString(dir.resolve("part-01.csv"), "id,color,value\n3,green,30,x\n4,black,40,y\n5,white,50,z\n", StandardCharsets.UTF_8);
         return dir;
     }
 

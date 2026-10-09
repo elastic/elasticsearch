@@ -216,7 +216,7 @@ public final class ShardBatchMapper {
                     if (groupBuilder == null) {
                         groupBuilder = new ColumnGroupResolver.Builder();
                     }
-                    // The sink is keyed by the leaf's full dotted path, matching DynamicFieldsBuilder.FlattenedSink,
+                    // The sink is keyed by the leaf's full dotted path, matching UnmappedSinkFieldMapper.absorb,
                     // which calls indexValueAtPath with context.path().pathAsText(name).
                     groupBuilder.add(new ColumnGroupLookup.Owned(sink, FlattenedFieldMapper.UNMAPPED_SINK_NAME, fullPath), leaf);
                     columnMappers[leaf] = null;
@@ -314,7 +314,7 @@ public final class ShardBatchMapper {
             return null;
         }
         // getRootDynamic only reports FLATTENED when the sink exists, so this cast is safe.
-        final FlattenedFieldMapper sink = (FlattenedFieldMapper) lookup.getMapper(FlattenedFieldMapper.UNMAPPED_SINK_NAME);
+        final FieldMapper sink = (FieldMapper) lookup.getMapper(FlattenedFieldMapper.UNMAPPED_SINK_NAME);
         if (sink.supportsColumnarParse(indexSettings) == false) {
             logger.debug(
                 "columnar batch mapping disabled: [{}] sink does not support columnar parsing",

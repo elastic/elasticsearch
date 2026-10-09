@@ -23,6 +23,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.SourceFieldMapper.Mode;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -521,8 +522,10 @@ public class MapperServiceTests extends MapperServiceTestCase {
                 }
                 boolean isTimeSeriesField = builtIn.equals("_tsid") || builtIn.equals("_ts_routing_hash");
                 boolean isTimeSeriesMode = mapperService.getIndexSettings().getMode().equals(IndexMode.TIME_SERIES);
+                boolean isAbsentUnmappedSink = builtIn.equals(FlattenedFieldMapper.UNMAPPED_SINK_NAME)
+                    && mapperService.getIndexSettings().isFlattenedUnmappedFieldsEnabled() == false;
 
-                if (isTimeSeriesField && isTimeSeriesMode == false) {
+                if ((isTimeSeriesField && isTimeSeriesMode == false) || isAbsentUnmappedSink) {
                     assertFalse(
                         "Expected "
                             + builtIn

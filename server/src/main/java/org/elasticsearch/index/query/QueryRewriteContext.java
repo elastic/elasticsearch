@@ -19,9 +19,11 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.DynamicFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -73,6 +75,7 @@ public class QueryRewriteContext {
     protected boolean allowUnmappedFields;
     protected boolean mapUnmappedFieldAsString;
     protected Predicate<String> allowedFields;
+    protected Predicate<String> fieldVisibilityPredicate = Predicates.always();
     private final ResolvedIndices resolvedIndices;
     private final PointInTimeBuilder pit;
     private QueryRewriteInterceptor queryRewriteInterceptor;
@@ -336,7 +339,18 @@ public class QueryRewriteContext {
             return null;
         }
         MappedFieldType fieldType = runtimeMappings.get(name);
-        return fieldType == null ? mappingLookup.getFieldType(name) : fieldType;
+        if (fieldType == null) {
+            fieldType = mappingLookup.getFieldType(name);
+        }
+
+        // if this field is a constant_keyword, and the user's role has FLS rules targeting this field, ensure these are respected
+        if (fieldType instanceof ConstantFieldType constantFieldType) {
+            var visible = (mapperService != null && mapperService.isMetadataField(fieldType.name()))
+                || fieldVisibilityPredicate.test(fieldType.name());
+
+            return constantFieldType.applyFieldVisibility(visible);
+        }
+        return fieldType;
     }
 
     public IndexAnalyzers getIndexAnalyzers() {
@@ -363,6 +377,14 @@ public class QueryRewriteContext {
 
     public void setAllowUnmappedFields(boolean allowUnmappedFields) {
         this.allowUnmappedFields = allowUnmappedFields;
+    }
+
+    /**
+     * Sets the field visibility predicate for this context.
+     * The default value allows all fields, so contexts requiring restricted visibility must set this before resolving fields.
+     */
+    public void setFieldVisibilityPredicate(Predicate<String> fieldVisibilityPredicate) {
+        this.fieldVisibilityPredicate = fieldVisibilityPredicate;
     }
 
     public void setMapUnmappedFieldAsString(boolean mapUnmappedFieldAsString) {

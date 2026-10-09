@@ -310,7 +310,7 @@ public class SplitSourceServiceTests extends ESTestCase {
         };
     }
 
-    private void assertHandoffThrottled(
+    private void testHandoffThrottled(
         int numShards,
         double maxConcurrentHandoffPercentage,
         IntConsumer assertMaxConcurrentHandoffs,
@@ -379,13 +379,13 @@ public class SplitSourceServiceTests extends ESTestCase {
     }
 
     public void testThrottleHandoffOneShard() {
-        assertHandoffThrottled(randomIntBetween(2, 8), 12.5, maxConcurrentHandoffs -> assertThat(maxConcurrentHandoffs, equalTo(1)), false);
+        testHandoffThrottled(randomIntBetween(2, 8), 12.5, maxConcurrentHandoffs -> assertThat(maxConcurrentHandoffs, equalTo(1)), false);
     }
 
     public void testThrottleHandoffMultipleShards() {
         int numShards = randomIntBetween(5, 20);
         int maxConcurrentHandoffPercentage = randomIntBetween((int) Math.ceil(200.0 / numShards), 99);
-        assertHandoffThrottled(
+        testHandoffThrottled(
             numShards,
             maxConcurrentHandoffPercentage,
             maxConcurrentHandoffs -> assertThat(maxConcurrentHandoffs, greaterThan(1)),
@@ -395,12 +395,12 @@ public class SplitSourceServiceTests extends ESTestCase {
 
     public void testHandoffThrottleDisabled() {
         int numShards = randomIntBetween(2, 10);
-        assertHandoffThrottled(numShards, 100, maxConcurrentHandoffs -> assertThat(maxConcurrentHandoffs, equalTo(numShards)), false);
+        testHandoffThrottled(numShards, 100, maxConcurrentHandoffs -> assertThat(maxConcurrentHandoffs, equalTo(numShards)), false);
     }
 
     public void testHandoffThrottleFailsWhenSplitIsCancelledWhileWaiting() {
         int numShards = randomIntBetween(2, 8);
-        assertHandoffThrottled(numShards, 12.5, maxConcurrentHandoffs -> assertThat(maxConcurrentHandoffs, lessThan(numShards)), true);
+        testHandoffThrottled(numShards, 12.5, maxConcurrentHandoffs -> assertThat(maxConcurrentHandoffs, lessThan(numShards)), true);
     }
 
     public void testHandoffThrottleHoldsWhileAboveLimit() {

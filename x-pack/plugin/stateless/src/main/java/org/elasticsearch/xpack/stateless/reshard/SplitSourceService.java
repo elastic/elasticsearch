@@ -459,7 +459,7 @@ public class SplitSourceService {
      * Throttles handoff for offline warming of the search shards, only allow {@link #RESHARD_SPLIT_MAX_CONCURRENT_HANDOFF_PERCENTAGE}
      * of the split's target shards to be in state HANDOFF.
      * This is best-effort, since if multiple shards are waiting a single cluster state could allow all of them to proceed.
-     * Timeout of 10 minutes and fails if the task is cancelled.
+     * Timeout of 1 hour and fails if the task is cancelled.
      */
     void awaitHandoffSlot(CancellableTask task, ActionListener<Void> listener, ShardId targetShardId) {
         final var threadPool = clusterService.threadPool();
@@ -506,7 +506,7 @@ public class SplitSourceService {
             long handoffCount = split.targetStates().filter(s -> s == IndexReshardingState.Split.TargetShardState.HANDOFF).count();
             long maxConcurrentHandoffs = Math.max(1, (long) (totalTargetShards * maxConcurrentHandoffPercentage / 100.0));
             return preHandoffCount + handoffCount < maxConcurrentHandoffs;
-        }, TimeValue.timeValueMinutes(10), logger);
+        }, TimeValue.timeValueHours(1), logger);
     }
 
     public void stopCopyingNewCommits(ShardId targetShardId) {

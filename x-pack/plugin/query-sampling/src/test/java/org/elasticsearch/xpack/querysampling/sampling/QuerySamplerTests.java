@@ -111,6 +111,7 @@ public class QuerySamplerTests extends ESTestCase {
         assertFalse(sampler.offer(second));
         assertFalse(sampler.offer(third));
         assertThat("no chance, which is what the probability of the query says", second.inclusionProbability(), equalTo(0.0));
+        assertThat("both were turned away by the limit", sampler.starved(), equalTo(2L));
         assertThat(first.inclusionProbability(), greaterThan(0.0));
 
         now.addAndGet(TimeUnit.MINUTES.toNanos(2));

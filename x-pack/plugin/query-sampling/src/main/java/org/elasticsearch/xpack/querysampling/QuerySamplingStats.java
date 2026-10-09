@@ -32,8 +32,11 @@ import java.io.IOException;
  * @param expired            sampled queries deleted from the index because they were older than the retention
  * @param groundTruthComputed  queries whose ground truth this node computed by itself
  * @param groundTruthFailed    queries whose ground truth this node tried to compute by itself and could not
+ * @param starved            arrivals of queries that had no chance to be picked because the limit on the picks per hour was reached
  * @param effectiveCaptureRate the probability a search is captured with right now: the {@code capture_rate}, or higher
  *                             if the traffic is so low that the floor of captures per hour asks for it
+ * @param effectiveAcceptanceScale γ as it is now: the {@code acceptance_scale}, multiplied with what keeps the picks at
+ *                             their target when there is one
  * @param groundTruthCreditMillis what this node may still spend on exact searches, in milliseconds of search time,
  *                             negative if it is in debt
  */
@@ -51,7 +54,9 @@ public record QuerySamplingStats(
     long expired,
     long groundTruthComputed,
     long groundTruthFailed,
+    long starved,
     double effectiveCaptureRate,
+    double effectiveAcceptanceScale,
     double groundTruthCreditMillis
 ) implements Writeable, ToXContentFragment {
 
@@ -70,6 +75,8 @@ public record QuerySamplingStats(
             in.readVLong(),
             in.readVLong(),
             in.readVLong(),
+            in.readVLong(),
+            in.readDouble(),
             in.readDouble(),
             in.readDouble()
         );
@@ -90,7 +97,9 @@ public record QuerySamplingStats(
         out.writeVLong(expired);
         out.writeVLong(groundTruthComputed);
         out.writeVLong(groundTruthFailed);
+        out.writeVLong(starved);
         out.writeDouble(effectiveCaptureRate);
+        out.writeDouble(effectiveAcceptanceScale);
         out.writeDouble(groundTruthCreditMillis);
     }
 
@@ -109,7 +118,9 @@ public record QuerySamplingStats(
         builder.field("expired", expired);
         builder.field("ground_truth_computed", groundTruthComputed);
         builder.field("ground_truth_failed", groundTruthFailed);
+        builder.field("starved", starved);
         builder.field("effective_capture_rate", effectiveCaptureRate);
+        builder.field("effective_acceptance_scale", effectiveAcceptanceScale);
         builder.field("ground_truth_credit_millis", groundTruthCreditMillis);
         return builder;
     }

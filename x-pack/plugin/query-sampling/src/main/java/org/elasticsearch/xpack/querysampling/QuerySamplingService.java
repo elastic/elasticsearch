@@ -70,7 +70,9 @@ public class QuerySamplingService {
             retention.deleted(),
             groundTruthWorker.computed(),
             groundTruthWorker.failed(),
+            pipeline.starved(),
             filter.effectiveCaptureRate(),
+            pipeline.acceptanceScale(),
             budget.credit()
         );
     }

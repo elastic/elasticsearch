@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class QuerySamplingStatsTests extends AbstractWireSerializingTestCase<QuerySamplingStats> {
 
     /** How many of the numbers of the stats are counters. */
-    private static final int COUNTERS = 13;
+    private static final int COUNTERS = 14;
 
     @Override
     protected Writeable.Reader<QuerySamplingStats> instanceReader() {
@@ -34,27 +34,30 @@ public class QuerySamplingStatsTests extends AbstractWireSerializingTestCase<Que
         for (int i = 0; i < COUNTERS; i++) {
             counters[i] = randomNonNegativeLong();
         }
-        return stats(counters, randomDouble(), randomDouble());
+        return stats(counters, randomDouble(), randomDouble(), randomDouble());
     }
 
     @Override
     protected QuerySamplingStats mutateInstance(QuerySamplingStats instance) {
         long[] counters = counters(instance);
         double rate = instance.effectiveCaptureRate();
+        double scale = instance.effectiveAcceptanceScale();
         double credit = instance.groundTruthCreditMillis();
-        int mutated = between(0, COUNTERS + 1);
+        int mutated = between(0, COUNTERS + 2);
         if (mutated < COUNTERS) {
             counters[mutated]++;
         } else if (mutated == COUNTERS) {
             rate += 0.5;
+        } else if (mutated == COUNTERS + 1) {
+            scale += 0.5;
         } else {
             credit += 0.5;
         }
-        return stats(counters, rate, credit);
+        return stats(counters, rate, scale, credit);
     }
 
     public void testRendersEveryNumber() throws IOException {
-        QuerySamplingStats stats = stats(new long[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13 }, 0.25, -7.5);
+        QuerySamplingStats stats = stats(new long[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14 }, 0.25, 0.5, -7.5);
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         stats.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
@@ -65,7 +68,8 @@ public class QuerySamplingStatsTests extends AbstractWireSerializingTestCase<Que
                 "{\"knn_searches\":1,\"captured\":2,\"dropped\":3,\"distinct_queries\":4,\"untracked_arrivals\":5,"
                     + "\"picked\":6,\"written\":7,\"write_failures\":8,\"write_dropped\":9,\"weights_refreshed\":10,"
                     + "\"expired\":11,\"ground_truth_computed\":12,\"ground_truth_failed\":13,"
-                    + "\"effective_capture_rate\":0.25,\"ground_truth_credit_millis\":-7.5}"
+                    + "\"starved\":14,\"effective_capture_rate\":0.25,\"effective_acceptance_scale\":0.5,"
+                    + "\"ground_truth_credit_millis\":-7.5}"
             )
         );
     }
@@ -84,10 +88,16 @@ public class QuerySamplingStatsTests extends AbstractWireSerializingTestCase<Que
             stats.weightsRefreshed(),
             stats.expired(),
             stats.groundTruthComputed(),
-            stats.groundTruthFailed() };
+            stats.groundTruthFailed(),
+            stats.starved() };
     }
 
-    private static QuerySamplingStats stats(long[] counters, double effectiveCaptureRate, double groundTruthCreditMillis) {
+    private static QuerySamplingStats stats(
+        long[] counters,
+        double effectiveCaptureRate,
+        double effectiveAcceptanceScale,
+        double groundTruthCreditMillis
+    ) {
         assertThat(counters.length, equalTo(COUNTERS));
         return new QuerySamplingStats(
             counters[0],
@@ -103,7 +113,9 @@ public class QuerySamplingStatsTests extends AbstractWireSerializingTestCase<Que
             counters[10],
             counters[11],
             counters[12],
+            counters[13],
             effectiveCaptureRate,
+            effectiveAcceptanceScale,
             groundTruthCreditMillis
         );
     }

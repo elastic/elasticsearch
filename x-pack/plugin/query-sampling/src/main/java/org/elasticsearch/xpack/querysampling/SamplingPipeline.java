@@ -58,6 +58,20 @@ public final class SamplingPipeline implements Consumer<CapturedSearch> {
         return picked.sum();
     }
 
+    /**
+     * Arrivals of queries that had no chance to be picked because the limit on the picks was reached.
+     */
+    public long starved() {
+        return sampler.starved();
+    }
+
+    /**
+     * γ as it is now, the setting multiplied with what keeps the picks at their target.
+     */
+    public double acceptanceScale() {
+        return sampler.effectiveScale();
+    }
+
     @Override
     public void accept(CapturedSearch captured) {
         // a search was captured with the probability it carries, so its time over that probability is an unbiased

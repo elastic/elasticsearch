@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.LongAdder;
 
 /**
  * Decides which distinct queries go into the sample.
@@ -48,6 +49,7 @@ public final class QuerySampler {
     private final PickBudget budget;
     private final SpatialStrata spatial;
     private final HardnessStrata hardness;
+    private final LongAdder starved = new LongAdder();
     private final ScaleRegulator regulator = new ScaleRegulator();
 
     /**
@@ -122,6 +124,13 @@ public final class QuerySampler {
     }
 
     /**
+     * Arrivals that had no chance to be picked because the limit on the picks was reached.
+     */
+    public long starved() {
+        return starved.sum();
+    }
+
+    /**
      * γ as it is now, the setting multiplied with the adjustment that gets the picks to their target.
      */
     public double effectiveScale() {
@@ -179,6 +188,7 @@ public final class QuerySampler {
             // the limit on the picks is reached: the query has no chance now, and that is what is recorded for it, as for
             // any other probability, which keeps the estimates right. The head queries are never held back
             probability = 0.0;
+            starved.increment();
         }
         query.recordDraw(probability);
         if (query.isSampled() || random.nextDouble() >= probability) {

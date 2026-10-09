@@ -72,7 +72,8 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                 DenseVectorFieldMapper.VectorSimilarity similarity,
                 DenseVectorFieldMapper.ElementType elementType,
                 ExecutorService mergingExecutorService,
-                int maxMergingWorkers
+                int maxMergingWorkers,
+                ExecutorService quantizerExecutorService
             ) {
                 if (options instanceof DenseVectorFieldMapper.BBQIVFIndexOptions diskbbq) {
                     if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.DISK_BBQ_LICENSE_ENFORCEMENT)
@@ -106,6 +107,7 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                                 onDiskRescore,
                                 mergingExecutorService,
                                 maxMergingWorkers,
+                                quantizerExecutorService,
                                 flatIndexThreshold,
                                 sliceField,
                                 IvfFlushConfigSource.empty(),

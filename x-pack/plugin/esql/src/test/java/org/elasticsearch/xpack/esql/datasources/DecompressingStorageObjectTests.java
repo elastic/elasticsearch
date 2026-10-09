@@ -486,17 +486,18 @@ public class DecompressingStorageObjectTests extends ESTestCase {
     }
 
     /**
-     * Bytes after the decoder's end-of-stream (trailing zero padding) are read
-     * to the end of the body when they fit in {@link DecompressingStorageObject#MAX_TRAILING_DRAIN_BYTES}, so the
-     * connection is still pooled.
+     * Bytes left after a decoder that stops before the end of the raw body are read to the end of the body when
+     * they fit in {@link DecompressingStorageObject#MAX_TRAILING_DRAIN_BYTES}, so the connection is still pooled.
+     * Uses {@link StopsBeforeRawEndCodec} because the gzip decoder consumes its own zero tail before returning
+     * {@code -1}, which would make this pass even without the release-time drain.
      */
     public void testTrailingBytesWithinCapAreReadToEndOfBodyBeforeAbort() throws IOException {
         byte[] original = ndjsonLines(between(1, 10_000));
-        byte[] compressed = withTrailingZeros(gzip(original), between(1, DecompressingStorageObject.MAX_TRAILING_DRAIN_BYTES));
+        byte[] compressed = withTrailingZeros(original, between(1, DecompressingStorageObject.MAX_TRAILING_DRAIN_BYTES));
         DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
         DecompressingStorageObject decompressing = new DecompressingStorageObject(
             DrainSimulatingStorageObject.create(compressed, tracking),
-            new GzipDecompressionCodec()
+            new StopsBeforeRawEndCodec(original.length)
         );
 
         try (InputStream stream = decompressing.newStream()) {

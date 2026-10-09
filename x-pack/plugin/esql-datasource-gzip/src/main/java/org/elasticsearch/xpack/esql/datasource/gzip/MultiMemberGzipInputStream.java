@@ -162,7 +162,11 @@ final class MultiMemberGzipInputStream extends InputStream {
         }
     }
 
-    /** Zero bytes after the last member are tolerated; anything else is not a gzip member. */
+    /**
+     * Zero bytes after the last member are tolerated; anything else is not a gzip member.
+     * The scan is deliberately unbounded: a ceiling would let a non-zero byte past it go unreported and silently
+     * accept a corrupt file. Zero padding is normally a few block-sized bytes, so the cost is a bounded-in-practice read.
+     */
     private void skipZeroPadding() throws IOException {
         int b;
         while ((b = readByte()) != -1) {

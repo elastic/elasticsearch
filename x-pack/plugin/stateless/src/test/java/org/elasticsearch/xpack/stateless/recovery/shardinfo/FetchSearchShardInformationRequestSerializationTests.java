@@ -29,32 +29,48 @@ public class FetchSearchShardInformationRequestSerializationTests extends Abstra
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomBoolean() ? null : randomIdentifier(), randomShardId(), randomBoolean());
+        boolean fetch = randomBoolean();
+        return new Request(randomBoolean() ? null : randomIdentifier(), randomShardId(), fetch, fetch ? randomNonNegativeLong() : 0L);
     }
 
     @Override
     protected Request mutateInstance(Request instance) {
-        return switch (randomIntBetween(0, 2)) {
+        return switch (randomIntBetween(0, 3)) {
             case 0 -> new Request(
                 randomValueOtherThan(instance.getNodeId(), () -> randomBoolean() ? null : randomIdentifier()),
                 instance.getShardId(),
-                instance.wantVolumes()
+                instance.shouldFetchSourceNodeShardWarmVolumes(),
+                instance.shutdownSignalTimestamp()
             );
             case 1 -> new Request(
                 instance.getNodeId(),
                 randomValueOtherThan(instance.getShardId(), FetchSearchShardInformationRequestSerializationTests::randomShardId),
-                instance.wantVolumes()
+                instance.shouldFetchSourceNodeShardWarmVolumes(),
+                instance.shutdownSignalTimestamp()
             );
-            case 2 -> new Request(instance.getNodeId(), instance.getShardId(), instance.wantVolumes() == false);
+            case 2 -> new Request(
+                instance.getNodeId(),
+                instance.getShardId(),
+                instance.shouldFetchSourceNodeShardWarmVolumes() == false,
+                0L
+            );
+            case 3 -> instance.shouldFetchSourceNodeShardWarmVolumes()
+                ? new Request(
+                    instance.getNodeId(),
+                    instance.getShardId(),
+                    true,
+                    randomValueOtherThan(instance.shutdownSignalTimestamp(), () -> randomNonNegativeLong())
+                )
+                : new Request(instance.getNodeId(), instance.getShardId(), true, randomNonNegativeLong());
             default -> throw new AssertionError("unreachable");
         };
     }
 
     public void testWantVolumesDroppedOnUnsupportedVersion() throws IOException {
         final TransportVersion version = TransportVersionUtils.randomVersionNotSupporting(FETCH_SHARD_WARM_VOLUMES);
-        final Request original = new Request(randomBoolean() ? null : randomIdentifier(), randomShardId(), true);
+        final Request original = new Request(randomBoolean() ? null : randomIdentifier(), randomShardId(), true, randomNonNegativeLong());
         final Request copy = copyWriteable(original, getNamedWriteableRegistry(), instanceReader(), version);
-        assertThat(copy, equalTo(new Request(original.getNodeId(), original.getShardId(), false)));
+        assertThat(copy, equalTo(new Request(original.getNodeId(), original.getShardId(), false, 0L)));
     }
 
     private static ShardId randomShardId() {

@@ -105,7 +105,7 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
     // Memoization of estimated offline-warming bytes. Only populated on requests that ask for it, which are only sent when there is a
     // shutdown signal for this node present.
     private final Object sourceMemoLock = new Object();
-    private VolumesSnapshot sourceMemo;
+    private CollectedWarmVolumes sourceMemo;
 
     @SuppressWarnings("this-escape")
     @Inject
@@ -146,7 +146,7 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
         Optional<ProjectMetadata> projectMetadataOptional = clusterService.state()
             .metadata()
             .lookupProject(request.getShardId().getIndex());
-        if (request.wantVolumes() == false && projectMetadataOptional.isPresent()) {
+        if (request.shouldFetchSourceNodeShardWarmVolumes() == false && projectMetadataOptional.isPresent()) {
             ProjectMetadata projectMetadata = projectMetadataOptional.get();
             String indexName = request.getShardId().getIndex().getName();
 
@@ -185,8 +185,8 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
 
     // visible for testing
     static Request requestForResolvedShard(Request request, ShardRouting resolved) {
-        if (request.wantVolumes() && resolved.currentNodeId().equals(request.getNodeId()) == false) {
-            return new Request(request.getNodeId(), request.getShardId(), false);
+        if (request.shouldFetchSourceNodeShardWarmVolumes() && resolved.currentNodeId().equals(request.getNodeId()) == false) {
+            return new Request(request.getNodeId(), request.getShardId(), false, 0L);
         }
         return request;
     }
@@ -208,26 +208,29 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
                 });
             }
 
-            if (request.wantVolumes() == false) {
+            if (request.shouldFetchSourceNodeShardWarmVolumes() == false) {
                 return lastSearcherAcquired == SHARD_HAS_MOVED ? SHARD_HAS_MOVED_RESPONSE : new Response(lastSearcherAcquired);
             }
-            final var state = clusterService.state();
-            VolumesSnapshot snapshot = cachedOrCollect(state);
-            return new Response(lastSearcherAcquired, state.nodes().getLocalNodeId(), snapshot.generation(), snapshot.volumes());
+            CollectedWarmVolumes collected = cachedOrCollect(request.shutdownSignalTimestamp());
+            return new Response(
+                lastSearcherAcquired,
+                clusterService.state().nodes().getLocalNodeId(),
+                collected.shutdownSignalTimestamp(),
+                collected.volumes()
+            );
         });
     }
 
-    // Shards still recovering onto the source when shutdown began are recorded with 0 or partial volumes.
-    private VolumesSnapshot cachedOrCollect(ClusterState state) {
-        final var shutdown = state.metadata().nodeShutdowns().get(state.nodes().getLocalNodeId());
-        final long generation = shutdown == null ? Long.MIN_VALUE : shutdown.getStartedAtMillis();
+    // Shards still recovering onto the source when the volumes are collected are recorded with 0 or partial volumes.
+    // The timestamp is the one the target sent. This node may not have applied that shutdown record yet.
+    private CollectedWarmVolumes cachedOrCollect(long shutdownSignalTimestamp) {
         synchronized (sourceMemoLock) {
-            if (sourceMemo != null && sourceMemo.generation() == generation) {
+            if (sourceMemo != null && sourceMemo.shutdownSignalTimestamp() == shutdownSignalTimestamp) {
                 return sourceMemo;
             }
             final long nowMillis = nowSupplier.getAsLong();
-            sourceMemo = new VolumesSnapshot(
-                generation,
+            sourceMemo = new CollectedWarmVolumes(
+                shutdownSignalTimestamp,
                 collectWarmVolumes(snapshotSearchableShards(indicesService), shard -> tryEstimateShardWarmVolume(shard, nowMillis))
             );
             return sourceMemo;
@@ -367,29 +370,42 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
         }
     }
 
-    private record VolumesSnapshot(long generation, Map<ShardId, Long> volumes) {}
+    private record CollectedWarmVolumes(long shutdownSignalTimestamp, Map<ShardId, Long> volumes) {}
 
     public static class Request extends ActionRequest {
 
         private final String nodeId;
         private final ShardId shardId;
-        private final boolean wantVolumes;
+        private final boolean shouldFetchSourceNodeShardWarmVolumes;
+        private final long shutdownSignalTimestamp;
 
         public Request(@Nullable String nodeId, ShardId shardId) {
-            this(nodeId, shardId, false);
+            this(nodeId, shardId, false, 0L);
         }
 
-        public Request(@Nullable String nodeId, ShardId shardId, boolean wantVolumes) {
+        public Request(
+            @Nullable String nodeId,
+            ShardId shardId,
+            boolean shouldFetchSourceNodeShardWarmVolumes,
+            long shutdownSignalTimestamp
+        ) {
             this.shardId = shardId;
             this.nodeId = nodeId;
-            this.wantVolumes = wantVolumes;
+            this.shouldFetchSourceNodeShardWarmVolumes = shouldFetchSourceNodeShardWarmVolumes;
+            this.shutdownSignalTimestamp = shouldFetchSourceNodeShardWarmVolumes ? shutdownSignalTimestamp : 0L;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             shardId = new ShardId(in);
             nodeId = in.readOptionalString();
-            wantVolumes = in.getTransportVersion().supports(FETCH_SHARD_WARM_VOLUMES) && in.readBoolean();
+            if (in.getTransportVersion().supports(FETCH_SHARD_WARM_VOLUMES) && in.readBoolean()) {
+                shouldFetchSourceNodeShardWarmVolumes = true;
+                shutdownSignalTimestamp = in.readVLong();
+            } else {
+                shouldFetchSourceNodeShardWarmVolumes = false;
+                shutdownSignalTimestamp = 0L;
+            }
         }
 
         public String getNodeId() {
@@ -400,8 +416,12 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
             return shardId;
         }
 
-        public boolean wantVolumes() {
-            return wantVolumes;
+        public boolean shouldFetchSourceNodeShardWarmVolumes() {
+            return shouldFetchSourceNodeShardWarmVolumes;
+        }
+
+        public long shutdownSignalTimestamp() {
+            return shutdownSignalTimestamp;
         }
 
         @Override
@@ -415,7 +435,10 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
             shardId.writeTo(out);
             out.writeOptionalString(nodeId);
             if (out.getTransportVersion().supports(FETCH_SHARD_WARM_VOLUMES)) {
-                out.writeBoolean(wantVolumes);
+                out.writeBoolean(shouldFetchSourceNodeShardWarmVolumes);
+                if (shouldFetchSourceNodeShardWarmVolumes) {
+                    out.writeVLong(shutdownSignalTimestamp);
+                }
             }
         }
 
@@ -423,12 +446,15 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
         public boolean equals(Object o) {
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return wantVolumes == request.wantVolumes && Objects.equals(nodeId, request.nodeId) && Objects.equals(shardId, request.shardId);
+            return shouldFetchSourceNodeShardWarmVolumes == request.shouldFetchSourceNodeShardWarmVolumes
+                && shutdownSignalTimestamp == request.shutdownSignalTimestamp
+                && Objects.equals(nodeId, request.nodeId)
+                && Objects.equals(shardId, request.shardId);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(nodeId, shardId, wantVolumes);
+            return Objects.hash(nodeId, shardId, shouldFetchSourceNodeShardWarmVolumes, shutdownSignalTimestamp);
         }
     }
 
@@ -438,22 +464,22 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
         private final boolean volumesCollected;
         @Nullable
         private final String respondingNodeId;
-        private final long volumesGeneration;
+        private final long shutdownSignalTimestamp;
         private final Map<ShardId, Long> volumes;
 
         public Response(long lastSearcherAcquiredTime) {
             this.lastSearcherAcquiredTime = lastSearcherAcquiredTime;
             this.volumesCollected = false;
             this.respondingNodeId = null;
-            this.volumesGeneration = Long.MIN_VALUE;
+            this.shutdownSignalTimestamp = Long.MIN_VALUE;
             this.volumes = Map.of();
         }
 
-        public Response(long lastSearcherAcquiredTime, String respondingNodeId, long volumesGeneration, Map<ShardId, Long> volumes) {
+        public Response(long lastSearcherAcquiredTime, String respondingNodeId, long shutdownSignalTimestamp, Map<ShardId, Long> volumes) {
             this.lastSearcherAcquiredTime = lastSearcherAcquiredTime;
             this.volumesCollected = true;
             this.respondingNodeId = Objects.requireNonNull(respondingNodeId);
-            this.volumesGeneration = volumesGeneration;
+            this.shutdownSignalTimestamp = shutdownSignalTimestamp;
             this.volumes = Map.copyOf(volumes);
         }
 
@@ -462,12 +488,12 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
             if (in.getTransportVersion().supports(FETCH_SHARD_WARM_VOLUMES) && in.readBoolean()) {
                 volumesCollected = true;
                 respondingNodeId = in.readString();
-                volumesGeneration = in.readZLong();
+                shutdownSignalTimestamp = in.readVLong();
                 volumes = in.readImmutableMap(ShardId::new, StreamInput::readVLong);
             } else {
                 volumesCollected = false;
                 respondingNodeId = null;
-                volumesGeneration = Long.MIN_VALUE;
+                shutdownSignalTimestamp = Long.MIN_VALUE;
                 volumes = Map.of();
             }
         }
@@ -485,8 +511,16 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
             return respondingNodeId;
         }
 
-        public long volumesGeneration() {
-            return volumesGeneration;
+        public boolean noOtherShardsFound() {
+            return lastSearcherAcquiredTime == NO_OTHER_SHARDS_FOUND;
+        }
+
+        public boolean shardHasMoved() {
+            return lastSearcherAcquiredTime == SHARD_HAS_MOVED;
+        }
+
+        public long shutdownSignalTimestamp() {
+            return shutdownSignalTimestamp;
         }
 
         public Map<ShardId, Long> volumes() {
@@ -500,7 +534,7 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
                 out.writeBoolean(volumesCollected);
                 if (volumesCollected) {
                     out.writeString(respondingNodeId);
-                    out.writeZLong(volumesGeneration);
+                    out.writeVLong(shutdownSignalTimestamp);
                     out.writeMap(volumes, StreamOutput::writeWriteable, StreamOutput::writeVLong);
                 }
             }
@@ -512,14 +546,14 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
             Response response = (Response) o;
             return lastSearcherAcquiredTime == response.lastSearcherAcquiredTime
                 && volumesCollected == response.volumesCollected
-                && volumesGeneration == response.volumesGeneration
+                && shutdownSignalTimestamp == response.shutdownSignalTimestamp
                 && Objects.equals(respondingNodeId, response.respondingNodeId)
                 && Objects.equals(volumes, response.volumes);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(lastSearcherAcquiredTime, volumesCollected, respondingNodeId, volumesGeneration, volumes);
+            return Objects.hash(lastSearcherAcquiredTime, volumesCollected, respondingNodeId, shutdownSignalTimestamp, volumes);
         }
     }
 }

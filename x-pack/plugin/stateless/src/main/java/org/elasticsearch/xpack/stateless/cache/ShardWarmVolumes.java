@@ -11,7 +11,6 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
@@ -30,10 +29,10 @@ public class ShardWarmVolumes implements ClusterStateListener {
 
     public static final ShardWarmVolumes NOOP = new ShardWarmVolumes();
 
-    // Maps from source node ID to the warm-volume snapshot for a specific shutdown generation.
-    // Entries are added only while that source has a shutdown record, and dropped when the node leaves
-    // or its shutdown is cancelled / replaced with a new generation.
-    private final ConcurrentMap<String, Entry> memo = ConcurrentCollections.newConcurrentMap();
+    // Maps from source node ID to the warm volumes collected for one shutdown signal timestamp.
+    // Values are added only while that source has a shutdown record, and dropped when the node leaves
+    // or its shutdown is cancelled / replaced with a new shutdown signal timestamp.
+    private final ConcurrentMap<String, CollectedWarmVolumes> memo = ConcurrentCollections.newConcurrentMap();
     // Source node ID to the shutdown start time of the fetch that holds the claim.
     private final ConcurrentMap<String, Long> inFlight = ConcurrentCollections.newConcurrentMap();
     private volatile boolean enabled;
@@ -50,17 +49,9 @@ public class ShardWarmVolumes implements ClusterStateListener {
     }
 
     /**
-     * True when {@code routing} is a relocation whose source is marked for removal.
-     */
-    public static boolean shouldFetch(ShardRouting routing, ClusterState state) {
-        String sourceId = routing.relocatingNodeId();
-        return sourceId != null && state.metadata().nodeShutdowns().isNodeMarkedForRemoval(sourceId);
-    }
-
-    /**
-     * Claims the right to request volumes for {@code sourceNodeId} under the current shutdown generation.
-     * Returns false when disabled, the min transport version is too old, an entry already exists for this
-     * generation (including empty), or a fetch is already in flight.
+     * Claims the right to request volumes for {@code sourceNodeId} under the current shutdown signal timestamp.
+     * Returns false when disabled, the min transport version is too old, collected volumes already exist for this
+     * timestamp (including empty), or a fetch is already in flight.
      */
     public boolean claimFetch(ClusterState state, String sourceNodeId) {
         if (enabled == false || sourceNodeId == null) {
@@ -73,74 +64,69 @@ public class ShardWarmVolumes implements ClusterStateListener {
         if (shutdown == null) {
             return false;
         }
-        long generation = shutdown.getStartedAtMillis();
-        if (inFlight.putIfAbsent(sourceNodeId, generation) != null) {
+        long shutdownSignalTimestamp = shutdown.getStartedAtMillis();
+        if (inFlight.putIfAbsent(sourceNodeId, shutdownSignalTimestamp) != null) {
             return false;
         }
-        Entry existing = memo.get(sourceNodeId);
-        if (existing != null && existing.generationStartedAtMillis() == generation) {
-            inFlight.remove(sourceNodeId, generation);
+        CollectedWarmVolumes existing = memo.get(sourceNodeId);
+        if (existing != null && existing.shutdownSignalTimestamp() == shutdownSignalTimestamp) {
+            inFlight.remove(sourceNodeId, shutdownSignalTimestamp);
             return false;
         }
         return true;
     }
 
     /**
-     * Usable entry for the timeout formula: matching generation and a non-empty map.
+     * Usable collected volumes for the timeout formula: matching shutdown signal timestamp and a non-empty map.
      */
     @Nullable
-    public Entry get(ClusterState state, String sourceNodeId) {
+    public CollectedWarmVolumes get(ClusterState state, String sourceNodeId) {
         if (enabled == false) {
             return null;
         }
-        Entry entry = entryForGeneration(state, sourceNodeId);
-        if (entry == null || entry.volumes().isEmpty()) {
+        CollectedWarmVolumes collected = collectedForShutdownSignal(state, sourceNodeId);
+        if (collected == null || collected.volumes().isEmpty()) {
             return null;
         }
-        return entry;
+        return collected;
     }
 
     /**
-     * Any stored entry for this source's current shutdown generation, including empty.
+     * Any stored volumes for this source's current shutdown signal timestamp, including empty.
      */
     @Nullable
-    Entry entryForGeneration(ClusterState state, String sourceNodeId) {
-        Entry entry = memo.get(sourceNodeId);
-        if (entry == null) {
+    CollectedWarmVolumes collectedForShutdownSignal(ClusterState state, String sourceNodeId) {
+        CollectedWarmVolumes collected = memo.get(sourceNodeId);
+        if (collected == null) {
             return null;
         }
         var shutdown = state.metadata().nodeShutdowns().get(sourceNodeId);
-        if (shutdown == null || shutdown.getStartedAtMillis() != entry.generationStartedAtMillis()) {
+        if (shutdown == null || shutdown.getStartedAtMillis() != collected.shutdownSignalTimestamp()) {
             return null;
         }
-        return entry;
+        return collected;
     }
 
-    public void completeFetch(
-        ClusterState state,
-        String respondingNodeId,
-        long volumesGeneration,
-        Map<ShardId, Long> volumes
-    ) {
-        putIfCurrentGeneration(state, respondingNodeId, volumesGeneration, volumes);
+    public void completeFetch(ClusterState state, String respondingNodeId, long shutdownSignalTimestamp, Map<ShardId, Long> volumes) {
+        putIfCurrentShutdownSignal(state, respondingNodeId, shutdownSignalTimestamp, volumes);
     }
 
     /**
-     * Drops the in-flight claim for {@code sourceNodeId} when it is still the claim taken at {@code startedAtMillis}.
+     * Drops the in-flight claim for {@code sourceNodeId} when it is still the claim taken at {@code shutdownSignalTimestamp}.
      */
-    public void releaseClaim(String sourceNodeId, long startedAtMillis) {
-        inFlight.remove(sourceNodeId, startedAtMillis);
+    public void releaseClaim(String sourceNodeId, long shutdownSignalTimestamp) {
+        inFlight.remove(sourceNodeId, shutdownSignalTimestamp);
     }
 
-    private void putIfCurrentGeneration(ClusterState state, String nodeId, long generation, Map<ShardId, Long> volumes) {
+    private void putIfCurrentShutdownSignal(ClusterState state, String nodeId, long shutdownSignalTimestamp, Map<ShardId, Long> volumes) {
         if (state.nodes().nodeExists(nodeId) == false) {
             return;
         }
         var shutdown = state.metadata().nodeShutdowns().get(nodeId);
-        if (shutdown == null || shutdown.getStartedAtMillis() != generation) {
+        if (shutdown == null || shutdown.getStartedAtMillis() != shutdownSignalTimestamp) {
             return;
         }
-        memo.put(nodeId, new Entry(generation, volumes));
+        memo.put(nodeId, new CollectedWarmVolumes(shutdownSignalTimestamp, volumes));
     }
 
     @Override
@@ -165,14 +151,14 @@ public class ShardWarmVolumes implements ClusterStateListener {
         if (shutdownsChanged) {
             memo.entrySet().removeIf(e -> {
                 var shutdown = shutdowns.get(e.getKey());
-                return shutdown == null || shutdown.getStartedAtMillis() != e.getValue().generationStartedAtMillis();
+                return shutdown == null || shutdown.getStartedAtMillis() != e.getValue().shutdownSignalTimestamp();
             });
         }
     }
 
     // visible for testing
-    void put(String sourceNodeId, Entry entry) {
-        memo.put(sourceNodeId, entry);
+    void put(String sourceNodeId, CollectedWarmVolumes collected) {
+        memo.put(sourceNodeId, collected);
     }
 
     // visible for testing
@@ -181,18 +167,18 @@ public class ShardWarmVolumes implements ClusterStateListener {
     }
 
     // visible for testing
-    Entry peek(String sourceNodeId) {
+    CollectedWarmVolumes peek(String sourceNodeId) {
         return memo.get(sourceNodeId);
     }
 
     /**
-     * Completed warm-volume snapshot for one source node.
+     * Warm volumes collected for one source node under one shutdown signal.
      *
-     * @param generationStartedAtMillis shutdown generation the volumes were collected under
-     * @param volumes                   immutable per-shard warm volumes
+     * @param shutdownSignalTimestamp shutdown signal timestamp the volumes were collected under
+     * @param volumes                 immutable per-shard warm volumes
      */
-    public record Entry(long generationStartedAtMillis, Map<ShardId, Long> volumes) {
-        public Entry {
+    public record CollectedWarmVolumes(long shutdownSignalTimestamp, Map<ShardId, Long> volumes) {
+        public CollectedWarmVolumes {
             Objects.requireNonNull(volumes);
             volumes = Map.copyOf(volumes);
         }

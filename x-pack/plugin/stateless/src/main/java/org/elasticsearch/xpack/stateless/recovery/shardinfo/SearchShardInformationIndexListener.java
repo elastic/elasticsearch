@@ -11,6 +11,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -24,9 +26,6 @@ import org.elasticsearch.xpack.stateless.engine.SearchEngine;
 
 import java.util.Map;
 import java.util.function.LongSupplier;
-
-import static org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearchShardInformationAction.NO_OTHER_SHARDS_FOUND;
-import static org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearchShardInformationAction.SHARD_HAS_MOVED;
 
 /**
  * An IndexEventListener to retrieve state from other shard copies
@@ -88,40 +87,42 @@ public class SearchShardInformationIndexListener implements IndexEventListener {
             String relocatingNodeId = indexShard.routingEntry().relocatingNodeId();
 
             final var state = clusterService.state();
-            final boolean shouldFetch = ShardWarmVolumes.shouldFetch(indexShard.routingEntry(), state);
-            final long claimedStartedAtMillis = shouldFetch
+            final boolean relocatingFromNodeMarkedForRemoval = isRelocatingFromNodeMarkedForRemoval(indexShard.routingEntry(), state);
+            final long claimedShutdownSignalTimestamp = relocatingFromNodeMarkedForRemoval
                 ? state.metadata().nodeShutdowns().get(relocatingNodeId).getStartedAtMillis()
                 : 0L;
-            final boolean wantVolumes = shouldFetch && shardWarmVolumes.claimFetch(state, relocatingNodeId);
+            final boolean shouldFetchSourceNodeShardWarmVolumes = relocatingFromNodeMarkedForRemoval
+                && shardWarmVolumes.claimFetch(state, relocatingNodeId);
 
             final long start = nowSupplier.getAsLong();
             TransportFetchSearchShardInformationAction.Request request = new TransportFetchSearchShardInformationAction.Request(
                 relocatingNodeId,
                 indexShard.shardId(),
-                wantVolumes
+                shouldFetchSourceNodeShardWarmVolumes,
+                claimedShutdownSignalTimestamp
             );
 
-            ActionListener<TransportFetchSearchShardInformationAction.Response> responseListener = ActionListener.wrap(response -> {
-                if (wantVolumes && response.volumesCollected()) {
+            ActionListener<TransportFetchSearchShardInformationAction.Response> fetchListener = ActionListener.wrap(response -> {
+                if (shouldFetchSourceNodeShardWarmVolumes && response.volumesCollected()) {
                     shardWarmVolumes.completeFetch(
                         clusterService.state(),
                         response.respondingNodeId(),
-                        response.volumesGeneration(),
+                        response.shutdownSignalTimestamp(),
                         response.volumes()
                     );
                 }
 
-                long lastSearcherAcquiredTime = response.getLastSearcherAcquiredTime();
-                if (lastSearcherAcquiredTime == NO_OTHER_SHARDS_FOUND) {
+                if (response.noOtherShardsFound()) {
                     return;
                 }
 
-                if (lastSearcherAcquiredTime == SHARD_HAS_MOVED) {
+                if (response.shardHasMoved()) {
                     collector.shardMoved();
                     logger.trace("shard was moved before searcher could be acquired for shard [{}]", indexShard.shardId());
                     return;
                 }
 
+                long lastSearcherAcquiredTime = response.getLastSearcherAcquiredTime();
                 var attributes = Map.<String, Object>of("es_search_last_searcher_acquired_greater_zero", lastSearcherAcquiredTime > 0);
                 collector.recordSuccess(nowSupplier.getAsLong() - start, attributes);
 
@@ -144,12 +145,12 @@ public class SearchShardInformationIndexListener implements IndexEventListener {
                 logger.warn("could not retrieve search shard information data for shard [" + indexShard.shardId() + "]", e);
                 collector.recordError();
             });
-            if (wantVolumes) {
-                responseListener = ActionListener.runAfter(
-                    responseListener,
-                    () -> shardWarmVolumes.releaseClaim(relocatingNodeId, claimedStartedAtMillis)
-                );
-            }
+            ActionListener<TransportFetchSearchShardInformationAction.Response> responseListener = shouldFetchSourceNodeShardWarmVolumes
+                ? ActionListener.runAfter(
+                    fetchListener,
+                    () -> shardWarmVolumes.releaseClaim(relocatingNodeId, claimedShutdownSignalTimestamp)
+                )
+                : fetchListener;
             try {
                 client.execute(TransportFetchSearchShardInformationAction.TYPE, request, responseListener);
             } catch (Exception e) {
@@ -158,5 +159,13 @@ public class SearchShardInformationIndexListener implements IndexEventListener {
 
             return null;
         });
+    }
+
+    /**
+     * True when {@code routing} is a relocation whose source is marked for removal.
+     */
+    static boolean isRelocatingFromNodeMarkedForRemoval(ShardRouting routing, ClusterState state) {
+        String sourceId = routing.relocatingNodeId();
+        return sourceId != null && state.metadata().nodeShutdowns().isNodeMarkedForRemoval(sourceId);
     }
 }

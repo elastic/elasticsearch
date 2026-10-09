@@ -854,7 +854,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             ShardWarmVolumes volumes = enabledWarmVolumes();
             volumes.put(
                 sourceNodeId,
-                new ShardWarmVolumes.Entry(
+                new ShardWarmVolumes.CollectedWarmVolumes(
                     startedAtMillis,
                     Map.of(new ShardId(index, 0), 600L, new ShardId(index, 1), 300L, new ShardId(index, 2), 100L)
                 )
@@ -876,11 +876,13 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             List<Measurement> measurements = meterRegistry.getRecorder()
                 .getMeasurements(
                     InstrumentType.LONG_COUNTER,
-                    SharedBlobCacheWarmingService.SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_TOTAL_METRIC
+                    SearchRecoveryTimeoutCalculationService.SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_TOTAL_METRIC
                 );
             assertThat(measurements, hasSize(1));
             assertThat(
-                measurements.get(0).attributes().get(SharedBlobCacheWarmingService.SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_ATTRIBUTE_KEY),
+                measurements.get(0)
+                    .attributes()
+                    .get(SearchRecoveryTimeoutCalculationService.SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_ATTRIBUTE_KEY),
                 equalTo("warm_volume")
             );
         }
@@ -919,7 +921,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             ShardWarmVolumes volumes = enabledWarmVolumes();
             volumes.put(
                 sourceNodeId,
-                new ShardWarmVolumes.Entry(
+                new ShardWarmVolumes.CollectedWarmVolumes(
                     startedAtMillis,
                     Map.of(new ShardId(index, 0), 100L, new ShardId(index, 1), 300L, new ShardId(index, 2), 600L)
                 )
@@ -968,7 +970,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             ShardWarmVolumes volumes = enabledWarmVolumes();
             volumes.put(
                 sourceNodeId,
-                new ShardWarmVolumes.Entry(startedAtMillis, Map.of(new ShardId(index, 1), 300L, new ShardId(index, 2), 600L))
+                new ShardWarmVolumes.CollectedWarmVolumes(startedAtMillis, Map.of(new ShardId(index, 1), 300L, new ShardId(index, 2), 600L))
             );
             var service = newCalculationService(threadPool, settings, 1000L, volumes, TelemetryProvider.NOOP);
             final ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID)
@@ -1018,7 +1020,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             ShardWarmVolumes volumes = enabledWarmVolumes();
             volumes.put(
                 sourceNodeId,
-                new ShardWarmVolumes.Entry(
+                new ShardWarmVolumes.CollectedWarmVolumes(
                     startedAtMillis,
                     Map.of(new ShardId(index, 0), 100L, new ShardId(index, 1), 600L, new ShardId(index, 2), 200L)
                 )
@@ -1073,7 +1075,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             ShardWarmVolumes volumes = enabledWarmVolumes();
             volumes.put(
                 sourceNodeId,
-                new ShardWarmVolumes.Entry(
+                new ShardWarmVolumes.CollectedWarmVolumes(
                     startedAtMillis,
                     Map.of(new ShardId(index, 0), 600L, new ShardId(index, 1), 300L, new ShardId(index, 2), 100L)
                 )
@@ -1127,7 +1129,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             ShardWarmVolumes volumes = enabledWarmVolumes();
             volumes.put(
                 sourceNodeId,
-                new ShardWarmVolumes.Entry(
+                new ShardWarmVolumes.CollectedWarmVolumes(
                     startedAtMillis,
                     Map.of(new ShardId(index, 0), 600L, new ShardId(index, 1), 300L, new ShardId(index, 2), 100L)
                 )

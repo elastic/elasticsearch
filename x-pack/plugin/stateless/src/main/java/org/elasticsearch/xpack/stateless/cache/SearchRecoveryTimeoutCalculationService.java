@@ -27,13 +27,17 @@ import java.util.Map;
 /// [#searchRecoveryTimeout].
 public class SearchRecoveryTimeoutCalculationService {
 
+    public static final String SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_TOTAL_METRIC =
+        "es.blob_cache_warming.search_recovery.drain_timeout_heuristic.total";
+    public static final String SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_ATTRIBUTE_KEY = "es_drain_timeout_heuristic";
+
     /**
      * When true, drain-path search recovery warming timeouts may use per-shard warm volumes fetched from the
      * shutting-down source node.
      */
     public static final Setting<Boolean> SEARCH_OFFLINE_WARMING_WARM_VOLUMES_ENABLED_SETTING = Setting.boolSetting(
         SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".warm_volumes.enabled",
-        true,
+        false,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -70,9 +74,9 @@ public class SearchRecoveryTimeoutCalculationService {
         this.shardWarmVolumes = shardWarmVolumes;
         this.drainTimeoutHeuristicTotalMetric = telemetryProvider.getMeterRegistry()
             .registerLongCounter(
-                SharedBlobCacheWarmingService.SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_TOTAL_METRIC,
+                SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_TOTAL_METRIC,
                 "Drain-path search recovery warming timeouts, broken down by the ["
-                    + SharedBlobCacheWarmingService.SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_ATTRIBUTE_KEY
+                    + SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_ATTRIBUTE_KEY
                     + "] heuristic that produced the timeout",
                 "count"
             );
@@ -182,7 +186,7 @@ public class SearchRecoveryTimeoutCalculationService {
     /// 1. _Equal-share_: `factor * remaining / shardsOnSource`.
     /// 2. _Data-volume-proportional_ (contributes only when `totalBytesToWarm` is greater than zero):
     /// `(totalBytesToWarm / (cacheSize * cacheRatio)) * remaining`.
-    /// 3. _Warm-volume share_ (when a completed [ShardWarmVolumes.Entry] exists):
+    /// 3. _Warm-volume share_ (when [ShardWarmVolumes.CollectedWarmVolumes] exists for the current shutdown signal):
     /// `(warm volume / sum of warm volumes still competing for this target) * remaining`.
     /// Copies already relocating to a different node are omitted from the sum. STARTED copies
     /// (no target yet) stay in it. An unknown shard contributes 0.
@@ -250,10 +254,7 @@ public class SearchRecoveryTimeoutCalculationService {
             heuristic = "equal_share";
             context = "relocation source shutting down (equal share of remaining time to capped grace deadline)";
         }
-        drainTimeoutHeuristicTotalMetric.incrementBy(
-            1,
-            Map.of(SharedBlobCacheWarmingService.SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_ATTRIBUTE_KEY, heuristic)
-        );
+        drainTimeoutHeuristicTotalMetric.incrementBy(1, Map.of(SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_ATTRIBUTE_KEY, heuristic));
         return new SearchRecoveryTimeout(
             TimeValue.timeValueMillis(Math.round(Math.min(remaining, timeoutHeuristicMs * ongoingRelocations))),
             context

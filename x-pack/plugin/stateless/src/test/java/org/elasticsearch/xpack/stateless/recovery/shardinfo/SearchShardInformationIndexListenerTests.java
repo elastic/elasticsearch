@@ -424,6 +424,29 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
         assertThat(measurements.get(0).getLong(), equalTo(1L));
     }
 
+    public void testIsRelocatingFromNodeMarkedForRemoval() {
+        long startedAtMillis = randomNonNegativeLong();
+        ClusterState drain = drainState(index, "source", "target", startedAtMillis);
+        ClusterState rebalance = ClusterState.builder(drain)
+            .metadata(Metadata.builder(drain.metadata()).removeCustom(NodesShutdownMetadata.TYPE))
+            .build();
+
+        ShardRouting relocating = TestShardRouting.shardRoutingBuilder(shardId, "target", false, INITIALIZING)
+            .withRelocatingNodeId("source")
+            .withRole(ShardRouting.Role.SEARCH_ONLY)
+            .build();
+        ShardRouting replicaInit = TestShardRouting.shardRoutingBuilder(shardId, "target", false, INITIALIZING)
+            .withRole(ShardRouting.Role.SEARCH_ONLY)
+            .build();
+
+        assertTrue(SearchShardInformationIndexListener.isRelocatingFromNodeMarkedForRemoval(relocating, drain));
+        assertFalse(SearchShardInformationIndexListener.isRelocatingFromNodeMarkedForRemoval(replicaInit, drain));
+        assertFalse(SearchShardInformationIndexListener.isRelocatingFromNodeMarkedForRemoval(relocating, rebalance));
+        // This test never calls beforeIndexShardRecovery, which is what counts the latch down.
+        // @After still requires the latch to be zero.
+        latch.countDown();
+    }
+
     public void testPutHappensBeforeShardMovedSentinel() {
         long generation = randomNonNegativeLong();
         ClusterState state = drainState(index, "source", "target", generation);
@@ -436,7 +459,8 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
         RecordingClient.Execution<
             TransportFetchSearchShardInformationAction.Request,
             TransportFetchSearchShardInformationAction.Response> execution = client.lastExecution();
-        assertTrue(execution.request().wantVolumes());
+        assertTrue(execution.request().shouldFetchSourceNodeShardWarmVolumes());
+        assertThat(execution.request().shutdownSignalTimestamp(), equalTo(generation));
         execution.listener()
             .onResponse(
                 new TransportFetchSearchShardInformationAction.Response(SHARD_HAS_MOVED, "source", generation, Map.of(shardId, 11L))
@@ -461,7 +485,7 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
         RecordingClient.Execution<
             TransportFetchSearchShardInformationAction.Request,
             TransportFetchSearchShardInformationAction.Response> execution = client.lastExecution();
-        assertTrue(execution.request().wantVolumes());
+        assertTrue(execution.request().shouldFetchSourceNodeShardWarmVolumes());
         execution.listener().onResponse(new TransportFetchSearchShardInformationAction.Response(5L));
         assertThat(volumes.get(state, "source"), nullValue());
         assertTrue(volumes.claimFetch(state, "source"));
@@ -499,8 +523,8 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
         RecordingClient.Execution<
             TransportFetchSearchShardInformationAction.Request,
             TransportFetchSearchShardInformationAction.Response> second = client.execution(1);
-        assertTrue(first.request().wantVolumes());
-        assertFalse(second.request().wantVolumes());
+        assertTrue(first.request().shouldFetchSourceNodeShardWarmVolumes());
+        assertFalse(second.request().shouldFetchSourceNodeShardWarmVolumes());
         first.listener().onResponse(new TransportFetchSearchShardInformationAction.Response(5L));
         assertTrue(volumes.claimFetch(state, "source"));
         second.listener().onResponse(new TransportFetchSearchShardInformationAction.Response(5L));

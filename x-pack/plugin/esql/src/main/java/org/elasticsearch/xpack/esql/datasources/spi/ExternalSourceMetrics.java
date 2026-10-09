@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DataSourceTelemetryVocabular
 
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -64,7 +65,8 @@ public final class ExternalSourceMetrics {
     public static final String STORAGE_READ_STALL_DURATION = "es.esql.datasources.storage.read_stall.duration.histogram";
 
     /**
-     * One completed external-source query at the coordinator (dimensioned by {@link #OUTCOME_ATTRIBUTE}). Counts
+     * One completed external-source query at the coordinator (dimensioned by {@link #OUTCOME_ATTRIBUTE} and
+     * {@link #CLIENT_ATTRIBUTE}). Counts
      * queries whose ANALYZED plan contained an external source; a query that fails DURING analysis (before the
      * external-source flag is set) is not attributed here — its discovery failure is captured by
      * {@link #DISCOVERY_FAILURES_TOTAL} instead.
@@ -74,10 +76,10 @@ public final class ExternalSourceMetrics {
     /** Wall time of a completed external-source query, in milliseconds. */
     public static final String QUERY_DURATION = "es.esql.datasources.query.duration.histogram";
 
-    /** External-source queries that ended in cancellation. */
+    /** External-source queries that ended in cancellation, dimensioned by {@link #CLIENT_ATTRIBUTE}. */
     public static final String QUERIES_CANCELLED_TOTAL = "es.esql.datasources.queries.cancelled.total";
 
-    /** External-source queries that returned partial results. */
+    /** External-source queries that returned partial results, dimensioned by {@link #CLIENT_ATTRIBUTE}. */
     public static final String QUERIES_PARTIAL_TOTAL = "es.esql.datasources.queries.partial.total";
 
     /**
@@ -204,6 +206,25 @@ public final class ExternalSourceMetrics {
 
     /** Cancelled query outcome. */
     public static final String OUTCOME_CANCELLED = "cancelled";
+
+    /**
+     * Client dimension on the query instruments, a closed low-cardinality set derived from the
+     * {@code X-elastic-product-origin} request header (see {@link #clientFromOrigin(String)}). The raw header value is
+     * never a label: an unbounded origin string would explode the series count.
+     */
+    public static final String CLIENT_ATTRIBUTE = "es_datasource_client";
+
+    /** Query sent by Kibana ({@code X-elastic-product-origin: kibana}). */
+    public static final String CLIENT_KIBANA = DataSourceUsageAccumulator.CLIENT_KIBANA;
+
+    /** Query that carried no {@code X-elastic-product-origin} header, or a blank one. */
+    public static final String CLIENT_NONE = DataSourceUsageAccumulator.CLIENT_NONE;
+
+    /** Query that carried an origin header with any value other than the named ones above. */
+    public static final String CLIENT_OTHER = DataSourceUsageAccumulator.CLIENT_OTHER;
+
+    /** The closed set of client labels, shared with the phone-home counters. */
+    public static final List<String> CLIENT_NAMES = DataSourceUsageAccumulator.CLIENT_NAMES;
 
     /**
      * CPU-component dimension on {@link #QUERY_CPU_TOTAL}, a closed set:
@@ -568,20 +589,11 @@ public final class ExternalSourceMetrics {
     }
 
     /**
-     * Records one completed external-source query without failure detail; see
-     * {@link #recordQuery(String, long, boolean, String, String)}. A {@code failure} outcome recorded this way is
-     * attributed to {@link DataSourceUsageAccumulator#ERROR_TYPE_OTHER} in the phone-home counters and carries no
-     * {@link #ERROR_TYPE_ATTRIBUTE} / {@link #STATUS_ATTRIBUTE} on APM.
-     */
-    public void recordQuery(String outcome, long durationMillis, boolean partial) {
-        recordQuery(outcome, durationMillis, partial, null, null);
-    }
-
-    /**
      * Records one completed external-source query: increments {@link #QUERIES_TOTAL} tagged with {@code outcome},
      * observes {@link #QUERY_DURATION} carrying the same {@code outcome} (so latency can be split by
      * success/failure/cancelled), and increments {@link #QUERIES_CANCELLED_TOTAL} when the outcome is
-     * {@link #OUTCOME_CANCELLED} and {@link #QUERIES_PARTIAL_TOTAL} when {@code partial} is set.
+     * {@link #OUTCOME_CANCELLED} and {@link #QUERIES_PARTIAL_TOTAL} when {@code partial} is set. The cancelled and partial
+     * counters carry only the {@link #CLIENT_ATTRIBUTE} dimension, so they can be split by client too.
      * <p>
      * When the outcome is {@link #OUTCOME_FAILURE}, {@code errorType} (one of
      * {@link DataSourceUsageAccumulator#ERROR_TYPE_NAMES}) and {@code status} (the HTTP status code) are added as
@@ -593,25 +605,38 @@ public final class ExternalSourceMetrics {
      * query that fails during analysis (before the external-source flag is set) is not counted here; its discovery
      * failure is captured by {@link #recordDiscoveryFailure} / {@link #DISCOVERY_FAILURES_TOTAL}. Best-effort
      * (self-guarded).
+     * <p>
+     * {@code client} is the caller's {@link #CLIENT_ATTRIBUTE} label, clamped to {@link #CLIENT_NAMES} so an unknown
+     * value is published as {@link #CLIENT_OTHER}. Use {@link #clientFromOrigin(String)} to derive it from a request.
      */
-    public void recordQuery(String outcome, long durationMillis, boolean partial, @Nullable String errorType, @Nullable String status) {
+    public void recordQuery(
+        String client,
+        String outcome,
+        long durationMillis,
+        boolean partial,
+        @Nullable String errorType,
+        @Nullable String status
+    ) {
         try {
             // Clamp before anything is emitted, so a token outside the closed set can neither become an APM attribute nor
             // make the two sinks disagree.
             String canonicalErrorType = errorType == null ? null : canonicalErrorType(errorType);
+            String canonicalClient = canonicalClient(client);
             Map<String, Object> attributes = OUTCOME_FAILURE.equals(outcome)
                 ? failureAttrs(Map.of(OUTCOME_ATTRIBUTE, OUTCOME_FAILURE), canonicalErrorType, status)
                 : outcomeAttrs(outcome);
+            attributes = clientAttrs(attributes, canonicalClient);
+            Map<String, Object> clientOnlyAttrs = clientAttrs(Map.of(), canonicalClient);
             queriesTotal.incrementBy(1, attributes);
             queryDuration.record(Math.max(0L, durationMillis), attributes);
             if (OUTCOME_CANCELLED.equals(outcome)) {
-                queriesCancelledTotal.incrementBy(1);
+                queriesCancelledTotal.incrementBy(1, clientOnlyAttrs);
             }
             if (partial) {
-                queriesPartialTotal.incrementBy(1);
+                queriesPartialTotal.incrementBy(1, clientOnlyAttrs);
             }
             if (usageAccumulator != null) {
-                usageAccumulator.recordQuery(outcome, durationMillis, partial, canonicalErrorType);
+                usageAccumulator.recordQuery(canonicalClient, outcome, durationMillis, partial, canonicalErrorType);
             }
         } catch (Exception e) {
             logger.trace("telemetry: recordQuery failed", e);
@@ -947,6 +972,36 @@ public final class ExternalSourceMetrics {
     /** Returns the pre-built {@link #OUTCOME_ATTRIBUTE} attribute map for {@code outcome} (a fresh map for any unknown). */
     private static Map<String, Object> outcomeAttrs(String outcome) {
         return OUTCOME_ATTRIBUTES.getOrDefault(outcome, Map.of(OUTCOME_ATTRIBUTE, outcome));
+    }
+
+    /**
+     * Folds the value of the {@code X-elastic-product-origin} request header into the closed {@link #CLIENT_NAMES} set:
+     * absent or blank is {@link #CLIENT_NONE}; {@code kibana} and any {@code kibana-*} origin (compared
+     * case-insensitively, e.g. a Kibana feature that sets its own suffix) is {@link #CLIENT_KIBANA}; and any other value is
+     * {@link #CLIENT_OTHER}. The header value itself is never returned.
+     */
+    public static String clientFromOrigin(@Nullable String origin) {
+        if (origin == null || origin.isBlank()) {
+            return CLIENT_NONE;
+        }
+        String normalized = origin.strip().toLowerCase(Locale.ROOT);
+        boolean kibana = normalized.equals(CLIENT_KIBANA) || normalized.startsWith(CLIENT_KIBANA + "-");
+        return kibana ? CLIENT_KIBANA : CLIENT_OTHER;
+    }
+
+    /**
+     * Folds a client label into the closed {@link #CLIENT_NAMES} set: anything outside it, including {@code null}, becomes
+     * {@link #CLIENT_OTHER}. Mirrors {@link #canonicalErrorType(String)}: the label is published only after this clamp.
+     */
+    static String canonicalClient(@Nullable String client) {
+        return client != null && CLIENT_NAMES.contains(client) ? client : CLIENT_OTHER;
+    }
+
+    /** Returns {@code base} plus {@link #CLIENT_ATTRIBUTE}. {@code client} must already be canonical. */
+    private static Map<String, Object> clientAttrs(Map<String, Object> base, String client) {
+        Map<String, Object> attributes = new HashMap<>(base);
+        attributes.put(CLIENT_ATTRIBUTE, client);
+        return Map.copyOf(attributes);
     }
 
     /**

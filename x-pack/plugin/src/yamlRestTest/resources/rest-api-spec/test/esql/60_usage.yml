@@ -641,6 +641,23 @@ took:
   - exists: esql.datasources.config.datasets.changes.by_type.unknown
 
 ---
+"Datasource client telemetry":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ usage_contains_datasources_client ]
+      reason: "Datasource per-client query counters present in /_xpack/usage"
+
+  - do: { xpack.usage: { } }
+  # external-source queries by client (always emitted, 0 when no query came from that client)
+  - exists: esql.datasources.queries.by_client.kibana
+  - exists: esql.datasources.queries.by_client.none
+  - exists: esql.datasources.queries.by_client.other
+
+---
 "Datasource inventory marginals":
   - requires:
       test_runner_features: [ capabilities ]

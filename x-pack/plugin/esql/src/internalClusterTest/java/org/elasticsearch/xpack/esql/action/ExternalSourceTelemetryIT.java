@@ -12,9 +12,11 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -62,6 +64,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * End-to-end integration for the ES|QL external-data-source operational metrics
@@ -168,7 +171,9 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         "emp_iae",
         "emp_cpu",
         "emp_bad_row",
-        "emp_dup_header"
+        "emp_dup_header",
+        "emp_client_ok",
+        "emp_client_bad"
     );
     private static final Set<String> CREATED_DATASOURCES = Set.of(
         "ds",
@@ -178,7 +183,8 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         "ds_dep",
         "ds_iae",
         "ds_bad_row",
-        "ds_dup_header"
+        "ds_dup_header",
+        "ds_client"
     );
 
     @After
@@ -521,6 +527,97 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         long failuresAfter = clusterTotal(a -> a.queries(DataSourceUsageAccumulator.OUTCOME_FAILURE));
         assertThat(failuresAfter - failuresBefore, equalTo(1L));
         assertThat(clusterTotal(IT_SUM_OF_QUERY_FAILURES) - byTypeBefore, equalTo(1L));
+    }
+
+    /**
+     * Queries are attributed to a client from the {@code X-elastic-product-origin} header: a Kibana origin is {@code kibana},
+     * a request without the header is {@code none}, and any other origin is {@code other}. The label is on both the APM
+     * query instruments (for success and failure alike) and the phone-home {@code queries.by_client} counters.
+     */
+    public void testQueryClientFollowsProductOriginHeader() throws Exception {
+        Path dir = createTempDir();
+        Files.writeString(dir.resolve("ok.csv"), "emp_no:integer\n1\n2\n3\n");
+        // The second row is not an integer, so a SUM over this dataset fails at execution.
+        Files.writeString(dir.resolve("bad.csv"), "emp_no:integer\n1\nnot_a_number\n3\n");
+        assertAcked(
+            client().execute(
+                PutDataSourceAction.INSTANCE,
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_client", "test", null, new HashMap<>())
+            )
+        );
+        for (String name : List.of("ok", "bad")) {
+            assertAcked(
+                client().execute(
+                    PutDatasetAction.INSTANCE,
+                    new PutDatasetAction.Request(
+                        TIMEOUT,
+                        TIMEOUT,
+                        "emp_client_" + name,
+                        "ds_client",
+                        dir.resolve(name + ".csv").toUri().toString(),
+                        null,
+                        new HashMap<>(Map.of("format", "csv"))
+                    )
+                )
+            );
+        }
+
+        int kibana = DataSourceUsageAccumulator.CLIENT_NAMES.indexOf(DataSourceUsageAccumulator.CLIENT_KIBANA);
+        int none = DataSourceUsageAccumulator.CLIENT_NAMES.indexOf(DataSourceUsageAccumulator.CLIENT_NONE);
+        int other = DataSourceUsageAccumulator.CLIENT_NAMES.indexOf(DataSourceUsageAccumulator.CLIENT_OTHER);
+        long kibanaBefore = clusterTotal(a -> a.queriesByClient(kibana));
+        long noneBefore = clusterTotal(a -> a.queriesByClient(none));
+        long otherBefore = clusterTotal(a -> a.queriesByClient(other));
+
+        resetAllMeters();
+
+        // Each request runs on its own stashed thread context, so the origin header of one does not leak into the next.
+        ThreadContext threadContext = client().threadPool().getThreadContext();
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            threadContext.putHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, "kibana");
+            try (var response = run(syncEsqlQueryRequest("FROM emp_client_ok | LIMIT 10"), TIMEOUT)) {
+                assertThat(getValuesList(response).size(), equalTo(3));
+            }
+            expectThrows(Exception.class, () -> {
+                try (var ignoredResponse = run(syncEsqlQueryRequest("FROM emp_client_bad | STATS s = SUM(emp_no)"), TIMEOUT)) {
+                    // the scan must fail on the malformed row
+                }
+            });
+        }
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            try (var ignoredResponse = run(syncEsqlQueryRequest("FROM emp_client_ok | LIMIT 10"), TIMEOUT)) {}
+        }
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            threadContext.putHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, "curl/8.4.0");
+            try (var ignoredResponse = run(syncEsqlQueryRequest("FROM emp_client_ok | LIMIT 10"), TIMEOUT)) {}
+        }
+
+        collectAllMeters();
+
+        // APM: the query total and the duration histogram carry the same client label; the kibana series holds one success and
+        // one failure, and the other two queries are split between none and other.
+        List<Measurement> totals = counters(ExternalSourceMetrics.QUERIES_TOTAL);
+        assertThat(forClient(totals, ExternalSourceMetrics.CLIENT_KIBANA), hasSize(2));
+        List<Measurement> kibanaFailures = forOutcome(
+            forClient(totals, ExternalSourceMetrics.CLIENT_KIBANA),
+            ExternalSourceMetrics.OUTCOME_FAILURE
+        );
+        assertThat("the kibana failure is labelled with the same client as the kibana success", kibanaFailures, hasSize(1));
+        // The expectThrows above accepts any exception, so also require that this is the failure the query produced: a failed
+        // external-source query always carries its category and HTTP status.
+        assertThat(kibanaFailures.get(0).attributes().get(ExternalSourceMetrics.ERROR_TYPE_ATTRIBUTE), notNullValue());
+        assertThat(kibanaFailures.get(0).attributes().get(ExternalSourceMetrics.STATUS_ATTRIBUTE), notNullValue());
+        assertThat(forOutcome(forClient(totals, ExternalSourceMetrics.CLIENT_NONE), ExternalSourceMetrics.OUTCOME_SUCCESS), hasSize(1));
+        assertThat(forOutcome(forClient(totals, ExternalSourceMetrics.CLIENT_OTHER), ExternalSourceMetrics.OUTCOME_SUCCESS), hasSize(1));
+        List<Measurement> durations = histograms(ExternalSourceMetrics.QUERY_DURATION);
+        assertThat(forClient(durations, ExternalSourceMetrics.CLIENT_KIBANA), hasSize(2));
+        assertThat(forClient(durations, ExternalSourceMetrics.CLIENT_NONE), hasSize(1));
+        assertThat(forClient(durations, ExternalSourceMetrics.CLIENT_OTHER), hasSize(1));
+
+        // Phone-home: the same split, counted per client over both outcomes.
+        assertThat(clusterTotal(a -> a.queriesByClient(kibana)) - kibanaBefore, equalTo(2L));
+        assertThat(clusterTotal(a -> a.queriesByClient(none)) - noneBefore, equalTo(1L));
+        assertThat(clusterTotal(a -> a.queriesByClient(other)) - otherBefore, equalTo(1L));
     }
 
     /**
@@ -1170,6 +1267,10 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
 
     private static List<Measurement> forOutcome(List<Measurement> measurements, String outcome) {
         return measurements.stream().filter(m -> outcome.equals(m.attributes().get(ExternalSourceMetrics.OUTCOME_ATTRIBUTE))).toList();
+    }
+
+    private static List<Measurement> forClient(List<Measurement> measurements, String client) {
+        return measurements.stream().filter(m -> client.equals(m.attributes().get(ExternalSourceMetrics.CLIENT_ATTRIBUTE))).toList();
     }
 
     private static Measurement singleForType(List<Measurement> measurements, String type) {

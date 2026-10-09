@@ -72,9 +72,9 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
 
     public void testRecordQueryByOutcome() {
         DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
-        acc.recordQuery("success", 100L, false);
-        acc.recordQuery("failure", 200L, false);
-        acc.recordQuery("cancelled", 50L, false);
+        acc.recordQuery(DataSourceUsageAccumulator.CLIENT_NONE, "success", 100L, false, null);
+        acc.recordQuery(DataSourceUsageAccumulator.CLIENT_NONE, "failure", 200L, false, null);
+        acc.recordQuery(DataSourceUsageAccumulator.CLIENT_NONE, "cancelled", 50L, false, null);
 
         assertThat(acc.queries(DataSourceUsageAccumulator.OUTCOME_SUCCESS), equalTo(1L));
         assertThat(acc.queries(DataSourceUsageAccumulator.OUTCOME_FAILURE), equalTo(1L));
@@ -85,7 +85,7 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
 
     public void testRecordQueryPartial() {
         DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
-        acc.recordQuery("success", 100L, true);
+        acc.recordQuery(DataSourceUsageAccumulator.CLIENT_NONE, "success", 100L, true, null);
         assertThat(acc.queriesPartial(), equalTo(1L));
         assertThat(acc.queriesCancelled(), equalTo(0L));
     }
@@ -167,7 +167,10 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
 
     public void testUnexpectedOutcomeThrows() {
         DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
-        expectThrows(IllegalArgumentException.class, () -> acc.recordQuery("weird_outcome", 10L, false));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> acc.recordQuery(DataSourceUsageAccumulator.CLIENT_NONE, "weird_outcome", 10L, false, null)
+        );
     }
 
     public void testUnexpectedFormatThrows() {
@@ -202,7 +205,7 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         // An unrecognized outcome is a programming error — recordQuery() passes it straight to the
         // accumulator, which throws IllegalArgumentException; the try-catch swallows it.
         // No accumulator counter should change.
-        metrics.recordQuery("unexpected_outcome", 100L, false);
+        metrics.recordQuery(ExternalSourceMetrics.CLIENT_NONE, "unexpected_outcome", 100L, false, null, null);
         assertThat(acc.queries(DataSourceUsageAccumulator.OUTCOME_SUCCESS), equalTo(0L));
         assertThat(acc.queries(DataSourceUsageAccumulator.OUTCOME_FAILURE), equalTo(0L));
         assertThat(acc.queries(DataSourceUsageAccumulator.OUTCOME_CANCELLED), equalTo(0L));
@@ -212,7 +215,7 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
         acc.recordRequest(Type.S3, 5L, 1024L);
         acc.recordRequest(Type.LOCAL, 5L, 0L);
-        acc.recordQuery("success", 100L, false);
+        acc.recordQuery(DataSourceUsageAccumulator.CLIENT_NONE, "success", 100L, false, null);
         acc.recordDiscovery(30L, 5L, 512L);
         acc.recordParse(500L, 50L, "csv");
         acc.recordSplitsScanned(3L);
@@ -265,14 +268,14 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
 
     public void testRecordQueryFailureByErrorType() {
         DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
-        acc.recordQuery("failure", 10L, false, DataSourceUsageAccumulator.ERROR_TYPE_STORAGE_AUTH);
-        acc.recordQuery("failure", 10L, false, DataSourceUsageAccumulator.ERROR_TYPE_STORAGE_AUTH);
-        acc.recordQuery("failure", 10L, false, DataSourceUsageAccumulator.ERROR_TYPE_FORMAT);
+        acc.recordQuery(DataSourceUsageAccumulator.CLIENT_NONE, "failure", 10L, false, DataSourceUsageAccumulator.ERROR_TYPE_STORAGE_AUTH);
+        acc.recordQuery(DataSourceUsageAccumulator.CLIENT_NONE, "failure", 10L, false, DataSourceUsageAccumulator.ERROR_TYPE_STORAGE_AUTH);
+        acc.recordQuery(DataSourceUsageAccumulator.CLIENT_NONE, "failure", 10L, false, DataSourceUsageAccumulator.ERROR_TYPE_FORMAT);
         // No detail: counted as "other" so the per-type counters always add up to the failure outcome.
-        acc.recordQuery("failure", 10L, false);
+        acc.recordQuery(DataSourceUsageAccumulator.CLIENT_NONE, "failure", 10L, false, null);
         // Only failures are classified.
-        acc.recordQuery("success", 10L, false, DataSourceUsageAccumulator.ERROR_TYPE_FORMAT);
-        acc.recordQuery("cancelled", 10L, false, DataSourceUsageAccumulator.ERROR_TYPE_FORMAT);
+        acc.recordQuery(DataSourceUsageAccumulator.CLIENT_NONE, "success", 10L, false, DataSourceUsageAccumulator.ERROR_TYPE_FORMAT);
+        acc.recordQuery(DataSourceUsageAccumulator.CLIENT_NONE, "cancelled", 10L, false, DataSourceUsageAccumulator.ERROR_TYPE_FORMAT);
 
         assertThat(acc.queryFailures(errorTypeIndex(DataSourceUsageAccumulator.ERROR_TYPE_STORAGE_AUTH)), equalTo(2L));
         assertThat(acc.queryFailures(errorTypeIndex(DataSourceUsageAccumulator.ERROR_TYPE_FORMAT)), equalTo(1L));
@@ -312,7 +315,10 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
 
     public void testUnknownErrorTypeIsAProgrammingError() {
         DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
-        expectThrows(IllegalArgumentException.class, () -> acc.recordQuery("failure", 1L, false, "SomeException"));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> acc.recordQuery(DataSourceUsageAccumulator.CLIENT_NONE, "failure", 1L, false, "SomeException")
+        );
         expectThrows(IllegalArgumentException.class, () -> acc.recordDiscoveryFailure("SomeException"));
         expectThrows(IllegalArgumentException.class, () -> acc.queryFailures(DataSourceUsageAccumulator.ERROR_TYPE_COUNT));
         expectThrows(IllegalArgumentException.class, () -> acc.discoveryFailures(-1));
@@ -328,7 +334,10 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         assertThat(acc.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_REJECTED), equalTo(0L));
         assertThat(acc.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, Type.UNKNOWN), equalTo(0L));
 
-        expectThrows(IllegalArgumentException.class, () -> acc.recordQuery("failure", 1L, false, "SomeException"));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> acc.recordQuery(DataSourceUsageAccumulator.CLIENT_NONE, "failure", 1L, false, "SomeException")
+        );
         assertThat(acc.queries(DataSourceUsageAccumulator.OUTCOME_FAILURE), equalTo(0L));
     }
 
@@ -375,6 +384,45 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> acc.configRejected(DataSourceUsageAccumulator.KIND_DATASOURCE, 99));
     }
 
+    public void testQueriesByClientCountsEachClientAndIsAMarginalOverOutcomes() {
+        DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
+        acc.recordQuery(DataSourceUsageAccumulator.CLIENT_KIBANA, "success", 10L, false, null);
+        acc.recordQuery(DataSourceUsageAccumulator.CLIENT_KIBANA, "failure", 10L, false, DataSourceUsageAccumulator.ERROR_TYPE_FORMAT);
+        acc.recordQuery(DataSourceUsageAccumulator.CLIENT_NONE, "success", 10L, false, null);
+
+        Counters counters = new Counters();
+        DataSourceCounters.populate(acc, counters);
+        assertThat(counters.get("datasources.queries.by_client.kibana"), equalTo(2L));
+        assertThat(counters.get("datasources.queries.by_client.none"), equalTo(1L));
+        assertThat(counters.get("datasources.queries.by_client.other"), equalTo(0L));
+        assertThat(counters.get("datasources.queries.by_outcome.success"), equalTo(2L));
+        assertThat(counters.get("datasources.queries.by_outcome.failure"), equalTo(1L));
+    }
+
+    public void testNoneClientIsCountedUnderNone() {
+        DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
+        acc.recordQuery(DataSourceUsageAccumulator.CLIENT_NONE, "success", 10L, false, null);
+        assertThat(
+            acc.queriesByClient(DataSourceUsageAccumulator.CLIENT_NAMES.indexOf(DataSourceUsageAccumulator.CLIENT_NONE)),
+            equalTo(1L)
+        );
+    }
+
+    public void testUnknownClientIsAProgrammingError() {
+        DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
+        expectThrows(IllegalArgumentException.class, () -> acc.recordQuery("curl", "success", 1L, false, null));
+        expectThrows(IllegalArgumentException.class, () -> acc.queriesByClient(DataSourceUsageAccumulator.CLIENT_COUNT));
+    }
+
+    /** Every client key exists even before any query was recorded. */
+    public void testClientKeysAreAlwaysEmitted() {
+        Counters counters = new Counters();
+        DataSourceCounters.populate(new DataSourceUsageAccumulator(), counters);
+        for (String client : DataSourceUsageAccumulator.CLIENT_NAMES) {
+            assertThat(counters.get("datasources.queries.by_client." + client), equalTo(0L));
+        }
+    }
+
     /** Every key the usage payload promises exists even before anything was recorded. */
     public void testFailureReasonKeysAreAlwaysEmitted() {
         Counters counters = new Counters();
@@ -415,9 +463,9 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         metrics.recordReadStall(100L, "file");
         metrics.recordRequest(10L, 100L, "file");
         metrics.recordRequest(10L, 50L, "ftp");
-        metrics.recordQuery(ExternalSourceMetrics.OUTCOME_SUCCESS, 200L, false);
-        metrics.recordQuery(ExternalSourceMetrics.OUTCOME_CANCELLED, 10L, false);
-        metrics.recordQuery(ExternalSourceMetrics.OUTCOME_SUCCESS, 50L, true);
+        metrics.recordQuery(ExternalSourceMetrics.CLIENT_NONE, ExternalSourceMetrics.OUTCOME_SUCCESS, 200L, false, null, null);
+        metrics.recordQuery(ExternalSourceMetrics.CLIENT_NONE, ExternalSourceMetrics.OUTCOME_CANCELLED, 10L, false, null, null);
+        metrics.recordQuery(ExternalSourceMetrics.CLIENT_NONE, ExternalSourceMetrics.OUTCOME_SUCCESS, 50L, true, null, null);
         metrics.recordTimeToFirstRow(30L, "s3", "parquet");
         metrics.recordDiscovery(20L, 3L, 4096L, "s3", FormatReader.SchemaResolution.STRICT, false);
         metrics.recordDiscoveryFailure("s3", DataSourceUsageAccumulator.ERROR_TYPE_DISCOVERY, "400");
@@ -499,7 +547,14 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         assertNull(ExternalSourceMetrics.NOOP.usageAccumulator());
         // These calls must not throw and must not acquire a non-null accumulator.
         ExternalSourceMetrics.NOOP.recordRequest(10L, 100L, "s3");
-        ExternalSourceMetrics.NOOP.recordQuery(ExternalSourceMetrics.OUTCOME_SUCCESS, 50L, false);
+        ExternalSourceMetrics.NOOP.recordQuery(
+            ExternalSourceMetrics.CLIENT_NONE,
+            ExternalSourceMetrics.OUTCOME_SUCCESS,
+            50L,
+            false,
+            null,
+            null
+        );
         assertNull(ExternalSourceMetrics.NOOP.usageAccumulator());
     }
 }

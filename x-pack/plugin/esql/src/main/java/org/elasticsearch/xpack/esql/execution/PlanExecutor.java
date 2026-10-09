@@ -19,6 +19,7 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.usage.UsageService;
@@ -247,6 +248,10 @@ public class PlanExecutor {
         ActionListener<Versioned<Result>> listener
     ) {
         final PlanTelemetry planTelemetry = new PlanTelemetry(functionRegistry);
+        // The client label is read from the calling thread's context, before the query goes async, so every outcome of this
+        // query (success, failure, cancellation) is attributed to the same client.
+        final ThreadContext threadContext = services.transportService().getThreadPool().getThreadContext();
+        final String client = clientOf(threadContext);
         // Resolution (glob expansion, footer reads, schema reconciliation) runs on the caller-supplied
         // executor rather than the SEARCH pool, so a wildcard external query cannot starve regular ES
         // searches or other ES|QL queries. The per-query multi-file metadata fan-out is bounded by
@@ -264,7 +269,7 @@ public class PlanExecutor {
             cacheService,
             cancellation,
             externalSourceConcurrency,
-            services.transportService().getThreadPool().getThreadContext(),
+            threadContext,
             maxDiscoveredFiles,
             maxGlobExpansion,
             maxListedObjects
@@ -303,8 +308,8 @@ public class PlanExecutor {
             listener
         );
         ActionListener<Versioned<Result>> executeListener = wrap(
-            x -> onQuerySuccess(request, releasingListener, x, planTelemetry, services.usageService(), executionInfo, begin),
-            ex -> onQueryFailure(request, releasingListener, ex, clientId, planTelemetry, begin)
+            x -> onQuerySuccess(request, releasingListener, x, planTelemetry, services.usageService(), executionInfo, begin, client),
+            ex -> onQueryFailure(request, releasingListener, ex, clientId, planTelemetry, begin, client)
         );
         // Wrap it in a listener so that if we have any exceptions during execution, the listener picks it up
         // and all the metrics are properly updated
@@ -342,12 +347,14 @@ public class PlanExecutor {
         PlanTelemetry planTelemetry,
         UsageService usageService,
         EsqlExecutionInfo executionInfo,
-        long begin
+        long begin,
+        String client
     ) {
         planTelemetryManager.publish(planTelemetry, true);
         boolean partial = x != null && x.inner().completionInfo().partial();
         recordExternalSourceQuery(
             dataSourceModule.externalSourceMetrics(),
+            client,
             planTelemetry.externalSource(),
             (System.nanoTime() - begin) / 1_000_000,
             partial,
@@ -370,13 +377,15 @@ public class PlanExecutor {
         Exception ex,
         QueryMetric clientId,
         PlanTelemetry planTelemetry,
-        long begin
+        long begin,
+        String client
     ) {
         // TODO when we decide if we will differentiate Kibana from REST, this String value will likely come from the request
         metrics.failed(clientId);
         planTelemetryManager.publish(planTelemetry, false);
         recordExternalSourceQuery(
             dataSourceModule.externalSourceMetrics(),
+            client,
             planTelemetry.externalSource(),
             (System.nanoTime() - begin) / 1_000_000,
             false,
@@ -384,6 +393,15 @@ public class PlanExecutor {
         );
         queryLog.onQueryFailure(request.queryDescription(), ex, System.nanoTime() - begin);
         listener.onFailure(ex);
+    }
+
+    /**
+     * The {@link ExternalSourceMetrics} client label of the request whose context is {@code threadContext}. A {@code null}
+     * context, which some callers and mocks supply, has no origin header and so maps to {@link ExternalSourceMetrics#CLIENT_NONE}.
+     */
+    static String clientOf(@Nullable ThreadContext threadContext) {
+        String origin = threadContext == null ? null : threadContext.getHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
+        return ExternalSourceMetrics.clientFromOrigin(origin);
     }
 
     /**
@@ -408,6 +426,7 @@ public class PlanExecutor {
      */
     static void recordExternalSourceQuery(
         ExternalSourceMetrics externalSourceMetrics,
+        String client,
         boolean externalSource,
         long durationMillis,
         boolean partial,
@@ -426,9 +445,9 @@ public class PlanExecutor {
         }
         if (ExternalSourceMetrics.OUTCOME_FAILURE.equals(outcome)) {
             QueryFailureTelemetry.Failure classified = QueryFailureTelemetry.classify(failure);
-            externalSourceMetrics.recordQuery(outcome, durationMillis, partial, classified.errorType(), classified.status());
+            externalSourceMetrics.recordQuery(client, outcome, durationMillis, partial, classified.errorType(), classified.status());
         } else {
-            externalSourceMetrics.recordQuery(outcome, durationMillis, partial);
+            externalSourceMetrics.recordQuery(client, outcome, durationMillis, partial, null, null);
         }
         // Only hard-failure breaker trips are attributed here: a CB that instead produced is_partial=true reaches the
         // success path with failure==null and is NOT counted (its CircuitBreakingException is not cleanly reachable at

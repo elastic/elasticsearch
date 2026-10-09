@@ -4313,6 +4313,12 @@ public class EsqlCapabilities {
         USAGE_CONTAINS_DATASOURCES_FAILURE_REASONS,
 
         /**
+         * Does the usage information for ESQL contain the datasource per-client query counters
+         * ({@code datasources.queries.by_client.<client>})?
+         */
+        USAGE_CONTAINS_DATASOURCES_CLIENT,
+
+        /**
          * Fix for {@code DocumentParser#parseArrayDynamic}: with {@code subobjects:false} and {@code dynamic:false},
          * arrays of objects now correctly walk mapped dotted fields (e.g. {@code "objarr.k"}), consistent
          * with the plain-object path. Previously the array was silently skipped and the values dropped.

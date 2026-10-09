@@ -88,6 +88,11 @@ public final class DataSourceCounters {
             counters.inc("datasources.queries.by_outcome." + DataSourceUsageAccumulator.OUTCOME_NAMES.get(i), acc.queries(i));
         }
 
+        // ---- per-client query counters (marginal over outcome; closed set from the X-elastic-product-origin header) ----
+        for (int i = 0; i < DataSourceUsageAccumulator.CLIENT_COUNT; i++) {
+            counters.inc("datasources.queries.by_client." + DataSourceUsageAccumulator.CLIENT_NAMES.get(i), acc.queriesByClient(i));
+        }
+
         // ---- per-component CPU counters (ns) ----
         // Note: execution, read, and split_discovery are real per-thread CPU time; planning is wall
         // time. The total therefore mixes the two measurement kinds.

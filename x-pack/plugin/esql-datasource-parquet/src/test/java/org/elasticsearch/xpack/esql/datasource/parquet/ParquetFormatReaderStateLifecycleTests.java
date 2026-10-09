@@ -49,6 +49,7 @@ public class ParquetFormatReaderStateLifecycleTests extends ESTestCase {
         "parsedFooters",
         "footerBytes",
         "maxFooterReadBytes",
+        "schemaMaxFields",
         "ioWatermark",
         "blockFactory",
         "pushedFilter",
@@ -81,10 +82,10 @@ public class ParquetFormatReaderStateLifecycleTests extends ESTestCase {
         Map.entry("withDynamicThreshold", WitherLifecycle.CREATES_COPY),
         Map.entry("withDeclaredDateFormats", WitherLifecycle.CREATES_COPY),
         Map.entry("withDeclaredTypeColumns", WitherLifecycle.CREATES_COPY),
-        Map.entry("withConfigTrackingConsumedKeys", WitherLifecycle.IDENTITY_NO_COPY),
-        Map.entry("withConfig", WitherLifecycle.IDENTITY_NO_COPY),
+        Map.entry("withConfigTrackingConsumedKeys", WitherLifecycle.CREATES_COPY),
+        Map.entry("withConfig", WitherLifecycle.CREATES_COPY),
         Map.entry("withSchema", WitherLifecycle.IDENTITY_NO_COPY),
-        Map.entry("withDeclaredProvenanceBinding", WitherLifecycle.IDENTITY_NO_COPY),
+        Map.entry("withDeclaredProvenanceBinding", WitherLifecycle.CREATES_COPY),
         Map.entry("withHeaderBindingByProvenance", WitherLifecycle.IDENTITY_NO_COPY),
         Map.entry("withReadConfig", WitherLifecycle.IDENTITY_NO_COPY)
     );
@@ -218,9 +219,10 @@ public class ParquetFormatReaderStateLifecycleTests extends ESTestCase {
             case "withDynamicThreshold" -> new Object[] { null };
             case "withDeclaredDateFormats" -> new Object[] { Map.of("x", "yyyy-MM-dd") };
             case "withDeclaredTypeColumns" -> new Object[] { Set.of("x") };
-            case "withConfigTrackingConsumedKeys", "withConfig" -> new Object[] { Map.of() };
+            // An empty config takes the identity shortcut; a cap that differs from the default forces the copy.
+            case "withConfigTrackingConsumedKeys", "withConfig" -> new Object[] { Map.of("schema_max_fields", 7) };
             case "withSchema" -> new Object[] { List.of() };
-            case "withDeclaredProvenanceBinding" -> new Object[] { false };
+            case "withDeclaredProvenanceBinding" -> new Object[] { true };
             case "withHeaderBindingByProvenance" -> new Object[] { false };
             case "withReadConfig" -> new Object[] { "" };
             default -> throw new AssertionError("update sampleArgsFor() for new wither: " + wither);

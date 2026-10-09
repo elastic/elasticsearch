@@ -20,11 +20,13 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.cache.DatasetIdentity;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheEntry;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
+import org.elasticsearch.xpack.esql.datasources.cache.StatisticsKey;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -642,17 +644,14 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
             .put("esql.external.cache.listing.ttl", "30s")
             .build();
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", "", Map.of());
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, testIdentity(), false);
             service.getOrComputeSchema(
                 key,
                 k -> SchemaCacheEntry.from(schema, "csv", path, Map.of(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint), Map.of())
             );
             service.reconcileSourceStatsFromContributions(Map.of(path, fragments));
-            SchemaCacheEntry enriched = service.getOrComputeSchema(
-                key,
-                k -> { throw new AssertionError("schema entry must remain cached"); }
-            );
-            return enriched.safeMetadata();
+            Map<String, Object> enriched = harvested(service, key);
+            return enriched;
         }
     }
 
@@ -997,6 +996,43 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
             "an over-external_max_record_size drop on the record-reader path must safe-miss the whole publish, got: " + frags,
             frags.isEmpty()
         );
+    }
+
+    /**
+     * Only FAIL_FAST licenses a committed row count to cross read configurations, and that is what makes a
+     * licensed count safe: under a lenient policy a committed count is this read's survivor count, not the
+     * file's physical one, so handing it to another declaration would answer with a number nobody measured.
+     * <p>
+     * Pinned here because the guard is one {@code if} at the publish site and nothing else asserted it. The
+     * pairing also explains why a licensed count can never be served to a read that drops rows: the licence
+     * requires FAIL_FAST, and FAIL_FAST aborts rather than dropping, so the two are mutually exclusive. An
+     * integration test that tried to exercise that crossing could only ever pass vacuously.
+     */
+    public void testOnlyFailFastLicensesTheRowCountToCrossReadConfigurations() throws Exception {
+        byte[] data = "1,a\n2,b\n3,c\n".getBytes(StandardCharsets.UTF_8);
+        List<Attribute> schema = List.of(
+            intCol("id"),
+            new ReferenceAttribute(Source.EMPTY, null, "tags", DataType.KEYWORD, Nullability.TRUE, null, false)
+        );
+
+        // A budget is rejected with FAIL_FAST (it always aborts on the first error), so it carries none.
+        ErrorPolicy failFast = new ErrorPolicy(ErrorPolicy.Mode.FAIL_FAST, 0, 0.0, false);
+        List<Map<String, Object>> licensed = captureRecordReaderPath(data, 0, true, true, 1000, 64, schema, failFast, 4096);
+        assertFalse("fail_fast must publish something to license", licensed.isEmpty());
+        assertTrue(
+            "fail_fast licenses the count: nothing is dropped, so it is the file's physical record count",
+            licensed.stream().anyMatch(f -> Boolean.TRUE.equals(f.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY)))
+        );
+
+        for (ErrorPolicy.Mode lenient : List.of(ErrorPolicy.Mode.SKIP_ROW, ErrorPolicy.Mode.NULL_FIELD)) {
+            ErrorPolicy policy = new ErrorPolicy(lenient, 100, 1.0, false);
+            List<Map<String, Object>> fragments = captureRecordReaderPath(data, 0, true, true, 1000, 64, schema, policy, 4096);
+            assertFalse(lenient + " must publish something to check", fragments.isEmpty());
+            assertTrue(
+                lenient + " must NOT license the count - a survivor count is not the file's physical count",
+                fragments.stream().noneMatch(f -> Boolean.TRUE.equals(f.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY)))
+            );
+        }
     }
 
     public void testMaxRecordSizeDropOnDirectBlockPathSafeMissesStripeCapture() throws Exception {
@@ -1448,7 +1484,7 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
             .put("esql.external.cache.listing.ttl", "30s")
             .build();
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", "", Map.of());
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, testIdentity(), false);
             List<Attribute> schema = List.of(
                 new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.KEYWORD, Nullability.TRUE, null, false)
             );
@@ -1459,14 +1495,11 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
 
             service.reconcileSourceStatsFromContributions(Map.of(path, fragments));
 
-            SchemaCacheEntry enriched = service.getOrComputeSchema(
-                key,
-                k -> { throw new AssertionError("schema entry must remain cached"); }
-            );
+            Map<String, Object> enriched = harvested(service, key);
             assertEquals(
                 "real reader fragments must fold to the exact whole-file row count",
                 expectedRows,
-                ((Number) enriched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue()
+                ((Number) enriched.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue()
             );
         }
     }
@@ -1519,5 +1552,31 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
                 return StoragePath.of(uniquePath);
             }
         };
+    }
+
+    /**
+     * The identity these cases need is any identity: they exercise the stripe-capture path, not addressing, and
+     * only require that the key they mint and the key they read back agree. The extension in the reader slot is
+     * a label for readability, not the mechanism: production separates two formats through the coordinator lane,
+     * not this one.
+     */
+    private static DatasetIdentity testIdentity() {
+        return DatasetIdentity.of("", null, "", ".csv", "");
+    }
+
+    /**
+     * The measurements a warm serve would use for {@code key}: the statistics committed under the read the
+     * schema record was resolved with. The two kinds of fact are separate stores, so a measurement is no longer
+     * read off the schema record — these cases predate that and assert on the measurement, which is what they
+     * mean to assert.
+     */
+    private static Map<String, Object> harvested(ExternalSourceCacheService service, SchemaCacheKey key) {
+        SchemaCacheEntry schema = service.getSchemaIfPresent(key);
+        assertNotNull("no schema record at " + key, schema);
+        String stamp = schema.safeMetadata().get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY) instanceof String str && str.isEmpty() == false
+            ? str
+            : null;
+        Map<String, Object> statistics = service.getStatistics(StatisticsKey.of(key, stamp));
+        return statistics == null ? Map.of() : statistics;
     }
 }

@@ -941,19 +941,22 @@ public class ExternalSourceResolver {
      * reach the per-file floor. A reader with no sample to narrow (Parquet, ORC) or whose configured sample is already
      * within its share keeps the key an unshared read uses. Whether a CSV file's header declares its types is only
      * known once it is read, so typed-header CSV is still re-keyed while the effective sample size changes.
+     * <p>
+     * The reader is derived exactly as the metadata read derives the one it samples with
+     * ({@link FormatReaderRegistry#readerForListedObject}), from the same location and config: the size this returns
+     * is the key the read's schema is cached under, so it must be the size that read samples.
      */
-    private int sharedSchemaSampleSize(String objectName, Map<String, Object> config, int files) {
+    private int sharedSchemaSampleSize(StoragePath filePath, Map<String, Object> config, int files) {
         if (files <= 1) {
             return 0;
         }
-        Map<String, Object> readerConfig = storageConfig(config);
         try {
-            FormatReader reader = FormatNameResolver.resolveReader(readerConfig, objectName, dataSourceModule.formatReaderRegistry())
-                .withConfig(readerConfig);
+            FormatReader reader = dataSourceModule.formatReaderRegistry()
+                .readerForListedObject(filePath.toString(), filePath.objectName(), config);
             FormatReader shared = reader.withSchemaSampleShare(files);
             return shared == reader ? 0 : shared.schemaSampleSize();
         } catch (IllegalArgumentException e) {
-            LOGGER.trace(() -> "no format claims [" + objectName + "] or its reader rejects the config; no schema sample to share", e);
+            LOGGER.trace(() -> "no format claims [" + filePath + "] or its reader rejects the config; no schema sample to share", e);
             return 0;
         }
     }
@@ -3285,8 +3288,8 @@ public class ExternalSourceResolver {
                 ? null
                 : FormatNameResolver.resolveFormatNameForIdentity(config, filePath.objectName(), dataSourceModule.formatReaderRegistry());
             sharedSampleSize = formatName == null
-                ? sharedSchemaSampleSize(filePath.objectName(), config, files)
-                : sharedSampleSizeByFormat.computeIfAbsent(formatName, f -> sharedSchemaSampleSize(filePath.objectName(), config, files));
+                ? sharedSchemaSampleSize(filePath, config, files)
+                : sharedSampleSizeByFormat.computeIfAbsent(formatName, f -> sharedSchemaSampleSize(filePath, config, files));
             if (sharedSampleSize == 0) {
                 readHint = new ListingHint(hint.length(), hint.lastModifiedMillis());
             }

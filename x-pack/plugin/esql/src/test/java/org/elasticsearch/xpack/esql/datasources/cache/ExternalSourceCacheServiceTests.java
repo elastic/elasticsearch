@@ -1373,9 +1373,10 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     }
 
     /**
-     * Two effective sample sizes for one file ({@link SchemaCacheKey#buildShared}) are the same read of the same
-     * object, so the data node's harvest must enrich both. Were the sample size part of the dataset identity, the
-     * entries would disagree on it and the cache, unable to attribute the harvest, would enrich neither.
+     * Two effective sample sizes for one file ({@link SchemaCacheKey#buildShared}), and the whole sample, are the same
+     * read of the same object, so the data node's harvest must enrich every one of them. Were the sample size part of
+     * the dataset identity, the entries would disagree on it and the cache, unable to attribute the harvest, would
+     * enrich neither. Having resolved the same schema, they read the one statistics record the harvest filed.
      */
     public void testHarvestEnrichesEverySchemaSampleSizeOfAFile() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
@@ -1386,6 +1387,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             );
             DatasetIdentity identity = TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv"));
             List<SchemaCacheKey> sampleSizes = List.of(
+                SchemaCacheKey.build(path, mtime, identity, false),
                 SchemaCacheKey.buildShared(path, mtime, identity, 400),
                 SchemaCacheKey.buildShared(path, mtime, identity, 200)
             );
@@ -1407,7 +1409,54 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             for (SchemaCacheKey key : sampleSizes) {
                 assertEquals(key.toString(), 42L, warm(service, key).safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
             }
+            assertEquals("one record for the one read, whatever depth each schema sampled", 1, service.statisticsCache().count());
         }
+    }
+
+    /**
+     * Two schema records of one file that differ in depth, and resolved different schemas, put two writes on one
+     * statistics address: the whole-sample record's own read, and the shared-sample record's copy of the same harvest
+     * filed as harvested. The own read must win whichever record the reconcile meets first, or the raw copy keeps an
+     * extremum the own read's coercion dropped as unrepresentable in the column's type.
+     */
+    public void testOwnReadWinsAStatisticsAddressSharedAcrossSampleDepths() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/events.ndjson";
+            long mtime = 1000L;
+            DatasetIdentity identity = TestDatasetIdentities.identity(".ndjson", "", Map.of("format", "ndjson"));
+            SchemaCacheKey whole = SchemaCacheKey.build(path, mtime, identity, false);
+            SchemaCacheKey shared = SchemaCacheKey.buildShared(path, mtime, identity, 100);
+            seedStampedSchema(service, whole, path, "config-own");
+            seedStampedSchema(service, shared, path, "config-shallow");
+
+            Map<String, Object> harvest = wholeFileWithShape(mtime, "fp", "config-own", 100L);
+            harvest.put(SourceStatisticsSerializer.columnMinKey("uid"), 1.0e19); // > Long.MAX, not long-representable
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(harvest)));
+
+            Map<String, Object> filed = service.getStatistics(StatisticsKey.of(shared, "config-own"));
+            assertNotNull("the harvest was filed under its read", filed);
+            assertEquals(100L, filed.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+            assertNotEquals(
+                "the own read's coercion dropped the unrepresentable min; the raw copy must not restore it",
+                1.0e19,
+                filed.get(SourceStatisticsSerializer.columnMinKey("uid"))
+            );
+        }
+    }
+
+    private static void seedStampedSchema(ExternalSourceCacheService service, SchemaCacheKey key, String path, String readConfig)
+        throws Exception {
+        List<Attribute> schema = List.of(new ReferenceAttribute(Source.EMPTY, null, "uid", DataType.LONG, Nullability.TRUE, null, false));
+        service.getOrComputeSchema(
+            key,
+            k -> SchemaCacheEntry.from(
+                schema,
+                "ndjson",
+                path,
+                Map.of(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp", ExternalStats.READ_CONFIG_FINGERPRINT_KEY, readConfig),
+                Map.of()
+            )
+        );
     }
 
     public void testFailFastLicensesOnlyTheRowCountAcrossShapes() throws Exception {

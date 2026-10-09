@@ -820,7 +820,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
 
     /** Metadata/config for one listed object: dataset reader plus this object's wrap. */
     private FormatReader readerForListedObject(String location, String objectName, Map<String, Object> config) {
-        return formatRegistry.wrapForObject(unwrappedDatasetReader(location, config).withConfig(config), objectName);
+        return formatRegistry.readerForListedObject(location, objectName, config);
     }
 
     private static String datasetResource(SourceOperatorContext context) {

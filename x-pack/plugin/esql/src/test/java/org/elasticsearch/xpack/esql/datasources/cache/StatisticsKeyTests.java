@@ -66,6 +66,23 @@ public class StatisticsKeyTests extends ESTestCase {
     }
 
     /**
+     * A shared sample's depth decides which schema inference produced, not what a read of the file measured, so it
+     * is the one component of the file's address that is dropped. The read still separates two depths whose schemas
+     * differ, because their read configurations do.
+     */
+    public void testTheSampleDepthDoesNotDiscriminateTheAddress() {
+        SchemaCacheKey shallow = SchemaCacheKey.buildShared(PATH, 11L, identity(), 100);
+        SchemaCacheKey deeper = SchemaCacheKey.buildShared(PATH, 11L, identity(), 10_000);
+        StatisticsKey whole = StatisticsKey.of(file(false), "aaaa1111");
+
+        assertEquals(whole, StatisticsKey.of(shallow, "aaaa1111"));
+        assertEquals(whole, StatisticsKey.of(deeper, "aaaa1111"));
+        assertEquals(file(false), StatisticsKey.of(shallow, "aaaa1111").file());
+        assertNotEquals(whole, StatisticsKey.of(shallow, "bbbb2222"));
+        assertNotEquals(StatisticsKey.of(file(true), "aaaa1111"), StatisticsKey.of(shallow, "aaaa1111"));
+    }
+
+    /**
      * A read that recorded no configuration gets the one shared unstamped address rather than no address.
      * <p>
      * Sharing is correct for them: two reads that recorded nothing are indistinguishable, so there is nothing

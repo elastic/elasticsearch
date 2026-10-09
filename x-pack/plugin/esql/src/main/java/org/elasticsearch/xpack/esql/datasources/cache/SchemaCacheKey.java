@@ -47,6 +47,14 @@ public record SchemaCacheKey(DatasetIdentity dataset, String location, long last
     /** {@link #answer()} of a record inferred from the whole schema sample. */
     public static final int INFERRED = 0;
 
+    public SchemaCacheKey {
+        if (answer < DECLARED_STRICT) {
+            throw new IllegalArgumentException(
+                "a schema record is strict-declared, inferred or inferred from a shared sample of rows, got answer [" + answer + "]"
+            );
+        }
+    }
+
     /**
      * Key for a per-file record.
      *
@@ -71,5 +79,15 @@ public record SchemaCacheKey(DatasetIdentity dataset, String location, long last
     /** Whether this addresses the strict-declared warm rail's record. */
     public boolean declaredStrict() {
         return answer == DECLARED_STRICT;
+    }
+
+    /**
+     * This address with a shared sample's depth dropped: the whole-sample {@link #INFERRED} record's address for a
+     * shared-sample key, and this key otherwise. How deep inference sampled decides which schema a record holds,
+     * not what a read of the file measures, so the statistics address is built from this (see
+     * {@link StatisticsKey}).
+     */
+    public SchemaCacheKey withoutSampleDepth() {
+        return answer > INFERRED ? new SchemaCacheKey(dataset, location, lastModifiedEpochMillis, INFERRED) : this;
     }
 }

@@ -137,7 +137,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             List<String> indices,
             Map<ShardId, ShardRestoreStatus> shards
         ) {
-            this(uuid, snapshot, state, quiet, indices, shards, /* reportShardRestoring= */ false);
+            this(uuid, snapshot, state, quiet, indices, shards, /* reportShardRestoring = */ false);
         }
 
         /**

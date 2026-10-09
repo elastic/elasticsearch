@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryInfo;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -61,9 +60,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -71,10 +68,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -100,6 +95,7 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
     private static final String REPOSITORY_NAME = "test-repo";
     private static final String SNAPSHOT_NAME = "test-snap";
     private static final String INDEX_NAME = "test-idx";
+    private static final String SECOND_INDEX_NAME = "test-idx-2";
 
     public void testRestoreOverOpenIndexReusesLocalFiles() throws Exception {
         internalCluster().startMasterOnlyNode();
@@ -961,95 +957,240 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
         );
     }
 
+    public void testRestoreSnapshotReportsTheRestoreWhileItIsInFlight() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        createRepositoryAndSnapshottedIndex();
+        final String restoreUuid = UUIDs.randomBase64UUID();
+
+        final InFlightLookup inFlight = lookupWhileInFlight(
+            REPOSITORY_NAME,
+            dataNode,
+            () -> reportableRestoreException(INDEX_NAME),
+            future -> restoreService().restoreSnapshot(
+                ProjectId.DEFAULT,
+                restoreOverOpenIndexRequest(),
+                restoreUuid,
+                true,
+                future,
+                (state, builder) -> {}
+            )
+        );
+
+        assertReportsShardRestoring(inFlight.exception(), INDEX_NAME, restoreUuid);
+        assertEveryRestoreEntryReports(inFlight.reportShardRestoring(), true);
+        assertThat("nothing is reported once the restore is over", reportableRestoreException(INDEX_NAME), nullValue());
+    }
+
     /**
      * A restore keeps the generic shard-unavailable errors unless its caller explicitly asks for {@link ShardRestoringException}, so the
-     * {@link RestoreService#restoreSnapshot} overload without the parameter does not set
-     * {@link RestoreInProgress.Entry#reportShardRestoring()}.
+     * {@link RestoreService#restoreSnapshot} overload without the parameter never sets
+     * {@link RestoreInProgress.Entry#reportShardRestoring()} on the restore's entry, and the lookup reports nothing while the restore is
+     * in flight.
      */
-    public void testRestoreSnapshotDoesNotReportShardRestoringByDefault() throws Exception {
-        createClusterAndSnapshottedIndex();
-
-        final List<Boolean> reported = captureReportShardRestoring(
-            future -> restoreService().restoreSnapshot(
-                ProjectId.DEFAULT,
-                restoreOverOpenIndexRequest(),
-                UUIDs.randomBase64UUID(),
-                future,
-                (state, builder) -> {}
-            )
-        );
-
-        assertThat(reported, not(empty()));
-        assertThat(reported, everyItem(is(false)));
-    }
-
-    public void testRestoreSnapshotReportsShardRestoringWhenRequested() throws Exception {
-        createClusterAndSnapshottedIndex();
-
-        final List<Boolean> reported = captureReportShardRestoring(
-            future -> restoreService().restoreSnapshot(
-                ProjectId.DEFAULT,
-                restoreOverOpenIndexRequest(),
-                UUIDs.randomBase64UUID(),
-                true,
-                future,
-                (state, builder) -> {}
-            )
-        );
-
-        assertThat(reported, not(empty()));
-        assertThat(reported, everyItem(is(true)));
-    }
-
-    public void testRestoreSnapshotOverOpenIndicesDoesNotReportShardRestoringByDefault() throws Exception {
-        createClusterAndSnapshottedIndex();
-        final SnapshotInfo snapshotInfo = getSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME);
-        final Snapshot snapshot = new Snapshot(REPOSITORY_NAME, snapshotInfo.snapshotId());
-        final RestoreService.OpenIndexRestoreTarget target = openIndexTarget(INDEX_NAME);
-
-        final List<Boolean> reported = captureReportShardRestoring(
-            future -> restoreService().restoreSnapshotOverOpenIndices(
-                ProjectId.DEFAULT,
-                snapshot,
-                snapshotInfo,
-                TEST_REQUEST_TIMEOUT,
-                UUIDs.randomBase64UUID(),
-                List.of(target),
-                future
-            )
-        );
-
-        assertThat(reported, not(empty()));
-        assertThat(reported, everyItem(is(false)));
-    }
-
-    public void testRestoreSnapshotOverOpenIndicesReportsShardRestoringWhenRequested() throws Exception {
-        createClusterAndSnapshottedIndex();
-        final SnapshotInfo snapshotInfo = getSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME);
-        final Snapshot snapshot = new Snapshot(REPOSITORY_NAME, snapshotInfo.snapshotId());
-        final RestoreService.OpenIndexRestoreTarget target = openIndexTarget(INDEX_NAME);
-
-        final List<Boolean> reported = captureReportShardRestoring(
-            future -> restoreService().restoreSnapshotOverOpenIndices(
-                ProjectId.DEFAULT,
-                snapshot,
-                snapshotInfo,
-                TEST_REQUEST_TIMEOUT,
-                UUIDs.randomBase64UUID(),
-                true,
-                List.of(target),
-                future
-            )
-        );
-
-        assertThat(reported, not(empty()));
-        assertThat(reported, everyItem(is(true)));
-    }
-
-    private void createClusterAndSnapshottedIndex() throws Exception {
+    public void testRestoreSnapshotDoesNotReportTheRestoreWhileItIsInFlightByDefault() throws Exception {
         internalCluster().startMasterOnlyNode();
-        internalCluster().startDataOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
         createRepositoryAndSnapshottedIndex();
+
+        final InFlightLookup inFlight = lookupWhileInFlight(
+            REPOSITORY_NAME,
+            dataNode,
+            () -> reportableRestoreException(INDEX_NAME),
+            future -> restoreService().restoreSnapshot(
+                ProjectId.DEFAULT,
+                restoreOverOpenIndexRequest(),
+                UUIDs.randomBase64UUID(),
+                future,
+                (state, builder) -> {}
+            )
+        );
+
+        assertThat(inFlight.exception(), nullValue());
+        assertEveryRestoreEntryReports(inFlight.reportShardRestoring(), false);
+    }
+
+    /**
+     * The overloads that choose a random restore UUID never ask for the restore to be reported.
+     */
+    public void testRestoreSnapshotWithoutRestoreUuidDoesNotReportShardRestoring() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        createRepositoryAndSnapshottedIndex();
+
+        final List<Boolean> withoutUpdater = whileRestoresInFlight(
+            REPOSITORY_NAME,
+            dataNode,
+            () -> {},
+            future -> restoreService().restoreSnapshot(ProjectId.DEFAULT, restoreOverOpenIndexRequest(), future)
+        );
+        final List<Boolean> withUpdater = whileRestoresInFlight(
+            REPOSITORY_NAME,
+            dataNode,
+            () -> {},
+            future -> restoreService().restoreSnapshot(ProjectId.DEFAULT, restoreOverOpenIndexRequest(), future, (state, builder) -> {})
+        );
+
+        assertEveryRestoreEntryReports(withoutUpdater, false);
+        assertEveryRestoreEntryReports(withUpdater, false);
+    }
+
+    public void testRestoreSnapshotOverOpenIndicesReportsTheRestoreWhileItIsInFlight() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        createRepositoryAndSnapshottedIndex();
+        final String restoreUuid = UUIDs.randomBase64UUID();
+        final SnapshotInfo snapshotInfo = getSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME);
+        final Snapshot snapshot = new Snapshot(REPOSITORY_NAME, snapshotInfo.snapshotId());
+        final RestoreService.OpenIndexRestoreTarget target = openIndexTarget(INDEX_NAME);
+
+        final InFlightLookup inFlight = lookupWhileInFlight(
+            REPOSITORY_NAME,
+            dataNode,
+            () -> reportableRestoreException(INDEX_NAME),
+            future -> restoreService().restoreSnapshotOverOpenIndices(
+                ProjectId.DEFAULT,
+                snapshot,
+                snapshotInfo,
+                TEST_REQUEST_TIMEOUT,
+                restoreUuid,
+                true,
+                List.of(target),
+                future
+            )
+        );
+
+        assertReportsShardRestoring(inFlight.exception(), INDEX_NAME, restoreUuid);
+        assertEveryRestoreEntryReports(inFlight.reportShardRestoring(), true);
+        assertThat("nothing is reported once the restore is over", reportableRestoreException(INDEX_NAME), nullValue());
+    }
+
+    public void testRestoreSnapshotOverOpenIndicesDoesNotReportTheRestoreWhileItIsInFlightByDefault() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        createRepositoryAndSnapshottedIndex();
+        final SnapshotInfo snapshotInfo = getSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME);
+        final Snapshot snapshot = new Snapshot(REPOSITORY_NAME, snapshotInfo.snapshotId());
+        final RestoreService.OpenIndexRestoreTarget target = openIndexTarget(INDEX_NAME);
+
+        final InFlightLookup inFlight = lookupWhileInFlight(
+            REPOSITORY_NAME,
+            dataNode,
+            () -> reportableRestoreException(INDEX_NAME),
+            future -> restoreService().restoreSnapshotOverOpenIndices(
+                ProjectId.DEFAULT,
+                snapshot,
+                snapshotInfo,
+                TEST_REQUEST_TIMEOUT,
+                UUIDs.randomBase64UUID(),
+                List.of(target),
+                future
+            )
+        );
+
+        assertThat(inFlight.exception(), nullValue());
+        assertEveryRestoreEntryReports(inFlight.reportShardRestoring(), false);
+    }
+
+    /**
+     * A restore into a brand new index is the most common shape of restore. It is reported just like a restore over an open index.
+     */
+    public void testRestoreIntoANewIndexReportsTheRestoreWhileItIsInFlight() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        createRepositoryAndSnapshottedIndex();
+        final String restoreUuid = UUIDs.randomBase64UUID();
+        final String restoredIndex = INDEX_NAME + "-restored";
+
+        final InFlightLookup inFlight = lookupWhileInFlight(
+            REPOSITORY_NAME,
+            dataNode,
+            () -> reportableRestoreException(restoredIndex),
+            future -> restoreService().restoreSnapshot(
+                ProjectId.DEFAULT,
+                new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, REPOSITORY_NAME, SNAPSHOT_NAME).indices(INDEX_NAME)
+                    .renamePattern("(.+)")
+                    .renameReplacement("$1-restored"),
+                restoreUuid,
+                true,
+                future,
+                (state, builder) -> {}
+            )
+        );
+
+        assertReportsShardRestoring(inFlight.exception(), restoredIndex, restoreUuid);
+        assertEveryRestoreEntryReports(inFlight.reportShardRestoring(), true);
+        assertThat("the original index is not being restored", reportableRestoreException(INDEX_NAME), nullValue());
+    }
+
+    /**
+     * Two restores of different indices run at once, one through each flag-setting entry point. Each index is reported with the UUID of its
+     * own restore.
+     */
+    public void testTwoConcurrentRestoresThatReportEachReportTheirOwnUuid() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        createSecondIndex();
+        createRepositoryAndSnapshottedIndex();
+        final String firstUuid = UUIDs.randomBase64UUID();
+        final String secondUuid = UUIDs.randomBase64UUID();
+        final SnapshotInfo snapshotInfo = getSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME);
+        final Snapshot snapshot = new Snapshot(REPOSITORY_NAME, snapshotInfo.snapshotId());
+        final RestoreService.OpenIndexRestoreTarget secondTarget = openIndexTarget(SECOND_INDEX_NAME);
+
+        whileRestoresInFlight(REPOSITORY_NAME, dataNode, () -> {
+            assertReportsShardRestoring(reportableRestoreException(INDEX_NAME), INDEX_NAME, firstUuid);
+            assertReportsShardRestoring(reportableRestoreException(SECOND_INDEX_NAME), SECOND_INDEX_NAME, secondUuid);
+        },
+            future -> restoreService().restoreSnapshot(
+                ProjectId.DEFAULT,
+                restoreOverOpenIndexRequest(),
+                firstUuid,
+                true,
+                future,
+                (state, builder) -> {}
+            ),
+            future -> restoreService().restoreSnapshotOverOpenIndices(
+                ProjectId.DEFAULT,
+                snapshot,
+                snapshotInfo,
+                TEST_REQUEST_TIMEOUT,
+                secondUuid,
+                true,
+                List.of(secondTarget),
+                future
+            )
+        );
+    }
+
+    /**
+     * Deleting one of the indices a restore is restoring rebuilds the restore's entry. The restore must still report the index that is
+     * left, with the same UUID.
+     */
+    public void testRestoreThatReportsStillReportsAfterAnIndexOfTheRestoreIsDeleted() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        createSecondIndex();
+        createRepositoryAndSnapshottedIndex();
+        final String restoreUuid = UUIDs.randomBase64UUID();
+        final RestoreSnapshotRequest bothIndices = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, REPOSITORY_NAME, SNAPSHOT_NAME).indices(
+            INDEX_NAME,
+            SECOND_INDEX_NAME
+        ).restoreOverExisting(true);
+
+        whileRestoresInFlight(REPOSITORY_NAME, dataNode, () -> {
+            assertReportsShardRestoring(reportableRestoreException(INDEX_NAME), INDEX_NAME, restoreUuid);
+
+            assertAcked(indicesAdmin().prepareDelete(SECOND_INDEX_NAME));
+
+            // the entry is rebuilt when the index is deleted, so wait for the master to apply the state that has the rebuilt entry
+            awaitClusterState(state -> {
+                final RestoreInProgress.Entry rebuilt = RestoreInProgress.get(state).get(restoreUuid);
+                return rebuilt != null
+                    && rebuilt.shards().values().stream().anyMatch(status -> "index was deleted".equals(status.reason()));
+            });
+            assertReportsShardRestoring(reportableRestoreException(INDEX_NAME), INDEX_NAME, restoreUuid);
+        }, future -> restoreService().restoreSnapshot(ProjectId.DEFAULT, bothIndices, restoreUuid, true, future, (state, builder) -> {}));
     }
 
     private static RestoreSnapshotRequest restoreOverOpenIndexRequest() {
@@ -1057,31 +1198,17 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
             .restoreOverExisting(true);
     }
 
-    /**
-     * Starts a restore with {@code startRestore}, waits for it to complete, and returns
-     * {@link RestoreInProgress.Entry#reportShardRestoring()} of every restore entry the master applied meanwhile. The flag is set when
-     * the restore starts and carried by the entry through every cluster state the master builds, so recording it there is deterministic.
-     * It is read on the master because the flag is not part of the wire format yet.
-     */
-    private List<Boolean> captureReportShardRestoring(Consumer<PlainActionFuture<RestoreService.RestoreCompletionResponse>> startRestore)
-        throws Exception {
-        final List<Boolean> seen = new CopyOnWriteArrayList<>();
-        final ClusterService masterClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
-        final ClusterStateListener listener = event -> {
-            for (RestoreInProgress.Entry entry : RestoreInProgress.get(event.state())) {
-                seen.add(entry.reportShardRestoring());
-            }
-        };
-        masterClusterService.addListener(listener);
-        try {
-            final PlainActionFuture<RestoreService.RestoreCompletionResponse> future = new PlainActionFuture<>();
-            startRestore.accept(future);
-            safeGet(future);
-            awaitRestoreCompleted();
-        } finally {
-            masterClusterService.removeListener(listener);
+    private ShardRestoringException reportableRestoreException(String indexName) {
+        return reportableRestoreExceptionOnMaster(state -> state.metadata().getProject(ProjectId.DEFAULT).index(indexName).getIndex());
+    }
+
+    private void createSecondIndex() {
+        createIndex(SECOND_INDEX_NAME, indexSettings(1, 0).build());
+        for (int i = 0; i < 10; i++) {
+            prepareIndex(SECOND_INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).get();
         }
-        return seen;
+        indicesAdmin().prepareFlush(SECOND_INDEX_NAME).get();
+        ensureGreen(SECOND_INDEX_NAME);
     }
 
     /**

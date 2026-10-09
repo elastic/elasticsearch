@@ -1832,6 +1832,11 @@ public final class RestoreService implements ClusterStateApplier {
      * <p>Both the routing table and the {@link RestoreInProgress} are read from {@code state}, which guarantees they are consistent with
      * each other.
      *
+     * <p>A shard can still be recovering from a snapshot after its restore entry is gone, for example when a restore finishes with a failed
+     * shard and its entry is cleaned up while the shard stays unassigned, or when the entry is lost in a master failover while the shard is
+     * really still being restored. There is then no entry to say the restore asked for its shards to be reported, so {@code null} is
+     * returned.
+     *
      * @param shardId the shard to query
      * @param state   the cluster state to read from
      * @return the exception to fail with, or {@code null} if the shard is not being restored by a restore that reports its shards

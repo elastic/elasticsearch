@@ -22,11 +22,18 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.index.IndexVersions.DISK_BBQ_AUTO_CALIBRATE_ENABLE_BY_DEFAULT;
+
 /** Parsed {@code auto_calibrate} index option: the resolved profile plus the value the user originally supplied. */
 public record DenseVectorAutoCalibrate(@Nullable Object originalValue, IvfAutoCalibrationProfile profile) implements ToXContentFragment {
     public static final NodeFeature AUTO_CALIBRATE_PROFILES = new NodeFeature("mapper.dense_vector.auto_calibrate_profiles");
+
     static final String NAME = "auto_calibrate";
-    static final DenseVectorAutoCalibrate DEFAULT = new DenseVectorAutoCalibrate(null, IvfAutoCalibrationProfile.DISABLED);
+    static final DenseVectorAutoCalibrate DEFAULT_DISABLED = new DenseVectorAutoCalibrate(null, IvfAutoCalibrationProfile.DISABLED);
+    static final DenseVectorAutoCalibrate DEFAULT_ENABLED_ISO_SIZING = new DenseVectorAutoCalibrate(
+        null,
+        IvfAutoCalibrationProfile.ISO_SIZING
+    );
 
     public static IvfAutoCalibrationProfile defaultEnabledProfile(IndexVersion indexVersion) {
         return indexVersion.onOrAfter(IndexVersions.DISK_BBQ_AUTO_CALIBRATE_DEFAULT_ISO_SIZING)
@@ -35,7 +42,10 @@ public record DenseVectorAutoCalibrate(@Nullable Object originalValue, IvfAutoCa
     }
 
     static DenseVectorAutoCalibrate defaultAutoCalibrate(IndexVersion indexVersion) {
-        return DEFAULT;
+        if (indexVersion.onOrAfter(DISK_BBQ_AUTO_CALIBRATE_ENABLE_BY_DEFAULT)) {
+            return DEFAULT_ENABLED_ISO_SIZING;
+        }
+        return DEFAULT_DISABLED;
     }
 
     /** Accepts a boolean, a boolean string, or a profile name. */

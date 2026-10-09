@@ -99,10 +99,6 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         (n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers(), c.getIndexSettings().isIndexDisabledByDefault())
     );
 
-    private static Builder builder(FieldMapper in) {
-        return ((SearchAsYouTypeFieldMapper) in).builder;
-    }
-
     public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> index;
@@ -658,9 +654,10 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     private final int maxShingleSize;
     private final PrefixFieldMapper prefixField;
     private final ShingleFieldMapper[] shingleFields;
-    private final Builder builder;
 
     private final Map<String, NamedAnalyzer> indexAnalyzers;
+    private final boolean indexed;
+    private final boolean stored;
 
     public SearchAsYouTypeFieldMapper(
         String simpleName,
@@ -675,7 +672,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         this.prefixField = prefixField;
         this.shingleFields = shingleFields;
         this.maxShingleSize = builder.maxShingleSize.getValue();
-        this.builder = builder;
+        this.indexed = builder.index.get();
+        this.stored = builder.store.get();
         this.indexAnalyzers = Map.copyOf(indexAnalyzers);
     }
 
@@ -691,12 +689,12 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             return;
         }
 
-        if (this.builder.index.get() == false && this.builder.store.get() == false) {
+        if (indexed == false && stored == false) {
             return;
         }
 
         context.doc().add(new Field(fieldType().name(), value, fieldType().fieldType));
-        if (this.builder.index.get()) {
+        if (indexed) {
             for (ShingleFieldMapper subFieldMapper : shingleFields) {
                 context.doc().add(new Field(subFieldMapper.fieldType().name(), value, subFieldMapper.getLuceneFieldType()));
             }

@@ -146,8 +146,6 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
 
     public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, IGNORE_MALFORMED_SETTING.get(c.getSettings())));
 
-    private final Builder builder;
-
     public PointFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
@@ -164,7 +162,6 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
             builder.nullValue.get(),
             parser
         );
-        this.builder = builder;
     }
 
     @Override

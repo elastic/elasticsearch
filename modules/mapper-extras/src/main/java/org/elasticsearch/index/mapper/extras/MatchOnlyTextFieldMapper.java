@@ -1098,7 +1098,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     private final IndexVersion indexCreatedVersion;
     private final IndexAnalyzers indexAnalyzers;
     private final NamedAnalyzer indexAnalyzer;
-    private final int positionIncrementGap;
     private final FieldType fieldType;
     private final boolean storedFieldInBinaryFormat;
     private final boolean usesBinaryDocValuesForFallbackFields;
@@ -1126,7 +1125,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         this.indexCreatedVersion = builder.indexCreatedVersion();
         this.indexAnalyzers = builder.analyzers.indexAnalyzers;
         this.indexAnalyzer = builder.analyzers.getIndexAnalyzer();
-        this.positionIncrementGap = builder.analyzers.positionIncrementGap.getValue();
         this.storedFieldInBinaryFormat = builder.storedFieldInBinaryFormat;
         this.usesBinaryDocValuesForFallbackFields = builder.usesBinaryDocValuesForFallbackFields;
         this.docValuesParameters = builder.docValuesParameters.getValue();

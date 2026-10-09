@@ -475,7 +475,6 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         }
     }
 
-    private final Builder builder;
     private final GeoShapeIndexer indexer;
     private final boolean indexed;
 
@@ -497,7 +496,6 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             builder.orientation.get(),
             parser
         );
-        this.builder = builder;
         this.indexer = indexer;
         this.indexed = mappedFieldType.indexType().hasPoints();
     }

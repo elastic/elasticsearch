@@ -282,7 +282,6 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
         }
     }
 
-    private final Builder builder;
     private final CartesianShapeIndexer indexer;
 
     public ShapeFieldMapper(
@@ -302,7 +301,6 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
             builder.orientation.get(),
             parser
         );
-        this.builder = builder;
         this.indexer = new CartesianShapeIndexer(mappedFieldType.name());
     }
 

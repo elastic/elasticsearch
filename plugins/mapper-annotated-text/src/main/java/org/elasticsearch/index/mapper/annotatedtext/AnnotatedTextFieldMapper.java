@@ -68,10 +68,6 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "annotated_text";
 
-    private static Builder builder(FieldMapper in) {
-        return ((AnnotatedTextFieldMapper) in).builder;
-    }
-
     private static NamedAnalyzer wrapAnalyzer(NamedAnalyzer in) {
         return new NamedAnalyzer(
             in.name(),
@@ -523,7 +519,6 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
     private final IndexVersion indexCreatedVersion;
     private final FieldType fieldType;
-    private final Builder builder;
     private final NamedAnalyzer indexAnalyzer;
 
     protected AnnotatedTextFieldMapper(
@@ -538,7 +533,6 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         assert fieldType.tokenized();
 
         this.fieldType = freezeAndDeduplicateFieldType(fieldType);
-        this.builder = builder;
         this.indexAnalyzer = wrapAnalyzer(builder.analyzers.getIndexAnalyzer());
         this.indexCreatedVersion = builder.indexCreatedVersion();
     }

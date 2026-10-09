@@ -551,9 +551,6 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
     }
 
-    private final IndexVersion indexCreatedVersion;
-    private final Builder builder;
-
     public LegacyGeoShapeFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
@@ -571,8 +568,6 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             builder.orientation.get(),
             parser
         );
-        this.indexCreatedVersion = builder.indexCreatedVersion;
-        this.builder = builder;
     }
 
     @Override

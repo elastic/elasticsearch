@@ -1987,7 +1987,6 @@ public final class TextFieldMapper extends FieldMapper {
     private final SimilarityProvider similarity;
     private final NamedAnalyzer indexAnalyzer;
     private final IndexAnalyzers indexAnalyzers;
-    private final int positionIncrementGap;
     private final PrefixConfig indexPrefixes;
     private final FielddataFrequencyFilter freqFilter;
     private final boolean fieldData;
@@ -2026,7 +2025,6 @@ public final class TextFieldMapper extends FieldMapper {
         this.phraseFieldInfo = phraseFieldInfo;
         this.indexAnalyzer = builder.analyzers.getIndexAnalyzer();
         this.indexAnalyzers = builder.analyzers.indexAnalyzers;
-        this.positionIncrementGap = builder.analyzers.positionIncrementGap.getValue();
         this.index = builder.index.getValue();
         this.store = builder.store.getValue();
         this.docValuesParameters = builder.docValuesParameters.getValue();

@@ -332,13 +332,14 @@ public class CompletionFieldMapper extends FieldMapper {
     }
 
     private final int maxInputLength;
-    private final Builder builder;
 
     private final NamedAnalyzer indexAnalyzer;
 
+    private final IndexVersion indexVersionCreated;
+
     public CompletionFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams, Builder builder) {
         super(simpleName, mappedFieldType, builderParams);
-        this.builder = builder;
+        this.indexVersionCreated = builder.indexVersionCreated;
         this.maxInputLength = builder.maxInputLength.getValue();
         this.indexAnalyzer = builder.buildAnalyzer();
     }
@@ -364,7 +365,7 @@ public class CompletionFieldMapper extends FieldMapper {
     }
 
     int getMaxInputLength() {
-        return builder.maxInputLength.get();
+        return maxInputLength;
     }
 
     /**
@@ -639,7 +640,7 @@ public class CompletionFieldMapper extends FieldMapper {
     public void doValidate(MappingLookup mappers) {
         if (fieldType().hasContextMappings()) {
             for (ContextMapping<?> contextMapping : fieldType().getContextMappings()) {
-                contextMapping.validateReferences(builder.indexVersionCreated, s -> mappers.fieldTypesLookup().get(s));
+                contextMapping.validateReferences(indexVersionCreated, s -> mappers.fieldTypesLookup().get(s));
             }
         }
     }

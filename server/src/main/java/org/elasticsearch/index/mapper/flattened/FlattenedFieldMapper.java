@@ -206,10 +206,6 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         }
     }
 
-    private static Builder builder(Mapper in) {
-        return ((FlattenedFieldMapper) in).builder;
-    }
-
     public static class Builder extends FieldMapper.Builder {
 
         final Parameter<Integer> depthLimit = Parameter.intParam("depth_limit", true, Defaults.DEPTH_LIMIT).addValidator(v -> {
@@ -1899,13 +1895,16 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
     }
 
     private final FlattenedFieldParser fieldParser;
-    private final Builder builder;
     private final Map<String, FieldMapper> mappedSubFields;
     private final int passthroughPriority; // -1 means passthrough disabled
     private final boolean passthrough;
     private final PreserveLeafArrays preserveLeafArrays;
     private final boolean writeDimensionRouting;
     private final int maxKeyedValueLength;
+    private final int depthLimit;
+    private final String nullValue;
+    private final boolean usesBinaryDocValues;
+    private final boolean storeIgnoredFieldsInBinaryDocValues;
 
     private FlattenedFieldMapper(
         String leafName,
@@ -1915,8 +1914,11 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         Map<String, FieldMapper> mappedSubFields
     ) {
         super(leafName, mappedFieldType, builderParams);
-        this.builder = builder;
         this.mappedSubFields = Collections.unmodifiableSortedMap(new TreeMap<>(mappedSubFields));
+        this.depthLimit = builder.depthLimit.get();
+        this.nullValue = builder.nullValue.get();
+        this.usesBinaryDocValues = builder.usesBinaryDocValues;
+        this.storeIgnoredFieldsInBinaryDocValues = builder.storeIgnoredFieldsInBinaryDocValues;
         Map<String, Object> passthroughConfig = builder.passthrough.getValue();
         this.passthroughPriority = passthroughConfig != null ? XContentMapValues.nodeIntegerValue(passthroughConfig.get("priority")) : -1;
         this.passthrough = this.passthroughPriority >= 0;
@@ -1930,13 +1932,13 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             mappedFieldType.name() + KEYED_FIELD_SUFFIX,
             mappedFieldType.name() + KEYED_IGNORED_VALUES_FIELD_SUFFIX,
             mappedFieldType,
-            builder.depthLimit.get(),
+            depthLimit,
             ((RootFlattenedFieldType) mappedFieldType).ignoreAbove().limit(),
-            builder.nullValue.get(),
-            builder.usesBinaryDocValues,
+            nullValue,
+            usesBinaryDocValues,
             builder.hasRootDocValues(),
             mappedSubFields,
-            builder.storeIgnoredFieldsInBinaryDocValues,
+            storeIgnoredFieldsInBinaryDocValues,
             builder.preserveLeafArrays.get(),
             builder.indexSettings.getIndexVersionCreated(),
             this.writeDimensionRouting,
@@ -1961,7 +1963,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
     }
 
     int depthLimit() {
-        return builder.depthLimit.get();
+        return depthLimit;
     }
 
     @Override
@@ -2162,7 +2164,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             cursorDocs[k] = cursor.nextDoc();
         }
 
-        final BytesRef nullValueBytes = builder.nullValue.get() != null ? new BytesRef(builder.nullValue.get()) : null;
+        final BytesRef nullValueBytes = nullValue != null ? new BytesRef(nullValue) : null;
 
         try (EscfColumnBuilder keyed = mergeStringColumn(ctx.recycler()); EscfColumnBuilder counts = mergeLongColumn(ctx.recycler())) {
             final BytesRefBuilder docBlob = new BytesRefBuilder();
@@ -2283,9 +2285,9 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                     fullPath() + KEYED_FIELD_SUFFIX,
                     fieldType().ignoreAbove.valuesPotentiallyIgnored() ? fullPath() + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,
                     leafName(),
-                    builder.usesBinaryDocValues,
+                    usesBinaryDocValues,
                     toSubFieldLoaders(mappedSubFields),
-                    builder.storeIgnoredFieldsInBinaryDocValues,
+                    storeIgnoredFieldsInBinaryDocValues,
                     preserveLeafArrays,
                     fieldType().usesArrayOrderBinaryDocValues()
                 )
@@ -2303,8 +2305,8 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         return new UnmappedSinkSyntheticFieldLoader(
             fullPath(),
             fieldType().ignoreAbove.valuesPotentiallyIgnored() ? fullPath() + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,
-            builder.usesBinaryDocValues,
-            builder.storeIgnoredFieldsInBinaryDocValues,
+            usesBinaryDocValues,
+            storeIgnoredFieldsInBinaryDocValues,
             preserveLeafArrays,
             fieldType().usesArrayOrderBinaryDocValues()
         );

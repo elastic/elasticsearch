@@ -103,14 +103,6 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
     private static final String LON_KEY = "lon";
 
-    private static Builder builder(FieldMapper in) {
-        return toType(in).builder;
-    }
-
-    private static GeoPointFieldMapper toType(FieldMapper in) {
-        return (GeoPointFieldMapper) in;
-    }
-
     public static final class Builder extends FieldMapper.Builder {
 
         final Parameter<Explicit<Boolean>> ignoreMalformed;
@@ -271,7 +263,6 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
     );
 
     // TODO would be nicer not to hold onto the Builder here as it's a pretty big object
-    private final Builder builder;
     private final FieldValues<GeoPoint> scriptValues;
     private final TimeSeriesParams.MetricType metricType;
     private final boolean indexed;
@@ -293,7 +284,6 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             builder.nullValue.get(),
             parser
         );
-        this.builder = builder;
         this.scriptValues = builder.scriptValues();
         this.metricType = builder.metric.get();
         this.indexed = builder.indexed.get();

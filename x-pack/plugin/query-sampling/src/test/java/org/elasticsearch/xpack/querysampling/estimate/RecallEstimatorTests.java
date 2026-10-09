@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.querysampling.estimate;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
 import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
+import org.elasticsearch.xpack.querysampling.dedup.Hardness;
+import org.elasticsearch.xpack.querysampling.dedup.Stratum;
 import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
 import org.elasticsearch.xpack.querysampling.groundtruth.GroundTruth;
 import org.elasticsearch.xpack.querysampling.storage.StoredSample;
@@ -140,12 +142,71 @@ public class RecallEstimatorTests extends ESTestCase {
         assertThat(estimate.trafficWeightedRecall(), closeTo(1.0, 1e-12));
     }
 
+    public void testEachStratumHasItsOwnEstimateAndItsOwnWeights() {
+        Stratum near = new Stratum("vec/1", 0);
+        Stratum far = new Stratum("vec/1", 1);
+        List<StoredSample> samples = List.of(
+            inStratum(sample(2, List.of("a", "b"), List.of("a", "b"), 90, 1, 1), near, Hardness.EASY), // recall 1, searched 90 times
+            inStratum(sample(2, List.of("a", "b"), List.of("a", "b"), 10, 1, 1), near, Hardness.EASY), // recall 1, searched 10 times
+            inStratum(sample(2, List.of("x", "y"), List.of("a", "b"), 30, 1, 1), far, Hardness.HARD), // recall 0, searched 30 times
+            inStratum(sample(2, List.of("a", "y"), List.of("a", "b"), 10, 1, 1), far, Hardness.HARD) // recall 0.5, searched 10 times
+        );
+
+        RecallEstimate estimate = RecallEstimator.estimate(samples);
+
+        assertThat(estimate.trafficWeightedRecall(), closeTo(105.0 / 140, 1e-12));
+        assertThat(estimate.byHardness().stream().map(RecallEstimate.GroupEstimate::key).toList(), equalTo(List.of("easy", "hard")));
+        RecallEstimate.GroupEstimate easy = estimate.byHardness().get(0);
+        RecallEstimate.GroupEstimate hard = estimate.byHardness().get(1);
+        assertThat(easy.trafficWeightedRecall(), closeTo(1.0, 1e-12));
+        assertThat(easy.uniqueQueryRecall(), closeTo(1.0, 1e-12));
+        assertThat(easy.recordsWithGroundTruth(), equalTo(2));
+        assertThat(hard.trafficWeightedRecall(), closeTo(5.0 / 40, 1e-12));
+        assertThat(hard.uniqueQueryRecall(), closeTo(0.25, 1e-12));
+        assertThat(hard.trafficEffectiveSize(), closeTo(40.0 * 40.0 / (30.0 * 30.0 + 10.0 * 10.0), 1e-12));
+        assertThat(estimate.byCluster().stream().map(RecallEstimate.GroupEstimate::key).toList(), equalTo(List.of("vec/1#0", "vec/1#1")));
+        assertThat(estimate.byCluster().get(0).trafficWeightedRecall(), closeTo(1.0, 1e-12));
+        assertThat(estimate.byCluster().get(1).trafficWeightedRecall(), closeTo(5.0 / 40, 1e-12));
+    }
+
+    public void testClustersAreInTheOrderOfTheirNumbersAndQueriesWithoutStrataAreInNoGroup() {
+        List<StoredSample> samples = new ArrayList<>();
+        for (int cluster : new int[] { 10, 2, 33, 1 }) {
+            samples.add(inStratum(sample(2, List.of("a", "b"), List.of("a", "b"), 1, 1, 1), new Stratum("vec/1", cluster), null));
+        }
+        samples.add(sample(2, List.of("a", "b"), List.of("a", "b"), 1, 1, 1));
+
+        RecallEstimate estimate = RecallEstimator.estimate(samples);
+
+        assertThat(
+            estimate.byCluster().stream().map(RecallEstimate.GroupEstimate::key).toList(),
+            equalTo(List.of("vec/1#1", "vec/1#2", "vec/1#10", "vec/1#33"))
+        );
+        assertThat(estimate.byHardness(), equalTo(List.of()));
+        assertThat(estimate.recordsWithGroundTruth(), equalTo(5));
+    }
+
+    public void testQueriesThatCannotBeUsedAreNotInAStratumEither() {
+        Stratum stratum = new Stratum("vec/1", 0);
+        List<StoredSample> samples = List.of(
+            inStratum(sample(2, List.of("a", "b"), List.of("a", "b"), 1, 1, 1), stratum, Hardness.MEDIUM),
+            inStratum(sample(2, List.of("a", "b"), List.of("a", "b"), 1, 0, 1), stratum, Hardness.MEDIUM) // cannot be weighted
+        );
+
+        RecallEstimate estimate = RecallEstimator.estimate(samples);
+
+        assertThat(estimate.byCluster().get(0).recordsWithGroundTruth(), equalTo(1));
+        assertThat(estimate.byHardness().get(0).recordsWithGroundTruth(), equalTo(1));
+    }
+
     public void testNothingToEstimateFrom() {
         RecallEstimate estimate = RecallEstimator.estimate(List.of());
 
         assertThat(estimate.trafficWeightedRecall(), nullValue());
         assertThat(estimate.uniqueQueryRecall(), nullValue());
         assertThat(estimate.trafficEffectiveSize(), equalTo(0.0));
+        assertThat(estimate.byHardness(), equalTo(List.of()));
+        assertThat(estimate.byCluster(), equalTo(List.of()));
     }
 
     /**
@@ -233,6 +294,20 @@ public class RecallEstimatorTests extends ESTestCase {
     ) {
         TrackedQuery.Weights weights = new TrackedQuery.Weights(1, multiplicity, inclusionProbability, seenProbability, 1.0);
         return new StoredSample("sampler", "fingerprint", search, weights, 0, 0, groundTruth, null, null);
+    }
+
+    private static StoredSample inStratum(StoredSample sample, Stratum stratum, Hardness hardness) {
+        return new StoredSample(
+            sample.samplerId(),
+            sample.fingerprint(),
+            sample.search(),
+            sample.weights(),
+            sample.pickedAt(),
+            sample.updatedAt(),
+            sample.groundTruth(),
+            stratum,
+            hardness
+        );
     }
 
     private static List<CapturedSearch.Hit> hits(List<String> ids) {

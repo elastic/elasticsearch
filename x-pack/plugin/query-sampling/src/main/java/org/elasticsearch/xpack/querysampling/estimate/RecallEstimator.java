@@ -8,14 +8,22 @@
 package org.elasticsearch.xpack.querysampling.estimate;
 
 import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
+import org.elasticsearch.xpack.querysampling.dedup.Hardness;
+import org.elasticsearch.xpack.querysampling.dedup.Stratum;
 import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
 import org.elasticsearch.xpack.querysampling.groundtruth.GroundTruth;
 import org.elasticsearch.xpack.querysampling.storage.StoredSample;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.OptionalDouble;
 import java.util.Set;
+import java.util.TreeMap;
 
 /**
  * Estimates the recall of the search from the sampled queries whose ground truth is known.
@@ -34,6 +42,10 @@ import java.util.Set;
  * Both are ratios of weighted sums, which makes them insensitive to how many queries there happen to be in the
  * sample. For each the effective sample size of Kish is given, {@code (Σw)² / Σw²}: how many equally weighted
  * queries the estimate is worth.
+ * <p>
+ * The same is done for the queries of each hardness and of each cluster of the vector space. Their weights are the
+ * ones they have among all the queries, so each is an estimate for a part of the population, and the parts show what
+ * the average of all of them hides.
  */
 public final class RecallEstimator {
 
@@ -63,9 +75,14 @@ public final class RecallEstimator {
         return OptionalDouble.of((double) found / truth.size());
     }
 
+    /**
+     * @param samples the sampled queries: those that have no ground truth, or a probability of zero to be there, are
+     *                left out
+     */
     public static RecallEstimate estimate(List<StoredSample> samples) {
-        Accumulator traffic = new Accumulator();
-        Accumulator unique = new Accumulator();
+        Estimates all = new Estimates();
+        Map<Hardness, Estimates> byHardness = new EnumMap<>(Hardness.class);
+        Map<Stratum, Estimates> byCluster = new TreeMap<>(Comparator.comparing(Stratum::space).thenComparingInt(Stratum::cluster));
         int used = 0;
         for (StoredSample sample : samples) {
             OptionalDouble recall = recall(sample);
@@ -74,10 +91,59 @@ public final class RecallEstimator {
                 continue;
             }
             used++;
-            traffic.add(weights.weightedMultiplicity() / weights.inclusionProbability(), recall.getAsDouble());
-            unique.add(1.0 / (weights.inclusionProbability() * weights.seenProbability()), recall.getAsDouble());
+            double trafficWeight = weights.weightedMultiplicity() / weights.inclusionProbability();
+            double uniqueWeight = 1.0 / (weights.inclusionProbability() * weights.seenProbability());
+            all.add(trafficWeight, uniqueWeight, recall.getAsDouble());
+            // each stratum is a part of the population, and the weights of its queries are what they are for all the queries:
+            // the same ratio of weighted sums, over those of the stratum only
+            if (sample.hardness() != null) {
+                byHardness.computeIfAbsent(sample.hardness(), key -> new Estimates())
+                    .add(trafficWeight, uniqueWeight, recall.getAsDouble());
+            }
+            if (sample.stratum() != null) {
+                byCluster.computeIfAbsent(sample.stratum(), key -> new Estimates()).add(trafficWeight, uniqueWeight, recall.getAsDouble());
+            }
         }
-        return new RecallEstimate(samples.size(), used, traffic.mean(), traffic.effectiveSize(), unique.mean(), unique.effectiveSize());
+        List<RecallEstimate.GroupEstimate> hardnesses = new ArrayList<>();
+        byHardness.forEach((hardness, estimates) -> hardnesses.add(estimates.group(hardness.name().toLowerCase(Locale.ROOT))));
+        List<RecallEstimate.GroupEstimate> clusters = new ArrayList<>();
+        byCluster.forEach((stratum, estimates) -> clusters.add(estimates.group(stratum.space() + "#" + stratum.cluster())));
+        return new RecallEstimate(
+            samples.size(),
+            used,
+            all.traffic.mean(),
+            all.traffic.effectiveSize(),
+            all.unique.mean(),
+            all.unique.effectiveSize(),
+            hardnesses,
+            clusters
+        );
+    }
+
+    /**
+     * Both estimates, of the traffic and of the distinct queries, over a set of queries.
+     */
+    private static final class Estimates {
+        private final Accumulator traffic = new Accumulator();
+        private final Accumulator unique = new Accumulator();
+        private int records;
+
+        void add(double trafficWeight, double uniqueWeight, double recall) {
+            records++;
+            traffic.add(trafficWeight, recall);
+            unique.add(uniqueWeight, recall);
+        }
+
+        RecallEstimate.GroupEstimate group(String key) {
+            return new RecallEstimate.GroupEstimate(
+                key,
+                records,
+                traffic.mean(),
+                traffic.effectiveSize(),
+                unique.mean(),
+                unique.effectiveSize()
+            );
+        }
     }
 
     private record DocumentKey(String index, String id) {}

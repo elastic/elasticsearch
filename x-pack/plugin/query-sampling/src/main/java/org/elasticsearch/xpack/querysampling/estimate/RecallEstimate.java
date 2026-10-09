@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.querysampling.estimate;
 
 import org.elasticsearch.core.Nullable;
 
+import java.util.List;
+
 /**
  * What the sampled queries say about the recall of the search.
  *
@@ -22,6 +24,10 @@ import org.elasticsearch.core.Nullable;
  * @param uniqueQueryRecall         recall averaged over distinct queries, each counting once however often it is
  *                                  searched. {@code null} if no query could be used
  * @param uniqueQueryEffectiveSize  the same measure for the estimate over distinct queries
+ * @param byHardness                the same estimates for the queries of each hardness, those that have one
+ * @param byCluster                 the same estimates for the queries of each cluster of the vector space, those that
+ *                                  have one. A region where the recall is low is not seen in the averages of all the
+ *                                  queries when most of them are somewhere else
  */
 public record RecallEstimate(
     int records,
@@ -29,5 +35,23 @@ public record RecallEstimate(
     @Nullable Double trafficWeightedRecall,
     double trafficEffectiveSize,
     @Nullable Double uniqueQueryRecall,
-    double uniqueQueryEffectiveSize
-) {}
+    double uniqueQueryEffectiveSize,
+    List<GroupEstimate> byHardness,
+    List<GroupEstimate> byCluster
+) {
+
+    /**
+     * The estimates for the queries of one stratum, in the same terms as those of all the queries.
+     *
+     * @param key                      the stratum: the hardness, or the space of the vectors and the number of the cluster
+     * @param recordsWithGroundTruth   queries of the stratum that could be used
+     */
+    public record GroupEstimate(
+        String key,
+        int recordsWithGroundTruth,
+        @Nullable Double trafficWeightedRecall,
+        double trafficEffectiveSize,
+        @Nullable Double uniqueQueryRecall,
+        double uniqueQueryEffectiveSize
+    ) {}
+}

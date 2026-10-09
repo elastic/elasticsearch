@@ -68,6 +68,22 @@ public final class QuerySamplingRecallResponse extends ActionResponse implements
         TransportAction.localOnly();
     }
 
+    private static void groups(XContentBuilder builder, String name, String keyName, List<RecallEstimate.GroupEstimate> groups)
+        throws IOException {
+        builder.startArray(name);
+        for (RecallEstimate.GroupEstimate group : groups) {
+            builder.startObject();
+            builder.field(keyName, group.key());
+            builder.field("records_with_ground_truth", group.recordsWithGroundTruth());
+            builder.field("traffic_weighted_recall", group.trafficWeightedRecall());
+            builder.field("traffic_effective_size", group.trafficEffectiveSize());
+            builder.field("unique_query_recall", group.uniqueQueryRecall());
+            builder.field("unique_query_effective_size", group.uniqueQueryEffectiveSize());
+            builder.endObject();
+        }
+        builder.endArray();
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -77,6 +93,8 @@ public final class QuerySamplingRecallResponse extends ActionResponse implements
         builder.field("traffic_effective_size", estimate.trafficEffectiveSize());
         builder.field("unique_query_recall", estimate.uniqueQueryRecall());
         builder.field("unique_query_effective_size", estimate.uniqueQueryEffectiveSize());
+        groups(builder, "by_hardness", "hardness", estimate.byHardness());
+        groups(builder, "by_cluster", "cluster", estimate.byCluster());
         if (samples != null) {
             builder.startArray("samples");
             for (Sample sample : samples) {

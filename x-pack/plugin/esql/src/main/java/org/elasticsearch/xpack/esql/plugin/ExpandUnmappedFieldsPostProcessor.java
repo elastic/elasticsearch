@@ -447,8 +447,11 @@ public final class ExpandUnmappedFieldsPostProcessor {
      * array even though each distinct, uncached element boxes to its own {@code Integer}/{@code Long}. That shape therefore leans on the
      * flat {@code json.length * factor} estimate in {@link #reserveForParse}, not on this structural pass. It is out of scope here (the
      * follow-up streaming parse removes the materialised map entirely); the flat factor sits close to its real per-element cost.
+     * <p>
+     * Package-private so {@code ExpandUnmappedFieldsPostProcessorTests} can pin the exact token counting (including that tokens inside
+     * string literals are skipped) and confirm the result stays an upper bound on the map {@link #parseJson} actually materialises.
      */
-    private static long structuralReservation(BytesRef json) {
+    static long structuralReservation(BytesRef json) {
         long objects = 0;
         long arrays = 0;
         long members = 0;
@@ -875,7 +878,11 @@ public final class ExpandUnmappedFieldsPostProcessor {
         return unmappedBlock.getBytesRef(unmappedBlock.getFirstValueIndex(row), scratch);
     }
 
-    private static Map<String, Object> parseJson(BytesRef ref) {
+    /**
+     * Parses one {@code _unmapped_fields} value into the map {@link #reserveForParse} reserves against. Package-private so
+     * {@code ExpandUnmappedFieldsPostProcessorTests} can measure the materialised map against {@link #structuralReservation}'s bound.
+     */
+    static Map<String, Object> parseJson(BytesRef ref) {
         // Ordered so a row that produces the same leaf twice (a literal dotted key overlapping a nested path) merges its values in a
         // deterministic source order rather than an arbitrary HashMap iteration order.
         return XContentHelper.convertToMap(new BytesArray(ref.bytes, ref.offset, ref.length), true, XContentType.JSON).v2();

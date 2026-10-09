@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.session.Result;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -977,6 +978,180 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
             // alignObjectSize.
             assertThat(name + " is not 8-byte aligned (dropped alignObjectSize?)", bytes % 8, equalTo(0L));
         }
+    }
+
+    /**
+     * The point of {@code structuralReservation} is to be an <em>upper bound</em> on the heap the parse allocates, so the breaker fires
+     * before the materialised map exhausts it. The break/no-leak tests prove the reservation trips; this proves it is genuinely an
+     * over-estimate rather than merely a large number that happens to work for one shape. For a range of structure-heavy sources - with
+     * numeric values, so they match the boxed-number footprint the per-member overhead models - it parses the very JSON the production
+     * path parses and asserts the reservation is at least the materialised map's measured retained size. A per-token constant that
+     * drifted below the real footprint (a dropped term, a wrong reference count) would flip one of these from over- to under-estimate.
+     */
+    public void testStructuralReservationUpperBoundsTheMaterialisedMap() {
+        // The esql-planning#2061 attack shape: an array of many tiny objects, which a flat json.length reservation most badly misses.
+        StringBuilder arrayOfObjects = new StringBuilder("{\"a\":[");
+        for (int i = 0; i < 2000; i++) {
+            arrayOfObjects.append(i > 0 ? "," : "").append("{\"x\":1}");
+        }
+        arrayOfObjects.append("]}");
+
+        // A deeply nested single-leaf object: every level is one more object and one more member.
+        int depth = 200;
+        StringBuilder nested = new StringBuilder();
+        for (int i = 0; i < depth; i++) {
+            nested.append("{\"a").append(i).append("\":");
+        }
+        nested.append('1').append("}".repeat(depth));
+
+        for (String json : List.of(arrayOfObjects.toString(), nested.toString(), jsonWithFields(paddedNames("f", 500)))) {
+            BytesRef ref = new BytesRef(json);
+            long measured = RamUsageEstimator.sizeOfObject(ExpandUnmappedFieldsPostProcessor.parseJson(ref));
+            long reservation = ExpandUnmappedFieldsPostProcessor.structuralReservation(ref);
+            assertThat(
+                "structural reservation under-estimates the parsed map for a source of length " + ref.length,
+                reservation,
+                greaterThanOrEqualTo(measured)
+            );
+        }
+    }
+
+    /**
+     * Pins the structural scan's token counting and, above all, that structural tokens inside string literals are skipped: a value that
+     * merely contains a brace, bracket or colon (JSON embedded in text, a colon in a key) must not inflate the estimate, or an ordinary
+     * document carrying punctuation would reserve as if it were structure-heavy. Each case is also fed at a non-zero {@link BytesRef}
+     * offset, because the scan walks {@code offset..offset+length} and a regression that assumed a 0-based array would miscount silently.
+     */
+    public void testStructuralReservationCountsTokensAndSkipsStringContents() {
+        // The only member is the key:value colon; the braces, bracket and colon inside the string value are skipped.
+        assertStructural("{\"a\":\"{:[}\"}", 1, 0, 1);
+        // A nested object inside an array: two objects, one array, two members.
+        assertStructural("{\"a\":[{\"b\":1}]}", 2, 1, 2);
+        // A colon inside a quoted key is not a member separator.
+        assertStructural("{\"a:b\":1}", 1, 0, 1);
+        // An escaped quote keeps the scan inside the string, so the colon that follows it is still skipped.
+        assertStructural("{\"a\":\"x\\\"y:z\"}", 1, 0, 1);
+    }
+
+    /**
+     * Asserts {@code structuralReservation} charges exactly {@code objects} map, {@code arrays} list and {@code members} member overheads
+     * on top of the byte length, both for {@code json} at offset zero and for the same bytes shifted to a non-zero offset.
+     */
+    private static void assertStructural(String json, long objects, long arrays, long members) {
+        byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
+        long expected = bytes.length + objects * ExpandUnmappedFieldsPostProcessor.MAP_OVERHEAD_BYTES + arrays
+            * ExpandUnmappedFieldsPostProcessor.LIST_OVERHEAD_BYTES + members * ExpandUnmappedFieldsPostProcessor.MEMBER_OVERHEAD_BYTES;
+        assertThat(
+            "token counting for " + json,
+            ExpandUnmappedFieldsPostProcessor.structuralReservation(new BytesRef(bytes)),
+            equalTo(expected)
+        );
+
+        byte[] shifted = new byte[bytes.length + 5];
+        System.arraycopy(bytes, 0, shifted, 5, bytes.length);
+        assertThat(
+            "offset handling for " + json,
+            ExpandUnmappedFieldsPostProcessor.structuralReservation(new BytesRef(shifted, 5, bytes.length)),
+            equalTo(expected)
+        );
+    }
+
+    /**
+     * The documented limitation of the structural scan: an array of scalars carries one {@code [} and no {@code :}, so it is charged a
+     * single {@code LIST_OVERHEAD} for the whole array with nothing per element, leaning on the flat {@code json.length * factor}
+     * estimate instead (see {@code reserveForParse}). Pins that the structural charge over the raw bytes is exactly one list overhead
+     * whatever the element count, and that the flat estimate dominates it - so a change that silently began charging per scalar element,
+     * or let the structural estimate overtake the flat one here, would trip this.
+     */
+    public void testScalarArrayLeansOnFlatEstimateNotStructuralScan() {
+        // The structural charge over the raw bytes is the outer object, its one member and a single list overhead for the whole array -
+        // and nothing more, however many scalar elements the array holds. A thousand-fold more elements adds bytes but not one overhead.
+        long expectedOverhead = ExpandUnmappedFieldsPostProcessor.MAP_OVERHEAD_BYTES
+            + ExpandUnmappedFieldsPostProcessor.MEMBER_OVERHEAD_BYTES + ExpandUnmappedFieldsPostProcessor.LIST_OVERHEAD_BYTES;
+        assertThat(scalarArrayStructuralOverhead(10), equalTo(expectedOverhead));
+        assertThat(scalarArrayStructuralOverhead(10_000), equalTo(expectedOverhead));
+
+        // With no per-element charge, a large scalar array's structural estimate falls below the flat json.length * factor one, so
+        // reserveForParse leans on the flat estimate for this shape (see its javadoc). A tiny array is instead dominated by the fixed
+        // overhead, which is a safe over-estimate rather than an under-estimate - the under-count the flat factor guards against is the
+        // large case, where per-element boxing adds up.
+        BytesRef large = scalarArray(10_000);
+        long flat = (long) (large.length * PlannerSettings.DEFAULTS.sourceReservationFactor());
+        assertThat(ExpandUnmappedFieldsPostProcessor.structuralReservation(large), lessThanOrEqualTo(flat));
+    }
+
+    /** A {@code {"a":[0,1,...]}} source whose array holds {@code elements} distinct integer scalars. */
+    private static BytesRef scalarArray(int elements) {
+        StringBuilder json = new StringBuilder("{\"a\":[");
+        for (int i = 0; i < elements; i++) {
+            json.append(i > 0 ? "," : "").append(i);
+        }
+        return new BytesRef(json.append("]}").toString());
+    }
+
+    /** The structural reservation {@link #scalarArray} draws beyond its own byte length - the per-token overhead the scan charges it. */
+    private static long scalarArrayStructuralOverhead(int elements) {
+        BytesRef ref = scalarArray(elements);
+        return ExpandUnmappedFieldsPostProcessor.structuralReservation(ref) - ref.length;
+    }
+
+    /**
+     * The field-name accounting must reserve for the kept set, not for every distinct name it ever sees: past the cap each insert evicts
+     * the alphabetically-largest kept name and must hand its bytes back, so the reservation plateaus at {@code MAX_EXPANDED_FIELDS}
+     * names rather than climbing with the total seen. Feeds half again as many equal-length distinct names, in random order, and asserts
+     * the breaker holds exactly the first {@code MAX_EXPANDED_FIELDS} names' worth - then that {@code close} returns every byte.
+     */
+    public void testFieldNameCollectorReservationPlateausAtCapAndReleasesEvicted() {
+        BlockFactory bf = blockFactory();
+        var breaker = bf.breaker();
+        List<String> names = paddedNames("f", MAX_EXPANDED_FIELDS + 500);
+        List<String> arrival = new ArrayList<>(names);
+        Collections.shuffle(arrival, random());
+
+        try (
+            var collector = new ExpandUnmappedFieldsPostProcessor.FieldNameCollector(
+                UnmappedFieldsPattern.ALL,
+                Collections.emptySet(),
+                breaker
+            )
+        ) {
+            for (String name : arrival) {
+                collector.accept(name, 1);
+            }
+            // Every name is the same length, so the kept set's reservation is exactly MAX names' worth, not the (MAX + 500) seen: the
+            // overflowing inserts each evicted and released the largest name they displaced.
+            long perName = RamUsageEstimator.sizeOf(names.get(0))
+                + ExpandUnmappedFieldsPostProcessor.FieldNameCollector.PER_NAME_CONTAINER_OVERHEAD;
+            assertThat(breaker.getUsed(), equalTo((long) MAX_EXPANDED_FIELDS * perName));
+        }
+        assertThat("close must hand back every reserved byte", breaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * {@link #testCancellationDuringExpansionThrowsAndReleasesPages} lands its cancellation on {@code collectFieldNames}' opening poll,
+     * before any field name has been reserved, so it proves the pages are freed but not that the name accounting is. This lands the
+     * cancellation on the second poll instead - after a full {@code ROWS_PER_CANCELLATION_CHECK} rows of distinct names have been
+     * collected and charged to the breaker - and asserts the throw still leaves the breaker at zero, i.e. the collector's
+     * try-with-resources handed its reservation back on the cancellation path, not only on the normal return.
+     */
+    public void testCancellationMidCollectionReleasesReservedFieldNames() {
+        BlockFactory bf = blockFactory();
+        int rows = 2048; // two collectFieldNames polls, at rows 0 and 1024
+        List<List<Object>> pageRows = new ArrayList<>(rows);
+        for (int i = 0; i < rows; i++) {
+            pageRows.add(row(i, jsonWithFields(List.of(String.format(Locale.ROOT, "f%06d", i)))));
+        }
+        Result result = result(List.of(intAttr(), unmappedAttr()), List.of(page(bf, pageRows)));
+
+        AtomicInteger polls = new AtomicInteger();
+        expectThrows(
+            TaskCancelledException.class,
+            () -> ExpandUnmappedFieldsPostProcessor.expand(result, null, bf, PlannerSettings.DEFAULTS, () -> polls.incrementAndGet() > 1)
+        );
+
+        // Cancelled on the second poll (row 1024), so the first 1024 distinct names were collected and reserved before the throw.
+        assertThat("cancellation should land on the second collectFieldNames poll", polls.get(), equalTo(2));
+        assertThat("expand leaked the reserved field names when cancelled mid-collection", bf.breaker().getUsed(), equalTo(0L));
     }
 
     /**

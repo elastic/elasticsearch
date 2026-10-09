@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 150104
-pr: 159360
-summary: Keep EVAL fields still read below the aggregate when pruning STATS BY keys
-type: bug

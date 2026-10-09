@@ -500,7 +500,8 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                 querySource,
                 scriptService,
                 queryShardContext.getParserConfig().registry(),
-                securityContext.getUser()
+                securityContext.getUser(),
+                securityContext.getResolvedDlsLookups()
             );
             QueryBuilder rewrittenQueryBuilder;
             try {

@@ -93,10 +93,13 @@ import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
+import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
+import org.elasticsearch.xpack.core.security.authz.support.DlsLookup;
+import org.elasticsearch.xpack.core.security.authz.support.ResolvedDlsLookups;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -171,6 +174,7 @@ public class AuthorizationService {
     private final AuthorizedProjectsResolver authorizedProjectsResolver;
     private final ProjectRoutingResolver projectRoutingResolver;
     private final UsageService usageService;
+    private final DlsLookupService dlsLookupService;
 
     public AuthorizationService(
         Settings settings,
@@ -193,7 +197,8 @@ public class AuthorizationService {
         AuthorizedProjectsResolver authorizedProjectsResolver,
         CrossProjectModeDecider crossProjectModeDecider,
         ProjectRoutingResolver projectRoutingResolver,
-        UsageService usageService
+        UsageService usageService,
+        DlsLookupService dlsLookupService
     ) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
@@ -227,6 +232,7 @@ public class AuthorizationService {
         this.projectResolver = projectResolver;
         this.authorizedProjectsResolver = authorizedProjectsResolver;
         this.usageService = usageService;
+        this.dlsLookupService = dlsLookupService;
     }
 
     public void checkPrivileges(
@@ -765,6 +771,67 @@ public class AuthorizationService {
         final ActionListener<Void> listener
     ) {
         final IndicesAccessControl indicesAccessControl = indicesAccessControlWrapper.wrap(result.getIndicesAccessControl());
+
+        // Templated DLS queries may declare lookups whose values must be known before the action is dispatched, so that every
+        // shard renders the same values and no data node performs the lookup itself. The role-level DLS/FLS flag is a cheap
+        // gate: a role without DLS cannot declare lookups. A custom authorization engine (no RBAC role) falls through to the scan.
+        final Role role = RBACEngine.maybeGetRBACEngineRole(authzInfo);
+        final Set<DlsLookup> dlsLookups = role != null && role.hasFieldOrDocumentLevelSecurity() == false
+            ? Set.of()
+            : indicesAccessControl.getDlsLookups();
+        if (dlsLookups.isEmpty()) {
+            dispatchAuthorizedIndexAction(
+                requestInfo,
+                requestId,
+                authzInfo,
+                authzEngine,
+                resolvedIndicesAsyncSupplier,
+                projectMetadata,
+                indicesAccessControl,
+                listener
+            );
+            return;
+        }
+
+        // Values resolved by an earlier authorization of this request (the coordinating node, for a shard-level action) arrive on
+        // the thread context and are reused, so each lookup is resolved once per request. The resolver may complete on another
+        // thread, hence the context-preserving wrapper. Anything the dispatched action forks captures the context with the new
+        // header in place, while this thread's context is restored once dispatch returns.
+        final ResolvedDlsLookups alreadyResolved = securityContext.getResolvedDlsLookups();
+        dlsLookupService.resolve(
+            dlsLookups,
+            alreadyResolved,
+            requestInfo.getAuthentication().getEffectiveSubject(),
+            wrapPreservingContext(listener.delegateFailureAndWrap((l, resolved) -> {
+                final Runnable dispatch = () -> dispatchAuthorizedIndexAction(
+                    requestInfo,
+                    requestId,
+                    authzInfo,
+                    authzEngine,
+                    resolvedIndicesAsyncSupplier,
+                    projectMetadata,
+                    indicesAccessControl,
+                    l
+                );
+                if (resolved == alreadyResolved) {
+                    dispatch.run();
+                } else {
+                    securityContext.executeWithResolvedDlsLookups(resolved, dispatch);
+                }
+            }), threadContext)
+        );
+    }
+
+    private void dispatchAuthorizedIndexAction(
+        final RequestInfo requestInfo,
+        final String requestId,
+        final AuthorizationInfo authzInfo,
+        final AuthorizationEngine authzEngine,
+        final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier,
+        final ProjectMetadata projectMetadata,
+        final IndicesAccessControl indicesAccessControl,
+        final ActionListener<Void> listener
+    ) {
         final TransportRequest request = requestInfo.getRequest();
         final String action = requestInfo.getAction();
         securityContext.putIndicesAccessControl(indicesAccessControl);

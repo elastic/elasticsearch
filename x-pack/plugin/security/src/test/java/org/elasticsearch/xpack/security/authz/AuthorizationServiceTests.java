@@ -387,7 +387,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             authorizedProjectsResolver,
             crossProjectModeDecider,
             projectRoutingResolver,
-            new UsageService()
+            new UsageService(),
+            new DlsLookupService(Map.of())
         );
     }
 
@@ -1374,7 +1375,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             authorizedProjectsResolver,
             crossProjectModeDecider,
             projectRoutingResolver,
-            new UsageService()
+            new UsageService(),
+            new DlsLookupService(Map.of())
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1461,7 +1463,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             authorizedProjectsResolver,
             crossProjectModeDecider,
             originOnlyRoutingResolver,
-            new UsageService()
+            new UsageService(),
+            new DlsLookupService(Map.of())
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1518,7 +1521,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             authorizedProjectsResolver,
             crossProjectModeDecider,
             projectRoutingResolver,
-            new UsageService()
+            new UsageService(),
+            new DlsLookupService(Map.of())
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -2067,7 +2071,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(settings),
             projectRoutingResolver,
-            new UsageService()
+            new UsageService(),
+            new DlsLookupService(Map.of())
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -2122,7 +2127,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(settings),
             projectRoutingResolver,
-            new UsageService()
+            new UsageService(),
+            new DlsLookupService(Map.of())
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -3773,7 +3779,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(Settings.EMPTY),
             projectRoutingResolver,
-            new UsageService()
+            new UsageService(),
+            new DlsLookupService(Map.of())
         );
 
         Subject subject = new Subject(new User("test", "a role"), mock(RealmRef.class));
@@ -3938,7 +3945,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(Settings.EMPTY),
             projectRoutingResolver,
-            new UsageService()
+            new UsageService(),
+            new DlsLookupService(Map.of())
         );
         Authentication authentication;
         try (StoredContext ignore = threadContext.stashContext()) {
@@ -4290,7 +4298,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             authorizedProjectsResolver,
             crossProjectModeDecider,
             routingResolver,
-            usageService
+            usageService,
+            new DlsLookupService(Map.of())
         );
     }
 

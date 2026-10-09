@@ -34,6 +34,7 @@ For a description of each model and where it's available, refer to [authenticati
 |---|---|---|
 | `s3:GetObject` | The objects the dataset reads, for example `arn:aws:s3:::<bucket-name>/<path>/*` | Always |
 | `s3:ListBucket` | The bucket, for example `arn:aws:s3:::<bucket-name>` | When a dataset's resource is a prefix or a glob pattern rather than a single file |
+| `kms:Decrypt` | The AWS KMS key that encrypts the objects | When the objects use server-side encryption with AWS KMS keys (SSE-KMS) |
 
 Scope the `s3:GetObject` resource to the prefixes your datasets use to grant the least access needed. When you add a dataset that reads from a new bucket or prefix, extend the policy to cover it. For a complete policy and AWS CLI commands, refer to the setup guide for your authentication model.
 
@@ -50,7 +51,7 @@ To confirm the data source can read a dataset, run a query against the dataset. 
 {{es}} doesn't check permissions when you create a dataset. A missing permission shows up as an error the first time you query the dataset:
 
 `Access denied reading [<file>]` {applies_to}`stack: experimental 9.6+`
-:   The identity can't read an object. Allow `s3:GetObject` on the object's path.
+:   The identity can't read an object. Allow `s3:GetObject` on the object's path. If the message names a `kms:` action, the object is encrypted with a KMS key the identity can't use. Allow that action on the key.
 
 `Access denied listing objects in the configured path` {applies_to}`stack: experimental 9.6+`
 :   The identity can't list the bucket. Allow `s3:ListBucket` on the bucket, or change the dataset's resource to an exact file path.

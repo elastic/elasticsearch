@@ -481,3 +481,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardDisruptionIT
   method: testReshardWithDisruption
   issue: https://github.com/elastic/elasticsearch/issues/161494
+- class: org.elasticsearch.test.apmintegration.OTelMetricsBufferSurvivesRestartIT
+  method: testPreExistingBufferFilesDrainAfterRestart
+  issue: https://github.com/elastic/elasticsearch/issues/161602

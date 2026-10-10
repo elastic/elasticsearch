@@ -9,13 +9,10 @@ package org.elasticsearch.xpack.querysampling.groundtruth;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.vectors.ExactKnnQueryBuilder;
 import org.elasticsearch.search.vectors.VectorData;
@@ -42,11 +39,6 @@ public final class ExactSearch {
      */
     private static final float FULL_PRECISION = 1f;
 
-    /**
-     * The name of the aggregation that sums the sequence numbers of the documents that were matched.
-     */
-    static final String SEQ_NO_SUM = "seq_no_sum";
-
     private ExactSearch() {}
 
     public static SearchRequest request(CapturedQuery query) {
@@ -60,7 +52,7 @@ public final class ExactSearch {
             .size(query.k())
             .fetchSource(false)
             .trackTotalHits(true)
-            .aggregation(AggregationBuilders.sum(SEQ_NO_SUM).field(SeqNoFieldMapper.NAME));
+            .aggregation(DataState.aggregation());
         return new SearchRequest(query.indices()).source(source);
     }
 
@@ -73,17 +65,6 @@ public final class ExactSearch {
         for (SearchHit hit : searchHits) {
             neighbors.add(new CapturedSearch.Hit(hit.getIndex(), hit.getId(), hit.getScore()));
         }
-        return new GroundTruth(List.copyOf(neighbors), dataState(response));
-    }
-
-    /**
-     * What the data was like, or {@code null} if the response does not say, as when the search was not asked for it.
-     */
-    private static DataState dataState(SearchResponse response) {
-        if (response.getAggregations() == null || response.getHits().getTotalHits() == null) {
-            return null;
-        }
-        Sum sum = response.getAggregations().get(SEQ_NO_SUM);
-        return sum == null ? null : new DataState(response.getHits().getTotalHits().value(), sum.value());
+        return new GroundTruth(List.copyOf(neighbors), DataState.of(response));
     }
 }

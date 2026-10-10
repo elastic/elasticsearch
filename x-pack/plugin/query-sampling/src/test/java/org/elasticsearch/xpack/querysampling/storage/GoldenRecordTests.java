@@ -8,9 +8,12 @@
 package org.elasticsearch.xpack.querysampling.storage;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -101,6 +104,29 @@ public class GoldenRecordTests extends ESTestCase {
         assertThat(record, not(hasKey("spatial_space")));
         assertThat(record, not(hasKey("hardness")));
         assertThat(record, not(hasKey("selectivity")));
+    }
+
+    public void testRecordsAreReadBackAsTheSamplesTheyWereCopiedFrom() throws IOException {
+        StoredSample sample = sample(new Stratum("vec/2", 3), Hardness.HARD, Selectivity.LOW);
+
+        Map<String, Object> record = toMap(GoldenRecord.record(JsonXContent.contentBuilder(), 4, sample, 9000L));
+        StoredSample read = GoldenRecord.parse(
+            record,
+            new NamedXContentRegistry(new SearchModule(Settings.EMPTY, List.of()).getNamedXContents())
+        );
+
+        assertThat(read.samplerId(), equalTo(sample.samplerId()));
+        assertThat(read.fingerprint(), equalTo(sample.fingerprint()));
+        assertThat(read.weights(), equalTo(sample.weights()));
+        assertThat(read.groundTruth(), equalTo(sample.groundTruth()));
+        assertThat(read.stratum(), equalTo(sample.stratum()));
+        assertThat(read.hardness(), equalTo(sample.hardness()));
+        assertThat(read.selectivity(), equalTo(sample.selectivity()));
+        assertThat(read.search().hits(), equalTo(sample.search().hits()));
+        assertThat("when it was picked", read.pickedAt(), equalTo(1000L));
+        assertThat("when it was promoted", read.updatedAt(), equalTo(9000L));
+        assertThat(read.search().query().field(), equalTo("vec"));
+        assertThat(read.search().query().filters(), equalTo(sample.search().query().filters()));
     }
 
     public void testManifestTellsTheVersionAndWhetherItIsComplete() throws IOException {

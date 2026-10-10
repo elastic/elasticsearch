@@ -91,6 +91,40 @@ public class QuerySamplingGoldenIT extends QuerySamplingRestTestCase {
             equalTo(promoted)
         );
         assertThat(((Number) searchGolden("record", 2).evaluate("hits.total.value")).intValue(), equalTo(promoted));
+
+        // the ground truth was computed on the data as it is, so nothing is out of date
+        ObjectPath fresh = check("?version=1");
+        assertThat(((Number) fresh.evaluate("version")).longValue(), equalTo(1L));
+        assertThat(((Number) fresh.evaluate("checked")).intValue(), equalTo(promoted));
+        assertThat(((Number) fresh.evaluate("fresh")).intValue(), equalTo(promoted));
+        assertThat(((Number) fresh.evaluate("stale")).intValue(), equalTo(0));
+
+        // a document changes, which every query of the dataset has among the documents that it is over
+        Request update = new Request("PUT", "/vectors/_doc/0");
+        update.setJsonEntity("{\"vec\": [9, 9]}");
+        client().performRequest(update);
+        client().performRequest(new Request("POST", "/vectors/_refresh"));
+
+        ObjectPath stale = check("");
+        assertThat("the latest version, when none is asked for", ((Number) stale.evaluate("version")).longValue(), equalTo(2L));
+        assertThat(((Number) stale.evaluate("stale")).intValue(), equalTo(promoted));
+        assertThat(((Number) stale.evaluate("fresh")).intValue(), equalTo(0));
+        assertThat(
+            "the version that was promoted is still as it was",
+            ((Number) searchGolden("record", 1).evaluate("hits.total.value")).intValue(),
+            equalTo(promoted)
+        );
+    }
+
+    private static ObjectPath check(String parameters) throws IOException {
+        return ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/_query_sampling/golden/check" + parameters)));
+    }
+
+    public void testAVersionThatDoesNotExistHasNothingToCheck() throws IOException {
+        // a version that does not exist has no queries
+        ObjectPath none = check("?version=999");
+
+        assertThat(((Number) none.evaluate("checked")).intValue(), equalTo(0));
     }
 
     public void testBoundsOfTheRequestAreChecked() {

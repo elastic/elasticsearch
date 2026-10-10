@@ -7,11 +7,14 @@
 
 package org.elasticsearch.xpack.querysampling.storage;
 
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * How the documents of {@link GoldenIndex} are laid out: the records, one for each query of a version of the dataset, and
@@ -78,6 +81,19 @@ public final class GoldenRecord {
         builder.field("records", records);
         builder.field("completed", completed);
         return builder.endObject();
+    }
+
+    /**
+     * Reads a record back as the stored sample it was copied from, which is what everything that works on queries and their
+     * ground truth takes. Its time of being picked is that of the sample, and the time it was written is the promotion.
+     *
+     * @param registry needed to read the filters of the query
+     */
+    public static StoredSample parse(Map<String, Object> source, NamedXContentRegistry registry) throws IOException {
+        Map<String, Object> asSample = new HashMap<>(source);
+        asSample.put("picked_at", source.get("source_picked_at"));
+        asSample.put("updated_at", source.get("promoted_at"));
+        return SampleRecord.parse(asSample, registry);
     }
 
     /**

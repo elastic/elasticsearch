@@ -93,6 +93,7 @@ import org.elasticsearch.xpack.esql.datasources.PartitionSpec;
 import org.elasticsearch.xpack.esql.datasources.SchemaDiscoveryPathExtractor;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.dsltranslate.QueryDslFieldNameExtractor;
 import org.elasticsearch.xpack.esql.dsltranslate.RequestFilterRewriter;
 import org.elasticsearch.xpack.esql.dsltranslate.ViewRequestFilterRewriter;
@@ -596,6 +597,7 @@ public class EsqlSession {
                     // external-source-scoped operational metrics only for queries that scanned one.
                     if (plan.anyMatch(ExternalRelation.class::isInstance)) {
                         planTelemetry.externalSource(true);
+                        recordExternalRelations(plan, planTelemetry);
                     }
 
                     var logicalPlanPreOptimizer = new LogicalPlanPreOptimizer(
@@ -1062,6 +1064,21 @@ public class EsqlSession {
             boolean dropRowCount = externalSourceResolver.resolvesToSkipRow(relation.sourceType(), relation.metadata().config());
             collectPinnedReads(relation, dropRowCount, into);
         });
+    }
+
+    /**
+     * Records every external relation of the analyzed {@code plan} on {@code telemetry} by its storage type and format, so the
+     * query's labels cover all the sources it reads. The storage type comes from each relation's location; its format is the
+     * relation's source type.
+     */
+    static void recordExternalRelations(LogicalPlan plan, PlanTelemetry telemetry) {
+        plan.forEachDown(
+            ExternalRelation.class,
+            relation -> telemetry.externalRelation(
+                ExternalSourceMetrics.storageTypeOf(relation.sourcePath()),
+                ExternalSourceMetrics.canonicalFormat(relation.sourceType())
+            )
+        );
     }
 
     static void collectPinnedReads(ExternalRelation relation, boolean dropRowCount, Map<String, PinnedColumns> into) {

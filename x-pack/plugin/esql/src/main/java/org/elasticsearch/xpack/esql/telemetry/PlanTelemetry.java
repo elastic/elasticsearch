@@ -7,14 +7,18 @@
 
 package org.elasticsearch.xpack.esql.telemetry;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * This class is responsible for collecting metrics related to ES|QL planning.
@@ -26,6 +30,8 @@ public class PlanTelemetry {
     private final Map<String, Integer> settings = new HashMap<>();
     private Integer linkedProjectsCount = null;
     private boolean externalSource = false;
+    private final Set<String> externalStorageTypes = new TreeSet<>();
+    private final Set<String> externalFormats = new TreeSet<>();
 
     public PlanTelemetry(EsqlFunctionRegistry functionRegistry) {
         this.functionRegistry = functionRegistry;
@@ -59,6 +65,38 @@ public class PlanTelemetry {
     /** Whether the analyzed plan touched an ES|QL external data source; gates the external-source query metrics at completion. */
     public boolean externalSource() {
         return externalSource;
+    }
+
+    /**
+     * Records one external relation of the analyzed plan by its storage type and format, so the query's labels can be derived
+     * from every source it reads.
+     */
+    public void externalRelation(String storageType, String format) {
+        externalStorageTypes.add(storageType);
+        externalFormats.add(format);
+    }
+
+    /**
+     * The storage-type label of the external sources this query read: the one type when they all agree,
+     * {@link ExternalSourceMetrics#MIXED} when they differ, and {@code null} when it read none.
+     */
+    @Nullable
+    public String externalStorageType() {
+        return collapse(externalStorageTypes);
+    }
+
+    /** The format label of the external sources this query read, with the same rule as {@link #externalStorageType()}. */
+    @Nullable
+    public String externalFormat() {
+        return collapse(externalFormats);
+    }
+
+    @Nullable
+    private static String collapse(Set<String> values) {
+        if (values.isEmpty()) {
+            return null;
+        }
+        return values.size() == 1 ? values.iterator().next() : ExternalSourceMetrics.MIXED;
     }
 
     public void command(TelemetryAware command) {

@@ -197,7 +197,7 @@ public class ExternalSourceMetricsTests extends ESTestCase {
     }
 
     public void testRecordError() {
-        metrics.recordError("s3");
+        metrics.recordError("s3", DataSourceUsageAccumulator.ERROR_TYPE_OTHER, null);
         Measurement m = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_ERRORS_TOTAL);
         assertThat(m.getLong(), equalTo(1L));
         assertThat(m.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("s3"));
@@ -223,7 +223,14 @@ public class ExternalSourceMetricsTests extends ESTestCase {
     }
 
     public void testRecordQuerySuccess() {
-        metrics.recordQuery(ExternalSourceMetrics.OUTCOME_SUCCESS, 340L, false);
+        metrics.recordQuery(
+            new ExternalSourceMetrics.QueryLabels(ExternalSourceMetrics.CLIENT_NONE, null, null),
+            ExternalSourceMetrics.OUTCOME_SUCCESS,
+            340L,
+            false,
+            null,
+            null
+        );
 
         Measurement total = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_TOTAL);
         assertThat(total.getLong(), equalTo(1L));
@@ -238,19 +245,263 @@ public class ExternalSourceMetricsTests extends ESTestCase {
     }
 
     public void testRecordQueryCancelledAlsoBumpsCancelledCounter() {
-        metrics.recordQuery(ExternalSourceMetrics.OUTCOME_CANCELLED, 10L, false);
+        metrics.recordQuery(
+            new ExternalSourceMetrics.QueryLabels(ExternalSourceMetrics.CLIENT_KIBANA, null, null),
+            ExternalSourceMetrics.OUTCOME_CANCELLED,
+            10L,
+            false,
+            null,
+            null
+        );
 
         Measurement total = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_TOTAL);
         assertThat(total.attributes().get(ExternalSourceMetrics.OUTCOME_ATTRIBUTE), equalTo("cancelled"));
-        assertThat(single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_CANCELLED_TOTAL).getLong(), equalTo(1L));
+        Measurement cancelled = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_CANCELLED_TOTAL);
+        assertThat(cancelled.getLong(), equalTo(1L));
+        assertThat(cancelled.attributes().get(ExternalSourceMetrics.CLIENT_ATTRIBUTE), equalTo(ExternalSourceMetrics.CLIENT_KIBANA));
         assertThat(measurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_PARTIAL_TOTAL), hasSize(0));
     }
 
     public void testRecordQueryPartialAlsoBumpsPartialCounter() {
-        metrics.recordQuery(ExternalSourceMetrics.OUTCOME_SUCCESS, 55L, true);
+        metrics.recordQuery(
+            new ExternalSourceMetrics.QueryLabels(ExternalSourceMetrics.CLIENT_OTHER, null, null),
+            ExternalSourceMetrics.OUTCOME_SUCCESS,
+            55L,
+            true,
+            null,
+            null
+        );
 
-        assertThat(single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_PARTIAL_TOTAL).getLong(), equalTo(1L));
+        Measurement partial = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_PARTIAL_TOTAL);
+        assertThat(partial.getLong(), equalTo(1L));
+        assertThat(partial.attributes().get(ExternalSourceMetrics.CLIENT_ATTRIBUTE), equalTo(ExternalSourceMetrics.CLIENT_OTHER));
         assertThat(measurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_CANCELLED_TOTAL), hasSize(0));
+    }
+
+    public void testClientFromOriginFoldsHeaderIntoClosedSet() {
+        assertThat(ExternalSourceMetrics.clientFromOrigin(null), equalTo(ExternalSourceMetrics.CLIENT_NONE));
+        assertThat(ExternalSourceMetrics.clientFromOrigin(""), equalTo(ExternalSourceMetrics.CLIENT_NONE));
+        assertThat(ExternalSourceMetrics.clientFromOrigin("   "), equalTo(ExternalSourceMetrics.CLIENT_NONE));
+        assertThat(ExternalSourceMetrics.clientFromOrigin("kibana"), equalTo(ExternalSourceMetrics.CLIENT_KIBANA));
+        assertThat(ExternalSourceMetrics.clientFromOrigin("Kibana"), equalTo(ExternalSourceMetrics.CLIENT_KIBANA));
+        assertThat(ExternalSourceMetrics.clientFromOrigin("kibana-fleet"), equalTo(ExternalSourceMetrics.CLIENT_KIBANA));
+        assertThat(ExternalSourceMetrics.clientFromOrigin("KIBANA-Agent-Builder"), equalTo(ExternalSourceMetrics.CLIENT_KIBANA));
+        // A prefix without the separator is a different product, not a Kibana feature.
+        assertThat(ExternalSourceMetrics.clientFromOrigin("kibanaish"), equalTo(ExternalSourceMetrics.CLIENT_OTHER));
+        assertThat(ExternalSourceMetrics.clientFromOrigin("elastic"), equalTo(ExternalSourceMetrics.CLIENT_OTHER));
+        assertThat(ExternalSourceMetrics.clientFromOrigin("my-unbounded-client-id-1234"), equalTo(ExternalSourceMetrics.CLIENT_OTHER));
+    }
+
+    public void testRecordQueryTagsClientOnTotalAndDuration() {
+        metrics.recordQuery(
+            new ExternalSourceMetrics.QueryLabels(ExternalSourceMetrics.CLIENT_KIBANA, null, null),
+            ExternalSourceMetrics.OUTCOME_SUCCESS,
+            340L,
+            false,
+            null,
+            null
+        );
+
+        Measurement total = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_TOTAL);
+        assertThat(total.attributes().get(ExternalSourceMetrics.CLIENT_ATTRIBUTE), equalTo("kibana"));
+        assertThat(total.attributes().get(ExternalSourceMetrics.OUTCOME_ATTRIBUTE), equalTo("success"));
+        Measurement duration = single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.QUERY_DURATION);
+        assertThat(duration.attributes().get(ExternalSourceMetrics.CLIENT_ATTRIBUTE), equalTo("kibana"));
+    }
+
+    public void testRecordQueryFailureCarriesClientAlongsideErrorTypeAndStatus() {
+        metrics.recordQuery(
+            new ExternalSourceMetrics.QueryLabels(ExternalSourceMetrics.CLIENT_OTHER, null, null),
+            ExternalSourceMetrics.OUTCOME_FAILURE,
+            25L,
+            false,
+            DataSourceUsageAccumulator.ERROR_TYPE_STORAGE_NOT_FOUND,
+            "404"
+        );
+
+        Measurement total = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_TOTAL);
+        assertThat(total.attributes().get(ExternalSourceMetrics.CLIENT_ATTRIBUTE), equalTo("other"));
+        assertThat(total.attributes().get(ExternalSourceMetrics.ERROR_TYPE_ATTRIBUTE), equalTo("storage_not_found"));
+        assertThat(total.attributes().get(ExternalSourceMetrics.STATUS_ATTRIBUTE), equalTo("404"));
+        Measurement duration = single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.QUERY_DURATION);
+        assertThat(duration.attributes().get(ExternalSourceMetrics.CLIENT_ATTRIBUTE), equalTo("other"));
+    }
+
+    /** An unknown client token is published as {@code other}, never as the raw value. */
+    public void testRecordQueryClampsUnknownClientToOther() {
+        metrics.recordQuery(
+            new ExternalSourceMetrics.QueryLabels("curl/8.4.0", null, null),
+            ExternalSourceMetrics.OUTCOME_SUCCESS,
+            1L,
+            false,
+            null,
+            null
+        );
+
+        Measurement total = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_TOTAL);
+        assertThat(total.attributes().get(ExternalSourceMetrics.CLIENT_ATTRIBUTE), equalTo("other"));
+    }
+
+    /** A request that carried no origin header is published under {@code none}, not dropped or defaulted silently. */
+    public void testRecordQueryWithNoneClientIsPublishedAsNone() {
+        metrics.recordQuery(
+            new ExternalSourceMetrics.QueryLabels(ExternalSourceMetrics.CLIENT_NONE, null, null),
+            ExternalSourceMetrics.OUTCOME_SUCCESS,
+            1L,
+            false,
+            null,
+            null
+        );
+
+        Measurement total = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_TOTAL);
+        assertThat(total.attributes().get(ExternalSourceMetrics.CLIENT_ATTRIBUTE), equalTo("none"));
+    }
+
+    public void testRecordQueryClientReachesPhoneHomeAccumulator() {
+        DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
+        ExternalSourceMetrics dualSink = new ExternalSourceMetrics(new RecordingMeterRegistry(), acc);
+
+        dualSink.recordQuery(
+            new ExternalSourceMetrics.QueryLabels(ExternalSourceMetrics.CLIENT_KIBANA, null, null),
+            ExternalSourceMetrics.OUTCOME_SUCCESS,
+            1L,
+            false,
+            null,
+            null
+        );
+        dualSink.recordQuery(
+            new ExternalSourceMetrics.QueryLabels("curl/8.4.0", null, null),
+            ExternalSourceMetrics.OUTCOME_SUCCESS,
+            1L,
+            false,
+            null,
+            null
+        );
+
+        assertThat(acc.queriesByClient(DataSourceUsageAccumulator.CLIENT_NAMES.indexOf("kibana")), equalTo(1L));
+        assertThat(acc.queriesByClient(DataSourceUsageAccumulator.CLIENT_NAMES.indexOf("other")), equalTo(1L));
+        assertThat(acc.queriesByClient(DataSourceUsageAccumulator.CLIENT_NAMES.indexOf("none")), equalTo(0L));
+    }
+
+    public void testRecordQueryTagsStorageTypeAndFormatOnTotalAndDuration() {
+        metrics.recordQuery(
+            new ExternalSourceMetrics.QueryLabels(ExternalSourceMetrics.CLIENT_KIBANA, "s3", "parquet"),
+            ExternalSourceMetrics.OUTCOME_SUCCESS,
+            340L,
+            false,
+            null,
+            null
+        );
+
+        Measurement total = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_BY_SOURCE_TOTAL);
+        assertThat(total.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("s3"));
+        assertThat(total.attributes().get(ExternalSourceMetrics.FORMAT_ATTRIBUTE), equalTo("parquet"));
+        Measurement duration = single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.QUERY_BY_SOURCE_DURATION);
+        assertThat(duration.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("s3"));
+        assertThat(duration.attributes().get(ExternalSourceMetrics.FORMAT_ATTRIBUTE), equalTo("parquet"));
+
+        // The client and failure instruments stay free of the storage dimensions, which keeps their cardinality bounded.
+        Measurement clientTotal = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_TOTAL);
+        assertThat(clientTotal.attributes().containsKey(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo(false));
+        assertThat(clientTotal.attributes().containsKey(ExternalSourceMetrics.FORMAT_ATTRIBUTE), equalTo(false));
+        Measurement clientDuration = single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.QUERY_DURATION);
+        assertThat(clientDuration.attributes().containsKey(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo(false));
+        assertThat(clientDuration.attributes().containsKey(ExternalSourceMetrics.FORMAT_ATTRIBUTE), equalTo(false));
+    }
+
+    /** The cancelled and partial counters carry the client only; type and format are on the query instruments. */
+    public void testCancelledAndPartialCountersCarryOnlyTheClient() {
+        metrics.recordQuery(
+            new ExternalSourceMetrics.QueryLabels(ExternalSourceMetrics.CLIENT_KIBANA, "s3", "parquet"),
+            ExternalSourceMetrics.OUTCOME_CANCELLED,
+            10L,
+            true,
+            null,
+            null
+        );
+
+        for (String name : List.of(ExternalSourceMetrics.QUERIES_CANCELLED_TOTAL, ExternalSourceMetrics.QUERIES_PARTIAL_TOTAL)) {
+            Measurement m = single(InstrumentType.LONG_COUNTER, name);
+            assertThat(m.attributes().get(ExternalSourceMetrics.CLIENT_ATTRIBUTE), equalTo("kibana"));
+            assertThat(m.attributes().containsKey(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo(false));
+            assertThat(m.attributes().containsKey(ExternalSourceMetrics.FORMAT_ATTRIBUTE), equalTo(false));
+        }
+    }
+
+    /** A query with no external-source labels publishes no type or format, rather than a placeholder. */
+    public void testRecordQueryOmitsAbsentStorageLabels() {
+        metrics.recordQuery(
+            new ExternalSourceMetrics.QueryLabels(ExternalSourceMetrics.CLIENT_NONE, null, null),
+            ExternalSourceMetrics.OUTCOME_SUCCESS,
+            1L,
+            false,
+            null,
+            null
+        );
+
+        Measurement total = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_BY_SOURCE_TOTAL);
+        assertThat(total.attributes().containsKey(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo(false));
+        assertThat(total.attributes().containsKey(ExternalSourceMetrics.FORMAT_ATTRIBUTE), equalTo(false));
+    }
+
+    public void testRecordQueryClampsUnknownStorageAndFormatLabels() {
+        metrics.recordQuery(
+            new ExternalSourceMetrics.QueryLabels(ExternalSourceMetrics.CLIENT_NONE, "ftp", "avro"),
+            ExternalSourceMetrics.OUTCOME_SUCCESS,
+            1L,
+            false,
+            null,
+            null
+        );
+
+        Measurement total = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_BY_SOURCE_TOTAL);
+        assertThat(total.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("unknown"));
+        assertThat(total.attributes().get(ExternalSourceMetrics.FORMAT_ATTRIBUTE), equalTo("other"));
+    }
+
+    public void testRecordQueryKeepsMixedLabels() {
+        metrics.recordQuery(
+            new ExternalSourceMetrics.QueryLabels(
+                ExternalSourceMetrics.CLIENT_NONE,
+                ExternalSourceMetrics.MIXED,
+                ExternalSourceMetrics.MIXED
+            ),
+            ExternalSourceMetrics.OUTCOME_SUCCESS,
+            1L,
+            false,
+            null,
+            null
+        );
+
+        Measurement total = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_BY_SOURCE_TOTAL);
+        assertThat(total.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("mixed"));
+        assertThat(total.attributes().get(ExternalSourceMetrics.FORMAT_ATTRIBUTE), equalTo("mixed"));
+    }
+
+    public void testStorageTypeOfFoldsTheLocationScheme() {
+        assertThat(ExternalSourceMetrics.storageTypeOf("s3://bucket/key.parquet"), equalTo("s3"));
+        assertThat(ExternalSourceMetrics.storageTypeOf("gs://bucket/key.csv"), equalTo("gcs"));
+        assertThat(ExternalSourceMetrics.storageTypeOf("file:///tmp/data.csv"), equalTo("local"));
+        // A location with no scheme has no storage type that can be named.
+        assertThat(ExternalSourceMetrics.storageTypeOf("data/x.csv"), equalTo("unknown"));
+        assertThat(ExternalSourceMetrics.storageTypeOf(null), equalTo("unknown"));
+    }
+
+    public void testRecordErrorTagsErrorTypeAndStatus() {
+        metrics.recordError("s3", DataSourceUsageAccumulator.ERROR_TYPE_STORAGE_THROTTLED, "429");
+
+        Measurement error = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_ERRORS_TOTAL);
+        assertThat(error.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("s3"));
+        assertThat(error.attributes().get(ExternalSourceMetrics.ERROR_TYPE_ATTRIBUTE), equalTo("storage_throttled"));
+        assertThat(error.attributes().get(ExternalSourceMetrics.STATUS_ATTRIBUTE), equalTo("429"));
+    }
+
+    public void testRecordErrorWithoutStatusOmitsIt() {
+        metrics.recordError("gcs", null, null);
+
+        Measurement error = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_ERRORS_TOTAL);
+        assertThat(error.attributes().get(ExternalSourceMetrics.ERROR_TYPE_ATTRIBUTE), equalTo("other"));
+        assertThat(error.attributes().containsKey(ExternalSourceMetrics.STATUS_ATTRIBUTE), equalTo(false));
     }
 
     public void testRecordTimeToFirstRow() {
@@ -322,7 +573,14 @@ public class ExternalSourceMetricsTests extends ESTestCase {
 
         dualSink.recordDiscoveryFailure("s3", "SomeException", "400");
         dualSink.recordDiscoveryFailure("s3", null, "400");
-        dualSink.recordQuery(ExternalSourceMetrics.OUTCOME_FAILURE, 5L, false, "AnotherException", "400");
+        dualSink.recordQuery(
+            new ExternalSourceMetrics.QueryLabels(ExternalSourceMetrics.CLIENT_NONE, null, null),
+            ExternalSourceMetrics.OUTCOME_FAILURE,
+            5L,
+            false,
+            "AnotherException",
+            "400"
+        );
 
         int other = DataSourceUsageAccumulator.ERROR_TYPE_NAMES.indexOf(DataSourceUsageAccumulator.ERROR_TYPE_OTHER);
         assertThat(acc.discoveryFailures(other), equalTo(2L));
@@ -340,6 +598,7 @@ public class ExternalSourceMetricsTests extends ESTestCase {
     /** The cause is added to the failure series only, on both instruments, so the success series do not grow. */
     public void testRecordQueryFailureCarriesErrorTypeAndStatus() {
         metrics.recordQuery(
+            new ExternalSourceMetrics.QueryLabels(ExternalSourceMetrics.CLIENT_NONE, null, null),
             ExternalSourceMetrics.OUTCOME_FAILURE,
             25L,
             false,
@@ -359,7 +618,14 @@ public class ExternalSourceMetricsTests extends ESTestCase {
     }
 
     public void testRecordQueryFailureWithoutDetailHasNoFailureAttributes() {
-        metrics.recordQuery(ExternalSourceMetrics.OUTCOME_FAILURE, 25L, false);
+        metrics.recordQuery(
+            new ExternalSourceMetrics.QueryLabels(ExternalSourceMetrics.CLIENT_NONE, null, null),
+            ExternalSourceMetrics.OUTCOME_FAILURE,
+            25L,
+            false,
+            null,
+            null
+        );
 
         Measurement total = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_TOTAL);
         assertThat(total.attributes().get(ExternalSourceMetrics.OUTCOME_ATTRIBUTE), equalTo("failure"));
@@ -368,8 +634,22 @@ public class ExternalSourceMetricsTests extends ESTestCase {
     }
 
     public void testRecordQuerySuccessAndCancelledIgnoreFailureDetail() {
-        metrics.recordQuery(ExternalSourceMetrics.OUTCOME_SUCCESS, 1L, false, "other", "500");
-        metrics.recordQuery(ExternalSourceMetrics.OUTCOME_CANCELLED, 1L, false, "other", "500");
+        metrics.recordQuery(
+            new ExternalSourceMetrics.QueryLabels(ExternalSourceMetrics.CLIENT_NONE, null, null),
+            ExternalSourceMetrics.OUTCOME_SUCCESS,
+            1L,
+            false,
+            "other",
+            "500"
+        );
+        metrics.recordQuery(
+            new ExternalSourceMetrics.QueryLabels(ExternalSourceMetrics.CLIENT_NONE, null, null),
+            ExternalSourceMetrics.OUTCOME_CANCELLED,
+            1L,
+            false,
+            "other",
+            "500"
+        );
 
         for (Measurement total : measurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_TOTAL)) {
             assertThat(total.attributes().containsKey(ExternalSourceMetrics.ERROR_TYPE_ATTRIBUTE), equalTo(false));
@@ -433,7 +713,7 @@ public class ExternalSourceMetricsTests extends ESTestCase {
         // events to the registry once a sink is attached, mirroring the request/retry bridge.
         StorageObjectMetricsCounters counters = new StorageObjectMetricsCounters();
         counters.attach(metrics, "s3");
-        counters.addError();
+        counters.addError("storage_unavailable", "503");
         counters.addThrottled();
         counters.addReadStall(900L);
 
@@ -453,7 +733,7 @@ public class ExternalSourceMetricsTests extends ESTestCase {
 
         // With no sink attached nothing reaches the registry.
         StorageObjectMetricsCounters unattached = new StorageObjectMetricsCounters();
-        unattached.addError();
+        unattached.addError("storage_unavailable", "503");
         unattached.addThrottled();
         unattached.addReadStall(50L);
         assertThat(measurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_ERRORS_TOTAL), hasSize(0));
@@ -535,7 +815,14 @@ public class ExternalSourceMetricsTests extends ESTestCase {
     public void testStorageDiscoveryAndQueriesDoNotCarryFormat() {
         metrics.recordRequest(1L, 1L, "s3");
         metrics.recordDiscovery(1L, 1L, 1L, "s3", FormatReader.SchemaResolution.UNION_BY_NAME, false);
-        metrics.recordQuery(ExternalSourceMetrics.OUTCOME_SUCCESS, 1L, false);
+        metrics.recordQuery(
+            new ExternalSourceMetrics.QueryLabels(ExternalSourceMetrics.CLIENT_NONE, null, null),
+            ExternalSourceMetrics.OUTCOME_SUCCESS,
+            1L,
+            false,
+            null,
+            null
+        );
         assertThat(
             single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_REQUESTS_TOTAL).attributes()
                 .containsKey(ExternalSourceMetrics.FORMAT_ATTRIBUTE),

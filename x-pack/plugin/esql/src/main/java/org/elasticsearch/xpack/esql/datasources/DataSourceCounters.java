@@ -43,6 +43,12 @@ public final class DataSourceCounters {
 
         // ---- unattributed counters ----
         counters.inc("datasources.storage.retries.total", acc.storageRetries());
+        for (int i = 0; i < DataSourceUsageAccumulator.ERROR_TYPE_COUNT; i++) {
+            counters.inc(
+                "datasources.storage.errors.by_error_type." + DataSourceUsageAccumulator.ERROR_TYPE_NAMES.get(i),
+                acc.storageErrorsByErrorType(i)
+            );
+        }
         // datasources.queries.cancelled.total mirrors the APM QUERIES_CANCELLED_TOTAL instrument (a dedicated
         // cancelled counter). datasources.queries.by_outcome.cancelled (populated below) mirrors QUERIES_TOTAL
         // attributed to the cancelled outcome. The two are intentionally separate keys — do not sum them.
@@ -86,6 +92,33 @@ public final class DataSourceCounters {
         // ---- per-outcome query counters ----
         for (int i = 0; i < DataSourceUsageAccumulator.OUTCOME_COUNT; i++) {
             counters.inc("datasources.queries.by_outcome." + DataSourceUsageAccumulator.OUTCOME_NAMES.get(i), acc.queries(i));
+        }
+
+        // ---- per-storage-type and per-format query counters (marginals over outcome; "mixed" when a query's sources disagree) ----
+        for (int t = 0; t <= Type.values().length; t++) {
+            String type = t < Type.values().length ? Type.values()[t].key() : DataSourceUsageAccumulator.MIXED;
+            for (int o = 0; o < DataSourceUsageAccumulator.OUTCOME_COUNT; o++) {
+                counters.inc(
+                    "datasources.queries.by_type." + type + ".by_outcome." + DataSourceUsageAccumulator.OUTCOME_NAMES.get(o),
+                    acc.queriesByStorageType(t, o)
+                );
+            }
+        }
+        for (int f = 0; f <= DataSourceUsageAccumulator.FORMAT_COUNT; f++) {
+            String format = f < DataSourceUsageAccumulator.FORMAT_COUNT
+                ? DataSourceUsageAccumulator.FORMAT_NAMES.get(f)
+                : DataSourceUsageAccumulator.MIXED;
+            for (int o = 0; o < DataSourceUsageAccumulator.OUTCOME_COUNT; o++) {
+                counters.inc(
+                    "datasources.queries.by_format." + format + ".by_outcome." + DataSourceUsageAccumulator.OUTCOME_NAMES.get(o),
+                    acc.queriesByFormat(f, o)
+                );
+            }
+        }
+
+        // ---- per-client query counters (marginal over outcome; closed set from the X-elastic-product-origin header) ----
+        for (int i = 0; i < DataSourceUsageAccumulator.CLIENT_COUNT; i++) {
+            counters.inc("datasources.queries.by_client." + DataSourceUsageAccumulator.CLIENT_NAMES.get(i), acc.queriesByClient(i));
         }
 
         // ---- per-component CPU counters (ns) ----

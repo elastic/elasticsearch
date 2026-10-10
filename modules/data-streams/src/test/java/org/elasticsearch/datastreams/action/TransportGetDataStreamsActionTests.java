@@ -562,7 +562,8 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
                 .put(IndexSettings.MODE.getKey(), templateIndexMode)
                 .build(),
             Settings.EMPTY,
-            Settings.EMPTY
+            Settings.EMPTY,
+            IndexMode.STANDARD
         );
 
         GetDataStreamAction.Response response = TransportGetDataStreamsAction.innerOperation(
@@ -595,7 +596,8 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
                 .put(IndexMetadata.LIFECYCLE_NAME, templatePolicy)
                 .put(IndexSettings.MODE.getKey(), templateIndexMode)
                 .build(),
-            Settings.EMPTY
+            Settings.EMPTY,
+            IndexMode.STANDARD
         );
 
         GetDataStreamAction.Response response = TransportGetDataStreamsAction.innerOperation(
@@ -635,7 +637,8 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             Settings.builder()
                 .put(IndexMetadata.LIFECYCLE_NAME, dataStreamPolicy)
                 .put(IndexSettings.MODE.getKey(), dataStreamIndexMode)
-                .build()
+                .build(),
+            IndexMode.STANDARD
         );
         GetDataStreamAction.Response response = TransportGetDataStreamsAction.innerOperation(
             projectStateFromProject(project),
@@ -658,7 +661,8 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
     private static ProjectMetadata getProjectWithDataStreamWithSettings(
         Settings templateSettings,
         Settings componentTemplateSettings,
-        Settings dataStreamSettings
+        Settings dataStreamSettings,
+        IndexMode dsIndexMode
     ) {
         String dataStreamName = "data-stream-1";
         int numberOfBackingIndices = randomIntBetween(1, 5);
@@ -701,7 +705,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
         DataStream ds = DataStream.builder(
             dataStreamName,
             backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
-        ).setGeneration(numberOfBackingIndices).setSettings(dataStreamSettings).setReplicated(replicated).build();
+        ).setGeneration(numberOfBackingIndices).setSettings(dataStreamSettings).setIndexMode(dsIndexMode).setReplicated(replicated).build();
         builder.put(ds);
 
         for (IndexMetadata index : allIndices) {

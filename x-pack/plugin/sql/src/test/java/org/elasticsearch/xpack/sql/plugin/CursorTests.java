@@ -11,6 +11,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.elasticsearch.xpack.sql.proto.formatter.SimpleFormatter;
@@ -42,6 +43,14 @@ public class CursorTests extends ESTestCase {
 
     public static Cursor decodeFromString(String base64) {
         return decodeFromStringWithZone(base64, WRITEABLE_REGISTRY).v1();
+    }
+
+    public void testDecodingGarbageCursorFails() {
+        // the cursor comes straight from the request, so anything can be in it
+        for (String garbage : List.of("not base64 at all!", "///", "AAAA", "AAAAAAAAAAAAAAAAAAAA")) {
+            SqlIllegalArgumentException e = expectThrows(SqlIllegalArgumentException.class, () -> decodeFromString(garbage));
+            assertEquals("Unexpected failure reading cursor", e.getMessage());
+        }
     }
 
     public void testAttachingFormatterToCursor() {

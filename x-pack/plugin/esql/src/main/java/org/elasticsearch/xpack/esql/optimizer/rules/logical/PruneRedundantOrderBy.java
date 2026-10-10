@@ -13,6 +13,8 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.SortAgnostic;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryLookupJoin;
 
 import java.util.ArrayDeque;
 import java.util.Collections;
@@ -43,7 +45,14 @@ public class PruneRedundantOrderBy extends OptimizerRules.OptimizerRule<LogicalP
 
     @Override
     protected LogicalPlan rule(LogicalPlan plan) {
-        if (plan instanceof OrderBy || plan instanceof TopN || plan instanceof Aggregate) {
+        if (plan instanceof SubqueryLookupJoin lookupJoin) {
+            Set<OrderBy> redundant = findRedundantSort(lookupJoin.right());
+            if (redundant.isEmpty()) {
+                return plan;
+            }
+            LogicalPlan right = lookupJoin.right().transformDown(p -> redundant.contains(p) ? ((UnaryPlan) p).child() : p);
+            return lookupJoin.replaceChildren(lookupJoin.left(), right);
+        } else if (plan instanceof OrderBy || plan instanceof TopN || plan instanceof Aggregate) {
             Set<OrderBy> redundant = findRedundantSort(((UnaryPlan) plan).child());
             if (redundant.isEmpty()) {
                 return plan;
@@ -73,7 +82,7 @@ public class PruneRedundantOrderBy extends OptimizerRules.OptimizerRule<LogicalP
                 result.add(ob);
                 toCheck.push(ob.child());
             } else if (p instanceof SortAgnostic) {
-                for (LogicalPlan child : p.children()) {
+                for (LogicalPlan child : IndependentSubqueryJoin.mainScopeChildren(p)) {
                     toCheck.push(child);
                 }
             }

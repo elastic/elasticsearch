@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
@@ -31,13 +32,16 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
@@ -220,6 +224,9 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
             // (which is a no-op against the constant-TRUE sentinel column anyway).
             if (scoped.rightFilters.isEmpty() == false && join instanceof InlineJoin == false && right instanceof LocalRelation == false) {
                 List<Expression> rightPushableFilters = buildRightPushableFilters(scoped.rightFilters, foldCtx);
+                if (join instanceof IndependentSubqueryJoin) {
+                    rightPushableFilters = rebindRightAttributes(rightPushableFilters, right.output());
+                }
                 if (rightPushableFilters.isEmpty() == false) {
                     if (join.right() instanceof Filter existingRightFilter) {
                         // merge the unique AND filter components from rightPushableFilters and existingRightFilter.condition()
@@ -278,6 +285,14 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
      */
     private static List<Expression> buildRightPushableFilters(List<Expression> expressions, FoldContext foldCtx) {
         return expressions.stream().filter(x -> isRightPushableFilter(x, foldCtx)).toList();
+    }
+
+    private static List<Expression> rebindRightAttributes(List<Expression> expressions, List<Attribute> rightOutput) {
+        Map<NameId, Attribute> attributesById = new HashMap<>();
+        rightOutput.forEach(attribute -> attributesById.put(attribute.id(), attribute));
+        return expressions.stream()
+            .map(expression -> expression.transformUp(Attribute.class, attribute -> attributesById.getOrDefault(attribute.id(), attribute)))
+            .toList();
     }
 
     /**

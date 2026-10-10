@@ -195,6 +195,32 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         clearShutdownMetadata(clusterService);
     }
 
+    // kept apart from testRemoveNodeDuringSnapshot so that this one always wraps the exception and so always reproduces the bug
+    public void testRemoveNodeDuringSnapshotWithWrappedPauseException() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(1);
+        final var originalNode = internalCluster().startDataOnlyNode();
+        final var indexName = randomIdentifier();
+        createIndexWithContent(indexName, indexSettings(1, 0).put(REQUIRE_NODE_NAME_SETTING, originalNode).build());
+
+        final var repoName = randomIdentifier();
+        // the pause is detected while reading the data to upload, and some repositories wrap that exception
+        createRepository(repoName, "mock", randomRepositorySettings().put("wrap_write_exceptions", true));
+
+        final var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        final var snapshotFuture = startFullSnapshotBlockedOnDataNode(randomIdentifier(), repoName, originalNode);
+        final var snapshotPausedListener = createSnapshotPausedListener(clusterService, repoName, indexName, 1);
+        addUnassignedShardsWatcher(clusterService, indexName);
+
+        updateIndexSettings(Settings.builder().putNull(REQUIRE_NODE_NAME_SETTING), indexName);
+        putShutdownForRemovalMetadata(originalNode, clusterService);
+        unblockAllDataNodes(repoName); // lets the shard snapshot pause, which frees up the shard so it can move
+        safeAwait(snapshotPausedListener);
+
+        assertEquals(SnapshotState.SUCCESS, safeGet(snapshotFuture).getSnapshotInfo().state());
+
+        clearShutdownMetadata(clusterService);
+    }
+
     public void testRemoveNodeAndFailoverMasterDuringSnapshot() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(1);
         final var originalNode = internalCluster().startDataOnlyNode();

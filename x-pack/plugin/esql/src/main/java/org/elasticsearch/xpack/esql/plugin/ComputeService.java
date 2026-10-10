@@ -1580,15 +1580,19 @@ public class ComputeService {
                                 localClusterWasInterrupted.set(execInfo.isStopped());
                                 execInfo.swapCluster(LOCAL_CLUSTER, (k, v) -> {
                                     var builder = new EsqlExecutionInfo.Cluster.Builder(v);
-                                    applyShardCounts(
-                                        builder,
-                                        v,
-                                        r.getTotalShards(),
-                                        r.getSuccessfulShards(),
-                                        r.getSkippedShards(),
-                                        r.getFailedShards(),
-                                        exchangeSinkSupplier != null
-                                    );
+                                    // Mirror ClusterComputeHandler: INLINE STATS subplans skip shard count updates, the main plan sets the
+                                    // definitive values. Otherwise merge-branch accumulation would count the local shards twice.
+                                    if (execInfo.isMainPlan() || execInfo.isSubqueryJoinSubPlan()) {
+                                        applyShardCounts(
+                                            builder,
+                                            v,
+                                            r.getTotalShards(),
+                                            r.getSuccessfulShards(),
+                                            r.getSkippedShards(),
+                                            r.getFailedShards(),
+                                            exchangeSinkSupplier != null
+                                        );
+                                    }
                                     return builder.addFailures(r.failures).build();
                                 });
                                 dataNodesListener.onResponse(r.getCompletionInfo());

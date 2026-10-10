@@ -487,6 +487,45 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
         assertThat(cause.getMessage(), containsString("standard"));
     }
 
+    public void testFailsWhenEveryBranchLosesAllShardsAfterSuccessfulInlineStats() {
+        var query = """
+            FROM
+               (FROM fail),
+               (FROM fail)
+            | INLINE STATS s = COUNT(*)
+            | KEEP fail_me, s
+            """;
+        var request = executionMetadataRequest(query, partialBranchPragmas());
+        request.allowPartialResults(true);
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> run(request).close());
+        assertThat(e.getMessage(), equalTo("Accessing failing field"));
+    }
+
+    public void testFailsWhenInlineStatsSubplanLosesAllShards() {
+        var query = """
+            FROM
+               (FROM fail),
+               (FROM fail)
+            | INLINE STATS s = SUM(fail_me)
+            """;
+        var request = executionMetadataRequest(query, partialBranchPragmas());
+        request.allowPartialResults(true);
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> run(request).close());
+        assertThat(e.getMessage(), equalTo("Accessing failing field"));
+    }
+
+    public void testFailsWhenForkBranchesLoseAllShardsAfterSuccessfulInlineStats() {
+        var query = """
+            FROM fail
+            | INLINE STATS s = COUNT(*)
+            | FORK (WHERE fail_me >= 0) (WHERE fail_me >= 0)
+            """;
+        var request = executionMetadataRequest(query, partialBranchPragmas());
+        request.allowPartialResults(true);
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> run(request).close());
+        assertThat(e.getMessage(), equalTo("Accessing failing field"));
+    }
+
     public void testNestedSubqueryExceedsMaxBranchCountPragma() {
         var query = fourLeafThreeLevelQuery();
         var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 3).build());

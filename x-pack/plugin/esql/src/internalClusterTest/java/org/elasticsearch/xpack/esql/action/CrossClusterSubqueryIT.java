@@ -839,7 +839,7 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
             // local shards again.
             assertCCSExecutionInfoDetailsWithShards(
                 executionInfo,
-                Map.of(LOCAL_CLUSTER, localShards() * 2, REMOTE_CLUSTER_1, remote1Shards(), REMOTE_CLUSTER_2, remote2Shards())
+                Map.of(LOCAL_CLUSTER, localShards(), REMOTE_CLUSTER_1, remote1Shards(), REMOTE_CLUSTER_2, remote2Shards())
             );
         }
     }

@@ -14,6 +14,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * Loads values by iterating in original document sequence order instead of
@@ -131,7 +132,7 @@ class ValuesFromDocSequence extends ValuesReader {
             int firstDoc = docs.docs().getInt(offset);
             operator.positionFieldWork(shard, segment, firstDoc);
             LeafReaderContext ctx = operator.ctx(shard, segment);
-            fieldsMoved(ctx, shard);
+            fieldsMoved(ctx, shard, () -> docsInRun(offset));
             int runStart = offset;
             readRowStride(firstDoc);
             int prevDoc = firstDoc;
@@ -147,7 +148,8 @@ class ValuesFromDocSequence extends ValuesReader {
                     segment = newSegment;
                     operator.positionFieldWork(shard, segment, doc);
                     ctx = operator.ctx(shard, segment);
-                    fieldsMoved(ctx, shard);
+                    int currentRunStart = i;
+                    fieldsMoved(ctx, shard, () -> docsInRun(currentRunStart));
                     runStart = i;
                 }
                 readRowStride(doc);
@@ -166,6 +168,35 @@ class ValuesFromDocSequence extends ValuesReader {
                 }
                 log.debug("loaded {} positions doc sequence estimated/actual {}/{} bytes", count, estimated, actualBytes);
             }
+        }
+
+        /**
+         * Distinct doc IDs of the ascending, single segment run of positions starting at {@code start},
+         * bounded the same way as {@link #load}: by a shard or segment change or a decreasing doc.
+         * {@link #load} may stop before the end of the run once it reaches {@code jumboBytes}.
+         */
+        private int[] docsInRun(int start) {
+            int shard = docs.shards().getInt(start);
+            int segment = docs.segments().getInt(start);
+            int prevDoc = docs.docs().getInt(start);
+            int end = start + 1;
+            while (end < docs.getPositionCount()) {
+                int doc = docs.docs().getInt(end);
+                if (docs.shards().getInt(end) != shard || docs.segments().getInt(end) != segment || doc < prevDoc) {
+                    break;
+                }
+                prevDoc = doc;
+                end++;
+            }
+            int[] result = new int[end - start];
+            int count = 0;
+            for (int i = start; i < end; i++) {
+                int doc = docs.docs().getInt(i);
+                if (count == 0 || doc != result[count - 1]) {
+                    result[count++] = doc;
+                }
+            }
+            return count == result.length ? result : Arrays.copyOf(result, count);
         }
 
         /**

@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
 
 public abstract class ValuesReader implements ReleasableIterator<Block[]> {
     protected final ValuesSourceReaderOperator operator;
@@ -141,7 +142,7 @@ public abstract class ValuesReader implements ReleasableIterator<Block[]> {
             return sum;
         }
 
-        void fieldsMoved(LeafReaderContext ctx, int shard) throws IOException {
+        void fieldsMoved(LeafReaderContext ctx, int shard, Supplier<int[]> docsInLeafSupplier) throws IOException {
             if (currentShard != shard) {
                 if (currentShard >= 0) {
                     convertAndAccumulate();
@@ -174,12 +175,25 @@ public abstract class ValuesReader implements ReleasableIterator<Block[]> {
                 sourceLoader = operator.sourceLoader(shard, storedFieldsSpec.sourcePaths());
                 storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(true, false, sourceLoader.requiredStoredFields()));
             }
+            int[] docsInLeaf = storedFieldsSpec.noRequirements() || docsInLeafSupplier == null ? null : docsInLeafSupplier.get();
+            boolean sequential = docsInLeaf != null
+                && docsInLeaf.length > 0
+                && ValuesFromSingleReader.useSequentialStoredFieldsReader(
+                    ctx,
+                    docsInLeaf.length,
+                    docsInLeaf[0],
+                    docsInLeaf[docsInLeaf.length - 1],
+                    operator.shardContexts.get(shard).storedFieldsSequentialProportion()
+                );
+            StoredFieldLoader storedFieldLoader = sequential
+                ? StoredFieldLoader.fromSpecSequential(storedFieldsSpec)
+                : StoredFieldLoader.fromSpec(storedFieldsSpec);
             storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
-                StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(ctx, null),
+                storedFieldLoader.getLoader(ctx, null),
                 sourceLoader != null ? sourceLoader.leaf(ctx, null) : null
             );
             if (false == storedFieldsSpec.equals(StoredFieldsSpec.NO_REQUIREMENTS)) {
-                operator.trackStoredFields(storedFieldsSpec, false);
+                operator.trackStoredFields(storedFieldsSpec, sequential);
             }
         }
 

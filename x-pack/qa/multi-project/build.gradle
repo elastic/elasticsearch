@@ -5,6 +5,6 @@ subprojects {
   group = 'org.elasticsearch.qa.multi-project'
 
   tasks.named { it == "javaRestTest" || it == "yamlRestTest" }.configureEach {
-    it.onlyIf("snapshot build") { buildParams.snapshotBuild }
+    buildParams.withSnapshotBuildOnly(it)
   }
 }

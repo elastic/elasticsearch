@@ -35,7 +35,7 @@ tasks.withType(Test).configureEach {
 
 // Exclude multi-project tests from release build
 tasks.named { it == "javaRestTest" || it == "yamlRestTest" }.configureEach {
-  it.onlyIf("snapshot build") { buildParams.snapshotBuild }
+  buildParams.withSnapshotBuildOnly(it)
 }
 
 restResources {

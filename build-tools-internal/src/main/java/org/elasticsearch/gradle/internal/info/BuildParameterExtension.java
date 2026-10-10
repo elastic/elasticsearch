@@ -30,6 +30,8 @@ public interface BuildParameterExtension {
 
     void withFipsEnabledOnly(Task task);
 
+    void withSnapshotBuildOnly(Task task);
+
     Boolean getIsRuntimeJavaHomeSet();
 
     RuntimeJava getRuntimeJava();

@@ -634,3 +634,6 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
   method: test {yaml=/37_columnar_collapse/collapse on a columnar keyword field with the columnar codec disabled}
   issue: https://github.com/elastic/elasticsearch/issues/161604
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecFuseIT
+  method: test {csv-spec:fuse.fuseWithRowLinearAndMultiValueScoreColumn}
+  issue: https://github.com/elastic/elasticsearch/issues/161607

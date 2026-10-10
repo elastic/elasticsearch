@@ -73,20 +73,23 @@ public final class PlanningCpuTracker {
         this.cpuClock = cpuClock;
     }
 
-    private static final class Measurement {
-        final PlanningCpuTracker owner;
+    /** One measurement of the enclosing tracker, its owner. */
+    private final class Measurement {
         /** Thread CPU at the latest (re)start, or {@code SETTLED} / {@code PAUSED}. Only touched by the owning thread. */
         long startCpuNanos;
 
-        Measurement(PlanningCpuTracker owner, long startCpuNanos) {
-            this.owner = owner;
+        Measurement(long startCpuNanos) {
             this.startCpuNanos = startCpuNanos;
+        }
+
+        PlanningCpuTracker owner() {
+            return PlanningCpuTracker.this;
         }
 
         /** Adds the CPU time since the latest (re)start to the owner. Does nothing while paused or settled. */
         void commit(long nowCpuNanos) {
             if (startCpuNanos >= 0) {
-                owner.add(nowCpuNanos - startCpuNanos);
+                add(nowCpuNanos - startCpuNanos);
             }
         }
 
@@ -119,7 +122,7 @@ public final class PlanningCpuTracker {
             return work.get();
         }
         Measurement outer = CURRENT.get();
-        if (outer != null && outer.owner == this) {
+        if (outer != null && outer.owner() == this) {
             return work.get();
         }
         long startCpuNanos = cpuClock.getAsLong();
@@ -129,7 +132,7 @@ public final class PlanningCpuTracker {
         if (outer != null) {
             outer.pause(startCpuNanos);
         }
-        Measurement measurement = new Measurement(this, startCpuNanos);
+        Measurement measurement = new Measurement(startCpuNanos);
         CURRENT.set(measurement);
         try {
             return work.get();
@@ -201,7 +204,7 @@ public final class PlanningCpuTracker {
      */
     public void checkpoint() {
         Measurement measurement = CURRENT.get();
-        if (measurement == null || measurement.owner != this || measurement.startCpuNanos < 0) {
+        if (measurement == null || measurement.owner() != this || measurement.startCpuNanos < 0) {
             return;
         }
         long nowCpuNanos = cpuClock.getAsLong();
@@ -220,7 +223,7 @@ public final class PlanningCpuTracker {
     /** The tracker that owns the calling thread's innermost open measurement, or {@link #UNMETERED} when none is open. */
     private static PlanningCpuTracker current() {
         Measurement measurement = CURRENT.get();
-        return measurement == null ? UNMETERED : measurement.owner;
+        return measurement == null ? UNMETERED : measurement.owner();
     }
 
     /**
@@ -234,7 +237,7 @@ public final class PlanningCpuTracker {
             return 0;
         }
         Measurement measurement = CURRENT.get();
-        if (measurement != null && measurement.owner == this) {
+        if (measurement != null && measurement.owner() == this) {
             measurement.settle(cpuClock.getAsLong());
         }
         finishedCpuNanos.compareAndSet(NOT_FINISHED, cpuNanos.sum());
@@ -250,7 +253,7 @@ public final class PlanningCpuTracker {
     /** For assertions. True when a measurement of this tracker is open on this thread, or when thread CPU time is unsupported. */
     public boolean isMeteringCurrentThread() {
         Measurement measurement = CURRENT.get();
-        return (measurement != null && measurement.owner == this) || cpuClock.getAsLong() < 0;
+        return (measurement != null && measurement.owner() == this) || cpuClock.getAsLong() < 0;
     }
 
     private void add(long deltaNanos) {

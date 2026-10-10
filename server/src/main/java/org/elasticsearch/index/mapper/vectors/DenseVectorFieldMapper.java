@@ -54,6 +54,7 @@ import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.SliceSelection;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibrationProfile;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
@@ -80,6 +81,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MappingParser;
+import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceLoader;
@@ -138,7 +140,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
@@ -430,7 +431,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 "index_options",
                 true,
                 () -> defaultIndexOptions(defaultInt8Hnsw, defaultBBQHnsw, defaultBBQDisk),
-                (n, c, o) -> o == null ? null : parseIndexOptions(n, o, indexVersionCreated, experimentalFeaturesEnabled),
+                (n, c, o) -> o == null ? null : parseIndexOptions(n, o, c, experimentalFeaturesEnabled),
                 m -> toType(m).indexOptions,
                 (b, n, v) -> {
                     if (v != null) {
@@ -519,7 +520,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     false,
                     bits,
                     experimentalFeaturesEnabled,
-                    false,
+                    null,
                     BBQIVFIndexOptions.QuantizationType.OSQ,
                     false
                 );
@@ -1864,7 +1865,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public DenseVectorIndexOptions parseIndexOptions(
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
-                IndexVersion indexVersion,
+                MappingParserContext context,
                 boolean experimentalFeaturesEnabled
             ) {
                 boolean onDiskMerge = parseOnDiskMerge(indexOptionsMap);
@@ -1900,9 +1901,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public DenseVectorIndexOptions parseIndexOptions(
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
-                IndexVersion indexVersion,
+                MappingParserContext context,
                 boolean experimentalFeaturesEnabled
             ) {
+                IndexVersion indexVersion = context.indexVersionCreated();
                 boolean onDiskMerge = parseOnDiskMerge(indexOptionsMap);
                 Object mNode = indexOptionsMap.remove("m");
                 Object efConstructionNode = indexOptionsMap.remove("ef_construction");
@@ -1945,9 +1947,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public DenseVectorIndexOptions parseIndexOptions(
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
-                IndexVersion indexVersion,
+                MappingParserContext context,
                 boolean experimentalFeaturesEnabled
             ) {
+                IndexVersion indexVersion = context.indexVersionCreated();
                 boolean onDiskMerge = parseOnDiskMerge(indexOptionsMap);
                 Object mNode = indexOptionsMap.remove("m");
                 Object efConstructionNode = indexOptionsMap.remove("ef_construction");
@@ -1992,7 +1995,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public DenseVectorIndexOptions parseIndexOptions(
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
-                IndexVersion indexVersion,
+                MappingParserContext context,
                 boolean experimentalFeaturesEnabled
             ) {
                 boolean onDiskMerge = parseOnDiskMerge(indexOptionsMap);
@@ -2020,9 +2023,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public DenseVectorIndexOptions parseIndexOptions(
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
-                IndexVersion indexVersion,
+                MappingParserContext context,
                 boolean experimentalFeaturesEnabled
             ) {
+                IndexVersion indexVersion = context.indexVersionCreated();
                 boolean onDiskMerge = parseOnDiskMerge(indexOptionsMap);
                 Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
                 Float confidenceInterval = parseConfidenceInterval(fieldName, indexOptionsMap, indexVersion);
@@ -2053,9 +2057,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public DenseVectorIndexOptions parseIndexOptions(
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
-                IndexVersion indexVersion,
+                MappingParserContext context,
                 boolean experimentalFeaturesEnabled
             ) {
+                IndexVersion indexVersion = context.indexVersionCreated();
                 boolean onDiskMerge = parseOnDiskMerge(indexOptionsMap);
                 Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
                 Float confidenceInterval = parseConfidenceInterval(fieldName, indexOptionsMap, indexVersion);
@@ -2086,9 +2091,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public DenseVectorIndexOptions parseIndexOptions(
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
-                IndexVersion indexVersion,
+                MappingParserContext context,
                 boolean experimentalFeaturesEnabled
             ) {
+                IndexVersion indexVersion = context.indexVersionCreated();
                 boolean onDiskMerge = parseOnDiskMerge(indexOptionsMap);
                 Object mNode = indexOptionsMap.remove("m");
                 Object efConstructionNode = indexOptionsMap.remove("ef_construction");
@@ -2127,9 +2133,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public DenseVectorIndexOptions parseIndexOptions(
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
-                IndexVersion indexVersion,
+                MappingParserContext context,
                 boolean experimentalFeaturesEnabled
             ) {
+                IndexVersion indexVersion = context.indexVersionCreated();
                 RescoreVector rescoreVector = null;
                 boolean onDiskMerge = parseOnDiskMerge(indexOptionsMap);
                 Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
@@ -2162,9 +2169,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public DenseVectorIndexOptions parseIndexOptions(
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
-                IndexVersion indexVersion,
+                MappingParserContext context,
                 boolean experimentalFeaturesEnabled
             ) {
+                IndexVersion indexVersion = context.indexVersionCreated();
                 boolean onDiskMerge = parseOnDiskMerge(indexOptionsMap);
                 Object clusterSizeNode = indexOptionsMap.remove("cluster_size");
                 int clusterSize = ES940DiskBBQVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER;
@@ -2254,8 +2262,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
 
                 boolean doPrecondition = XContentMapValues.nodeBooleanValue(indexOptionsMap.remove("precondition"), false);
-                boolean autoCalibrate = XContentMapValues.nodeBooleanValue(indexOptionsMap.remove("auto_calibrate"), false);
-                if (isAsh && autoCalibrate) {
+                DenseVectorAutoCalibrate autoCalibrate = DenseVectorAutoCalibrate.parse(
+                    indexOptionsMap.remove(DenseVectorAutoCalibrate.NAME),
+                    indexVersion,
+                    context::clusterHasFeature,
+                    fieldName
+                );
+                if (isAsh && autoCalibrate.enabled()) {
                     throw new IllegalArgumentException(
                         "'auto_calibrate' is not supported with 'quantization_type' 'ash' for field [" + fieldName + "]"
                     );
@@ -2306,7 +2319,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public abstract DenseVectorIndexOptions parseIndexOptions(
             String fieldName,
             Map<String, ?> indexOptionsMap,
-            IndexVersion indexVersion,
+            MappingParserContext context,
             boolean experimentalFeaturesEnabled
         );
 
@@ -3038,7 +3051,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         final int bits;
         final boolean doPrecondition;
         final boolean experimentalFeaturesEnabled;
-        final boolean autoCalibrate;
+        final DenseVectorAutoCalibrate autoCalibrate;
         final QuantizationType quantizationType;
 
         public enum QuantizationType {
@@ -3078,7 +3091,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             boolean doPrecondition,
             int bits,
             boolean experimentalFeaturesEnabled,
-            boolean autoCalibrate,
+            @Nullable DenseVectorAutoCalibrate autoCalibrate,
             QuantizationType quantizationType,
             boolean onDiskMerge
         ) {
@@ -3091,7 +3104,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.bits = bits;
             this.doPrecondition = doPrecondition;
             this.experimentalFeaturesEnabled = experimentalFeaturesEnabled;
-            this.autoCalibrate = autoCalibrate;
+            this.autoCalibrate = autoCalibrate == null ? DenseVectorAutoCalibrate.defaultAutoCalibrate(indexVersionCreated) : autoCalibrate;
             this.quantizationType = quantizationType;
         }
 
@@ -3148,8 +3161,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         onDiskMerge
                     );
                 } else {
-                    IvfMergeConfigResolver mergeConfigResolver = autoCalibrate
-                        ? IvfAutoCalibration.mergeConfigResolver(clusterSize)
+                    IvfMergeConfigResolver mergeConfigResolver = autoCalibrate()
+                        ? IvfAutoCalibration.mergeConfigResolver(clusterSize, autoCalibrationProfile())
                         : IvfMergeConfigResolver.useCodecDefault();
                     return new ESNextDiskBBQVectorsFormat(
                         QuantEncoding.fromBits((byte) bits),
@@ -3169,8 +3182,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     );
                 }
             } else if (indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_ES950_AUTO_CALIBRATE)) {
-                IvfMergeConfigResolver mergeConfigResolver = autoCalibrate
-                    ? IvfAutoCalibration.mergeConfigResolver(clusterSize)
+                IvfMergeConfigResolver mergeConfigResolver = autoCalibrate()
+                    ? IvfAutoCalibration.mergeConfigResolver(clusterSize, autoCalibrationProfile())
                     : IvfMergeConfigResolver.useCodecDefault();
                 return new ES950DiskBBQVectorsFormat(
                     QuantEncoding.fromBits((byte) bits),
@@ -3212,7 +3225,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             BBQIVFIndexOptions that = (BBQIVFIndexOptions) update;
             return this.doPrecondition == that.doPrecondition
-                && this.autoCalibrate == that.autoCalibrate
+                && this.autoCalibrationProfile() == that.autoCalibrationProfile()
                 && Objects.equals(this.quantizationType, that.quantizationType);
         }
 
@@ -3225,7 +3238,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 && onDiskRescore == that.onDiskRescore
                 && bits == that.bits
                 && doPrecondition == that.doPrecondition
-                && autoCalibrate == that.autoCalibrate
+                && Objects.equals(autoCalibrate, that.autoCalibrate)
                 && Objects.equals(quantizationType, that.quantizationType)
                 && Objects.equals(rescoreVector, that.rescoreVector);
         }
@@ -3266,9 +3279,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (doPrecondition) {
                 builder.field("precondition", doPrecondition);
             }
-            if (autoCalibrate) {
-                builder.field("auto_calibrate", true);
-            }
+            autoCalibrate.toXContent(builder, params);
             if (quantizationType == QuantizationType.ASH) {
                 builder.field("quantization_type", quantizationType);
             }
@@ -3295,7 +3306,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         public boolean autoCalibrate() {
-            return autoCalibrate;
+            return autoCalibrate.enabled();
+        }
+
+        public IvfAutoCalibrationProfile autoCalibrationProfile() {
+            return autoCalibrate.profile();
         }
 
         public int getBits() {
@@ -3858,7 +3873,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             } else if (indexOptions instanceof BBQIVFIndexOptions bbqIndexOptions) {
                 float defaultVisitRatio = (float) (bbqIndexOptions.defaultVisitPercentage / 100d);
                 float visitRatio = visitPercentage == null ? defaultVisitRatio : (float) (visitPercentage / 100d);
-                if (bbqIndexOptions.autoCalibrate) {
+                if (bbqIndexOptions.autoCalibrate()) {
                     // Rescoring happens inside the IVF query itself (AbstractIVFKnnVectorQuery#rewrite ->
                     // #getAutoRescoreQuery), or, when post-filtering, after the filter via #finalizeTopK.
                     rescore = false;
@@ -3867,7 +3882,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     ? bbqIndexOptions.rescoreVector.oversample
                     : DEFAULT_OVERSAMPLE;
                 var ivfQueryConfigResolver = IvfQueryConfigResolver.from(
-                    bbqIndexOptions.autoCalibrate,
+                    bbqIndexOptions.autoCalibrate(),
                     bbqIndexOptions.doPrecondition,
                     bbqIndexOptions.bits,
                     mappingOversample,
@@ -3982,7 +3997,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             } else if (indexOptions instanceof BBQIVFIndexOptions bbqIndexOptions) {
                 float defaultVisitRatio = (float) (bbqIndexOptions.defaultVisitPercentage / 100d);
                 float visitRatio = visitPercentage == null ? defaultVisitRatio : (float) (visitPercentage / 100d);
-                if (bbqIndexOptions.autoCalibrate) {
+                if (bbqIndexOptions.autoCalibrate()) {
                     // Rescoring happens inside the IVF query itself (AbstractIVFKnnVectorQuery#rewrite ->
                     // #getAutoRescoreQuery), or, when post-filtering, after the filter via #finalizeTopK.
                     rescore = false;
@@ -3991,7 +4006,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     ? bbqIndexOptions.rescoreVector.oversample
                     : DEFAULT_OVERSAMPLE;
                 var ivfQueryConfigResolver = IvfQueryConfigResolver.from(
-                    bbqIndexOptions.autoCalibrate,
+                    bbqIndexOptions.autoCalibrate(),
                     bbqIndexOptions.doPrecondition,
                     bbqIndexOptions.bits,
                     mappingOversample,
@@ -4355,7 +4370,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     private static DenseVectorIndexOptions parseIndexOptions(
         String fieldName,
         Object propNode,
-        IndexVersion indexVersion,
+        MappingParserContext context,
         boolean experimentalFeaturesEnabled
     ) {
         @SuppressWarnings("unchecked")
@@ -4370,7 +4385,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             throw new MapperParsingException("Unknown vector index options type [" + type + "] for field [" + fieldName + "]");
         }
         VectorIndexType parsedType = vectorIndexType.get();
-        return parsedType.parseIndexOptions(fieldName, indexOptionsMap, indexVersion, experimentalFeaturesEnabled);
+        return parsedType.parseIndexOptions(fieldName, indexOptionsMap, context, experimentalFeaturesEnabled);
     }
 
     private static boolean parseOnDiskMerge(Map<String, ?> indexOptionsMap) {

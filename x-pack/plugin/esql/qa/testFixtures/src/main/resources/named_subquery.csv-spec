@@ -1,0 +1,287 @@
+// CSV spec for LET-prefix named subquery tests
+
+// -------------------------------------------------------------------
+// Basic LET: single binding used as FROM source
+// -------------------------------------------------------------------
+
+letSingleBinding
+required_capability: named_subquery_let
+
+LET top_langs = (FROM languages | SORT language_code | LIMIT 2)\;
+FROM top_langs
+| KEEP language_code, language_name
+| SORT language_code
+;
+
+language_code:integer | language_name:keyword
+1                     | English
+2                     | French
+;
+
+// -------------------------------------------------------------------
+// LET body contains aggregation (STATS)
+// -------------------------------------------------------------------
+
+letWithStatsInBody
+required_capability: named_subquery_let
+
+LET lang_count = (FROM languages | STATS cnt = COUNT(*))\;
+FROM lang_count
+| KEEP cnt
+;
+
+cnt:long
+4
+;
+
+// -------------------------------------------------------------------
+// Chained LET bindings: later binding references earlier one
+// -------------------------------------------------------------------
+
+letChainedBindings
+required_capability: named_subquery_let
+
+LET filtered = (FROM languages | WHERE language_code > 1)\;
+LET top2 = (FROM filtered | SORT language_code | LIMIT 2)\;
+FROM top2
+| KEEP language_code, language_name
+| SORT language_code
+;
+
+language_code:integer | language_name:keyword
+2                     | French
+3                     | Spanish
+;
+
+// -------------------------------------------------------------------
+// LET binding referenced in WHERE ... IN position
+// -------------------------------------------------------------------
+
+letBindingInInSubquery
+required_capability: named_subquery_let
+required_capability: where_in_subquery_without_view
+
+LET low_codes = (FROM languages | WHERE language_code <= 2 | KEEP language_code)\;
+FROM languages
+| WHERE language_code IN (FROM low_codes)
+| KEEP language_code, language_name
+| SORT language_code
+;
+
+language_code:integer | language_name:keyword
+1                     | English
+2                     | French
+;
+
+// -------------------------------------------------------------------
+// Same LET binding used as FROM source and inside IN (FROM binding)
+// -------------------------------------------------------------------
+
+letBindingInFromAndInSubquery
+required_capability: named_subquery_let
+required_capability: where_in_subquery_without_view
+
+LET top_codes = (FROM languages | SORT language_code | LIMIT 3 | KEEP language_code)\;
+FROM top_codes
+| WHERE language_code IN (FROM top_codes)
+| SORT language_code
+;
+
+language_code:integer
+1
+2
+3
+;
+
+// -------------------------------------------------------------------
+// Multiple LET bindings: one used as FROM source, another in IN position
+// -------------------------------------------------------------------
+
+letMultipleBindingsFromAndIn
+required_capability: named_subquery_let
+required_capability: where_in_subquery_without_view
+
+LET sources = (FROM languages | WHERE language_code > 1 | KEEP language_code, language_name)\;
+LET filter_codes = (FROM languages | WHERE language_code <= 3 | KEEP language_code)\;
+FROM sources
+| WHERE language_code IN (FROM filter_codes)
+| KEEP language_code, language_name
+| SORT language_code
+;
+
+language_code:integer | language_name:keyword
+2                     | French
+3                     | Spanish
+;
+
+// -------------------------------------------------------------------
+// LET + views: binding body references a stored view
+// -------------------------------------------------------------------
+
+letBodyReferencingView
+required_capability: named_subquery_let
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+LET high_langs = (FROM view_languages | WHERE language_code > 2 | KEEP language_code, language_name)\;
+FROM high_langs
+| KEEP language_code, language_name
+| SORT language_code
+;
+
+language_code:integer | language_name:keyword
+3                     | Spanish
+4                     | German
+;
+
+// -------------------------------------------------------------------
+// LET + views: stored view whose body contains a LET clause
+// -------------------------------------------------------------------
+
+viewBodyWithLet
+required_capability: named_subquery_let
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+FROM view_with_let
+| KEEP language_code, language_name
+| SORT language_code
+;
+
+language_code:integer | language_name:keyword
+2                     | French
+3                     | Spanish
+4                     | German
+;
+
+// -------------------------------------------------------------------
+// Chained LET with LIMIT BY and multi-column IN:
+// Top 2 clusters by avg bytes_in; within each, identify the top pod;
+// filter the full dataset to only (cluster, pod) pairs that are top-ranked.
+// Note: a nested "other" bucket pattern (relabelling non-top rows via FORK)
+// would require two FORK commands, which exceeds the current single-FORK limit.
+// -------------------------------------------------------------------
+
+letChainedWithLimitByAndMultiColumnIn
+required_capability: named_subquery_let
+required_capability: esql_limit_by
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+LET top2_clusters = (
+    FROM k8s
+        | STATS AVG(network.bytes_in) BY cluster
+        | SORT `AVG(network.bytes_in)` DESC
+        | LIMIT 2
+        | KEEP cluster
+)\;
+LET top1_pod_by_cluster = (
+    FROM k8s
+        | WHERE cluster IN (FROM top2_clusters)
+        | STATS AVG(network.bytes_in) BY cluster, pod
+        | SORT `AVG(network.bytes_in)` DESC
+        | LIMIT 1 BY cluster
+        | KEEP cluster, pod
+)\;
+FROM k8s
+| WHERE (cluster, pod) IN (FROM top1_pod_by_cluster)
+| STATS AVG(network.bytes_in) BY cluster, pod
+| SORT cluster, pod
+;
+
+AVG(network.bytes_in):double | cluster:keyword | pod:keyword
+605.5625                     | prod            | two
+553.1379310344828            | qa              | two
+;
+
+// -------------------------------------------------------------------
+// Nested "other" buckets via FORK at both levels:
+// cluster-level: top 2 by avg bytes → rest become "other"
+// pod-level: top 1 per cluster → rest become "other"
+// -------------------------------------------------------------------
+
+nestedOtherBuckets
+required_capability: named_subquery_let
+required_capability: fork_v9
+required_capability: esql_limit_by
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+LET top2_clusters = (
+    FROM k8s
+        | STATS AVG(network.bytes_in) BY cluster
+        | SORT `AVG(network.bytes_in)` DESC
+        | LIMIT 2
+        | KEEP cluster
+)\;
+LET top_clusters = (
+    FROM k8s
+        | EVAL cluster = CASE(cluster IN (FROM top2_clusters), cluster, "Other"::keyword)
+)\;
+LET top1_pod_by_cluster = (
+    FROM top_clusters
+        | STATS AVG(network.bytes_in) BY cluster, pod
+        | SORT `AVG(network.bytes_in)` DESC
+        | LIMIT 1 BY cluster
+        | KEEP cluster, pod
+)\;
+LET top_pods_by_cluster = (
+    FROM top_clusters
+        | EVAL pod = CASE((cluster, pod) IN (FROM top1_pod_by_cluster), pod, "Other"::keyword)
+)\;
+FROM top_pods_by_cluster
+| STATS AVG(network.bytes_in) BY cluster, pod
+| SORT cluster, pod
+;
+
+AVG(network.bytes_in):double | cluster:keyword | pod:keyword
+414.2972972972973            | Other           | Other
+529.25                       | Other           | two
+465.73333333333335           | prod            | Other
+605.5625                     | prod            | two
+494.45283018867923           | qa              | Other
+553.1379310344828            | qa              | two
+;
+
+// -------------------------------------------------------------------
+// Mixed FROM: LET binding alongside a real index
+// -------------------------------------------------------------------
+
+letMixedFromBindingAndRealIndex
+required_capability: named_subquery_let
+required_capability: where_in_subquery_without_view
+
+LET low_codes = (FROM languages | WHERE language_code <= 2 | KEEP language_code)\;
+FROM low_codes, languages
+| WHERE language_code IN (FROM low_codes | KEEP language_code)
+| KEEP language_code
+| SORT language_code
+;
+
+language_code:integer
+1
+1
+2
+2
+;
+
+// -------------------------------------------------------------------
+// SET combined with LET
+// -------------------------------------------------------------------
+
+setWithLetBinding
+required_capability: set_command
+required_capability: named_subquery_let
+
+SET unmapped_fields="nullify"\;
+LET top_langs = (FROM languages | SORT language_code | LIMIT 2)\;
+FROM top_langs
+| KEEP language_code, language_name
+| SORT language_code
+;
+
+language_code:integer | language_name:keyword
+1                     | English
+2                     | French
+;
+

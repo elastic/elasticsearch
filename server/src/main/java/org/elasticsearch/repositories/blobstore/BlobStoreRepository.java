@@ -89,6 +89,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -543,6 +544,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private final int maxSnapshotCount;
 
     private final ShardSnapshotTaskRunner shardSnapshotTaskRunner;
+    // what to close to take the runner off the node's upload concurrency control, if it is on it
+    @Nullable
+    private final Releasable unregisterShardSnapshotTaskRunner;
 
     private final ThrottledTaskRunner staleBlobDeleteRunner;
 
@@ -584,22 +588,28 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             listener -> threadPool.executor(ThreadPool.Names.SNAPSHOT_META)
                 .execute(ActionRunnable.wrap(listener, this::doGetRepositoryData))
         );
+        // Each repository has its own runner and queue for shard snapshot tasks, whatever the node does about upload concurrency. When it
+        // adapts it, the runner needs the node's budget for every task it starts, and runs it on the pool that has the threads for that.
         final BackgroundNetworkQos backgroundNetworkQos = recoverySettings.getBackgroundNetworkQos();
-        // each repository has its own runner, as it always had, except that tasks go to the node's shared runner while the node adapts
-        // its upload concurrency, which then sets the concurrency of all repositories together
-        final PrioritizedThrottledTaskRunner<ShardSnapshotTaskRunner.SnapshotTask> ownShardSnapshotTaskRunner =
-            new PrioritizedThrottledTaskRunner<>(
-                ShardSnapshotTaskRunner.TASK_RUNNER_NAME,
-                threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
-                threadPool.executor(ThreadPool.Names.SNAPSHOT)
+        final int maxRunningSnapshotTasks = threadPool.info(ThreadPool.Names.SNAPSHOT).getMax();
+        if (backgroundNetworkQos == null) {
+            shardSnapshotTaskRunner = new ShardSnapshotTaskRunner(
+                maxRunningSnapshotTasks,
+                threadPool.executor(ThreadPool.Names.SNAPSHOT),
+                this::doSnapshotShard,
+                this::snapshotFile
             );
-        shardSnapshotTaskRunner = new ShardSnapshotTaskRunner(
-            () -> backgroundNetworkQos == null
-                ? ownShardSnapshotTaskRunner
-                : backgroundNetworkQos.selectUploadTaskRunner(ownShardSnapshotTaskRunner),
-            this::doSnapshotShard,
-            this::snapshotFile
-        );
+            unregisterShardSnapshotTaskRunner = null;
+        } else {
+            final var taskRunner = new PrioritizedThrottledTaskRunner<ShardSnapshotTaskRunner.SnapshotTask>(
+                ShardSnapshotTaskRunner.TASK_RUNNER_NAME,
+                maxRunningSnapshotTasks,
+                backgroundNetworkQos.getUploadExecutor(),
+                backgroundNetworkQos::tryAcquireUploadPermit
+            );
+            shardSnapshotTaskRunner = new ShardSnapshotTaskRunner(taskRunner, this::doSnapshotShard, this::snapshotFile);
+            unregisterShardSnapshotTaskRunner = backgroundNetworkQos.registerUploadTaskRunner(taskRunner);
+        }
         staleBlobDeleteRunner = new ThrottledTaskRunner(
             "cleanupStaleBlobs",
             threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
@@ -640,6 +650,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     protected void doClose() {
+        Releasables.close(unregisterShardSnapshotTaskRunner);
         activityRefs.decRef();
         BlobStore store;
         // to close blobStore if blobStore initialization is started during close
@@ -4494,8 +4505,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private void countUploadFailure(Exception e, UploadStage stage, boolean sourceReadFailed) {
         final BackgroundNetworkQos backgroundNetworkQos = recoverySettings.getBackgroundNetworkQos();
-        if (backgroundNetworkQos == null) {
-            return;
+        if (backgroundNetworkQos == null || backgroundNetworkQos.isAdaptiveUploadConcurrencyEnabled() == false) {
+            return; // the errors are only an input to the adaptive upload concurrency
         }
         switch (classifyUploadFailure(e, stage, sourceReadFailed)) {
             case SOURCE_READ -> backgroundNetworkQos.onUploadReadError();

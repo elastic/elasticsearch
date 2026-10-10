@@ -100,6 +100,27 @@ public class SnapshotBackgroundQosIT extends AbstractSnapshotIntegTestCase {
         assertEquals(0L, readErrors);
     }
 
+    public void testSwitchingAdaptiveUploadConcurrencyWhileASnapshotRuns() throws Exception {
+        internalCluster().startNodes(randomIntBetween(1, 3), qosSettings(false));
+        createRepository("test-repo", "mock");
+        createIndexWithRandomDocs("test-idx", 50);
+        blockAllDataNodes("test-repo");
+        final var snapshot = startFullSnapshot("test-repo", "test-snap");
+        waitForBlockOnAnyDataNode("test-repo");
+
+        // while uploads are running, on and off again: they go on, and the snapshot is complete
+        for (boolean adaptive : new boolean[] { true, false, true, false }) {
+            updateClusterSettings(Settings.builder().put(ADAPTIVE_UPLOAD_CONCURRENCY_ENABLED_SETTING.getKey(), adaptive));
+        }
+        unblockAllDataNodes("test-repo");
+        assertSuccessful(snapshot);
+
+        // every task has given back what it took
+        for (BackgroundNetworkQos qos : internalCluster().getDataNodeInstances(BackgroundNetworkQos.class)) {
+            assertBusy(() -> assertEquals(0, qos.getRunningUploadTasks()));
+        }
+    }
+
     public void testSnapshotAndRestoreWithBothSwitchesOff() {
         internalCluster().startNodes(randomIntBetween(1, 3), qosSettings(false));
         snapshotAndRestore(false);

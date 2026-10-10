@@ -15,15 +15,17 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.AbstractThrottledTaskRunner;
 import org.elasticsearch.common.util.concurrent.PrioritizedThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.snapshots.blobstore.RateLimitingInputStream;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.monitor.network.NetworkProbe;
 import org.elasticsearch.monitor.os.CgroupV2Probe;
-import org.elasticsearch.repositories.blobstore.ShardSnapshotTaskRunner;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -33,7 +35,11 @@ import java.io.InputStream;
 import java.util.List;
 import java.util.OptionalDouble;
 import java.util.OptionalLong;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -54,8 +60,12 @@ import static org.elasticsearch.core.Strings.format;
  *     because uploads also use CPU outside their threads, and upload errors. Off, uploads run on the snapshot pool at today's
  *     concurrency.</li>
  * </ul>
- * While adaptive upload concurrency is on, all repositories share this node's upload task runner so that a single controller sets the
- * node's upload concurrency. While both switches are off nothing here does anything: no measurements are read and no work is counted.
+ * Every repository always has its own task runner and queue for shard snapshot tasks, as it has always had. Adaptive upload concurrency
+ * only adds a limit shared by all of them, a node-wide budget of tasks that may run at once, which a repository's runner asks for before
+ * it starts a task and gives back when the task finishes. Budget is granted first come first served across repositories. While
+ * adaptive upload concurrency is off the budget is not consulted, so what runs is exactly what the repositories' own runners allow;
+ * the tasks are still counted, which is all it costs, so that the budget is right when the switch is turned on while snapshots run.
+ * While both switches are off nothing else here does anything: no measurements are read, no bytes are counted and nothing is scheduled.
  * Background QoS only applies on stateless nodes, where snapshots read from the object store; on other nodes they read local disk.
  */
 public class BackgroundNetworkQos extends AbstractLifecycleComponent {
@@ -136,7 +146,11 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
     private final Resource networkOut;
     private final List<Resource> resources;
 
-    private final PrioritizedThrottledTaskRunner<ShardSnapshotTaskRunner.SnapshotTask> uploadTaskRunner;
+    // The task runners of the repositories on this node, see registerUploadTaskRunner
+    private final Set<PrioritizedThrottledTaskRunner<?>> uploadTaskRunners = ConcurrentHashMap.newKeySet();
+    // The tasks the runners have started and not finished, counted whether or not the budget is consulted, so that it is right at once
+    // when the switch is turned on while snapshots run
+    private final AtomicInteger runningUploadTasks = new AtomicInteger();
     private final UploadConcurrencyController uploadConcurrencyController;
     private final LongAdder uploadBytes = new LongAdder();
     private final LongAdder uploadPauseNanos = new LongAdder();
@@ -147,12 +161,19 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
     private volatile boolean adaptiveUploadConcurrencyEnabled;
     private volatile int uploadConcurrencyMax;
     private final int nodeUploadConcurrencyCeiling;
+    // The node-wide budget: how many tasks the runners may run at once while adaptive upload concurrency is on, set by the controller
+    private volatile int uploadBudget;
+    // How many tasks a repository's runner runs at once: today's concurrency when adaptive is off, else the ceiling, as the budget is
+    // what limits them then
+    private volatile int uploadTaskRunnerCap;
+    private final int todaysUploadConcurrency;
 
-    @Nullable
-    private volatile Scheduler.Cancellable scheduledTick;
-
-    // Everything below is guarded by the lock, which the periodic tick holds and so does a change of the adaptive switch.
+    // Everything below is guarded by the lock, which the periodic tick holds and so does a change of a switch.
     private final Object lock = new Object();
+    private boolean started;
+    // the periodic tick, which exists only while it has something to do
+    @Nullable
+    private Scheduler.Cancellable scheduledTick;
     private boolean loggedProbes;
     private long tickCount;
     private long lastActiveNanos;
@@ -179,6 +200,7 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
      * @param stateless whether this is a stateless node, the only kind that snapshots read from the object store, which the network
      *                  limiters are for
      */
+    @SuppressWarnings("this-escape")
     public BackgroundNetworkQos(
         ClusterSettings clusterSettings,
         ThreadPool threadPool,
@@ -188,6 +210,7 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
         this(clusterSettings, threadPool, recoverySettings, stateless, Probes.forNode(), System::nanoTime);
     }
 
+    @SuppressWarnings("this-escape")
     BackgroundNetworkQos(
         ClusterSettings clusterSettings,
         ThreadPool threadPool,
@@ -210,20 +233,25 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
         this.networkOut = new Resource("net out", networkCapacity, uploadBytes::sum, stats -> stats == null ? -1L : stats.transmitBytes());
         this.resources = List.of(networkIn, networkOut);
 
-        // today's concurrency, also the target while adaptive upload concurrency is off
+        // today's concurrency, also the budget while adaptive upload concurrency starts
         final int floor = threadPool.info(ThreadPool.Names.SNAPSHOT).getMax();
+        this.todaysUploadConcurrency = floor;
+        this.uploadBudget = floor;
+        this.uploadTaskRunnerCap = floor;
         this.nodeUploadConcurrencyCeiling = Math.max(floor, threadPool.info(ThreadPool.Names.SNAPSHOT_UPLOAD).getMax());
         this.uploadConcurrencyController = new UploadConcurrencyController(floor, nodeUploadConcurrencyCeiling);
-        this.uploadTaskRunner = new PrioritizedThrottledTaskRunner<>(
-            ShardSnapshotTaskRunner.TASK_RUNNER_NAME,
-            floor,
-            threadPool.executor(ThreadPool.Names.SNAPSHOT_UPLOAD)
-        );
 
         clusterSettings.initializeAndWatch(UPLOAD_CONCURRENCY_MAX_SETTING, max -> this.uploadConcurrencyMax = max);
         uploadConcurrencyController.setCeiling(Math.min(uploadConcurrencyMax, nodeUploadConcurrencyCeiling));
-        clusterSettings.initializeAndWatch(BACKGROUND_QOS_ENABLED_SETTING, enabled -> this.backgroundQosEnabled = enabled);
+        clusterSettings.initializeAndWatch(BACKGROUND_QOS_ENABLED_SETTING, this::setBackgroundQosEnabled);
         clusterSettings.initializeAndWatch(ADAPTIVE_UPLOAD_CONCURRENCY_ENABLED_SETTING, this::setAdaptiveUploadConcurrencyEnabled);
+    }
+
+    private void setBackgroundQosEnabled(boolean enabled) {
+        synchronized (lock) {
+            this.backgroundQosEnabled = enabled;
+            updateTick();
+        }
     }
 
     private void setAdaptiveUploadConcurrencyEnabled(boolean enabled) {
@@ -233,7 +261,29 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
             // off: do not leave the adaptive target in place until the next interval. On: start from today's concurrency.
             trackingInterval = false;
             uploadConcurrencyController.reset();
-            setUploadConcurrency(uploadConcurrencyController.getFloor());
+            uploadBudget = uploadConcurrencyController.getFloor();
+            // the setting may have changed while nothing was looking
+            uploadConcurrencyController.setCeiling(Math.min(uploadConcurrencyMax, nodeUploadConcurrencyCeiling));
+            // the runners' caps change with the switch, which also lets them start what the new limits allow
+            applyUploadTaskRunnerCap();
+            updateTick();
+        }
+    }
+
+    /**
+     * Runs the periodic tick only while a switch is on, so that nothing is scheduled, woken up or measured on a node that has both off.
+     * Must be called with the lock held whenever a switch or the lifecycle changed.
+     */
+    private void updateTick() {
+        if (started && isActive()) {
+            if (scheduledTick == null) {
+                scheduledTick = threadPool.scheduleWithFixedDelay(this::tick, TICK_INTERVAL, threadPool.generic());
+            }
+        } else if (scheduledTick != null) {
+            scheduledTick.cancel();
+            scheduledTick = null;
+            // nothing ticks to put the limiters back to their floor and to forget the measurements any more
+            stopTracking();
         }
     }
 
@@ -245,7 +295,8 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
     }
 
     /**
-     * Whether shard snapshot uploads should use the node's {@link #getUploadTaskRunner()}.
+     * Whether shard snapshot uploads are limited by the node-wide budget, see {@link #registerUploadTaskRunner}, and run on the
+     * {@link ThreadPool.Names#SNAPSHOT_UPLOAD} pool.
      */
     public boolean isAdaptiveUploadConcurrencyEnabled() {
         return adaptiveUploadConcurrencyEnabled;
@@ -267,21 +318,70 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
     }
 
     /**
-     * The node-level runner for shard snapshot tasks, shared by all repositories, which only runs tasks while adaptive upload
-     * concurrency is on.
+     * The executor for the shard snapshot tasks of a repository's task runner: the {@link ThreadPool.Names#SNAPSHOT} pool, as it has
+     * always been, or the {@link ThreadPool.Names#SNAPSHOT_UPLOAD} pool while adaptive upload concurrency is on, which has the threads
+     * for more tasks than that. Chosen as each task is started.
      */
-    public PrioritizedThrottledTaskRunner<ShardSnapshotTaskRunner.SnapshotTask> getUploadTaskRunner() {
-        return uploadTaskRunner;
+    public Executor getUploadExecutor() {
+        return command -> threadPool.executor(
+            adaptiveUploadConcurrencyEnabled ? ThreadPool.Names.SNAPSHOT_UPLOAD : ThreadPool.Names.SNAPSHOT
+        ).execute(command);
     }
 
     /**
-     * The runner for a repository's next shard snapshot task: the node's shared runner while adaptive upload concurrency is on and
-     * otherwise the repository's own, as it has always been.
+     * Asks for the budget to start a shard snapshot task, to be given to the runner of a repository as its
+     * {@link AbstractThrottledTaskRunner.StartPermits}. While adaptive upload concurrency is on this is only granted while fewer tasks
+     * than the budget are running on the node. While it is off it is always granted, so that the budget has no say in what runs, but
+     * still counted.
+     *
+     * @return the permit to close when the task finishes, or {@code null} if the budget is used up, in which case the repositories'
+     *         runners are asked to start tasks again when it is not
      */
-    public PrioritizedThrottledTaskRunner<ShardSnapshotTaskRunner.SnapshotTask> selectUploadTaskRunner(
-        PrioritizedThrottledTaskRunner<ShardSnapshotTaskRunner.SnapshotTask> repositoryTaskRunner
-    ) {
-        return adaptiveUploadConcurrencyEnabled ? uploadTaskRunner : repositoryTaskRunner;
+    @Nullable
+    public Releasable tryAcquireUploadPermit() {
+        if (adaptiveUploadConcurrencyEnabled == false) {
+            runningUploadTasks.incrementAndGet();
+            return Releasables.releaseOnce(this::releaseUploadPermit);
+        }
+        while (true) {
+            final int running = runningUploadTasks.get();
+            if (running >= uploadBudget) {
+                return null;
+            }
+            if (runningUploadTasks.compareAndSet(running, running + 1)) {
+                return Releasables.releaseOnce(this::releaseUploadPermit);
+            }
+        }
+    }
+
+    private void releaseUploadPermit() {
+        runningUploadTasks.decrementAndGet();
+        if (adaptiveUploadConcurrencyEnabled) {
+            // a runner may be waiting for it, and the budget is shared, so it need not be the runner of the finished task
+            runQueuedUploadTasks();
+        }
+    }
+
+    private void runQueuedUploadTasks() {
+        uploadTaskRunners.forEach(PrioritizedThrottledTaskRunner::runQueuedTasks);
+    }
+
+    /**
+     * Registers the task runner of a repository, which has to use {@link #tryAcquireUploadPermit} and {@link #getUploadExecutor}. From
+     * then on this sets how many tasks it runs at once, and asks it to start tasks when the budget allows.
+     *
+     * @return what to close when the repository is closed
+     */
+    public Releasable registerUploadTaskRunner(PrioritizedThrottledTaskRunner<?> taskRunner) {
+        uploadTaskRunners.add(taskRunner);
+        // whatever the state of the switch is now, which a change does not miss as it applies the cap to the runners it finds
+        taskRunner.setMaxRunningTasks(uploadTaskRunnerCap);
+        return () -> uploadTaskRunners.remove(taskRunner);
+    }
+
+    private void applyUploadTaskRunnerCap() {
+        uploadTaskRunnerCap = adaptiveUploadConcurrencyEnabled ? uploadConcurrencyController.getCeiling() : todaysUploadConcurrency;
+        uploadTaskRunners.forEach(taskRunner -> taskRunner.setMaxRunningTasks(uploadTaskRunnerCap));
     }
 
     /**
@@ -324,22 +424,39 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
     }
 
     /**
-     * Counts a failed upload that failed reading the source, which is shared with foreground work.
+     * Counts a failed upload that failed reading the source, which is shared with foreground work, if adaptive upload concurrency is on,
+     * as the errors are only an input to it.
      */
     public void onUploadReadError() {
-        uploadReadErrors.increment();
+        if (adaptiveUploadConcurrencyEnabled) {
+            uploadReadErrors.increment();
+        }
     }
 
     /**
-     * Counts a failed upload that failed writing to the repository.
+     * Counts a failed upload that failed writing to the repository, if adaptive upload concurrency is on.
      */
     public void onUploadWriteError() {
-        uploadWriteErrors.increment();
+        if (adaptiveUploadConcurrencyEnabled) {
+            uploadWriteErrors.increment();
+        }
     }
 
     // package-private for tests
     long getCountedUploadBytes() {
         return uploadBytes.sum();
+    }
+
+    /**
+     * The number of shard snapshot tasks that the repositories' runners have started and not finished on this node.
+     */
+    public int getRunningUploadTasks() {
+        return runningUploadTasks.get();
+    }
+
+    // package-private for tests
+    int getUploadBudget() {
+        return uploadBudget;
     }
 
     // package-private for tests
@@ -365,14 +482,17 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
 
     @Override
     protected void doStart() {
-        scheduledTick = threadPool.scheduleWithFixedDelay(this::tick, TICK_INTERVAL, threadPool.generic());
+        synchronized (lock) {
+            started = true;
+            updateTick();
+        }
     }
 
     @Override
     protected void doStop() {
-        final Scheduler.Cancellable cancellable = scheduledTick;
-        if (cancellable != null) {
-            cancellable.cancel();
+        synchronized (lock) {
+            started = false;
+            updateTick();
         }
     }
 
@@ -473,8 +593,8 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
         final long bytes = uploadBytesNow - intervalStartUploadBytes;
         final long pauseNanos = uploadPauseNanosNow - intervalStartUploadPauseNanos;
         final UploadConcurrencyController.Signals signals = new UploadConcurrencyController.Signals(
-            uploadTaskRunner.queueSize(),
-            uploadTaskRunner.runningTasks(),
+            queuedUploadTasks(),
+            runningUploadTasks.get(),
             intervalNanos > 0L ? bytes * (double) TimeUnit.SECONDS.toNanos(1) / intervalNanos : 0.0,
             pauseNanos,
             intervalNanos,
@@ -494,7 +614,11 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
         trackingInterval = true;
 
         // the setting may have changed
+        final int previousCeiling = uploadConcurrencyController.getCeiling();
         uploadConcurrencyController.setCeiling(Math.min(uploadConcurrencyMax, nodeUploadConcurrencyCeiling));
+        if (uploadConcurrencyController.getCeiling() != previousCeiling) {
+            applyUploadTaskRunnerCap();
+        }
         if (hadStart == false || intervalNanos <= 0L) {
             // the first interval after switching on has nothing to compare with
             return;
@@ -502,7 +626,15 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
         readErrorsSinceLog += signals.readErrors();
         writeErrorsSinceLog += signals.uploadErrors();
         lastSignals = signals;
-        setUploadConcurrency(uploadConcurrencyController.onInterval(signals).target());
+        setUploadBudget(uploadConcurrencyController.onInterval(signals).target());
+    }
+
+    private int queuedUploadTasks() {
+        int queued = 0;
+        for (PrioritizedThrottledTaskRunner<?> taskRunner : uploadTaskRunners) {
+            queued += taskRunner.queueSize();
+        }
+        return queued;
     }
 
     static OptionalDouble cpuPressure(
@@ -525,11 +657,15 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
         return OptionalLong.of(after.throttledMicros() - before.throttledMicros());
     }
 
-    private void setUploadConcurrency(int target) {
-        final int current = uploadTaskRunner.getMaxRunningTasks();
-        if (current != target) {
-            logger.debug("changing snapshot upload concurrency from [{}] to [{}]", current, target);
-            uploadTaskRunner.setMaxRunningTasks(target);
+    private void setUploadBudget(int budget) {
+        final int current = uploadBudget;
+        if (current != budget) {
+            logger.debug("changing snapshot upload concurrency from [{}] to [{}]", current, budget);
+            uploadBudget = budget;
+            if (budget > current) {
+                // runners may have tasks waiting for it
+                runQueuedUploadTasks();
+            }
         }
     }
 
@@ -548,9 +684,9 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
             readErrorsSinceLog,
             writeErrorsSinceLog,
             adaptiveUploadConcurrencyEnabled ? "on" : "off",
-            uploadTaskRunner.getMaxRunningTasks(),
-            uploadTaskRunner.runningTasks(),
-            uploadTaskRunner.queueSize(),
+            uploadBudget,
+            runningUploadTasks.get(),
+            queuedUploadTasks(),
             uploadConcurrencyController.getCeiling(),
             decision.action(),
             decision.reason()

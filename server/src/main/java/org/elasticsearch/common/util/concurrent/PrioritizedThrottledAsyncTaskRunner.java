@@ -11,6 +11,7 @@ package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.InstrumentedThrottledTaskRunner.TimedTask;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
@@ -33,9 +34,23 @@ public class PrioritizedThrottledAsyncTaskRunner<T extends ActionListener<Releas
     private final IntSupplier queuedTasks;
     private final IntSupplier maxRunningTasksGetter;
     private final IntConsumer maxRunningTasksSetter;
+    private final Runnable queuedTasksRunner;
 
     public PrioritizedThrottledAsyncTaskRunner(final String name, final int maxRunningTasks, final Executor executor) {
-        final var runner = new AbstractThrottledTaskRunner<T>(name, maxRunningTasks, executor, new PriorityBlockingQueue<>());
+        this(name, maxRunningTasks, executor, null);
+    }
+
+    /**
+     * @param startPermits a limit shared with other runners, see {@link AbstractThrottledTaskRunner.StartPermits}, or {@code null}
+     */
+    public PrioritizedThrottledAsyncTaskRunner(
+        final String name,
+        final int maxRunningTasks,
+        final Executor executor,
+        @Nullable final AbstractThrottledTaskRunner.StartPermits startPermits
+    ) {
+        final var runner = new AbstractThrottledTaskRunner<T>(name, maxRunningTasks, executor, new PriorityBlockingQueue<>(), startPermits);
+        this.queuedTasksRunner = runner::runQueuedTasks;
         this.enqueuer = runner::enqueueTask;
         this.runningTasks = runner::runningTasks;
         this.queuedTasks = runner::queuedTasks;
@@ -61,6 +76,7 @@ public class PrioritizedThrottledAsyncTaskRunner<T extends ActionListener<Releas
             meterRegistry,
             relativeTimeNanosProvider
         );
+        this.queuedTasksRunner = runner::runQueuedTasks;
         this.enqueuer = runner::enqueueTask;
         this.runningTasks = runner::runningTasks;
         this.queuedTasks = runner::queuedTasks;
@@ -86,6 +102,13 @@ public class PrioritizedThrottledAsyncTaskRunner<T extends ActionListener<Releas
      */
     public void setMaxRunningTasks(int maxRunningTasks) {
         maxRunningTasksSetter.accept(maxRunningTasks);
+    }
+
+    /**
+     * Starts queued tasks for as long as the limits allow, see {@link AbstractThrottledTaskRunner#runQueuedTasks}.
+     */
+    public void runQueuedTasks() {
+        queuedTasksRunner.run();
     }
 
     // Used by tests and for monitoring

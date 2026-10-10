@@ -13,11 +13,14 @@ import org.apache.lucene.store.ByteBuffersDirectory;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.PrioritizedThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
@@ -40,13 +43,16 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Supplier;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -241,59 +247,214 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
     }
 
     /**
-     * Two repositories, as they are on a node: with the node's adaptive upload concurrency off, each runs its shard snapshots in its own
-     * runner as it always has, so that a long snapshot in one does not hold up a newer one in the other. With it on, they share one.
+     * A node's upload concurrency control with a thread pool that has room for it, and repositories that get their runner from it, as
+     * {@link BlobStoreRepository} does.
      */
-    public void testRepositoriesDoNotBlockEachOtherUnlessUploadConcurrencyIsShared() throws Exception {
+    private static class UploadNode implements Releasable {
+        final ThreadPool threadPool;
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        final BackgroundNetworkQos qos = new BackgroundNetworkQos(
-            clusterSettings,
-            threadPool,
-            new RecoverySettings(Settings.EMPTY, clusterSettings),
-            false
-        );
-        // one task at a time in each runner, on an executor with threads to spare
-        qos.getUploadTaskRunner().setMaxRunningTasks(1);
-        final Executor plentyOfThreads = threadPool.generic();
-        final Supplier<PrioritizedThrottledTaskRunner<ShardSnapshotTaskRunner.SnapshotTask>> ownRunner =
-            () -> new PrioritizedThrottledTaskRunner<>(ShardSnapshotTaskRunner.TASK_RUNNER_NAME, 1, plentyOfThreads);
-        final var ownRunnerA = ownRunner.get();
-        final var ownRunnerB = ownRunner.get();
+        final BackgroundNetworkQos qos;
+        final int floor;
+        private final List<Releasable> registrations = new ArrayList<>();
 
-        for (boolean shared : new boolean[] { false, true }) {
+        UploadNode(int floor, int ceiling) {
+            this.floor = floor;
+            threadPool = new TestThreadPool(
+                "upload-node",
+                Settings.builder()
+                    .put("thread_pool.snapshot.core", 1)
+                    .put("thread_pool.snapshot.max", floor)
+                    .put("thread_pool.snapshot_upload.core", 1)
+                    .put("thread_pool.snapshot_upload.max", ceiling)
+                    .build()
+            );
+            qos = new BackgroundNetworkQos(clusterSettings, threadPool, new RecoverySettings(Settings.EMPTY, clusterSettings), false);
+        }
+
+        void switchAdaptive(boolean on) {
             clusterSettings.applySettings(
-                Settings.builder().put(BackgroundNetworkQos.ADAPTIVE_UPLOAD_CONCURRENCY_ENABLED_SETTING.getKey(), shared).build()
+                Settings.builder().put(BackgroundNetworkQos.ADAPTIVE_UPLOAD_CONCURRENCY_ENABLED_SETTING.getKey(), on).build()
             );
-            qos.getUploadTaskRunner().setMaxRunningTasks(1);
+        }
 
-            final var longSnapshotStarted = new CountDownLatch(1);
-            final var releaseLongSnapshot = new CountDownLatch(1);
-            final var newerSnapshotRan = new CountDownLatch(1);
-            final var repoA = new ShardSnapshotTaskRunner(() -> qos.selectUploadTaskRunner(ownRunnerA), context -> {
-                longSnapshotStarted.countDown();
-                safeAwait(releaseLongSnapshot);
-            }, (context, fileInfo) -> {});
-            final var repoB = new ShardSnapshotTaskRunner(
-                () -> qos.selectUploadTaskRunner(ownRunnerB),
-                context -> newerSnapshotRan.countDown(),
-                (context, fileInfo) -> {}
+        ShardSnapshotTaskRunner newRepository(
+            Consumer<SnapshotShardContext> shardSnapshotter,
+            CheckedBiConsumer<SnapshotShardContext, BlobStoreIndexShardSnapshot.FileInfo, IOException> fileSnapshotter
+        ) {
+            final var taskRunner = new PrioritizedThrottledTaskRunner<ShardSnapshotTaskRunner.SnapshotTask>(
+                ShardSnapshotTaskRunner.TASK_RUNNER_NAME,
+                floor,
+                qos.getUploadExecutor(),
+                qos::tryAcquireUploadPermit
             );
+            registrations.add(qos.registerUploadTaskRunner(taskRunner));
+            return new ShardSnapshotTaskRunner(taskRunner, shardSnapshotter, fileSnapshotter);
+        }
 
-            repoA.enqueueShardSnapshot(dummyContext(new SnapshotId("older", UUIDs.randomBase64UUID()), 1L));
-            safeAwait(longSnapshotStarted);
-            repoB.enqueueShardSnapshot(dummyContext(new SnapshotId("newer", UUIDs.randomBase64UUID()), 2L));
-            if (shared) {
-                // one runner for both: the newer snapshot waits for the long one
-                assertThat(qos.getUploadTaskRunner().queueSize(), equalTo(1));
-                assertThat(newerSnapshotRan.getCount(), equalTo(1L));
-                releaseLongSnapshot.countDown();
+        @Override
+        public void close() {
+            Releasables.close(registrations);
+            terminate(threadPool);
+        }
+    }
+
+    /** Shard snapshots that start when they run and then wait for the test to let them finish, by the uuid of their snapshot. */
+    private static class Gates {
+        private final Map<String, CountDownLatch> started = new ConcurrentHashMap<>();
+        private final Map<String, CountDownLatch> released = new ConcurrentHashMap<>();
+        final AtomicInteger finished = new AtomicInteger();
+
+        SnapshotShardContext newSnapshot(long startTime) {
+            final var snapshotId = new SnapshotId(randomIdentifier(), UUIDs.randomBase64UUID());
+            started.put(snapshotId.getUUID(), new CountDownLatch(1));
+            released.put(snapshotId.getUUID(), new CountDownLatch(1));
+            return dummyContext(snapshotId, startTime);
+        }
+
+        void run(SnapshotShardContext context) {
+            final String uuid = context.snapshotId().getUUID();
+            started.get(uuid).countDown();
+            safeAwait(released.get(uuid));
+            finished.incrementAndGet();
+        }
+
+        boolean hasStarted(SnapshotShardContext context) {
+            return started.get(context.snapshotId().getUUID()).getCount() == 0;
+        }
+
+        void release(SnapshotShardContext context) {
+            released.get(context.snapshotId().getUUID()).countDown();
+        }
+
+        void awaitStarted(SnapshotShardContext context) {
+            safeAwait(started.get(context.snapshotId().getUUID()));
+        }
+    }
+
+    /**
+     * Two repositories, as they are on a node: each has its own runner and queue, so that a long snapshot in one does not hold up a newer
+     * one in the other, as it has always been. Only while the node adapts its upload concurrency do they share a budget of how many
+     * tasks run at once, which goes to whichever repository asks first.
+     */
+    public void testRepositoriesDoNotBlockEachOtherUnlessTheyShareTheUploadBudget() throws Exception {
+        try (var node = new UploadNode(2, 6)) {
+            for (boolean adaptive : new boolean[] { false, true }) {
+                node.switchAdaptive(adaptive);
+                final var gates = new Gates();
+                final var repoA = node.newRepository(gates::run, (context, fileInfo) -> {});
+                final var repoB = node.newRepository(gates::run, (context, fileInfo) -> {});
+
+                // the older snapshot has as many tasks running as the node's budget allows, or while there is none, fewer than its
+                // runner allows and than the pool has threads
+                final var older = new ArrayList<SnapshotShardContext>();
+                for (int i = 0; i < (adaptive ? node.floor : 1); i++) {
+                    older.add(gates.newSnapshot(1L));
+                    repoA.enqueueShardSnapshot(older.get(i));
+                }
+                older.forEach(gates::awaitStarted);
+
+                final var newer = gates.newSnapshot(2L);
+                repoB.enqueueShardSnapshot(newer);
+                if (adaptive) {
+                    // the budget is used up: the newer snapshot waits in its own repository's queue
+                    assertThat(repoB.runningTasks(), equalTo(0));
+                    assertThat(repoB.queueSize(), equalTo(1));
+                    assertFalse(gates.hasStarted(newer));
+                    // and gets it when the other repository gives back some
+                    gates.release(older.get(0));
+                }
+                gates.awaitStarted(newer);
+                gates.release(newer);
+                older.forEach(gates::release);
+                assertBusy(() -> {
+                    assertThat(repoA.runningTasks(), equalTo(0));
+                    assertThat(repoB.runningTasks(), equalTo(0));
+                    assertThat(node.qos.getRunningUploadTasks(), equalTo(0));
+                });
+                assertThat(gates.finished.get(), equalTo(older.size() + 1));
             }
-            safeAwait(newerSnapshotRan);
-            releaseLongSnapshot.countDown();
+        }
+    }
+
+    /**
+     * Switching adaptive upload concurrency on and off while a snapshot runs only changes whether the budget is consulted: nothing that
+     * is queued gets lost, and nothing starts that the limit in effect does not allow.
+     */
+    public void testSwitchingUploadBudgetOnAndOffMidSnapshot() throws Exception {
+        try (var node = new UploadNode(2, 6)) {
+            final var gates = new Gates();
+            final var repo = node.newRepository(gates::run, (context, fileInfo) -> {});
+            final var contexts = new ArrayList<SnapshotShardContext>();
+            for (int i = 0; i < 4; i++) {
+                contexts.add(gates.newSnapshot(i));
+                repo.enqueueShardSnapshot(contexts.get(i));
+            }
+            // not adaptive: the runner's own limit
+            assertThat(repo.runningTasks(), equalTo(node.floor));
+            assertThat(repo.queueSize(), equalTo(4 - node.floor));
+            assertThat(node.qos.getRunningUploadTasks(), equalTo(node.floor));
+
+            // on: what runs is counted against the budget, which starts at the floor, so nothing more starts although the runner could
+            node.switchAdaptive(true);
+            assertThat(repo.runningTasks(), equalTo(node.floor));
+            assertThat(repo.queueSize(), equalTo(4 - node.floor));
+
+            // a task that finishes gives its budget to the next one in the queue
+            gates.release(contexts.get(0));
+            gates.awaitStarted(contexts.get(2));
+            assertThat(repo.queueSize(), equalTo(1));
+            assertThat(repo.runningTasks(), equalTo(node.floor));
+            assertThat(node.qos.getRunningUploadTasks(), equalTo(node.floor));
+
+            // off: the runner's own limit again, which what is running already uses up
+            node.switchAdaptive(false);
+            assertThat(repo.runningTasks(), equalTo(node.floor));
+            assertThat(repo.queueSize(), equalTo(1));
+            gates.release(contexts.get(1));
+            gates.awaitStarted(contexts.get(3));
+            assertThat(repo.queueSize(), equalTo(0));
+
+            // on again, with work that has to wait for the budget
+            node.switchAdaptive(true);
+            final var more = new ArrayList<SnapshotShardContext>();
+            for (int i = 0; i < 2; i++) {
+                more.add(gates.newSnapshot(10 + i));
+                repo.enqueueShardSnapshot(more.get(i));
+            }
+            assertThat(repo.queueSize(), equalTo(2));
+            assertThat(repo.runningTasks(), equalTo(node.floor));
+
+            // nothing was lost
+            contexts.forEach(gates::release);
+            more.forEach(gates::release);
             assertBusy(() -> {
-                assertThat(qos.getUploadTaskRunner().runningTasks(), equalTo(0));
-                assertThat(ownRunnerA.runningTasks(), equalTo(0));
-                assertThat(ownRunnerB.runningTasks(), equalTo(0));
+                assertThat(gates.finished.get(), equalTo(contexts.size() + more.size()));
+                assertThat(repo.runningTasks(), equalTo(0));
+                assertThat(repo.queueSize(), equalTo(0));
+                assertThat(node.qos.getRunningUploadTasks(), equalTo(0));
+            });
+        }
+    }
+
+    public void testSwitchingUploadBudgetOnAndOffWhileTasksRun() throws Exception {
+        try (var node = new UploadNode(randomIntBetween(1, 3), 6)) {
+            final int tasks = 200;
+            final var finished = new CountDownLatch(tasks);
+            final var repoA = node.newRepository(context -> finished.countDown(), (context, fileInfo) -> {});
+            final var repoB = node.newRepository(context -> finished.countDown(), (context, fileInfo) -> {});
+            for (int i = 0; i < tasks; i++) {
+                node.switchAdaptive(randomBoolean());
+                (randomBoolean() ? repoA : repoB).enqueueShardSnapshot(dummyContext());
+            }
+            // whichever way it is left, everything runs, and every task has given its budget back
+            node.switchAdaptive(randomBoolean());
+            safeAwait(finished);
+            assertBusy(() -> {
+                assertThat(repoA.runningTasks(), equalTo(0));
+                assertThat(repoB.runningTasks(), equalTo(0));
+                assertThat(repoA.queueSize(), equalTo(0));
+                assertThat(repoB.queueSize(), equalTo(0));
+                assertThat(node.qos.getRunningUploadTasks(), equalTo(0));
             });
         }
     }

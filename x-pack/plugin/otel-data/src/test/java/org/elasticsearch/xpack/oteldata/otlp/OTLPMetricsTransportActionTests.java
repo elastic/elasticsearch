@@ -42,6 +42,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.oteldata.OTelPlugin;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPointGroupingContext;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
@@ -78,7 +79,7 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
         ClusterService clusterService = mock(ClusterService.class);
         clusterSettings = new ClusterSettings(
             Settings.EMPTY,
-            Set.of(OTelPlugin.HISTOGRAM_FIELD_TYPE_SETTING, BatchIndexingEnabled.BATCH_INDEXING)
+            Set.of(OTelPlugin.HISTOGRAM_FIELD_TYPE_SETTING, BatchIndexingEnabled.BATCH_INDEXING, XPackSettings.METRIC_EXEMPLARS_ENABLED)
         );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         ProjectMetadata projectMetadata = ProjectMetadata.builder(ProjectId.DEFAULT).build();
@@ -142,7 +143,7 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
         assertThat(metricsAction.defaultMappingHints, equalTo(MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM));
     }
 
-    public void testExemplarIngestionFollowsFeatureFlag() throws Exception {
+    public void testExemplarIngestionFollowsClusterSetting() throws Exception {
         Exemplar exemplar = OtlpUtils.createLongExemplar(1_000_000L, 42L);
         Metric metric = OtlpUtils.createGaugeMetric(
             "test.metric",
@@ -153,19 +154,20 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
 
         metricsAction.prepareBulkRequest(createMetricsRequest(metric), bulkRequestBuilder);
 
-        int expectedActions = OTelPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled() ? 2 : 1;
         var requests = bulkRequestBuilder.request().requests();
-        assertThat(requests, hasSize(expectedActions));
-        if (OTelPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled()) {
-            IndexRequest exemplarRequest = (IndexRequest) requests.get(1);
-            assertThat(exemplarRequest.index(), equalTo("exemplars-generic.otel-default"));
-            assertThat(exemplarRequest.getDynamicTemplates(), equalTo(Map.of()));
-            assertThat(exemplarRequest.getDynamicTemplateParams(), equalTo(Map.of()));
-        }
+        assertThat(requests, hasSize(2));
+        IndexRequest exemplarRequest = (IndexRequest) requests.get(1);
+        assertThat(exemplarRequest.index(), equalTo("exemplars-generic.otel-default"));
+        assertThat(exemplarRequest.getDynamicTemplates(), equalTo(Map.of()));
+        assertThat(exemplarRequest.getDynamicTemplateParams(), equalTo(Map.of()));
+
+        clusterSettings.applySettings(Settings.builder().put(XPackSettings.METRIC_EXEMPLARS_ENABLED.getKey(), false).build());
+        bulkRequestBuilder = new BulkRequestBuilder(client);
+        metricsAction.prepareBulkRequest(createMetricsRequest(metric), bulkRequestBuilder);
+        assertThat(bulkRequestBuilder.request().requests(), hasSize(1));
     }
 
     public void testExemplarDocumentsFollowMetricDocuments() throws Exception {
-        assumeTrue("requires metric exemplar ingestion", OTelPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled());
         Metric metric = OtlpUtils.createGaugeMetric(
             "test.metric",
             "ms",
@@ -194,7 +196,6 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
     }
 
     public void testExemplarWithoutTargetProducesWarning() throws Exception {
-        assumeTrue("requires metric exemplar ingestion", OTelPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled());
         Metric metric = OtlpUtils.createGaugeMetric(
             "test.metric",
             "",
@@ -222,7 +223,6 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
     }
 
     public void testExemplarWithoutValueProducesWarning() throws Exception {
-        assumeTrue("requires metric exemplar ingestion", OTelPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled());
         Exemplar exemplar = Exemplar.newBuilder().setTimeUnixNano(1_000_000L).build();
         Metric metric = OtlpUtils.createGaugeMetric(
             "test.metric",
@@ -241,7 +241,6 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
     }
 
     public void testDuplicateExemplarWarning() throws Exception {
-        assumeTrue("requires metric exemplar ingestion", OTelPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled());
         Exemplar exemplar = OtlpUtils.createLongExemplar(1_000_000L, 42L);
         Metric metric = OtlpUtils.createGaugeMetric(
             "test.metric",
@@ -260,7 +259,6 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
     }
 
     public void testExemplarFailureStoreRedirectAndDuplicateWarnings() throws Exception {
-        assumeTrue("requires metric exemplar ingestion", OTelPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled());
         Exemplar exemplar = OtlpUtils.createLongExemplar(1_000_000L, 42L);
         Metric metric = OtlpUtils.createGaugeMetric(
             "test.metric",
@@ -285,7 +283,6 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
     }
 
     public void testExemplarIndexingFailureDoesNotRejectDataPoint() throws Exception {
-        assumeTrue("requires metric exemplar ingestion", OTelPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled());
         Exemplar exemplar = OtlpUtils.createLongExemplar(1_000_000L, 42L);
         Metric metric = OtlpUtils.createGaugeMetric(
             "test.metric",
@@ -312,7 +309,6 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
     }
 
     public void testSameTimestampExemplarsForDifferentMetricsAreNotDuplicates() throws Exception {
-        assumeTrue("requires metric exemplar ingestion", OTelPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled());
         Exemplar exemplar = OtlpUtils.createLongExemplar(1_000_000L, 42L);
         Metric firstMetric = OtlpUtils.createGaugeMetric(
             "first.metric",

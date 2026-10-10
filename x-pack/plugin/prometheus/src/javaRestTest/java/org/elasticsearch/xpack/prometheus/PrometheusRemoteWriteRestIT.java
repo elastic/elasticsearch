@@ -215,7 +215,6 @@ public class PrometheusRemoteWriteRestIT extends AbstractPrometheusRestIT {
     }
 
     public void testRemoteWriteIndexesExemplar() throws Exception {
-        assumeTrue("requires metric exemplar ingestion", PrometheusPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled());
         long timestamp = System.currentTimeMillis();
         String metricName = "metric_with_exemplar";
         RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
@@ -254,7 +253,6 @@ public class PrometheusRemoteWriteRestIT extends AbstractPrometheusRestIT {
      * index as a version conflict, which must not fail the request.
      */
     public void testRemoteWriteTreatsDuplicateExemplarsAsSuccess() throws Exception {
-        assumeTrue("requires metric exemplar ingestion", PrometheusPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled());
         String metricName = "metric_with_duplicate_exemplars";
         RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
             .addTimeseries(
@@ -289,7 +287,6 @@ public class PrometheusRemoteWriteRestIT extends AbstractPrometheusRestIT {
      * exemplar documents fail with 403, but the samples are indexed and the request succeeds.
      */
     public void testRemoteWriteSucceedsWhenApiKeyLacksExemplarPrivileges() throws Exception {
-        assumeTrue("requires metric exemplar ingestion", PrometheusPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled());
         String metricsOnlyApiKey = createApiKey("prometheus-metrics-only-write-key", "metrics-*", "create_doc", "auto_configure");
         long timestamp = System.currentTimeMillis();
         String metricName = "metric_with_unauthorized_exemplar";

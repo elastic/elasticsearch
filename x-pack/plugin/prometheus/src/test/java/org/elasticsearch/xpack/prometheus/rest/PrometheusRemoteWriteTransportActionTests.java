@@ -21,8 +21,10 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
@@ -33,7 +35,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.prometheus.PrometheusPlugin;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.prometheus.proto.RemoteWrite;
 import org.elasticsearch.xpack.prometheus.rest.PrometheusRemoteWriteTransportAction.RemoteWriteRequest;
 import org.elasticsearch.xpack.prometheus.rest.PrometheusRemoteWriteTransportAction.RemoteWriteResponse;
@@ -65,6 +67,8 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
     private Client client;
     private TransportService transportService;
     private ThreadPool threadPool;
+    private ClusterService clusterService;
+    private ClusterSettings clusterSettings;
     private Releasable indexingPressureRelease;
     private AtomicBoolean indexingPressureReleased;
 
@@ -77,8 +81,18 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
         threadPool = mock(ThreadPool.class);
         when(threadPool.executor(ThreadPool.Names.WRITE)).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(threadPool.absoluteTimeInMillis()).thenReturn(System.currentTimeMillis());
+        clusterService = mock(ClusterService.class);
+        clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(XPackSettings.METRIC_EXEMPLARS_ENABLED));
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
-        action = new PrometheusRemoteWriteTransportAction(transportService, ActionFilters.EMPTY, threadPool, client, Settings.EMPTY);
+        action = new PrometheusRemoteWriteTransportAction(
+            transportService,
+            ActionFilters.EMPTY,
+            threadPool,
+            client,
+            clusterService,
+            Settings.EMPTY
+        );
     }
 
     @After
@@ -125,7 +139,6 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
     }
 
     public void testSuccessWithExemplarOnly() throws Exception {
-        assumeExemplarIngestionEnabled();
         long now = System.currentTimeMillis();
         RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
             .addTimeseries(
@@ -161,7 +174,7 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
         assertThat(source.evaluate("value"), equalTo(21.0));
     }
 
-    public void testExemplarIngestionFollowsFeatureFlag() {
+    public void testExemplarIngestionFollowsClusterSetting() {
         long timestamp = System.currentTimeMillis();
         RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
             .addTimeseries(
@@ -171,10 +184,13 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
             )
             .build();
 
-        BulkRequest bulk = executeAndCaptureBulkRequest(writeRequest, "generic", "default");
+        BulkRequest enabledBulk = executeAndCaptureBulkRequest(writeRequest, "generic", "default");
+        assertThat(enabledBulk.numberOfActions(), equalTo(2));
 
-        int expectedActions = PrometheusPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled() ? 2 : 1;
-        assertThat(bulk.numberOfActions(), equalTo(expectedActions));
+        clusterSettings.applySettings(Settings.builder().put(XPackSettings.METRIC_EXEMPLARS_ENABLED.getKey(), false).build());
+
+        BulkRequest disabledBulk = executeAndCaptureBulkRequest(writeRequest, "generic", "default");
+        assertThat(disabledBulk.numberOfActions(), equalTo(1));
     }
 
     /**
@@ -182,7 +198,6 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
      * treated as success.
      */
     public void testExemplarVersionConflictIsTreatedAsSuccess() {
-        assumeExemplarIngestionEnabled();
         long timestamp = System.currentTimeMillis();
         RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
             .addTimeseries(
@@ -204,7 +219,6 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
     }
 
     public void testSameExemplarTimestampForDifferentSeriesIsRetained() {
-        assumeExemplarIngestionEnabled();
         long timestamp = System.currentTimeMillis();
         RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
             .addTimeseries(createExemplarTimeSeries("first_metric", timestamp))
@@ -217,7 +231,6 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
     }
 
     public void testMissingExemplarTimestampsUseRequestTimestamp() throws Exception {
-        assumeExemplarIngestionEnabled();
         long requestTimestamp = randomLongBetween(1, Long.MAX_VALUE);
         when(threadPool.absoluteTimeInMillis()).thenReturn(requestTimestamp);
         RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
@@ -240,7 +253,6 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
      * does not cover the exemplars data stream, or 429 which must not make the client re-send the samples).
      */
     public void testExemplarFailureDoesNotFailRequest() {
-        assumeExemplarIngestionEnabled();
         long timestamp = System.currentTimeMillis();
         RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
             .addTimeseries(
@@ -261,7 +273,6 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
     }
 
     public void testExemplarFailureDoesNotAffectSampleFailureResponse() {
-        assumeExemplarIngestionEnabled();
         long timestamp = System.currentTimeMillis();
         RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
             .addTimeseries(
@@ -288,7 +299,6 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
     }
 
     public void testNonFiniteExemplarValuesAreDropped() throws Exception {
-        assumeExemplarIngestionEnabled();
         long timestamp = System.currentTimeMillis();
         double nonFinite = randomFrom(Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
         RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
@@ -308,7 +318,6 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
     }
 
     public void testExemplarDocumentsUseSameSeriesLabelsAsSamples() throws Exception {
-        assumeExemplarIngestionEnabled();
         long timestamp = System.currentTimeMillis();
         RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
             .addTimeseries(
@@ -343,7 +352,6 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
     }
 
     public void testExemplarWithOnlyEmptyLabelsOmitsExemplarLabels() throws Exception {
-        assumeExemplarIngestionEnabled();
         long timestamp = System.currentTimeMillis();
         RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
             .addTimeseries(
@@ -427,7 +435,6 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
     }
 
     public void testTimeseriesWithoutNameLabelReportsOnlySamples() {
-        assumeExemplarIngestionEnabled();
         long timestamp = System.currentTimeMillis();
         RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
             .addTimeseries(
@@ -448,7 +455,6 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
     }
 
     public void testExemplarOnlyTimeseriesWithoutNameLabelSucceeds() {
-        assumeExemplarIngestionEnabled();
         RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
             .addTimeseries(
                 RemoteWrite.TimeSeries.newBuilder()
@@ -524,6 +530,7 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
             })),
             threadPool,
             client,
+            clusterService,
             Settings.EMPTY
         );
 
@@ -542,7 +549,14 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
             .put(HttpTransportSettings.SETTING_HTTP_MAX_PROTOBUF_CONTENT_LENGTH.getKey(), "1kb")
             .put(HttpTransportSettings.SETTING_HTTP_MAX_PROTOBUF_EXPANDED_CONTENT_LENGTH.getKey(), "10kb")
             .build();
-        action = new PrometheusRemoteWriteTransportAction(transportService, ActionFilters.EMPTY, threadPool, client, settings);
+        action = new PrometheusRemoteWriteTransportAction(
+            transportService,
+            ActionFilters.EMPTY,
+            threadPool,
+            client,
+            clusterService,
+            settings
+        );
 
         // ~1 KiB label value × enough samples that IndexRequest#ramBytesUsed() exceeds the 10 KiB limit
         String largeLabelValue = "x".repeat(1024);
@@ -567,7 +581,14 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
             .put(HttpTransportSettings.SETTING_HTTP_MAX_PROTOBUF_CONTENT_LENGTH.getKey(), "1kb")
             .put(HttpTransportSettings.SETTING_HTTP_MAX_PROTOBUF_EXPANDED_CONTENT_LENGTH.getKey(), "10kb")
             .build();
-        action = new PrometheusRemoteWriteTransportAction(transportService, ActionFilters.EMPTY, threadPool, client, settings);
+        action = new PrometheusRemoteWriteTransportAction(
+            transportService,
+            ActionFilters.EMPTY,
+            threadPool,
+            client,
+            clusterService,
+            settings
+        );
 
         String largeLabelValue = "x".repeat(1024);
         RemoteWrite.TimeSeries.Builder seriesBuilder = RemoteWrite.TimeSeries.newBuilder()
@@ -765,10 +786,6 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
     private void assertRegisteredIndexingPressureReleased(String message) {
         assertNotNull("indexing pressure release state should be registered", indexingPressureReleased);
         assertTrue(message, indexingPressureReleased.get());
-    }
-
-    private static void assumeExemplarIngestionEnabled() {
-        assumeTrue("requires metric exemplar ingestion", PrometheusPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled());
     }
 
     private static RemoteWrite.TimeSeries createTimeSeries(String metricName, double value, long timestamp) {

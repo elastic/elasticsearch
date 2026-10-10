@@ -48,6 +48,7 @@ import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assume.assumeThat;
 import static org.junit.Assume.assumeTrue;
 
+// Comment-only change to select this class for flakiness detection, where it is skipped. Not to be merged.
 public class ArchiveTests extends PackagingTestCase {
 
     @BeforeClass

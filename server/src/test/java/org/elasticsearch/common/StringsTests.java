@@ -55,8 +55,7 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class StringsTests extends ESTestCase {
 
-    // Deliberate compile error to test the flakiness report on a compile failure. Not to be merged.
-    private static final int FLAKINESS_REPORT_TEST = "deliberate compile error";
+    // Comment-only change to select this class for flakiness detection. Not to be merged.
 
     public void testHasLength() {
         assertFalse(hasLength((String) null));

@@ -1,9 +1,12 @@
 import { describe, expect, test } from "vitest";
 import { toBuildkitePipeline, toResolvePipeline } from "./buildkite.ts";
 import { planCommandsToRunnable } from "../commands.ts";
-import type { PlanCommand, RunnableCommand } from "../domain.ts";
+import type { PlanCommand, ReportInputs, RunnableCommand } from "../domain.ts";
 
 import { DEFAULT_AGENT_CONFIG } from "../domain.ts";
+
+// A report with batches and nothing skipped
+const REPORT: ReportInputs = { producerJobId: "0198-generate", compileFailed: false, skippedCount: 0 };
 
 // The plan's batch commands are now produced by the Java scan task; TS only substitutes the gradle binary
 // (planCommandsToRunnable) and shapes the BK pipeline. These helpers stand in for the Java output so the
@@ -27,7 +30,7 @@ function javaRest(project: string, fqcn: string): PlanCommand {
 }
 
 function pipelineFromPlanCommands(commands: PlanCommand[]) {
-  return toBuildkitePipeline(planCommandsToRunnable(commands, "buildkite"), DEFAULT_AGENT_CONFIG);
+  return toBuildkitePipeline(planCommandsToRunnable(commands, "buildkite"), DEFAULT_AGENT_CONFIG, REPORT);
 }
 
 describe("toBuildkitePipeline end-to-end", () => {
@@ -186,13 +189,6 @@ describe("toBuildkitePipeline end-to-end", () => {
     expect(pipeline.steps[0].steps[1].label).toBe("yaml rest tests");
     expect(pipeline.steps[0].steps[2].key).toBe("flakiness-detection:analyze");
   });
-
-  test("returns empty group for empty input", () => {
-    const pipeline = pipelineFromPlanCommands([]);
-    expect(pipeline.steps).toHaveLength(1);
-    expect(pipeline.steps[0].group).toBe("flakiness-detection");
-    expect(pipeline.steps[0].steps).toEqual([]);
-  });
 });
 
 describe("toBuildkitePipeline", () => {
@@ -202,7 +198,7 @@ describe("toBuildkitePipeline", () => {
       { kind: "test", label: "unit tests", key: "flakiness-detection:unit", command: "cmd2" },
       { kind: "test", label: "unit tests", key: "flakiness-detection:unit", command: "cmd3" },
     ];
-    const pipeline = toBuildkitePipeline(cmds, DEFAULT_AGENT_CONFIG);
+    const pipeline = toBuildkitePipeline(cmds, DEFAULT_AGENT_CONFIG, REPORT);
     const step = pipeline.steps[0].steps[0];
     expect(step.parallelism).toBe(3);
     // The env vars hold the RAW command, not a copy of the wrapper. That is the whole point of hoisting
@@ -219,7 +215,7 @@ describe("toBuildkitePipeline", () => {
     const cmds: RunnableCommand[] = [
       { kind: "test", label: "unit tests", key: "flakiness-detection:unit", command: "only" },
     ];
-    const pipeline = toBuildkitePipeline(cmds, DEFAULT_AGENT_CONFIG);
+    const pipeline = toBuildkitePipeline(cmds, DEFAULT_AGENT_CONFIG, REPORT);
     const step = pipeline.steps[0].steps[0];
     expect(step.parallelism).toBeUndefined();
     // Non-parallel steps use the same wrapper and the same env var; BUILDKITE_PARALLEL_JOB is unset there,
@@ -235,7 +231,7 @@ describe("toBuildkitePipeline", () => {
     const cmds: RunnableCommand[] = [
       { kind: "test", label: "unit tests", key: "flakiness-detection:unit", command: "cmd" },
     ];
-    const pipeline = toBuildkitePipeline(cmds, DEFAULT_AGENT_CONFIG);
+    const pipeline = toBuildkitePipeline(cmds, DEFAULT_AGENT_CONFIG, REPORT);
     const [batch, analyze] = pipeline.steps[0].steps;
 
     // Batch step uploads both the JUnit XML and the per-job status file —
@@ -252,7 +248,12 @@ describe("toBuildkitePipeline", () => {
     expect(analyze.agents).toBeUndefined();
     const analyzeCmd = analyze.env?.FLAKINESS_CMD_0 ?? "";
     expect(analyzeCmd).toContain('buildkite-agent artifact download "flakiness-status/*.json" . || true');
-    expect(analyzeCmd).toContain('buildkite-agent artifact download "flakiness-skipped.json" . || true');
+    // Nothing was skipped, so there is no skip list to fetch.
+    expect(analyzeCmd).not.toContain("flakiness-skipped.json");
+    // What the report has to establish travels in the env, where no failed download can lose it.
+    expect(analyze.env?.FLAKINESS_COMPILE_FAILED).toBe("false");
+    expect(analyze.env?.FLAKINESS_SKIPPED_COUNT).toBe("0");
+    expect(analyze.depends_on).toEqual([{ step: "flakiness-detection:unit", allow_failure: true }]);
     expect(analyzeCmd).toContain("node .buildkite/scripts/flakiness-detection/entrypoints/analyze.ts");
     // Never-fail like a batch step, but it writes no batch outcome of its own.
     expect(analyze.command).not.toContain('"kind"');
@@ -270,7 +271,7 @@ describe("toBuildkitePipeline", () => {
     const cmds: RunnableCommand[] = [
       { kind: "test", label: "unit tests", key: "flakiness-detection:unit", command: "cmd" },
     ];
-    const [batch, analyze] = toBuildkitePipeline(cmds, DEFAULT_AGENT_CONFIG).steps[0].steps;
+    const [batch, analyze] = toBuildkitePipeline(cmds, DEFAULT_AGENT_CONFIG, REPORT).steps[0].steps;
 
     // Unconditional: whether the analyze step ever reaches this code is its own call (shouldBlock, gated
     // on the PR's labels), so nothing here needs to know about labels. 42 is FLAKINESS_PROVEN_EXIT_CODE;
@@ -287,19 +288,23 @@ describe("toBuildkitePipeline", () => {
   test("emits an analyze-only step when all tests are not_applicable (no batches)", () => {
     // All detected tests were BWC → zero batch commands, but the analyze step
     // must still run so the not_applicable records reach the outcomes artifact.
-    const pipeline = toBuildkitePipeline([], DEFAULT_AGENT_CONFIG, { hasNotApplicable: true });
+    const pipeline = toBuildkitePipeline([], DEFAULT_AGENT_CONFIG, { ...REPORT, skippedCount: 2 });
     const steps = pipeline.steps[0].steps;
     expect(steps).toHaveLength(1);
     expect(steps[0].key).toBe("flakiness-detection:analyze");
     expect(steps[0].depends_on).toEqual([]);
+    // Scoped to the generate job, its only producer, so another copy can never make it ambiguous.
     expect(steps[0].env?.FLAKINESS_CMD_0).toContain(
-      'buildkite-agent artifact download "flakiness-skipped.json" . || true'
+      'buildkite-agent artifact download "flakiness-skipped.json" . --step "0198-generate" || true'
     );
+    expect(steps[0].env?.FLAKINESS_SKIPPED_COUNT).toBe("2");
   });
 
-  test("no analyze step when there are neither batches nor not_applicable tests", () => {
-    const pipeline = toBuildkitePipeline([], DEFAULT_AGENT_CONFIG);
-    expect(pipeline.steps[0].steps).toEqual([]);
+  test("a compile failure emits an analyze-only step that is told about it", () => {
+    const pipeline = toBuildkitePipeline([], DEFAULT_AGENT_CONFIG, { ...REPORT, compileFailed: true });
+    const [analyze] = pipeline.steps[0].steps;
+    expect(analyze.env?.FLAKINESS_COMPILE_FAILED).toBe("true");
+    expect(analyze.env?.FLAKINESS_CMD_0).not.toContain("flakiness-skipped.json");
   });
 });
 
@@ -309,7 +314,7 @@ describe("toBuildkitePipeline no longer prepends a compile gate", () => {
   ];
 
   test("batch steps have no depends_on and no orchestration/precompile step is emitted", () => {
-    const pipeline = toBuildkitePipeline(cmds, DEFAULT_AGENT_CONFIG);
+    const pipeline = toBuildkitePipeline(cmds, DEFAULT_AGENT_CONFIG, REPORT);
     const steps = pipeline.steps[0].steps;
 
     // Just the batch + analyze; the compile gate is now a first-class
@@ -351,13 +356,12 @@ describe("toResolvePipeline (orchestration + separate generate step)", () => {
     expect(orchestration.command).toBe(".buildkite/scripts/flakiness-detection/runners/orchestrate.sh");
     // It must NOT run node generate.ts anywhere.
     expect(orchestration.command).not.toContain("generate.ts");
-    // Uploads the plan (+ precompile marker) the separate generate agent downloads, plus intermediates.
+    // Uploads the plan the separate generate agent downloads, plus intermediates.
     // The per-project answers go up as ONE tarball, not a `*.json` glob: every project writes its share, so
     // a glob would mean ~450 uploads per build of what is debug-only detail.
     expect(orchestration.artifact_paths).toEqual([
       "flakiness-project-targets.tgz",
       "flakiness-plan.json",
-      "flakiness-precompile.json",
     ]);
     // No compile-task-list artifact: the compile phase invokes a fixed, unqualified task list, so there is
     // nothing run-specific left to persist for triage.
@@ -370,7 +374,6 @@ describe("toResolvePipeline (orchestration + separate generate step)", () => {
     expect(orchestration.env).toEqual({
       FLAKINESS_REFS_ARTIFACT: "flakiness-refs.json",
       FLAKINESS_PLAN_ARTIFACT: "flakiness-plan.json",
-      FLAKINESS_PRECOMPILE_ARTIFACT: "flakiness-precompile.json",
       FLAKINESS_TARGETS_DIR: "build/flakiness/project-targets",
       FLAKINESS_TARGETS_ARCHIVE: "flakiness-project-targets.tgz",
       // A fixed, UNQUALIFIED lifecycle task list: gradle runs each in every project that has the source
@@ -391,13 +394,9 @@ describe("toResolvePipeline (orchestration + separate generate step)", () => {
     // The plan is downloaded by generate.ts itself, which removes any local copy first so a stale file on a
     // reused workspace cannot win. Downloading it here as well would only mask that.
     expect(generate.command).not.toContain('artifact download "flakiness-plan.json"');
-    expect(generate.command).toContain('buildkite-agent artifact download "flakiness-precompile.json" . || true');
-    expect(generate.command).toContain("node .buildkite/scripts/flakiness-detection/entrypoints/generate.ts");
-    // Uploads the skipped/precompile/plan artifacts the analyze step consumes.
-    expect(generate.artifact_paths).toEqual([
-      "flakiness-skipped.json",
-      "flakiness-precompile.json",
-      "flakiness-plan.json",
-    ]);
+    expect(generate.command).toBe("node .buildkite/scripts/flakiness-detection/entrypoints/generate.ts");
+    // generate.ts uploads the skip list itself. Re-uploading the plan would leave two copies under one name,
+    // which is what made an unscoped download ambiguous.
+    expect(generate.artifact_paths).toBeUndefined();
   });
 });

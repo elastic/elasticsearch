@@ -80,6 +80,31 @@ describe("renderMarkdown / severity", () => {
     expect(severity(clean, true)).toBe("warning");
   });
 
+  test("an incomplete report says so and is a warning, not a clean pass", () => {
+    const report = {
+      batches: [],
+      perTest: [],
+      totals: { iterations: 0, realFailures: 0, suiteTimeoutMarkers: 0, successfulCases: 0 },
+    };
+    const problems = ["flakiness-skipped.json did not reach this step"];
+    expect(severity(report, false, problems)).toBe("warning");
+    expect(renderMarkdown(report, false, problems)).toContain("This report is incomplete");
+    expect(renderMarkdown(report, false, problems)).toContain("- flakiness-skipped.json did not reach this step");
+  });
+
+  test("a compile failure with an incomplete report shows both notices and stays a warning", () => {
+    const report = {
+      batches: [],
+      perTest: [],
+      totals: { iterations: 0, realFailures: 0, suiteTimeoutMarkers: 0, successfulCases: 0 },
+    };
+    const problems = ["FLAKINESS_SKIPPED_COUNT is undefined"];
+    expect(severity(report, true, problems)).toBe("warning");
+    const md = renderMarkdown(report, true, problems);
+    expect(md).toContain("failed to compile");
+    expect(md).toContain("This report is incomplete");
+  });
+
   test("renders the compile-gate notice and does not read as a clean pass when buildFailed", () => {
     const clean = { batches: [], perTest: [], totals: { iterations: 0, realFailures: 0, suiteTimeoutMarkers: 0, successfulCases: 0 } };
     const md = renderMarkdown(clean, true);

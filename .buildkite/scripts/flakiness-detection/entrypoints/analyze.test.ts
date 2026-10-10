@@ -5,9 +5,10 @@ import { BLOCKING_LABELS, type SkippedTest } from "../domain.ts";
 import {
   allTargetTasksSkipped,
   buildFailedPayload,
-  isPrecompileFailure,
   notApplicablePayload,
+  parseReportInputs,
   provenFlakinessJobs,
+  reportErrorPayload,
   shouldBlock,
 } from "./analyze.ts";
 
@@ -83,25 +84,56 @@ describe("buildFailedPayload", () => {
   });
 });
 
-describe("isPrecompileFailure", () => {
-  test("true for the marker the gate writes on failure", () => {
-    expect(isPrecompileFailure('{"outcome":"build_failed","reason":"precompile"}')).toBe(true);
-    // reason is not part of the decision - only the outcome is
-    expect(isPrecompileFailure('{"outcome":"build_failed"}')).toBe(true);
+describe("parseReportInputs", () => {
+  const SKIP = '[{"gradleProject":":qa","kind":"javaRestTest","sourceSet":"javaRestTest","fqcn":"org.foo.SomeIT"}]';
+  const env = (compileFailed: string | undefined, skippedCount: string | undefined) => ({
+    FLAKINESS_COMPILE_FAILED: compileFailed,
+    FLAKINESS_SKIPPED_COUNT: skippedCount,
   });
 
-  test("false when the marker is absent (gate passed or never ran)", () => {
-    expect(isPrecompileFailure(null)).toBe(false);
+  /** The regression: the compile failure used to come from a marker file a failed download turned into "compiled". */
+  test("a compile failure comes from the env alone, with no file involved", () => {
+    expect(parseReportInputs(env("true", "0"), null)).toEqual({ compileFailed: true, skipped: [], problems: [] });
   });
 
-  test("false for any other outcome", () => {
-    expect(isPrecompileFailure('{"outcome":"clean_pass"}')).toBe(false);
-    expect(isPrecompileFailure("{}")).toBe(false);
+  test("with nothing skipped the skip list is not consulted", () => {
+    expect(parseReportInputs(env("false", "0"), null)).toEqual({ compileFailed: false, skipped: [], problems: [] });
   });
 
-  test("false for malformed or empty marker content", () => {
-    expect(isPrecompileFailure("not json")).toBe(false);
-    expect(isPrecompileFailure("")).toBe(false);
+  test("a skip list holding the declared count is read", () => {
+    const r = parseReportInputs(env("false", "1"), SKIP);
+    expect(r.problems).toEqual([]);
+    expect(r.skipped).toHaveLength(1);
+  });
+
+  test.each([
+    ["absent", null, /did not reach this step, but the generate step declared 1/],
+    ["not JSON", "[", /not valid JSON/],
+    ["not an array", "{}", /not a JSON array/],
+    ["shorter than declared", "[]", /has 0 entries, but the generate step declared 1/],
+    ["longer than declared", `[${SKIP.slice(1, -1)},${SKIP.slice(1, -1)}]`, /has 2 entries, but the generate step declared 1/],
+  ])("a skip list that is %s is a problem, not an empty list", (_, text, problem) => {
+    const r = parseReportInputs(env("false", "1"), text);
+    expect(r.problems).toEqual([expect.stringMatching(problem)]);
+  });
+
+  test("a missing or malformed declaration is a problem, never a default", () => {
+    const r = parseReportInputs(env(undefined, "x"), null);
+    expect(r.problems).toEqual([
+      expect.stringContaining("FLAKINESS_COMPILE_FAILED is undefined"),
+      expect.stringContaining('FLAKINESS_SKIPPED_COUNT is "x"'),
+      "flakiness-skipped.json did not reach this step",
+    ]);
+  });
+});
+
+describe("reportErrorPayload", () => {
+  test("is an infra_fail record keyed under flakiness-orchestration (not a test batch)", () => {
+    const payload = reportErrorPayload();
+    expect(payload.stepKey.startsWith("flakiness-detection:")).toBe(false);
+    expect(payload).toEqual(
+      expect.objectContaining({ jobId: "report-error:inputs", outcome: "infra_fail", infraSubtype: "report_error" })
+    );
   });
 });
 

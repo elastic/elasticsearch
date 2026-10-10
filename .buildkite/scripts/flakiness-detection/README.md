@@ -118,7 +118,7 @@ The resolver is split across two Gradle tasks and a plain compile between them, 
 Every project - owners and non-owners alike - writes `build/flakiness/project-targets/<project>.json` carrying its resolved targets (often none), its `classDirs` (test source sets **plus `main`**, since abstract test bases live in `main` source sets) and its `dispositions` (per test source set: the output dir, and the `Test` task paths that really run it).
 There is no "owns nothing, exit early" shortcut: owning no ref does not make a project irrelevant, because the scan may need to run a subclass compiled there.
 Each target also carries `runnableTasks`: the **enabled** `Test` tasks whose `testClassesDirs` overlap the owning source set's output - so a project that disables the conventional bare task and points other tasks at the same output (BWC's `v<version>#bwcTest`, packaging's `destructiveDistroTest.*`) resolves to those real tasks instead of a task Gradle would report `SKIPPED`. Targets with nothing runnable carry a precise `skipReason` (`no-runnable-task`, `requires-packaging-host`).
-The `compile` step compiles every test source set regardless of what resolve produced; on failure it writes a `buildFailed` `flakiness-plan.json` and `flakiness-precompile.json` and exits non-zero, skipping `scan`.
+The `compile` step compiles every test source set regardless of what resolve produced; on failure it writes a `buildFailed` `flakiness-plan.json` and exits non-zero, skipping `scan`.
 `flakinessScan` reads the per-project files directly (there is no merge task), folds them back into ref order, decides which class refs *no* project claimed (`unresolved`), ASM-scans the compiled test classes to flatten abstract bases into concrete subclasses (deterministic, capped), does all batching (dedupe, yaml-suite collapse, per-cap slicing), and writes `flakiness-plan.json` - including a `commands` array of ready per-batch Gradle command strings, each carrying the `__GRADLE__` binary placeholder.
 It deliberately never reports `UP-TO-DATE` (`doNotTrackState`): the bytecode it reads is an undeclared input (the directories are only known at execution time), so a verdict based on its declared inputs would serve a stale plan across a recompile. Declaring the class dirs instead would make Gradle content-hash ~59k class files (~7s) purely so ASM could re-read them all (~9s), so the task opts out of state tracking rather than pay double.
 
@@ -245,15 +245,21 @@ positive), while a job that times out with **no** failing run is `timeout`
 `oom` (a JVM-heap `OutOfMemoryError`: rc != 0 with a `*/build/heapdump/*.hprof`
 file present, detected by the never-fail wrapper; the analyze step does not read
 the job log). Finer infra subtypes (disk-full, etc.) would require the job log,
-which we currently choose not to read, so they are left unset. Jobs that fail
+which we currently choose not to read, so they are left unset. `report_error`
+marks the one `infra_fail` record (keyed `flakiness-orchestration:report`) that
+the analyze step adds when an input from generate did not reach it, such as a
+missing or short skip list; its annotation then says the report is incomplete.
+Jobs that fail
 *before* the wrapper runs (e.g. a pre-command hook failure) write no status file
 and so produce no payload; the external pipeline records those as `infra_fail`
 from job state. This is where the `flakiness-orchestration:` key split matters:
-when the `compile` step fails, `scan` and `generate` are skipped, but because
-they are keyed under `flakiness-orchestration:` (not `flakiness-detection:`) the
-external batch-job predicate ignores them, so no skipped-batch `infra_fail` noise
-is recorded. `generate` still runs (its `depends_on` are `allow_failure`) and
-uploads a single `build_failed` record keyed `flakiness-orchestration:compile` -
+when the `compile` step fails, the orchestration job goes red and `scan` never
+runs, but because the orchestration steps are keyed under
+`flakiness-orchestration:` (not `flakiness-detection:`) the external batch-job
+predicate ignores them, so no skipped-batch `infra_fail` noise is recorded.
+`generate` still runs (its `depends_on` are `allow_failure`) and uploads an
+analyze-only pipeline; the analyze step, told about the compile failure in its
+env, records a single `build_failed` keyed `flakiness-orchestration:compile`,
 also outside the batch predicate. The old in-pipeline compile gate keyed under
 `flakiness-detection:precompile` (which did produce that skipped-batch noise) has
 been removed.

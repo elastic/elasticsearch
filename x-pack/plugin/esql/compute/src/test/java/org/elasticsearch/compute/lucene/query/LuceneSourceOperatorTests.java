@@ -810,6 +810,12 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
 
     /** A {@link DocIdStream} over a contiguous doc-id range. Lucene's own range stream is package-private. */
     private static class RangeStream extends DocIdStream {
+        /**
+         * {@link #intoArray} deliberately copies at most this many doc ids per call — a partial batch is legal ("copy
+         * some matching doc IDs") — so the collector's {@code forEach} tail after {@code intoArray} is exercised too.
+         */
+        private static final int INTO_ARRAY_CHUNK = 100;
+
         private int next;
         private final int end; // exclusive
 
@@ -837,7 +843,7 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
         @Override
         public int intoArray(int upTo, int[] array) {
             int bound = Math.min(upTo, end);
-            int count = Math.min(array.length, Math.max(0, bound - next));
+            int count = Math.min(Math.min(array.length, INTO_ARRAY_CHUNK), Math.max(0, bound - next));
             for (int i = 0; i < count; i++) {
                 array[i] = next++;
             }

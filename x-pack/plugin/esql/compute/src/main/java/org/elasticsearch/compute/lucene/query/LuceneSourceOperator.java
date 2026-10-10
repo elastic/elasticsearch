@@ -469,6 +469,17 @@ public class LuceneSourceOperator extends LuceneOperator {
 
         @Override
         public void collect(DocIdStream stream) throws IOException {
+            if (currentPagePos == 0) {
+                // intoArray writes from index 0 and may leave a tail in the stream for the loop below.
+                int n = stream.intoArray(docIds);
+                if (n > remainingDocs) {
+                    currentPagePos = remainingDocs;
+                    remainingDocs = 0;
+                    throw new CollectionTerminatedException();
+                }
+                currentPagePos = n;
+                remainingDocs -= n;
+            }
             stream.forEach(doc -> {
                 if (remainingDocs > 0) {
                     --remainingDocs;

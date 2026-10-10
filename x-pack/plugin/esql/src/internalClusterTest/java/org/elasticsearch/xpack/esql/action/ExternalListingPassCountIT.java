@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.equalTo;
  * local filesystem: {@code LocalStorageProvider} walks the tree into a list before handing out the first entry, so a
  * bounded listing does exactly the work an unbounded one does and only the kept set differs. The saving a bound is
  * supposed to buy is a request never issued, which is an object-store effect. So this suite asserts the
- * <em>request count</em>, through {@link ListingCountingStorageProvider}, and never the clock.
+ * <em>request count</em>, through {@link CountingStorageProvider}, and never the clock.
  * <p>
  * The shape under test is a glob whose wildcard sits <em>inside</em> a path segment — {@code date=2024-01-0*} — which
  * is what a Hive-partitioned dataset queried for a date range looks like. {@code StoragePath.patternPrefix} cuts the
@@ -60,31 +60,31 @@ public class ExternalListingPassCountIT extends AbstractExternalDataSourceIT {
     private static final int MATCHING_FOLDERS = 9;
 
     /**
-     * Registers {@link ListingCountingStorageProvider} under its scheme. Storage-provider schemes are only picked up
+     * Registers {@link CountingStorageProvider} under its scheme. Storage-provider schemes are only picked up
      * for {@link DataSourcePlugin}s found via SPI, so this class is listed in the internalClusterTest
      * {@code META-INF/services} file rather than in {@link #nodePlugins()}.
      */
     public static final class CountingDataSourcePlugin extends Plugin implements DataSourcePlugin {
         @Override
         public Set<String> supportedSchemes() {
-            return Set.of(ListingCountingStorageProvider.SCHEME);
+            return Set.of(CountingStorageProvider.SCHEME);
         }
 
         @Override
         public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
-            return Map.of(ListingCountingStorageProvider.SCHEME, new Factory());
+            return Map.of(CountingStorageProvider.SCHEME, new Factory());
         }
 
         private static final class Factory implements StorageProviderFactory {
             @Override
             public StorageProvider create(Settings settings) {
-                return new ListingCountingStorageProvider();
+                return new CountingStorageProvider();
             }
 
             @Override
             public Configured<StorageProvider> createTrackingConsumedKeys(Settings settings, Map<String, Object> config) {
                 // No config keys are consumed, so nothing identifies this provider's configuration.
-                return new Configured<>(new ListingCountingStorageProvider(), Set.of(), "", "");
+                return new Configured<>(new CountingStorageProvider(), Set.of(), "", "");
             }
         }
     }
@@ -109,7 +109,7 @@ public class ExternalListingPassCountIT extends AbstractExternalDataSourceIT {
         String dataset = registerCountingDataset("pass_count", PADDING_FOLDERS);
         String coordinator = internalCluster().getNodeNames()[0];
 
-        ListingCountingStorageProvider.reset();
+        CountingStorageProvider.reset();
         try (EsqlQueryResponse response = query(coordinator, "FROM " + dataset + " | LIMIT 0")) {
             assertThat("no rows are read", getValuesList(response).size(), equalTo(0));
             // Pinned exactly: a listing that answered from the wrong files would still have the right count, and a
@@ -121,7 +121,7 @@ public class ExternalListingPassCountIT extends AbstractExternalDataSourceIT {
         assertThat(
             "a query that only needs a schema must ask the store to list once; a second pass means a bounded "
                 + "listing matched nothing and was thrown away",
-            ListingCountingStorageProvider.listingPasses(),
+            CountingStorageProvider.listingPasses(),
             equalTo(1L)
         );
     }
@@ -135,13 +135,13 @@ public class ExternalListingPassCountIT extends AbstractExternalDataSourceIT {
         String large = registerCountingDataset("pass_large", PADDING_FOLDERS * 10);
         String coordinator = internalCluster().getNodeNames()[0];
 
-        ListingCountingStorageProvider.reset();
+        CountingStorageProvider.reset();
         query(coordinator, "FROM " + small + " | LIMIT 0").close();
-        long smallPasses = ListingCountingStorageProvider.listingPasses();
+        long smallPasses = CountingStorageProvider.listingPasses();
 
-        ListingCountingStorageProvider.reset();
+        CountingStorageProvider.reset();
         query(coordinator, "FROM " + large + " | LIMIT 0").close();
-        long largePasses = ListingCountingStorageProvider.listingPasses();
+        long largePasses = CountingStorageProvider.listingPasses();
 
         // Both asserted absolutely rather than against each other. Equality alone can hold because both regressed
         // together, which would report a pass for the wrong reason; these say what each number must be.
@@ -157,14 +157,14 @@ public class ExternalListingPassCountIT extends AbstractExternalDataSourceIT {
         String dataset = registerCountingDataset("pass_rows", PADDING_FOLDERS);
         String coordinator = internalCluster().getNodeNames()[0];
 
-        ListingCountingStorageProvider.reset();
+        CountingStorageProvider.reset();
         try (EsqlQueryResponse response = query(coordinator, "FROM " + dataset + " | LIMIT 3")) {
             assertThat(getValuesList(response).size(), equalTo(3));
         }
 
         assertThat(
             "resolution and split discovery must not each pay a discarded bounded pass",
-            ListingCountingStorageProvider.listingPasses(),
+            CountingStorageProvider.listingPasses(),
             equalTo(1L)
         );
     }
@@ -184,7 +184,7 @@ public class ExternalListingPassCountIT extends AbstractExternalDataSourceIT {
 
         query(coordinator, "FROM " + dataset + " | LIMIT 0").close();
 
-        ListingCountingStorageProvider.reset();
+        CountingStorageProvider.reset();
         try (EsqlQueryResponse response = query(coordinator, "FROM " + dataset + " | LIMIT 0")) {
             assertThat(columnsOf(response), equalTo(List.of("id:integer", "v:keyword", "date:keyword")));
         }
@@ -193,10 +193,10 @@ public class ExternalListingPassCountIT extends AbstractExternalDataSourceIT {
         // is that a complete bounded listing is cacheable. One pass here means it was thrown away again.
         assertThat(
             "a repeat query must be served from the listing cache and ask the store nothing",
-            ListingCountingStorageProvider.listingPasses(),
+            CountingStorageProvider.listingPasses(),
             equalTo(0L)
         );
-        assertThat("and visit no keys", ListingCountingStorageProvider.keysVisited(), equalTo(0L));
+        assertThat("and visit no keys", CountingStorageProvider.keysVisited(), equalTo(0L));
     }
 
     /**
@@ -211,12 +211,12 @@ public class ExternalListingPassCountIT extends AbstractExternalDataSourceIT {
 
         query(coordinator, "FROM " + dataset + " | LIMIT 0").close();
 
-        ListingCountingStorageProvider.reset();
+        CountingStorageProvider.reset();
         query(coordinator, "FROM " + dataset + " | LIMIT 0").close();
 
         assertThat(
             "a truncated listing is a prefix of the dataset and must not be served to a later query",
-            ListingCountingStorageProvider.listingPasses(),
+            CountingStorageProvider.listingPasses(),
             equalTo(1L)
         );
     }
@@ -261,7 +261,7 @@ public class ExternalListingPassCountIT extends AbstractExternalDataSourceIT {
 
     private String registerCountingDataset(String name, int paddingFolders, Map<String, Object> extraSettings) throws IOException {
         Path dir = writeFixture(paddingFolders);
-        String glob = ListingCountingStorageProvider.SCHEME + "://" + dir.toAbsolutePath() + "/date=2024-01-0*/*.csv";
+        String glob = CountingStorageProvider.SCHEME + "://" + dir.toAbsolutePath() + "/date=2024-01-0*/*.csv";
         Map<String, Object> settings = new HashMap<>(Map.of("format", "csv", "schema_resolution", "first_file_wins"));
         settings.putAll(extraSettings);
         return registerDataset(name, glob, settings);

@@ -168,13 +168,26 @@ export const COMPILE_TASKS = [
 // address the same files. Keeping them here means orchestrate.sh does not re-spell them in bash.
 export const FLAKINESS_REFS_ARTIFACT = "flakiness-refs.json";
 export const FLAKINESS_PLAN_ARTIFACT = "flakiness-plan.json";
-export const FLAKINESS_PRECOMPILE_ARTIFACT = "flakiness-precompile.json";
 // Where each project drops its share of the resolve answer. Keep in sync with
 // FlakinessLayout.TARGETS_DIR on the Java side.
 export const FLAKINESS_TARGETS_DIR = "build/flakiness/project-targets";
 export const FLAKINESS_TARGETS_ARCHIVE = "flakiness-project-targets.tgz";
 
 export const STATUS_DIR_NAME = "flakiness-status";
+
+/**
+ * What the analyze step has to report, declared by the generate step in the analyze step's env. The report
+ * takes its mode from here, never from which input files happened to download, so a failed download cannot
+ * turn a compile failure into a clean, empty report.
+ */
+export interface ReportInputs {
+  // The generate job's UUID: the only producer of the skip list, which analyze downloads scoped to it.
+  producerJobId: string;
+  compileFailed: boolean;
+  skippedCount: number;
+}
+export const COMPILE_FAILED_ENV = "FLAKINESS_COMPILE_FAILED";
+export const SKIPPED_COUNT_ENV = "FLAKINESS_SKIPPED_COUNT";
 
 // Per-job copy of gradle-runner's build/task-status.json. analyze.ts rebuilds this exact filename from a
 // jobId, so the prefix is a real contract between the writer and the reader.

@@ -9,7 +9,6 @@ package org.elasticsearch.blobcache.shared;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.TimeRangeBucket;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
@@ -4895,17 +4894,17 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             );
             List<Measurement> readAges = recording.getRecorder().getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, BLOB_CACHE_READ_AGE);
             assertThat(readAges, hasSize(1));
-            assertEquals(TimeRangeBucket.toHours(0L - backfill), readAges.getFirst().getDouble(), 0.0);
+            assertEquals(0.0, readAges.getFirst().getDouble(), 0.0);
             List<Measurement> missAges = recording.getRecorder().getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, BLOB_CACHE_MISS_AGE);
             assertThat(missAges, hasSize(1));
-            assertEquals(TimeRangeBucket.toHours(0L - backfill), missAges.getFirst().getDouble(), 0.0);
+            assertEquals(0.0, missAges.getFirst().getDouble(), 0.0);
 
             // Cache-hit path (tryRead on now-populated region): only a read age is recorded
             recording.getRecorder().resetCalls();
             assertTrue(cacheFile.tryRead(ByteBuffer.wrap(new byte[1]), 0));
             List<Measurement> readAges2 = recording.getRecorder().getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, BLOB_CACHE_READ_AGE);
             assertThat(readAges2, hasSize(1));
-            assertEquals(TimeRangeBucket.toHours(0L - backfill), readAges2.getFirst().getDouble(), 0.0);
+            assertEquals(0.0, readAges2.getFirst().getDouble(), 0.0);
             assertThat(recording.getRecorder().getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, BLOB_CACHE_MISS_AGE), empty());
         }
     }

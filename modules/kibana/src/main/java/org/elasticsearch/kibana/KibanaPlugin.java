@@ -54,6 +54,8 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
 
     private static final int CHANGE_HISTORY_MAPPINGS_VERSION = 3;
 
+    private static final int NOTIFICATION_CENTER_MAPPINGS_VERSION = 1;
+
     /** Data stream registered in {@link #changeHistorySystemDataStreamDescriptor()}. */
     public static final String CHANGE_HISTORY_DATA_STREAM_NAME = ".kibana_change_history";
 
@@ -81,6 +83,18 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
     /** Substitution key for managed index version in {@value #WORKFLOWS_EXECUTION_LOGS_COMPOSABLE_TEMPLATE_RESOURCE}. */
     public static final String WORKFLOWS_EXECUTION_LOGS_MANAGED_INDEX_VERSION_VARIABLE =
         "kibana.workflows.execution.logs.managed.index.version";
+
+    /** Data stream registered in {@link #notificationCenterSystemDataStreamDescriptor()}. */
+    public static final String NOTIFICATION_CENTER_DATA_STREAM_NAME = ".notifications";
+
+    /** Composable index template resource for {@value #NOTIFICATION_CENTER_DATA_STREAM_NAME}. */
+    public static final String NOTIFICATION_CENTER_COMPOSABLE_TEMPLATE_RESOURCE = "notifications.json";
+
+    /** Substitution key for the stack version in {@value #NOTIFICATION_CENTER_COMPOSABLE_TEMPLATE_RESOURCE}. */
+    public static final String NOTIFICATION_CENTER_VERSION_VARIABLE = "kibana.notification.center.version";
+
+    /** Substitution key for managed index version in {@value #NOTIFICATION_CENTER_COMPOSABLE_TEMPLATE_RESOURCE}. */
+    public static final String NOTIFICATION_CENTER_MANAGED_INDEX_VERSION_VARIABLE = "kibana.notification.center.managed.index.version";
 
     /**
      * Matches workflows-related system <strong>indices</strong> under {@code .workflows-}, but not the log
@@ -180,7 +194,8 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
         return List.of(
             workflowsEventsSystemDataStreamDescriptor(),
             workflowsExecutionDataStreamLogsSystemDataStreamDescriptor(),
-            changeHistorySystemDataStreamDescriptor()
+            changeHistorySystemDataStreamDescriptor(),
+            notificationCenterSystemDataStreamDescriptor()
         );
     }
 
@@ -193,6 +208,32 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
             return new SystemDataStreamDescriptor(
                 CHANGE_HISTORY_DATA_STREAM_NAME,
                 "Kibana saved objects change history",
+                SystemDataStreamDescriptor.Type.EXTERNAL,
+                composableIndexTemplate,
+                Map.of(),
+                KIBANA_PRODUCT_ORIGIN,
+                KIBANA_ORIGIN,
+                ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
+            );
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static SystemDataStreamDescriptor notificationCenterSystemDataStreamDescriptor() {
+        try {
+            ComposableIndexTemplate composableIndexTemplate = loadDataStreamComposableTemplate(
+                NOTIFICATION_CENTER_COMPOSABLE_TEMPLATE_RESOURCE,
+                Map.of(
+                    NOTIFICATION_CENTER_VERSION_VARIABLE,
+                    Version.CURRENT.toString(),
+                    NOTIFICATION_CENTER_MANAGED_INDEX_VERSION_VARIABLE,
+                    Integer.toString(NOTIFICATION_CENTER_MAPPINGS_VERSION)
+                )
+            );
+            return new SystemDataStreamDescriptor(
+                NOTIFICATION_CENTER_DATA_STREAM_NAME,
+                "Kibana Notification Center notifications",
                 SystemDataStreamDescriptor.Type.EXTERNAL,
                 composableIndexTemplate,
                 Map.of(),

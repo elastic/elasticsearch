@@ -311,6 +311,76 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
         );
     }
 
+    /**
+     * An already indexed exemplar must not hide rejected data points when multiple metrics share a failed document.
+     */
+    public void testExemplarConflictDoesNotSuppressAllDataPointsRejected() throws Exception {
+        assumeTrue("requires metric exemplar ingestion", OTelPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled());
+        Exemplar exemplar = OtlpUtils.createLongExemplar(1_000_000L, 42L);
+        Metric firstMetric = OtlpUtils.createGaugeMetric(
+            "first.metric",
+            "",
+            List.of(OtlpUtils.createDoubleDataPoint(2_000_000L, 0, List.of(), List.of(exemplar)))
+        );
+        Metric secondMetric = OtlpUtils.createGaugeMetric(
+            "second.metric",
+            "",
+            List.of(OtlpUtils.createDoubleDataPoint(2_000_000L, 0, List.of(), List.of()))
+        );
+        OTLPActionRequest request = createMetricsRequest(firstMetric, secondMetric);
+        BulkRequestBuilder bulkRequestBuilder = new BulkRequestBuilder(client);
+        AbstractOTLPTransportAction.ProcessingContext context = createAction().prepareBulkRequest(request, bulkRequestBuilder);
+        assertThat(context.totalItems(), equalTo(2));
+        assertThat(bulkRequestBuilder.numberOfActions(), equalTo(2));
+        assertTrue(context.isPrimaryTelemetryDoc(0));
+        assertFalse(context.isPrimaryTelemetryDoc(1));
+
+        OTLPActionResponse response = executeRequest(
+            request,
+            new BulkResponse(
+                new BulkItemResponse[] {
+                    bulkItemFailure("metrics-generic.otel-default", RestStatus.BAD_REQUEST, "bad request"),
+                    bulkItemFailure("exemplars-generic.otel-default", RestStatus.CONFLICT, "version conflict") },
+                0
+            )
+        );
+
+        byte[] responseBytes = response.getResponse().array();
+        assertThat(parseRejectedCount(responseBytes), equalTo(2L));
+        assertThat(parseErrorMessage(responseBytes), containsString("returned status [BAD_REQUEST] for 1 documents"));
+        assertThat(
+            parseErrorMessage(responseBytes),
+            containsString("Skipped 1 duplicate documents that were already indexed with the same id.\n")
+        );
+    }
+
+    public void testExemplarConflictIsReportedAsDuplicate() throws Exception {
+        assumeTrue("requires metric exemplar ingestion", OTelPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled());
+        Exemplar exemplar = OtlpUtils.createLongExemplar(1_000_000L, 42L);
+        Metric metric = OtlpUtils.createGaugeMetric(
+            "test.metric",
+            "",
+            List.of(OtlpUtils.createDoubleDataPoint(2_000_000L, 0, List.of(), List.of(exemplar)))
+        );
+
+        OTLPActionResponse response = executeRequest(
+            createMetricsRequest(metric),
+            new BulkResponse(
+                new BulkItemResponse[] {
+                    bulkItemFailure("metrics-generic.otel-default", RestStatus.CONFLICT, "version conflict"),
+                    bulkItemFailure("exemplars-generic.otel-default", RestStatus.CONFLICT, "version conflict") },
+                0
+            )
+        );
+
+        byte[] responseBytes = response.getResponse().array();
+        assertThat(parseRejectedCount(responseBytes), equalTo(0L));
+        assertThat(
+            parseErrorMessage(responseBytes),
+            equalTo("Skipped 2 duplicate documents that were already indexed with the same id.\n")
+        );
+    }
+
     public void testSameTimestampExemplarsForDifferentMetricsAreNotDuplicates() throws Exception {
         assumeTrue("requires metric exemplar ingestion", OTelPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled());
         Exemplar exemplar = OtlpUtils.createLongExemplar(1_000_000L, 42L);

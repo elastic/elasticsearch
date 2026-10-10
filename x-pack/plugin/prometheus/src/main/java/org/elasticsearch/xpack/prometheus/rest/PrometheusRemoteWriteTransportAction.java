@@ -203,7 +203,7 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
             if (bulkRequestBuilder.numberOfActions() == 0) {
                 logExemplarProblems(exemplarCounters, null);
                 if (droppedSamplesMissingName > 0) {
-                    String message = buildFailureSummary(totalSamples, droppedSamplesMissingName, droppedSamplesMissingName, null);
+                    String message = buildFailureSummary(totalSamples, droppedSamplesMissingName, droppedSamplesMissingName, 0, null);
                     listener.onFailure(new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST));
                 } else {
                     // No indexable data points remain, which is not a client error.
@@ -352,12 +352,23 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
         // Default to 400 per the remote write spec for requests that should not be retried.
         RestStatus responseStatus = RestStatus.BAD_REQUEST;
         int sampleFailures = droppedSamplesMissingName;
+        int sampleDuplicates = 0;
+        String sampleDuplicateMessage = null;
 
         BulkItemResponse[] items = bulkResponse.getItems();
         for (int i = 0; i < items.length; i++) {
             BulkItemResponse.Failure failure = items[i].getFailure();
             if (failure != null) {
-                if (i < firstExemplarDocumentPosition) {
+                if (i < firstExemplarDocumentPosition && failure.getStatus() == RestStatus.CONFLICT) {
+                    // The _id is derived from the series and the timestamp, so a conflict means a sample for the same series and
+                    // timestamp has already been indexed. This is almost always caused by a client retrying a request that was
+                    // already (partially) indexed, e.g. after a timeout. We don't treat these as failures, as remote write clients
+                    // would consider the samples to be dropped even though they are stored.
+                    sampleDuplicates++;
+                    if (sampleDuplicateMessage == null) {
+                        sampleDuplicateMessage = failure.getMessage();
+                    }
+                } else if (i < firstExemplarDocumentPosition) {
                     sampleFailures++;
                     if (failure.getStatus() == RestStatus.TOO_MANY_REQUESTS) {
                         // 429 takes priority so clients retry (valid samples that were rate-limited may succeed on retry).
@@ -378,9 +389,23 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
             }
         }
 
+        if (sampleDuplicates > 0) {
+            logger.debug(
+                "skipped [{}] duplicate samples out of [{}] samples. Sample error: [{}]",
+                sampleDuplicates,
+                totalSamples,
+                sampleDuplicateMessage
+            );
+        }
         logExemplarProblems(exemplarCounters, exemplarFailureGroups);
         if (sampleFailures > 0) {
-            String message = buildFailureSummary(totalSamples, sampleFailures, droppedSamplesMissingName, sampleFailureGroups);
+            String message = buildFailureSummary(
+                totalSamples,
+                sampleFailures,
+                droppedSamplesMissingName,
+                sampleDuplicates,
+                sampleFailureGroups
+            );
             listener.onFailure(new ElasticsearchStatusException(message, responseStatus));
         } else {
             listener.onResponse(new RemoteWriteResponse());
@@ -416,6 +441,7 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
         int totalSamples,
         int sampleFailures,
         int droppedSamplesMissingName,
+        int sampleDuplicates,
         @Nullable Map<String, Map<RestStatus, FailureGroup>> sampleFailureGroups
     ) {
         StringBuilder failureMessage = new StringBuilder();
@@ -426,6 +452,10 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
             .append(" samples failed.\n");
         if (droppedSamplesMissingName > 0) {
             failureMessage.append(droppedSamplesMissingName).append(" sample(s) dropped due to missing __name__ label\n");
+        }
+        if (sampleDuplicates > 0) {
+            failureMessage.append(sampleDuplicates)
+                .append(" sample(s) skipped as duplicates of already indexed samples with the same series and timestamp\n");
         }
         appendFailureGroups(failureMessage, sampleFailureGroups);
         return failureMessage.toString();

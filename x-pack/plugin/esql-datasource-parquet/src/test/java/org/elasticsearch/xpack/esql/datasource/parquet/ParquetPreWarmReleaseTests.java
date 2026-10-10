@@ -200,6 +200,32 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
         assertTrue("force-added bytes after open stay below one window for row groups " + overWindow + table, overWindow.isEmpty());
     }
 
+    /**
+     * Same 512 KiB open as {@link #testForceAddedBytesAfterOpenByRowGroupSize}, with a watermark
+     * whose free share is the 64 KiB floor. The #2270 fixture span is over 1 MiB, so the preload
+     * stays on the split path.
+     */
+    public void testForceAddedBytesAfterOpenWithFullBudget() throws Exception {
+        byte[] file = parquetFile(ROWS, 512 * 1024L);
+        assertThat(
+            "full-budget cell must stay on the #2270 split, file=" + file.length,
+            file.length,
+            greaterThan((int) CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP)
+        );
+        FooterMetrics footer = footerMetrics(file, Set.of("category"));
+        ParquetIoWatermark watermark = new ParquetIoWatermark(1);
+        CountingAsyncStorage storage = new CountingAsyncStorage(file, asyncIo);
+        try (CloseableIterator<Page> iter = open(storage, watermark, CATEGORY)) {
+            long used = watermark.used();
+            assertThat("fixture must write page indexes", footer.indexSpan(), greaterThan(0L));
+            assertThat(used, lessThan(HeapFootprint.byteArrayBytes(footer.indexSpan())));
+            assertThat(storage.asyncBytes.get(), lessThanOrEqualTo(footer.openGetBound()));
+            assertEquals(EXPECTED_ROWS, drain(iter).rows());
+        }
+        assertEquals(0L, watermark.used());
+        assertEquals(0L, breaker.getUsed());
+    }
+
     /** The production range path: one 32 MiB macro split of a file with 512 KiB row groups. */
     public void testForceAddedBytesAfterOpenOnRangeSplit() throws Exception {
         long forRangeWindow = HeapFootprint.byteArrayBytes(ParquetStorageObjectAdapter.MAX_WINDOW_SIZE);

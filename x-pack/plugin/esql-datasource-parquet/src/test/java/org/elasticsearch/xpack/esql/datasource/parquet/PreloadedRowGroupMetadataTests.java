@@ -322,7 +322,7 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
 
     private void runSplitBatchFailure(boolean failIndex) throws Exception {
         MessageType schema = threeColumnInt64Schema();
-        byte[] parquetData = writeThreeColumnInt64Parquet(schema, 65_536);
+        byte[] parquetData = writeSpanOverOneMibParquet(schema);
         CircuitBreaker trackingBreaker = new LimitedBreaker("split-batch", ByteSizeValue.ofMb(32));
         ParquetIoWatermark watermark = new ParquetIoWatermark(64 * 1024 * 1024);
         ExecutorService pool = Executors.newFixedThreadPool(4);
@@ -335,6 +335,11 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
         ) {
             PageIndexRanges pageIndexes = collectPageIndexRanges(reader);
             assertTrue("fixture must write page indexes so the index batch is non-empty", pageIndexes.totalCount() > 0);
+            long span = neededSpan(reader, Set.of("a"));
+            assertTrue(
+                "split-case fixture span must exceed the 1 MiB single-GET ceiling, span=" + span,
+                span > CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP
+            );
             GatedAsyncStorage gated = new GatedAsyncStorage(parquetData, pool, allIndexRanges(pageIndexes), failIndex);
             Future<PreloadedRowGroupMetadata> future = pool.submit(
                 () -> PreloadedRowGroupMetadata.preload(
@@ -1075,6 +1080,68 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
             .required(PrimitiveType.PrimitiveTypeName.INT64)
             .named("c")
             .named("schema");
+    }
+
+    /**
+     * Same three-column layout as {@link #writeThreeColumnInt64Parquet}, but column {@code a} stays
+     * dictionary-encoded while {@code b} and {@code c} are unique and uncompressed so the needed
+     * span exceeds the 1 MiB single-GET ceiling.
+     */
+    private static byte[] writeSpanOverOneMibParquet(MessageType schema) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        OutputFile outputFile = createOutputFile(out);
+        SimpleGroupFactory groupFactory = new SimpleGroupFactory(schema);
+        int rows = 80_000;
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withDictionaryEncoding(true)
+                .withDictionaryEncoding("b", false)
+                .withDictionaryEncoding("c", false)
+                .withPageSize(4 * 1024)
+                .withDictionaryPageSize(64 * 1024)
+                .withRowGroupSize(256 * 1024L)
+                .build()
+        ) {
+            for (int i = 0; i < rows; i++) {
+                Group g = groupFactory.newGroup();
+                g.add("a", (long) (i % 16));
+                g.add("b", (long) i);
+                g.add("c", (long) i);
+                writer.write(g);
+            }
+        }
+        return out.toByteArray();
+    }
+
+    private static long neededSpan(ParquetFileReader reader, Set<String> predicates) {
+        List<CoalescedRangeReader.ByteRange> ranges = new ArrayList<>();
+        for (BlockMetaData block : reader.getRowGroups()) {
+            for (ColumnChunkMetaData col : block.getColumns()) {
+                String path = col.getPath().toDotString();
+                var ci = col.getColumnIndexReference();
+                if (ci != null && ci.getLength() > 0) {
+                    ranges.add(new CoalescedRangeReader.ByteRange(ci.getOffset(), ci.getLength()));
+                }
+                var oi = col.getOffsetIndexReference();
+                if (oi != null && oi.getLength() > 0) {
+                    ranges.add(new CoalescedRangeReader.ByteRange(oi.getOffset(), oi.getLength()));
+                }
+                if (predicates.contains(path)) {
+                    CoalescedRangeReader.ByteRange dict = ColumnChunkPrefetcher.dictionaryPageRange(col, col.getFirstDataPageOffset());
+                    if (dict != null) {
+                        ranges.add(dict);
+                    }
+                    if (col.getBloomFilterOffset() > 0 && col.getBloomFilterLength() > 0) {
+                        ranges.add(new CoalescedRangeReader.ByteRange(col.getBloomFilterOffset(), col.getBloomFilterLength()));
+                    }
+                }
+            }
+        }
+        return PreloadedRowGroupMetadata.neededSpan(ranges);
     }
 
     /**

@@ -30,6 +30,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.InlineCompletionDrain;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.QueryAdmission;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
@@ -335,6 +336,34 @@ final class PreloadedRowGroupMetadata implements Releasable {
         @Nullable FooterByteCache footerBytes,
         long coalescedJoinTimeoutMs
     ) {
+        return preload(
+            reader,
+            storageObject,
+            predicateColumnPaths,
+            columnIndexPaths,
+            offsetIndexPaths,
+            offsetIndexRowGroupLimit,
+            breaker,
+            ioWatermark,
+            footerBytes,
+            coalescedJoinTimeoutMs,
+            1
+        );
+    }
+
+    static PreloadedRowGroupMetadata preload(
+        ParquetFileReader reader,
+        StorageObject storageObject,
+        Set<String> predicateColumnPaths,
+        Set<String> columnIndexPaths,
+        Set<String> offsetIndexPaths,
+        int offsetIndexRowGroupLimit,
+        CircuitBreaker breaker,
+        @Nullable ParquetIoWatermark ioWatermark,
+        @Nullable FooterByteCache footerBytes,
+        long coalescedJoinTimeoutMs,
+        int externalIoThreads
+    ) {
         List<BlockMetaData> rowGroups = reader.getRowGroups();
         if (rowGroups.isEmpty()) {
             return empty();
@@ -353,7 +382,8 @@ final class PreloadedRowGroupMetadata implements Releasable {
                     breaker,
                     ioWatermark,
                     footerBytes,
-                    coalescedJoinTimeoutMs
+                    coalescedJoinTimeoutMs,
+                    externalIoThreads
                 );
             } catch (ElasticsearchTimeoutException e) {
                 throw e;
@@ -367,16 +397,20 @@ final class PreloadedRowGroupMetadata implements Releasable {
     /**
      * Batched preloading via {@link CoalescedRangeReader}. Collects all column index and
      * offset index byte ranges across all row groups, plus dictionary-page and bloom-filter
-     * ranges for predicate columns when supplied, then two coalesced fetches dispatched
-     * together: indexes with the 1 MiB gap, dictionary/bloom with waste bounded to useful
-     * bytes. Parses index ranges into typed objects and retains dictionary/bloom ranges as
-     * raw byte chunks for {@link ParquetStorageObjectAdapter} pre-warming.
+     * ranges for predicate columns when supplied, then a single coalesced GET when the needed
+     * span is at most 64 KiB, or at most a budget-sized power-of-two step (64 KiB–1 MiB) that
+     * {@code tryAdmit} grants. Otherwise two fetches dispatched together: indexes with the
+     * 1 MiB gap, dictionary/bloom with waste bounded to useful bytes. Parses index ranges
+     * into typed objects and retains dictionary/bloom ranges as raw byte chunks for
+     * {@link ParquetStorageObjectAdapter} pre-warming.
      *
      * <p>Open-time {@code forceAdd} is at most twice the predicate columns' dictionary and
      * bloom bytes in the split, plus the <em>index span</em> (first needed column/offset-index
      * offset to last needed end; the 1 MiB gap also pulls unrequested indexes that sit
-     * between them), plus one window. Transient: released after the row-group filter. Still
-     * outside the node cap until a later ticket for the pre-warm.
+     * between them), plus one window — or one admitted span of at most 1 MiB when the budget
+     * has room. Transient: released after the row-group filter. Still
+     * outside the node cap until a later ticket for the pre-warm, except the admitted
+     * single-GET path which holds from dispatch through await.
      *
      * <p><b>Parallelism:</b> {@link CoalescedRangeReader#readCoalesced} dispatches one
      * {@code readBytesAsync} call per merged range back-to-back without waiting between calls.
@@ -399,7 +433,8 @@ final class PreloadedRowGroupMetadata implements Releasable {
         CircuitBreaker breaker,
         @Nullable ParquetIoWatermark ioWatermark,
         @Nullable FooterByteCache footerBytes,
-        long coalescedJoinTimeoutMs
+        long coalescedJoinTimeoutMs,
+        int externalIoThreads
     ) {
         List<CoalescedRangeReader.ByteRange> ranges = new ArrayList<>();
         List<RangeMeta> rangeMetas = new ArrayList<>();
@@ -457,31 +492,57 @@ final class PreloadedRowGroupMetadata implements Releasable {
         }
 
         long deadlineNanos = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(coalescedJoinTimeoutMs);
-        StartedCoalescedRead indexStarted = startCoalescedRead(storageObject, indexRanges, breaker, ioWatermark, footerBytes, false);
-        StartedCoalescedRead preWarmStarted;
-        try {
-            preWarmStarted = startCoalescedRead(storageObject, preWarmRanges, breaker, ioWatermark, footerBytes, true);
-        } catch (Throwable t) {
-            abandonCoalescedRead(indexStarted);
-            throw t;
+        long span = neededSpan(ranges);
+        long allowance = singleBatchAllowance(ioWatermark, externalIoThreads);
+        ParquetIoWatermark.AdmitHold hold = null;
+        boolean singleBatch = span > 0L && span <= ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES;
+        if (singleBatch == false && span > 0L && span <= allowance && ioWatermark != null) {
+            hold = ioWatermark.tryAdmit(HeapFootprint.byteArrayBytes(span));
+            singleBatch = hold != null;
         }
         CoalescedRangeReader.CoalescedRangeResult indexFetched = null;
         CoalescedRangeReader.CoalescedRangeResult preWarmFetched;
         try {
-            indexFetched = awaitStartedCoalescedRead(indexStarted, remainingMs(deadlineNanos));
-            preWarmFetched = awaitStartedCoalescedRead(preWarmStarted, remainingMs(deadlineNanos));
-        } catch (Throwable t) {
-            if (indexFetched != null) {
-                try {
-                    indexFetched.release().close();
-                } catch (Throwable closeFailure) {
-                    t.addSuppressed(closeFailure);
-                }
+            if (singleBatch) {
+                StartedCoalescedRead allStarted = startCoalescedRead(storageObject, ranges, breaker, ioWatermark, footerBytes, false, hold);
+                indexFetched = awaitStartedCoalescedRead(allStarted, remainingMs(deadlineNanos));
+                preWarmFetched = new CoalescedRangeReader.CoalescedRangeResult(Map.of(), () -> {});
             } else {
-                // Index await never returned: pre-warm is still in flight.
-                abandonCoalescedRead(preWarmStarted);
+                StartedCoalescedRead indexStarted = startCoalescedRead(
+                    storageObject,
+                    indexRanges,
+                    breaker,
+                    ioWatermark,
+                    footerBytes,
+                    false
+                );
+                StartedCoalescedRead preWarmStarted;
+                try {
+                    preWarmStarted = startCoalescedRead(storageObject, preWarmRanges, breaker, ioWatermark, footerBytes, true);
+                } catch (Throwable t) {
+                    abandonCoalescedRead(indexStarted);
+                    throw t;
+                }
+                try {
+                    indexFetched = awaitStartedCoalescedRead(indexStarted, remainingMs(deadlineNanos));
+                    preWarmFetched = awaitStartedCoalescedRead(preWarmStarted, remainingMs(deadlineNanos));
+                } catch (Throwable t) {
+                    if (indexFetched != null) {
+                        try {
+                            indexFetched.release().close();
+                        } catch (Throwable closeFailure) {
+                            t.addSuppressed(closeFailure);
+                        }
+                    } else {
+                        abandonCoalescedRead(preWarmStarted);
+                    }
+                    throw t;
+                }
             }
-            throw t;
+        } finally {
+            if (hold != null) {
+                hold.drop();
+            }
         }
         Map<CoalescedRangeReader.ByteRange, ByteBuffer> fetched = new HashMap<>(indexFetched.ranges());
         fetched.putAll(preWarmFetched.ranges());
@@ -837,7 +898,7 @@ final class PreloadedRowGroupMetadata implements Releasable {
         boolean boundWasteToUseful
     ) {
         return awaitStartedCoalescedRead(
-            startCoalescedRead(storageObject, ranges, breaker, ioWatermark, footerBytes, boundWasteToUseful),
+            startCoalescedRead(storageObject, ranges, breaker, ioWatermark, footerBytes, boundWasteToUseful, null),
             timeoutMs
         );
     }
@@ -857,6 +918,18 @@ final class PreloadedRowGroupMetadata implements Releasable {
         @Nullable FooterByteCache footerBytes,
         boolean boundWasteToUseful
     ) {
+        return startCoalescedRead(storageObject, ranges, breaker, ioWatermark, footerBytes, boundWasteToUseful, null);
+    }
+
+    private static StartedCoalescedRead startCoalescedRead(
+        StorageObject storageObject,
+        List<CoalescedRangeReader.ByteRange> ranges,
+        CircuitBreaker breaker,
+        @Nullable ParquetIoWatermark ioWatermark,
+        @Nullable FooterByteCache footerBytes,
+        boolean boundWasteToUseful,
+        @Nullable ParquetIoWatermark.AdmitHold admitHold
+    ) {
         if (ranges.isEmpty()) {
             return new StartedCoalescedRead(
                 CompletableFuture.completedFuture(new CoalescedRangeReader.CoalescedRangeResult(Map.of(), () -> {})),
@@ -875,7 +948,7 @@ final class PreloadedRowGroupMetadata implements Releasable {
                 CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP,
                 breaker,
                 ioWatermark,
-                null,
+                admitHold,
                 footerBytes,
                 boundWasteToUseful,
                 Runnable::run,
@@ -933,6 +1006,34 @@ final class PreloadedRowGroupMetadata implements Releasable {
 
     private static long remainingMs(long deadlineNanos) {
         return Math.max(0L, TimeUnit.NANOSECONDS.toMillis(deadlineNanos - System.nanoTime()));
+    }
+
+    /**
+     * First needed offset to last needed end across {@code ranges}. Empty input is 0.
+     */
+    static long neededSpan(List<CoalescedRangeReader.ByteRange> ranges) {
+        long first = Long.MAX_VALUE;
+        long lastEnd = Long.MIN_VALUE;
+        for (CoalescedRangeReader.ByteRange range : ranges) {
+            first = Math.min(first, range.offset());
+            lastEnd = Math.max(lastEnd, range.offset() + range.length());
+        }
+        return lastEnd > first ? lastEnd - first : 0L;
+    }
+
+    /**
+     * Power-of-two single-GET allowance from the free node budget, clamped to
+     * [{@link ParquetFormatReader#FOOTER_TAIL_PREFETCH_BYTES}, {@link CoalescedRangeReader#DEFAULT_MAX_COALESCE_GAP}].
+     * A queued waiter forces the floor so look-ahead cannot jump the FIFO.
+     */
+    static long singleBatchAllowance(@Nullable ParquetIoWatermark ioWatermark, int externalIoThreads) {
+        long floor = ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES;
+        long ceiling = CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP;
+        if (ioWatermark == null || ioWatermark.waiterCount() > 0 || externalIoThreads <= 0) {
+            return floor;
+        }
+        long share = Math.max(0L, ioWatermark.limit() - ioWatermark.used()) / externalIoThreads;
+        return Math.min(ceiling, Math.max(floor, Long.highestOneBit(share)));
     }
 
     static <T> T awaitCoalesced(PlainActionFuture<T> future, long timeoutMs) {

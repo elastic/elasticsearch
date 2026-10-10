@@ -207,12 +207,12 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
      */
     public void testForceAddedBytesAfterOpenWithFullBudget() throws Exception {
         byte[] file = parquetFile(ROWS, 512 * 1024L);
-        assertThat(
-            "full-budget cell must stay on the #2270 split, file=" + file.length,
-            file.length,
-            greaterThan((int) CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP)
-        );
         FooterMetrics footer = footerMetrics(file, Set.of("category"));
+        assertThat(
+            "full-budget cell must stay on the #2270 split, span=" + footer.neededSpan(),
+            footer.neededSpan(),
+            greaterThan(CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP)
+        );
         ParquetIoWatermark watermark = new ParquetIoWatermark(1);
         CountingAsyncStorage storage = new CountingAsyncStorage(file, asyncIo);
         try (CloseableIterator<Page> iter = open(storage, watermark, CATEGORY)) {
@@ -221,6 +221,21 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
             assertThat(used, lessThan(HeapFootprint.byteArrayBytes(footer.indexSpan())));
             assertThat(storage.asyncBytes.get(), lessThanOrEqualTo(footer.openGetBound()));
             assertEquals(EXPECTED_ROWS, drain(iter).rows());
+        }
+        assertEquals(0L, watermark.used());
+        assertEquals(0L, breaker.getUsed());
+    }
+
+    /**
+     * Mid-span file with a free budget: one admitted GET, then a full filtered read that still
+     * returns the expected {@code cat_03} rows and refunds the hold.
+     */
+    public void testAdmittedSingleGetOpenAndRead() throws Exception {
+        CompactFile compact = writeAdmittedSpanFile();
+        ParquetIoWatermark watermark = new ParquetIoWatermark(1024L * 1024 * 1024);
+        CountingAsyncStorage storage = new CountingAsyncStorage(compact.file(), asyncIo);
+        try (CloseableIterator<Page> iter = open(storage, watermark, CATEGORY)) {
+            assertEquals(compact.expectedRows(), drain(iter).rows());
         }
         assertEquals(0L, watermark.used());
         assertEquals(0L, breaker.getUsed());
@@ -397,11 +412,13 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
 
     private record DrainResult(int rows, long idSum) {}
 
-    private record FooterMetrics(long indexSpan, long dictBloom, long rg0Prefetch) {
+    private record FooterMetrics(long indexSpan, long dictBloom, long rg0Prefetch, long neededSpan) {
         long openGetBound() {
             return indexSpan + 2 * dictBloom + rg0Prefetch;
         }
     }
+
+    private record CompactFile(byte[] file, long span, int expectedRows) {}
 
     private RunResult runConcurrent(byte[] file, List<String> projection) throws Exception {
         return runConcurrent(file, projection, 6, false, "");
@@ -734,10 +751,32 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
             long dictBloom = 0L;
             long minIndex = Long.MAX_VALUE;
             long maxIndex = Long.MIN_VALUE;
+            List<CoalescedRangeReader.ByteRange> needed = new ArrayList<>();
             for (BlockMetaData block : reader.getRowGroups()) {
                 for (ColumnChunkMetaData col : block.getColumns()) {
-                    if (predicateColumns.contains(col.getPath().toDotString()) == false) {
+                    boolean predicate = predicateColumns.contains(col.getPath().toDotString());
+                    IndexReference ci = col.getColumnIndexReference();
+                    if (ci != null && ci.getLength() > 0) {
+                        needed.add(new CoalescedRangeReader.ByteRange(ci.getOffset(), ci.getLength()));
+                        if (predicate) {
+                            minIndex = Math.min(minIndex, ci.getOffset());
+                            maxIndex = Math.max(maxIndex, ci.getOffset() + ci.getLength());
+                        }
+                    }
+                    IndexReference oi = col.getOffsetIndexReference();
+                    if (oi != null && oi.getLength() > 0) {
+                        needed.add(new CoalescedRangeReader.ByteRange(oi.getOffset(), oi.getLength()));
+                        if (predicate) {
+                            minIndex = Math.min(minIndex, oi.getOffset());
+                            maxIndex = Math.max(maxIndex, oi.getOffset() + oi.getLength());
+                        }
+                    }
+                    if (predicate == false) {
                         continue;
+                    }
+                    CoalescedRangeReader.ByteRange dict = ColumnChunkPrefetcher.dictionaryPageRange(col, col.getFirstDataPageOffset());
+                    if (dict != null) {
+                        needed.add(dict);
                     }
                     if (col.hasDictionaryPage() && col.getDictionaryPageOffset() > 0) {
                         dictBloom += col.getFirstDataPageOffset() - col.getDictionaryPageOffset();
@@ -745,16 +784,7 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
                     int bloom = col.getBloomFilterLength();
                     if (col.getBloomFilterOffset() > 0 && bloom > 0) {
                         dictBloom += bloom;
-                    }
-                    IndexReference ci = col.getColumnIndexReference();
-                    if (ci != null && ci.getLength() > 0) {
-                        minIndex = Math.min(minIndex, ci.getOffset());
-                        maxIndex = Math.max(maxIndex, ci.getOffset() + ci.getLength());
-                    }
-                    IndexReference oi = col.getOffsetIndexReference();
-                    if (oi != null && oi.getLength() > 0) {
-                        minIndex = Math.min(minIndex, oi.getOffset());
-                        maxIndex = Math.max(maxIndex, oi.getOffset() + oi.getLength());
+                        needed.add(new CoalescedRangeReader.ByteRange(col.getBloomFilterOffset(), bloom));
                     }
                 }
             }
@@ -767,7 +797,7 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
                     rg0Prefetch += merged.length();
                 }
             }
-            return new FooterMetrics(indexSpan, dictBloom, rg0Prefetch);
+            return new FooterMetrics(indexSpan, dictBloom, rg0Prefetch, PreloadedRowGroupMetadata.neededSpan(needed));
         }
     }
 
@@ -775,8 +805,45 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
         return parquetFile(rows, rowGroupSize, CompressionCodecName.UNCOMPRESSED, false, false);
     }
 
+    private static CompactFile writeAdmittedSpanFile() throws IOException {
+        long floor = ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES;
+        long ceiling = CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP;
+        int rows = 2048;
+        int pad = 48;
+        AssertionError last = new AssertionError("no admitted-span fixture");
+        for (int attempt = 0; attempt < 12; attempt++) {
+            byte[] file = parquetFile(rows, 64 * 1024L, CompressionCodecName.UNCOMPRESSED, false, false, pad);
+            FooterMetrics footer = footerMetrics(file, Set.of("category"));
+            if (footer.neededSpan() > floor && footer.neededSpan() <= ceiling) {
+                return new CompactFile(file, footer.neededSpan(), rows / DICT_CARDINALITY);
+            }
+            last = new AssertionError(
+                "span " + footer.neededSpan() + " not in (" + floor + ", " + ceiling + "] pad=" + pad + " rows=" + rows
+            );
+            if (footer.neededSpan() <= floor) {
+                pad = Math.max(pad + 16, pad * 2);
+                rows = Math.min(rows * 2, 8_192);
+            } else {
+                pad = Math.max(8, pad / 2);
+                rows = Math.max(256, rows / 2);
+            }
+        }
+        throw last;
+    }
+
     private static byte[] parquetFile(int rows, long rowGroupSize, CompressionCodecName codec, boolean sortCategory, boolean extraPredicate)
         throws IOException {
+        return parquetFile(rows, rowGroupSize, codec, sortCategory, extraPredicate, PAD_PER_ROW);
+    }
+
+    private static byte[] parquetFile(
+        int rows,
+        long rowGroupSize,
+        CompressionCodecName codec,
+        boolean sortCategory,
+        boolean extraPredicate,
+        int padPerRow
+    ) throws IOException {
         MessageType schema;
         if (extraPredicate) {
             schema = Types.buildMessage()
@@ -829,23 +896,23 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
                 for (int c = 0; c < DICT_CARDINALITY; c++) {
                     for (int i = 0; i < rows; i++) {
                         if (i % DICT_CARDINALITY == c) {
-                            writeRow(writer, groups, i, categories[c], tags == null ? null : tags[c]);
+                            writeRow(writer, groups, i, categories[c], tags == null ? null : tags[c], padPerRow);
                         }
                     }
                 }
             } else {
                 for (int i = 0; i < rows; i++) {
                     int c = i % DICT_CARDINALITY;
-                    writeRow(writer, groups, i, categories[c], tags == null ? null : tags[c]);
+                    writeRow(writer, groups, i, categories[c], tags == null ? null : tags[c], padPerRow);
                 }
             }
         }
         return out.toByteArray();
     }
 
-    private static void writeRow(ParquetWriter<Group> writer, SimpleGroupFactory groups, int id, String category, String tag)
+    private static void writeRow(ParquetWriter<Group> writer, SimpleGroupFactory groups, int id, String category, String tag, int padPerRow)
         throws IOException {
-        byte[] pad = new byte[PAD_PER_ROW];
+        byte[] pad = new byte[padPerRow];
         random().nextBytes(pad);
         Group group = groups.newGroup().append("id", id).append("category", category);
         if (tag != null) {

@@ -17,6 +17,8 @@ import org.apache.parquet.hadoop.example.ExampleParquetWriter;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
+import org.apache.parquet.internal.column.columnindex.ColumnIndex;
+import org.apache.parquet.internal.column.columnindex.OffsetIndex;
 import org.apache.parquet.internal.hadoop.metadata.IndexReference;
 import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.io.PositionOutputStream;
@@ -40,7 +42,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
 import org.elasticsearch.xpack.esql.datasources.spi.QueryAdmission;
-import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -48,6 +49,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -131,19 +133,21 @@ public class PreloadedRowGroupMetadataSingleBatchTests extends ESTestCase {
 
         NodeByteBudgetService budget = new NodeByteBudgetService(64L << 20);
         ParquetIoWatermark watermark = new ParquetIoWatermark(budget);
-        assertEquals(CEILING, PreloadedRowGroupMetadata.singleBatchAllowance(watermark, LANE_O_THREADS));
-        NodeByteBudget.Hold owner = occupyOvershoot(budget, (64L << 20) + 16);
+        assertEquals(CEILING, PreloadedRowGroupMetadata.singleBatchAllowance(watermark, 1));
+        NodeByteBudget.Hold parked = occupyUnderLimit(budget, 60L << 20);
+        assertEquals("used under the cap still allows a 1 MiB step", CEILING, PreloadedRowGroupMetadata.singleBatchAllowance(watermark, 1));
         CountDownLatch granted = new CountDownLatch(1);
         try {
-            budget.admitAsync(1, new RowGroupIo(), () -> false, Runnable::run).addListener(ActionListener.wrap(hold -> {
+            // Null lease: a lease would take the overshoot slot and grant immediately.
+            budget.admitAsync(8L << 20, null, () -> false, Runnable::run).addListener(ActionListener.wrap(hold -> {
                 hold.close();
                 granted.countDown();
             }, e -> granted.countDown()));
             assertBusy(() -> assertEquals(1, watermark.waiterCount()));
-            assertEquals(FLOOR, PreloadedRowGroupMetadata.singleBatchAllowance(watermark, LANE_O_THREADS));
+            assertTrue("waiter must queue while used is still under the cap", watermark.used() < watermark.limit());
+            assertEquals(FLOOR, PreloadedRowGroupMetadata.singleBatchAllowance(watermark, 1));
         } finally {
-            owner.close();
-            budget.clearOwner(owner.lease());
+            parked.close();
         }
         assertTrue(granted.await(5, TimeUnit.SECONDS));
     }
@@ -153,16 +157,16 @@ public class PreloadedRowGroupMetadataSingleBatchTests extends ESTestCase {
         long span = neededSpan(file, Set.of("start"));
         assertThat("VPC fixture span must sit on the unadmitted floor", span, greaterThan(0L));
         assertThat(span, lessThanOrEqualTo(FLOOR));
-        ParquetIoWatermark full = new ParquetIoWatermark(1);
+        ParquetIoWatermark roomy = new ParquetIoWatermark(64L << 20);
         for (Set<String> panel : VPC_PANELS) {
             long panelSpan = neededSpan(file, panel);
             assertThat("panel " + panel, panelSpan, greaterThan(0L));
             assertThat("panel " + panel, panelSpan, lessThanOrEqualTo(FLOOR));
-            GetCount result = preloadCounting(file, panel, full, 1);
+            GetCount result = preloadCounting(file, panel, roomy, 1);
             assertEquals("panel " + panel + " span=" + panelSpan, 1, result.gets);
-            assertEquals("VPC floor must not tryAdmit, panel=" + panel, 0, result.peakHolders);
-            assertEquals(0L, full.used());
-            assertEquals(0, full.holders());
+            assertEquals("VPC floor must not create a reservation, panel=" + panel, 0, result.peakHolders);
+            assertEquals(0L, roomy.used());
+            assertEquals(0, roomy.holders());
         }
     }
 
@@ -187,22 +191,27 @@ public class PreloadedRowGroupMetadataSingleBatchTests extends ESTestCase {
 
         NodeByteBudgetService budget = new NodeByteBudgetService(64L << 20);
         ParquetIoWatermark watermark = new ParquetIoWatermark(budget);
-        NodeByteBudget.Hold owner = occupyOvershoot(budget, (64L << 20) + 16);
+        NodeByteBudget.Hold parked = occupyUnderLimit(budget, 60L << 20);
+        assertEquals(
+            "without a waiter this budget would admit a 1 MiB GET",
+            CEILING,
+            PreloadedRowGroupMetadata.singleBatchAllowance(watermark, 1)
+        );
         CountDownLatch granted = new CountDownLatch(1);
         AtomicReference<NodeByteBudget.Hold> waiter = new AtomicReference<>();
         try {
-            budget.admitAsync(1, new RowGroupIo(), () -> false, Runnable::run).addListener(ActionListener.wrap(hold -> {
+            budget.admitAsync(8L << 20, null, () -> false, Runnable::run).addListener(ActionListener.wrap(hold -> {
                 waiter.set(hold);
                 granted.countDown();
             }, e -> granted.countDown()));
             assertBusy(() -> assertEquals(1, watermark.waiterCount()));
+            assertTrue("waiter must queue while used is still under the cap", watermark.used() < watermark.limit());
             GetCount waiterResult = preloadCounting(fixture.bytes, Set.of("a"), watermark, 1);
             assertEquals("queued waiter must keep the same split GET count", fullResult.gets, waiterResult.gets);
             assertEquals("preload must not jump the FIFO", 1, watermark.waiterCount());
             assertNull(waiter.get());
         } finally {
-            owner.close();
-            budget.clearOwner(owner.lease());
+            parked.close();
         }
         assertTrue(granted.await(5, TimeUnit.SECONDS));
         assertNotNull(waiter.get());
@@ -211,18 +220,45 @@ public class PreloadedRowGroupMetadataSingleBatchTests extends ESTestCase {
         assertEquals(0L, watermark.used());
     }
 
-    public void testEstimateOneByteShortOfSpanTakesSplit() throws Exception {
+    public void testTryAdmitSingleBatchUsesHeapEstimateAndRequiresPreWarm() {
+        long span = 200_000L;
+        long estimate = HeapFootprint.byteArrayBytes(span);
+        assertThat(estimate, greaterThan(span));
+
+        ParquetIoWatermark roomy = new ParquetIoWatermark(64L << 20);
+        assertNull("floor must not reserve", PreloadedRowGroupMetadata.tryAdmitSingleBatch(roomy, FLOOR, CEILING, true));
+        assertNull("no pre-warm must not reserve", PreloadedRowGroupMetadata.tryAdmitSingleBatch(roomy, span, CEILING, false));
+        assertNull("over allowance must not reserve", PreloadedRowGroupMetadata.tryAdmitSingleBatch(roomy, span, span - 1, true));
+        ParquetIoWatermark.AdmitHold granted = PreloadedRowGroupMetadata.tryAdmitSingleBatch(roomy, span, CEILING, true);
+        assertNotNull(granted);
+        granted.drop();
+        assertEquals(0, roomy.holders());
+
+        ParquetIoWatermark tight = new ParquetIoWatermark(estimate - 1);
+        assertNull("estimate-1 must refuse", PreloadedRowGroupMetadata.tryAdmitSingleBatch(tight, span, CEILING, true));
+        ParquetIoWatermark.AdmitHold plain = tight.tryAdmit(span);
+        assertNotNull("plain span would have been granted — production must charge the heap estimate", plain);
+        plain.drop();
+    }
+
+    public void testSingleBatchMatchesSplitIndexesAndChunks() throws Exception {
         Fixture fixture = writeSpanBetween(FLOOR + 1, CEILING);
-        long estimate = HeapFootprint.byteArrayBytes(fixture.span);
-        assertNull(
-            "tryAdmit charges the heap estimate, so estimate-1 must refuse",
-            new ParquetIoWatermark(estimate - 1).tryAdmit(estimate)
-        );
-        ParquetIoWatermark watermark = new ParquetIoWatermark(estimate - 1);
-        GetCount result = preloadCounting(fixture.bytes, Set.of("a"), watermark, 1);
-        assertThat("cap of byteArrayBytes(span)-1 must take the split, span=" + fixture.span, result.gets, greaterThan(1));
-        assertEquals(0, result.peakHolders);
-        assertEquals(0L, watermark.used());
+        ParquetIoWatermark admittedWm = new ParquetIoWatermark(64L << 20);
+        ParquetIoWatermark splitWm = new ParquetIoWatermark(1);
+        CountingGetsStorage admittedStorage = new CountingGetsStorage(fixture.bytes, admittedWm, null);
+        CountingGetsStorage splitStorage = new CountingGetsStorage(fixture.bytes, splitWm, null);
+        try (ParquetFileReader reader = openReader(fixture.bytes)) {
+            try (
+                PreloadedRowGroupMetadata admitted = preload(reader, admittedStorage, Set.of("a"), admittedWm);
+                PreloadedRowGroupMetadata split = preload(reader, splitStorage, Set.of("a"), splitWm)
+            ) {
+                assertEquals("admitted path must be one GET", 1, admittedStorage.gets.get());
+                assertThat("split path must issue more than one GET", splitStorage.gets.get(), greaterThan(1));
+                assertEquivalent(admitted, split, reader);
+            }
+        }
+        assertEquals(0L, admittedWm.used());
+        assertEquals(0L, splitWm.used());
     }
 
     public void testThrowBeforeDispatchAndFailedGetDropHold() throws Exception {
@@ -307,6 +343,72 @@ public class PreloadedRowGroupMetadataSingleBatchTests extends ESTestCase {
             }
         }
         return new GetCount(storage.gets.get(), storage.peakHolders.get());
+    }
+
+    private PreloadedRowGroupMetadata preload(
+        ParquetFileReader reader,
+        StorageObject storage,
+        Set<String> predicates,
+        ParquetIoWatermark watermark
+    ) throws IOException {
+        return PreloadedRowGroupMetadata.preload(
+            reader,
+            storage,
+            predicates,
+            null,
+            null,
+            Integer.MAX_VALUE,
+            breaker,
+            watermark,
+            null,
+            QueryAdmission.DEFAULT_ACQUIRE_TIMEOUT_MS,
+            1
+        );
+    }
+
+    private static void assertEquivalent(PreloadedRowGroupMetadata a, PreloadedRowGroupMetadata b, ParquetFileReader reader) {
+        List<BlockMetaData> rowGroups = reader.getRowGroups();
+        for (int rg = 0; rg < rowGroups.size(); rg++) {
+            for (ColumnChunkMetaData col : rowGroups.get(rg).getColumns()) {
+                String path = col.getPath().toDotString();
+                ColumnIndex aci = a.getColumnIndex(rg, path);
+                ColumnIndex bci = b.getColumnIndex(rg, path);
+                assertEquals(path + " column-index presence rg=" + rg, aci == null, bci == null);
+                if (aci != null) {
+                    assertByteBuffersEqual(path + " min rg=" + rg, aci.getMinValues(), bci.getMinValues());
+                    assertByteBuffersEqual(path + " max rg=" + rg, aci.getMaxValues(), bci.getMaxValues());
+                }
+                OffsetIndex aoi = a.getOffsetIndex(rg, path);
+                OffsetIndex boi = b.getOffsetIndex(rg, path);
+                assertEquals(path + " offset-index presence rg=" + rg, aoi == null, boi == null);
+                if (aoi != null) {
+                    assertEquals(path + " page count rg=" + rg, aoi.getPageCount(), boi.getPageCount());
+                    for (int page = 0; page < aoi.getPageCount(); page++) {
+                        assertEquals(path + " page offset rg=" + rg, aoi.getOffset(page), boi.getOffset(page));
+                    }
+                }
+            }
+        }
+        assertEquals(a.preWarmedChunks().keySet(), b.preWarmedChunks().keySet());
+        for (var e : a.preWarmedChunks().entrySet()) {
+            ColumnChunkPrefetcher.PrefetchedChunk other = b.preWarmedChunks().get(e.getKey());
+            assertEquals(e.getValue().length(), other.length());
+            assertArrayEquals(copyRemaining(e.getValue().data()), copyRemaining(other.data()));
+        }
+    }
+
+    private static void assertByteBuffersEqual(String label, List<ByteBuffer> a, List<ByteBuffer> b) {
+        assertEquals(label + " size", a.size(), b.size());
+        for (int i = 0; i < a.size(); i++) {
+            assertArrayEquals(label + " [" + i + "]", copyRemaining(a.get(i)), copyRemaining(b.get(i)));
+        }
+    }
+
+    private static byte[] copyRemaining(ByteBuffer buffer) {
+        ByteBuffer view = buffer.duplicate();
+        byte[] bytes = new byte[view.remaining()];
+        view.get(bytes);
+        return bytes;
     }
 
     private ParquetFileReader openReader(byte[] file) throws IOException {
@@ -527,21 +629,11 @@ public class PreloadedRowGroupMetadataSingleBatchTests extends ESTestCase {
         };
     }
 
-    private static NodeByteBudget.Hold occupyOvershoot(NodeByteBudgetService budget, long bytes) throws Exception {
-        CountDownLatch done = new CountDownLatch(1);
-        AtomicReference<NodeByteBudget.Hold> hold = new AtomicReference<>();
-        AtomicReference<Exception> error = new AtomicReference<>();
-        budget.admitAsync(bytes, new RowGroupIo(), () -> false, Runnable::run).addListener(ActionListener.wrap(h -> {
-            hold.set(h);
-            done.countDown();
-        }, e -> {
-            error.set(e);
-            done.countDown();
-        }));
-        assertTrue(done.await(5, TimeUnit.SECONDS));
-        assertNull(error.get());
-        assertNotNull(hold.get());
-        return hold.get();
+    private static NodeByteBudget.Hold occupyUnderLimit(NodeByteBudgetService budget, long bytes) {
+        NodeByteBudget.Hold hold = budget.tryAdmit(bytes);
+        assertNotNull("must park under the cap", hold);
+        assertTrue("used must stay under limit so the waiter, not overshoot, forces the floor", budget.used() < budget.limit());
+        return hold;
     }
 
     private static OutputFile outputFile(ByteArrayOutputStream out) {

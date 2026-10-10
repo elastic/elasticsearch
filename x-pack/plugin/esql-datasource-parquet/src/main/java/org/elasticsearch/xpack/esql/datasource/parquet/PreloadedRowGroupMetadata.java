@@ -163,10 +163,12 @@ final class PreloadedRowGroupMetadata implements Releasable {
      * Preloads column indexes and offset indexes for all row groups.
      *
      * <p>When a {@link StorageObject} is provided, index ranges and dictionary/bloom ranges
-     * are collected and fetched in two {@link CoalescedRangeReader#readCoalesced} batches —
-     * indexes with the 1 MiB gap, dictionary/bloom with waste bounded to useful bytes —
-     * dispatched together so they share one round trip. Adjacent ranges merge; each batch
-     * issues parallel async reads. This reduces hundreds of sequential I/O operations to a
+     * are collected and fetched in one {@link CoalescedRangeReader#readCoalesced} GET when the
+     * needed span is at most 64 KiB (unadmitted), or at most a budget-sized step up to 1 MiB
+     * that {@code tryAdmit} grants (only when dictionary or bloom ranges exist). Otherwise two
+     * batches — indexes with the 1 MiB gap, dictionary/bloom with waste bounded to useful
+     * bytes — dispatched together so they share one round trip. Adjacent ranges merge; each
+     * batch issues parallel async reads. This reduces hundreds of sequential I/O operations to a
      * handful of coalesced requests.
      *
      * <p><b>Threading model:</b> This method is called from {@code ParquetFormatReader.read()}
@@ -404,13 +406,14 @@ final class PreloadedRowGroupMetadata implements Releasable {
      * into typed objects and retains dictionary/bloom ranges as raw byte chunks for
      * {@link ParquetStorageObjectAdapter} pre-warming.
      *
-     * <p>Open-time {@code forceAdd} is at most twice the predicate columns' dictionary and
-     * bloom bytes in the split, plus the <em>index span</em> (first needed column/offset-index
-     * offset to last needed end; the 1 MiB gap also pulls unrequested indexes that sit
-     * between them), plus one window — or one admitted span of at most 1 MiB when the budget
-     * has room. Transient: released after the row-group filter. Still
-     * outside the node cap until a later ticket for the pre-warm, except the admitted
-     * single-GET path which holds from dispatch through await.
+     * <p>Open-time {@code forceAdd} is at most 64 KiB per open on the unadmitted single-GET
+     * path (node-wide: external I/O threads × 64 KiB), or one admitted span of at most
+     * {@code byteArrayBytes(1 MiB)} when the budget has room and dictionary or bloom ranges
+     * exist, or — on the split — twice the predicate columns' dictionary and bloom bytes plus
+     * the <em>index span</em> (first needed column/offset-index offset to last needed end;
+     * the 1 MiB gap also pulls unrequested indexes that sit between them) plus one window.
+     * Transient: released after the row-group filter. Split leftovers stay outside the node
+     * cap until a later ticket; the admitted single-GET path holds from dispatch through await.
      *
      * <p><b>Parallelism:</b> {@link CoalescedRangeReader#readCoalesced} dispatches one
      * {@code readBytesAsync} call per merged range back-to-back without waiting between calls.
@@ -493,15 +496,22 @@ final class PreloadedRowGroupMetadata implements Releasable {
 
         long deadlineNanos = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(coalescedJoinTimeoutMs);
         long span = neededSpan(ranges);
-        long allowance = singleBatchAllowance(ioWatermark, externalIoThreads);
-        ParquetIoWatermark.AdmitHold hold = null;
+        // Floor first so VPC-sized opens never take the budget lock to count waiters.
         boolean singleBatch = span > 0L && span <= ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES;
-        if (singleBatch == false && span > 0L && span <= allowance && ioWatermark != null) {
-            hold = ioWatermark.tryAdmit(HeapFootprint.byteArrayBytes(span));
+        ParquetIoWatermark.AdmitHold hold = null;
+        if (singleBatch == false && preWarmRanges.isEmpty() == false) {
+            long allowance = singleBatchAllowance(ioWatermark, externalIoThreads);
+            hold = tryAdmitSingleBatch(ioWatermark, span, allowance, true);
             singleBatch = hold != null;
         }
+        logger.debug(
+            "Coalesced metadata preload path [{}] span [{}] pre-warm ranges [{}]",
+            singleBatch ? (hold != null ? "admitted-single" : "unadmitted-single") : "split",
+            span,
+            preWarmRanges.size()
+        );
         CoalescedRangeReader.CoalescedRangeResult indexFetched = null;
-        CoalescedRangeReader.CoalescedRangeResult preWarmFetched;
+        CoalescedRangeReader.CoalescedRangeResult preWarmFetched = null;
         try {
             if (singleBatch) {
                 StartedCoalescedRead allStarted = startCoalescedRead(storageObject, ranges, breaker, ioWatermark, footerBytes, false, hold);
@@ -541,7 +551,13 @@ final class PreloadedRowGroupMetadata implements Releasable {
             }
         } finally {
             if (hold != null) {
-                hold.drop();
+                try {
+                    hold.drop();
+                } catch (Throwable dropFailure) {
+                    closeFetched(indexFetched);
+                    closeFetched(preWarmFetched);
+                    throw dropFailure;
+                }
             }
         }
         Map<CoalescedRangeReader.ByteRange, ByteBuffer> fetched = new HashMap<>(indexFetched.ranges());
@@ -1019,6 +1035,38 @@ final class PreloadedRowGroupMetadata implements Releasable {
             lastEnd = Math.max(lastEnd, range.offset() + range.length());
         }
         return lastEnd > first ? lastEnd - first : 0L;
+    }
+
+    /**
+     * Look-ahead admit for one covering GET. Null when the 64 KiB floor already applies,
+     * there is no pre-warm to justify a new reservation, the span exceeds {@code allowance},
+     * or the budget refuses. Bytes charged are the heap footprint, not the raw span.
+     */
+    @Nullable
+    static ParquetIoWatermark.AdmitHold tryAdmitSingleBatch(
+        @Nullable ParquetIoWatermark ioWatermark,
+        long span,
+        long allowance,
+        boolean hasPreWarmRanges
+    ) {
+        if (ioWatermark == null || hasPreWarmRanges == false) {
+            return null;
+        }
+        if (span <= ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES || span > allowance) {
+            return null;
+        }
+        return ioWatermark.tryAdmit(HeapFootprint.byteArrayBytes(span));
+    }
+
+    private static void closeFetched(@Nullable CoalescedRangeReader.CoalescedRangeResult result) {
+        if (result == null) {
+            return;
+        }
+        try {
+            result.release().close();
+        } catch (Throwable ignored) {
+            // Best-effort on the hold-drop failure path.
+        }
     }
 
     /**

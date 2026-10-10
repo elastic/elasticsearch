@@ -431,15 +431,12 @@ public class LuceneSourceOperator extends LuceneOperator {
     }
 
     /**
-     * Collects doc ids into {@link #docIds} until the limit is exhausted. The unchecked {@code docIds} writes (in all three
-     * collection methods) are safe because {@link LuceneScorer#scoreNextRange} clamps every scored window to
-     * {@code maxPageSize - currentPagePos} docs and bulk scorers only deliver docs within the requested window.
+     * Collects doc ids into {@link #docIds} until the limit is exhausted. The unchecked {@code docIds} writes are safe
+     * because {@link LuceneScorer#scoreNextRange} clamps every scored window to {@code maxPageSize - currentPagePos} docs
+     * and bulk scorers only deliver docs within the requested window.
      *
-     * <p>{@link #collectRange} and {@link #collect(DocIdStream)} do <em>not</em> delegate to {@link #collect(int)}: the bulk
-     * scorer's dense-run shortcut only pays off if these write the run in a counted loop instead of one virtual call per
-     * document (whose inlining depends on how polluted the shared {@code LeafCollector#collect(int)} call site's profile is).
-     * Subclasses that override {@link #collect(int)} to do per-document work must override the bulk methods too, as
-     * {@link ScoringCollector} does.
+     * <p>The bulk methods do not delegate to {@link #collect(int)}; subclasses that override it to do per-document work
+     * must override {@link #collectRange} and {@link #collect(DocIdStream)} too, as {@link ScoringCollector} does.
      */
     class LimitingCollector implements LeafCollector {
         @Override

@@ -21,7 +21,6 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.plugins.internal.XContentParserDecorator;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -222,8 +221,7 @@ public class XContentHelper {
         config = config != null ? config : XContentParserConfiguration.EMPTY;
         try (
             XContentParser parser = parserDecorator.decorate(
-                xContentType != null ? createParser(config, bytes, xContentType) : createParser(config, bytes),
-                Mapping.EMPTY
+                xContentType != null ? createParser(config, bytes, xContentType) : createParser(config, bytes)
             )
         ) {
             Tuple<XContentType, T> xContentTypeTTuple = new Tuple<>(parser.contentType(), extractor.apply(parser));

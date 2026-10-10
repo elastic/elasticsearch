@@ -9,14 +9,19 @@
 
 package org.elasticsearch.escf;
 
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.sourcebatch.SourceRow;
 import org.elasticsearch.sourcebatch.SourceSchema;
+import org.elasticsearch.transport.BytesRefRecycler;
 
 /**
  * An Elasticsearch Column Format batch: a column-major {@link SourceBatch} backed by an array
@@ -35,31 +40,53 @@ public final class EscfBatch implements SourceBatch {
     private final EscfColumnData[] columnData;
     private final EscfColumn[] columns;
     private final Releasable releasable;
+    @Nullable
+    private final Recycler<BytesRef> recycler;
+    @Nullable
+    private final EscfBatch fullRangeParent;
     private BytesReference serialized;
+    @Nullable
+    private Releasable serializedPages;
+    private boolean closed;
 
     /** In-memory construction path used by {@link EscfEncoder#buildPartition(int)}. */
-    EscfBatch(SourceSchema schema, int docCount, EscfColumnData[] columnData, Releasable releasable) {
-        this(schema, docCount, columnData, null, releasable);
+    EscfBatch(SourceSchema schema, int docCount, EscfColumnData[] columnData, Recycler<BytesRef> recycler, Releasable releasable) {
+        this(schema, docCount, columnData, null, recycler, releasable);
     }
 
     /** Full construction path, used by {@link EscfBatchCodec#parse} once the serialized bytes are already in hand. */
     EscfBatch(SourceSchema schema, int docCount, EscfColumnData[] columnData, BytesReference serialized, Releasable releasable) {
+        this(schema, docCount, columnData, serialized, null, releasable);
+    }
+
+    private EscfBatch(
+        SourceSchema schema,
+        int docCount,
+        EscfColumnData[] columnData,
+        @Nullable BytesReference serialized,
+        @Nullable Recycler<BytesRef> recycler,
+        Releasable releasable
+    ) {
         this.schema = schema;
         this.docCount = docCount;
         this.columnData = columnData;
         this.columns = buildColumns(columnData);
         this.releasable = releasable;
+        this.recycler = recycler;
+        this.fullRangeParent = null;
         this.serialized = serialized;
     }
 
     /** Slice construction — shares backing data with the parent via adjusted column bases. */
-    private EscfBatch(SourceSchema schema, int docCount, EscfColumn[] columns, @Nullable BytesReference serialized) {
+    private EscfBatch(SourceSchema schema, int docCount, EscfColumn[] columns, @Nullable EscfBatch fullRangeParent) {
         this.schema = schema;
         this.docCount = docCount;
         this.columnData = null; // slice views share the parent's RAM; no separate accounting
         this.columns = columns;
         this.releasable = () -> {};
-        this.serialized = serialized;
+        this.recycler = null;
+        this.fullRangeParent = fullRangeParent;
+        this.serialized = null;
     }
 
     private static EscfColumn[] buildColumns(EscfColumnData[] data) {
@@ -87,13 +114,25 @@ public final class EscfBatch implements SourceBatch {
 
     @Override
     public BytesReference data() {
+        assert closed == false : "batch already closed";
         // TODO: Eventually optimize to be more stream like on the serialization path.
         if (serialized == null) {
-            EscfColumnData[] dataForSerialize = new EscfColumnData[columns.length];
-            for (int i = 0; i < columns.length; i++) {
-                dataForSerialize[i] = columns[i].toColumnData();
+            if (fullRangeParent != null) {
+                serialized = fullRangeParent.data();
+            } else {
+                EscfColumnData[] dataForSerialize = new EscfColumnData[columns.length];
+                for (int i = 0; i < columns.length; i++) {
+                    dataForSerialize[i] = columns[i].toColumnData();
+                }
+                ReleasableBytesReference bytes = EscfBatchCodec.serialize(
+                    schema,
+                    docCount,
+                    dataForSerialize,
+                    recycler != null ? recycler : BytesRefRecycler.NON_RECYCLING_INSTANCE
+                );
+                serializedPages = bytes;
+                serialized = bytes;
             }
-            serialized = EscfBatchCodec.serialize(schema, docCount, dataForSerialize);
         }
         return serialized;
     }
@@ -105,6 +144,7 @@ public final class EscfBatch implements SourceBatch {
 
     @Override
     public SourceRow row(int docIndex) {
+        assert closed == false : "batch already closed";
         if (docIndex < 0 || docIndex >= docCount) {
             throw new IndexOutOfBoundsException("docIndex " + docIndex + " out of range [0, " + docCount + ")");
         }
@@ -113,6 +153,7 @@ public final class EscfBatch implements SourceBatch {
 
     /** The typed view for {@code columnIndex}. */
     public EscfColumn column(int columnIndex) {
+        assert closed == false : "batch already closed";
         return columns[columnIndex];
     }
 
@@ -123,6 +164,7 @@ public final class EscfBatch implements SourceBatch {
 
     @Override
     public SourceBatch slice(int from, int to) {
+        assert closed == false : "batch already closed";
         if (from < 0 || to > docCount || from > to) {
             throw new IndexOutOfBoundsException("slice [" + from + ", " + to + ") out of [0, " + docCount + ")");
         }
@@ -131,15 +173,16 @@ public final class EscfBatch implements SourceBatch {
         for (int c = 0; c < columns.length; c++) {
             slicedColumns[c] = columns[c].sliceInternal(from, newDocCount);
         }
-        // Preserve the cached serialized bytes only for a full-range slice; partial slices must be
-        // re-serialized at their new base (slices must not inherit mismatched wire bytes).
-        BytesReference slicedSerialized = (from == 0 && to == docCount) ? serialized : null;
-        return new EscfBatch(schema, newDocCount, slicedColumns, slicedSerialized);
+        // A full-range slice serializes through its parent; partial slices must be re-serialized at their
+        // new base (slices must not inherit mismatched wire bytes).
+        return new EscfBatch(schema, newDocCount, slicedColumns, (from == 0 && to == docCount) ? this : null);
     }
 
     @Override
     public void close() {
-        releasable.close();
+        assert closed == false : "batch already closed";
+        closed = true;
+        Releasables.close(serializedPages, releasable);
     }
 
     /**

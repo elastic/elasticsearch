@@ -11,13 +11,18 @@ package org.elasticsearch.escf;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
-import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.sourcebatch.SourceSchema;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -138,7 +143,7 @@ final class EscfBatchCodec {
         return new EscfBatch(schema, docCount, columns, data, releasable);
     }
 
-    static BytesReference serialize(SourceSchema schema, int docCount, EscfColumnData[] columns) {
+    static ReleasableBytesReference serialize(SourceSchema schema, int docCount, EscfColumnData[] columns, Recycler<BytesRef> recycler) {
         int colCount = schema.leafCount();
 
         int schemaSize = schemaSize(schema);
@@ -147,92 +152,142 @@ final class EscfBatchCodec {
         int columnIndexOffset = schemaOffset + schemaSize;
         int dataOffset = columnIndexOffset + columnIndexSize;
 
-        // Encode each column's native fields into their wire byte parts — this is the only place ESCF serializes.
-        BytesReference[] absentPart = new BytesReference[colCount];
-        BytesReference[] typeVecPart = new BytesReference[colCount];
-        BytesReference[] offsetsPart = new BytesReference[colCount];
-        BytesReference[] dataPart = new BytesReference[colCount];
-        for (int c = 0; c < colCount; c++) {
-            EscfColumnData col = columns[c];
-            absentPart[c] = col.validity() != null ? bitsetToRef(col.validity(), docCount) : null;
-            typeVecPart[c] = col.typeVector() != null
-                ? new BytesArray(col.typeVector().bytes, col.typeVector().offset, col.typeVector().length)
-                : null;
-            offsetsPart[c] = col.offsets() != null ? intArrayToRef(col.offsets()) : null;
-            // BOOL keeps its value bitset in the data slot; ARRAY flattens its native child column to
-            // child_kind(1) | child_values bytes here (the only place ESCF serializes an ARRAY's child);
-            // every other kind already has a byte payload.
-            if (col.kind() == EscfColumnKind.BOOL) {
-                dataPart[c] = bitsetToRef(col.values(), docCount);
-            } else if (col.kind() == EscfColumnKind.ARRAY) {
-                dataPart[c] = encodeArrayChild(col.child());
-            } else {
-                dataPart[c] = col.data();
-            }
-        }
-
-        int[] flags = new int[colCount];
-        int[] baseOffsets = new int[colCount];
+        int[] validityLen = new int[colCount];
+        int[] typeVecLen = new int[colCount];
+        int[] offsetsLen = new int[colCount];
+        int[] dataLen = new int[colCount];
         int cumDataOffset = 0;
         for (int c = 0; c < colCount; c++) {
-            baseOffsets[c] = cumDataOffset;
-            int f = 0;
-            if (absentPart[c] != null) {
-                f |= FLAG_VALIDITY;
-                cumDataOffset += absentPart[c].length();
-            }
-            if (typeVecPart[c] != null) {
-                f |= FLAG_TYPE_VECTOR;
-                cumDataOffset += typeVecPart[c].length();
-            }
-            if (offsetsPart[c] != null) {
-                f |= FLAG_OFFSETS;
-                cumDataOffset += offsetsPart[c].length();
-            }
-            cumDataOffset += dataPart[c].length();
-            flags[c] = f;
+            EscfColumnData col = columns[c];
+            validityLen[c] = col.validity() != null ? bitsetBytes(docCount) : 0;
+            typeVecLen[c] = col.typeVector() != null ? col.typeVector().length : 0;
+            offsetsLen[c] = col.offsets() != null ? col.offsets().length * 4 : 0;
+            dataLen[c] = dataLength(col, docCount);
+            cumDataOffset += validityLen[c] + typeVecLen[c] + offsetsLen[c] + dataLen[c];
         }
         int totalSize = dataOffset + cumDataOffset;
 
-        byte[] header = new byte[dataOffset];
-        ByteUtils.writeIntLE(MAGIC_LE, header, 0);
-        ByteUtils.writeIntLE(VERSION, header, 4);
-        ByteUtils.writeIntLE(0, header, 8);
-        ByteUtils.writeIntLE(docCount, header, 12);
-        ByteUtils.writeIntLE(schemaOffset, header, 16);
-        ByteUtils.writeIntLE(columnIndexOffset, header, 20);
-        ByteUtils.writeIntLE(dataOffset, header, 24);
-        ByteUtils.writeIntLE(totalSize, header, 28);
+        // Header, column index and every column's metadata go into one recycler stream; payloads are
+        // joined by reference. This is the only place ESCF serializes.
+        RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
+        boolean success = false;
+        try {
+            out.writeIntLE(MAGIC_LE);
+            out.writeIntLE(VERSION);
+            out.writeIntLE(0);
+            out.writeIntLE(docCount);
+            out.writeIntLE(schemaOffset);
+            out.writeIntLE(columnIndexOffset);
+            out.writeIntLE(dataOffset);
+            out.writeIntLE(totalSize);
+            writeSchema(schema, out);
 
-        writeSchema(schema, header, schemaOffset);
+            int baseOffset = 0;
+            for (int c = 0; c < colCount; c++) {
+                EscfColumnData col = columns[c];
+                out.writeByte(col.kind());
+                out.writeByte((byte) presentFlags(col));
+                out.writeIntLE(baseOffset);
+                out.writeIntLE(validityLen[c]);
+                out.writeIntLE(typeVecLen[c]);
+                out.writeIntLE(offsetsLen[c]);
+                out.writeIntLE(dataLen[c]);
+                baseOffset += validityLen[c] + typeVecLen[c] + offsetsLen[c] + dataLen[c];
+            }
 
-        int pos = columnIndexOffset;
-        for (int c = 0; c < colCount; c++) {
-            header[pos] = columns[c].kind();
-            header[pos + 1] = (byte) flags[c];
-            ByteUtils.writeIntLE(baseOffsets[c], header, pos + 2);
-            ByteUtils.writeIntLE(absentPart[c] != null ? absentPart[c].length() : 0, header, pos + 6);
-            ByteUtils.writeIntLE(typeVecPart[c] != null ? typeVecPart[c].length() : 0, header, pos + 10);
-            ByteUtils.writeIntLE(offsetsPart[c] != null ? offsetsPart[c].length() : 0, header, pos + 14);
-            ByteUtils.writeIntLE(dataPart[c].length(), header, pos + 18);
-            pos += COLUMN_INDEX_ENTRY_SIZE;
+            BytesReference[] payloads = new BytesReference[colCount];
+            long[] metadataEnds = new long[colCount];
+            for (int c = 0; c < colCount; c++) {
+                EscfColumnData col = columns[c];
+                if (col.validity() != null) {
+                    writeBitset(out, col.validity(), docCount);
+                }
+                if (col.typeVector() != null) {
+                    out.writeBytes(col.typeVector().bytes, col.typeVector().offset, col.typeVector().length);
+                }
+                if (col.offsets() != null) {
+                    writeOffsets(out, col.offsets());
+                }
+                // BOOL keeps its value bitset in the data slot; ARRAY flattens its native child column to
+                // child_kind(1) | child_values bytes here (the only place ESCF serializes an ARRAY's child);
+                // every other kind already has a byte payload.
+                payloads[c] = switch (col.kind()) {
+                    case EscfColumnKind.BOOL -> {
+                        writeBitset(out, col.values(), docCount);
+                        yield null;
+                    }
+                    case EscfColumnKind.ARRAY -> {
+                        writeArrayChildPrefix(out, col.child());
+                        yield col.child().data();
+                    }
+                    case EscfColumnKind.LONG, EscfColumnKind.DOUBLE, EscfColumnKind.STRING, EscfColumnKind.BINARY, EscfColumnKind.UNION ->
+                        col.data();
+                    default -> throw new IllegalStateException("Unknown ESCF column kind: " + EscfColumnKind.name(col.kind()));
+                };
+                metadataEnds[c] = out.position();
+            }
+            assert out.position() + payloadsLength(payloads) == totalSize : out.position() + " + payloads != " + totalSize;
+
+            BytesReference written = out.bytes();
+            ReleasableBytesReference pages = out.moveToBytesReference();
+            success = true;
+            List<BytesReference> parts = new ArrayList<>(1 + 2 * colCount);
+            int from = 0;
+            for (int c = 0; c < colCount; c++) {
+                int to = Math.toIntExact(metadataEnds[c]);
+                addNonEmpty(parts, written.slice(from, to - from));
+                addNonEmpty(parts, payloads[c]);
+                from = to;
+            }
+            addNonEmpty(parts, written.slice(from, written.length() - from));
+            Releasable releasePages = pages;
+            return new ReleasableBytesReference(CompositeBytesReference.of(parts.toArray(new BytesReference[0])), releasePages);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        } finally {
+            if (success == false) {
+                out.close();
+            }
         }
+    }
 
-        List<BytesReference> parts = new ArrayList<>(1 + colCount * 4);
-        parts.add(new BytesArray(header));
-        for (int c = 0; c < colCount; c++) {
-            if (absentPart[c] != null) {
-                parts.add(absentPart[c]);
-            }
-            if (typeVecPart[c] != null) {
-                parts.add(typeVecPart[c]);
-            }
-            if (offsetsPart[c] != null) {
-                parts.add(offsetsPart[c]);
-            }
-            parts.add(dataPart[c]);
+    private static int presentFlags(EscfColumnData col) {
+        int flags = 0;
+        if (col.validity() != null) {
+            flags |= FLAG_VALIDITY;
         }
-        return CompositeBytesReference.of(parts.toArray(new BytesReference[0]));
+        if (col.typeVector() != null) {
+            flags |= FLAG_TYPE_VECTOR;
+        }
+        if (col.offsets() != null) {
+            flags |= FLAG_OFFSETS;
+        }
+        return flags;
+    }
+
+    private static int dataLength(EscfColumnData col, int docCount) {
+        return switch (col.kind()) {
+            case EscfColumnKind.BOOL -> bitsetBytes(docCount);
+            case EscfColumnKind.ARRAY -> arrayChildLength(col.child());
+            case EscfColumnKind.LONG, EscfColumnKind.DOUBLE, EscfColumnKind.STRING, EscfColumnKind.BINARY, EscfColumnKind.UNION -> col
+                .data()
+                .length();
+            default -> throw new IllegalStateException("Unknown ESCF column kind: " + EscfColumnKind.name(col.kind()));
+        };
+    }
+
+    private static long payloadsLength(BytesReference[] payloads) {
+        long length = 0;
+        for (BytesReference payload : payloads) {
+            length += payload == null ? 0 : payload.length();
+        }
+        return length;
+    }
+
+    private static void addNonEmpty(List<BytesReference> parts, @Nullable BytesReference part) {
+        if (part != null && part.length() > 0) {
+            parts.add(part);
+        }
     }
 
     /** Number of bytes the serialized schema occupies (a {@code u16} count and, per field, parent + name-length + name). */
@@ -248,33 +303,24 @@ final class EscfBatchCodec {
         return size;
     }
 
-    /** Writes {@code schema} into {@code buf} starting at {@code pos}; returns the position just past the schema. */
-    static int writeSchema(SourceSchema schema, byte[] buf, int pos) {
+    /** Writes {@code schema} to {@code out}, exactly {@link #schemaSize} bytes. */
+    static void writeSchema(SourceSchema schema, StreamOutput out) throws IOException {
         int nonLeafCount = schema.nonLeafCount();
         int leafCount = schema.leafCount();
-        writeShortLE(buf, pos, nonLeafCount);
-        pos += 2;
+        writeU16LE(out, nonLeafCount);
         for (int i = 0; i < nonLeafCount; i++) {
             byte[] name = schema.getNonLeafName(i).getBytes(StandardCharsets.UTF_8);
-            writeShortLE(buf, pos, schema.getNonLeafParent(i));
-            pos += 2;
-            writeShortLE(buf, pos, name.length);
-            pos += 2;
-            System.arraycopy(name, 0, buf, pos, name.length);
-            pos += name.length;
+            writeU16LE(out, schema.getNonLeafParent(i));
+            writeU16LE(out, name.length);
+            out.writeBytes(name);
         }
-        writeShortLE(buf, pos, leafCount);
-        pos += 2;
+        writeU16LE(out, leafCount);
         for (int i = 0; i < leafCount; i++) {
             byte[] name = schema.getLeafName(i).getBytes(StandardCharsets.UTF_8);
-            writeShortLE(buf, pos, schema.getLeafParent(i));
-            pos += 2;
-            writeShortLE(buf, pos, name.length);
-            pos += 2;
-            System.arraycopy(name, 0, buf, pos, name.length);
-            pos += name.length;
+            writeU16LE(out, schema.getLeafParent(i));
+            writeU16LE(out, name.length);
+            out.writeBytes(name);
         }
-        return pos;
     }
 
     static SourceSchema parseSchema(BytesReference data, int offset) {
@@ -316,43 +362,40 @@ final class EscfBatchCodec {
         return ((docCount + 63) / 64) * 8;
     }
 
-    /** Serialises {@code bs} (or an all-clear bitset when {@code bs == null}) to {@code bitsetBytes(docCount)} LE bytes. */
-    static BytesReference bitsetToRef(FixedBitSet bs, int docCount) {
-        int n = bitsetBytes(docCount);
-        byte[] out = new byte[n];
-        if (bs != null) {
-            long[] words = bs.getBits();
-            int wordCount = n / 8;
-            for (int w = 0; w < wordCount; w++) {
-                long value = w < words.length ? words[w] : 0L;
-                ByteUtils.writeLongLE(value, out, w * 8);
-            }
+    /** Writes {@code bs} (or an all-clear bitset when {@code bs == null}) to {@code out} as {@code bitsetBytes(docCount)} LE bytes. */
+    static void writeBitset(StreamOutput out, @Nullable FixedBitSet bs, int docCount) throws IOException {
+        int wordCount = bitsetBytes(docCount) / 8;
+        int presentWords = bs != null ? Math.min(bs.getBits().length, wordCount) : 0;
+        if (presentWords > 0) {
+            out.writeLongsLE(bs.getBits(), 0, presentWords);
         }
-        return new BytesArray(out);
+        for (int w = presentWords; w < wordCount; w++) {
+            out.writeLongLE(0L);
+        }
     }
 
-    static BytesReference intArrayToRef(int[] values) {
-        byte[] out = new byte[values.length * 4];
-        for (int i = 0; i < values.length; i++) {
-            ByteUtils.writeIntLE(values[i], out, i * 4);
-        }
-        return new BytesArray(out);
+    static void writeOffsets(StreamOutput out, int[] values) throws IOException {
+        out.writeIntsLE(values, 0, values.length);
     }
 
     /**
-     * Flattens an ARRAY column's native {@code child} into the on-disk {@code child_kind(1) | child_values}
-     * bytes (child offsets, for a STRING child, are written right after the kind byte). This is the only
-     * place ESCF serializes an array's child; {@link #decodeArrayChild} is its exact inverse.
+     * Writes the {@code child_kind(1)} prefix of an ARRAY column's native {@code child} (child offsets, for a
+     * STRING child, are written right after the kind byte); the {@code child_values} follow it by reference.
+     * This is the only place ESCF serializes an array's child; {@link #decodeArrayChild} is its exact inverse.
      */
-    static BytesReference encodeArrayChild(EscfColumnData child) {
-        BytesReference kindByte = new BytesArray(new byte[] { child.kind() });
-        if (child.kind() == EscfColumnKind.STRING) {
-            return CompositeBytesReference.of(kindByte, intArrayToRef(child.offsets()), child.data());
-        }
+    static void writeArrayChildPrefix(StreamOutput out, EscfColumnData child) throws IOException {
         // BINARY as an array child is var-width but decodeArrayChild treats every non-STRING child as
         // fixed-width; a round-trip would corrupt the column. Fail loudly until the codec gap is closed.
         assert child.kind() != EscfColumnKind.BINARY : "BINARY array child does not round-trip through the codec; see decodeArrayChild";
-        return CompositeBytesReference.of(kindByte, child.data());
+        out.writeByte(child.kind());
+        if (child.kind() == EscfColumnKind.STRING) {
+            writeOffsets(out, child.offsets());
+        }
+    }
+
+    static int arrayChildLength(EscfColumnData child) {
+        int prefix = 1 + (child.kind() == EscfColumnKind.STRING ? child.offsets().length * 4 : 0);
+        return prefix + child.data().length();
     }
 
     /** Parses {@code bitsetBytes(docCount)} LE bytes at {@code pos} into a {@link FixedBitSet}. */
@@ -381,7 +424,8 @@ final class EscfBatchCodec {
 
     /**
      * Parses the {@code child_kind(1) | child_values} bytes at {@code [pos, pos + dataLen)} into a native
-     * {@code child} column with {@code totalElems} elements. Exact inverse of {@link #encodeArrayChild}.
+     * {@code child} column with {@code totalElems} elements. Exact inverse of {@link #writeArrayChildPrefix}
+     * followed by the child values.
      */
     static EscfColumnData decodeArrayChild(BytesReference data, int pos, int dataLen, int totalElems) {
         byte childKind = data.get(pos);
@@ -396,12 +440,12 @@ final class EscfBatchCodec {
         return EscfColumnData.ofFixed64(childKind, totalElems, null, childData);
     }
 
-    static void writeShortLE(byte[] buf, int offset, int value) {
+    static void writeU16LE(StreamOutput out, int value) throws IOException {
         if (value < 0 || value > 0xFFFF) {
             throw new IllegalArgumentException("value [" + value + "] does not fit in an unsigned 16-bit field");
         }
-        buf[offset] = (byte) value;
-        buf[offset + 1] = (byte) (value >>> 8);
+        out.writeByte((byte) value);
+        out.writeByte((byte) (value >>> 8));
     }
 
     // TODO: Optimize onto bytes reference

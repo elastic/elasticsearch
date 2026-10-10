@@ -111,7 +111,7 @@ public final class EscfBatchBuilder implements Releasable {
         // Clear the partition so close() skips it; a second call throws above.
         partitions[partitionKey] = null;
         // Each column owns its recycler-backed buffers; the batch releases them all on close.
-        return new EscfBatch(schema, partition.docCount, columns, Releasables.wrap(columns));
+        return new EscfBatch(schema, partition.docCount, columns, recycler, Releasables.wrap(columns));
     }
 
     /** Returns the number of rows committed to {@code partitionKey}, or 0 if none. */

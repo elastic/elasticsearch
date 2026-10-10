@@ -12,6 +12,8 @@ package org.elasticsearch.escf;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.test.ESTestCase;
@@ -30,7 +32,7 @@ import java.util.List;
 public class EscfBatchCodecTests extends ESTestCase {
 
     /** A leaf name longer than 255 bytes forces the high byte of the {@code u16} name-length field to be non-zero. */
-    public void testSchemaRoundTripWithLongName() {
+    public void testSchemaRoundTripWithLongName() throws IOException {
         String longName = "f".repeat(300);
         // Mirrors the on-wire schema shape: non-leaf 0 is the self-parented root, "nested" hangs off it.
         SourceSchema schema = new SourceSchema(
@@ -56,7 +58,7 @@ public class EscfBatchCodecTests extends ESTestCase {
         assertTrue("expected name longer than a single byte can encode", longName.getBytes(StandardCharsets.UTF_8).length > 0xFF);
     }
 
-    public void testSchemaRoundTripRootOnly() {
+    public void testSchemaRoundTripRootOnly() throws IOException {
         // A fresh schema holds only the self-parented root non-leaf and no leaves.
         SourceSchema parsed = writeAndParseSchema(new SourceSchema());
         assertEquals(1, parsed.nonLeafCount());
@@ -65,15 +67,14 @@ public class EscfBatchCodecTests extends ESTestCase {
         assertEquals(0, parsed.leafCount());
     }
 
-    public void testSchemaSizeMatchesBytesWritten() {
+    public void testSchemaSizeMatchesBytesWritten() throws IOException {
         SourceSchema schema = new SourceSchema(List.of("", "a"), new int[] { 0, 0 }, List.of("x", "yy"), new int[] { 0, 1 });
-        int size = EscfBatchCodec.schemaSize(schema);
-        byte[] buf = new byte[size];
-        int end = EscfBatchCodec.writeSchema(schema, buf, 0);
-        assertEquals("schemaSize must equal the bytes writeSchema advances", size, end);
+        BytesStreamOutput out = new BytesStreamOutput();
+        EscfBatchCodec.writeSchema(schema, out);
+        assertEquals("schemaSize must equal the bytes writeSchema writes", EscfBatchCodec.schemaSize(schema), out.size());
     }
 
-    public void testBitsetRoundTrip() {
+    public void testBitsetRoundTrip() throws IOException {
         for (int docCount : new int[] { 1, 63, 64, 65, 130, 200 }) {
             FixedBitSet bits = new FixedBitSet(docCount);
             for (int i = 0; i < docCount; i++) {
@@ -81,7 +82,7 @@ public class EscfBatchCodecTests extends ESTestCase {
                     bits.set(i);
                 }
             }
-            BytesReference ref = EscfBatchCodec.bitsetToRef(bits, docCount);
+            BytesReference ref = writeBitset(bits, docCount);
             assertEquals("bitset byte length for docCount " + docCount, EscfBatchCodec.bitsetBytes(docCount), ref.length());
 
             FixedBitSet parsed = EscfBatchCodec.bytesToFixedBitSet(ref, 0, docCount);
@@ -91,9 +92,9 @@ public class EscfBatchCodecTests extends ESTestCase {
         }
     }
 
-    public void testNullBitsetSerializesAllClear() {
+    public void testNullBitsetSerializesAllClear() throws IOException {
         int docCount = 70;
-        BytesReference ref = EscfBatchCodec.bitsetToRef(null, docCount);
+        BytesReference ref = writeBitset(null, docCount);
         assertEquals(EscfBatchCodec.bitsetBytes(docCount), ref.length());
         FixedBitSet parsed = EscfBatchCodec.bytesToFixedBitSet(ref, 0, docCount);
         assertEquals(0, parsed.cardinality());
@@ -107,35 +108,34 @@ public class EscfBatchCodecTests extends ESTestCase {
         assertEquals(16, EscfBatchCodec.bitsetBytes(65));
     }
 
-    public void testOffsetsRoundTrip() {
+    public void testOffsetsRoundTrip() throws IOException {
         int[] offsets = { 0, 3, 3, 10, 42 };
-        BytesReference ref = EscfBatchCodec.intArrayToRef(offsets);
+        BytesReference ref = writeOffsets(offsets);
         assertEquals(offsets.length * 4, ref.length());
         int[] parsed = EscfBatchCodec.bytesToOffsets(ref, 0, offsets.length - 1);
         assertArrayEquals(offsets, parsed);
     }
 
-    public void testReadU16LEHighByte() {
-        byte[] buf = new byte[2];
-        EscfBatchCodec.writeShortLE(buf, 0, 300);
-        assertEquals(300, EscfBatchCodec.readU16LE(new BytesArray(buf), 0));
+    public void testReadU16LEHighByte() throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        EscfBatchCodec.writeU16LE(out, 300);
+        assertEquals(300, EscfBatchCodec.readU16LE(out.bytes(), 0));
     }
 
     /** A field name longer than a u16 can encode overflows the on-wire name-length field and must be rejected. */
     public void testWriteSchemaRejectsNameLongerThanU16() {
         String hugeName = "f".repeat(0x10000);
         SourceSchema schema = new SourceSchema(List.of(""), new int[] { 0 }, List.of(hugeName), new int[] { 0 });
-        byte[] buf = new byte[EscfBatchCodec.schemaSize(schema)];
-        expectThrows(IllegalArgumentException.class, () -> EscfBatchCodec.writeSchema(schema, buf, 0));
+        expectThrows(IllegalArgumentException.class, () -> EscfBatchCodec.writeSchema(schema, new BytesStreamOutput()));
     }
 
-    public void testEncodeDecodeStringArrayChild() {
+    public void testEncodeDecodeStringArrayChild() throws IOException {
         // child of a STRING array: two elements "hi" and "world".
         int[] childOffsets = { 0, 2, 7 };
         byte[] childBytes = "hiworld".getBytes(StandardCharsets.UTF_8);
         EscfColumnData child = EscfColumnData.ofVarWidth(EscfColumnKind.STRING, 2, null, childOffsets, new BytesArray(childBytes));
 
-        BytesReference encoded = EscfBatchCodec.encodeArrayChild(child);
+        BytesReference encoded = encodeArrayChild(child);
         EscfColumnData decoded = EscfBatchCodec.decodeArrayChild(encoded, 0, encoded.length(), 2);
 
         assertEquals(EscfColumnKind.STRING, decoded.kind());
@@ -143,14 +143,14 @@ public class EscfBatchCodecTests extends ESTestCase {
         assertEquals(new BytesArray(childBytes), decoded.data());
     }
 
-    public void testEncodeDecodeLongArrayChild() {
+    public void testEncodeDecodeLongArrayChild() throws IOException {
         byte[] childBytes = new byte[3 * 8];
         ByteUtils.writeLongLE(1L, childBytes, 0);
         ByteUtils.writeLongLE(-2L, childBytes, 8);
         ByteUtils.writeLongLE(Long.MAX_VALUE, childBytes, 16);
         EscfColumnData child = EscfColumnData.ofFixed64(EscfColumnKind.LONG, 3, null, new BytesArray(childBytes));
 
-        BytesReference encoded = EscfBatchCodec.encodeArrayChild(child);
+        BytesReference encoded = encodeArrayChild(child);
         EscfColumnData decoded = EscfBatchCodec.decodeArrayChild(encoded, 0, encoded.length(), 3);
 
         assertEquals(EscfColumnKind.LONG, decoded.kind());
@@ -190,9 +190,29 @@ public class EscfBatchCodecTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> EscfBatchCodec.parse(new BytesArray(buf), () -> {}));
     }
 
-    private static SourceSchema writeAndParseSchema(SourceSchema schema) {
-        byte[] buf = new byte[EscfBatchCodec.schemaSize(schema)];
-        EscfBatchCodec.writeSchema(schema, buf, 0);
-        return EscfBatchCodec.parseSchema(new BytesArray(buf), 0);
+    private static SourceSchema writeAndParseSchema(SourceSchema schema) throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        EscfBatchCodec.writeSchema(schema, out);
+        return EscfBatchCodec.parseSchema(out.bytes(), 0);
+    }
+
+    private static BytesReference writeBitset(FixedBitSet bits, int docCount) throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        EscfBatchCodec.writeBitset(out, bits, docCount);
+        return out.bytes();
+    }
+
+    private static BytesReference writeOffsets(int[] offsets) throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        EscfBatchCodec.writeOffsets(out, offsets);
+        return out.bytes();
+    }
+
+    private static BytesReference encodeArrayChild(EscfColumnData child) throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        EscfBatchCodec.writeArrayChildPrefix(out, child);
+        BytesReference encoded = CompositeBytesReference.of(out.bytes(), child.data());
+        assertEquals(EscfBatchCodec.arrayChildLength(child), encoded.length());
+        return encoded;
     }
 }

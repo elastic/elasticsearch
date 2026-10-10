@@ -11,6 +11,7 @@ plugins {
   id 'elasticsearch.internal-yaml-rest-test'
   id 'elasticsearch.internal-java-rest-test'
   id 'elasticsearch.internal-cluster-test'
+  id 'elasticsearch.benchmark'
   id('com.google.protobuf') version '0.9.6'
 }
 
@@ -50,6 +51,9 @@ dependencies {
 
   api project(":libs:exponential-histogram")
   compileOnly project(path: xpackModule('core'))
+  benchmarkRuntimeOnly project(':server')
+  benchmarkRuntimeOnly project(path: xpackModule('core'))
+  benchmarkTestImplementation sourceSets.main.output
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(":libs:exponential-histogram")))
   testImplementation("org.apache.commons:commons-math3:${versions.commons_math3}")

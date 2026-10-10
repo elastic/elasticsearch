@@ -4339,6 +4339,16 @@ public class EsqlCapabilities {
         FIX_PARSING_SUBOBJECTS_FALSE_DYNAMIC_FALSE,
 
         /**
+         * A predicate pushed to Lucene on a dotted field (e.g. {@code category.raw} mapped as a {@code keyword}
+         * multi-field in one index) matches nothing on shards where the name is only a dynamic sub-key of a
+         * {@code flattened} root, consistent with field extraction returning {@code null} there. Previously
+         * {@code LIKE}/{@code RLIKE} failed those shards, and {@code ==} and {@code IS NOT NULL} matched rows whose
+         * value read as {@code null}.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/161383">#161383</a>.
+         */
+        FIX_FLATTENED_SUBKEY_PUSHDOWN,
+
+        /**
          * A whole number in an external dataset column declared or inferred as {@code date_nanos}, without a
          * {@code format}, is read as epoch milliseconds widened to nanoseconds, matching {@code date} columns. Parquet
          * filter pushdown and TopN pruning scale their bounds the same way. Older nodes read such a number as epoch

@@ -518,7 +518,8 @@ final class FileSourceFactory implements ExternalSourceFactory {
      * listing: the storage object is built with those values (so {@code length()} serves the cached
      * value without I/O) and the existence probe is skipped, so no synchronous HEAD/range round-trip
      * runs on the executor before the async footer read. When {@code hint} is null the object is
-     * created bare and its existence is verified up front, matching the synchronous path.
+     * created bare and its existence is verified up front, matching the synchronous path. The hint's
+     * {@link ListingHint#schemaSampleShare()} is handed to the reader (see {@link FormatReader#withSchemaSampleShare}).
      */
     @Override
     public void resolveMetadataAsync(
@@ -547,11 +548,11 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     settings,
                     ExternalSourceResolver.storageConfig(config)
                 ).value();
-                reader = readerForListedObject(location, storagePath.objectName(), config);
             } else {
                 provider = storageRegistry.provider(storagePath);
-                reader = readerForListedObject(location, storagePath.objectName(), config);
             }
+            int schemaSampleShare = hint != null ? hint.schemaSampleShare() : 1;
+            reader = readerForListedObject(location, storagePath.objectName(), config).withSchemaSampleShare(schemaSampleShare);
 
             if (hint != null) {
                 storageObject = provider.newObject(storagePath, hint.length(), Instant.ofEpochMilli(hint.lastModifiedMillis()));
@@ -803,7 +804,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
 
     /** Metadata/config for one listed object: dataset reader plus this object's wrap. */
     private FormatReader readerForListedObject(String location, String objectName, Map<String, Object> config) {
-        return formatRegistry.wrapForObject(unwrappedDatasetReader(location, config).withConfig(config), objectName);
+        return formatRegistry.readerForListedObject(location, objectName, config);
     }
 
     private static String datasetResource(SourceOperatorContext context) {

@@ -26,13 +26,19 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOConsumer;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.Build;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -40,6 +46,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.codec.vectors.BFloat16;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibrationProfile;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
@@ -82,16 +89,21 @@ import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Supplier;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
 import static org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase.randomNormalizedVector;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.NODE_PROCESSORS_SETTING;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DEFAULT_OVERSAMPLE;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils.getIndexOptions;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorTestSettingsBuilder.EXPERIMENTAL_FEATURES_DISABLED;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorTestSettingsBuilder.EXPERIMENTAL_FEATURES_ENABLED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
@@ -147,12 +159,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
 
     @Override
     public void testNotIndexed() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
-            b.field("type", "dense_vector").field("dims", dims).field("index", false);
-            if (elementType != ElementType.FLOAT) {
-                b.field("element_type", elementType.toString());
-            }
-        }));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::notIndexedMapping));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", getSampleValueForDocument())));
         List<IndexableField> fields = doc.rootDoc().getFields("field");
         assertThat(fields.size(), equalTo(1));
@@ -162,13 +169,13 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
 
     @Override
     public void testDisableDefaultIndex() throws IOException {
-        var settings = Settings.builder().put(IndexSettings.INDEX_DISABLED_BY_DEFAULT.getKey(), true).build();
-        var mapperService = createMapperService(settings, fieldMapping(b -> {
-            b.field("type", "dense_vector").field("dims", dims);
-            if (elementType != ElementType.FLOAT) {
-                b.field("element_type", elementType.toString());
-            }
-        }));
+        var settings = new DenseVectorTestSettingsBuilder().indexDisabledByDefault(true).build();
+        var mappingBuilder = new DenseVectorMappingBuilder().dims(dims);
+        if (elementType != ElementType.FLOAT) {
+            mappingBuilder.elementType(elementType);
+        }
+
+        var mapperService = createMapperService(settings, fieldMapping(mappingBuilder::build));
         var documentMapper = mapperService.documentMapper();
 
         ParsedDocument doc = documentMapper.parse(source(b -> b.field("field", this.getSampleValueForDocument())));
@@ -187,12 +194,12 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         String mapping = Strings.toString(fieldMapping(this::notIndexedMapping));
         Object sample = getSampleValueForDocument(false);
 
-        var settings = Settings.builder().put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), true).build();
+        var settings = new DenseVectorTestSettingsBuilder().excludeSourceVectors(true).build();
         MapperService mapperService = createMapperService(settings, mapping);
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", sample)));
         assertThat(storedSource(doc).utf8ToString(), equalTo("{}"));
 
-        var legacySettings = Settings.builder().put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), false).build();
+        var legacySettings = new DenseVectorTestSettingsBuilder().excludeSourceVectors(false).build();
         MapperService legacy = createMapperService(legacySettings, mapping);
         ParsedDocument legacyDoc = legacy.documentMapper().parse(source(b -> b.field("field", sample)));
         BytesReference legacySource = storedSource(legacyDoc);
@@ -222,21 +229,20 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     private void notIndexedMapping(XContentBuilder b) throws IOException {
-        b.field("type", "dense_vector").field("dims", dims).field("index", false);
+        var mapping = new DenseVectorMappingBuilder().dims(dims).index(false);
         if (elementType != ElementType.FLOAT) {
-            b.field("element_type", elementType.toString());
+            mapping.elementType(elementType);
         }
+        mapping.build(b);
     }
 
     private void indexMapping(XContentBuilder b, IndexVersion indexVersion) throws IOException {
-        b.field("type", "dense_vector").field("dims", dims);
-        if (elementType != ElementType.FLOAT) {
-            b.field("element_type", elementType.toString());
-        }
+        // Serialize if it's new index version, or it was not the default for previous indices
+        var mapping = new DenseVectorMappingBuilder().dims(dims);
         if (indexVersion.onOrAfter(DenseVectorFieldMapper.INDEXED_BY_DEFAULT_INDEX_VERSION) || indexed) {
-            // Serialize if it's new index version, or it was not the default for previous indices
-            b.field("index", indexed);
+            mapping.index(indexed);
         }
+
         if ((indexVersion.onOrAfter(DenseVectorFieldMapper.DEFAULT_TO_INT8)
             || indexVersion.onOrAfter(DenseVectorFieldMapper.DEFAULT_TO_BBQ))
             && indexed
@@ -244,32 +250,26 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             && indexOptionsSet == false) {
             if (indexVersion.onOrAfter(DenseVectorFieldMapper.DEFAULT_TO_BBQ)
                 && dims >= DenseVectorFieldMapper.BBQ_DIMS_DEFAULT_THRESHOLD) {
-                b.startObject("index_options");
-                b.field("type", "bbq_hnsw");
-                b.field("m", 16);
-                b.field("ef_construction", 100);
-                b.startObject("rescore_vector");
-                b.field("oversample", DEFAULT_OVERSAMPLE);
-                b.endObject();
-                b.endObject();
+                mapping.indexOptions(
+                    Map.of("type", "bbq_hnsw", "m", 16, "ef_construction", 100, "rescore_vector", Map.of("oversample", DEFAULT_OVERSAMPLE))
+                );
             } else {
-                b.startObject("index_options");
-                b.field("type", "int8_hnsw");
-                b.field("m", 16);
-                b.field("ef_construction", 100);
-                b.endObject();
+                mapping.indexOptions(Map.of("type", "int8_hnsw", "m", 16, "ef_construction", 100));
             }
         }
+
         if (indexed) {
-            b.field("similarity", elementType == ElementType.BIT ? "l2_norm" : "dot_product");
+            mapping.similarity(elementType == ElementType.BIT ? VectorSimilarity.L2_NORM : VectorSimilarity.DOT_PRODUCT);
             if (indexOptionsSet) {
-                b.startObject("index_options");
-                b.field("type", "hnsw");
-                b.field("m", 5);
-                b.field("ef_construction", 50);
-                b.endObject();
+                mapping.indexOptions(Map.of("type", "hnsw", "m", 5, "ef_construction", 50));
             }
         }
+
+        if (elementType != ElementType.FLOAT) {
+            mapping.elementType(elementType);
+        }
+
+        mapping.build(b);
     }
 
     @Override
@@ -397,26 +397,22 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
 
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
-        registerConflict(checker, "dims", b -> b.field("type", "dense_vector"), "dims", dims, dims + 8);
-        registerConflict(
-            checker,
-            "similarity",
-            b -> b.field("type", "dense_vector").field("dims", dims).field("index", true),
-            "similarity",
-            "dot_product",
-            "l2_norm"
-        );
+        var indexedMapping = new DenseVectorMappingBuilder().dims(dims).index(true);
+        var bbqMapping = indexedMapping.clone().dims(dims * 16);
+
+        registerConflict(checker, "dims", b -> new DenseVectorMappingBuilder().build(b), "dims", dims, dims + 8);
+        registerConflict(checker, "similarity", indexedMapping::build, "similarity", "dot_product", "l2_norm");
         registerConflict(
             checker,
             "index",
-            b -> b.field("type", "dense_vector").field("dims", dims),
+            b -> new DenseVectorMappingBuilder().dims(dims).build(b),
             b -> b.field("index", true).field("similarity", "dot_product"),
             b -> b.field("index", false)
         );
         registerConflict(
             checker,
             "element_type",
-            b -> b.field("type", "dense_vector").field("dims", dims).field("index", true).field("similarity", "dot_product"),
+            b -> indexedMapping.clone().similarity(VectorSimilarity.DOT_PRODUCT).build(b),
             "element_type",
             "byte",
             "float"
@@ -424,14 +420,14 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         registerConflict(
             checker,
             "element_type",
-            b -> b.field("type", "dense_vector").field("index", true).field("similarity", "l2_norm"),
+            b -> new DenseVectorMappingBuilder().index(true).similarity(VectorSimilarity.L2_NORM).build(b),
             b -> b.field("dims", dims).field("element_type", "float"),
             b -> b.field("dims", dims * 8).field("element_type", "bit")
         );
         registerConflict(
             checker,
             "element_type",
-            b -> b.field("type", "dense_vector").field("index", true).field("similarity", "l2_norm"),
+            b -> new DenseVectorMappingBuilder().index(true).similarity(VectorSimilarity.L2_NORM).build(b),
             b -> b.field("dims", dims).field("element_type", "float"),
             b -> b.field("dims", dims * 8).field("element_type", "bit")
         );
@@ -440,7 +436,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         for (String newType : List.of("int8_flat", "int4_flat", "hnsw", "int8_hnsw", "int4_hnsw")) {
             registerIndexOptionsUpdate(
                 checker,
-                b -> b.field("type", "dense_vector").field("dims", dims).field("index", true),
+                indexedMapping::build,
                 "type",
                 "flat",
                 newType,
@@ -450,7 +446,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         for (String newType : List.of("bbq_flat", "bbq_hnsw")) {
             registerIndexOptionsUpdate(
                 checker,
-                b -> b.field("type", "dense_vector").field("dims", dims * 16).field("index", true),
+                bbqMapping::build,
                 "type",
                 "flat",
                 newType,
@@ -462,14 +458,14 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         registerConflict(
             checker,
             "index_options",
-            b -> b.field("type", "dense_vector").field("dims", dims).field("index", true),
-            b -> b.startObject("index_options").field("type", "int8_flat").endObject(),
-            b -> b.startObject("index_options").field("type", "flat").endObject()
+            indexedMapping::build,
+            b -> b.field("index_options", Map.of("type", "int8_flat")),
+            b -> b.field("index_options", Map.of("type", "flat"))
         );
         for (String newType : List.of("int4_flat", "hnsw", "int8_hnsw", "int4_hnsw")) {
             registerIndexOptionsUpdate(
                 checker,
-                b -> b.field("type", "dense_vector").field("dims", dims).field("index", true),
+                indexedMapping::build,
                 "type",
                 "int8_flat",
                 newType,
@@ -479,7 +475,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         for (String newType : List.of("bbq_flat", "bbq_hnsw")) {
             registerIndexOptionsUpdate(
                 checker,
-                b -> b.field("type", "dense_vector").field("dims", dims * 16).field("index", true),
+                bbqMapping::build,
                 "type",
                 "int8_flat",
                 newType,
@@ -492,15 +488,15 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             registerConflict(
                 checker,
                 "index_options",
-                b -> b.field("type", "dense_vector").field("dims", dims).field("index", true),
-                b -> b.startObject("index_options").field("type", "hnsw").endObject(),
-                b -> b.startObject("index_options").field("type", newType).endObject()
+                indexedMapping::build,
+                b -> b.field("index_options", Map.of("type", "hnsw")),
+                b -> b.field("index_options", Map.of("type", newType))
             );
         }
         for (String newType : List.of("int8_hnsw", "int4_hnsw")) {
             registerIndexOptionsUpdate(
                 checker,
-                b -> b.field("type", "dense_vector").field("dims", dims).field("index", true),
+                indexedMapping::build,
                 "type",
                 "hnsw",
                 newType,
@@ -509,7 +505,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         }
         registerIndexOptionsUpdate(
             checker,
-            b -> b.field("type", "dense_vector").field("dims", dims).field("index", true),
+            indexedMapping::build,
             b -> b.field("type", "hnsw"),
             b -> b.field("type", "hnsw").field("m", 100),
             hasToString(containsString("\"m\":100"))
@@ -517,21 +513,21 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         registerConflict(
             checker,
             "index_options",
-            b -> b.field("type", "dense_vector").field("dims", dims).field("index", true),
-            b -> b.startObject("index_options").field("type", "hnsw").field("m", 32).endObject(),
-            b -> b.startObject("index_options").field("type", "hnsw").field("m", 16).endObject()
+            indexedMapping::build,
+            b -> b.field("index_options", Map.of("type", "hnsw", "m", 32)),
+            b -> b.field("index_options", Map.of("type", "hnsw", "m", 16))
         );
         registerConflict(
             checker,
             "index_options",
-            b -> b.field("type", "dense_vector").field("dims", dims * 16).field("index", true),
-            b -> b.startObject("index_options").field("type", "hnsw").endObject(),
-            b -> b.startObject("index_options").field("type", "bbq_flat").endObject()
+            bbqMapping::build,
+            b -> b.field("index_options", Map.of("type", "hnsw")),
+            b -> b.field("index_options", Map.of("type", "bbq_flat"))
         );
         for (String newType : List.of("bbq_hnsw")) {
             registerIndexOptionsUpdate(
                 checker,
-                b -> b.field("type", "dense_vector").field("dims", dims * 16).field("index", true),
+                bbqMapping::build,
                 "type",
                 "hnsw",
                 newType,
@@ -542,14 +538,14 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         // update for int8_hnsw
         registerIndexOptionsUpdate(
             checker,
-            b -> b.field("type", "dense_vector").field("dims", dims).field("index", true),
+            indexedMapping::build,
             b -> b.field("type", "int8_hnsw"),
             b -> b.field("type", "int8_hnsw").field("m", 256),
             hasToString(containsString("\"m\":256"))
         );
         registerIndexOptionsUpdate(
             checker,
-            b -> b.field("type", "dense_vector").field("dims", dims).field("index", true),
+            indexedMapping::build,
             b -> b.field("type", "int8_hnsw"),
             b -> b.field("type", "int4_hnsw").field("m", 256),
             hasToString(containsString("\"type\":\"int4_hnsw\""))
@@ -557,30 +553,30 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         registerConflict(
             checker,
             "index_options",
-            b -> b.field("type", "dense_vector").field("dims", dims).field("index", true),
-            b -> b.startObject("index_options").field("type", "int8_hnsw").field("m", 32).endObject(),
-            b -> b.startObject("index_options").field("type", "int8_hnsw").field("m", 16).endObject()
+            indexedMapping::build,
+            b -> b.field("index_options", Map.of("type", "int8_hnsw", "m", 32)),
+            b -> b.field("index_options", Map.of("type", "int8_hnsw", "m", 16))
         );
         for (String newType : List.of("flat", "int8_flat", "int4_flat")) {
             registerConflict(
                 checker,
                 "index_options",
-                b -> b.field("type", "dense_vector").field("dims", dims).field("index", true),
-                b -> b.startObject("index_options").field("type", "int8_hnsw").endObject(),
-                b -> b.startObject("index_options").field("type", newType).endObject()
+                indexedMapping::build,
+                b -> b.field("index_options", Map.of("type", "int8_hnsw")),
+                b -> b.field("index_options", Map.of("type", newType))
             );
         }
         registerConflict(
             checker,
             "index_options",
-            b -> b.field("type", "dense_vector").field("dims", dims * 16).field("index", true),
-            b -> b.startObject("index_options").field("type", "int8_hnsw").endObject(),
-            b -> b.startObject("index_options").field("type", "bbq_flat").endObject()
+            bbqMapping::build,
+            b -> b.field("index_options", Map.of("type", "int8_hnsw")),
+            b -> b.field("index_options", Map.of("type", "bbq_flat"))
         );
         for (String newType : List.of("bbq_hnsw")) {
             registerIndexOptionsUpdate(
                 checker,
-                b -> b.field("type", "dense_vector").field("dims", dims * 16).field("index", true),
+                bbqMapping::build,
                 "type",
                 "int8_hnsw",
                 newType,
@@ -592,7 +588,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         for (String newType : List.of("hnsw", "int8_hnsw", "int4_hnsw")) {
             registerIndexOptionsUpdate(
                 checker,
-                b -> b.field("type", "dense_vector").field("dims", dims).field("index", true),
+                indexedMapping::build,
                 "type",
                 "int4_flat",
                 newType,
@@ -603,15 +599,15 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             registerConflict(
                 checker,
                 "index_options",
-                b -> b.field("type", "dense_vector").field("dims", dims).field("index", true),
-                b -> b.startObject("index_options").field("type", "int4_flat").field("m", 32).endObject(),
-                b -> b.startObject("index_options").field("type", newType).endObject()
+                indexedMapping::build,
+                b -> b.field("index_options", Map.of("type", "int4_flat", "m", 32)),
+                b -> b.field("index_options", Map.of("type", newType))
             );
         }
         for (String newType : List.of("bbq_flat", "bbq_hnsw")) {
             registerIndexOptionsUpdate(
                 checker,
-                b -> b.field("type", "dense_vector").field("dims", dims * 16).field("index", true),
+                bbqMapping::build,
                 "type",
                 "int4_flat",
                 newType,
@@ -622,14 +618,14 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         // update for int4_hnsw
         registerIndexOptionsUpdate(
             checker,
-            b -> b.field("type", "dense_vector").field("dims", dims).field("index", true),
+            indexedMapping::build,
             b -> b.field("type", "int4_hnsw"),
             b -> b.field("type", "int4_hnsw").field("m", 256),
             hasToString(containsString("\"m\":256"))
         );
         registerIndexOptionsUpdate(
             checker,
-            b -> b.field("type", "dense_vector").field("dims", dims).field("index", true),
+            indexedMapping::build,
             b -> b.field("type", "int4_hnsw").field("m", 4),
             b -> b.field("type", "int4_hnsw").field("m", 100),
             hasToString(containsString("\"m\":100"))
@@ -637,44 +633,44 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         registerConflict(
             checker,
             "index_options",
-            b -> b.field("type", "dense_vector").field("dims", dims).field("index", true),
-            b -> b.startObject("index_options").field("type", "int4_hnsw").field("m", 32).endObject(),
-            b -> b.startObject("index_options").field("type", "int4_hnsw").field("m", 16).endObject()
+            indexedMapping::build,
+            b -> b.field("index_options", Map.of("type", "int4_hnsw", "m", 32)),
+            b -> b.field("index_options", Map.of("type", "int4_hnsw", "m", 16))
         );
         registerConflict(
             checker,
             "index_options",
-            b -> b.field("type", "dense_vector").field("dims", dims).field("index", true),
-            b -> b.startObject("index_options").field("type", "int4_hnsw").field("m", 32).endObject(),
-            b -> b.startObject("index_options").field("type", "int8_hnsw").field("m", 16).endObject()
+            indexedMapping::build,
+            b -> b.field("index_options", Map.of("type", "int4_hnsw", "m", 32)),
+            b -> b.field("index_options", Map.of("type", "int8_hnsw", "m", 16))
         );
         registerConflict(
             checker,
             "index_options",
-            b -> b.field("type", "dense_vector").field("dims", dims).field("index", true),
-            b -> b.startObject("index_options").field("type", "int4_hnsw").field("m", 32).endObject(),
-            b -> b.startObject("index_options").field("type", "hnsw").field("m", 16).endObject()
+            indexedMapping::build,
+            b -> b.field("index_options", Map.of("type", "int4_hnsw", "m", 32)),
+            b -> b.field("index_options", Map.of("type", "hnsw", "m", 16))
         );
         for (String newType : List.of("flat", "int8_flat", "int4_flat")) {
             registerConflict(
                 checker,
                 "index_options",
-                b -> b.field("type", "dense_vector").field("dims", dims).field("index", true),
-                b -> b.startObject("index_options").field("type", "int4_hnsw").endObject(),
-                b -> b.startObject("index_options").field("type", newType).endObject()
+                indexedMapping::build,
+                b -> b.field("index_options", Map.of("type", "int4_hnsw")),
+                b -> b.field("index_options", Map.of("type", newType))
             );
         }
         registerConflict(
             checker,
             "index_options",
-            b -> b.field("type", "dense_vector").field("dims", dims * 16).field("index", true),
-            b -> b.startObject("index_options").field("type", "int4_hnsw").endObject(),
-            b -> b.startObject("index_options").field("type", "bbq_flat").endObject()
+            bbqMapping::build,
+            b -> b.field("index_options", Map.of("type", "int4_hnsw")),
+            b -> b.field("index_options", Map.of("type", "bbq_flat"))
         );
         for (String newType : List.of("bbq_hnsw")) {
             registerIndexOptionsUpdate(
                 checker,
-                b -> b.field("type", "dense_vector").field("dims", dims * 16).field("index", true),
+                bbqMapping::build,
                 "type",
                 "int4_hnsw",
                 newType,
@@ -686,7 +682,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         for (String newType : List.of("bbq_hnsw")) {
             registerIndexOptionsUpdate(
                 checker,
-                b -> b.field("type", "dense_vector").field("dims", dims * 16).field("index", true),
+                bbqMapping::build,
                 "type",
                 "bbq_flat",
                 newType,
@@ -697,9 +693,9 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             registerConflict(
                 checker,
                 "index_options",
-                b -> b.field("type", "dense_vector").field("dims", dims * 16).field("index", true),
-                b -> b.startObject("index_options").field("type", "bbq_flat").endObject(),
-                b -> b.startObject("index_options").field("type", newType).endObject()
+                bbqMapping::build,
+                b -> b.field("index_options", Map.of("type", "bbq_flat")),
+                b -> b.field("index_options", Map.of("type", newType))
             );
         }
 
@@ -708,16 +704,16 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             registerConflict(
                 checker,
                 "index_options",
-                b -> b.field("type", "dense_vector").field("dims", dims * 16).field("index", true),
-                b -> b.startObject("index_options").field("type", "bbq_hnsw").endObject(),
-                b -> b.startObject("index_options").field("type", newType).endObject()
+                bbqMapping::build,
+                b -> b.field("index_options", Map.of("type", "bbq_hnsw")),
+                b -> b.field("index_options", Map.of("type", newType))
             );
         }
 
         // update for bbq_disk
         registerIndexOptionsUpdate(
             checker,
-            b -> b.field("type", "dense_vector").field("dims", dims * 16).field("index", true),
+            bbqMapping::build,
             b -> b.field("type", "bbq_disk").field("cluster_size", 1000),
             b -> b.field("type", "bbq_disk").field("cluster_size", 500),
             hasToString(containsString("\"cluster_size\":500"))
@@ -725,18 +721,18 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         registerConflict(
             checker,
             "index_options",
-            b -> b.field("type", "dense_vector").field("dims", dims * 16).field("index", true),
-            b -> b.startObject("index_options").field("type", "bbq_disk").field("precondition", true).endObject(),
-            b -> b.startObject("index_options").field("type", "bbq_disk").field("precondition", false).endObject()
+            bbqMapping::build,
+            b -> b.field("index_options", Map.of("type", "bbq_disk", "precondition", true)),
+            b -> b.field("index_options", Map.of("type", "bbq_disk", "precondition", false))
         );
         registerIndexOptionsUpdate(
             checker,
-            b -> b.field("type", "dense_vector").field("dims", dims * 16).field("index", true),
+            bbqMapping::build,
             b -> b.field("type", "bbq_disk").field("bits", 4),
             b -> b.field("type", "bbq_disk").field("bits", 2),
             hasToString(containsString("\"bits\":2"))
         );
-        registerIndexOptionsUpdate(checker, b -> b.field("type", "dense_vector").field("dims", dims * 16).field("index", true), b -> {
+        registerIndexOptionsUpdate(checker, bbqMapping::build, b -> {
             b.field("type", "bbq_disk").field("bits", 4);
             b.startObject("rescore_vector");
             b.field("oversample", 3f);
@@ -783,28 +779,18 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     public void testAggregatableConsistency() {}
 
     public void testIVFParsing() throws IOException {
-        Settings experimentalEnabled = Settings.builder()
-            .put(IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.getKey(), true)
-            .build();
-        Settings experimentalDisabled = Settings.builder()
-            .put(IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.getKey(), false)
-            .build();
+        var base = new DenseVectorMappingBuilder().dims(128).index(true).similarity(VectorSimilarity.DOT_PRODUCT);
         {
-            DocumentMapper mapperService = createMapperService(experimentalEnabled, fieldMapping(b -> {
-                b.field("type", "dense_vector");
-                b.field("dims", 128);
-                b.field("index", true);
-                b.field("similarity", "dot_product");
-                b.startObject("index_options");
-                b.field("type", "bbq_disk");
-                b.field("bits", 4);
-                b.endObject();
-            })).documentMapper();
+            MapperService mapperService = createMapperService(
+                EXPERIMENTAL_FEATURES_ENABLED,
+                fieldMapping(b -> base.clone().indexOptions(Map.of("type", "bbq_disk", "bits", 4)).build(b))
+            );
 
-            DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) mapperService.mappers().getMapper("field");
-            DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) denseVectorFieldMapper
-                .fieldType()
-                .getIndexOptions();
+            DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = getIndexOptions(
+                mapperService,
+                "field",
+                DenseVectorFieldMapper.BBQIVFIndexOptions.class
+            );
             assertEquals(4, indexOptions.bits, 0.0F);
             assertNull(indexOptions.rescoreVector);
             assertEquals(ES940DiskBBQVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER, indexOptions.clusterSize);
@@ -812,43 +798,47 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             assertEquals(0.0, indexOptions.defaultVisitPercentage, 0.0);
         }
         {
-            DocumentMapper mapperService = createMapperService(experimentalEnabled, fieldMapping(b -> {
-                b.field("type", "dense_vector");
-                b.field("dims", 128);
-                b.field("index", true);
-                b.field("similarity", "dot_product");
-                b.startObject("index_options");
-                b.field("type", "bbq_disk");
-                b.field("bits", 7);
-                b.endObject();
-            })).documentMapper();
+            MapperService mapperService = createMapperService(
+                EXPERIMENTAL_FEATURES_ENABLED,
+                fieldMapping(b -> base.clone().indexOptions(Map.of("type", "bbq_disk", "bits", 7)).build(b))
+            );
 
-            DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) mapperService.mappers().getMapper("field");
-            DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) denseVectorFieldMapper
-                .fieldType()
-                .getIndexOptions();
+            DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = getIndexOptions(
+                mapperService,
+                "field",
+                DenseVectorFieldMapper.BBQIVFIndexOptions.class
+            );
             assertEquals(7, indexOptions.bits, 0.0F);
             assertNull(indexOptions.rescoreVector);
         }
         {
-            DocumentMapper mapperService = createMapperService(experimentalDisabled, fieldMapping(b -> {
-                b.field("type", "dense_vector");
-                b.field("dims", 128);
-                b.field("index", true);
-                b.field("similarity", "dot_product");
-                b.startObject("index_options");
-                b.field("type", "bbq_disk");
-                b.field("cluster_size", 1000);
-                b.field("flat_index_threshold", 1500);
-                b.field("default_visit_percentage", 5.0);
-                b.field(DenseVectorFieldMapper.RescoreVector.NAME, Map.of("oversample", 2.0f));
-                b.endObject();
-            })).documentMapper();
+            MapperService mapperService = createMapperService(
+                EXPERIMENTAL_FEATURES_DISABLED,
+                fieldMapping(
+                    b -> base.clone()
+                        .indexOptions(
+                            Map.of(
+                                "type",
+                                "bbq_disk",
+                                "cluster_size",
+                                1000,
+                                "flat_index_threshold",
+                                1500,
+                                "default_visit_percentage",
+                                5.0,
+                                DenseVectorFieldMapper.RescoreVector.NAME,
+                                Map.of("oversample", 2.0f)
+                            )
+                        )
+                        .build(b)
+                )
+            );
 
-            DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) mapperService.mappers().getMapper("field");
-            DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) denseVectorFieldMapper
-                .fieldType()
-                .getIndexOptions();
+            DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = getIndexOptions(
+                mapperService,
+                "field",
+                DenseVectorFieldMapper.BBQIVFIndexOptions.class
+            );
             assertEquals(2F, indexOptions.rescoreVector.oversample(), 0.0F);
             assertEquals(1000, indexOptions.clusterSize);
             assertEquals(1500, indexOptions.getFlatIndexThreshold());
@@ -856,176 +846,271 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             assertEquals(1, indexOptions.bits, 0.0);
         }
         {
-            DocumentMapper mapperService = createMapperService(experimentalDisabled, fieldMapping(b -> {
-                b.field("type", "dense_vector");
-                b.field("dims", 128);
-                b.field("index", true);
-                b.field("similarity", "dot_product");
-                b.startObject("index_options");
-                b.field("type", "bbq_disk");
-                b.field("bits", 4);
-                b.endObject();
-            })).documentMapper();
+            MapperService mapperService = createMapperService(
+                EXPERIMENTAL_FEATURES_DISABLED,
+                fieldMapping(b -> base.clone().indexOptions(Map.of("type", "bbq_disk", "bits", 4)).build(b))
+            );
 
-            DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) mapperService.mappers().getMapper("field");
-            DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) denseVectorFieldMapper
-                .fieldType()
-                .getIndexOptions();
+            DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = getIndexOptions(
+                mapperService,
+                "field",
+                DenseVectorFieldMapper.BBQIVFIndexOptions.class
+            );
             assertEquals(4, indexOptions.bits, 0.0F);
         }
         {
-            DocumentMapper mapperService = createMapperService(experimentalDisabled, fieldMapping(b -> {
-                b.field("type", "dense_vector");
-                b.field("dims", 128);
-                b.field("index", true);
-                b.field("similarity", "dot_product");
-                b.startObject("index_options");
-                b.field("type", "bbq_disk");
-                b.field("precondition", true);
-                b.endObject();
-            })).documentMapper();
+            MapperService mapperService = createMapperService(
+                EXPERIMENTAL_FEATURES_DISABLED,
+                fieldMapping(b -> base.clone().indexOptions(Map.of("type", "bbq_disk", "precondition", true)).build(b))
+            );
 
-            DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) mapperService.mappers().getMapper("field");
-            DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) denseVectorFieldMapper
-                .fieldType()
-                .getIndexOptions();
+            DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = getIndexOptions(
+                mapperService,
+                "field",
+                DenseVectorFieldMapper.BBQIVFIndexOptions.class
+            );
             assertTrue(indexOptions.doPrecondition());
         }
     }
 
     public void testAutoCalibrateParsing() throws IOException {
-        Settings experimentalEnabled = Settings.builder()
-            .put(IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.getKey(), true)
-            .build();
-        Settings experimentalDisabled = Settings.builder()
-            .put(IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.getKey(), false)
-            .build();
-        {
-            DocumentMapper mapperService = createMapperService(experimentalEnabled, fieldMapping(b -> {
-                b.field("type", "dense_vector");
-                b.field("dims", 128);
-                b.field("index", true);
-                b.field("similarity", "dot_product");
-                b.startObject("index_options");
-                b.field("type", "bbq_disk");
-                b.field("auto_calibrate", true);
-                b.endObject();
-            })).documentMapper();
+        CheckedBiConsumer<Object, IvfAutoCalibrationProfile, IOException> assertParsing = (autoCalibrate, expectedProfile) -> {
+            String message = "auto_calibrate [" + autoCalibrate + "]";
+            MapperService mapperService = createMapperService(EXPERIMENTAL_FEATURES_ENABLED, autoCalibrateMapping(autoCalibrate));
+            DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = getIndexOptions(
+                mapperService,
+                "field",
+                DenseVectorFieldMapper.BBQIVFIndexOptions.class
+            );
+            assertEquals(message, expectedProfile != IvfAutoCalibrationProfile.DISABLED, indexOptions.autoCalibrate());
+            assertEquals(message, expectedProfile, indexOptions.autoCalibrationProfile());
 
-            DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) mapperService.mappers().getMapper("field");
-            DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) denseVectorFieldMapper
-                .fieldType()
-                .getIndexOptions();
-            assertTrue(indexOptions.autoCalibrate);
-            assertTrue(mapperService.mappingSource().toString().contains("auto_calibrate"));
-        }
-        {
-            DocumentMapper mapperService = createMapperService(experimentalEnabled, fieldMapping(b -> {
-                b.field("type", "dense_vector");
-                b.field("dims", 128);
-                b.field("index", true);
-                b.field("similarity", "dot_product");
-                b.startObject("index_options");
-                b.field("type", "bbq_disk");
-                b.endObject();
-            })).documentMapper();
+            String mappingSource = mapperService.documentMapper().mappingSource().toString();
+            if (autoCalibrate == null) {
+                assertThat(message, mappingSource, not(containsString("auto_calibrate")));
+            } else {
+                String expectedSource = autoCalibrate instanceof String
+                    ? "\"auto_calibrate\":\"" + autoCalibrate + "\""
+                    : "\"auto_calibrate\":" + autoCalibrate;
+                assertThat(message, mappingSource, containsString(expectedSource));
+            }
+        };
 
-            DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) mapperService.mappers().getMapper("field");
-            DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) denseVectorFieldMapper
-                .fieldType()
-                .getIndexOptions();
-            assertFalse(indexOptions.autoCalibrate);
-            assertFalse(mapperService.mappingSource().toString().contains("auto_calibrate"));
+        assertParsing.accept(null, IvfAutoCalibrationProfile.DISABLED);
+        assertParsing.accept(true, IvfAutoCalibrationProfile.ISO_SIZING);
+        assertParsing.accept(false, IvfAutoCalibrationProfile.DISABLED);
+        for (IvfAutoCalibrationProfile profile : IvfAutoCalibrationProfile.values()) {
+            assertParsing.accept(profile.toString(), profile);
         }
     }
 
     public void testBBQDiskAutoCalibrateIndexOptionMappingInteractions() throws IOException {
-        Settings experimentalEnabled = Settings.builder()
-            .put(IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.getKey(), true)
-            .build();
+        final var baseMapping = new DenseVectorMappingBuilder().dims(128).index(true);
+        final Map<String, Object> baseIndexOptionsMap = Map.of(
+            "type",
+            "bbq_disk",
+            "bits",
+            4,
+            "precondition",
+            false,
+            "auto_calibrate",
+            true,
+            "rescore_vector",
+            Map.of("oversample", 3f)
+        );
 
-        MapperService mapperService = createMapperService(experimentalEnabled, fieldMapping(b -> {
-            b.field("type", "dense_vector");
-            b.field("dims", 128);
-            b.field("index", true);
-            b.startObject("index_options");
-            b.field("type", "bbq_disk");
-            b.field("bits", 4);
-            b.field("precondition", false);
-            b.field("auto_calibrate", true);
-            b.startObject("rescore_vector");
-            b.field("oversample", 3f);
-            b.endObject();
-            b.endObject();
-        }));
+        MapperService mapperService = createMapperService(
+            EXPERIMENTAL_FEATURES_ENABLED,
+            fieldMapping(b -> baseMapping.clone().indexOptions(baseIndexOptionsMap).build(b))
+        );
 
-        merge(mapperService, fieldMapping(b -> {
-            b.field("type", "dense_vector");
-            b.field("dims", 128);
-            b.field("index", true);
-            b.startObject("index_options");
-            b.field("type", "bbq_disk");
-            b.field("bits", 2);
-            b.field("precondition", false);
-            b.field("auto_calibrate", true);
-            b.startObject("rescore_vector");
-            b.field("oversample", 3f);
-            b.endObject();
-            b.endObject();
-        }));
-        DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.mappingLookup().getMapper("field");
-        DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) mapper.fieldType()
-            .getIndexOptions();
+        final Map<String, Object> twoBitIndexOptionsMap = Maps.copyMapWithAddedOrReplacedEntry(baseIndexOptionsMap, "bits", 2);
+        merge(mapperService, fieldMapping(b -> baseMapping.clone().indexOptions(twoBitIndexOptionsMap).build(b)));
+        DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = getIndexOptions(
+            mapperService,
+            "field",
+            DenseVectorFieldMapper.BBQIVFIndexOptions.class
+        );
         assertEquals(2, indexOptions.getBits());
         assertTrue(indexOptions.autoCalibrate());
 
-        merge(mapperService, fieldMapping(b -> {
-            b.field("type", "dense_vector");
-            b.field("dims", 128);
-            b.field("index", true);
-            b.startObject("index_options");
-            b.field("type", "bbq_disk");
-            b.field("bits", 2);
-            b.field("precondition", false);
-            b.field("auto_calibrate", true);
-            b.startObject("rescore_vector");
-            b.field("oversample", 4f);
-            b.endObject();
-            b.endObject();
-        }));
-        indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) ((DenseVectorFieldMapper) mapperService.mappingLookup()
-            .getMapper("field")).fieldType().getIndexOptions();
+        final Map<String, Object> oversampleFourIndexOptionsMap = Maps.copyMapWithAddedOrReplacedEntry(
+            twoBitIndexOptionsMap,
+            "rescore_vector",
+            Map.of("oversample", 4f)
+        );
+        merge(mapperService, fieldMapping(b -> baseMapping.clone().indexOptions(oversampleFourIndexOptionsMap).build(b)));
+        indexOptions = getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class);
         assertEquals(4f, indexOptions.rescoreVector.oversample(), 0f);
 
-        expectThrows(IllegalArgumentException.class, () -> merge(mapperService, fieldMapping(b -> {
-            b.field("type", "dense_vector");
-            b.field("dims", 128);
-            b.field("index", true);
-            b.startObject("index_options");
-            b.field("type", "bbq_disk");
-            b.field("bits", 2);
-            b.field("precondition", false);
-            b.field("auto_calibrate", false);
-            b.startObject("rescore_vector");
-            b.field("oversample", 4f);
-            b.endObject();
-            b.endObject();
-        })));
+        final Map<String, Object> autocalibrateDisabledIndexOptionsMap = Maps.copyMapWithAddedOrReplacedEntry(
+            oversampleFourIndexOptionsMap,
+            "auto_calibrate",
+            false
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> merge(mapperService, fieldMapping(b -> baseMapping.clone().indexOptions(autocalibrateDisabledIndexOptionsMap).build(b)))
+        );
 
-        expectThrows(IllegalArgumentException.class, () -> merge(mapperService, fieldMapping(b -> {
-            b.field("type", "dense_vector");
-            b.field("dims", 128);
-            b.field("index", true);
-            b.startObject("index_options");
-            b.field("type", "bbq_disk");
-            b.field("bits", 2);
-            b.field("precondition", true);
-            b.field("auto_calibrate", true);
-            b.startObject("rescore_vector");
-            b.field("oversample", 4f);
-            b.endObject();
-            b.endObject();
-        })));
+        final Map<String, Object> preconditionTrueIndexOptionsMap = Maps.copyMapWithAddedOrReplacedEntry(
+            oversampleFourIndexOptionsMap,
+            "precondition",
+            true
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> merge(mapperService, fieldMapping(b -> baseMapping.clone().indexOptions(preconditionTrueIndexOptionsMap).build(b)))
+        );
+    }
+
+    public void testAutoCalibrateDefaultEnabledProfile() throws IOException {
+        IndexVersion qualityVersion = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.DISK_BBQ_ES950_AUTO_CALIBRATE,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.DISK_BBQ_AUTO_CALIBRATE_DEFAULT_ISO_SIZING)
+        );
+        IndexVersion isoSizingVersion = IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.DISK_BBQ_AUTO_CALIBRATE_DEFAULT_ISO_SIZING);
+        List<Tuple<IndexVersion, IvfAutoCalibrationProfile>> testCases = List.of(
+            Tuple.tuple(qualityVersion, IvfAutoCalibrationProfile.QUALITY),
+            Tuple.tuple(isoSizingVersion, IvfAutoCalibrationProfile.ISO_SIZING)
+        );
+
+        for (Tuple<IndexVersion, IvfAutoCalibrationProfile> testCase : testCases) {
+            IndexVersion version = testCase.v1();
+            MapperService mapperService = createMapperService(version, EXPERIMENTAL_FEATURES_ENABLED, autoCalibrateMapping(true));
+            assertEquals(
+                testCase.v2(),
+                getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class).autoCalibrationProfile()
+            );
+
+            // The stored mapping keeps the boolean, so recovery must resolve it against the same index version
+            String mappingSource = mapperService.documentMapper().mappingSource().string();
+            assertThat(mappingSource, containsString("\"auto_calibrate\":true"));
+            MapperService recovered = new TestMapperServiceBuilder().indexVersion(version).settings(EXPERIMENTAL_FEATURES_ENABLED).build();
+            merge(recovered, MapperService.MergeReason.MAPPING_RECOVERY, mappingSource);
+            assertEquals(
+                testCase.v2(),
+                getIndexOptions(recovered, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class).autoCalibrationProfile()
+            );
+        }
+    }
+
+    public void testAutoCalibrateMappingUpdates() throws IOException {
+        IndexVersion current = IndexVersion.current();
+        IndexVersion oldVersion = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.DISK_BBQ_ES950_AUTO_CALIBRATE,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.DISK_BBQ_AUTO_CALIBRATE_DEFAULT_ISO_SIZING)
+        );
+
+        assertAutoCalibrateUpdate(current, null, false, true);
+        assertAutoCalibrateUpdate(current, false, "disabled", true);
+        assertAutoCalibrateUpdate(current, true, "iso_sizing", true);
+        assertAutoCalibrateUpdate(oldVersion, true, "quality", true);
+        assertAutoCalibrateUpdate(oldVersion, true, "iso_sizing", false);
+        assertAutoCalibrateUpdate(current, "quality", "iso_sizing", false);
+        assertAutoCalibrateUpdate(current, "iso_sizing", "quality", false);
+        assertAutoCalibrateUpdate(current, null, "quality", false);
+    }
+
+    private void assertAutoCalibrateUpdate(IndexVersion version, Object from, Object to, boolean accepted) throws IOException {
+        String message = "index version [" + version + "], from [" + from + "] to [" + to + "]";
+        MapperService mapperService = createMapperService(version, EXPERIMENTAL_FEATURES_ENABLED, autoCalibrateMapping(from));
+        if (accepted) {
+            merge(mapperService, autoCalibrateMapping(to));
+            DenseVectorAutoCalibrate expected = DenseVectorAutoCalibrate.parse(to, version, f -> true, "field");
+            assertEquals(
+                message,
+                expected.profile(),
+                getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class).autoCalibrationProfile()
+            );
+            String expectedSource = to instanceof String ? "\"auto_calibrate\":\"" + to + "\"" : "\"auto_calibrate\":" + to;
+            assertThat(message, mapperService.documentMapper().mappingSource().toString(), containsString(expectedSource));
+        } else {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                message,
+                () -> merge(mapperService, autoCalibrateMapping(to))
+            );
+            assertThat(message, e.getMessage(), containsString("Cannot update parameter [index_options]"));
+        }
+    }
+
+    public void testAutoCalibrateProfilesRequireClusterFeature() throws IOException {
+        final Supplier<MapperService> createMapperService = () -> new TestMapperServiceBuilder().settings(EXPERIMENTAL_FEATURES_ENABLED)
+            .clusterSupportsFeature(f -> false)
+            .build();
+
+        {
+            MapperService mapperService = createMapperService.get();
+            XContentBuilder mapping = autoCalibrateMapping("quality");
+            Exception e = expectThrows(MapperParsingException.class, () -> merge(mapperService, mapping));
+            assertThat(e.getMessage(), containsString("'auto_calibrate' must be a boolean for field [field]"));
+
+            // Recovery assumes all features are supported, so existing mappings that use profile names still load
+            merge(mapperService, MapperService.MergeReason.MAPPING_RECOVERY, mapping);
+            assertEquals(
+                IvfAutoCalibrationProfile.QUALITY,
+                getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class).autoCalibrationProfile()
+            );
+        }
+
+        // Boolean values always work
+        for (Object enabled : List.of(true, false, "true", "false")) {
+            MapperService mapperService = createMapperService.get();
+            merge(mapperService, autoCalibrateMapping(enabled));
+            assertEquals(
+                Booleans.parseBoolean(enabled.toString()),
+                getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class).autoCalibrate()
+            );
+        }
+    }
+
+    public void testAutoCalibrateWithAsh() throws IOException {
+        assumeTrue("ash requires a snapshot build", Build.current().isSnapshot());
+
+        for (Object value : List.of(false, "disabled")) {
+            MapperService mapperService = createMapperService(
+                EXPERIMENTAL_FEATURES_ENABLED,
+                autoCalibrateMapping(value, DenseVectorFieldMapper.BBQIVFIndexOptions.QuantizationType.ASH)
+            );
+            assertFalse(getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class).autoCalibrate());
+        }
+
+        for (Object value : List.of(true, "quality", "iso_sizing")) {
+            Exception e = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(
+                    EXPERIMENTAL_FEATURES_ENABLED,
+                    autoCalibrateMapping(value, DenseVectorFieldMapper.BBQIVFIndexOptions.QuantizationType.ASH)
+                )
+            );
+            assertThat(e.getMessage(), containsString("'auto_calibrate' is not supported with 'quantization_type' 'ash'"));
+        }
+    }
+
+    private static XContentBuilder autoCalibrateMapping(@Nullable Object autoCalibrate) throws IOException {
+        return autoCalibrateMapping(autoCalibrate, DenseVectorFieldMapper.BBQIVFIndexOptions.QuantizationType.OSQ);
+    }
+
+    private static XContentBuilder autoCalibrateMapping(
+        @Nullable Object autoCalibrate,
+        DenseVectorFieldMapper.BBQIVFIndexOptions.QuantizationType quantizationType
+    ) throws IOException {
+        Map<String, Object> indexOptions = new HashMap<>();
+        indexOptions.put("type", "bbq_disk");
+        if (quantizationType != DenseVectorFieldMapper.BBQIVFIndexOptions.QuantizationType.OSQ) {
+            indexOptions.put("quantization_type", quantizationType.toString());
+        }
+        if (autoCalibrate != null) {
+            indexOptions.put("auto_calibrate", autoCalibrate);
+        }
+        return fieldMapping(
+            b -> new DenseVectorMappingBuilder().dims(128)
+                .index(true)
+                .similarity(VectorSimilarity.DOT_PRODUCT)
+                .indexOptions(indexOptions)
+                .build(b)
+        );
     }
 
     public void testRescoreVectorForNonQuantized() {
@@ -1034,12 +1119,9 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 MapperParsingException.class,
                 () -> createDocumentMapper(
                     fieldMapping(
-                        b -> b.field("type", "dense_vector")
-                            .field("index", true)
-                            .startObject("index_options")
-                            .field("type", indexType)
-                            .field(DenseVectorFieldMapper.RescoreVector.NAME, Map.of("oversample", 1.5f))
-                            .endObject()
+                        b -> new DenseVectorMappingBuilder().index(true)
+                            .indexOptions(Map.of("type", indexType, DenseVectorFieldMapper.RescoreVector.NAME, Map.of("oversample", 1.5f)))
+                            .build(b)
                     )
                 )
             );
@@ -1064,12 +1146,9 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 () -> createDocumentMapper(
                     incompatibleVersion,
                     fieldMapping(
-                        b -> b.field("type", "dense_vector")
-                            .field("index", true)
-                            .startObject("index_options")
-                            .field("type", indexType)
-                            .field(DenseVectorFieldMapper.RescoreVector.NAME, Map.of("oversample", 1.5f))
-                            .endObject()
+                        b -> new DenseVectorMappingBuilder().index(true)
+                            .indexOptions(Map.of("type", indexType, DenseVectorFieldMapper.RescoreVector.NAME, Map.of("oversample", 1.5f)))
+                            .build(b)
                     )
                 )
             );
@@ -1093,12 +1172,9 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 () -> createDocumentMapper(
                     incompatibleVersion,
                     fieldMapping(
-                        b -> b.field("type", "dense_vector")
-                            .field("index", true)
-                            .startObject("index_options")
-                            .field("type", indexType)
-                            .field(DenseVectorFieldMapper.RescoreVector.NAME, Map.of("oversample", 0f))
-                            .endObject()
+                        b -> new DenseVectorMappingBuilder().index(true)
+                            .indexOptions(Map.of("type", indexType, DenseVectorFieldMapper.RescoreVector.NAME, Map.of("oversample", 0f)))
+                            .build(b)
                     )
                 )
             );
@@ -1106,17 +1182,15 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     public void testInvalidRescoreVector() {
+        var base = new DenseVectorMappingBuilder().index(true);
         for (String indexType : List.of("int8_hnsw", "int8_flat", "int4_hnsw", "int4_flat", "bbq_hnsw", "bbq_flat")) {
             Exception e = expectThrows(
                 MapperParsingException.class,
                 () -> createDocumentMapper(
                     fieldMapping(
-                        b -> b.field("type", "dense_vector")
-                            .field("index", true)
-                            .startObject("index_options")
-                            .field("type", indexType)
-                            .field(DenseVectorFieldMapper.RescoreVector.NAME, Map.of("foo", 1.5f))
-                            .endObject()
+                        b -> base.clone()
+                            .indexOptions(Map.of("type", indexType, DenseVectorFieldMapper.RescoreVector.NAME, Map.of("foo", 1.5f)))
+                            .build(b)
                     )
                 )
             );
@@ -1125,12 +1199,9 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 MapperParsingException.class,
                 () -> createDocumentMapper(
                     fieldMapping(
-                        b -> b.field("type", "dense_vector")
-                            .field("index", true)
-                            .startObject("index_options")
-                            .field("type", indexType)
-                            .field(DenseVectorFieldMapper.RescoreVector.NAME, Map.of("oversample", "foo"))
-                            .endObject()
+                        b -> base.clone()
+                            .indexOptions(Map.of("type", indexType, DenseVectorFieldMapper.RescoreVector.NAME, Map.of("oversample", "foo")))
+                            .build(b)
                     )
                 )
             );
@@ -1138,12 +1209,9 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 MapperParsingException.class,
                 () -> createDocumentMapper(
                     fieldMapping(
-                        b -> b.field("type", "dense_vector")
-                            .field("index", true)
-                            .startObject("index_options")
-                            .field("type", indexType)
-                            .field(DenseVectorFieldMapper.RescoreVector.NAME, Map.of("oversample", 0.1f))
-                            .endObject()
+                        b -> base.clone()
+                            .indexOptions(Map.of("type", indexType, DenseVectorFieldMapper.RescoreVector.NAME, Map.of("oversample", 0.1f)))
+                            .build(b)
                     )
                 )
             );
@@ -1151,12 +1219,9 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 MapperParsingException.class,
                 () -> createDocumentMapper(
                     fieldMapping(
-                        b -> b.field("type", "dense_vector")
-                            .field("index", true)
-                            .startObject("index_options")
-                            .field("type", indexType)
-                            .field(DenseVectorFieldMapper.RescoreVector.NAME, Map.of())
-                            .endObject()
+                        b -> base.clone()
+                            .indexOptions(Map.of("type", indexType, DenseVectorFieldMapper.RescoreVector.NAME, Map.of()))
+                            .build(b)
                     )
                 )
             );
@@ -1164,12 +1229,9 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 MapperParsingException.class,
                 () -> createDocumentMapper(
                     fieldMapping(
-                        b -> b.field("type", "dense_vector")
-                            .field("index", true)
-                            .startObject("index_options")
-                            .field("type", indexType)
-                            .field(DenseVectorFieldMapper.RescoreVector.NAME, Map.of("oversample", 10.1f))
-                            .endObject()
+                        b -> base.clone()
+                            .indexOptions(Map.of("type", indexType, DenseVectorFieldMapper.RescoreVector.NAME, Map.of("oversample", 10.1f)))
+                            .build(b)
                     )
                 )
             );
@@ -1177,65 +1239,51 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     public void testDefaultOversampleValue() throws IOException {
+        var base = new DenseVectorMappingBuilder().dims(128).index(true).similarity(VectorSimilarity.DOT_PRODUCT);
         {
-            DocumentMapper mapperService = createDocumentMapper(fieldMapping(b -> {
-                b.field("type", "dense_vector");
-                b.field("dims", 128);
-                b.field("index", true);
-                b.field("similarity", "dot_product");
-                b.startObject("index_options");
-                b.field("type", "bbq_hnsw");
-                b.endObject();
-            }));
+            MapperService mapperService = createMapperService(
+                fieldMapping(b -> base.clone().indexOptions(Map.of("type", "bbq_hnsw")).build(b))
+            );
 
-            DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) mapperService.mappers().getMapper("field");
-            DenseVectorFieldMapper.BBQHnswIndexOptions indexOptions = (DenseVectorFieldMapper.BBQHnswIndexOptions) denseVectorFieldMapper
-                .fieldType()
-                .getIndexOptions();
+            DenseVectorFieldMapper.BBQHnswIndexOptions indexOptions = getIndexOptions(
+                mapperService,
+                "field",
+                DenseVectorFieldMapper.BBQHnswIndexOptions.class
+            );
             assertEquals(3.0F, indexOptions.rescoreVector.oversample(), 0.0F);
         }
         {
-            DocumentMapper mapperService = createDocumentMapper(fieldMapping(b -> {
-                b.field("type", "dense_vector");
-                b.field("dims", 128);
-                b.field("index", true);
-                b.field("similarity", "dot_product");
-                b.startObject("index_options");
-                b.field("type", "bbq_flat");
-                b.endObject();
-            }));
+            MapperService mapperService = createMapperService(
+                fieldMapping(b -> base.clone().indexOptions(Map.of("type", "bbq_flat")).build(b))
+            );
 
-            DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) mapperService.mappers().getMapper("field");
-            DenseVectorFieldMapper.BBQFlatIndexOptions indexOptions = (DenseVectorFieldMapper.BBQFlatIndexOptions) denseVectorFieldMapper
-                .fieldType()
-                .getIndexOptions();
+            DenseVectorFieldMapper.BBQFlatIndexOptions indexOptions = getIndexOptions(
+                mapperService,
+                "field",
+                DenseVectorFieldMapper.BBQFlatIndexOptions.class
+            );
             assertEquals(3.0F, indexOptions.rescoreVector.oversample(), 0.0F);
         }
         {
-            DocumentMapper mapperService = createDocumentMapper(fieldMapping(b -> {
-                b.field("type", "dense_vector");
-                b.field("dims", 128);
-                b.field("index", true);
-                b.field("similarity", "dot_product");
-                b.startObject("index_options");
-                b.field("type", "int8_hnsw");
-                b.endObject();
-            }));
+            MapperService mapperService = createMapperService(
+                fieldMapping(b -> base.clone().indexOptions(Map.of("type", "int8_hnsw")).build(b))
+            );
 
-            DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) mapperService.mappers().getMapper("field");
-            DenseVectorFieldMapper.Int8HnswIndexOptions indexOptions = (DenseVectorFieldMapper.Int8HnswIndexOptions) denseVectorFieldMapper
-                .fieldType()
-                .getIndexOptions();
+            DenseVectorFieldMapper.Int8HnswIndexOptions indexOptions = getIndexOptions(
+                mapperService,
+                "field",
+                DenseVectorFieldMapper.Int8HnswIndexOptions.class
+            );
             assertNull(indexOptions.rescoreVector);
         }
     }
 
     public void testDims() {
         {
-            Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
-                b.field("type", "dense_vector");
-                b.field("dims", 0);
-            })));
+            Exception e = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(fieldMapping(b -> new DenseVectorMappingBuilder().dims(0).build(b)))
+            );
             assertThat(
                 e.getMessage(),
                 equalTo("Failed to parse mapping: " + "The number of dimensions should be in the range [1, 4096] but was [0]")
@@ -1243,10 +1291,10 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         }
         // test max limit for non-indexed vectors
         {
-            Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
-                b.field("type", "dense_vector");
-                b.field("dims", 5000);
-            })));
+            Exception e = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(fieldMapping(b -> new DenseVectorMappingBuilder().dims(5000).build(b)))
+            );
             assertThat(
                 e.getMessage(),
                 equalTo("Failed to parse mapping: " + "The number of dimensions should be in the range [1, 4096] but was [5000]")
@@ -1254,11 +1302,10 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         }
         // test max limit for indexed vectors
         {
-            Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
-                b.field("type", "dense_vector");
-                b.field("index", "true");
-                b.field("dims", 5000);
-            })));
+            Exception e = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(fieldMapping(b -> new DenseVectorMappingBuilder().dims(5000).index(true).build(b)))
+            );
             assertThat(
                 e.getMessage(),
                 equalTo("Failed to parse mapping: " + "The number of dimensions should be in the range [1, 4096] but was [5000]")
@@ -1267,26 +1314,16 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     public void testMergeDims() throws IOException {
-        XContentBuilder mapping = mapping(b -> {
-            b.startObject("field");
-            b.field("type", "dense_vector");
-            b.endObject();
-        });
+        XContentBuilder mapping = fieldMapping(b -> new DenseVectorMappingBuilder().build(b));
         MapperService mapperService = createMapperService(mapping);
 
-        mapping = mapping(b -> {
-            b.startObject("field");
-            b.field("type", "dense_vector")
-                .field("dims", dims)
-                .field("similarity", "cosine")
-                .field("index", true)
-                .startObject("index_options")
-                .field("type", "int8_hnsw")
-                .field("m", 16)
-                .field("ef_construction", 100)
-                .endObject();
-            b.endObject();
-        });
+        mapping = fieldMapping(
+            b -> new DenseVectorMappingBuilder().dims(dims)
+                .index(true)
+                .similarity(VectorSimilarity.COSINE)
+                .indexOptions(Map.of("type", "int8_hnsw", "m", 16, "ef_construction", 100))
+                .build(b)
+        );
         merge(mapperService, mapping);
         assertEquals(
             XContentHelper.convertToMap(BytesReference.bytes(mapping), false, mapping.contentType()).v2(),
@@ -1295,31 +1332,29 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     public void testLargeDimsBit() throws IOException {
-        createMapperService(fieldMapping(b -> {
-            b.field("type", "dense_vector");
-            b.field("dims", 1024 * Byte.SIZE);
-            b.field("element_type", ElementType.BIT.toString());
-        }));
+        createMapperService(
+            fieldMapping(b -> new DenseVectorMappingBuilder().dims(1024 * Byte.SIZE).elementType(ElementType.BIT).build(b))
+        );
     }
 
     public void testDefaults() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "dense_vector").field("dims", 3)));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> new DenseVectorMappingBuilder().dims(3).build(b)));
 
         testIndexedVector(VectorSimilarity.COSINE, mapper);
     }
 
     public void testDefaultElementTypeUnderVectordbDocumentIndexMode() throws Exception {
-        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), "vectordb_document").build();
-        MapperService mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "dense_vector").field("dims", 8)));
+        Settings settings = new DenseVectorTestSettingsBuilder().indexMode(IndexMode.VECTORDB_DOCUMENT).build();
+        MapperService mapperService = createMapperService(settings, fieldMapping(b -> new DenseVectorMappingBuilder().dims(8).build(b)));
         DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.mappingLookup().getMapper("field");
         assertEquals(ElementType.BFLOAT16, mapper.fieldType().getElementType());
     }
 
     public void testExplicitElementTypeOverridesVectordbDocumentModeDefault() throws Exception {
-        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), "vectordb_document").build();
+        Settings settings = new DenseVectorTestSettingsBuilder().indexMode(IndexMode.VECTORDB_DOCUMENT).build();
         MapperService mapperService = createMapperService(
             settings,
-            fieldMapping(b -> b.field("type", "dense_vector").field("dims", 8).field("element_type", "float"))
+            fieldMapping(b -> new DenseVectorMappingBuilder().dims(8).elementType(ElementType.FLOAT).build(b))
         );
         DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.mappingLookup().getMapper("field");
         assertEquals(ElementType.FLOAT, mapper.fieldType().getElementType());
@@ -1327,8 +1362,8 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
 
     public void testDefaultsUnderVectordbColumnarIndexMode() throws Exception {
         assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
-        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), "vectordb_columnar").build();
-        MapperService mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "dense_vector").field("dims", 8)));
+        Settings settings = new DenseVectorTestSettingsBuilder().indexMode(IndexMode.VECTORDB_COLUMNAR).build();
+        MapperService mapperService = createMapperService(settings, fieldMapping(b -> new DenseVectorMappingBuilder().dims(8).build(b)));
         DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.mappingLookup().getMapper("field");
         assertEquals(ElementType.BFLOAT16, mapper.fieldType().getElementType());
         assertTrue(mapper.fieldType().isSearchable());
@@ -1336,10 +1371,10 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
 
     public void testExplicitElementTypeOverridesVectordbColumnarModeDefault() throws Exception {
         assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
-        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), "vectordb_columnar").build();
+        Settings settings = new DenseVectorTestSettingsBuilder().indexMode(IndexMode.VECTORDB_COLUMNAR).build();
         MapperService mapperService = createMapperService(
             settings,
-            fieldMapping(b -> b.field("type", "dense_vector").field("dims", 8).field("element_type", "float"))
+            fieldMapping(b -> new DenseVectorMappingBuilder().dims(8).elementType(ElementType.FLOAT).build(b))
         );
         DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.mappingLookup().getMapper("field");
         assertEquals(ElementType.FLOAT, mapper.fieldType().getElementType());
@@ -1349,7 +1384,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     public void testIndexedVector() throws Exception {
         VectorSimilarity similarity = RandomPicks.randomFrom(random(), VectorSimilarity.values());
         DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "dense_vector").field("dims", 3).field("similarity", similarity))
+            fieldMapping(b -> new DenseVectorMappingBuilder().dims(3).similarity(similarity).build(b))
         );
 
         testIndexedVector(similarity, mapper);
@@ -1373,9 +1408,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     public void testNonIndexedVector() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "dense_vector").field("dims", 3).field("index", false))
-        );
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> new DenseVectorMappingBuilder().dims(3).index(false).build(b)));
 
         float[] validVector = { -12.1f, 100.7f, -4 };
         double dotProduct = 0.0f;
@@ -1417,10 +1450,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             DocumentMapper mapper = createDocumentMapper(
                 indexVersion,
                 fieldMapping(
-                    b -> b.field("type", "dense_vector")
-                        .field("element_type", "bfloat16")
-                        .field("dims", vector.length)
-                        .field("index", false)
+                    b -> new DenseVectorMappingBuilder().dims(vector.length).index(false).elementType(ElementType.BFLOAT16).build(b)
                 )
             );
             ParsedDocument doc = mapper.parse(source(b -> b.array("field", vector)));
@@ -1441,11 +1471,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         VectorSimilarity similarity = RandomPicks.randomFrom(random(), VectorSimilarity.values());
         DocumentMapper mapper = createDocumentMapper(
             fieldMapping(
-                b -> b.field("type", "dense_vector")
-                    .field("dims", 3)
-                    .field("index", true)
-                    .field("similarity", similarity)
-                    .field("element_type", "byte")
+                b -> new DenseVectorMappingBuilder().dims(3).index(true).similarity(similarity).elementType(ElementType.BYTE).build(b)
             )
         );
 
@@ -1470,11 +1496,8 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     public void testDotProductWithInvalidNorm() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(
-                b -> b.field("type", "dense_vector").field("dims", 3).field("index", true).field("similarity", VectorSimilarity.DOT_PRODUCT)
-            )
-        );
+        var base = new DenseVectorMappingBuilder().index(true).similarity(VectorSimilarity.DOT_PRODUCT);
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> base.clone().dims(3).build(b)));
         float[] vector = { -12.1f, 2.7f, -4 };
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
@@ -1488,11 +1511,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             )
         );
 
-        DocumentMapper mapperWithLargerDim = createDocumentMapper(
-            fieldMapping(
-                b -> b.field("type", "dense_vector").field("dims", 6).field("index", true).field("similarity", VectorSimilarity.DOT_PRODUCT)
-            )
-        );
+        DocumentMapper mapperWithLargerDim = createDocumentMapper(fieldMapping(b -> base.clone().dims(6).build(b)));
         float[] largerVector = { -12.1f, 2.7f, -4, 1.05f, 10.0f, 29.9f };
         e = expectThrows(DocumentParsingException.class, () -> mapperWithLargerDim.parse(source(b -> b.array("field", largerVector))));
         assertNotNull(e.getCause());
@@ -1507,9 +1526,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
 
     public void testCosineWithZeroVector() throws Exception {
         DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(
-                b -> b.field("type", "dense_vector").field("dims", 3).field("index", true).field("similarity", VectorSimilarity.COSINE)
-            )
+            fieldMapping(b -> new DenseVectorMappingBuilder().dims(3).index(true).similarity(VectorSimilarity.COSINE).build(b))
         );
         float[] vector = { -0.0f, 0.0f, 0.0f };
         DocumentParsingException e = expectThrows(
@@ -1528,11 +1545,11 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     public void testCosineWithZeroByteVector() throws Exception {
         DocumentMapper mapper = createDocumentMapper(
             fieldMapping(
-                b -> b.field("type", "dense_vector")
-                    .field("dims", 3)
-                    .field("index", true)
-                    .field("similarity", VectorSimilarity.COSINE)
-                    .field("element_type", "byte")
+                b -> new DenseVectorMappingBuilder().dims(3)
+                    .index(true)
+                    .similarity(VectorSimilarity.COSINE)
+                    .elementType(ElementType.BYTE)
+                    .build(b)
             )
         );
         float[] vector = { -0.0f, 0.0f, 0.0f };
@@ -1549,12 +1566,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
 
     public void testMaxInnerProductWithValidNorm() throws Exception {
         DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(
-                b -> b.field("type", "dense_vector")
-                    .field("dims", 3)
-                    .field("index", true)
-                    .field("similarity", VectorSimilarity.MAX_INNER_PRODUCT)
-            )
+            fieldMapping(b -> new DenseVectorMappingBuilder().dims(3).index(true).similarity(VectorSimilarity.MAX_INNER_PRODUCT).build(b))
         );
         float[] vector = { -12.1f, 2.7f, -4 };
         // Shouldn't throw
@@ -1564,7 +1576,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     public void testWithExtremeFloatVector() throws Exception {
         for (VectorSimilarity vs : List.of(VectorSimilarity.COSINE, VectorSimilarity.DOT_PRODUCT, VectorSimilarity.COSINE)) {
             DocumentMapper mapper = createDocumentMapper(
-                fieldMapping(b -> b.field("type", "dense_vector").field("dims", 3).field("index", true).field("similarity", vs))
+                fieldMapping(b -> new DenseVectorMappingBuilder().dims(3).index(true).similarity(vs).build(b))
             );
             float[] vector = { 0.07247924f, -4.310546E-11f, -1.7255947E30f };
             DocumentParsingException e = expectThrows(
@@ -1585,7 +1597,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
             () -> createDocumentMapper(
-                fieldMapping(b -> b.field("type", "dense_vector").field("index", false).field("dims", 3).field("similarity", "l2_norm"))
+                fieldMapping(b -> new DenseVectorMappingBuilder().dims(3).index(false).similarity(VectorSimilarity.L2_NORM).build(b))
             )
         );
         assertThat(
@@ -1597,14 +1609,10 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             MapperParsingException.class,
             () -> createDocumentMapper(
                 fieldMapping(
-                    b -> b.field("type", "dense_vector")
-                        .field("index", false)
-                        .field("dims", 3)
-                        .startObject("index_options")
-                        .field("type", "hnsw")
-                        .field("m", 5)
-                        .field("ef_construction", 100)
-                        .endObject()
+                    b -> new DenseVectorMappingBuilder().dims(3)
+                        .index(false)
+                        .indexOptions(Map.of("type", "hnsw", "m", 5, "ef_construction", 100))
+                        .build(b)
                 )
             )
         );
@@ -1617,12 +1625,11 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             MapperParsingException.class,
             () -> createDocumentMapper(
                 fieldMapping(
-                    b -> b.field("type", "dense_vector")
-                        .field("dims", 3)
-                        .field("similarity", "l2_norm")
-                        .field("index", true)
-                        .startObject("index_options")
-                        .endObject()
+                    b -> new DenseVectorMappingBuilder().dims(3)
+                        .index(true)
+                        .similarity(VectorSimilarity.L2_NORM)
+                        .indexOptions(Map.of())
+                        .build(b)
                 )
             )
         );
@@ -1630,22 +1637,20 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
 
         e = expectThrows(
             MapperParsingException.class,
-            () -> createDocumentMapper(fieldMapping(b -> b.field("type", "dense_vector").field("dims", 3).field("element_type", "foo")))
+            () -> createDocumentMapper(
+                fieldMapping(b -> new DenseVectorMappingBuilder().dims(3).additionalParams(fb -> fb.field("element_type", "foo")).build(b))
+            )
         );
         assertThat(e.getMessage(), containsString("invalid element_type [foo]; available types are "));
         e = expectThrows(
             MapperParsingException.class,
             () -> createDocumentMapper(
                 fieldMapping(
-                    b -> b.field("type", "dense_vector")
-                        .field("dims", 3)
-                        .field("similarity", "l2_norm")
-                        .field("index", true)
-                        .startObject("index_options")
-                        .field("type", "hnsw")
-                        .startObject("foo")
-                        .endObject()
-                        .endObject()
+                    b -> new DenseVectorMappingBuilder().dims(3)
+                        .index(true)
+                        .similarity(VectorSimilarity.L2_NORM)
+                        .indexOptions(Map.of("type", "hnsw", "foo", Map.of()))
+                        .build(b)
                 )
             )
         );
@@ -1661,14 +1666,12 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 MapperParsingException.class,
                 () -> createDocumentMapper(
                     fieldMapping(
-                        b -> b.field("type", "dense_vector")
-                            .field("dims", 64)
-                            .field("element_type", "byte")
-                            .field("similarity", "l2_norm")
-                            .field("index", true)
-                            .startObject("index_options")
-                            .field("type", quantizationKind)
-                            .endObject()
+                        b -> new DenseVectorMappingBuilder().dims(64)
+                            .index(true)
+                            .similarity(VectorSimilarity.L2_NORM)
+                            .elementType(ElementType.BYTE)
+                            .indexOptions(Map.of("type", quantizationKind))
+                            .build(b)
                     )
                 )
             );
@@ -1682,18 +1685,20 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     public void testInvalidParametersBeforeIndexedByDefault() {
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> createDocumentMapper(INDEXED_BY_DEFAULT_PREVIOUS_INDEX_VERSION, fieldMapping(b -> {
-                b.field("type", "dense_vector").field("dims", 3).field("index", true);
-            }))
+            () -> createDocumentMapper(
+                INDEXED_BY_DEFAULT_PREVIOUS_INDEX_VERSION,
+                fieldMapping(b -> new DenseVectorMappingBuilder().dims(3).index(true).build(b))
+            )
         );
 
         assertThat(e.getMessage(), containsString("Field [index] requires field [similarity] to be configured and not null"));
 
         e = expectThrows(
             MapperParsingException.class,
-            () -> createDocumentMapper(INDEXED_BY_DEFAULT_PREVIOUS_INDEX_VERSION, fieldMapping(b -> {
-                b.field("type", "dense_vector").field("dims", 3).field("similarity", "cosine");
-            }))
+            () -> createDocumentMapper(
+                INDEXED_BY_DEFAULT_PREVIOUS_INDEX_VERSION,
+                fieldMapping(b -> new DenseVectorMappingBuilder().dims(3).similarity(VectorSimilarity.COSINE).build(b))
+            )
         );
 
         assertThat(
@@ -1703,15 +1708,14 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
 
         e = expectThrows(
             MapperParsingException.class,
-            () -> createDocumentMapper(INDEXED_BY_DEFAULT_PREVIOUS_INDEX_VERSION, fieldMapping(b -> {
-                b.field("type", "dense_vector")
-                    .field("dims", 3)
-                    .startObject("index_options")
-                    .field("type", "hnsw")
-                    .field("m", 200)
-                    .field("ef_construction", 20)
-                    .endObject();
-            }))
+            () -> createDocumentMapper(
+                INDEXED_BY_DEFAULT_PREVIOUS_INDEX_VERSION,
+                fieldMapping(
+                    b -> new DenseVectorMappingBuilder().dims(3)
+                        .indexOptions(Map.of("type", "hnsw", "m", 200, "ef_construction", 20))
+                        .build(b)
+                )
+            )
         );
 
         assertThat(
@@ -1721,9 +1725,10 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     public void testDefaultParamsBeforeIndexByDefault() throws Exception {
-        DocumentMapper documentMapper = createDocumentMapper(INDEXED_BY_DEFAULT_PREVIOUS_INDEX_VERSION, fieldMapping(b -> {
-            b.field("type", "dense_vector").field("dims", 3);
-        }));
+        DocumentMapper documentMapper = createDocumentMapper(
+            INDEXED_BY_DEFAULT_PREVIOUS_INDEX_VERSION,
+            fieldMapping(b -> new DenseVectorMappingBuilder().dims(3).build(b))
+        );
         DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) documentMapper.mappers().getMapper("field");
         DenseVectorFieldType denseVectorFieldType = denseVectorFieldMapper.fieldType();
 
@@ -1732,9 +1737,10 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     public void testParamsBeforeIndexByDefault() throws Exception {
-        DocumentMapper documentMapper = createDocumentMapper(INDEXED_BY_DEFAULT_PREVIOUS_INDEX_VERSION, fieldMapping(b -> {
-            b.field("type", "dense_vector").field("dims", 3).field("index", true).field("similarity", "dot_product");
-        }));
+        DocumentMapper documentMapper = createDocumentMapper(
+            INDEXED_BY_DEFAULT_PREVIOUS_INDEX_VERSION,
+            fieldMapping(b -> new DenseVectorMappingBuilder().dims(3).index(true).similarity(VectorSimilarity.DOT_PRODUCT).build(b))
+        );
         DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) documentMapper.mappers().getMapper("field");
         DenseVectorFieldType denseVectorFieldType = denseVectorFieldMapper.fieldType();
 
@@ -1743,7 +1749,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     public void testDefaultParamsIndexByDefault() throws Exception {
-        DocumentMapper documentMapper = createDocumentMapper(fieldMapping(b -> { b.field("type", "dense_vector").field("dims", 3); }));
+        DocumentMapper documentMapper = createDocumentMapper(fieldMapping(b -> new DenseVectorMappingBuilder().dims(3).build(b)));
         DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) documentMapper.mappers().getMapper("field");
         DenseVectorFieldType denseVectorFieldType = denseVectorFieldMapper.fieldType();
 
@@ -1787,13 +1793,12 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                     .toList()
             );
 
-            MapperService mapperService = createMapperService(indexVersion, fieldMapping(b -> {
-                b.field("type", "dense_vector");
-                b.field("index", true);
-                b.field("element_type", elementType.toString());
-                b.field("dims", dims);
-                b.field("similarity", similarity.toString());
-            }));
+            MapperService mapperService = createMapperService(
+                indexVersion,
+                fieldMapping(
+                    b -> new DenseVectorMappingBuilder().dims(dims).index(true).similarity(similarity).elementType(elementType).build(b)
+                )
+            );
 
             DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.mappingLookup().getMapper("field");
             DenseVectorFieldMapper.DenseVectorIndexOptions indexOptions = mapper.fieldType().getIndexOptions();
@@ -1850,14 +1855,11 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     public void testDocumentsWithIncorrectDims() throws Exception {
         for (boolean index : Arrays.asList(false, true)) {
             int dims = 3;
-            XContentBuilder fieldMapping = fieldMapping(b -> {
-                b.field("type", "dense_vector");
-                b.field("dims", dims);
-                b.field("index", index);
-                if (index) {
-                    b.field("similarity", "dot_product");
-                }
-            });
+            var mapping = new DenseVectorMappingBuilder().dims(dims).index(index);
+            if (index) {
+                mapping.similarity(VectorSimilarity.DOT_PRODUCT);
+            }
+            XContentBuilder fieldMapping = fieldMapping(mapping::build);
 
             DocumentMapper mapper = createDocumentMapper(fieldMapping);
 
@@ -1928,13 +1930,15 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     public void testDocumentsWithInvalidEncodedVectors() throws Exception {
         for (ElementType elementType : List.of(ElementType.BYTE, ElementType.BIT, ElementType.FLOAT, ElementType.BFLOAT16)) {
             int dims = elementType.dims(3);
-            DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
-                b.field("type", "dense_vector");
-                b.field("dims", dims);
-                b.field("element_type", elementType);
-                b.field("index", true);
-                b.field("similarity", "l2_norm");
-            }));
+            DocumentMapper mapper = createDocumentMapper(
+                fieldMapping(
+                    b -> new DenseVectorMappingBuilder().dims(dims)
+                        .index(true)
+                        .similarity(VectorSimilarity.L2_NORM)
+                        .elementType(elementType)
+                        .build(b)
+                )
+            );
             for (InvalidEncodedVector invalid : invalidEncodedVectors(elementType, dims)) {
                 DocumentParsingException e = expectThrows(
                     DocumentParsingException.class,
@@ -1949,7 +1953,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         final int dims = randomIntBetween(64, 2048);
         VectorSimilarity similarity = VectorSimilarity.COSINE;
         DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "dense_vector").field("dims", dims).field("index", true).field("similarity", similarity))
+            fieldMapping(b -> new DenseVectorMappingBuilder().dims(dims).index(true).similarity(similarity).build(b))
         );
         float[] vector = new float[dims];
         for (int i = 0; i < dims; i++) {
@@ -1971,7 +1975,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         VectorSimilarity similarity = VectorSimilarity.COSINE;
         DocumentMapper mapper = createDocumentMapper(
             IndexVersionUtils.randomVersionBetween(IndexVersions.V_8_0_0, IndexVersions.NEW_SPARSE_VECTOR),
-            fieldMapping(b -> b.field("type", "dense_vector").field("dims", dims).field("index", true).field("similarity", similarity))
+            fieldMapping(b -> new DenseVectorMappingBuilder().dims(dims).index(true).similarity(similarity).build(b))
         );
         float[] vector = new float[dims];
         for (int i = 0; i < dims; i++) {
@@ -1995,7 +1999,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         final int dims = 4096;
         VectorSimilarity similarity = VectorSimilarity.COSINE;
         DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "dense_vector").field("dims", dims).field("index", true).field("similarity", similarity))
+            fieldMapping(b -> new DenseVectorMappingBuilder().dims(dims).index(true).similarity(similarity).build(b))
         );
 
         float[] vector = new float[dims];
@@ -2026,11 +2030,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         ;
         DocumentMapper mapper = createDocumentMapper(
             fieldMapping(
-                b -> b.field("type", "dense_vector")
-                    .field("dims", dims)
-                    .field("index", true)
-                    .field("similarity", similarity)
-                    .field("element_type", "byte")
+                b -> new DenseVectorMappingBuilder().dims(dims).index(true).similarity(similarity).elementType(ElementType.BYTE).build(b)
             )
         );
 
@@ -2159,10 +2159,12 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     @Override
     // TODO: add `byte` element_type tests
     protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
-        b.field("type", "dense_vector").field("dims", randomIntBetween(2, 4096)).field("element_type", "float");
-        if (randomBoolean()) {
-            b.field("index", true).field("similarity", randomFrom(VectorSimilarity.values()).toString());
+        boolean index = randomBoolean();
+        var mapping = new DenseVectorMappingBuilder().dims(randomIntBetween(2, 4096)).elementType(ElementType.FLOAT);
+        if (index) {
+            mapping.index(true).similarity(randomFrom(VectorSimilarity.values()));
         }
+        mapping.build(b);
     }
 
     @Override
@@ -2190,11 +2192,11 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     public void testByteVectorIndexBoundaries() throws IOException {
         DocumentMapper mapper = createDocumentMapper(
             fieldMapping(
-                b -> b.field("type", "dense_vector")
-                    .field("element_type", "byte")
-                    .field("dims", 3)
-                    .field("index", true)
-                    .field("similarity", VectorSimilarity.COSINE)
+                b -> new DenseVectorMappingBuilder().dims(3)
+                    .index(true)
+                    .similarity(VectorSimilarity.COSINE)
+                    .elementType(ElementType.BYTE)
+                    .build(b)
             )
         );
 
@@ -2224,18 +2226,16 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     public void testByteVectorQueryBoundaries() throws IOException {
-        MapperService mapperService = createMapperService(fieldMapping(b -> {
-            b.field("type", "dense_vector");
-            b.field("element_type", "byte");
-            b.field("dims", 3);
-            b.field("index", true);
-            b.field("similarity", "dot_product");
-            b.startObject("index_options");
-            b.field("type", "hnsw");
-            b.field("m", 3);
-            b.field("ef_construction", 10);
-            b.endObject();
-        }));
+        MapperService mapperService = createMapperService(
+            fieldMapping(
+                b -> new DenseVectorMappingBuilder().dims(3)
+                    .index(true)
+                    .similarity(VectorSimilarity.DOT_PRODUCT)
+                    .elementType(ElementType.BYTE)
+                    .indexOptions(Map.of("type", "hnsw", "m", 3, "ef_construction", 10))
+                    .build(b)
+            )
+        );
 
         DenseVectorFieldType denseVectorFieldType = (DenseVectorFieldType) mapperService.fieldType("field");
 
@@ -2378,18 +2378,16 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     public void testFloatVectorQueryBoundaries() throws IOException {
-        MapperService mapperService = createMapperService(fieldMapping(b -> {
-            b.field("type", "dense_vector");
-            b.field("element_type", "float");
-            b.field("dims", 3);
-            b.field("index", true);
-            b.field("similarity", "dot_product");
-            b.startObject("index_options");
-            b.field("type", "hnsw");
-            b.field("m", 3);
-            b.field("ef_construction", 10);
-            b.endObject();
-        }));
+        MapperService mapperService = createMapperService(
+            fieldMapping(
+                b -> new DenseVectorMappingBuilder().dims(3)
+                    .index(true)
+                    .similarity(VectorSimilarity.DOT_PRODUCT)
+                    .elementType(ElementType.FLOAT)
+                    .indexOptions(Map.of("type", "hnsw", "m", 3, "ef_construction", 10))
+                    .build(b)
+            )
+        );
 
         DenseVectorFieldType denseVectorFieldType = (DenseVectorFieldType) mapperService.fieldType("field");
 
@@ -2456,23 +2454,23 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         final int efConstruction = randomIntBetween(1, DEFAULT_BEAM_WIDTH + 10);
         boolean setM = randomBoolean();
         boolean setEfConstruction = randomBoolean();
+        Map<String, Object> indexOptions = new HashMap<>();
+        indexOptions.put("type", "hnsw");
+        if (setM) {
+            indexOptions.put("m", m);
+        }
+        if (setEfConstruction) {
+            indexOptions.put("ef_construction", efConstruction);
+        }
         MapperService mapperService = createMapperService(
             IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_4_0),
-            fieldMapping(b -> {
-                b.field("type", "dense_vector");
-                b.field("dims", dims);
-                b.field("index", true);
-                b.field("similarity", "dot_product");
-                b.startObject("index_options");
-                b.field("type", "hnsw");
-                if (setM) {
-                    b.field("m", m);
-                }
-                if (setEfConstruction) {
-                    b.field("ef_construction", efConstruction);
-                }
-                b.endObject();
-            })
+            fieldMapping(
+                b -> new DenseVectorMappingBuilder().dims(dims)
+                    .index(true)
+                    .similarity(VectorSimilarity.DOT_PRODUCT)
+                    .indexOptions(indexOptions)
+                    .build(b)
+            )
         );
         CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
         Codec codec = codecService.codec("default");
@@ -2511,16 +2509,16 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     public void testConfidenceIntervalDeprecationOnLatestIndexVersion() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(IndexVersions.UPGRADE_TO_LUCENE_10_4_0, fieldMapping(b -> {
-            b.field("type", "dense_vector");
-            b.field("dims", 6);
-            b.field("index", true);
-            b.field("similarity", "dot_product");
-            b.startObject("index_options");
-            b.field("type", "int8_hnsw");
-            b.field("confidence_interval", 0.95f);
-            b.endObject();
-        }));
+        DocumentMapper mapper = createDocumentMapper(
+            IndexVersions.UPGRADE_TO_LUCENE_10_4_0,
+            fieldMapping(
+                b -> new DenseVectorMappingBuilder().dims(6)
+                    .index(true)
+                    .similarity(VectorSimilarity.DOT_PRODUCT)
+                    .indexOptions(Map.of("type", "int8_hnsw", "confidence_interval", 0.95f))
+                    .build(b)
+            )
+        );
         assertTrue(mapper.mappingSource().string().contains("\"confidence_interval\":0.95"));
         assertWarnings(
             "Parameter [confidence_interval] in [index_options] for dense_vector field "
@@ -2531,16 +2529,13 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     public void testConfidenceIntervalNoDeprecationBeforeLatestIndexVersion() throws IOException {
         DocumentMapper mapper = createDocumentMapper(
             IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_4_0),
-            fieldMapping(b -> {
-                b.field("type", "dense_vector");
-                b.field("dims", 6);
-                b.field("index", true);
-                b.field("similarity", "dot_product");
-                b.startObject("index_options");
-                b.field("type", "int8_hnsw");
-                b.field("confidence_interval", 0.95f);
-                b.endObject();
-            })
+            fieldMapping(
+                b -> new DenseVectorMappingBuilder().dims(6)
+                    .index(true)
+                    .similarity(VectorSimilarity.DOT_PRODUCT)
+                    .indexOptions(Map.of("type", "int8_hnsw", "confidence_interval", 0.95f))
+                    .build(b)
+            )
         );
         assertTrue(mapper.mappingSource().string().contains("\"confidence_interval\":0.95"));
         assertWarnings();
@@ -2550,15 +2545,13 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         for (String quantizedFlatFormat : new String[] { "int8_flat", "int4_flat" }) {
             MapperService mapperService = createMapperService(
                 IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_4_0),
-                fieldMapping(b -> {
-                    b.field("type", "dense_vector");
-                    b.field("dims", dims);
-                    b.field("index", true);
-                    b.field("similarity", "dot_product");
-                    b.startObject("index_options");
-                    b.field("type", quantizedFlatFormat);
-                    b.endObject();
-                })
+                fieldMapping(
+                    b -> new DenseVectorMappingBuilder().dims(dims)
+                        .index(true)
+                        .similarity(VectorSimilarity.DOT_PRODUCT)
+                        .indexOptions(Map.of("type", quantizedFlatFormat))
+                        .build(b)
+                )
             );
             CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
             Codec codec = codecService.codec("default");
@@ -2599,17 +2592,13 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         final int efConstruction = randomIntBetween(1, DEFAULT_BEAM_WIDTH + 10);
         MapperService mapperService = createMapperService(
             IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_4_0),
-            fieldMapping(b -> {
-                b.field("type", "dense_vector");
-                b.field("dims", dims);
-                b.field("index", true);
-                b.field("similarity", "dot_product");
-                b.startObject("index_options");
-                b.field("type", "int8_hnsw");
-                b.field("m", m);
-                b.field("ef_construction", efConstruction);
-                b.endObject();
-            })
+            fieldMapping(
+                b -> new DenseVectorMappingBuilder().dims(dims)
+                    .index(true)
+                    .similarity(VectorSimilarity.DOT_PRODUCT)
+                    .indexOptions(Map.of("type", "int8_hnsw", "m", m, "ef_construction", efConstruction))
+                    .build(b)
+            )
         );
         CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
         Codec codec = codecService.codec("default");
@@ -2655,17 +2644,13 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         final int dims = randomIntBetween(64, 4096);
         MapperService mapperService = createMapperService(
             IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_4_0),
-            fieldMapping(b -> {
-                b.field("type", "dense_vector");
-                b.field("dims", dims);
-                b.field("index", true);
-                b.field("similarity", "dot_product");
-                b.startObject("index_options");
-                b.field("type", "bbq_hnsw");
-                b.field("m", m);
-                b.field("ef_construction", efConstruction);
-                b.endObject();
-            })
+            fieldMapping(
+                b -> new DenseVectorMappingBuilder().dims(dims)
+                    .index(true)
+                    .similarity(VectorSimilarity.DOT_PRODUCT)
+                    .indexOptions(Map.of("type", "bbq_hnsw", "m", m, "ef_construction", efConstruction))
+                    .build(b)
+            )
         );
         CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
         Codec codec = codecService.codec("default");
@@ -2686,16 +2671,19 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
 
     public void testInvalidVectorDimensionsBBQ() {
         for (String quantizedFlatFormat : new String[] { "bbq_hnsw", "bbq_flat" }) {
-            MapperParsingException e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
-                b.field("type", "dense_vector");
-                b.field("dims", randomIntBetween(1, 63));
-                b.field("element_type", "float");
-                b.field("index", true);
-                b.field("similarity", "dot_product");
-                b.startObject("index_options");
-                b.field("type", quantizedFlatFormat);
-                b.endObject();
-            })));
+            MapperParsingException e = expectThrows(
+                MapperParsingException.class,
+                () -> createDocumentMapper(
+                    fieldMapping(
+                        b -> new DenseVectorMappingBuilder().dims(randomIntBetween(1, 63))
+                            .index(true)
+                            .similarity(VectorSimilarity.DOT_PRODUCT)
+                            .elementType(ElementType.FLOAT)
+                            .indexOptions(Map.of("type", quantizedFlatFormat))
+                            .build(b)
+                    )
+                )
+            );
             assertThat(e.getMessage(), containsString("does not support dimensions fewer than 64"));
         }
     }
@@ -2703,17 +2691,15 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     public void testKnnHalfByteQuantizedHNSWVectorsFormat() throws IOException {
         final int m = randomIntBetween(1, DEFAULT_MAX_CONN + 10);
         final int efConstruction = randomIntBetween(1, DEFAULT_BEAM_WIDTH + 10);
-        MapperService mapperService = createMapperService(fieldMapping(b -> {
-            b.field("type", "dense_vector");
-            b.field("dims", dims);
-            b.field("index", true);
-            b.field("similarity", "dot_product");
-            b.startObject("index_options");
-            b.field("type", "int4_hnsw");
-            b.field("m", m);
-            b.field("ef_construction", efConstruction);
-            b.endObject();
-        }));
+        MapperService mapperService = createMapperService(
+            fieldMapping(
+                b -> new DenseVectorMappingBuilder().dims(dims)
+                    .index(true)
+                    .similarity(VectorSimilarity.DOT_PRODUCT)
+                    .indexOptions(Map.of("type", "int4_hnsw", "m", m, "ef_construction", efConstruction))
+                    .build(b)
+            )
+        );
         CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
         Codec codec = codecService.codec("default");
         assertThat(codec, instanceOf(PerFieldMapperCodec.class));
@@ -2754,16 +2740,19 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
 
     public void testInvalidVectorDimensions() {
         for (String quantizedFlatFormat : new String[] { "int4_hnsw", "int4_flat" }) {
-            MapperParsingException e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
-                b.field("type", "dense_vector");
-                b.field("dims", 5);
-                b.field("element_type", "float");
-                b.field("index", true);
-                b.field("similarity", "dot_product");
-                b.startObject("index_options");
-                b.field("type", quantizedFlatFormat);
-                b.endObject();
-            })));
+            MapperParsingException e = expectThrows(
+                MapperParsingException.class,
+                () -> createDocumentMapper(
+                    fieldMapping(
+                        b -> new DenseVectorMappingBuilder().dims(5)
+                            .index(true)
+                            .similarity(VectorSimilarity.DOT_PRODUCT)
+                            .elementType(ElementType.FLOAT)
+                            .indexOptions(Map.of("type", quantizedFlatFormat))
+                            .build(b)
+                    )
+                )
+            );
             assertThat(e.getMessage(), containsString("only supports even dimensions"));
         }
     }
@@ -2779,11 +2768,11 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             .build(MapperBuilderContext.root(false, false));
         final IndexSettings enabled = IndexSettingsModule.newIndexSettings(
             "foo",
-            Settings.builder().put(IndexSettings.INTRA_MERGE_PARALLELISM_ENABLED_SETTING.getKey(), true).build()
+            new DenseVectorTestSettingsBuilder().intraMergeParallelism(true).build()
         );
         final IndexSettings disabled = IndexSettingsModule.newIndexSettings(
             "foo",
-            Settings.builder().put(IndexSettings.INTRA_MERGE_PARALLELISM_ENABLED_SETTING.getKey(), false).build()
+            new DenseVectorTestSettingsBuilder().intraMergeParallelism(false).build()
         );
         // enabled with null tp
         mapper.getKnnVectorsFormatForField(new ES93HnswVectorsFormat(), enabled, null);
@@ -2827,7 +2816,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     private static class DenseVectorSyntheticSourceSupport implements SyntheticSourceSupport {
-        private final int dims = between(5, 1000);
+        private final int vectorLength = between(5, 1000);
         private final ElementType elementType = randomFrom(ElementType.BYTE, ElementType.FLOAT, ElementType.BFLOAT16, ElementType.BIT);
         private final boolean indexed = randomBoolean();
         private final boolean indexOptionsSet = indexed && randomBoolean();
@@ -2835,32 +2824,25 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         @Override
         public SyntheticSourceExample example(int maxValues) throws IOException {
             Object value = switch (elementType) {
-                case BYTE, BIT -> randomList(dims, dims, ESTestCase::randomByte);
-                case FLOAT -> randomList(dims, dims, ESTestCase::randomFloat);
-                case BFLOAT16 -> randomList(dims, dims, () -> BFloat16.truncateToBFloat16(randomFloat()));
+                case BYTE, BIT -> randomList(vectorLength, vectorLength, ESTestCase::randomByte);
+                case FLOAT -> randomList(vectorLength, vectorLength, ESTestCase::randomFloat);
+                case BFLOAT16 -> randomList(vectorLength, vectorLength, () -> BFloat16.truncateToBFloat16(randomFloat()));
             };
             return new SyntheticSourceExample(value, value, this::mapping);
         }
 
         private void mapping(XContentBuilder b) throws IOException {
-            b.field("type", "dense_vector");
-            if (elementType != ElementType.FLOAT || randomBoolean()) {
-                b.field("element_type", elementType.toString());
-            }
-            b.field("dims", elementType == ElementType.BIT ? dims * Byte.SIZE : dims);
+            var mapping = new DenseVectorMappingBuilder().dims(elementType.dims(vectorLength)).index(indexed);
             if (indexed) {
-                b.field("index", true);
-                b.field("similarity", "l2_norm");
-                if (indexOptionsSet) {
-                    b.startObject("index_options");
-                    b.field("type", "hnsw");
-                    b.field("m", 5);
-                    b.field("ef_construction", 50);
-                    b.endObject();
-                }
-            } else {
-                b.field("index", false);
+                mapping.similarity(VectorSimilarity.L2_NORM);
             }
+            if (elementType != ElementType.FLOAT || randomBoolean()) {
+                mapping.elementType(elementType);
+            }
+            if (indexOptionsSet) {
+                mapping.indexOptions(Map.of("type", "hnsw", "m", 5, "ef_construction", 50));
+            }
+            mapping.build(b);
         }
 
         @Override
@@ -2903,15 +2885,12 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
 
     /** @param onDiskMerge the value of {@code on_disk_merge}, or {@code null} to leave it out */
     private static void onDiskMergeMapping(XContentBuilder b, String type, Boolean onDiskMerge) throws IOException {
-        b.field("type", "dense_vector");
-        b.field("dims", 64);
-        b.field("index", true);
-        b.startObject("index_options");
-        b.field("type", type);
+        Map<String, Object> indexOptions = new HashMap<>();
+        indexOptions.put("type", type);
         if (onDiskMerge != null) {
-            b.field("on_disk_merge", onDiskMerge);
+            indexOptions.put("on_disk_merge", onDiskMerge);
         }
-        b.endObject();
+        new DenseVectorMappingBuilder().dims(64).index(true).indexOptions(indexOptions).build(b);
     }
 
     /**
@@ -2928,8 +2907,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     private static boolean onDiskMergeOf(MapperService mapperService) {
-        DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.mappingLookup().getMapper("field");
-        return mapper.fieldType().getIndexOptions().isOnDiskMerge();
+        return getIndexOptions(mapperService, "field", DenseVectorFieldMapper.DenseVectorIndexOptions.class).isOnDiskMerge();
     }
 
     private static class TestDenseVectorIndexOptions extends DenseVectorFieldMapper.DenseVectorIndexOptions {
@@ -2944,10 +2922,15 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         }
 
         @Override
-        KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
+        KnnVectorsFormat getVectorsFormat(
+            ElementType elementType,
+            ExecutorService mergingExecutorService,
+            int numMergeWorkers,
+            ExecutorService quantizerExecutorService
+        ) {
             this.passedMergingExecutorService = mergingExecutorService;
             this.passedNumMergeWorkers = numMergeWorkers;
-            return inner.getVectorsFormat(elementType, mergingExecutorService, numMergeWorkers);
+            return inner.getVectorsFormat(elementType, mergingExecutorService, numMergeWorkers, quantizerExecutorService);
         }
 
         @Override

@@ -88,6 +88,7 @@ public class CsvFormatReaderStateLifecycleTests extends ESTestCase {
         Map.entry("withDirectBlockEnabled", WitherLifecycle.SHARES_COUNTERS),
         Map.entry("withSchemaMaxFields", WitherLifecycle.SHARES_COUNTERS),
         Map.entry("withReadConfig", WitherLifecycle.SHARES_COUNTERS),
+        Map.entry("withSchemaSampleShare", WitherLifecycle.SHARES_COUNTERS),
         Map.entry("withPushedFilter", WitherLifecycle.IDENTITY_NO_COPY)
     );
 
@@ -253,6 +254,7 @@ public class CsvFormatReaderStateLifecycleTests extends ESTestCase {
             case "withDirectBlockEnabled" -> List.<Object[]>of(new Object[] { true }, new Object[] { false });
             case "withSchemaMaxFields" -> List.<Object[]>of(new Object[] { 1 }, new Object[] { 2000 });
             case "withReadConfig" -> List.<Object[]>of(new Object[] { "0123456789abcdef0123456789abcdef" });
+            case "withSchemaSampleShare" -> List.<Object[]>of(new Object[] { 8 });
             case "withPushedFilter" -> List.<Object[]>of(new Object[] { new Object() });
             default -> throw new AssertionError("update sampleArgsFor() for new wither: " + wither);
         };

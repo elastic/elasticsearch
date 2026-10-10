@@ -103,6 +103,10 @@ public class LiveVersionMapTestUtils {
         return map.isUnsafe();
     }
 
+    public static long safeGenerationForGets(LiveVersionMap map, long lastCommittedGeneration) {
+        return map.safeGenerationForGets(lastCommittedGeneration);
+    }
+
     public static boolean isSafeAccessRequired(LiveVersionMap map) {
         return map.isSafeAccessRequired();
     }

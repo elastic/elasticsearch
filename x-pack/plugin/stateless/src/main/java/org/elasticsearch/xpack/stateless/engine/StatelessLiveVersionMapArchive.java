@@ -141,6 +141,18 @@ public class StatelessLiveVersionMapArchive implements LiveVersionMapArchive {
     }
 
     @Override
+    public long safeGenerationForGets(long lastCommittedGeneration) {
+        // Read the flag and minSafeGeneration under the mutex so we never pair the unsafe flag of a new episode
+        // with the minSafeGeneration of a previous one.
+        synchronized (mutex) {
+            if (isUnsafe == false || lastCommittedGeneration < minSafeGeneration) {
+                return -1;
+            }
+            return minSafeGeneration;
+        }
+    }
+
+    @Override
     public long getRamBytesUsed() {
         long memBytesUsed = 0;
         synchronized (mutex) {

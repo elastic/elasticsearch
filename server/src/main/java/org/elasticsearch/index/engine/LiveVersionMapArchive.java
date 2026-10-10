@@ -41,6 +41,16 @@ public interface LiveVersionMapArchive {
     }
 
     /**
+     * Returns the segment generation that contains every operation the archive has no record of, provided that
+     * generation is already committed (i.e., at most {@code lastCommittedGeneration}). Real-time gets that miss
+     * the version map can safely be served from a reader that includes this generation. Returns -1 if the archive
+     * is not unsafe or no committed generation covers its unsafe operations yet.
+     */
+    default long safeGenerationForGets(long lastCommittedGeneration) {
+        return -1;
+    }
+
+    /**
      * Returns the total memory usage if the Archive.
      */
     default long getRamBytesUsed() {

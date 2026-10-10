@@ -15,7 +15,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
@@ -53,6 +52,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Booleans;
@@ -146,6 +146,7 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
@@ -486,6 +487,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final Tracer tracer;
 
+    private final TaskManager taskManager;
+
+    /**
+     * Indices whose in-flight searches are cancelled from {@link #beforeIndexShardClosed}.
+     * {@link #beforeIndexRemoved} records an index only when that removal frees search contexts.
+     */
+    private final Set<Index> indicesCancellingSearchesOnClose = ConcurrentCollections.newConcurrentSet();
+
     public SearchService(
         ClusterService clusterService,
         IndicesService indicesService,
@@ -496,7 +505,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         CircuitBreakerService circuitBreakerService,
         ExecutorSelector executorSelector,
         Tracer tracer,
-        OnlinePrewarmingService onlinePrewarmingService
+        OnlinePrewarmingService onlinePrewarmingService,
+        TaskManager taskManager
     ) {
         Settings settings = clusterService.getSettings();
         this.sessionId = UUIDs.randomBase64UUID();
@@ -511,6 +521,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.multiBucketConsumerService = new MultiBucketConsumerService(clusterService, settings, circuitBreaker);
         this.executorSelector = executorSelector;
         this.tracer = tracer;
+        this.taskManager = taskManager;
         this.onlinePrewarmingService = onlinePrewarmingService;
         TimeValue keepAliveInterval = KEEPALIVE_INTERVAL_SETTING.get(settings);
         setKeepAlives(DEFAULT_KEEPALIVE_SETTING.get(settings), MAX_KEEPALIVE_SETTING.get(settings));
@@ -667,15 +678,44 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     @Override
+    public void beforeIndexRemoved(IndexService indexService, IndexRemovalReason reason) {
+        // Recorded before shards close. engine.close waits on searchers held by in-flight phases, so the
+        // cancel in beforeIndexShardClosed has to happen first. Relocation and shutdown close shards too,
+        // but those searches must keep running.
+        if (cancelsInFlightSearches(reason)) {
+            indicesCancellingSearchesOnClose.add(indexService.index());
+        }
+    }
+
+    @Override
+    public void beforeIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
+        // freeAllContextsForShard must not cancel: beforeIndexShardCreated uses it for reassignment.
+        assert shardId != null;
+        if (indicesCancellingSearchesOnClose.contains(shardId.getIndex()) == false) {
+            return;
+        }
+        for (ReaderContext ctx : activeReaders.values()) {
+            if (shardId.equals(ctx.indexShard().shardId())) {
+                ctx.cancelInFlightSearches(taskManager, "index removed: " + shardId.getIndex().getName());
+            }
+        }
+    }
+
+    @Override
     public void afterIndexRemoved(Index index, IndexSettings indexSettings, IndexRemovalReason reason) {
+        indicesCancellingSearchesOnClose.remove(index);
         // once an index is removed due to deletion or closing, we can just clean up all the pending search context information
         // if we then close all the contexts we can get some search failures along the way which are not expected.
         // it's fine to keep the contexts open if the index is still "alive"
         // unfortunately we don't have a clear way to signal today why an index is closed.
         // to release memory and let references to the filesystem go etc.
-        if (reason == IndexRemovalReason.DELETED || reason == IndexRemovalReason.CLOSED || reason == IndexRemovalReason.REOPENED) {
+        if (cancelsInFlightSearches(reason)) {
             freeAllContextForIndex(index);
         }
+    }
+
+    private static boolean cancelsInFlightSearches(IndexRemovalReason reason) {
+        return reason == IndexRemovalReason.DELETED || reason == IndexRemovalReason.CLOSED || reason == IndexRemovalReason.REOPENED;
     }
 
     @Override
@@ -778,8 +818,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Lifecycle lifecycle
     ) {
         final boolean header = threadPool.getThreadContext() == null || getErrorTraceHeader(threadPool);
-        return listener.delegateResponse((l, original) -> {
-            final Exception e = badRequestIfPatternTooComplex(original);
+        return listener.delegateResponse((l, e) -> {
             org.apache.logging.log4j.util.Supplier<String> messageSupplier = () -> format(
                 "[%s]%s: failed to execute search request for task [%d]",
                 nodeId,
@@ -806,21 +845,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
             l.onFailure(e);
         });
-    }
-
-    /**
-     * Search only compiles automata from patterns in the request, so failing to determinize one is a client error
-     * regardless of which phase or component compiled it.
-     */
-    static Exception badRequestIfPatternTooComplex(Exception e) {
-        if (ExceptionsHelper.status(e).getStatus() >= 500 && ExceptionsHelper.unwrap(e, TooComplexToDeterminizeException.class) != null) {
-            return new IllegalArgumentException("Pattern was too complex to determinize", e);
-        }
-        return e;
-    }
-
-    private static <T> ActionListener<T> badRequestIfPatternTooComplex(ActionListener<T> listener) {
-        return listener.delegateResponse((l, e) -> l.onFailure(badRequestIfPatternTooComplex(e)));
     }
 
     private static boolean getErrorTraceHeader(ThreadPool threadPool) {
@@ -1264,10 +1288,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         FetchPhaseResponseChunk.Writer writer,
         ActionListener<FetchSearchResult> listener
     ) {
-        final ActionListener<FetchSearchResult> releaseListener = releaseCircuitBreakerOnResponse(
-            badRequestIfPatternTooComplex(listener),
-            result -> result
-        );
+        final ActionListener<FetchSearchResult> releaseListener = releaseCircuitBreakerOnResponse(listener, result -> result);
         final ShardSearchRequest suppliedShardSearchRequest = request.getShardSearchRequest();
         final ReaderContext readerContext = findReaderContext(
             request.contextId(),
@@ -1592,7 +1613,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         },
             wrapFailureListener(
-                releaseCircuitBreakerOnResponse(badRequestIfPatternTooComplex(listener), result -> result.result().fetchResult()),
+                releaseCircuitBreakerOnResponse(listener, result -> result.result().fetchResult()),
                 markAsUsed,
                 e -> processScrollContinuationFailure(readerContext, e)
             )
@@ -1945,6 +1966,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         } catch (Exception e) {
             context.close();
             throw e;
+        }
+
+        // Freed readers close only after in-flight phases release them. Cancel first so a phase
+        // blocked inside its SearchContext try-with-resources can exit and close that context.
+        if (task != null) {
+            readerContext.addInFlightSearch(task);
+            context.addReleasable(() -> readerContext.removeInFlightSearch(task));
         }
 
         return context;

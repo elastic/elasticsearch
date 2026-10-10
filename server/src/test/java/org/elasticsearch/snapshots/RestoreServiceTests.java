@@ -12,6 +12,7 @@ package org.elasticsearch.snapshots;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
@@ -20,6 +21,7 @@ import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -32,6 +34,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -391,6 +394,10 @@ public class RestoreServiceTests extends ESTestCase {
      * restore status is {@link RestoreInProgress.State#STARTED} (not completed).
      */
     private static RestoreTestState buildRestoreTestState() {
+        return buildRestoreTestState(/* reportShardRestoring= */false);
+    }
+
+    private static RestoreTestState buildRestoreTestState(boolean reportShardRestoring) {
         String restoreUuid = randomUUID();
         String repoName = randomIdentifier();
         String indexName = randomIdentifier();
@@ -413,11 +420,396 @@ public class RestoreServiceTests extends ESTestCase {
                 RestoreInProgress.State.STARTED,
                 false,
                 List.of(indexName),
-                Map.of(shardId, new RestoreInProgress.ShardRestoreStatus(nodeId))
+                Map.of(shardId, new RestoreInProgress.ShardRestoreStatus(nodeId)),
+                reportShardRestoring
             )
         ).build();
 
         return new RestoreTestState(primary, restoreInProgress, snapshot);
+    }
+
+    private static ClusterState clusterStateOf(RestoreTestState s) {
+        return clusterStateOf(s.restoreInProgress(), IndexRoutingTable.builder(s.primary().index()).addShard(s.primary()));
+    }
+
+    private static ClusterState clusterStateOf(RestoreInProgress restoreInProgress, IndexRoutingTable.Builder... indices) {
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        for (IndexRoutingTable.Builder index : indices) {
+            routingTable.add(index);
+        }
+        return ClusterState.builder(ClusterName.DEFAULT)
+            .routingTable(routingTable.build())
+            .putCustom(RestoreInProgress.TYPE, restoreInProgress)
+            .build();
+    }
+
+    private static void assertReportsRestore(ShardRestoringException e, RestoreTestState s, String restoreUuid) {
+        assertNotNull(e);
+        assertThat(e.recoveryId(), equalTo(restoreUuid));
+        assertThat(e.getMetadata("es.index"), equalTo(List.of(s.primary().shardId().getIndexName())));
+    }
+
+    /**
+     * A restore whose caller asked for its shards to be reported yields a {@link ShardRestoringException} that names the index and
+     * carries the restore UUID as its recovery ID, both by shard and by index.
+     */
+    public void testReportableRestoreException_reportingRestore_returnsException() {
+        var s = buildRestoreTestState(/* reportShardRestoring= */true);
+        var state = clusterStateOf(s);
+        String restoreUuid = ((SnapshotRecoverySource) s.primary().recoverySource()).restoreUUID();
+
+        assertReportsRestore(RestoreService.reportableRestoreException(ProjectId.DEFAULT, s.primary().shardId(), state), s, restoreUuid);
+        assertReportsRestore(RestoreService.reportableRestoreException(ProjectId.DEFAULT, s.primary().index(), state), s, restoreUuid);
+    }
+
+    /**
+     * A restore whose caller did not ask for its shards to be reported yields {@code null} even though the shard is demonstrably
+     * mid-restore, so callers keep the generic shard-unavailable errors.
+     */
+    public void testReportableRestoreException_nonReportingRestore_returnsNull() {
+        var s = buildRestoreTestState(/* reportShardRestoring= */false);
+        var state = clusterStateOf(s);
+        assertTrue(RestoreService.isRestoringShardFromSnapshot(s.restoreInProgress(), s.primary()));
+
+        assertNull(RestoreService.reportableRestoreException(ProjectId.DEFAULT, s.primary().shardId(), state));
+        assertNull(RestoreService.reportableRestoreException(ProjectId.DEFAULT, s.primary().index(), state));
+    }
+
+    /**
+     * A primary that is still waiting to be allocated is being restored just as much as one that is initializing, so a restore that
+     * reports its shards is reported for an {@code UNASSIGNED} primary too.
+     */
+    public void testReportableRestoreException_unassignedPrimary_returnsException() {
+        var s = buildRestoreTestState(true);
+        var unassigned = new RestoreTestState(
+            TestShardRouting.shardRoutingBuilder(s.primary().shardId(), null, true, ShardRoutingState.UNASSIGNED)
+                .withRecoverySource(s.primary().recoverySource())
+                .withUnassignedInfo(new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test"))
+                .build(),
+            s.restoreInProgress(),
+            s.snapshot()
+        );
+        var state = clusterStateOf(unassigned);
+        String restoreUuid = ((SnapshotRecoverySource) unassigned.primary().recoverySource()).restoreUUID();
+
+        assertReportsRestore(
+            RestoreService.reportableRestoreException(ProjectId.DEFAULT, unassigned.primary().shardId(), state),
+            unassigned,
+            restoreUuid
+        );
+        assertReportsRestore(
+            RestoreService.reportableRestoreException(ProjectId.DEFAULT, unassigned.primary().index(), state),
+            unassigned,
+            restoreUuid
+        );
+    }
+
+    /**
+     * An index that was deleted and recreated under the same name is a different index, so a restore of the old one must not be
+     * reported for the new one.
+     */
+    public void testReportableRestoreException_sameNameDifferentIndexUuid_returnsNull() {
+        var s = buildRestoreTestState(true);
+        var state = clusterStateOf(s);
+        var recreated = new Index(s.primary().index().getName(), randomUUID());
+
+        assertNull(RestoreService.reportableRestoreException(ProjectId.DEFAULT, new ShardId(recreated, 0), state));
+        assertNull(RestoreService.reportableRestoreException(ProjectId.DEFAULT, recreated, state));
+    }
+
+    /**
+     * A shard number the index does not have is not being restored, and looking it up must not fail.
+     */
+    public void testReportableRestoreException_unknownShardNumber_returnsNull() {
+        var s = buildRestoreTestState(true);
+        var state = clusterStateOf(s);
+
+        assertNull(
+            RestoreService.reportableRestoreException(ProjectId.DEFAULT, new ShardId(s.primary().index(), randomIntBetween(1, 10)), state)
+        );
+    }
+
+    /**
+     * The shards of one index can each be in a different state, and only the shard that a reporting restore is still restoring is
+     * reported. Shard 0 failed in the restore: it stays unassigned with its snapshot recovery source but the restore is no longer working
+     * on it. Shard 1 is still being restored. Shard 2 has already started. Shard 3 is unavailable for a reason unrelated to the restore.
+     * The shard-level lookup is exact, while the index-level lookup reports the index because one of its primaries is being restored.
+     */
+    public void testReportableRestoreException_shardsInDifferentStates_reportsOnlyTheShardStillBeingRestored() {
+        var s = buildRestoreTestState(true);
+        var index = s.primary().index();
+        var restoreUuid = ((SnapshotRecoverySource) s.primary().recoverySource()).restoreUUID();
+        var failedShard = new ShardId(index, 0);
+        var restoringShard = new ShardId(index, 1);
+        var startedShard = new ShardId(index, 2);
+        var unrelatedShard = new ShardId(index, 3);
+        var entry = s.restoreInProgress().get(restoreUuid);
+        var running = new RestoreInProgress.Builder().add(
+            new RestoreInProgress.Entry(
+                entry.uuid(),
+                entry.snapshot(),
+                RestoreInProgress.State.STARTED,
+                entry.quiet(),
+                entry.indices(),
+                Map.of(
+                    failedShard,
+                    new RestoreInProgress.ShardRestoreStatus(null, RestoreInProgress.State.FAILURE, "shard could not be allocated"),
+                    restoringShard,
+                    new RestoreInProgress.ShardRestoreStatus(s.primary().currentNodeId())
+                ),
+                true
+            )
+        ).build();
+        var failedPrimary = TestShardRouting.shardRoutingBuilder(failedShard, null, true, ShardRoutingState.UNASSIGNED)
+            .withRecoverySource(s.primary().recoverySource())
+            .withUnassignedInfo(new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test"))
+            .build();
+        var restoringPrimary = TestShardRouting.shardRoutingBuilder(
+            restoringShard,
+            s.primary().currentNodeId(),
+            true,
+            ShardRoutingState.INITIALIZING
+        ).withRecoverySource(s.primary().recoverySource()).build();
+        var startedPrimary = TestShardRouting.shardRoutingBuilder(startedShard, randomUUID(), true, ShardRoutingState.STARTED).build();
+        var unrelatedPrimary = TestShardRouting.shardRoutingBuilder(unrelatedShard, null, true, ShardRoutingState.UNASSIGNED)
+            .withRecoverySource(RecoverySource.EmptyStoreRecoverySource.INSTANCE)
+            .withUnassignedInfo(new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test"))
+            .build();
+        var state = clusterStateOf(
+            running,
+            IndexRoutingTable.builder(index)
+                .addShard(failedPrimary)
+                .addShard(restoringPrimary)
+                .addShard(startedPrimary)
+                .addShard(unrelatedPrimary)
+        );
+
+        assertNull(RestoreService.reportableRestoreException(ProjectId.DEFAULT, failedShard, state));
+        assertReportsRestore(RestoreService.reportableRestoreException(ProjectId.DEFAULT, restoringShard, state), s, restoreUuid);
+        assertNull(RestoreService.reportableRestoreException(ProjectId.DEFAULT, startedShard, state));
+        assertNull(RestoreService.reportableRestoreException(ProjectId.DEFAULT, unrelatedShard, state));
+        assertReportsRestore(RestoreService.reportableRestoreException(ProjectId.DEFAULT, index, state), s, restoreUuid);
+    }
+
+    /**
+     * Whether a shard is reported depends on the flag of the restore that is restoring that shard, not on any other restore that
+     * happens to be in the cluster state.
+     */
+    public void testReportableRestoreException_twoRestores_usesTheFlagOfTheMatchingRestore() {
+        var notReporting = buildRestoreTestState(false);
+        var reporting = buildRestoreTestState(true);
+        var restoreInProgressBuilder = new RestoreInProgress.Builder(notReporting.restoreInProgress());
+        reporting.restoreInProgress().forEach(restoreInProgressBuilder::add);
+        var state = clusterStateOf(
+            restoreInProgressBuilder.build(),
+            IndexRoutingTable.builder(notReporting.primary().index()).addShard(notReporting.primary()),
+            IndexRoutingTable.builder(reporting.primary().index()).addShard(reporting.primary())
+        );
+
+        assertNull(RestoreService.reportableRestoreException(ProjectId.DEFAULT, notReporting.primary().shardId(), state));
+        assertNull(RestoreService.reportableRestoreException(ProjectId.DEFAULT, notReporting.primary().index(), state));
+        assertReportsRestore(
+            RestoreService.reportableRestoreException(ProjectId.DEFAULT, reporting.primary().shardId(), state),
+            reporting,
+            ((SnapshotRecoverySource) reporting.primary().recoverySource()).restoreUUID()
+        );
+        assertReportsRestore(
+            RestoreService.reportableRestoreException(ProjectId.DEFAULT, reporting.primary().index(), state),
+            reporting,
+            ((SnapshotRecoverySource) reporting.primary().recoverySource()).restoreUUID()
+        );
+    }
+
+    /**
+     * Deleting an index rebuilds the entries of restores that cover it. The rebuilt entry must keep the flag the restore's caller chose,
+     * or a flagged restore would stop reporting its shards as soon as one of its indices was deleted.
+     */
+    public void testUpdateRestoreStateWithDeletedIndices_preservesReportShardRestoring() {
+        var s = buildRestoreTestState(true);
+        String restoreUuid = ((SnapshotRecoverySource) s.primary().recoverySource()).restoreUUID();
+
+        RestoreInProgress updated = RestoreService.updateRestoreStateWithDeletedIndices(
+            s.restoreInProgress(),
+            Set.of(s.primary().shardId().getIndex())
+        );
+
+        RestoreInProgress.Entry entry = updated.get(restoreUuid);
+        assertThat("the entry was rebuilt", entry.shards().get(s.primary().shardId()).state(), equalTo(RestoreInProgress.State.FAILURE));
+        assertTrue(entry.reportShardRestoring());
+    }
+
+    /**
+     * A shard of a restore starting rebuilds the restore's entry in the same cluster state update as the routing change. The rebuilt entry
+     * must keep the flag the restore's caller chose, or a flagged restore would stop reporting its shards as soon as its first shard
+     * changed state.
+     */
+    public void testRestoreInProgressUpdater_shardStarted_preservesReportShardRestoring() {
+        var s = buildRestoreTestState(true);
+        String restoreUuid = ((SnapshotRecoverySource) s.primary().recoverySource()).restoreUUID();
+
+        var updater = new RestoreService.RestoreInProgressUpdater();
+        updater.shardStarted(s.primary(), s.primary().moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
+        RestoreInProgress updated = updater.applyChanges(s.restoreInProgress());
+
+        RestoreInProgress.Entry entry = updated.get(restoreUuid);
+        assertThat("the entry was rebuilt", entry.shards().get(s.primary().shardId()).state(), equalTo(RestoreInProgress.State.SUCCESS));
+        assertTrue(entry.reportShardRestoring());
+    }
+
+    /**
+     * Only shards whose restore has not completed block a new restore of the same index, so a restore that failed for a shard can still
+     * have its entry in the cluster state when a restarted restore with a new UUID begins. Both entries then list the shard. The answer has
+     * to follow the restore the shard's routing points at, not whichever entry happens to cover the shard.
+     */
+    public void testReportableRestoreException_restoreRestartedWithNewUuid_followsTheRoutingsRestore() {
+        for (boolean restartedRestoreReports : new boolean[] { true, false }) {
+            var restarted = buildRestoreTestState(restartedRestoreReports);
+            var shardId = restarted.primary().shardId();
+            var earlierRestore = new RestoreInProgress.Entry(
+                randomUUID(),
+                restarted.snapshot(),
+                RestoreInProgress.State.FAILURE,
+                false,
+                List.of(shardId.getIndexName()),
+                Map.of(shardId, new RestoreInProgress.ShardRestoreStatus(null, RestoreInProgress.State.FAILURE, "restore failed")),
+                restartedRestoreReports == false
+            );
+            var restoreInProgress = new RestoreInProgress.Builder(restarted.restoreInProgress()).add(earlierRestore).build();
+            var state = clusterStateOf(new RestoreTestState(restarted.primary(), restoreInProgress, restarted.snapshot()));
+            var restartedUuid = ((SnapshotRecoverySource) restarted.primary().recoverySource()).restoreUUID();
+
+            if (restartedRestoreReports) {
+                assertReportsRestore(
+                    RestoreService.reportableRestoreException(ProjectId.DEFAULT, shardId, state),
+                    restarted,
+                    restartedUuid
+                );
+                assertReportsRestore(
+                    RestoreService.reportableRestoreException(ProjectId.DEFAULT, restarted.primary().index(), state),
+                    restarted,
+                    restartedUuid
+                );
+            } else {
+                assertNull(RestoreService.reportableRestoreException(ProjectId.DEFAULT, shardId, state));
+                assertNull(RestoreService.reportableRestoreException(ProjectId.DEFAULT, restarted.primary().index(), state));
+            }
+        }
+    }
+
+    /**
+     * A cluster state with no {@link RestoreInProgress} custom at all, as after a master failover, reports nothing. The case of an entry
+     * missing from an existing custom is covered by the {@code isRestoringShardFromSnapshot} tests.
+     */
+    public void testReportableRestoreException_noRestoreInProgressCustom_returnsNull() {
+        var s = buildRestoreTestState(true);
+        var state = ClusterState.builder(ClusterName.DEFAULT)
+            .routingTable(RoutingTable.builder().add(IndexRoutingTable.builder(s.primary().index()).addShard(s.primary())).build())
+            .build();
+
+        assertNull(RestoreService.reportableRestoreException(ProjectId.DEFAULT, s.primary().shardId(), state));
+    }
+
+    /**
+     * With several restores reporting their shards at once, each shard is reported with the UUID of the restore that is restoring it.
+     */
+    public void testReportableRestoreException_twoReportingRestores_eachReportsItsOwnUuid() {
+        var first = buildRestoreTestState(true);
+        var second = buildRestoreTestState(true);
+        var restoreInProgressBuilder = new RestoreInProgress.Builder(first.restoreInProgress());
+        second.restoreInProgress().forEach(restoreInProgressBuilder::add);
+        var state = clusterStateOf(
+            restoreInProgressBuilder.build(),
+            IndexRoutingTable.builder(first.primary().index()).addShard(first.primary()),
+            IndexRoutingTable.builder(second.primary().index()).addShard(second.primary())
+        );
+        var firstUuid = ((SnapshotRecoverySource) first.primary().recoverySource()).restoreUUID();
+        var secondUuid = ((SnapshotRecoverySource) second.primary().recoverySource()).restoreUUID();
+        assertThat(firstUuid, not(equalTo(secondUuid)));
+
+        assertReportsRestore(
+            RestoreService.reportableRestoreException(ProjectId.DEFAULT, first.primary().shardId(), state),
+            first,
+            firstUuid
+        );
+        assertReportsRestore(
+            RestoreService.reportableRestoreException(ProjectId.DEFAULT, first.primary().index(), state),
+            first,
+            firstUuid
+        );
+        assertReportsRestore(
+            RestoreService.reportableRestoreException(ProjectId.DEFAULT, second.primary().shardId(), state),
+            second,
+            secondUuid
+        );
+        assertReportsRestore(
+            RestoreService.reportableRestoreException(ProjectId.DEFAULT, second.primary().index(), state),
+            second,
+            secondUuid
+        );
+    }
+
+    /**
+     * With several projects in the cluster state, each lookup reads only the routing table of the project it is given, so a shard is
+     * reported under its own project and is not seen from another one. The deprecated {@code ClusterState#routingTable()} would throw here.
+     */
+    public void testReportableRestoreException_multipleProjects_readsOnlyTheRequestedProjectsRoutingTable() {
+        var inFirstProject = buildRestoreTestState(true);
+        var inSecondProject = buildRestoreTestState(true);
+        var firstProject = randomUniqueProjectId();
+        var secondProject = randomUniqueProjectId();
+        var restoreInProgressBuilder = new RestoreInProgress.Builder(inFirstProject.restoreInProgress());
+        inSecondProject.restoreInProgress().forEach(restoreInProgressBuilder::add);
+        // a cluster state needs metadata for exactly the projects that have a routing table
+        var metadata = Metadata.builder()
+            .removeProject(ProjectId.DEFAULT)
+            .put(ProjectMetadata.builder(firstProject))
+            .put(ProjectMetadata.builder(secondProject))
+            .build();
+        var state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(metadata)
+            .putRoutingTable(
+                firstProject,
+                RoutingTable.builder()
+                    .add(IndexRoutingTable.builder(inFirstProject.primary().index()).addShard(inFirstProject.primary()))
+                    .build()
+            )
+            .putRoutingTable(
+                secondProject,
+                RoutingTable.builder()
+                    .add(IndexRoutingTable.builder(inSecondProject.primary().index()).addShard(inSecondProject.primary()))
+                    .build()
+            )
+            .putCustom(RestoreInProgress.TYPE, restoreInProgressBuilder.build())
+            .build();
+        var firstUuid = ((SnapshotRecoverySource) inFirstProject.primary().recoverySource()).restoreUUID();
+        var secondUuid = ((SnapshotRecoverySource) inSecondProject.primary().recoverySource()).restoreUUID();
+
+        assertReportsRestore(
+            RestoreService.reportableRestoreException(firstProject, inFirstProject.primary().shardId(), state),
+            inFirstProject,
+            firstUuid
+        );
+        assertReportsRestore(
+            RestoreService.reportableRestoreException(firstProject, inFirstProject.primary().index(), state),
+            inFirstProject,
+            firstUuid
+        );
+        assertReportsRestore(
+            RestoreService.reportableRestoreException(secondProject, inSecondProject.primary().shardId(), state),
+            inSecondProject,
+            secondUuid
+        );
+        assertReportsRestore(
+            RestoreService.reportableRestoreException(secondProject, inSecondProject.primary().index(), state),
+            inSecondProject,
+            secondUuid
+        );
+
+        // the other project's shards are not in this project's routing table
+        assertNull(RestoreService.reportableRestoreException(firstProject, inSecondProject.primary().shardId(), state));
+        assertNull(RestoreService.reportableRestoreException(firstProject, inSecondProject.primary().index(), state));
+        assertNull(RestoreService.reportableRestoreException(secondProject, inFirstProject.primary().shardId(), state));
+        assertNull(RestoreService.reportableRestoreException(secondProject, inFirstProject.primary().index(), state));
     }
 
     /**
@@ -835,6 +1227,32 @@ public class RestoreServiceTests extends ESTestCase {
         assertTrue(RestoreInProgress.get(cleaned).isEmpty());
     }
 
+    /**
+     * Cleaning up completed restores leaves the other entries as they are, so a restore that is still running keeps asking for its shards
+     * to be reported.
+     */
+    public void testExecuteRestoreCleanup_keepsReportShardRestoringOfTheEntriesItLeaves() {
+        var running = buildRestoreTestState(true);
+        var runningUuid = ((SnapshotRecoverySource) running.primary().recoverySource()).restoreUUID();
+        var completedShard = new ShardId(randomIdentifier(), randomUUID(), 0);
+        var completed = new RestoreInProgress.Entry(
+            randomUUID(),
+            running.snapshot(),
+            RestoreInProgress.State.SUCCESS,
+            false,
+            List.of(completedShard.getIndexName()),
+            Map.of(completedShard, new RestoreInProgress.ShardRestoreStatus(randomUUID(), RestoreInProgress.State.SUCCESS)),
+            randomBoolean()
+        );
+        var restoreInProgress = new RestoreInProgress.Builder(running.restoreInProgress()).add(completed).build();
+        var state = ClusterState.builder(ClusterState.EMPTY_STATE).putCustom(RestoreInProgress.TYPE, restoreInProgress).build();
+
+        var cleaned = RestoreInProgress.get(createMinimalRestoreService().executeRestoreCleanup(state));
+
+        assertThat("only the completed entry is removed", Iterables.size(cleaned), equalTo(1L));
+        assertTrue(cleaned.get(runningUuid).reportShardRestoring());
+    }
+
     public void testOnRestoreCompletedReceivesEntryAndCanModifyState() {
         RestoreService service = createMinimalRestoreService();
         List<RestoreInProgress.Entry> capturedEntries = new ArrayList<>();
@@ -1143,6 +1561,51 @@ public class RestoreServiceTests extends ESTestCase {
     }
 
     /**
+     * A retry with the same restore UUID while the first restore's entry still exists applies nothing, so it cannot change the flag the
+     * first call set, whichever way the retry asks.
+     */
+    public void testRestoreOverOpenIndicesRetryWithOppositeFlagKeepsTheFirstCallsFlag() throws Exception {
+        for (boolean firstCallReports : new boolean[] { true, false }) {
+            final String restoreUUID = UUIDs.randomBase64UUID();
+            withOpenIndexRestoreHarness(fixture -> {
+                restoreOverOpenIndices(fixture, restoreUUID, firstCallReports);
+                restoreOverOpenIndices(fixture, restoreUUID, firstCallReports == false);
+
+                final RestoreInProgress restoreInProgress = RestoreInProgress.get(fixture.clusterService().state());
+                assertThat(Iterables.size(restoreInProgress), equalTo(1L));
+                assertThat(restoreInProgress.get(restoreUUID).reportShardRestoring(), equalTo(firstCallReports));
+            });
+        }
+    }
+
+    /**
+     * The flag lives only on the restore's entry. Once that entry is gone, for example because it was lost in a master failover, a
+     * resubmission with the same restore UUID starts a fresh restore whose flag is the one the new call passes, not the one the earlier
+     * restore had. A caller that wants its shards reported has to pass the flag every time it submits.
+     */
+    public void testRestoreOverOpenIndicesAfterTheEntryIsGoneTheNewCallsFlagApplies() throws Exception {
+        for (boolean firstCallReports : new boolean[] { true, false }) {
+            final String restoreUUID = UUIDs.randomBase64UUID();
+            withOpenIndexRestoreHarness(fixture -> {
+                restoreOverOpenIndices(fixture, restoreUUID, firstCallReports);
+
+                // As in testRestoreOverOpenIndicesRetryAfterCompletionIsNotDeduplicated, strip the entry to reach the state after cleanup.
+                ClusterServiceUtils.setState(
+                    fixture.clusterService(),
+                    ClusterState.builder(fixture.clusterService().state())
+                        .putCustom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY)
+                        .build()
+                );
+                restoreOverOpenIndices(fixture, restoreUUID, firstCallReports == false);
+
+                final RestoreInProgress restoreInProgress = RestoreInProgress.get(fixture.clusterService().state());
+                assertThat(Iterables.size(restoreInProgress), equalTo(1L));
+                assertThat(restoreInProgress.get(restoreUUID).reportShardRestoring(), equalTo(firstCallReports == false));
+            });
+        }
+    }
+
+    /**
      * An empty {@code targets} list is a caller error for this internal entry point. It is rejected up front rather than submitting a
      * restore that does nothing, which was probably not the user's intention.
      */
@@ -1230,6 +1693,22 @@ public class RestoreServiceTests extends ESTestCase {
 
     private interface OpenIndexRestoreTestBody {
         void run(OpenIndexRestoreFixture fixture) throws Exception;
+    }
+
+    private static void restoreOverOpenIndices(OpenIndexRestoreFixture fixture, String restoreUUID, boolean reportShardRestoring) {
+        final PlainActionFuture<RestoreService.RestoreCompletionResponse> future = new PlainActionFuture<>();
+        fixture.restoreService()
+            .restoreSnapshotOverOpenIndices(
+                ProjectId.DEFAULT,
+                fixture.snapshot(),
+                fixture.snapshotInfo(),
+                TEST_REQUEST_TIMEOUT,
+                restoreUUID,
+                reportShardRestoring,
+                List.of(fixture.target()),
+                future
+            );
+        future.actionGet(TimeValue.timeValueSeconds(10));
     }
 
     /**

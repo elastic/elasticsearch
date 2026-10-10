@@ -43,6 +43,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
@@ -323,6 +324,29 @@ public final class RestoreService implements ClusterStateApplier {
         final ActionListener<RestoreCompletionResponse> listener,
         final BiConsumer<ClusterState, ProjectMetadata.Builder> updater
     ) {
+        restoreSnapshot(projectId, request, restoreUUID, /* reportShardRestoring = */ false, listener, updater);
+    }
+
+    /**
+     * As {@link #restoreSnapshot(ProjectId, RestoreSnapshotRequest, String, ActionListener, BiConsumer)}, but the caller states whether
+     * requests that hit a shard of this restore should fail with {@link ShardRestoringException}. That is off by default, and the restore
+     * entry points that do not take this parameter never report, so a restore keeps the generic shard-unavailable errors unless its
+     * caller explicitly opts in through an overload that does.
+     *
+     * <p>A call whose {@code restoreUUID} already has a {@link RestoreInProgress} entry is an idempotent retry that applies nothing, so it
+     * never changes {@code reportShardRestoring} for the existing restore: the value from the first call stays.
+     *
+     * @param reportShardRestoring {@code true} to have requests that hit a shard of this restore fail with
+     *                             {@link ShardRestoringException}; see {@link RestoreInProgress.Entry#reportShardRestoring()}
+     */
+    public void restoreSnapshot(
+        final ProjectId projectId,
+        final RestoreSnapshotRequest request,
+        final String restoreUUID,
+        final boolean reportShardRestoring,
+        final ActionListener<RestoreCompletionResponse> listener,
+        final BiConsumer<ClusterState, ProjectMetadata.Builder> updater
+    ) {
         Objects.requireNonNull(restoreUUID);
         if (SnapshotRecoverySource.NO_API_RESTORE_UUID.equals(restoreUUID)) {
             throw new IllegalArgumentException(
@@ -396,6 +420,7 @@ public final class RestoreService implements ClusterStateApplier {
                     repositoryDataRef.get(),
                     restoreUUID,
                     updater,
+                    reportShardRestoring,
                     responseListener
                 )
             )
@@ -424,6 +449,8 @@ public final class RestoreService implements ClusterStateApplier {
      * @param repositoryData current repository data for the repository to restore from
      * @param updater        handler that allows callers to make modifications to {@link ProjectMetadata} in the same cluster state update
      *                       as the restore operation
+     * @param reportShardRestoring whether requests that hit a shard of this restore should fail with {@link ShardRestoringException};
+     *                             see {@link RestoreInProgress.Entry#reportShardRestoring()}
      * @param listener       listener to resolve once restore has been started
      * @throws IOException   on failure to load metadata from the repository
      */
@@ -434,6 +461,7 @@ public final class RestoreService implements ClusterStateApplier {
         RepositoryData repositoryData,
         String restoreUUID,
         BiConsumer<ClusterState, ProjectMetadata.Builder> updater,
+        boolean reportShardRestoring,
         ActionListener<RestoreCompletionResponse> listener
     ) throws IOException {
         assert Repository.assertSnapshotMetaThread();
@@ -682,6 +710,7 @@ public final class RestoreService implements ClusterStateApplier {
                 updater,
                 clusterService.getSettings(),
                 restoreUUID,
+                reportShardRestoring,
                 existingDataStreamTargets,
                 openIndexTargets
             )
@@ -745,6 +774,39 @@ public final class RestoreService implements ClusterStateApplier {
         List<OpenIndexRestoreTarget> targets,
         ActionListener<RestoreCompletionResponse> listener
     ) {
+        restoreSnapshotOverOpenIndices(
+            projectId,
+            snapshot,
+            snapshotInfo,
+            masterNodeTimeout,
+            restoreUUID,
+            /* reportShardRestoring = */ false,
+            targets,
+            listener
+        );
+    }
+
+    /**
+     * As {@link #restoreSnapshotOverOpenIndices(ProjectId, Snapshot, SnapshotInfo, TimeValue, String, List, ActionListener)}, but the
+     * caller states whether requests that hit a shard of this restore should fail with {@link ShardRestoringException}. That is off by
+     * default, so a restore keeps the generic shard-unavailable errors unless its caller explicitly opts in here.
+     *
+     * <p>A retry that supplies the same {@code restoreUUID} as an existing {@link RestoreInProgress} entry applies nothing, so it never
+     * changes {@code reportShardRestoring} for the existing restore: the value from the first call stays.
+     *
+     * @param reportShardRestoring {@code true} to have requests that hit a shard of this restore fail with
+     *                             {@link ShardRestoringException}; see {@link RestoreInProgress.Entry#reportShardRestoring()}
+     */
+    public void restoreSnapshotOverOpenIndices(
+        ProjectId projectId,
+        Snapshot snapshot,
+        SnapshotInfo snapshotInfo,
+        TimeValue masterNodeTimeout,
+        String restoreUUID,
+        boolean reportShardRestoring,
+        List<OpenIndexRestoreTarget> targets,
+        ActionListener<RestoreCompletionResponse> listener
+    ) {
         Objects.requireNonNull(targets, "targets");
         if (targets.isEmpty()) {
             throw new IllegalArgumentException("targets must not be empty");
@@ -779,6 +841,7 @@ public final class RestoreService implements ClusterStateApplier {
                 (state, builder) -> {},
                 clusterService.getSettings(),
                 restoreUUID,
+                reportShardRestoring,
                 List.of(),
                 openIndexTargets
             )
@@ -884,6 +947,42 @@ public final class RestoreService implements ClusterStateApplier {
         Map<String, DataStreamAlias> snapshotDataStreamAliases,
         ActionListener<RestoreCompletionResponse> listener
     ) {
+        restoreOverExistingDataStreams(
+            projectId,
+            snapshot,
+            snapshotInfo,
+            masterNodeTimeout,
+            restoreUUID,
+            /* reportShardRestoring = */ false,
+            targets,
+            snapshotDataStreamAliases,
+            listener
+        );
+    }
+
+    /**
+     * As
+     * {@link #restoreOverExistingDataStreams(ProjectId, Snapshot, SnapshotInfo, TimeValue, String, List, Map, ActionListener)}, but the
+     * caller states whether requests that hit a shard of this restore should fail with {@link ShardRestoringException}. That is off by
+     * default, so a restore keeps the generic shard-unavailable errors unless its caller explicitly opts in here.
+     *
+     * <p>A retry that supplies the same {@code restoreUUID} as an existing {@link RestoreInProgress} entry applies nothing, so it never
+     * changes {@code reportShardRestoring} for the existing restore: the value from the first call stays.
+     *
+     * @param reportShardRestoring {@code true} to have requests that hit a shard of this restore fail with
+     *                             {@link ShardRestoringException}; see {@link RestoreInProgress.Entry#reportShardRestoring()}
+     */
+    public void restoreOverExistingDataStreams(
+        ProjectId projectId,
+        Snapshot snapshot,
+        SnapshotInfo snapshotInfo,
+        TimeValue masterNodeTimeout,
+        String restoreUUID,
+        boolean reportShardRestoring,
+        List<DataStreamRestoreTarget> targets,
+        Map<String, DataStreamAlias> snapshotDataStreamAliases,
+        ActionListener<RestoreCompletionResponse> listener
+    ) {
         final Map<String, IndexId> indicesToRestore = new HashMap<>();
         final Map<String, DataStream> dataStreamsToRestore = new HashMap<>();
         final ProjectMetadata.Builder snapshotProjectBuilder = ProjectMetadata.builder(projectId);
@@ -923,6 +1022,7 @@ public final class RestoreService implements ClusterStateApplier {
                 (state, builder) -> {},
                 clusterService.getSettings(),
                 restoreUUID,
+                reportShardRestoring,
                 List.copyOf(targets),
                 Map.of()
             )
@@ -1254,7 +1354,8 @@ public final class RestoreService implements ClusterStateApplier {
                         overallState(RestoreInProgress.State.STARTED, shards),
                         entry.quiet(),
                         entry.indices(),
-                        shards
+                        shards,
+                        entry.reportShardRestoring()
                     )
                 );
             } else {
@@ -1368,7 +1469,15 @@ public final class RestoreService implements ClusterStateApplier {
                         Map<ShardId, ShardRestoreStatus> shards = Map.copyOf(shardsBuilder);
                         RestoreInProgress.State newState = overallState(RestoreInProgress.State.STARTED, shards);
                         builder.add(
-                            new RestoreInProgress.Entry(entry.uuid(), entry.snapshot(), newState, entry.quiet(), entry.indices(), shards)
+                            new RestoreInProgress.Entry(
+                                entry.uuid(),
+                                entry.snapshot(),
+                                newState,
+                                entry.quiet(),
+                                entry.indices(),
+                                shards,
+                                entry.reportShardRestoring()
+                            )
                         );
                     } else {
                         builder.add(entry);
@@ -1664,7 +1773,7 @@ public final class RestoreService implements ClusterStateApplier {
      * routing table that produced {@code primary}, so that the two cannot disagree.
      *
      * @param restoreInProgress the restore custom from the current cluster state
-     * @param primary           the primary shard routing being evaluated; must be in the INITIALIZING state
+     * @param primary           the primary shard routing being evaluated; must be in the UNASSIGNED or INITIALIZING state
      * @return {@code true} if the shard is demonstrably mid-restore, {@code false} if any condition is not met
      */
     public static boolean isRestoringShardFromSnapshot(RestoreInProgress restoreInProgress, ShardRouting primary) {
@@ -1712,6 +1821,86 @@ public final class RestoreService implements ClusterStateApplier {
             return false;
         }
         return shardStatus.state().completed() == false;
+    }
+
+    /**
+     * Returns the {@link ShardRestoringException} that requests hitting the given shard should fail with, or {@code null} if they should
+     * fail with the generic shard-unavailable errors as they did before the exception existed. The exception is returned only if the
+     * shard's primary is currently in the UNASSIGNED or INITIALIZING state and the caller that started that restore asked for the restore
+     * exception to be reported (see {@link RestoreInProgress.Entry#reportShardRestoring()}).
+     *
+     * <p>Both the routing table and the {@link RestoreInProgress} are read from {@code state}, which guarantees they are consistent with
+     * each other.
+     *
+     * <p>A shard can still be recovering from a snapshot after its restore entry is gone, for example when a restore finishes with a failed
+     * shard and its entry is cleaned up while the shard stays unassigned, or when the entry is lost in a master failover while the shard is
+     * really still being restored. There is then no entry to say the restore asked for its shards to be reported, so {@code null} is
+     * returned.
+     *
+     * @param projectId the project that contains the shard's index. Only that project's routing table is read, and the lookup fails if the
+     *                  cluster state has no routing table for it
+     * @param shardId   the shard to query
+     * @param state     the cluster state to read from
+     * @return the exception to fail with, or {@code null} if the shard is not being restored by a restore that reports its shards
+     */
+    @Nullable
+    public static ShardRestoringException reportableRestoreException(ProjectId projectId, ShardId shardId, ClusterState state) {
+        IndexRoutingTable indexRouting = state.routingTable(projectId).index(shardId.getIndex());
+        if (indexRouting == null) {
+            return null;
+        }
+        var shardTable = indexRouting.shard(shardId.id());
+        if (shardTable == null) {
+            return null;
+        }
+        String restoreUuid = findRestoreUuidToReport(RestoreInProgress.get(state), shardTable.primaryShard());
+        return restoreUuid == null ? null : new ShardRestoringException(shardId.getIndexName(), restoreUuid);
+    }
+
+    /**
+     * As {@link #reportableRestoreException(ProjectId, ShardId, ClusterState)}, for index-level callers that do not have a concrete
+     * {@link ShardId} available at the point of failure. The exception is returned if any primary of the index qualifies.
+     *
+     * @param projectId the project that contains the index
+     * @param index     the index to query
+     * @param state     the cluster state to read from
+     * @return the exception to fail with, or {@code null} if no primary of the index is being restored by a restore that reports its shards
+     */
+    @Nullable
+    public static ShardRestoringException reportableRestoreException(ProjectId projectId, Index index, ClusterState state) {
+        IndexRoutingTable indexRouting = state.routingTable(projectId).index(index);
+        if (indexRouting == null) {
+            return null;
+        }
+        RestoreInProgress restoreInProgress = RestoreInProgress.get(state);
+        for (int i = 0; i < indexRouting.size(); i++) {
+            String restoreUuid = findRestoreUuidToReport(restoreInProgress, indexRouting.shard(i).primaryShard());
+            if (restoreUuid != null) {
+                return new ShardRestoringException(index.getName(), restoreUuid);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Returns the restore UUID of the API-level restore that the given primary is being recovered by, but only if that restore asked for
+     * its shards to be reported as {@link ShardRestoringException} (see {@link RestoreInProgress.Entry#reportShardRestoring()}).
+     * Returns {@code null} if the primary is missing or active, if the shard is not mid-restore, or if the restore asked for the generic
+     * shard-unavailable errors, so callers fall back to those errors without needing to know why.
+     */
+    @Nullable
+    private static String findRestoreUuidToReport(RestoreInProgress restoreInProgress, @Nullable ShardRouting primary) {
+        if (primary == null || primary.active()) {
+            // STARTED or RELOCATING — restore is complete or this is not a restore
+            return null;
+        }
+        if (isRestoringShardFromSnapshot(restoreInProgress, primary) == false) {
+            return null;
+        }
+        String restoreUuid = ((SnapshotRecoverySource) primary.recoverySource()).restoreUUID();
+        RestoreInProgress.Entry entry = restoreInProgress.get(restoreUuid);
+        assert entry != null : "isRestoringShardFromSnapshot returned true without a matching entry for [" + restoreUuid + "]";
+        return entry != null && entry.reportShardRestoring() ? restoreUuid : null;
     }
 
     /**
@@ -1908,6 +2097,13 @@ public final class RestoreService implements ClusterStateApplier {
         private final String restoreUUID;
 
         /**
+         * Whether requests that hit a shard of this restore should fail with {@link ShardRestoringException} rather than the generic
+         * shard-unavailable errors. Chosen by the caller that started the restore, defaulting to {@code false}, and recorded on the
+         * {@link RestoreInProgress.Entry} this task creates (see {@link RestoreInProgress.Entry#reportShardRestoring()}).
+         */
+        private final boolean reportShardRestoring;
+
+        /**
          * The restore request that triggered this restore task.
          */
         private final RestoreSnapshotRequest request;
@@ -1969,6 +2165,7 @@ public final class RestoreService implements ClusterStateApplier {
             BiConsumer<ClusterState, ProjectMetadata.Builder> updater,
             Settings settings,
             String restoreUUID,
+            boolean reportShardRestoring,
             Collection<DataStreamRestoreTarget> existingDataStreamTargets,
             Map<String, Index> openIndexTargets
         ) {
@@ -1984,6 +2181,7 @@ public final class RestoreService implements ClusterStateApplier {
             this.settings = settings;
             this.listener = new AllocationActionListener<>(listener, threadPool.getThreadContext());
             this.restoreUUID = restoreUUID;
+            this.reportShardRestoring = reportShardRestoring;
             this.existingDataStreamTargets = existingDataStreamTargets;
             this.openIndexTargets = openIndexTargets;
         }
@@ -2194,7 +2392,8 @@ public final class RestoreService implements ClusterStateApplier {
                     overallState(RestoreInProgress.State.INIT, shards),
                     request.quiet(),
                     List.copyOf(indicesToRestore.keySet()),
-                    Map.copyOf(shards)
+                    Map.copyOf(shards),
+                    reportShardRestoring
                 );
                 builder.putCustom(
                     RestoreInProgress.TYPE,

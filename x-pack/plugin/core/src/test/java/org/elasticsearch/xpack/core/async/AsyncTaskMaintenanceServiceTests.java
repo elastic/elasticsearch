@@ -39,7 +39,11 @@ import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
 
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.TimeValue.timeValueHours;
 import static org.elasticsearch.xpack.core.XPackPlugin.ASYNC_RESULTS_INDEX;
@@ -272,6 +276,62 @@ public class AsyncTaskMaintenanceServiceTests extends ESTestCase {
         verify(projectResolver, times(1)).executeOnProject(eq(project), any(CheckedRunnable.class));
         verify(client, times(1)).execute(same(DeleteByQueryAction.INSTANCE), any(DeleteByQueryRequest.class), any(ActionListener.class));
         verify(threadPoolSpy, times(1)).schedule(any(Runnable.class), eq(timeValueHours(1)), any(ExecutorService.class));
+    }
+
+    /**
+     * Delete-by-query keeps a scroll open (default keep-alive 5 minutes) until its listener fires.
+     * {@code pause()} is supposed to wait that cleanup out so callers can drain search contexts;
+     * returning early leaves the scroll in flight.
+     */
+    @SuppressWarnings("unchecked")
+    public void testPauseWaitsForInFlightDeleteByQuery() throws Exception {
+        final String localNodeId = randomIdentifier();
+        final IndexMetadata indexMetadata = getIndexMetadata();
+        final ProjectId project = ProjectId.fromId("p1");
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(ProjectMetadata.builder(project).put(indexMetadata, false)))
+            .routingTable(
+                GlobalRoutingTable.builder().put(project, buildRoutingTableWithIndex(indexMetadata.getIndex(), localNodeId)).build()
+            )
+            .build();
+
+        final Client client = Mockito.mock(Client.class);
+        final AtomicReference<ActionListener<?>> heldListener = new AtomicReference<>();
+        final CountDownLatch deleteByQueryStarted = new CountDownLatch(1);
+        Mockito.doAnswer(invocation -> {
+            heldListener.set(invocation.getArgument(2, ActionListener.class));
+            deleteByQueryStarted.countDown();
+            return null;
+        }).when(client).execute(same(DeleteByQueryAction.INSTANCE), any(DeleteByQueryRequest.class), any(ActionListener.class));
+
+        final AsyncTaskMaintenanceService service = new AsyncTaskMaintenanceService(
+            Mockito.mock(ClusterService.class),
+            TestProjectResolvers.mustExecuteFirst(),
+            localNodeId,
+            Settings.EMPTY,
+            threadPool,
+            client
+        );
+        service.start();
+        service.clusterChanged(new ClusterChangedEvent(getTestName(), clusterState, ClusterState.EMPTY_STATE));
+        assertTrue(deleteByQueryStarted.await(10, TimeUnit.SECONDS));
+
+        final AtomicBoolean pauseReturned = new AtomicBoolean();
+        final Thread pauser = new Thread(() -> {
+            service.pause();
+            pauseReturned.set(true);
+        }, "pause-maintenance");
+        pauser.start();
+        try {
+            pauser.join(200);
+            assertTrue("pause() returned while delete-by-query was still in flight", pauser.isAlive());
+            assertFalse(pauseReturned.get());
+        } finally {
+            heldListener.get().onResponse(null);
+        }
+        pauser.join(10_000);
+        assertFalse("pause() did not return after delete-by-query completed", pauser.isAlive());
+        assertTrue(pauseReturned.get());
     }
 
     private static IndexMetadata getIndexMetadata() {

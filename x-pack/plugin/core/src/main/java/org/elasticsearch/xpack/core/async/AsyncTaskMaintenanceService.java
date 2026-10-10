@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xpack.core.async.AsyncTaskIndexService.EXPIRATION_TIME_FIELD;
@@ -74,6 +75,11 @@ public class AsyncTaskMaintenanceService extends AbstractLifecycleComponent impl
     private boolean isCleanupRunning;
     private Collection<ProjectId> projectsToCleanup;
     private volatile Scheduler.Cancellable cancellable;
+    // Rounds of delete-by-query that have been submitted and whose listener has not yet run.
+    // pause() waits for this to hit zero; node shutdown does not.
+    private int inFlightCleanups;
+    // Non-null while pause() is waiting for inFlightCleanups to reach zero.
+    private CountDownLatch inFlightCleanupsLatch;
 
     public AsyncTaskMaintenanceService(
         ClusterService clusterService,
@@ -110,6 +116,38 @@ public class AsyncTaskMaintenanceService extends AbstractLifecycleComponent impl
                 assert lifecycle.started();
                 doStop();
             }
+            // Delete-by-query holds a scroll until it finishes. Callers drain search contexts
+            // immediately after pause(), so wait for the round already submitted. doStop() only
+            // cancels the next scheduled run and must stay non-blocking for node shutdown.
+            awaitInFlightCleanups();
+        }
+    }
+
+    private void awaitInFlightCleanups() {
+        final CountDownLatch latch;
+        synchronized (this) {
+            if (inFlightCleanups == 0) {
+                return;
+            }
+            if (inFlightCleanupsLatch == null) {
+                inFlightCleanupsLatch = new CountDownLatch(1);
+            }
+            latch = inFlightCleanupsLatch;
+        }
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("interrupted while waiting for async search cleanup", e);
+        }
+    }
+
+    private synchronized void markCleanupNotInFlight() {
+        inFlightCleanups--;
+        assert inFlightCleanups >= 0 : inFlightCleanups;
+        if (inFlightCleanups == 0 && inFlightCleanupsLatch != null) {
+            inFlightCleanupsLatch.countDown();
+            inFlightCleanupsLatch = null;
         }
     }
 
@@ -175,13 +213,27 @@ public class AsyncTaskMaintenanceService extends AbstractLifecycleComponent impl
 
     synchronized void executeNextCleanup() {
         if (isCleanupRunning) {
-            ActionListener<Void> listener = new CountDownActionListener(
-                this.projectsToCleanup.size(),
-                ActionListener.running(this::scheduleNextCleanup)
-            );
-            for (ProjectId project : this.projectsToCleanup) {
-                cleanupIndex(project, listener);
+            inFlightCleanups++;
+            try {
+                ActionListener<Void> listener = new CountDownActionListener(
+                    this.projectsToCleanup.size(),
+                    ActionListener.running(this::finishCleanup)
+                );
+                for (ProjectId project : this.projectsToCleanup) {
+                    cleanupIndex(project, listener);
+                }
+            } catch (RuntimeException e) {
+                markCleanupNotInFlight();
+                throw e;
             }
+        }
+    }
+
+    private void finishCleanup() {
+        try {
+            scheduleNextCleanup();
+        } finally {
+            markCleanupNotInFlight();
         }
     }
 

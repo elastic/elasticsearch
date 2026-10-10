@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 161084
+pr: 161563
+summary: Wait for in-flight async-search cleanup in pause()
+type: bug

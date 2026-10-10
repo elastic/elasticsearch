@@ -6,6 +6,7 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
+
 package org.elasticsearch.gradle.internal.test;
 
 import org.gradle.api.Project;
@@ -19,28 +20,32 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.junit.Assert.assertThrows;
 
 public class MutedTestsBuildServiceTests {
 
+    private static final String TEST_TASK_PATH = ":test";
+    private static final String OTHER_TASK_PATH = ":otherTest";
+
     @Rule
     public TemporaryFolder temporaryFolder = new TemporaryFolder();
-
-    // ---------------------------------------------------------------------------
-    // Helpers
-    // ---------------------------------------------------------------------------
 
     private MutedTestsBuildService registerService(File infoDir) {
         return registerService(infoDir, Collections.emptyList());
     }
 
-    private MutedTestsBuildService registerService(File infoDir, java.util.List<org.gradle.api.file.RegularFile> additionalFiles) {
+    private MutedTestsBuildService registerService(File infoDir, List<org.gradle.api.file.RegularFile> additionalFiles) {
         Project project = ProjectBuilder.builder().build();
         Provider<MutedTestsBuildService> provider = project.getGradle()
             .getSharedServices()
@@ -55,10 +60,6 @@ public class MutedTestsBuildServiceTests {
         Files.write(new File(dir, "muted-tests.yml").toPath(), yaml.getBytes(StandardCharsets.UTF_8));
     }
 
-    // ---------------------------------------------------------------------------
-    // Tests
-    // ---------------------------------------------------------------------------
-
     /**
      * A single-method mute produces two patterns: the exact method and a wildcard suffix for parameterized runners.
      */
@@ -72,7 +73,7 @@ public class MutedTestsBuildServiceTests {
               issue: https://github.com/elastic/elasticsearch/issues/1
             """);
 
-        Set<String> patterns = registerService(dir).getExcludePatterns();
+        Set<String> patterns = registerService(dir).getExcludePatternsForTask(TEST_TASK_PATH);
 
         assertThat(patterns, hasItems("org.elasticsearch.SomeTest.testFoo", "org.elasticsearch.SomeTest.testFoo *"));
     }
@@ -92,7 +93,7 @@ public class MutedTestsBuildServiceTests {
               issue: https://github.com/elastic/elasticsearch/issues/1
             """);
 
-        Set<String> patterns = registerService(dir).getExcludePatterns();
+        Set<String> patterns = registerService(dir).getExcludePatternsForTask(TEST_TASK_PATH);
 
         assertThat(
             patterns,
@@ -119,7 +120,7 @@ public class MutedTestsBuildServiceTests {
               issue: https://github.com/elastic/elasticsearch/issues/2
             """);
 
-        Set<String> patterns = registerService(dir).getExcludePatterns();
+        Set<String> patterns = registerService(dir).getExcludePatternsForTask(TEST_TASK_PATH);
 
         assertThat(
             patterns,
@@ -142,9 +143,85 @@ public class MutedTestsBuildServiceTests {
               issue: https://github.com/elastic/elasticsearch/issues/3
             """);
 
-        Set<String> patterns = registerService(dir).getExcludePatterns();
+        Set<String> patterns = registerService(dir).getExcludePatternsForTask(TEST_TASK_PATH);
 
         assertThat(patterns, hasItems("org.elasticsearch.EntireClassTest.*"));
+    }
+
+    @Test
+    public void testTaskScopedMuteAppliesOnlyToMatchingTask() throws IOException {
+        File dir = temporaryFolder.newFolder();
+        writeMutedTestsYaml(dir, """
+            tests:
+            - class: org.elasticsearch.SomeTest
+              method: testFoo
+              tasks:
+              - :otherTest
+              issue: https://github.com/elastic/elasticsearch/issues/4
+            """);
+
+        MutedTestsBuildService service = registerService(dir);
+
+        assertThat(service.getExcludePatternsForTask(TEST_TASK_PATH), is(empty()));
+        assertThat(service.getExcludePatternsForTask(OTHER_TASK_PATH), hasItems("org.elasticsearch.SomeTest.testFoo"));
+    }
+
+    @Test
+    public void testTaskScopedMuteAppliesToEveryListedTask() throws IOException {
+        File dir = temporaryFolder.newFolder();
+        writeMutedTestsYaml(dir, """
+            tests:
+            - class: org.elasticsearch.SomeTest
+              method: testFoo
+              tasks:
+              - :otherTest
+              - :test
+              issue: https://github.com/elastic/elasticsearch/issues/5
+            """);
+
+        MutedTestsBuildService service = registerService(dir);
+
+        assertThat(service.getExcludePatternsForTask(TEST_TASK_PATH), hasItems("org.elasticsearch.SomeTest.testFoo"));
+        assertThat(service.getExcludePatternsForTask(OTHER_TASK_PATH), hasItems("org.elasticsearch.SomeTest.testFoo"));
+    }
+
+    @Test
+    public void testTaskScopedClassLevelMute() throws IOException {
+        File dir = temporaryFolder.newFolder();
+        writeMutedTestsYaml(dir, """
+            tests:
+            - class: org.elasticsearch.EntireClassTest
+              tasks:
+              - :test
+              issue: https://github.com/elastic/elasticsearch/issues/6
+            """);
+
+        Set<String> patterns = registerService(dir).getExcludePatternsForTask(TEST_TASK_PATH);
+
+        assertThat(patterns, contains("org.elasticsearch.EntireClassTest.*"));
+    }
+
+    @Test
+    public void testTaskScopedParameterizedMethodMute() throws IOException {
+        File dir = temporaryFolder.newFolder();
+        writeMutedTestsYaml(dir, """
+            tests:
+            - class: org.elasticsearch.yaml.SuiteIT
+              method: "test {yaml=analysis-common/30_tokenizers/letter}"
+              tasks:
+              - :test
+              issue: https://github.com/elastic/elasticsearch/issues/7
+            """);
+
+        Set<String> patterns = registerService(dir).getExcludePatternsForTask(TEST_TASK_PATH);
+
+        assertThat(
+            patterns,
+            contains(
+                "org.elasticsearch.yaml.SuiteIT.test",
+                "org.elasticsearch.yaml.SuiteIT.test {yaml=analysis-common/30_tokenizers/letter}"
+            )
+        );
     }
 
     /**
@@ -155,7 +232,7 @@ public class MutedTestsBuildServiceTests {
         File dir = temporaryFolder.newFolder();
         writeMutedTestsYaml(dir, "tests:\n");
 
-        Set<String> patterns = registerService(dir).getExcludePatterns();
+        Set<String> patterns = registerService(dir).getExcludePatternsForTask(TEST_TASK_PATH);
 
         assertThat(patterns, is(empty()));
     }
@@ -186,14 +263,116 @@ public class MutedTestsBuildServiceTests {
             .getProjectDirectory()
             .file(new File(additionalDir, "muted-tests.yml").getAbsolutePath());
 
-        Set<String> patterns = registerService(primaryDir, java.util.List.of(additionalFile)).getExcludePatterns();
+        Set<String> patterns = registerService(primaryDir, List.of(additionalFile)).getExcludePatternsForTask(TEST_TASK_PATH);
 
         assertThat(
             patterns,
             hasItems(
-                "org.elasticsearch.PrimaryTest.testPrimary",
-                "org.elasticsearch.AdditionalTest.testAdditional"
+                "org.elasticsearch.AdditionalTest.testAdditional",
+                "org.elasticsearch.PrimaryTest.testPrimary"
             )
         );
+    }
+
+    @Test
+    public void testDuplicateTaskValuesAreIgnoredAndPatternsStaySorted() throws IOException {
+        File dir = temporaryFolder.newFolder();
+        writeMutedTestsYaml(dir, """
+            tests:
+            - class: org.elasticsearch.SomeTest
+              methods:
+              - testFoo
+              - testBar
+              tasks:
+              - :test
+              - :otherTest
+              - :test
+              issue: https://github.com/elastic/elasticsearch/issues/12
+            - class: org.elasticsearch.SomeTest
+              method: testBar
+              tasks:
+              - :test
+              issue: https://github.com/elastic/elasticsearch/issues/13
+            """);
+
+        List<String> patterns = new ArrayList<>(registerService(dir).getExcludePatternsForTask(TEST_TASK_PATH));
+
+        assertThat(
+            patterns,
+            contains(
+                "org.elasticsearch.SomeTest.testBar",
+                "org.elasticsearch.SomeTest.testBar *",
+                "org.elasticsearch.SomeTest.testFoo",
+                "org.elasticsearch.SomeTest.testFoo *"
+            )
+        );
+    }
+
+    @Test
+    public void testEmptyTasksListIsRejected() throws IOException {
+        File dir = temporaryFolder.newFolder();
+        writeMutedTestsYaml(dir, """
+            tests:
+            - class: org.elasticsearch.SomeTest
+              method: testFoo
+              tasks: []
+              issue: https://github.com/elastic/elasticsearch/issues/14
+            """);
+
+        assertInvalidTasksYaml(dir, "muted test tasks must not be empty");
+    }
+
+    @Test
+    public void testBlankTaskValueIsRejected() throws IOException {
+        File dir = temporaryFolder.newFolder();
+        writeMutedTestsYaml(dir, """
+            tests:
+            - class: org.elasticsearch.SomeTest
+              method: testFoo
+              tasks:
+              - "  "
+              issue: https://github.com/elastic/elasticsearch/issues/15
+            """);
+
+        assertInvalidTasksYaml(dir, "muted test tasks must not be blank");
+    }
+
+    @Test
+    public void testNonStringTaskValueIsRejected() throws IOException {
+        File dir = temporaryFolder.newFolder();
+        writeMutedTestsYaml(dir, """
+            tests:
+            - class: org.elasticsearch.SomeTest
+              method: testFoo
+              tasks:
+              - 7
+              issue: https://github.com/elastic/elasticsearch/issues/16
+            """);
+
+        assertInvalidTasksYaml(dir, "muted test tasks must be strings");
+    }
+
+    @Test
+    public void testTaskValueMustStartWithColon() throws IOException {
+        File dir = temporaryFolder.newFolder();
+        writeMutedTestsYaml(dir, """
+            tests:
+            - class: org.elasticsearch.SomeTest
+              method: testFoo
+              tasks:
+              - test
+              issue: https://github.com/elastic/elasticsearch/issues/17
+            """);
+
+        assertInvalidTasksYaml(dir, "muted test tasks must start with ':'");
+    }
+
+    private void assertInvalidTasksYaml(File dir, String expectedMessage) {
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> registerService(dir));
+        Throwable cause = exception;
+        while (cause.getCause() != null) {
+            cause = cause.getCause();
+        }
+        assertThat(cause.getMessage(), containsString(expectedMessage));
     }
 }

@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 161398
+pr: 161488
+summary: Add +nested and +flattened `field_caps` filters
+type: enhancement

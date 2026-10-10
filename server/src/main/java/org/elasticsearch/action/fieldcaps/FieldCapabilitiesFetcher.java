@@ -24,6 +24,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -408,6 +409,13 @@ class FieldCapabilitiesFetcher {
                 case "+metadata" -> ft -> context.isMetadataField(ft.name());
                 case "-metadata" -> ft -> context.isMetadataField(ft.name()) == false;
                 case "-nested" -> ft -> context.nestedLookup().getNestedParent(ft.name()) == null;
+                // +nested / +flattened keep only the sub-fields of a nested, resp. the flattened fields themselves. They let a caller
+                // learn which fields are nested or flattened without pulling the whole mapping (e.g. ES|QL's LOAD_ALL, which must not
+                // treat the sub-fields of such a field as unmapped). A nested's own object entries are then restored by the parent
+                // synthesis below, so +nested yields the complete nested hierarchy. Like the other filters these are ANDed with the
+                // field-name pattern and with each other, so +nested and +flattened in one request select nothing; use separate requests.
+                case "+nested" -> ft -> context.nestedLookup().getNestedParent(ft.name()) != null;
+                case "+flattened" -> ft -> FlattenedFieldMapper.CONTENT_TYPE.equals(ft.typeName());
                 case "-multifield" -> ft -> context.isMultiField(ft.name()) == false;
                 default -> throw new IllegalArgumentException("Unknown field caps filter [" + filter + "]");
             };

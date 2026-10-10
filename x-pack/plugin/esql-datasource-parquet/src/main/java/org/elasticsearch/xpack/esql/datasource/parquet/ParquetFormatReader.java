@@ -84,6 +84,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates;
 import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
+import org.elasticsearch.xpack.esql.datasources.spi.QueryAdmission;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
@@ -164,6 +165,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * from {@code esql.external.schema_max_fields} and overridden by a dataset's {@code schema_max_fields}.
      */
     private final int schemaMaxFields;
+
+    /**
+     * Size of the {@code esql_external_io} pool. Preload single-GET admission divides the free
+     * node budget by this so concurrent opens share the room.
+     */
+    private final int externalIoThreads;
 
     /**
      * Node-wide cap on retained Parquet I/O bytes ({@code heap / 8}). Shared by every derived
@@ -417,7 +424,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             nodeByteBudget == null ? ParquetIoWatermark.forHeap() : new ParquetIoWatermark(nodeByteBudget),
             PoolingHeapByteBufferAllocator.forHeap(),
             MAX_FOOTER_READ_BYTES,
-            ExternalSourceSettings.SCHEMA_MAX_FIELDS.get(settings)
+            ExternalSourceSettings.SCHEMA_MAX_FIELDS.get(settings),
+            ExternalSourceSettings.externalIoThreads(settings)
         );
     }
 
@@ -442,7 +450,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             ParquetIoWatermark.forHeap(),
             PoolingHeapByteBufferAllocator.forHeap(),
             MAX_FOOTER_READ_BYTES,
-            ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS
+            ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS,
+            ExternalSourceSettings.externalIoThreads(Settings.EMPTY)
         );
     }
 
@@ -465,7 +474,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             ParquetIoWatermark.forHeap(),
             PoolingHeapByteBufferAllocator.forHeap(),
             maxFooterReadBytes,
-            ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS
+            ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS,
+            ExternalSourceSettings.externalIoThreads(Settings.EMPTY)
         );
     }
 
@@ -487,7 +497,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         ParquetIoWatermark ioWatermark,
         PoolingHeapByteBufferAllocator heapBufferPool,
         int maxFooterReadBytes,
-        int schemaMaxFields
+        int schemaMaxFields,
+        int externalIoThreads
     ) {
         this.blockFactory = blockFactory;
         this.pushedFilter = pushedFilter;
@@ -509,6 +520,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         this.heapBufferPool = heapBufferPool;
         this.maxFooterReadBytes = maxFooterReadBytes;
         this.schemaMaxFields = schemaMaxFields;
+        this.externalIoThreads = externalIoThreads;
     }
 
     /** The one per-dataset key Parquet claims. */
@@ -565,7 +577,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             ioWatermark,
             heapBufferPool,
             maxFooterReadBytes,
-            maxFields
+            maxFields,
+            externalIoThreads
         );
     }
 
@@ -594,7 +607,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             ioWatermark,
             heapBufferPool,
             maxFooterReadBytes,
-            schemaMaxFields
+            schemaMaxFields,
+            externalIoThreads
         );
     }
 
@@ -618,7 +632,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             ioWatermark,
             heapBufferPool,
             maxFooterReadBytes,
-            schemaMaxFields
+            schemaMaxFields,
+            externalIoThreads
         );
     }
 
@@ -642,7 +657,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 ioWatermark,
                 heapBufferPool,
                 maxFooterReadBytes,
-                schemaMaxFields
+                schemaMaxFields,
+                externalIoThreads
             );
         }
         if (pushedFilter instanceof FilterCompat.Filter filter) {
@@ -660,7 +676,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 ioWatermark,
                 heapBufferPool,
                 maxFooterReadBytes,
-                schemaMaxFields
+                schemaMaxFields,
+                externalIoThreads
             );
         }
         if (pushedFilter instanceof ParquetPushedExpressions exprs) {
@@ -678,7 +695,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 ioWatermark,
                 heapBufferPool,
                 maxFooterReadBytes,
-                schemaMaxFields
+                schemaMaxFields,
+                externalIoThreads
             );
         }
         return this;
@@ -700,7 +718,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             ioWatermark,
             heapBufferPool,
             maxFooterReadBytes,
-            schemaMaxFields
+            schemaMaxFields,
+            externalIoThreads
         );
     }
 
@@ -730,7 +749,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             ioWatermark,
             heapBufferPool,
             maxFooterReadBytes,
-            schemaMaxFields
+            schemaMaxFields,
+            externalIoThreads
         );
     }
 
@@ -761,7 +781,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             ioWatermark,
             heapBufferPool,
             maxFooterReadBytes,
-            schemaMaxFields
+            schemaMaxFields,
+            externalIoThreads
         );
     }
 
@@ -784,7 +805,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             watermark,
             heapBufferPool,
             maxFooterReadBytes,
-            schemaMaxFields
+            schemaMaxFields,
+            externalIoThreads
         );
     }
 
@@ -811,7 +833,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             ioWatermark,
             pool,
             maxFooterReadBytes,
-            schemaMaxFields
+            schemaMaxFields,
+            externalIoThreads
         );
     }
 
@@ -2731,7 +2754,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             offsetIndexRowGroupLimit,
             blockFactory.breaker(),
             ioWatermark,
-            footerBytes
+            footerBytes,
+            QueryAdmission.DEFAULT_ACQUIRE_TIMEOUT_MS,
+            externalIoThreads
         );
         boolean metadataHandedOff = false;
         try {
@@ -2744,10 +2769,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 survivingRowGroups = computeSurvivingRowGroups(reader, blocks, recordFilter, projectedSchema, counters);
             } finally {
                 // Detach the pre-warmed chunks from the adapter so subsequent reads on any
-                // WindowedSeekableInputStream skip the cache lookup. The ByteBuffers themselves remain
-                // reachable via preloadedMetadata for the iterator's lifetime, but the data path uses
-                // the async ColumnChunkPrefetcher rather than the sliding-window stream, so they have
-                // no further reader.
+                // WindowedSeekableInputStream skip the cache lookup. Then release the raw
+                // dictionary/bloom buffers: the data path uses ColumnChunkPrefetcher, not these
+                // chunks, and holding them would pin untracked forceAdd bytes until iterator
+                // end while the driver waits for tickets (esql-planning#2270). Parsed column
+                // and offset indexes stay on preloadedMetadata for the iterator.
                 adapter.installPreWarmedChunks(null);
                 // Optimized path only. Drop the open-time sliding window before ticket admission.
                 // The iterator reads through ColumnChunkPrefetcher, not the reader stream; the
@@ -2756,6 +2782,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 // unfiltered LIMIT sequential OffsetIndex reads can allocate the same window.
                 // Do not call this on the row-based reader: it still reads through the stream.
                 adapter.releaseIdleWindows();
+                preloadedMetadata.releaseRawBuffers();
             }
 
             RowRanges[] allRowRanges = null;

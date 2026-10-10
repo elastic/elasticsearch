@@ -1971,7 +1971,12 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             }
             rowGroupOrdinal = nextOrdinal;
             pageBatchIndexInRowGroup = 0;
-            if (pendingTicket != null || grantedIo != null || currentPrefetchInFlight(rowGroupOrdinal)) {
+            if (currentPrefetchInFlight(rowGroupOrdinal)) {
+                // Look-ahead I/O started as optional; this group is now the required head.
+                setPhase(ReadinessPhase.GROUP_IO_PENDING);
+                return false;
+            }
+            if (pendingTicket != null || grantedIo != null) {
                 return false;
             }
 

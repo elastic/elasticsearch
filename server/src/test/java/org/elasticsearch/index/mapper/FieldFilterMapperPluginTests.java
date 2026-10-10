@@ -17,6 +17,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -126,6 +127,8 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
         // Index is not a time-series index, and it will not contain _tsid and _ts_routing_hash fields.
         builtInMetadataFields.remove(TimeSeriesIdFieldMapper.NAME);
         builtInMetadataFields.remove(TimeSeriesRoutingHashFieldMapper.NAME);
+        // The index does not enable the flattened unmapped-fields sink, so it has no _unmapped field.
+        builtInMetadataFields.remove(FlattenedFieldMapper.UNMAPPED_SINK_NAME);
         return builtInMetadataFields;
     }
 

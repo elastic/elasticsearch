@@ -24,6 +24,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
+import org.elasticsearch.index.mapper.flattened.UnmappedSinkFieldMapper;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -128,8 +129,7 @@ public class ObjectMapper extends Mapper {
             if (rootDynamic != null) {
                 return rootDynamic;
             }
-            if (mappingLookup.getMapper(FlattenedFieldMapper.UNMAPPED_SINK_NAME) instanceof FlattenedFieldMapper sink
-                && sink.isUnmappedSink()) {
+            if (mappingLookup.getMapper(FlattenedFieldMapper.UNMAPPED_SINK_NAME) instanceof UnmappedSinkFieldMapper) {
                 return FLATTENED;
             }
             return Defaults.DYNAMIC;
@@ -1007,8 +1007,7 @@ public class ObjectMapper extends Mapper {
 
         int count = 0;
         for (Mapper mapper : sortedMappers) {
-            // The implicit _unmapped sink is injected on every mapping-source parse, so it must never be serialized back out.
-            if (mapper instanceof MetadataFieldMapper || (mapper instanceof FlattenedFieldMapper flattened && flattened.isUnmappedSink())) {
+            if (mapper instanceof MetadataFieldMapper) {
                 continue;
             }
             if (count++ == 0) {

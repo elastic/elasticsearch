@@ -67,6 +67,7 @@ import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
+import org.elasticsearch.index.mapper.flattened.UnmappedSinkFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
@@ -298,6 +299,9 @@ public class IndicesModule extends AbstractModule {
         builtInMetadataMappers.put(SeqNoFieldMapper.NAME, SeqNoFieldMapper.PARSER);
         builtInMetadataMappers.put(DocCountFieldMapper.NAME, DocCountFieldMapper.PARSER);
         builtInMetadataMappers.put(DataStreamTimestampFieldMapper.NAME, DataStreamTimestampFieldMapper.PARSER);
+        if (FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled()) {
+            builtInMetadataMappers.put(FlattenedFieldMapper.UNMAPPED_SINK_NAME, UnmappedSinkFieldMapper.PARSER);
+        }
         // _field_names must be added last so that it has a chance to see all the other mappers
         builtInMetadataMappers.put(FieldNamesFieldMapper.NAME, FieldNamesFieldMapper.PARSER);
         return Collections.unmodifiableMap(builtInMetadataMappers);

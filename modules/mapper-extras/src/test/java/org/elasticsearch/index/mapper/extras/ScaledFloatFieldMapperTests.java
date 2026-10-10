@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
@@ -32,6 +33,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.SyntheticSourceMalformedValueSorter;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
+import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
@@ -49,9 +51,11 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
 
@@ -535,8 +539,79 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
         return Collections.emptyList();
     }
 
+    /**
+     * Unlike the numeric types in {@code NumberFieldMapper}, which reject objects even with {@code ignore_malformed},
+     * {@code scaled_float} treats an object value as malformed (like {@code date}). Without {@code ignore_malformed}
+     * the document is still rejected.
+     */
     @Override
-    public void testIgnoreMalformedWithObject() {} // TODO: either implement this, remove it, or update ScaledFloatFieldMapper's behaviour
+    public void testIgnoreMalformedWithObject() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("ignore_malformed", true);
+        }));
+        ParsedDocument doc = mapper.parse(source(b -> b.startObject("field").field("foo", "bar").endObject()));
+        assertThat(doc.rootDoc().getFields("field"), empty());
+        assertThat(TermVectorsService.getValues(doc.rootDoc().getFields("_ignored")), contains("field"));
+
+        DocumentMapper strictMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> strictMapper.parse(source(b -> b.startObject("field").field("foo", "bar").endObject()))
+        );
+        assertThat(e.getCause().getMessage(), containsString("Cannot parse object as number"));
+    }
+
+    /**
+     * With stored source, an ignored object value must be skipped entirely so that fields after it are parsed at the
+     * right level and none of its sub-fields leak into the parent object (see #160687 and #160691).
+     */
+    public void testIgnoreMalformedObjectSkippedInStoredSource() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("field");
+            {
+                minimalMapping(b);
+                b.field("ignore_malformed", true);
+            }
+            b.endObject();
+            b.startObject("trailing").field("type", "keyword").endObject();
+        }));
+        List<CheckedConsumer<XContentBuilder, IOException>> malformedObjects = List.of(
+            b -> b.startObject("field").field("foo", "bar").endObject(),
+            b -> b.startObject("field").startObject("a").field("b", 1).endObject().endObject(),
+            b -> b.startObject("field").startArray("a").value(1).startObject().field("b", 2).endObject().endArray().endObject()
+        );
+        for (CheckedConsumer<XContentBuilder, IOException> malformed : malformedObjects) {
+            ParsedDocument doc = mapper.parse(source(b -> {
+                malformed.accept(b);
+                b.field("trailing", "x");
+            }));
+            assertThat(doc.rootDoc().getFields("field"), empty());
+            assertThat(TermVectorsService.getValues(doc.rootDoc().getFields("_ignored")), contains("field"));
+            assertThat(doc.rootDoc().getFields("trailing"), hasSize(1));
+            assertThat(doc.rootDoc().getFields("foo"), empty());
+            assertThat(doc.rootDoc().getFields("a"), empty());
+            assertThat(doc.rootDoc().getFields("b"), empty());
+            assertNull(doc.dynamicMappingsUpdate());
+        }
+    }
+
+    public void testIgnoreMalformedObjectSyntheticSource() throws Exception {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("field");
+            {
+                minimalMapping(b);
+                b.field("ignore_malformed", true);
+            }
+            b.endObject();
+            b.startObject("trailing").field("type", "keyword").endObject();
+        })).documentMapper();
+        String syntheticSource = syntheticSource(mapper, b -> {
+            b.startObject("field").startObject("a").field("b", "c").endObject().endObject();
+            b.field("trailing", "x");
+        });
+        assertThat(syntheticSource, equalTo("{\"field\":{\"a\":{\"b\":\"c\"}},\"trailing\":\"x\"}"));
+    }
 
     @Override
     public void testAllowMultipleValuesField() {} // TODO: either implement this, remove it, or update ScaledFloatFieldMapper's behaviour

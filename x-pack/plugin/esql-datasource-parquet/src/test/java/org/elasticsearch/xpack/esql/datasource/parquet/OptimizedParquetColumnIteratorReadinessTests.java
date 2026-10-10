@@ -73,6 +73,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.esql.datasource.parquet.OptimizedParquetColumnIterator.ReadinessPhase;
+import static org.hamcrest.Matchers.lessThan;
 
 /**
  * {@link CloseableIterator#waitForReady()} / {@link CloseableIterator#tryAdvance()} contract for
@@ -555,6 +556,11 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
         byte[] parquet = twoColumnSparseGroupsFile();
         PhaseSizes group0 = phaseSizes(parquet, 0);
         PhaseSizes group1 = phaseSizes(parquet, 1);
+        assertThat(
+            "group 1 must sit outside the footer tail so the gated GET is a real miss",
+            group1.startingPos(),
+            lessThan((long) parquet.length - ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES)
+        );
         CountDownLatch allowGroup1 = new CountDownLatch(1);
         AtomicBoolean gateGroup1 = new AtomicBoolean();
         GatedOnDemandStorage storage = new GatedOnDemandStorage(parquet, asyncIo, gateGroup1, allowGroup1);
@@ -802,13 +808,13 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
             long phase2Io = ColumnChunkPrefetcher.computePrefetchBytes(block, Set.of("label"));
             long phase1 = ParquetDecodeWorkingSet.admitTotal(phase1Io, ParquetDecodeWorkingSet.estimateBytes(block, Set.of("id")));
             long phase2 = ParquetDecodeWorkingSet.admitTotal(phase2Io, ParquetDecodeWorkingSet.estimateBytes(block, Set.of("label")));
-            return new PhaseSizes(phase1, Math.max(phase1, phase2));
+            return new PhaseSizes(phase1, Math.max(phase1, phase2), block.getStartingPos());
         } finally {
             codecFactory.release();
         }
     }
 
-    private record PhaseSizes(long phase1, long reservation) {}
+    private record PhaseSizes(long phase1, long reservation, long startingPos) {}
 
     private static void releaseOvershoot(ParquetIoWatermark watermark, NodeByteBudget.Hold hold) {
         RowGroupIo lease = hold.lease();
@@ -924,8 +930,10 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
     }
 
     /**
-     * Two row groups whose {@code id} stats overlap a missing value: group 0 is {@code {0,10}},
-     * group 1 is {@code {5,15}}. {@code id == 5} is not row-group-pruned and matches only group 1.
+     * Two matching row groups whose {@code id} stats overlap a missing value: group 0 is
+     * {@code {0,10}}, group 1 is {@code {5,15}}. {@code id == 5} is not row-group-pruned and
+     * matches only group 1. A third stats-pruned group holds a fat pad so group 1 sits outside
+     * the 64 KiB footer tail; otherwise the group-1 GET is a cache hit and never parks.
      */
     private static byte[] twoColumnSparseGroupsFile() throws IOException {
         MessageType schema = Types.buildMessage()
@@ -934,6 +942,8 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
             .required(PrimitiveType.PrimitiveTypeName.BINARY)
             .as(LogicalTypeAnnotation.stringType())
             .named("label")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .named("pad")
             .named("ready_two_sparse");
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         SimpleGroupFactory factory = new SimpleGroupFactory(schema);
@@ -944,14 +954,24 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
                 .withType(schema)
                 .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
                 .withDictionaryEncoding(false)
+                .withDictionaryEncoding("pad", false)
                 .withRowGroupSize(1)
                 .withRowGroupRowCountLimit(2)
                 .withPageSize(128)
                 .build()
         ) {
             String fat = "x".repeat(256);
+            byte[] tiny = new byte[] { 0 };
             for (long id : new long[] { 0L, 10L, 5L, 15L }) {
-                writer.write(factory.newGroup().append("id", id).append("label", fat + "_" + id));
+                writer.write(
+                    factory.newGroup().append("id", id).append("label", fat + "_" + id).append("pad", Binary.fromConstantByteArray(tiny))
+                );
+            }
+            byte[] trailer = new byte[80 * 1024];
+            for (long id : new long[] { 100L, 101L }) {
+                writer.write(
+                    factory.newGroup().append("id", id).append("label", fat + "_" + id).append("pad", Binary.fromConstantByteArray(trailer))
+                );
             }
         }
         return out.toByteArray();

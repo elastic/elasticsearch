@@ -67,9 +67,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -298,6 +301,73 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
         }
         assertEquals("adapter close refunds leftover window charges", 0L, trackingBreaker.getUsed());
         assertEquals(0L, watermark.used());
+    }
+
+    /**
+     * Both coalesced batches must be in flight before either completes. Failing the index GET
+     * while the pre-warm GET is parked, then completing that parked GET, must refund the late
+     * result so {@code used} and the breaker return to the pre-open baseline.
+     */
+    public void testIndexGetFailsWhilePreWarmInFlightReleasesLateResult() throws Exception {
+        runSplitBatchFailure(true);
+    }
+
+    /**
+     * Pre-warm GET fails after the index batch succeeded. The index buffers must be closed and
+     * the failed pre-warm must not leave a forceAdd.
+     */
+    public void testPreWarmGetFailsAfterIndexSucceededRefunds() throws Exception {
+        runSplitBatchFailure(false);
+    }
+
+    private void runSplitBatchFailure(boolean failIndex) throws Exception {
+        MessageType schema = threeColumnInt64Schema();
+        byte[] parquetData = writeThreeColumnInt64Parquet(schema, 65_536);
+        CircuitBreaker trackingBreaker = new LimitedBreaker("split-batch", ByteSizeValue.ofMb(32));
+        ParquetIoWatermark watermark = new ParquetIoWatermark(64 * 1024 * 1024);
+        ExecutorService pool = Executors.newFixedThreadPool(4);
+        ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
+        try (
+            ParquetFileReader reader = ParquetFileReader.open(
+                new ParquetStorageObjectAdapter(createRangeReadStorageObject(parquetData), footerByteCache, trackingBreaker),
+                options
+            )
+        ) {
+            PageIndexRanges pageIndexes = collectPageIndexRanges(reader);
+            assertTrue("fixture must write page indexes so the index batch is non-empty", pageIndexes.totalCount() > 0);
+            GatedAsyncStorage gated = new GatedAsyncStorage(parquetData, pool, allIndexRanges(pageIndexes), failIndex);
+            Future<PreloadedRowGroupMetadata> future = pool.submit(
+                () -> PreloadedRowGroupMetadata.preload(
+                    reader,
+                    gated,
+                    Set.of("a"),
+                    null,
+                    null,
+                    Integer.MAX_VALUE,
+                    trackingBreaker,
+                    watermark,
+                    null
+                )
+            );
+            assertBusy(() -> {
+                assertTrue("index GET dispatched", gated.indexGets.get() > 0);
+                assertTrue("pre-warm GET dispatched", gated.preWarmGets.get() > 0);
+            });
+            gated.release.countDown();
+            PreloadedRowGroupMetadata metadata = null;
+            try {
+                metadata = future.get(15, TimeUnit.SECONDS);
+            } catch (ExecutionException ignored) {
+                // Coalesced failure may surface instead of sequential fallback.
+            }
+            if (metadata != null) {
+                metadata.close();
+            }
+        } finally {
+            terminate(pool);
+        }
+        assertEquals(0L, trackingBreaker.getUsed());
+        assertEquals("late GET result must not stay force-added", 0L, watermark.used());
     }
 
     /**
@@ -1184,6 +1254,13 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
         return new PageIndexRanges(ci.toArray(new long[0][]), oi.toArray(new long[0][]));
     }
 
+    private static long[][] allIndexRanges(PageIndexRanges page) {
+        long[][] all = new long[page.totalCount()][];
+        System.arraycopy(page.columnIndex, 0, all, 0, page.columnIndex.length);
+        System.arraycopy(page.offsetIndex, 0, all, page.columnIndex.length, page.offsetIndex.length);
+        return all;
+    }
+
     /**
      * Sums the bytes of a read {@code [position, position + length)} that overlap any of the given
      * index ranges, so coalesced reads that pull adjacent data are attributed only their index bytes.
@@ -1247,6 +1324,108 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
                 out.write(b, off, len);
             }
         };
+    }
+
+    /**
+     * Parks every async GET until {@link #release}, so the test can assert both coalesced
+     * batches are in flight. Completing or failing a parked GET after abandon exercises the
+     * late-result release.
+     */
+    private static final class GatedAsyncStorage implements StorageObject {
+        private final byte[] data;
+        private final ExecutorService pool;
+        private final long[][] indexRanges;
+        private final boolean failIndex;
+        private final AtomicInteger indexGets = new AtomicInteger();
+        private final AtomicInteger preWarmGets = new AtomicInteger();
+        private final CountDownLatch release = new CountDownLatch(1);
+
+        private GatedAsyncStorage(byte[] data, ExecutorService pool, long[][] indexRanges, boolean failIndex) {
+            this.data = data;
+            this.pool = pool;
+            this.indexRanges = indexRanges;
+            this.failIndex = failIndex;
+        }
+
+        @Override
+        public boolean supportsNativeAsync() {
+            return true;
+        }
+
+        @Override
+        public StorageIdentity storageIdentity() {
+            return AbstractTestStorageObject.NOOP;
+        }
+
+        @Override
+        public InputStream newStream() {
+            return new ByteArrayInputStream(data);
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            int pos = (int) position;
+            int len = (int) Math.min(length, data.length - position);
+            return new ByteArrayInputStream(data, pos, len);
+        }
+
+        @Override
+        public void readBytesAsync(
+            long position,
+            long length,
+            DirectBufferFactory factory,
+            Executor ignored,
+            ActionListener<DirectReadBuffer> listener
+        ) {
+            boolean index = overlapBytes(position, length, indexRanges) > 0;
+            if (index) {
+                indexGets.incrementAndGet();
+            } else {
+                preWarmGets.incrementAndGet();
+            }
+            pool.execute(() -> {
+                try {
+                    if (release.await(10, TimeUnit.SECONDS) == false) {
+                        listener.onFailure(new IOException("gated GET not released"));
+                        return;
+                    }
+                    int pos = (int) position;
+                    int len = (int) Math.min(length, data.length - position);
+                    DirectReadBuffer dest = factory.allocateWritableWindow(len);
+                    boolean fail = failIndex ? index : index == false;
+                    if (fail) {
+                        dest.close();
+                        listener.onFailure(new IOException(index ? "index GET failed" : "pre-warm GET failed"));
+                        return;
+                    }
+                    dest.buffer().put(data, pos, len);
+                    dest.buffer().flip();
+                    listener.onResponse(dest);
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                }
+            });
+        }
+
+        @Override
+        public long length() {
+            return data.length;
+        }
+
+        @Override
+        public Instant lastModified() {
+            return Instant.ofEpochMilli(0);
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return StoragePath.of("memory://preload-gated-test.parquet");
+        }
     }
 
     private static StorageObject createRangeReadStorageObject(byte[] data) {

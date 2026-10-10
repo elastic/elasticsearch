@@ -16,7 +16,9 @@ import org.apache.parquet.internal.column.columnindex.ColumnIndex;
 import org.apache.parquet.internal.column.columnindex.OffsetIndex;
 import org.apache.parquet.internal.hadoop.metadata.IndexReference;
 import org.apache.parquet.schema.MessageType;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.UninitializedArrays;
@@ -41,7 +43,12 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -155,9 +162,10 @@ final class PreloadedRowGroupMetadata implements Releasable {
      *
      * <p>When a {@link StorageObject} is provided, index ranges and dictionary/bloom ranges
      * are collected and fetched in two {@link CoalescedRangeReader#readCoalesced} batches —
-     * indexes with the 1 MiB gap, then dictionary/bloom with waste bounded to useful bytes.
-     * Adjacent ranges merge; each batch issues parallel async reads. This reduces hundreds
-     * of sequential I/O operations to a handful of coalesced requests.
+     * indexes with the 1 MiB gap, dictionary/bloom with waste bounded to useful bytes —
+     * dispatched together so they share one round trip. Adjacent ranges merge; each batch
+     * issues parallel async reads. This reduces hundreds of sequential I/O operations to a
+     * handful of coalesced requests.
      *
      * <p><b>Threading model:</b> This method is called from {@code ParquetFormatReader.read()}
      * and {@code readRange()}, which in production are always dispatched on the
@@ -358,10 +366,10 @@ final class PreloadedRowGroupMetadata implements Releasable {
     /**
      * Batched preloading via {@link CoalescedRangeReader}. Collects all column index and
      * offset index byte ranges across all row groups, plus dictionary-page and bloom-filter
-     * ranges for predicate columns when supplied, then two coalesced fetches: indexes with
-     * the 1 MiB gap, then dictionary/bloom with waste bounded to useful bytes. Parses index
-     * ranges into typed objects and retains dictionary/bloom ranges as raw byte chunks for
-     * {@link ParquetStorageObjectAdapter} pre-warming.
+     * ranges for predicate columns when supplied, then two coalesced fetches dispatched
+     * together: indexes with the 1 MiB gap, dictionary/bloom with waste bounded to useful
+     * bytes. Parses index ranges into typed objects and retains dictionary/bloom ranges as
+     * raw byte chunks for {@link ParquetStorageObjectAdapter} pre-warming.
      *
      * <p>Open-time {@code forceAdd} is at most twice the predicate columns' dictionary and
      * bloom bytes in the split, plus the <em>index span</em> (first needed column/offset-index
@@ -447,31 +455,30 @@ final class PreloadedRowGroupMetadata implements Releasable {
             }
         }
 
-        CoalescedRangeReader.CoalescedRangeResult indexFetched = awaitCoalescedRead(
-            storageObject,
-            indexRanges,
-            breaker,
-            ioWatermark,
-            footerBytes,
-            coalescedJoinTimeoutMs,
-            false
-        );
+        long deadlineNanos = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(coalescedJoinTimeoutMs);
+        StartedCoalescedRead indexStarted = startCoalescedRead(storageObject, indexRanges, breaker, ioWatermark, footerBytes, false);
+        StartedCoalescedRead preWarmStarted;
+        try {
+            preWarmStarted = startCoalescedRead(storageObject, preWarmRanges, breaker, ioWatermark, footerBytes, true);
+        } catch (Throwable t) {
+            abandonCoalescedRead(indexStarted);
+            throw t;
+        }
+        CoalescedRangeReader.CoalescedRangeResult indexFetched = null;
         CoalescedRangeReader.CoalescedRangeResult preWarmFetched;
         try {
-            preWarmFetched = awaitCoalescedRead(
-                storageObject,
-                preWarmRanges,
-                breaker,
-                ioWatermark,
-                footerBytes,
-                coalescedJoinTimeoutMs,
-                true
-            );
+            indexFetched = awaitStartedCoalescedRead(indexStarted, remainingMs(deadlineNanos));
+            preWarmFetched = awaitStartedCoalescedRead(preWarmStarted, remainingMs(deadlineNanos));
         } catch (Throwable t) {
-            try {
-                indexFetched.release().close();
-            } catch (Throwable closeFailure) {
-                t.addSuppressed(closeFailure);
+            if (indexFetched != null) {
+                try {
+                    indexFetched.release().close();
+                } catch (Throwable closeFailure) {
+                    t.addSuppressed(closeFailure);
+                }
+            } else {
+                // Index await never returned: pre-warm is still in flight.
+                abandonCoalescedRead(preWarmStarted);
             }
             throw t;
         }
@@ -828,28 +835,103 @@ final class PreloadedRowGroupMetadata implements Releasable {
         long timeoutMs,
         boolean boundWasteToUseful
     ) {
-        if (ranges.isEmpty()) {
-            return new CoalescedRangeReader.CoalescedRangeResult(Map.of(), () -> {});
-        }
-        PlainActionFuture<CoalescedRangeReader.CoalescedRangeResult> future = new PlainActionFuture<>();
-        Releasable cancel = CoalescedRangeReader.readCoalesced(
-            storageObject,
-            ranges,
-            CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP,
-            breaker,
-            ioWatermark,
-            null,
-            footerBytes,
-            boundWasteToUseful,
-            Runnable::run,
-            future
+        return awaitStartedCoalescedRead(
+            startCoalescedRead(storageObject, ranges, breaker, ioWatermark, footerBytes, boundWasteToUseful),
+            timeoutMs
         );
-        try {
-            return awaitCoalesced(future, timeoutMs);
-        } catch (Exception e) {
-            Releasables.close(cancel);
-            throw e;
+    }
+
+    private record StartedCoalescedRead(CompletableFuture<CoalescedRangeReader.CoalescedRangeResult> future, Releasable cancel) {}
+
+    /**
+     * Dispatches a coalesced read. The listener releases a late result when the future
+     * already completed or was cancelled — otherwise the GET that finished after abandon
+     * would leave its {@code forceAdd} on the node budget.
+     */
+    private static StartedCoalescedRead startCoalescedRead(
+        StorageObject storageObject,
+        List<CoalescedRangeReader.ByteRange> ranges,
+        CircuitBreaker breaker,
+        @Nullable ParquetIoWatermark ioWatermark,
+        @Nullable FooterByteCache footerBytes,
+        boolean boundWasteToUseful
+    ) {
+        if (ranges.isEmpty()) {
+            return new StartedCoalescedRead(
+                CompletableFuture.completedFuture(new CoalescedRangeReader.CoalescedRangeResult(Map.of(), () -> {})),
+                () -> {}
+            );
         }
+        if (InlineCompletionDrain.draining()) {
+            throw new ElasticsearchTimeoutException("awaitCoalesced from a grant continuation; the nested ticket is not done yet");
+        }
+        CompletableFuture<CoalescedRangeReader.CoalescedRangeResult> future = new CompletableFuture<>();
+        Releasable cancel = () -> {};
+        try {
+            cancel = CoalescedRangeReader.readCoalesced(
+                storageObject,
+                ranges,
+                CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP,
+                breaker,
+                ioWatermark,
+                null,
+                footerBytes,
+                boundWasteToUseful,
+                Runnable::run,
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(CoalescedRangeReader.CoalescedRangeResult result) {
+                        if (future.complete(result) == false) {
+                            result.release().close();
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        future.completeExceptionally(e);
+                    }
+                }
+            );
+        } catch (Throwable t) {
+            abandonCoalescedRead(new StartedCoalescedRead(future, cancel));
+            throw t;
+        }
+        return new StartedCoalescedRead(future, cancel);
+    }
+
+    private static CoalescedRangeReader.CoalescedRangeResult awaitStartedCoalescedRead(StartedCoalescedRead started, long timeoutMs) {
+        try {
+            return awaitCoalesced(started.future(), timeoutMs);
+        } catch (Throwable t) {
+            abandonCoalescedRead(started);
+            throw t;
+        }
+    }
+
+    private static void abandonCoalescedRead(StartedCoalescedRead started) {
+        started.future().cancel(false);
+        try {
+            Releasables.close(started.cancel());
+        } finally {
+            CoalescedRangeReader.CoalescedRangeResult late = peekCompletedResult(started.future());
+            if (late != null) {
+                late.release().close();
+            }
+        }
+    }
+
+    private static CoalescedRangeReader.CoalescedRangeResult peekCompletedResult(
+        CompletableFuture<CoalescedRangeReader.CoalescedRangeResult> future
+    ) {
+        try {
+            return future.getNow(null);
+        } catch (CompletionException | CancellationException e) {
+            return null;
+        }
+    }
+
+    private static long remainingMs(long deadlineNanos) {
+        return Math.max(0L, TimeUnit.NANOSECONDS.toMillis(deadlineNanos - System.nanoTime()));
     }
 
     static <T> T awaitCoalesced(PlainActionFuture<T> future, long timeoutMs) {
@@ -860,6 +942,26 @@ final class PreloadedRowGroupMetadata implements Releasable {
             return future.actionGet(timeoutMs, TimeUnit.MILLISECONDS);
         } catch (ElasticsearchTimeoutException e) {
             throw new ElasticsearchTimeoutException("timed out after [{}]ms waiting for coalesced parquet metadata", e, timeoutMs);
+        }
+    }
+
+    static <T> T awaitCoalesced(CompletableFuture<T> future, long timeoutMs) {
+        if (InlineCompletionDrain.draining()) {
+            throw new ElasticsearchTimeoutException("awaitCoalesced from a grant continuation; the nested ticket is not done yet");
+        }
+        try {
+            return future.get(timeoutMs, TimeUnit.MILLISECONDS);
+        } catch (TimeoutException e) {
+            throw new ElasticsearchTimeoutException("timed out after [{}]ms waiting for coalesced parquet metadata", e, timeoutMs);
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause() == null ? e : e.getCause();
+            if (cause instanceof RuntimeException runtime) {
+                throw runtime;
+            }
+            throw new ElasticsearchException("coalesced parquet metadata failed", cause);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ElasticsearchException("interrupted waiting for coalesced parquet metadata", e);
         }
     }
 }

@@ -96,13 +96,16 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
      * node's size allows (10 per 2GiB of node memory), see {@link ThreadPool.Names#SNAPSHOT_UPLOAD}, which is also how far this can be
      * raised at runtime. Never below today's concurrency.
      * <p>
-     * Before raising the default above 30, the ceiling must also respect the connection limit of the object store client (50 by default
+     * The default is 20 because in QA on GCP large nodes, more than about 20 concurrent uploads crossed the CPU-pressure guard with no
+     * throughput gain.
+     * <p>
+     * Before raising the default above 20, the ceiling must also respect the connection limit of the object store client (50 by default
      * for the client used for backups), keeping a share of the connections for foreground work: every upload holds a connection while
      * it runs, and uploads waiting for a connection would only look like a slow object store.
      */
     public static final Setting<Integer> UPLOAD_CONCURRENCY_MAX_SETTING = Setting.intSetting(
         "indices.recovery.upload_concurrency.max",
-        30,
+        20,
         1,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope

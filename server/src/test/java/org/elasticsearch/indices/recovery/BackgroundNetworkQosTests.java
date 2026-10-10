@@ -925,7 +925,7 @@ public class BackgroundNetworkQosTests extends ESTestCase {
     }
 
     public void testUploadConcurrencyMaxSetting() {
-        assertThat(UPLOAD_CONCURRENCY_MAX_SETTING.get(Settings.EMPTY), equalTo(30));
+        assertThat(UPLOAD_CONCURRENCY_MAX_SETTING.get(Settings.EMPTY), equalTo(20));
         expectThrows(
             IllegalArgumentException.class,
             () -> UPLOAD_CONCURRENCY_MAX_SETTING.get(Settings.builder().put(UPLOAD_CONCURRENCY_MAX_SETTING.getKey(), 0).build())
@@ -935,7 +935,7 @@ public class BackgroundNetworkQosTests extends ESTestCase {
         final int floor = threadPool.info(ThreadPool.Names.SNAPSHOT).getMax();
         final int nodeCeiling = Math.max(floor, threadPool.info(ThreadPool.Names.SNAPSHOT_UPLOAD).getMax());
         // the ceiling is the lower of the setting and what the node's size allows, never below today's concurrency
-        assertThat(node.qos.getUploadConcurrencyCeiling(), equalTo(Math.max(floor, Math.min(30, nodeCeiling))));
+        assertThat(node.qos.getUploadConcurrencyCeiling(), equalTo(Math.max(floor, Math.min(20, nodeCeiling))));
         node.apply(Settings.builder().put(ADAPTIVE_UPLOAD_CONCURRENCY_ENABLED_SETTING.getKey(), true).build());
         for (int max : new int[] { 1, floor, nodeCeiling, nodeCeiling + 50, randomIntBetween(1, 200) }) {
             node.apply(

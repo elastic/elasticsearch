@@ -42,7 +42,6 @@ import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.runEsql;
 import static org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT.commonProfile;
 import static org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT.fixTypesOnProfile;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Tests for {@code index.esql.stored_fields_sequential_proportion} which controls
@@ -121,25 +120,7 @@ public class StoredFieldsSequentialIT extends ESRestTestCase {
                 .entry("read_nanos", IntOrLongMatcher.isIntOrLong())
                 .entry("read_cpu_nanos", IntOrLongMatcher.isIntOrLong())
                 .entry("cpu_nanos", IntOrLongMatcher.isIntOrLong())
-                .entry(
-                    "profile",
-                    matchesMap() //
-                        .entry("drivers", instanceOf(List.class))
-                        .entry("plans", instanceOf(List.class))
-                        .entry("planning", matchesMap().extraOk())
-                        .entry("parsing", matchesMap().extraOk())
-                        .entry("view_resolution", matchesMap().extraOk())
-                        .entry("dataset_resolution", matchesMap().extraOk())
-                        .entry("preanalysis", matchesMap().extraOk())
-                        .entry("indices_resolution", matchesMap().extraOk())
-                        .entry("enrich_resolution", matchesMap().extraOk())
-                        .entry("inference_resolution", matchesMap().extraOk())
-                        .entry("analysis", matchesMap().extraOk())
-                        .entry("query", matchesMap().extraOk())
-                        .entry("field_caps_calls", instanceOf(Integer.class))
-                        .entry("unmapped_fields", instanceOf(String.class))
-                        .entry("minimumTransportVersion", instanceOf(Integer.class))
-                )
+                .entry("profile", getProfileMatcher())
                 .extraOk()
         );
 

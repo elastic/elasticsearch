@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 161295
+summary: Add planning CPU time to the ES|QL query profile and query metrics
+type: enhancement

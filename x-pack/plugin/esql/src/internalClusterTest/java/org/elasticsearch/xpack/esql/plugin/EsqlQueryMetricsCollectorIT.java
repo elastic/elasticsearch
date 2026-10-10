@@ -41,6 +41,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry.GA_TEXT_CODECS;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -116,6 +117,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
 
         assertReadCpuNanos("csv");
         assertSplitDiscoveryCpuNanos("csv");
+        assertPlanningCpuNanos("csv");
         assertThat(lastMetrics.get(QueryMetricsListener.PLANNING_NANOS), greaterThan(0L));
         assertThat(lastMetrics.get(QueryMetricsListener.CPU_NANOS), greaterThan(0L));
         // TODO: does not work for CVS for now: assertThat(lastMetrics.get(QueryMetricsListener.BYTES_READ), greaterThan(0L));
@@ -134,6 +136,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
 
         assertReadCpuNanos("ndjson");
         assertSplitDiscoveryCpuNanos("ndjson");
+        assertPlanningCpuNanos("ndjson");
     }
 
     public void testMetricsCollectorStreamingNdJson() throws Exception {
@@ -153,6 +156,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
 
         assertReadCpuNanos("streaming-ndjson");
         assertSplitDiscoveryCpuNanos("streaming-ndjson");
+        assertPlanningCpuNanos("streaming-ndjson");
         assertThat(lastMetrics.get(QueryMetricsListener.PLANNING_NANOS), greaterThan(0L));
         assertThat(lastMetrics.get(QueryMetricsListener.CPU_NANOS), greaterThan(0L));
     }
@@ -452,6 +456,21 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
             format + ": split_discovery_cpu_nanos > 0",
             lastMetrics.get(QueryMetricsListener.SPLIT_DISCOVERY_CPU_NANOS),
             greaterThan(0L)
+        );
+    }
+
+    /**
+     * Planning CPU is measured (positive) and bounded by planning wall time across all cores: the resolver's
+     * per-file fan-out can run planning on several threads at once, but never more CPU than the cores allow.
+     */
+    private void assertPlanningCpuNanos(String format) {
+        assertThat(format + ": metrics must be set", lastMetrics, notNullValue());
+        Long planningCpuNanos = lastMetrics.get(QueryMetricsListener.PLANNING_CPU_NANOS);
+        assertThat(format + ": planning_cpu_nanos > 0", planningCpuNanos, greaterThan(0L));
+        assertThat(
+            format + ": planning CPU cannot exceed planning wall time across all cores",
+            planningCpuNanos,
+            lessThanOrEqualTo(lastMetrics.get(QueryMetricsListener.PLANNING_NANOS) * Runtime.getRuntime().availableProcessors())
         );
     }
 

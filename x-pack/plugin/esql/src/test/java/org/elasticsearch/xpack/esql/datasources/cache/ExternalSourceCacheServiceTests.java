@@ -19,6 +19,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -36,6 +37,7 @@ import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -54,6 +56,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 
 public class ExternalSourceCacheServiceTests extends ESTestCase {
@@ -355,6 +358,83 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             expectThrows(TaskCancelledException.class, leader::actionGet);
             assertSame(followerResult, follower.actionGet());
             assertEquals(1, followerComputeCalls.get());
+        }
+    }
+
+    private static void burnCpu(long nanos) {
+        long start = ThreadCpuTimer.currentNanos();
+        while (ThreadCpuTimer.elapsedNanos(start) < nanos) {
+            Thread.onSpinWait();
+        }
+    }
+
+    /**
+     * The leader's thread completes a coalesced follower, so the follower's continuation must be metered for the
+     * follower's own query rather than counted in the leader's planning CPU.
+     */
+    public void testAsyncListingFollowerContinuationIsMeteredForTheFollower() throws Exception {
+        assumeTrue("thread CPU time unsupported", ThreadCpuTimer.currentNanos() >= 0);
+        long burnNanos = TimeUnit.MILLISECONDS.toNanos(50);
+        PlanningCpuTracker leaderCpu = new PlanningCpuTracker();
+        PlanningCpuTracker followerCpu = new PlanningCpuTracker();
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            ListingCacheKey key = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "");
+            AtomicReference<ActionListener<FileList>> leaderCompletion = new AtomicReference<>();
+            AtomicBoolean meteredForFollower = new AtomicBoolean();
+            PlainActionFuture<FileList> follower = new PlainActionFuture<>();
+
+            leaderCpu.meteredCpu(() -> service.getOrComputeListingAsync(key, leaderCompletion::set, ActionListener.noop()));
+            followerCpu.meteredCpu(
+                () -> service.getOrComputeListingAsync(key, l -> fail("follower must not compute"), ActionListener.wrap(listing -> {
+                    meteredForFollower.set(followerCpu.isMeteringCurrentThread() && leaderCpu.isMeteringCurrentThread() == false);
+                    burnCpu(burnNanos);
+                    follower.onResponse(listing);
+                }, follower::onFailure))
+            );
+            long leaderBefore = leaderCpu.cpuNanos();
+            long followerBefore = followerCpu.cpuNanos();
+
+            FileList result = testCompactFileList();
+            leaderCpu.meteredCpu(() -> leaderCompletion.get().onResponse(result));
+
+            assertSame(result, follower.actionGet());
+            assertTrue("the follower's continuation must run in its own measurement", meteredForFollower.get());
+            assertThat(followerCpu.cpuNanos() - followerBefore, greaterThanOrEqualTo(burnNanos));
+            assertThat(leaderCpu.cpuNanos() - leaderBefore, lessThan(burnNanos));
+        }
+    }
+
+    /**
+     * A follower whose leader is cancelled computes the listing itself, on the leader's thread. That listing is the
+     * follower's planning CPU, not the cancelled leader's.
+     */
+    public void testAsyncListingFollowerRetryIsMeteredForTheFollower() throws Exception {
+        assumeTrue("thread CPU time unsupported", ThreadCpuTimer.currentNanos() >= 0);
+        long burnNanos = TimeUnit.MILLISECONDS.toNanos(50);
+        PlanningCpuTracker leaderCpu = new PlanningCpuTracker();
+        PlanningCpuTracker followerCpu = new PlanningCpuTracker();
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            ListingCacheKey key = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "");
+            AtomicReference<ActionListener<FileList>> leaderCompletion = new AtomicReference<>();
+            AtomicBoolean meteredForFollower = new AtomicBoolean();
+            PlainActionFuture<FileList> follower = new PlainActionFuture<>();
+            FileList followerResult = testCompactFileList();
+
+            leaderCpu.meteredCpu(() -> service.getOrComputeListingAsync(key, leaderCompletion::set, ActionListener.noop()));
+            followerCpu.meteredCpu(() -> service.getOrComputeListingAsync(key, l -> {
+                meteredForFollower.set(followerCpu.isMeteringCurrentThread() && leaderCpu.isMeteringCurrentThread() == false);
+                burnCpu(burnNanos);
+                l.onResponse(followerResult);
+            }, follower));
+            long leaderBefore = leaderCpu.cpuNanos();
+            long followerBefore = followerCpu.cpuNanos();
+
+            leaderCpu.meteredCpu(() -> leaderCompletion.get().onFailure(new TaskCancelledException("leader cancelled")));
+
+            assertSame(followerResult, follower.actionGet());
+            assertTrue("the follower's retry must run in its own measurement", meteredForFollower.get());
+            assertThat(followerCpu.cpuNanos() - followerBefore, greaterThanOrEqualTo(burnNanos));
+            assertThat(leaderCpu.cpuNanos() - leaderBefore, lessThan(burnNanos));
         }
     }
 

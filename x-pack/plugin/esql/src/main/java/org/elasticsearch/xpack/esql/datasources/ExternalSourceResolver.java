@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThrottledIterator;
@@ -23,6 +24,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.action.ExternalPlanningReservation;
+import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -83,6 +85,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -204,12 +207,25 @@ public class ExternalSourceResolver {
     private static final long SCHEMA_MAP_BYTES_PER_FILE = 320L;
 
     private final Executor executor;
+    /**
+     * {@link #executor} with each task run inside a planning CPU measurement, for the per-file fan-out's
+     * continuations. A direct executor is kept as is: {@link ThrottledIterator} recognizes it by identity to run
+     * continuations inline, and an inline continuation already runs inside the releasing thread's measurement.
+     */
+    private final Executor fanOutExecutor;
     private final DataSourceModule dataSourceModule;
     /**
      * Query reservation for listing and schema-map bytes. Set once from {@code PlanExecutor.esql}.
      * Null when the session has no request breaker; those sessions skip the charge.
      */
     private volatile ExternalPlanningReservation planningReservation;
+    /**
+     * Planning CPU tracker of the query this resolver serves. Set once from {@code EsqlSession.execute}, after
+     * construction, so tasks read it when they run rather than inheriting it from the submitting thread: format readers
+     * submit to these executors from storage SDK threads that are not metered. {@link PlanningCpuTracker#UNMETERED} when
+     * no session meters this resolver (tests, tools).
+     */
+    private volatile PlanningCpuTracker planningCpu = PlanningCpuTracker.UNMETERED;
     /**
      * Test hook. Invoked after each reconcile-gather private-list charge, while that run is still open.
      * Production leaves this null.
@@ -368,6 +384,14 @@ public class ExternalSourceResolver {
      */
     public void planning(@Nullable ExternalPlanningReservation reservation) {
         this.planningReservation = reservation;
+    }
+
+    /**
+     * Binds the planning CPU tracker of the query {@code EsqlSession.execute} is planning. Executor tasks and storage
+     * completions are then measured by it, so object-store waits drop out of the planning CPU.
+     */
+    public void planningCpu(PlanningCpuTracker tracker) {
+        this.planningCpu = Objects.requireNonNull(tracker);
     }
 
     /**
@@ -577,6 +601,9 @@ public class ExternalSourceResolver {
             throw new IllegalArgumentException("metadataReadConcurrency must be >= 1, got: " + metadataReadConcurrency);
         }
         this.executor = executor;
+        this.fanOutExecutor = executor == EsExecutors.DIRECT_EXECUTOR_SERVICE
+            ? executor
+            : ExternalIoExecutors.preserving(executor, command -> planningCpu.meteredCpu(command::run));
         this.dataSourceModule = dataSourceModule;
         this.settings = settings;
         this.cacheService = cacheService;
@@ -589,14 +616,15 @@ public class ExternalSourceResolver {
         // task so footer-load waiters and per-file continuations see the caller's headers, and so a
         // pool rejection still reaches AbstractRunnable.onRejection. Planning I/O is resolved when
         // the task runs: the resolver is constructed before PlanExecutor.esql binds
-        // the reservation, so a ctor-time capture is always null.
+        // the reservation, so a ctor-time capture is always null. Planning CPU is resolved the same way, at run
+        // time, because the tracker is bound after construction too.
         this.metadataReadExecutor = ExternalIoExecutors.preserving(
             ExternalIoExecutors.restoring(executor, this.restorableContext, this::isCancelled),
             command -> {
                 ExternalPlanningReservation reservation = planningReservation;
                 ExternalPlanningIo planningIo = reservation != null ? reservation.planningIo() : ExternalPlanningIo.current();
                 try (Releasable ignored = ExternalPlanningIo.activate(planningIo)) {
-                    command.run();
+                    planningCpu.meteredCpu(command::run);
                 }
             }
         );
@@ -762,6 +790,9 @@ public class ExternalSourceResolver {
             ? listener
             : new ContextPreservingActionListener<>(restorableContext, listener);
         Map<String, ExternalSourceResolution.ResolvedSource> resolved = Maps.newHashMapWithExpectedSize(paths.size());
+        // The dispatched resolution can complete and carry planning on to finish() before this thread's measurement
+        // settles, so commit the planning CPU spent preparing it first.
+        planningCpu.checkpoint();
         metadataReadExecutor.execute(
             () -> resolveNextPath(
                 paths,
@@ -843,6 +874,9 @@ public class ExternalSourceResolver {
             // Dispatch to the executor rather than calling directly: on a cache-hit the callback fires
             // synchronously, so a direct recursive call would stack one frame per path and overflow the
             // JVM stack for large comma-separated path lists.
+            // The dispatched task can resolve the last path and carry planning on to finish() before this thread's
+            // measurement settles, so commit this path's planning CPU first.
+            planningCpu.checkpoint();
             metadataReadExecutor.execute(
                 () -> resolveNextPath(
                     paths,
@@ -3126,7 +3160,12 @@ public class ExternalSourceResolver {
                     stored = withCanonicalSchema(stored, schemaInterner.canonicalize(meta.schema()));
                 }
                 results.set(i, stored);
-            }, e -> failure.compareAndSet(null, e)), releasable::close);
+            }, e -> failure.compareAndSet(null, e)), () -> {
+                // Commit this item's CPU before the permit release: the release can let another thread run the gather
+                // completion and the rest of planning, and finish() there would drop a measurement still open here.
+                planningCpu.checkpoint();
+                releasable.close();
+            });
             // ThrottledIterator's itemConsumer must not throw: an escaped exception would leave this item's ref
             // permanently held (its releasable never closed) and onCompletion would never fire — a hang. A check-
             // before-dispatch cancellation and any synchronous throw from the resolve dispatch (e.g. a factory that
@@ -3181,7 +3220,7 @@ public class ExternalSourceResolver {
                 closePrivateSchemaLists(privateLists);
                 closePrivateSchemaLists(resultsRun);
             }
-        }, executor, e -> {
+        }, fanOutExecutor, e -> {
             // A continuation was rejected/failed (e.g. executor shutdown): record it so onCompletion surfaces the
             // failure rather than returning a partially-populated result.
             failure.compareAndSet(null, e);
@@ -4368,7 +4407,16 @@ public class ExternalSourceResolver {
             resolveWithFactory(path, hint, config, candidates, index + 1, e, listener);
         });
         try {
-            factory.resolveMetadataAsync(path, hint, config, metadataReadExecutor, pendingMetadataWarnings::add, next);
+            // The metered listener starts a planning CPU measurement on whichever thread completes the read (SDK, Netty, or
+            // executor), so the continuation is counted and the wait before it is not.
+            factory.resolveMetadataAsync(
+                path,
+                hint,
+                config,
+                metadataReadExecutor,
+                pendingMetadataWarnings::add,
+                planningCpu.meteredCpu(next)
+            );
         } catch (Exception e) {
             // A factory that throws synchronously from dispatch (before invoking the listener) must not abort the
             // whole resolve: fall through to the next candidate exactly as the async onFailure path does.

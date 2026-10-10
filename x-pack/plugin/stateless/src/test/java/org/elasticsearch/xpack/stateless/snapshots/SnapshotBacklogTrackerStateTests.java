@@ -578,7 +578,31 @@ public class SnapshotBacklogTrackerStateTests extends ESTestCase {
         assertThat(tracker.getRunningShardSnapshotCount(), equalTo(0));
     }
 
-    public void testASnapshotThatIsDoneIsForgottenWhenANewerSnapshotOfTheShardStarts() {
+    public void testASnapshotThatIsDoneStaysWhileANewerOneQueuedBehindItStartsFromWhatItMade() {
+        startWithABacklogOfFiftyBytes();
+        final var older = new Snapshot(ProjectId.DEFAULT, "repo", new SnapshotId("older", "older-uuid"));
+        final var olderStatus = startSnapshotThatUploadsTheBacklog(older, 1);
+        tick();
+        assertThat(tracker.getBacklog().get(projectRepo), equalTo(new RepositoryBacklog(0, 1, 0, 0, 0)));
+
+        // the newer snapshot of the shard starts from the generation that the older one made, which is not in the repository yet, so it
+        // does not upload what the older one did, and the backlog must not jump back to the full size
+        final var newer = new Snapshot(ProjectId.DEFAULT, "repo", new SnapshotId("newer", "newer-uuid"));
+        snapshotsInProgress.add(newer);
+        final var newerStatus = IndexShardSnapshotStatus.newInitializing(olderStatus.generation(), 10);
+        tracker.registerShardSnapshot(newer, shard0, newerStatus);
+        tick();
+        assertThat(tracker.getBacklog().get(projectRepo), equalTo(new RepositoryBacklog(0, 1, 0, 0, 0)));
+        newerStatus.moveToStarted(10, 1, 2, 50, 150);
+        for (int i = between(1, 3); i > 0; i--) {
+            newerStatus.addProcessedFile(5);
+            tick();
+            assertThat(tracker.getBacklog().get(projectRepo), equalTo(new RepositoryBacklog(0, 1, 0, 0, 0)));
+        }
+        assertThat(tracker.getRunningShardSnapshotCount(), equalTo(2));
+    }
+
+    public void testASnapshotThatIsDoneIsForgottenWhenANewerOneStartsFromAnotherGeneration() {
         startWithABacklogOfFiftyBytes();
         final var older = new Snapshot(ProjectId.DEFAULT, "repo", new SnapshotId("older", "older-uuid"));
         startSnapshotThatUploadsTheBacklog(older, 1);
@@ -593,7 +617,8 @@ public class SnapshotBacklogTrackerStateTests extends ESTestCase {
         tick();
         assertThat(tracker.getBacklog().get(projectRepo), equalTo(new RepositoryBacklog(0, 1, 0, 0, 0)));
 
-        // when it has, it uploads the same files again, so that only its progress is taken off, and not that of the older one as well
+        // when it has, it starts from what the repository holds and uploads the same files again, so that only its progress is taken
+        // off, and not that of the older one as well
         status.moveToStarted(10, 1, 2, 50, 150);
         status.addProcessedFile(20);
         tick();

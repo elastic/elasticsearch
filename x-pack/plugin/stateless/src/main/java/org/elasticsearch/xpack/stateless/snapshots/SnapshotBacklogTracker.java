@@ -196,6 +196,9 @@ public class SnapshotBacklogTracker implements ClusterStateListener {
     private final Map<Snapshot, Map<ShardId, IndexShardSnapshotStatus>> runningShardSnapshots = new ConcurrentHashMap<>();
     // For a status that is done, the generation of the repository files of its shard when it was first seen as done
     private final Map<IndexShardSnapshotStatus, ShardGeneration> doneSnapshotsSeenAt = new HashMap<>();
+    // The generation of the shard that each shard snapshot started from, which the status forgets when it is done. Added to from the
+    // threads of the shard snapshots, and cleaned by the state executor like runningShardSnapshots.
+    private final Map<IndexShardSnapshotStatus, ShardGeneration> startedFromGenerations = new ConcurrentHashMap<>();
 
     // The backlog of each shard in the latest evaluation, only used on the state executor
     private final Map<ProjectRepo, List<ShardDetail>> shardDetails = new HashMap<>();
@@ -278,6 +281,7 @@ public class SnapshotBacklogTracker implements ClusterStateListener {
         latestBacklog = null;
         runningShardSnapshots.clear();
         doneSnapshotsSeenAt.clear();
+        startedFromGenerations.clear();
         shardDetails.clear();
         trackedRepositories.values().forEach(TrackedRepository::close);
         trackedRepositories.clear();
@@ -314,6 +318,10 @@ public class SnapshotBacklogTracker implements ClusterStateListener {
     public void registerShardSnapshot(Snapshot snapshot, ShardId shardId, IndexShardSnapshotStatus status) {
         if (enabled == false) {
             return;
+        }
+        final ShardGeneration startedFrom = status.generation();
+        if (startedFrom != null) {
+            startedFromGenerations.put(status, startedFrom);
         }
         runningShardSnapshots.compute(snapshot, (key, shards) -> {
             final Map<ShardId, IndexShardSnapshotStatus> updated = shards == null ? new ConcurrentHashMap<>() : shards;
@@ -388,7 +396,7 @@ public class SnapshotBacklogTracker implements ClusterStateListener {
                 )
             );
         });
-        doneSnapshotsSeenAt.keySet().retainAll(getRunningShardSnapshotStatuses());
+        retainStatusesOfRunningShardSnapshots();
         return Map.copyOf(backlogs);
     }
 
@@ -487,8 +495,9 @@ public class SnapshotBacklogTracker implements ClusterStateListener {
      * was deleted, nothing in the repository refers to what it uploaded, and it is forgotten as soon as that is certain: the snapshot is
      * gone from the cluster state, and the repository files of the shard are up to date with a repository generation at least as new as
      * the one in that cluster state, so that they would include the snapshot if it had finalized. It is also forgotten when a newer
-     * snapshot of the same shard has started, as that one uploads again what the older one did, and the backlog would be understated if
-     * both counted.
+     * snapshot of the same shard has started from another generation than the one it made: that one uploads again what the older one did,
+     * and the backlog would be understated if both counted. A newer one that started from the generation the older one made, as one that
+     * was queued behind it does, does not upload those files again, so the older one stays until it is in the repository files.
      */
     private void pruneRunningShardSnapshots(
         ProjectRepo projectRepo,
@@ -500,7 +509,7 @@ public class SnapshotBacklogTracker implements ClusterStateListener {
         final long clusterStateGeneration = getRepositoryGeneration(state, projectRepo);
         final boolean filesAreCurrent = clusterStateGeneration != RepositoryData.UNKNOWN_REPO_GEN
             && tracked.cache().getRepositoryGeneration() >= clusterStateGeneration;
-        final Map<ShardId, Long> latestStartedSnapshotOfShard = getLatestStartedSnapshotOfShards(projectRepo);
+        final Map<ShardId, List<StartedShardSnapshot>> startedSnapshotsOfShards = getStartedShardSnapshots(projectRepo);
         for (Snapshot snapshot : List.copyOf(runningShardSnapshots.keySet())) {
             if (snapshot.getProjectId().equals(projectRepo.projectId()) && snapshot.getRepository().equals(projectRepo.name())) {
                 final boolean isInProgress = snapshotsInProgress.snapshot(snapshot) != null;
@@ -508,16 +517,16 @@ public class SnapshotBacklogTracker implements ClusterStateListener {
                 runningShardSnapshots.computeIfPresent(snapshot, (key, shards) -> {
                     shards.entrySet().removeIf(shard -> {
                         final var status = shard.getValue();
-                        final boolean newerSnapshotStarted = latestStartedSnapshotOfShard.getOrDefault(
-                            shard.getKey(),
-                            Long.MIN_VALUE
-                        ) > status.getCreationTimeMillis();
+                        final boolean superseded = isSupersededByNewerSnapshot(
+                            status,
+                            startedSnapshotsOfShards.getOrDefault(shard.getKey(), List.of())
+                        );
                         return isNoLongerNeeded(
                             shard.getKey(),
                             status,
                             tracked.cache(),
                             localShards,
-                            newerSnapshotStarted,
+                            superseded,
                             isInProgress == false && filesAreCurrent
                         );
                     });
@@ -528,15 +537,21 @@ public class SnapshotBacklogTracker implements ClusterStateListener {
     }
 
     /**
-     * @return when the latest shard snapshot that has started was created, for each shard of the repository that has one
+     * A shard snapshot that has started uploading.
+     *
+     * @param creationTimeMillis when its status was created
+     * @param startedFrom        the generation of the shard that it started from, or {@code null} if that is not known
      */
-    private Map<ShardId, Long> getLatestStartedSnapshotOfShards(ProjectRepo projectRepo) {
-        final Map<ShardId, Long> latest = new HashMap<>();
+    private record StartedShardSnapshot(long creationTimeMillis, @Nullable ShardGeneration startedFrom) {}
+
+    private Map<ShardId, List<StartedShardSnapshot>> getStartedShardSnapshots(ProjectRepo projectRepo) {
+        final Map<ShardId, List<StartedShardSnapshot>> started = new HashMap<>();
         runningShardSnapshots.forEach((snapshot, shards) -> {
             if (snapshot.getProjectId().equals(projectRepo.projectId()) && snapshot.getRepository().equals(projectRepo.name())) {
                 shards.forEach((shardId, status) -> {
                     switch (status.getStage()) {
-                        case STARTED, FINALIZE, DONE -> latest.merge(shardId, status.getCreationTimeMillis(), Math::max);
+                        case STARTED, FINALIZE, DONE -> started.computeIfAbsent(shardId, id -> new ArrayList<>())
+                            .add(new StartedShardSnapshot(status.getCreationTimeMillis(), startedFromGenerations.get(status)));
                         // nothing has been uploaded yet, or what was is not used
                         case INIT, FAILURE, ABORTED, PAUSING, PAUSED -> {
                         }
@@ -544,7 +559,31 @@ public class SnapshotBacklogTracker implements ClusterStateListener {
                 });
             }
         });
-        return latest;
+        return started;
+    }
+
+    /**
+     * Whether a shard snapshot of the same shard started after the given one, from a generation that is not the one the given one
+     * made. A shard snapshot that is queued behind another one of the shard starts from what that one made, even though it has not
+     * been added to the repository yet, and then does not upload the files again, so the other one is still needed. One that starts
+     * from anything else uploads them again, and counting both would understate the backlog. If it is not known where it started from,
+     * it is not taken to be superseded, as that only overstates the backlog.
+     */
+    private static boolean isSupersededByNewerSnapshot(IndexShardSnapshotStatus status, List<StartedShardSnapshot> startedOfShard) {
+        for (StartedShardSnapshot other : startedOfShard) {
+            if (other.creationTimeMillis() > status.getCreationTimeMillis()
+                && other.startedFrom() != null
+                && other.startedFrom().equals(status.generation()) == false) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void retainStatusesOfRunningShardSnapshots() {
+        final Set<IndexShardSnapshotStatus> statuses = getRunningShardSnapshotStatuses();
+        doneSnapshotsSeenAt.keySet().retainAll(statuses);
+        startedFromGenerations.keySet().retainAll(statuses);
     }
 
     /**
@@ -566,7 +605,7 @@ public class SnapshotBacklogTracker implements ClusterStateListener {
     }
 
     /**
-     * @param newerSnapshotStarted     whether a newer snapshot of the shard has started
+     * @param superseded               whether a newer snapshot of the shard has started from another generation than the one this made
      * @param cannotFinalizeAnyMore    whether the snapshot of the status is gone from the cluster state while the repository
      *                                 generations of the cache are as new as the one of the cluster state
      */
@@ -575,7 +614,7 @@ public class SnapshotBacklogTracker implements ClusterStateListener {
         IndexShardSnapshotStatus status,
         RepositoryFilesCache cache,
         Set<ShardId> localShards,
-        boolean newerSnapshotStarted,
+        boolean superseded,
         boolean cannotFinalizeAnyMore
     ) {
         if (localShards.contains(shardId) == false) {
@@ -583,13 +622,13 @@ public class SnapshotBacklogTracker implements ClusterStateListener {
             return true;
         }
         switch (status.getStage()) {
-            case FAILURE, ABORTED, PAUSING, PAUSED -> {
+            case FAILURE, ABORTED, PAUSED -> {
                 // nothing is reused from it, and a paused one is not going to go on on this node
                 doneSnapshotsSeenAt.remove(status);
                 return true;
             }
             case DONE -> {
-                if (newerSnapshotStarted) {
+                if (superseded) {
                     doneSnapshotsSeenAt.remove(status);
                     return true;
                 }
@@ -607,7 +646,8 @@ public class SnapshotBacklogTracker implements ClusterStateListener {
                 }
                 return false;
             }
-            case INIT, STARTED, FINALIZE -> {
+            case INIT, STARTED, FINALIZE, PAUSING -> {
+                // PAUSING is left to become PAUSED, which it does as soon as the shard snapshot has stopped
                 return false;
             }
         }
@@ -642,7 +682,7 @@ public class SnapshotBacklogTracker implements ClusterStateListener {
             .removeIf(
                 snapshot -> trackedRepositories.containsKey(new ProjectRepo(snapshot.getProjectId(), snapshot.getRepository())) == false
             );
-        doneSnapshotsSeenAt.keySet().retainAll(getRunningShardSnapshotStatuses());
+        retainStatusesOfRunningShardSnapshots();
     }
 
     private TrackedRepository newTrackedRepository(ProjectRepo projectRepo, BlobStoreRepository repository) {

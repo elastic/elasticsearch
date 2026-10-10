@@ -1268,6 +1268,11 @@ public final class TextFieldMapper extends FieldMapper {
          * strictly columnar index is taken to hold them, in the field's own doc values or, for a multi-field keeping
          * none of its own, in its parent's.
          */
+        @Override
+        public boolean answersPositionsFromValues(SearchExecutionContext context) {
+            return verifiesPositionsFromDocValues(context);
+        }
+
         private boolean verifiesPositionsFromDocValues(SearchExecutionContext context) {
             // The values are read for the documents the field's own terms match, so it needs those terms.
             if (strictColumnar == false || indexType().hasTerms() == false || getTextSearchInfo().hasPositions()) {

@@ -58,9 +58,9 @@ import static org.elasticsearch.xpack.esql.approximation.ApproximationPlan.isApp
  * an object (matching the {@code null} an explicit reference to it reads), and {@code null} where a row lacks the leaf. Flattening lets a
  * synthetic-source index, which rebuilds a dotted source key as a nested object, expand to the same columns as a stored-source one.
  *
- * <p>The data node ships whole objects (it can only filter by top-level source key, pruning a subtree solely when a wildcard
- * {@code DROP} covers it), so this post-processor is where the {@link UnmappedFieldsPattern} is applied per flattened <em>leaf</em>
- * name.
+ * <p>The data node ships whole objects (it filters by top-level source key, pruning a subtree only when the pattern excludes all of
+ * it, like a wildcard {@code DROP} or a nested path), so this post-processor is where the {@link UnmappedFieldsPattern} is applied per
+ * flattened <em>leaf</em> name.
  *
  * <p>A discovered field is not a column when {@code KEEP} is resolved, so the plan could not position it then.
  * {@link UnmappedFieldsOrdering} hands the discovered fields back to the plan as if they had been mapped all

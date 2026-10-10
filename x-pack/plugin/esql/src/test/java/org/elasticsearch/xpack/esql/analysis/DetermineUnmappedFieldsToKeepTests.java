@@ -13,6 +13,8 @@ import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
@@ -26,12 +28,14 @@ import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
@@ -771,6 +775,108 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertKept(pattern, "first_name_suffix");
         assertNotKept(pattern, excl("language_name", "lc"));
         assertNotKept(pattern, "unmapped_extra");
+    }
+
+    // -----------------------------------------------------------------------
+    // Paths an index maps as nested: nothing at or below them is discovered,
+    // while a field the query names still loads, like under LOAD.
+    // -----------------------------------------------------------------------
+
+    public void testNestedPathIsNotExpandedNorAnythingBelowIt() {
+        UnmappedFieldsPattern pattern = patternFor("FROM test", testWithNestedPaths("nested_punk", "address.history"));
+        assertNotKept(pattern, "nested_punk", "nested_punk.subfield", "nested_punk.deep.leaf", "address.history", "address.history.city");
+        assertKept(pattern, "nested_punk_sibling", "address", "address.city", "unmapped_extra");
+        assertNotKept(pattern, excl());
+        assertFalse(pattern.objectSubfieldsCouldMatch("nested_punk"));
+        assertTrue(pattern.objectSubfieldsCouldMatch("address"));
+        assertTrue(pattern.excludesSubtree("address.history"));
+    }
+
+    public void testNestedPathBelowAnotherNestedPathIsCoveredByIt() {
+        UnmappedFieldsPattern pattern = patternFor("FROM test", testWithNestedPaths("outer", "outer.inner"));
+        assertNotKept(pattern, "outer.leaf", "outer.inner", "outer.inner.leaf");
+        assertKept(pattern, "outer_sibling");
+    }
+
+    public void testKeepWildcardDoesNotReachNestedPath() {
+        UnmappedFieldsPattern pattern = patternFor("FROM test | KEEP nested_punk.*, first_name*", testWithNestedPaths("nested_punk"));
+        assertNotKept(pattern, "nested_punk.subfield", "nested_punk.deep.leaf");
+        assertKept(pattern, "first_name_suffix");
+    }
+
+    public void testKeepOnlyBelowNestedPathStampsNothing() {
+        LogicalPlan plan = testWithNestedPaths("nested_punk").statement(setUnmappedLoadAll("FROM test | KEEP nested_punk.*"));
+        assertThat(unmappedFieldsAttributes(EsqlTestUtils.singleValue(plan.collect(EsRelation.class))), empty());
+        assertThat(plan.output(), empty());
+    }
+
+    public void testDropWildcardKeepsNestedPathExcluded() {
+        UnmappedFieldsPattern pattern = patternFor("FROM test | DROP first_name*", testWithNestedPaths("nested_punk"));
+        assertNotKept(pattern, "nested_punk.subfield", "first_name_suffix");
+        assertKept(pattern, "unmapped_extra");
+    }
+
+    public void testNamedFieldBelowNestedPathIsStillLoaded() {
+        LogicalPlan plan = testWithNestedPaths("nested_punk").statement(
+            setUnmappedLoadAll("FROM test | KEEP emp_no, nested_punk.subfield")
+        );
+        EsRelation relation = EsqlTestUtils.singleValue(plan.collect(EsRelation.class));
+        assertThat(unmappedFieldsAttributes(relation), empty());
+        assertThat(fieldNamed(relation, "nested_punk.subfield").field(), instanceOf(PotentiallyUnmappedKeywordEsField.class));
+        assertThat(Expressions.names(plan.output()), equalTo(List.of("emp_no", "nested_punk.subfield")));
+    }
+
+    public void testNamedFieldBelowNestedPathIsStillLoadedNextToAWildcard() {
+        LogicalPlan plan = testWithNestedPaths("nested_punk").statement(
+            setUnmappedLoadAll("FROM test | KEEP emp_no, nested_punk.subfield, nested_punk.*, first_name*")
+        );
+        EsRelation relation = EsqlTestUtils.singleValue(plan.collect(EsRelation.class));
+        UnmappedFieldsPattern pattern = unmappedFieldsPattern(relation);
+        assertNotKept(pattern, "nested_punk.subfield", "nested_punk.other");
+        assertKept(pattern, "first_name_suffix");
+        assertThat(fieldNamed(relation, "nested_punk.subfield").field(), instanceOf(PotentiallyUnmappedKeywordEsField.class));
+        assertThat(Expressions.names(plan.output()), hasItem("nested_punk.subfield"));
+    }
+
+    public void testNestedPathsOnlyApplyToTheirOwnFrom() {
+        LogicalPlan plan = testWithNestedPaths("nested_punk").addEmployees("other")
+            .statement(setUnmappedLoadAll("FROM (FROM test), (FROM other)"));
+        for (EsRelation relation : plan.collect(EsRelation.class)) {
+            UnmappedFieldsPattern pattern = unmappedFieldsPattern(relation);
+            assertThat(relation.indexPattern(), pattern.matches("nested_punk.subfield"), is(relation.indexPattern().equals("other")));
+            assertKept(pattern, "unmapped_extra");
+        }
+        assertKept(EsqlTestUtils.singleValue(unmappedFieldsAttributes(plan)).pattern(), "nested_punk.subfield");
+    }
+
+    public void testLookupJoinKeepsTheNestedPathsOfItsLeftRelationExcluded() {
+        UnmappedFieldsPattern pattern = patternForJoin(
+            "FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code",
+            testWithNestedPaths("nested_punk").addLanguagesLookup()
+        );
+        assertNotKept(pattern, "nested_punk", "nested_punk.subfield");
+        assertKept(pattern, "unmapped_extra");
+        assertFalse(pattern.objectSubfieldsCouldMatch("nested_punk"));
+    }
+
+    public void testForkBranchesAndOutputKeepNestedPathExcluded() {
+        LogicalPlan plan = testWithNestedPaths("nested_punk").statement(setUnmappedLoadAll("FROM test | FORK (WHERE true) (WHERE true)"));
+        for (EsRelation relation : plan.collect(EsRelation.class)) {
+            assertNotKept(unmappedFieldsPattern(relation), "nested_punk.subfield");
+        }
+        UnmappedFieldsPattern output = EsqlTestUtils.singleValue(unmappedFieldsAttributes(plan)).pattern();
+        assertNotKept(output, "nested_punk", "nested_punk.subfield");
+        assertKept(output, "unmapped_extra");
+    }
+
+    private TestAnalyzer testWithNestedPaths(String... nestedPaths) {
+        return analyzer().addIndex("test", TestAnalyzer.loadMapping("mapping-basic.json", "test").withNestedPaths(Set.of(nestedPaths)));
+    }
+
+    private static FieldAttribute fieldNamed(EsRelation relation, String name) {
+        return EsqlTestUtils.singleValue(
+            relation.output().stream().filter(a -> a.name().equals(name)).map(FieldAttribute.class::cast).toList()
+        );
     }
 
     // -----------------------------------------------------------------------

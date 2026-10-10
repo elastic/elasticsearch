@@ -1,0 +1,7 @@
+{
+    "dynamic": "false",
+    "properties": {
+        "id": { "type": "keyword" },
+        "@timestamp": { "type": "date" }
+    }
+}

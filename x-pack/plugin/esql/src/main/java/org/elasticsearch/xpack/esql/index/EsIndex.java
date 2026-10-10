@@ -17,12 +17,28 @@ public record EsIndex(
     Map<String, EsField> mapping, // keyed by field names
     Map<String, IndexProperties> indexProperties, // keyed by concrete index name
     Map<String, List<String>> originalIndices, // keyed by cluster alias
-    Map<String, List<String>> concreteIndices // keyed by cluster alias
+    Map<String, List<String>> concreteIndices, // keyed by cluster alias
+    Set<String> nestedPaths // mapped as nested by some concrete index; only resolved for LOAD_ALL
 ) {
 
     public EsIndex {
         assert name != null;
         assert mapping != null;
+        assert nestedPaths != null;
+    }
+
+    public EsIndex(
+        String name,
+        Map<String, EsField> mapping,
+        Map<String, IndexProperties> indexProperties,
+        Map<String, List<String>> originalIndices,
+        Map<String, List<String>> concreteIndices
+    ) {
+        this(name, mapping, indexProperties, originalIndices, concreteIndices, Set.of());
+    }
+
+    public EsIndex withNestedPaths(Set<String> nestedPaths) {
+        return new EsIndex(name, mapping, indexProperties, originalIndices, concreteIndices, Set.copyOf(nestedPaths));
     }
 
     public Set<String> concreteQualifiedIndices() {

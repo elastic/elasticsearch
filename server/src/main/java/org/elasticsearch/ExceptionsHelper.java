@@ -526,7 +526,8 @@ public final class ExceptionsHelper {
             return true;
         }
         Throwable ill = unwrap(e, IllegalStateException.class, IllegalArgumentException.class);
-        if (ill != null && (ill.getMessage().contains("Unable to open any connections") || ill.getMessage().contains("unknown host"))) {
+        String message = ill == null ? null : ill.getMessage();
+        if (message != null && (message.contains("Unable to open any connections") || message.contains("unknown host"))) {
             return true;
         }
         // doesn't look like any of the known remote exceptions

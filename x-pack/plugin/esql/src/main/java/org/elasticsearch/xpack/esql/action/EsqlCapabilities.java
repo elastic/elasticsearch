@@ -3671,6 +3671,13 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_QUOTED_PATTERNS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, no unmapped field is discovered at or below a path that some index of the same
+         * {@code FROM} maps as {@code nested} with at least one leaf, which is how field caps reports it. A field the query names
+         * explicitly still loads where it is unmapped, like under LOAD.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_HIDES_NESTED(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
          * Under {@code unmapped_fields="LOAD_ALL"}, at most 1000 fields discovered in {@code _source} become columns: the
          * alphabetically first ones, with a warning if there were more.
          * See https://github.com/elastic/elasticsearch/issues/159972.

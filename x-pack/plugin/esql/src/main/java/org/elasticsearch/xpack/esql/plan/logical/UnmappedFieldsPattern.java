@@ -10,6 +10,7 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
@@ -80,10 +81,35 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
 
     // The excludes that cover the entire subtree of a name they match: they end in an unescaped *, whose wildcard cover any .child suffix
     private final CompiledGlob[] subtreeCoveringExcludes;
+    // The names excluded together with everything below them, as both the name and its "name.*" glob are excluded
+    private final String[] excludedSubtrees;
     private final boolean includesAll;
 
     public static UnmappedFieldsPattern excludes(List<String> excludes) {
         return excludes.isEmpty() ? ALL : new UnmappedFieldsPattern(INCLUDES_ALL, excludes, List.of());
+    }
+
+    /**
+     * Excludes each path and everything below it, e.g. the paths that some index maps as {@code nested}.
+     */
+    public static UnmappedFieldsPattern excludesSubtrees(Collection<String> paths) {
+        List<String> roots = paths.stream().filter(path -> hasAncestorIn(path, paths) == false).sorted().toList();
+        return roots.isEmpty()
+            ? ALL
+            : new UnmappedFieldsPattern(INCLUDES_ALL, roots.stream().map(root -> escapeGlob(root) + ".*").toList(), roots);
+    }
+
+    private static boolean hasAncestorIn(String path, Collection<String> paths) {
+        for (int dot = path.indexOf('.'); dot > 0; dot = path.indexOf('.', dot + 1)) {
+            if (paths.contains(path.substring(0, dot))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String escapeGlob(String name) {
+        return name.replace("\\", "\\\\").replace("*", "\\*");
     }
 
     /**
@@ -140,6 +166,10 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
         this.subtreeCoveringExcludes = Arrays.stream(compiledGlobExcludes)
             .filter(CompiledGlob::endsWithWildcard)
             .toArray(CompiledGlob[]::new);
+        this.excludedSubtrees = Arrays.stream(compiledGlobExcludes)
+            .map(CompiledGlob::subtreeRoot)
+            .filter(root -> root != null && this.exactExcludes.contains(root))
+            .toArray(String[]::new);
         this.includesAll = this.includeGroups.equals(INCLUDES_ALL);
     }
 
@@ -204,6 +234,48 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
     }
 
     /**
+     * Whether {@code path} is at or below a name excluded together with everything below it, so a {@code _source} value there can be
+     * dropped whole.
+     */
+    public boolean excludesSubtree(String path) {
+        return underExcludedSubtree(path, true);
+    }
+
+    /**
+     * Whether no field can pass: some include group only holds patterns inside an excluded subtree, like {@code nested.*} once
+     * {@code nested} is excluded.
+     */
+    public boolean excludesEverything() {
+        if (isNone()) {
+            return true;
+        }
+        if (excludedSubtrees.length == 0) {
+            return false;
+        }
+        for (CompiledGlob[] group : compiledIncludeGroups) {
+            if (Arrays.stream(group).allMatch(this::insideExcludedSubtree)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Every name an include matches starts with its literal head, so a head below an excluded root confines it there. */
+    private boolean insideExcludedSubtree(CompiledGlob include) {
+        return underExcludedSubtree(include.literalHead(), include.isLiteral());
+    }
+
+    /** Whether {@code name} is below the root of an excluded subtree, or, with {@code orAtRoot}, that root itself. */
+    private boolean underExcludedSubtree(String name, boolean orAtRoot) {
+        for (String root : excludedSubtrees) {
+            if (name.startsWith(root) && (name.length() == root.length() ? orAtRoot : name.charAt(root.length()) == '.')) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Whether a top-level {@code _source} object or array key should ship from the data node so the coordinator can flatten it into dotted
      * leaf columns. Deliberately a superset of the per-leaf {@link #matches}: an array of scalars flattens to a leaf named exactly
      * {@code name}, so anything {@code matches} would keep has to ship from here first.
@@ -211,7 +283,7 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
     public boolean objectSubfieldsCouldMatch(String name) {
         // TODO: apply the UnmappedFieldsPattern early so that whatever is being shipped to the coordinator is bare minimum
         // (as opposed to shipping the whole _source of that specific field + its subfields)
-        if (isNone() || anyMatches(subtreeCoveringExcludes, name)) {
+        if (isNone() || excludesSubtree(name) || anyMatches(subtreeCoveringExcludes, name)) {
             return false;
         }
         if (includesAll) {
@@ -377,6 +449,19 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
 
         boolean endsWithWildcard() {
             return fragments.length > 1 && fragments[fragments.length - 1].isEmpty();
+        }
+
+        boolean isLiteral() {
+            return fragments.length == 1;
+        }
+
+        /** The {@code name} of a {@code name.*} glob, which matches everything below that name, or {@code null} for any other glob. */
+        @Nullable
+        String subtreeRoot() {
+            String head = fragments[0];
+            return fragments.length == 2 && fragments[1].isEmpty() && head.length() > 1 && head.endsWith(".")
+                ? head.substring(0, head.length() - 1)
+                : null;
         }
 
         boolean matches(String name) {

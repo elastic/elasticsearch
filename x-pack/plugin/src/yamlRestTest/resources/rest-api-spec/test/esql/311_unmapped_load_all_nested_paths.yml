@@ -1,0 +1,209 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_all_v2, optional_fields_load_all_hides_nested ]
+      reason: >
+        The main field_caps request drops nested fields, so LOAD_ALL learns from a second one which paths an
+        index of the FROM maps as nested, and discovers nothing at or below them in any index of that FROM.
+        A field the query names is not discovered, so it still loads like under LOAD.
+
+  # obj.inner is nested one level down, declaring only decl. u and obj.other are only in _source.
+  - do:
+      indices.create:
+        index: la_nst_nested
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+              obj:
+                properties:
+                  inner:
+                    type: nested
+                    properties:
+                      decl:
+                        type: keyword
+
+  # The same _source, with only id mapped.
+  - do:
+      indices.create:
+        index: la_nst_unmapped
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "la_nst_nested", "_id": "1" } }
+          - { "id": "n1", "obj": { "other": "n_other", "inner": [ { "decl": "n_decl", "u": "n_u" } ] } }
+          - { "index": { "_index": "la_nst_unmapped", "_id": "1" } }
+          - { "id": "u1", "obj": { "other": "u_other", "inner": { "decl": "u_decl", "u": "u_u" } } }
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: la_nst_nested,la_nst_unmapped
+        ignore_unavailable: true
+
+---
+'control: without the nested index everything below obj is discovered':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_nst_unmapped | KEEP id, obj.* | SORT id | LIMIT 10'
+  - length: { columns: 4 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: obj.inner.decl }
+  - match: { columns.2.name: obj.inner.u }
+  - match: { columns.3.name: obj.other }
+  - match: { values.0: [ "u1", "u_decl", "u_u", "u_other" ] }
+
+---
+'a nested path below an object hides its subtree in every index of the FROM':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_nst_nested, la_nst_unmapped | KEEP id, obj.* | SORT id | LIMIT 10'
+  - length: { columns: 2 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: obj.other }
+  - match: { values.0: [ "n1", "n_other" ] }
+  - match: { values.1: [ "u1", "u_other" ] }
+
+---
+'without a KEEP the nested subtree stays hidden too':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_nst_nested, la_nst_unmapped | SORT id | LIMIT 10'
+  - length: { columns: 2 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: obj.other }
+  - match: { values.0: [ "n1", "n_other" ] }
+  - match: { values.1: [ "u1", "u_other" ] }
+
+---
+'a KEEP of nothing but the nested subtree keeps no column':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_nst_nested, la_nst_unmapped | KEEP obj.inner.* | LIMIT 10'
+  - length: { columns: 0 }
+  - length: { values: 2 }
+
+---
+'a field the query names loads like under LOAD, next to a wildcard':
+  # decl is declared under the nested parent, so the nested index reads null. u is declared nowhere, so both indices read _source.
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_nst_nested, la_nst_unmapped | KEEP id, obj.inner.decl, obj.inner.u, obj.* | SORT id | LIMIT 10'
+  - length: { columns: 4 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: obj.inner.decl }
+  - match: { columns.1.type: keyword }
+  - match: { columns.2.name: obj.inner.u }
+  - match: { columns.2.type: keyword }
+  - match: { columns.3.name: obj.other }
+  - match: { values.0: [ "n1", null, "n_u", "n_other" ] }
+  - match: { values.1: [ "u1", "u_decl", "u_u", "u_other" ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM la_nst_nested, la_nst_unmapped | KEEP id, obj.inner.decl, obj.inner.u | SORT id | LIMIT 10'
+  - length: { columns: 3 }
+  - match: { values.0: [ "n1", null, "n_u" ] }
+  - match: { values.1: [ "u1", "u_decl", "u_u" ] }
+
+---
+'nested paths only hide fields from their own FROM':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_all_subqueries ]
+      reason: "LOAD_ALL over FROM sub-queries"
+  # Each sub-query is its own FROM: la_nst_unmapped discovers below obj.inner, la_nst_nested still reads nothing there.
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM (FROM la_nst_nested), (FROM la_nst_unmapped) | KEEP id, obj.* | SORT id | LIMIT 10'
+  - length: { columns: 4 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: obj.inner.decl }
+  - match: { columns.2.name: obj.inner.u }
+  - match: { columns.3.name: obj.other }
+  - match: { values.0: [ "n1", null, null, "n_other" ] }
+  - match: { values.1: [ "u1", "u_decl", "u_u", "u_other" ] }
+
+---
+'FORK branches keep the nested subtree hidden':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_all_fork ]
+      reason: "LOAD_ALL over FORK"
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_nst_nested, la_nst_unmapped | FORK (WHERE id == "n1") (WHERE id == "u1") | KEEP id, obj.* | SORT id | LIMIT 10'
+  - length: { columns: 2 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: obj.other }
+  - match: { values.0: [ "n1", "n_other" ] }
+  - match: { values.1: [ "u1", "u_other" ] }
+
+---
+'an index the request filter prunes hides nothing':
+  # Both field_caps requests carry the filter, so the nested index is no more part of the FROM than its rows are.
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_nst_nested, la_nst_unmapped | KEEP id, obj.* | SORT id | LIMIT 10'
+          filter:
+            term:
+              _index: la_nst_unmapped
+  - length: { columns: 4 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: obj.inner.decl }
+  - match: { columns.2.name: obj.inner.u }
+  - match: { columns.3.name: obj.other }
+  - length: { values: 1 }
+  - match: { values.0: [ "u1", "u_decl", "u_u", "u_other" ] }
+
+---
+'only LOAD_ALL sends the nested paths field_caps request, and not when the query reads no field':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM la_nst_nested, la_nst_unmapped | KEEP id | SORT id | LIMIT 10'
+          profile: true
+  - match: { profile.field_caps_calls: 1 }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_nst_nested, la_nst_unmapped | KEEP id, obj.* | SORT id | LIMIT 10'
+          profile: true
+  - match: { profile.field_caps_calls: 2 }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_nst_nested, la_nst_unmapped | STATS c = COUNT(*) | LIMIT 10'
+          profile: true
+  - match: { profile.field_caps_calls: 1 }
+  - match: { values.0.0: 2 }

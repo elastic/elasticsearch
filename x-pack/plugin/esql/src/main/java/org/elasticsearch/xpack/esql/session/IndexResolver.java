@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -16,16 +17,19 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.IndicesOptions.CrossProjectModeOptions;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -55,8 +59,10 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -133,6 +139,7 @@ public class IndexResolver {
     ) {
         doResolveIndices(
             createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, null, false, false),
+            null, /* LOAD_ALL never expands a lookup index's _source */
             indexPattern,
             false, /* lookup indices should do not be empty */
             minimumVersion,
@@ -167,6 +174,8 @@ public class IndexResolver {
      * so the overall minimum transport version that the coordinating cluster observed must be passed in here to avoid inconsistencies.
      * <p>
      * The overall minimum version is updated using the field caps response and is passed on to the listener.
+     * <p>
+     * With {@code resolveNestedPaths}, a second field caps request runs alongside to fill {@link EsIndex#nestedPaths()}.
      */
     public void resolveMainIndicesVersioned(
         String indexPattern,
@@ -179,11 +188,13 @@ public class IndexResolver {
         boolean hasTimeSeriesAggregation,
         boolean needsAnalyzerGroups,
         boolean trackUnmappedFieldIndices,
+        boolean resolveNestedPaths,
         IndicesExpressionGrouper indicesExpressionGrouper,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         doResolveIndices(
             createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, requestFilter, includeAllDimensions, false),
+            resolveNestedPaths ? createNestedPathsRequest(DEFAULT_OPTIONS, indexPattern, null, requestFilter, false) : null,
             indexPattern,
             true, /* allow empty index resolution when resolving main pattern */
             minimumVersion,
@@ -225,12 +236,14 @@ public class IndexResolver {
         boolean hasTimeSeriesAggregation,
         boolean needsAnalyzerGroups,
         boolean trackUnmappedFieldIndices,
+        boolean resolveNestedPaths,
         @Nullable Consumer<TargetProjects> routingInfoCapture,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         IndicesOptions options = lenient ? FLAT_LENIENT_OPTIONS : FLAT_STRICT_OPTIONS;
         doResolveIndices(
             createResolveFieldRequest(options, indexPattern, projectRouting, fieldNames, requestFilter, includeAllDimensions, true),
+            resolveNestedPaths ? createNestedPathsRequest(options, indexPattern, projectRouting, requestFilter, true) : null,
             indexPattern,
             true, /* flat index expression could resolve to empty */
             minimumVersion,
@@ -253,6 +266,7 @@ public class IndexResolver {
 
     private void doResolveIndices(
         EsqlResolveFieldsRequest request,
+        @Nullable EsqlResolveFieldsRequest nestedPathsRequest,
         String indexPattern,
         boolean allowEmpty,
         TransportVersion minimumVersion,
@@ -265,6 +279,9 @@ public class IndexResolver {
         OriginalIndexExtractor originalIndexExtractor,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
+        SubscribableListener<Set<String>> nestedPaths = nestedPathsRequest == null
+            ? null
+            : SubscribableListener.newForked(l -> fetchNestedPaths(nestedPathsRequest, l));
         client.execute(EsqlResolveFieldsAction.TYPE, request, listener.delegateFailureAndWrap((l, response) -> {
             if (routingInfoCapture != null) {
                 TargetProjects tp = request.getResolvedTargetProjects();
@@ -298,13 +315,92 @@ public class IndexResolver {
                 indexPattern
             );
 
-            l.onResponse(
-                new Versioned<>(
-                    mergedMappings(indexPattern, allowEmpty, info, trackUnmappedFieldIndices, originalIndexExtractor),
-                    info.minTransportVersion()
-                )
+            IndexResolution resolution = mergedMappings(indexPattern, allowEmpty, info, trackUnmappedFieldIndices, originalIndexExtractor);
+            TransportVersion minTransportVersion = info.minTransportVersion();
+            if (nestedPaths == null) {
+                l.onResponse(new Versioned<>(resolution, minTransportVersion));
+                return;
+            }
+
+            // TODO: an index created, filtered out, remapped or failing in between can be missing or stale in the nested paths response,
+            // whose failures are ignored, so its unseen nested paths hide nothing. Ask again for those, or have one request return both.
+            nestedPaths.addListener(
+                l.<Set<String>>map(paths -> new Versioned<>(resolution.withNestedPaths(paths), minTransportVersion))
+                    .delegateResponse((ll, e) -> ll.onFailure(unlessRemoteUnavailable(e)))
             );
         }));
+    }
+
+    /**
+     * A nested paths request failing as a whole on an unavailable node or remote cluster fails the query, rather than looking like
+     * every remote being unavailable, which {@link EsqlCCSUtils} answers with an empty result, dropping the rows that did answer.
+     */
+    private static Exception unlessRemoteUnavailable(Exception e) {
+        if (ExceptionsHelper.isRemoteUnavailableException(e) == false) {
+            return e;
+        }
+        var failure = new ElasticsearchStatusException(
+            "cannot tell which fields are mapped as [nested] while a node or remote cluster is unavailable",
+            RestStatus.SERVICE_UNAVAILABLE
+        );
+        // Suppressed rather than the cause, which is where the check for an unavailable remote looks.
+        failure.addSuppressed(e);
+        return failure;
+    }
+
+    private void fetchNestedPaths(EsqlResolveFieldsRequest request, ActionListener<Set<String>> listener) {
+        client.execute(EsqlResolveFieldsAction.TYPE, request, listener.map(response -> nestedPaths(response.caps())));
+    }
+
+    /**
+     * The paths that some index maps as {@code nested}. Field caps reports an object only through a leaf it returns below it, so this
+     * misses a nested object without any, like one that declares no leaf or whose leaves field level security hides, or the {@code chunks}
+     * of a legacy {@code semantic_text} field.
+     */
+    static Set<String> nestedPaths(FieldCapabilitiesResponse response) {
+        Set<String> paths = new HashSet<>();
+        // Field caps shares one map among the indices of a response with an identical mapping hash, so each is only read once
+        Set<Map<String, IndexFieldCapabilities>> read = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (FieldCapabilitiesIndexResponse indexResponse : response.getIndexResponses()) {
+            if (indexResponse.canMatch() == false || read.add(indexResponse.get()) == false) {
+                continue;
+            }
+            for (IndexFieldCapabilities fieldCaps : indexResponse.get().values()) {
+                if (NestedObjectMapper.CONTENT_TYPE.equals(fieldCaps.type())) {
+                    paths.add(fieldCaps.name());
+                }
+            }
+        }
+        return paths;
+    }
+
+    /**
+     * The request behind {@link EsIndex#nestedPaths()}: the main request's indices and options, but keeping the fields under a
+     * {@code nested} object that {@link #createResolveFieldRequest} drops. It asks for every field, see {@link #nestedPaths}, since the
+     * query's own field names need not match any leaf a nested object declares.
+     */
+    static EsqlResolveFieldsRequest createNestedPathsRequest(
+        IndicesOptions options,
+        String index,
+        @Nullable String projectRouting,
+        @Nullable QueryBuilder requestFilter,
+        boolean includeResolvedTo
+    ) {
+        FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
+        request.indices(Strings.commaDelimitedListToStringArray(index));
+        request.fields(ALL_FIELDS.toArray(String[]::new));
+        request.indexFilter(requestFilter);
+        request.returnLocalAll(false);
+        request.indicesOptions(options);
+        // Only shrink the response: neither filter can drop the last leaf below a nested object, which is what reports it.
+        request.filters("-metadata", "-multifield");
+        // A leaf without values in a shard must still report its nested object.
+        request.includeEmptyFields(true);
+        request.setMergeResults(false);
+        // Like the main request, so cross-project resolution validates the same way.
+        request.includeResolvedTo(includeResolvedTo);
+        request.projectRouting(projectRouting);
+        return new EsqlResolveFieldsRequest(request);
     }
 
     /**

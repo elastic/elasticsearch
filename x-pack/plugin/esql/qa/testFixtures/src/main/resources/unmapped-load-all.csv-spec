@@ -5533,3 +5533,250 @@ unmapped_source_excludes | 7          | null        | null        | null        
 unmapped_source_includes | 7          | null        | null        | null             | null             | "{""id"":""7""}"
 unmapped_source_mapped   | 7          | null        | null        | s                | r                | "{""id"":""7"",""objarr"":[{""k"":""r""},{""j"":""s""}]}"
 ;
+
+##################################################################
+# Nested paths: LOAD_ALL discovers nothing at or below them      #
+##################################################################
+
+nestedPathsHideTheirSubtrees
+required_capability: optional_fields_load_all_hides_nested
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM nested_paths_mapped METADATA _source
+| SORT id
+;
+
+@timestamp:datetime      | id:keyword | _source:_source | items_info.total:keyword | meta.owner:keyword | tag:keyword
+2024-01-01T00:00:00.000Z | m1         | "{""id"":""m1"",""@timestamp"":""2024-01-01T00:00:00.000Z"",""items"":[{""name"":""a"",""qty"":""1"",""parts"":[{""pn"":""p1""}]},{""name"":""b""}],""items_info"":{""total"":""2""},""meta"":{""owner"":""ann"",""events"":[{""kind"":""open"",""note"":""n1""}]},""notes"":{""text"":""hi""},""tag"":""x""}" | 2                        | ann                | x
+2024-01-01T01:00:00.000Z | m2         | "{""id"":""m2"",""@timestamp"":""2024-01-01T01:00:00.000Z"",""items"":{""name"":""c""},""items_info"":{""total"":""1""},""meta"":{""owner"":""bo""},""tag"":""y""}" | 1                        | bo                 | y
+;
+
+nestedPathsControlUnmappedSubtreesAreDiscovered
+required_capability: optional_fields_load_all_hides_nested
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM nested_paths_unmapped
+;
+
+@timestamp:datetime      | id:keyword | items.name:keyword | items.parts.pn:keyword | items.qty:keyword | items_info.total:keyword | meta.events.kind:keyword | meta.events.note:keyword | meta.owner:keyword | tag:keyword
+2024-01-02T00:00:00.000Z | u1         | [d, e]             | p4                     | 4                 | 2                        | close                    | n4                       | cy                 | z
+;
+
+nestedPathsHideTheirSubtreesInEveryIndexOfTheFrom
+required_capability: optional_fields_load_all_hides_nested
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM nested_paths_mapped, nested_paths_unmapped METADATA _source
+| SORT id
+;
+
+@timestamp:datetime      | id:keyword | _source:_source | items_info.total:keyword | meta.owner:keyword | tag:keyword
+2024-01-01T00:00:00.000Z | m1         | "{""id"":""m1"",""@timestamp"":""2024-01-01T00:00:00.000Z"",""items"":[{""name"":""a"",""qty"":""1"",""parts"":[{""pn"":""p1""}]},{""name"":""b""}],""items_info"":{""total"":""2""},""meta"":{""owner"":""ann"",""events"":[{""kind"":""open"",""note"":""n1""}]},""notes"":{""text"":""hi""},""tag"":""x""}" | 2                        | ann                | x
+2024-01-01T01:00:00.000Z | m2         | "{""id"":""m2"",""@timestamp"":""2024-01-01T01:00:00.000Z"",""items"":{""name"":""c""},""items_info"":{""total"":""1""},""meta"":{""owner"":""bo""},""tag"":""y""}" | 1                        | bo                 | y
+2024-01-02T00:00:00.000Z | u1         | "{""id"":""u1"",""@timestamp"":""2024-01-02T00:00:00.000Z"",""items"":[{""name"":""d"",""qty"":""4"",""parts"":[{""pn"":""p4""}]},{""name"":""e""}],""items_info"":{""total"":""2""},""meta"":{""owner"":""cy"",""events"":[{""kind"":""close"",""note"":""n4""}]},""tag"":""z""}" | 2                        | cy                 | z
+;
+
+nestedPathsHideTheirSubtreesWithoutRowsFromTheNestedIndex
+required_capability: optional_fields_load_all_hides_nested
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM nested_paths_mapped, nested_paths_unmapped METADATA _source
+| WHERE id == "u1"
+;
+
+@timestamp:datetime      | id:keyword | _source:_source | items_info.total:keyword | meta.owner:keyword | tag:keyword
+2024-01-02T00:00:00.000Z | u1         | "{""id"":""u1"",""@timestamp"":""2024-01-02T00:00:00.000Z"",""items"":[{""name"":""d"",""qty"":""4"",""parts"":[{""pn"":""p4""}]},{""name"":""e""}],""items_info"":{""total"":""2""},""meta"":{""owner"":""cy"",""events"":[{""kind"":""close"",""note"":""n4""}]},""tag"":""z""}" | 2                        | cy                 | z
+;
+
+nestedPathsOfAnIndexTheRequestFilterDropsHideNothing
+required_capability: optional_fields_load_all_hides_nested
+request_time_filter: 2024-01-02T00:00:00.000Z,2024-01-02T23:59:59.999Z
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM nested_paths_mapped, nested_paths_unmapped
+;
+
+@timestamp:datetime      | id:keyword | items.name:keyword | items.parts.pn:keyword | items.qty:keyword | items_info.total:keyword | meta.events.kind:keyword | meta.events.note:keyword | meta.owner:keyword | tag:keyword
+2024-01-02T00:00:00.000Z | u1         | [d, e]             | p4                     | 4                 | 2                        | close                    | n4                       | cy                 | z
+;
+
+nestedPathsOfAnIndexTheRequestFilterKeepsStillHide
+required_capability: optional_fields_load_all_hides_nested
+request_time_filter: 2024-01-01T00:00:00.000Z,2024-01-01T23:59:59.999Z
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM nested_paths_mapped, nested_paths_unmapped METADATA _source
+| SORT id
+;
+
+@timestamp:datetime      | id:keyword | _source:_source | items_info.total:keyword | meta.owner:keyword | tag:keyword
+2024-01-01T00:00:00.000Z | m1         | "{""id"":""m1"",""@timestamp"":""2024-01-01T00:00:00.000Z"",""items"":[{""name"":""a"",""qty"":""1"",""parts"":[{""pn"":""p1""}]},{""name"":""b""}],""items_info"":{""total"":""2""},""meta"":{""owner"":""ann"",""events"":[{""kind"":""open"",""note"":""n1""}]},""notes"":{""text"":""hi""},""tag"":""x""}" | 2                        | ann                | x
+2024-01-01T01:00:00.000Z | m2         | "{""id"":""m2"",""@timestamp"":""2024-01-01T01:00:00.000Z"",""items"":{""name"":""c""},""items_info"":{""total"":""1""},""meta"":{""owner"":""bo""},""tag"":""y""}" | 1                        | bo                 | y
+;
+
+nestedPathsHideTheirSubtreesOnlyInTheirOwnSubquery
+required_capability: optional_fields_load_all_hides_nested
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM nested_paths_mapped METADATA _source), (FROM nested_paths_unmapped METADATA _source)
+| SORT id
+;
+
+@timestamp:datetime      | id:keyword | _source:_source | items.name:keyword | items.parts.pn:keyword | items.qty:keyword | items_info.total:keyword | meta.events.kind:keyword | meta.events.note:keyword | meta.owner:keyword | tag:keyword
+2024-01-01T00:00:00.000Z | m1         | "{""id"":""m1"",""@timestamp"":""2024-01-01T00:00:00.000Z"",""items"":[{""name"":""a"",""qty"":""1"",""parts"":[{""pn"":""p1""}]},{""name"":""b""}],""items_info"":{""total"":""2""},""meta"":{""owner"":""ann"",""events"":[{""kind"":""open"",""note"":""n1""}]},""notes"":{""text"":""hi""},""tag"":""x""}" | null               | null                   | null              | 2                        | null                     | null                     | ann                | x
+2024-01-01T01:00:00.000Z | m2         | "{""id"":""m2"",""@timestamp"":""2024-01-01T01:00:00.000Z"",""items"":{""name"":""c""},""items_info"":{""total"":""1""},""meta"":{""owner"":""bo""},""tag"":""y""}" | null               | null                   | null              | 1                        | null                     | null                     | bo                 | y
+2024-01-02T00:00:00.000Z | u1         | "{""id"":""u1"",""@timestamp"":""2024-01-02T00:00:00.000Z"",""items"":[{""name"":""d"",""qty"":""4"",""parts"":[{""pn"":""p4""}]},{""name"":""e""}],""items_info"":{""total"":""2""},""meta"":{""owner"":""cy"",""events"":[{""kind"":""close"",""note"":""n4""}]},""tag"":""z""}" | [d, e]             | p4                     | 4                 | 2                        | close                    | n4                       | cy                 | z
+;
+
+nestedPathsHideTheirSubtreesOnlyInTheirOwnSubqueryListedSecond
+required_capability: optional_fields_load_all_hides_nested
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM nested_paths_unmapped METADATA _source), (FROM nested_paths_mapped METADATA _source)
+| SORT id
+;
+
+@timestamp:datetime      | id:keyword | _source:_source | items.name:keyword | items.parts.pn:keyword | items.qty:keyword | items_info.total:keyword | meta.events.kind:keyword | meta.events.note:keyword | meta.owner:keyword | tag:keyword
+2024-01-01T00:00:00.000Z | m1         | "{""id"":""m1"",""@timestamp"":""2024-01-01T00:00:00.000Z"",""items"":[{""name"":""a"",""qty"":""1"",""parts"":[{""pn"":""p1""}]},{""name"":""b""}],""items_info"":{""total"":""2""},""meta"":{""owner"":""ann"",""events"":[{""kind"":""open"",""note"":""n1""}]},""notes"":{""text"":""hi""},""tag"":""x""}" | null               | null                   | null              | 2                        | null                     | null                     | ann                | x
+2024-01-01T01:00:00.000Z | m2         | "{""id"":""m2"",""@timestamp"":""2024-01-01T01:00:00.000Z"",""items"":{""name"":""c""},""items_info"":{""total"":""1""},""meta"":{""owner"":""bo""},""tag"":""y""}" | null               | null                   | null              | 1                        | null                     | null                     | bo                 | y
+2024-01-02T00:00:00.000Z | u1         | "{""id"":""u1"",""@timestamp"":""2024-01-02T00:00:00.000Z"",""items"":[{""name"":""d"",""qty"":""4"",""parts"":[{""pn"":""p4""}]},{""name"":""e""}],""items_info"":{""total"":""2""},""meta"":{""owner"":""cy"",""events"":[{""kind"":""close"",""note"":""n4""}]},""tag"":""z""}" | [d, e]             | p4                     | 4                 | 2                        | close                    | n4                       | cy                 | z
+;
+
+nestedPathsOfAnInSubqueryHideNothingInTheOuterFrom
+required_capability: optional_fields_load_all_hides_nested
+required_capability: optional_fields_load_all_where_in_subquery
+required_capability: where_in_subquery_without_view
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM nested_paths_unmapped
+| WHERE id NOT IN (FROM nested_paths_mapped | KEEP id)
+;
+
+@timestamp:datetime      | id:keyword | items.name:keyword | items.parts.pn:keyword | items.qty:keyword | items_info.total:keyword | meta.events.kind:keyword | meta.events.note:keyword | meta.owner:keyword | tag:keyword
+2024-01-02T00:00:00.000Z | u1         | [d, e]             | p4                     | 4                 | 2                        | close                    | n4                       | cy                 | z
+;
+
+nestedPathsHideTheirSubtreesInForkBranches
+required_capability: optional_fields_load_all_hides_nested
+required_capability: optional_fields_load_all_fork
+required_capability: fork_v9
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM nested_paths_mapped, nested_paths_unmapped METADATA _source
+| FORK (WHERE id == "m1") (WHERE id == "u1")
+| SORT id
+;
+
+@timestamp:datetime      | id:keyword | _source:_source | _fork:keyword | items_info.total:keyword | meta.owner:keyword | tag:keyword
+2024-01-01T00:00:00.000Z | m1         | "{""id"":""m1"",""@timestamp"":""2024-01-01T00:00:00.000Z"",""items"":[{""name"":""a"",""qty"":""1"",""parts"":[{""pn"":""p1""}]},{""name"":""b""}],""items_info"":{""total"":""2""},""meta"":{""owner"":""ann"",""events"":[{""kind"":""open"",""note"":""n1""}]},""notes"":{""text"":""hi""},""tag"":""x""}" | fork1         | 2                        | ann                | x
+2024-01-02T00:00:00.000Z | u1         | "{""id"":""u1"",""@timestamp"":""2024-01-02T00:00:00.000Z"",""items"":[{""name"":""d"",""qty"":""4"",""parts"":[{""pn"":""p4""}]},{""name"":""e""}],""items_info"":{""total"":""2""},""meta"":{""owner"":""cy"",""events"":[{""kind"":""close"",""note"":""n4""}]},""tag"":""z""}" | fork2         | 2                        | cy                 | z
+;
+
+nestedPathsKeepOfOnlyANestedSubtreeDiscoversNothing
+required_capability: optional_fields_load_all_hides_nested
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM nested_paths_mapped, nested_paths_unmapped METADATA _source
+| KEEP id, items.*, _source
+| SORT id
+;
+
+id:keyword | _source:_source
+m1         | "{""id"":""m1"",""@timestamp"":""2024-01-01T00:00:00.000Z"",""items"":[{""name"":""a"",""qty"":""1"",""parts"":[{""pn"":""p1""}]},{""name"":""b""}],""items_info"":{""total"":""2""},""meta"":{""owner"":""ann"",""events"":[{""kind"":""open"",""note"":""n1""}]},""notes"":{""text"":""hi""},""tag"":""x""}"
+m2         | "{""id"":""m2"",""@timestamp"":""2024-01-01T01:00:00.000Z"",""items"":{""name"":""c""},""items_info"":{""total"":""1""},""meta"":{""owner"":""bo""},""tag"":""y""}"
+u1         | "{""id"":""u1"",""@timestamp"":""2024-01-02T00:00:00.000Z"",""items"":[{""name"":""d"",""qty"":""4"",""parts"":[{""pn"":""p4""}]},{""name"":""e""}],""items_info"":{""total"":""2""},""meta"":{""owner"":""cy"",""events"":[{""kind"":""close"",""note"":""n4""}]},""tag"":""z""}"
+;
+
+nestedPathsKeepOfAnObjectSkipsItsNestedChild
+required_capability: optional_fields_load_all_hides_nested
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM nested_paths_mapped, nested_paths_unmapped METADATA _source
+| KEEP id, meta.*, _source
+| SORT id
+;
+
+id:keyword | meta.owner:keyword | _source:_source
+m1         | ann                | "{""id"":""m1"",""@timestamp"":""2024-01-01T00:00:00.000Z"",""items"":[{""name"":""a"",""qty"":""1"",""parts"":[{""pn"":""p1""}]},{""name"":""b""}],""items_info"":{""total"":""2""},""meta"":{""owner"":""ann"",""events"":[{""kind"":""open"",""note"":""n1""}]},""notes"":{""text"":""hi""},""tag"":""x""}"
+m2         | bo                 | "{""id"":""m2"",""@timestamp"":""2024-01-01T01:00:00.000Z"",""items"":{""name"":""c""},""items_info"":{""total"":""1""},""meta"":{""owner"":""bo""},""tag"":""y""}"
+u1         | cy                 | "{""id"":""u1"",""@timestamp"":""2024-01-02T00:00:00.000Z"",""items"":[{""name"":""d"",""qty"":""4"",""parts"":[{""pn"":""p4""}]},{""name"":""e""}],""items_info"":{""total"":""2""},""meta"":{""owner"":""cy"",""events"":[{""kind"":""close"",""note"":""n4""}]},""tag"":""z""}"
+;
+
+nestedPathsPrefixWildcardStopsAtTheNestedRoot
+required_capability: optional_fields_load_all_hides_nested
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM nested_paths_mapped, nested_paths_unmapped METADATA _source
+| KEEP id, items*, _source
+| SORT id
+;
+
+id:keyword | items_info.total:keyword | _source:_source
+m1         | 2                        | "{""id"":""m1"",""@timestamp"":""2024-01-01T00:00:00.000Z"",""items"":[{""name"":""a"",""qty"":""1"",""parts"":[{""pn"":""p1""}]},{""name"":""b""}],""items_info"":{""total"":""2""},""meta"":{""owner"":""ann"",""events"":[{""kind"":""open"",""note"":""n1""}]},""notes"":{""text"":""hi""},""tag"":""x""}"
+m2         | 1                        | "{""id"":""m2"",""@timestamp"":""2024-01-01T01:00:00.000Z"",""items"":{""name"":""c""},""items_info"":{""total"":""1""},""meta"":{""owner"":""bo""},""tag"":""y""}"
+u1         | 2                        | "{""id"":""u1"",""@timestamp"":""2024-01-02T00:00:00.000Z"",""items"":[{""name"":""d"",""qty"":""4"",""parts"":[{""pn"":""p4""}]},{""name"":""e""}],""items_info"":{""total"":""2""},""meta"":{""owner"":""cy"",""events"":[{""kind"":""close"",""note"":""n4""}]},""tag"":""z""}"
+;
+
+nestedPathsNamedLeavesLoadLikeUnderLoad
+required_capability: optional_fields_load_all_hides_nested
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM nested_paths_mapped, nested_paths_unmapped METADATA _source
+| KEEP id, items.name, items.qty, items*, _source
+| SORT id
+;
+
+id:keyword | items.name:keyword | items.qty:keyword | items_info.total:keyword | _source:_source
+m1         | null               | 1                 | 2                        | "{""id"":""m1"",""@timestamp"":""2024-01-01T00:00:00.000Z"",""items"":[{""name"":""a"",""qty"":""1"",""parts"":[{""pn"":""p1""}]},{""name"":""b""}],""items_info"":{""total"":""2""},""meta"":{""owner"":""ann"",""events"":[{""kind"":""open"",""note"":""n1""}]},""notes"":{""text"":""hi""},""tag"":""x""}"
+m2         | null               | null              | 1                        | "{""id"":""m2"",""@timestamp"":""2024-01-01T01:00:00.000Z"",""items"":{""name"":""c""},""items_info"":{""total"":""1""},""meta"":{""owner"":""bo""},""tag"":""y""}"
+u1         | [d, e]             | 4                 | 2                        | "{""id"":""u1"",""@timestamp"":""2024-01-02T00:00:00.000Z"",""items"":[{""name"":""d"",""qty"":""4"",""parts"":[{""pn"":""p4""}]},{""name"":""e""}],""items_info"":{""total"":""2""},""meta"":{""owner"":""cy"",""events"":[{""kind"":""close"",""note"":""n4""}]},""tag"":""z""}"
+;
+
+nestedPathsNamedLeavesUnderLoad
+required_capability: optional_fields_v5
+required_capability: optional_fields_load_all_hides_nested
+
+SET unmapped_fields="load"\;
+FROM nested_paths_mapped, nested_paths_unmapped METADATA _source
+| KEEP id, items.name, items.qty, _source
+| SORT id
+;
+
+id:keyword | items.name:keyword | items.qty:keyword | _source:_source
+m1         | null               | 1                 | "{""id"":""m1"",""@timestamp"":""2024-01-01T00:00:00.000Z"",""items"":[{""name"":""a"",""qty"":""1"",""parts"":[{""pn"":""p1""}]},{""name"":""b""}],""items_info"":{""total"":""2""},""meta"":{""owner"":""ann"",""events"":[{""kind"":""open"",""note"":""n1""}]},""notes"":{""text"":""hi""},""tag"":""x""}"
+m2         | null               | null              | "{""id"":""m2"",""@timestamp"":""2024-01-01T01:00:00.000Z"",""items"":{""name"":""c""},""items_info"":{""total"":""1""},""meta"":{""owner"":""bo""},""tag"":""y""}"
+u1         | [d, e]             | 4                 | "{""id"":""u1"",""@timestamp"":""2024-01-02T00:00:00.000Z"",""items"":[{""name"":""d"",""qty"":""4"",""parts"":[{""pn"":""p4""}]},{""name"":""e""}],""items_info"":{""total"":""2""},""meta"":{""owner"":""cy"",""events"":[{""kind"":""close"",""note"":""n4""}]},""tag"":""z""}"
+;
+
+####################################################################
+# DROP x.* next to a column x: the whole x subtree is excluded     #
+####################################################################
+
+evalOfASubtreeRootAloneStillDiscoversTheSubtree
+required_capability: optional_fields_load_all_v2
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM nested_paths_unmapped
+| EVAL items = "x"
+;
+
+@timestamp:datetime      | id:keyword | items.name:keyword | items.parts.pn:keyword | items.qty:keyword | items_info.total:keyword | meta.events.kind:keyword | meta.events.note:keyword | meta.owner:keyword | tag:keyword | items:keyword
+2024-01-02T00:00:00.000Z | u1         | [d, e]             | p4                     | 4                 | 2                        | close                    | n4                       | cy                 | z           | x
+;
+
+dropOfASubtreeNextToItsRootColumnKeepsPrefixSiblings
+required_capability: optional_fields_load_all_v2
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM nested_paths_unmapped METADATA _source
+| EVAL items = "x"
+| DROP items.*
+;
+
+@timestamp:datetime      | id:keyword | _source:_source | items_info.total:keyword | meta.events.kind:keyword | meta.events.note:keyword | meta.owner:keyword | tag:keyword | items:keyword
+2024-01-02T00:00:00.000Z | u1         | "{""id"":""u1"",""@timestamp"":""2024-01-02T00:00:00.000Z"",""items"":[{""name"":""d"",""qty"":""4"",""parts"":[{""pn"":""p4""}]},{""name"":""e""}],""items_info"":{""total"":""2""},""meta"":{""owner"":""cy"",""events"":[{""kind"":""close"",""note"":""n4""}]},""tag"":""z""}" | 2                        | close                    | n4                       | cy                 | z           | x
+;

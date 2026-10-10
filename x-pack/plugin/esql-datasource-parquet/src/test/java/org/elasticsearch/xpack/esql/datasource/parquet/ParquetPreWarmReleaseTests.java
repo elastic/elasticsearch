@@ -35,11 +35,13 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -68,6 +70,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
@@ -79,6 +82,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicLongArray;
 
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
@@ -88,9 +92,11 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * Guards the dictionary pre-warm floor on small row groups (esql-planning#2270).
  * <p>
  * {@code PreloadedRowGroupMetadata} used to keep coalesced dictionary/bloom buffers force-added
- * until iterator end. After the row-group filter those buffers have no reader; releasing them
- * keeps {@code used} below one window after open, and six two-phase iterators complete against
- * a three-window cap with rescue off.
+ * until iterator end. After the row-group filter those buffers have no reader; {@code
+ * releaseRawBuffers()} drops them. {@link #testForceAddedBytesAfterOpenByRowGroupSize} is the
+ * call-site guard: after open, {@code used} stays below the index-span heap. The concurrent
+ * test is a liveness guard for that release together with the waste-bounded merge and the
+ * one-ticket group hold (PR-D).
  * <p>
  * The fixture is a {@code category} dictionary column (16 values, the filter column), an
  * {@code id} column, and an unprojected random {@code pad} column that makes 16,384 rows about
@@ -126,10 +132,12 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
 
     /**
      * One filtered whole-file open per row-group size. Force-added bytes held after open stay
-     * below one window at every size, including 512 KiB and 1 MiB.
+     * below one window at every size. At 512 KiB the leftover is also below the index-span heap:
+     * without {@code releaseRawBuffers} the merged index buffer stays charged.
      */
     public void testForceAddedBytesAfterOpenByRowGroupSize() throws Exception {
         long window = HeapFootprint.byteArrayBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE);
+        Set<String> predicate = Set.of("category");
         int[] rowGroupKib = { 128, 256, 512, 768, 1024, 1280, 1536, 2048, 4096 };
         StringBuilder table = new StringBuilder(
             "\nrow group KiB | file bytes | used after open | default windows | async bytes requested during open\n"
@@ -137,6 +145,7 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
         List<String> overWindow = new ArrayList<>();
         for (int kib : rowGroupKib) {
             byte[] file = parquetFile(ROWS, kib * 1024L);
+            FooterMetrics footer = footerMetrics(file, predicate);
             ParquetIoWatermark watermark = new ParquetIoWatermark(1024L * 1024 * 1024);
             CountingAsyncStorage storage = new CountingAsyncStorage(file, asyncIo);
             try (CloseableIterator<Page> iter = open(storage, watermark, CATEGORY)) {
@@ -155,21 +164,34 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
                 if (used >= window) {
                     overWindow.add(kib + " KiB");
                 }
-                if (kib == 512 || kib == 1024 || kib == 2048) {
-                    long useful = dictionaryBloomAndIndexBytes(file);
-                    long bound = 2 * useful + ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE;
+                if (kib == 512) {
+                    assertThat("fixture must write page indexes", footer.indexSpan(), greaterThan(0L));
+                    // Leftover is the first surviving group's ticket. Without releaseRawBuffers
+                    // the merged index buffer stays charged on top of that, so used is at least
+                    // the index-span heap and this fails.
                     assertThat(
-                        "pre-warm GETs at "
+                        "after open, used must drop below the index-span heap; leftover="
+                            + used
+                            + " indexSpan="
+                            + footer.indexSpan()
+                            + table,
+                        used,
+                        lessThan(HeapFootprint.byteArrayBytes(footer.indexSpan()))
+                    );
+                }
+                if (kib == 512 || kib == 1024 || kib == 2048) {
+                    assertThat(
+                        "open GETs at "
                             + kib
-                            + " KiB row groups should be <= 2x dict/bloom/index + one footer read; useful="
-                            + useful
+                            + " KiB stay within indexSpan + 2×(dict+bloom) + rg0 prefetch; metrics="
+                            + footer
                             + " async="
                             + storage.asyncBytes.get(),
                         storage.asyncBytes.get(),
-                        lessThanOrEqualTo(bound)
+                        lessThanOrEqualTo(footer.openGetBound())
                     );
                 }
-                assertEquals(EXPECTED_ROWS, drain(iter));
+                assertEquals(EXPECTED_ROWS, drain(iter).rows());
             }
             assertEquals("watermark returns to the pre-open baseline after close", 0L, watermark.used());
             assertEquals("breaker refunds the same forceAdd", 0L, breaker.getUsed());
@@ -188,7 +210,7 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
         long rangeEnd = ParquetFormatReader.DEFAULT_ROW_GROUP_MACRO_SPLIT_TARGET_BYTES;
         long used;
         try (
-            CloseableIterator<Page> iter = reader(watermark, category).readRange(
+            CloseableIterator<Page> iter = reader(watermark, false).readRange(
                 storage,
                 new RangeReadContext(CATEGORY, 64, 0, rangeEnd, List.of(category), ErrorPolicy.STRICT)
             )
@@ -201,7 +223,7 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
                 used,
                 storage.asyncBytes.get()
             );
-            assertThat(drain(iter), greaterThan(0));
+            assertThat(drain(iter).rows(), greaterThan(0));
         }
         assertEquals("watermark returns to the pre-open baseline after close", 0L, watermark.used());
         assertEquals("breaker refunds the same forceAdd", 0L, breaker.getUsed());
@@ -211,9 +233,9 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
 
     /**
      * Six iterators, each drained by its own thread like a driver, against a node byte cap of three
-     * default windows. Rescue is off: every row must complete without an over-cap grant. One group
-     * ticket covers both phases; releasing the pre-warm after the row filter is what keeps untracked
-     * forceAdd off the cap so the FIFO can move.
+     * default windows. Rescue is off: every row must complete without an over-cap grant. Liveness
+     * for release + waste-bounded merge + the one-ticket group hold; the 512 KiB index-span
+     * assert in {@link #testForceAddedBytesAfterOpenByRowGroupSize} is what guards the release.
      */
     public void testConcurrentReadsAgainstSmallCap() throws Exception {
         byte[] small = parquetFile(ROWS, 512 * 1024);
@@ -249,10 +271,117 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
         assertTrue("reads that wedged or needed over-cap rescues: " + problems + table, problems.isEmpty());
     }
 
-    private record RunResult(boolean completed, String outcome, long elapsedMs, int waitersAtEnd, double usedAtEndWindows, String rows) {}
+    /**
+     * Sorted {@code category} so dictionaries prune most row groups and one group holds only
+     * {@code cat_03}. Covers the field case of time-sorted logs.
+     */
+    public void testClusteredCategoryPrunesRowGroups() throws Exception {
+        byte[] file = parquetFile(ROWS, 512 * 1024L, CompressionCodecName.UNCOMPRESSED, true, false);
+        ParquetIoWatermark watermark = new ParquetIoWatermark(1024L * 1024 * 1024);
+        CountingAsyncStorage storage = new CountingAsyncStorage(file, asyncIo);
+        ParquetReaderCounters counters = new ParquetReaderCounters();
+        long used;
+        try (CloseableIterator<Page> iter = open(storage, watermark, CATEGORY_AND_ID, counters, false)) {
+            used = watermark.used();
+            DrainResult drained = drain(iter, true);
+            assertEquals(EXPECTED_ROWS, drained.rows());
+            assertEquals(expectedIdSum(ROWS), drained.idSum());
+        }
+        ParquetReaderStatus snap = counters.snapshot();
+        assertThat(snap.rowGroupsTotal() - snap.rowGroupsKept(), greaterThan(0L));
+        assertThat(used, lessThan(HeapFootprint.byteArrayBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE)));
+        assertEquals(0L, watermark.used());
+        assertEquals(0L, breaker.getUsed());
+    }
+
+    /**
+     * Concurrent two-phase 512 KiB cell with a compressed codec. Pre-warm and decode both
+     * charge the breaker; it must return to 0.
+     */
+    public void testConcurrentCompressedTwoPhase() throws Exception {
+        CompressionCodecName codec = randomFrom(CompressionCodecName.SNAPPY, CompressionCodecName.ZSTD);
+        byte[] file = parquetFile(ROWS, 512 * 1024L, codec, false, false);
+        String label = "compressed " + codec;
+        RunResult r = runConcurrent(file, CATEGORY_AND_ID, 6, false, label);
+        assertTrue(label + " " + r.outcome(), r.completed());
+        assertThat(codec + " peak breaker", r.peakBreaker(), greaterThan(0L));
+        assertEquals(0L, breaker.getUsed());
+    }
+
+    /**
+     * One seeded cell from the Julian-repro matrix. The drawn axes are in the failure text.
+     */
+    public void testSeededRandomPreWarmCell() throws Exception {
+        int kib = randomFrom(128, 256, 512, 1024, 2048);
+        List<String> projection = randomBoolean() ? CATEGORY : CATEGORY_AND_ID;
+        boolean extraPredicate = randomBoolean();
+        int readers = randomFrom(1, 4, 8);
+        CompressionCodecName codec = randomFrom(CompressionCodecName.UNCOMPRESSED, CompressionCodecName.SNAPPY, CompressionCodecName.ZSTD);
+        String cell = "rg="
+            + kib
+            + "KiB projection="
+            + projection
+            + " predicates="
+            + (extraPredicate ? 2 : 1)
+            + " readers="
+            + readers
+            + " codec="
+            + codec;
+        byte[] file = parquetFile(ROWS, kib * 1024L, codec, false, extraPredicate);
+        RunResult r = runConcurrent(file, projection, readers, extraPredicate, cell);
+        assertTrue(cell + " " + r.outcome(), r.completed());
+        assertEquals(cell, 0L, breaker.getUsed());
+    }
+
+    /**
+     * Close after the first page (LIMIT / cancel), including a two-phase iterator that may
+     * already have phase-2 I/O in flight. Pre-warm is already gone after open; this guards
+     * the ticket and group-hold paths.
+     */
+    public void testEarlyCloseReleasesTicket() throws Exception {
+        long window = HeapFootprint.byteArrayBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE);
+        NodeByteBudgetService budget = new NodeByteBudgetService(3 * window);
+        ParquetIoWatermark watermark = new ParquetIoWatermark(budget);
+        byte[] file = parquetFile(ROWS, 512 * 1024L);
+        CountingAsyncStorage storage = new CountingAsyncStorage(file, asyncIo);
+        try (CloseableIterator<Page> iter = open(storage, watermark, CATEGORY)) {
+            consumeOnePage(iter);
+        }
+        assertEquals(0L, watermark.used());
+        assertEquals(0L, breaker.getUsed());
+        assertEquals(0, budget.waiterCount());
+
+        try (CloseableIterator<Page> iter = open(storage, watermark, CATEGORY_AND_ID)) {
+            consumeOnePage(iter);
+        }
+        assertEquals(0L, watermark.used());
+        assertEquals(0L, breaker.getUsed());
+        assertEquals(0, budget.waiterCount());
+    }
+
+    private record RunResult(
+        boolean completed,
+        String outcome,
+        long elapsedMs,
+        int waitersAtEnd,
+        double usedAtEndWindows,
+        String rows,
+        long peakBreaker
+    ) {}
+
+    private record DrainResult(int rows, long idSum) {}
+
+    private record FooterMetrics(long indexSpan, long dictBloom, long rg0Prefetch) {
+        long openGetBound() {
+            return indexSpan + 2 * dictBloom + rg0Prefetch;
+        }
+    }
 
     private RunResult runConcurrent(byte[] file, List<String> projection) throws Exception {
-        int n = 6;
+        return runConcurrent(file, projection, 6, false, "");
+    }
+
+    private RunResult runConcurrent(byte[] file, List<String> projection, int n, boolean extraPredicate, String label) throws Exception {
         long window = HeapFootprint.byteArrayBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE);
         NodeByteBudgetService budget = new NodeByteBudgetService(3 * window);
         ParquetIoWatermark watermark = new ParquetIoWatermark(budget);
@@ -261,6 +390,9 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
         ExecutorService consumers = Executors.newFixedThreadPool(n, EsExecutors.daemonThreadFactory("test", "consumer"));
         AtomicBoolean stop = new AtomicBoolean();
         AtomicIntegerArray rows = new AtomicIntegerArray(n);
+        AtomicLongArray idSums = new AtomicLongArray(n);
+        AtomicLong peakBreaker = new AtomicLong();
+        boolean sumId = projection.equals(CATEGORY_AND_ID);
         List<Future<?>> futures = new ArrayList<>(n);
         long timeoutNanos = TimeUnit.SECONDS.toNanos(20);
         boolean completed = false;
@@ -276,9 +408,12 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
                     outcome = "wedged during open";
                     break;
                 }
-                Future<CloseableIterator<Page>> opening = consumers.submit(() -> open(storage, watermark, projection));
+                Future<CloseableIterator<Page>> opening = consumers.submit(
+                    () -> open(storage, watermark, projection, null, extraPredicate)
+                );
                 try {
                     iters.add(opening.get(remaining, TimeUnit.NANOSECONDS));
+                    peakBreaker.accumulateAndGet(breaker.getUsed(), Math::max);
                 } catch (TimeoutException e) {
                     opening.cancel(true);
                     outcome = "wedged during open";
@@ -292,11 +427,12 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
                 for (int i = 0; i < n; i++) {
                     int idx = i;
                     futures.add(consumers.submit(() -> {
-                        consume(iters.get(idx), rows, idx, stop);
+                        consume(iters.get(idx), rows, idSums, sumId, idx, stop, peakBreaker, label);
                         return null;
                     }));
                 }
                 while (true) {
+                    peakBreaker.accumulateAndGet(breaker.getUsed(), Math::max);
                     long now = System.nanoTime();
                     if (futures.stream().allMatch(Future::isDone)) {
                         outcome = "completed";
@@ -340,14 +476,28 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
             if (first != null) {
                 throw first;
             }
-            assertEquals("watermark returns to baseline after concurrent close", 0L, watermark.used());
-            assertEquals(0, watermark.waiterCount());
+            assertEquals(label + " watermark returns to baseline after concurrent close", 0L, watermark.used());
+            assertEquals(label + " waiters", 0, watermark.waiterCount());
+        }
+        if (completed && sumId) {
+            long expected = expectedIdSum(ROWS);
+            for (int i = 0; i < n; i++) {
+                assertEquals(label + " id sum iterator " + i, expected, idSums.get(i));
+            }
         }
         StringBuilder perIterator = new StringBuilder();
         for (int i = 0; i < n; i++) {
             perIterator.append(i == 0 ? "" : ",").append(rows.get(i));
         }
-        return new RunResult(completed, outcome, elapsedMs, waitersAtEnd, (double) usedAtEnd / window, perIterator.toString());
+        return new RunResult(
+            completed,
+            outcome,
+            elapsedMs,
+            waitersAtEnd,
+            (double) usedAtEnd / window,
+            perIterator.toString(),
+            peakBreaker.get()
+        );
     }
 
     /**
@@ -355,7 +505,16 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
      * parks on a latch: grants are delivered inline on other consumer threads, so blocking on a
      * {@code PlainActionFuture} here trips its same-pool deadlock assertion.
      */
-    private static void consume(CloseableIterator<Page> iter, AtomicIntegerArray rows, int idx, AtomicBoolean stop) throws Exception {
+    private void consume(
+        CloseableIterator<Page> iter,
+        AtomicIntegerArray rows,
+        AtomicLongArray idSums,
+        boolean sumId,
+        int idx,
+        AtomicBoolean stop,
+        AtomicLong peakBreaker,
+        String label
+    ) throws Exception {
         while (stop.get() == false) {
             SubscribableListener<Void> ready = iter.waitForReady();
             if (ready.isDone() == false) {
@@ -375,19 +534,28 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
                         continue;
                     }
                     if (rows.get(idx) != EXPECTED_ROWS) {
-                        throw new AssertionError("iterator " + idx + " ended after " + rows.get(idx) + " rows");
+                        throw new AssertionError(label + " iterator " + idx + " ended after " + rows.get(idx) + " rows");
                     }
                     return;
                 }
             }
             rows.addAndGet(idx, page.getPositionCount());
+            peakBreaker.accumulateAndGet(breaker.getUsed(), Math::max);
+            if (sumId) {
+                idSums.addAndGet(idx, sumIdColumn(page));
+            }
             page.releaseBlocks();
         }
     }
 
     /** Single-threaded drain with the same EOF rule as {@link #consume}. */
-    private static int drain(CloseableIterator<Page> iter) {
+    private static DrainResult drain(CloseableIterator<Page> iter) {
+        return drain(iter, false);
+    }
+
+    private static DrainResult drain(CloseableIterator<Page> iter, boolean sumId) {
         int rows = 0;
+        long idSum = 0L;
         while (true) {
             SubscribableListener<Void> ready = iter.waitForReady();
             if (ready.isDone() == false) {
@@ -404,31 +572,90 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
                     if (iter.waitForReady().isDone() == false) {
                         continue;
                     }
-                    return rows;
+                    return new DrainResult(rows, idSum);
                 }
             }
             rows += page.getPositionCount();
+            if (sumId) {
+                idSum += sumIdColumn(page);
+            }
             page.releaseBlocks();
         }
     }
 
-    private ParquetFormatReader reader(ParquetIoWatermark watermark, ReferenceAttribute category) {
-        Literal value = new Literal(Source.EMPTY, new BytesRef(FILTER_VALUE), DataType.KEYWORD);
-        return new ParquetFormatReader(blockFactory, true).withPushedFilter(
-            new ParquetPushedExpressions(List.of(new Equals(Source.EMPTY, category, value, null)))
-        ).withIoWatermark(watermark);
+    private static void consumeOnePage(CloseableIterator<Page> iter) {
+        while (true) {
+            SubscribableListener<Void> ready = iter.waitForReady();
+            if (ready.isDone() == false) {
+                safeAwait(ready, TimeValue.timeValueSeconds(30));
+                continue;
+            }
+            Page page = iter.tryAdvance();
+            if (page == null) {
+                if (iter.waitForReady().isDone() == false) {
+                    continue;
+                }
+                page = iter.tryAdvance();
+                if (page == null) {
+                    if (iter.waitForReady().isDone() == false) {
+                        continue;
+                    }
+                    throw new AssertionError("expected at least one page");
+                }
+            }
+            page.releaseBlocks();
+            return;
+        }
+    }
+
+    private static long sumIdColumn(Page page) {
+        IntBlock ids = (IntBlock) page.getBlock(1);
+        long sum = 0L;
+        for (int i = 0; i < page.getPositionCount(); i++) {
+            sum += ids.getInt(ids.getFirstValueIndex(i));
+        }
+        return sum;
+    }
+
+    /** Ids with {@code i % 16 == 3}: {@code 3, 19, 35, ...}. */
+    private static long expectedIdSum(int rows) {
+        long n = rows / DICT_CARDINALITY;
+        return 3L * n + 8L * n * (n - 1);
+    }
+
+    private ParquetFormatReader reader(ParquetIoWatermark watermark, boolean extraPredicate) {
+        ReferenceAttribute category = keyword("category");
+        Literal categoryValue = new Literal(Source.EMPTY, new BytesRef(FILTER_VALUE), DataType.KEYWORD);
+        List<Expression> pushed = new ArrayList<>();
+        pushed.add(new Equals(Source.EMPTY, category, categoryValue, null));
+        if (extraPredicate) {
+            pushed.add(new Equals(Source.EMPTY, keyword("tag"), new Literal(Source.EMPTY, new BytesRef("tag_03"), DataType.KEYWORD), null));
+        }
+        return new ParquetFormatReader(blockFactory, true).withPushedFilter(new ParquetPushedExpressions(pushed))
+            .withIoWatermark(watermark);
     }
 
     private CloseableIterator<Page> open(StorageObject storage, ParquetIoWatermark watermark, List<String> projection) throws IOException {
+        return open(storage, watermark, projection, null, false);
+    }
+
+    private CloseableIterator<Page> open(
+        StorageObject storage,
+        ParquetIoWatermark watermark,
+        List<String> projection,
+        ParquetReaderCounters counters,
+        boolean extraPredicate
+    ) throws IOException {
         ReferenceAttribute category = keyword("category");
         List<Attribute> schema = new ArrayList<>();
         for (String name : projection) {
             schema.add(name.equals("id") ? new ReferenceAttribute(Source.EMPTY, "id", DataType.INTEGER) : category);
         }
-        return reader(watermark, category).read(
-            storage,
-            FormatReadContext.builder().projectedColumns(projection).readSchema(schema).batchSize(64).build()
-        );
+        var builder = FormatReadContext.builder().projectedColumns(projection).readSchema(schema).batchSize(64);
+        if (counters != null) {
+            builder.readCounters(counters);
+        }
+        return reader(watermark, extraPredicate).read(storage, builder.build());
     }
 
     private static ReferenceAttribute keyword(String name) {
@@ -436,10 +663,10 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
     }
 
     /**
-     * Dictionary, bloom, column-index and offset-index bytes for the predicate column. The
-     * pre-warm coalesce bound is 2× this plus one footer window.
+     * Index span of needed column/offset indexes, dictionary+bloom bytes, and first-group
+     * predicate prefetch. Open-time async GETs stay within {@link FooterMetrics#openGetBound()}.
      */
-    private static long dictionaryBloomAndIndexBytes(byte[] file) throws IOException {
+    private static FooterMetrics footerMetrics(byte[] file, Set<String> predicateColumns) throws IOException {
         StorageObject storage = new AbstractTestStorageObject() {
             @Override
             public InputStream newStream() {
@@ -478,43 +705,77 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
                 options
             )
         ) {
-            long bytes = 0L;
+            long dictBloom = 0L;
+            long minIndex = Long.MAX_VALUE;
+            long maxIndex = Long.MIN_VALUE;
             for (BlockMetaData block : reader.getRowGroups()) {
                 for (ColumnChunkMetaData col : block.getColumns()) {
-                    if ("category".equals(col.getPath().toDotString()) == false) {
+                    if (predicateColumns.contains(col.getPath().toDotString()) == false) {
                         continue;
                     }
                     if (col.hasDictionaryPage() && col.getDictionaryPageOffset() > 0) {
-                        bytes += col.getFirstDataPageOffset() - col.getDictionaryPageOffset();
+                        dictBloom += col.getFirstDataPageOffset() - col.getDictionaryPageOffset();
                     }
                     int bloom = col.getBloomFilterLength();
                     if (col.getBloomFilterOffset() > 0 && bloom > 0) {
-                        bytes += bloom;
+                        dictBloom += bloom;
                     }
                     IndexReference ci = col.getColumnIndexReference();
                     if (ci != null && ci.getLength() > 0) {
-                        bytes += ci.getLength();
+                        minIndex = Math.min(minIndex, ci.getOffset());
+                        maxIndex = Math.max(maxIndex, ci.getOffset() + ci.getLength());
                     }
                     IndexReference oi = col.getOffsetIndexReference();
                     if (oi != null && oi.getLength() > 0) {
-                        bytes += oi.getLength();
+                        minIndex = Math.min(minIndex, oi.getOffset());
+                        maxIndex = Math.max(maxIndex, oi.getOffset() + oi.getLength());
                     }
                 }
             }
-            return bytes;
+            long indexSpan = minIndex < maxIndex ? maxIndex - minIndex : 0L;
+            long rg0Prefetch = 0L;
+            List<BlockMetaData> groups = reader.getRowGroups();
+            if (groups.isEmpty() == false) {
+                var ranges = ColumnChunkPrefetcher.computeColumnChunkRanges(groups.get(0), predicateColumns);
+                for (var merged : CoalescedRangeReader.mergeRanges(ranges, CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP)) {
+                    rg0Prefetch += merged.length();
+                }
+            }
+            return new FooterMetrics(indexSpan, dictBloom, rg0Prefetch);
         }
     }
 
     private static byte[] parquetFile(int rows, long rowGroupSize) throws IOException {
-        MessageType schema = Types.buildMessage()
-            .required(PrimitiveType.PrimitiveTypeName.INT32)
-            .named("id")
-            .required(PrimitiveType.PrimitiveTypeName.BINARY)
-            .as(LogicalTypeAnnotation.stringType())
-            .named("category")
-            .required(PrimitiveType.PrimitiveTypeName.BINARY)
-            .named("pad")
-            .named("preload_floor");
+        return parquetFile(rows, rowGroupSize, CompressionCodecName.UNCOMPRESSED, false, false);
+    }
+
+    private static byte[] parquetFile(int rows, long rowGroupSize, CompressionCodecName codec, boolean sortCategory, boolean extraPredicate)
+        throws IOException {
+        MessageType schema;
+        if (extraPredicate) {
+            schema = Types.buildMessage()
+                .required(PrimitiveType.PrimitiveTypeName.INT32)
+                .named("id")
+                .required(PrimitiveType.PrimitiveTypeName.BINARY)
+                .as(LogicalTypeAnnotation.stringType())
+                .named("category")
+                .required(PrimitiveType.PrimitiveTypeName.BINARY)
+                .as(LogicalTypeAnnotation.stringType())
+                .named("tag")
+                .required(PrimitiveType.PrimitiveTypeName.BINARY)
+                .named("pad")
+                .named("preload_floor");
+        } else {
+            schema = Types.buildMessage()
+                .required(PrimitiveType.PrimitiveTypeName.INT32)
+                .named("id")
+                .required(PrimitiveType.PrimitiveTypeName.BINARY)
+                .as(LogicalTypeAnnotation.stringType())
+                .named("category")
+                .required(PrimitiveType.PrimitiveTypeName.BINARY)
+                .named("pad")
+                .named("preload_floor");
+        }
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         SimpleGroupFactory groups = new SimpleGroupFactory(schema);
         try (
@@ -522,7 +783,7 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
                 .withConf(new PlainParquetConfiguration())
                 .withCodecFactory(new PlainCompressionCodecFactory())
                 .withType(schema)
-                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withCompressionCodec(codec)
                 .withDictionaryEncoding(true)
                 .withDictionaryEncoding("pad", false)
                 .withRowGroupSize(rowGroupSize)
@@ -531,21 +792,41 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
                 .build()
         ) {
             String[] categories = new String[DICT_CARDINALITY];
+            String[] tags = extraPredicate ? new String[DICT_CARDINALITY] : null;
             for (int c = 0; c < DICT_CARDINALITY; c++) {
                 categories[c] = c < 10 ? "cat_0" + c : "cat_" + c;
+                if (tags != null) {
+                    tags[c] = c < 10 ? "tag_0" + c : "tag_" + c;
+                }
             }
-            for (int i = 0; i < rows; i++) {
-                byte[] pad = new byte[PAD_PER_ROW];
-                random().nextBytes(pad);
-                writer.write(
-                    groups.newGroup()
-                        .append("id", i)
-                        .append("category", categories[i % DICT_CARDINALITY])
-                        .append("pad", Binary.fromConstantByteArray(pad))
-                );
+            if (sortCategory) {
+                for (int c = 0; c < DICT_CARDINALITY; c++) {
+                    for (int i = 0; i < rows; i++) {
+                        if (i % DICT_CARDINALITY == c) {
+                            writeRow(writer, groups, i, categories[c], tags == null ? null : tags[c]);
+                        }
+                    }
+                }
+            } else {
+                for (int i = 0; i < rows; i++) {
+                    int c = i % DICT_CARDINALITY;
+                    writeRow(writer, groups, i, categories[c], tags == null ? null : tags[c]);
+                }
             }
         }
         return out.toByteArray();
+    }
+
+    private static void writeRow(ParquetWriter<Group> writer, SimpleGroupFactory groups, int id, String category, String tag)
+        throws IOException {
+        byte[] pad = new byte[PAD_PER_ROW];
+        random().nextBytes(pad);
+        Group group = groups.newGroup().append("id", id).append("category", category);
+        if (tag != null) {
+            group.append("tag", tag);
+        }
+        group.append("pad", Binary.fromConstantByteArray(pad));
+        writer.write(group);
     }
 
     private static OutputFile outputFile(ByteArrayOutputStream out) {

@@ -39,6 +39,7 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -165,6 +166,55 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         assertEquals(300, mergedGrowing.get(0).length());
         assertEquals(500, mergedGrowing.get(1).offset());
         assertEquals(900, mergedGrowing.get(2).offset());
+    }
+
+    /**
+     * Seeded random ranges: holes in each merged group stay at most unique useful bytes,
+     * the 8 MiB cap holds unless a group is one constituent, and every input is in exactly
+     * one group.
+     */
+    public void testPreWarmMergePropertyHolesAtMostUseful() {
+        int n = randomIntBetween(2, 24);
+        List<ByteRange> ranges = new ArrayList<>(n + 4);
+        for (int i = 0; i < n; i++) {
+            ranges.add(new ByteRange(randomLongBetween(0, 2_000_000), randomLongBetween(1, 80_000)));
+        }
+        ByteRange base = ranges.get(0);
+        ranges.add(new ByteRange(base.offset(), base.length()));
+        ranges.add(new ByteRange(base.offset() + base.length() / 2, Math.max(1L, base.length())));
+        ranges.add(new ByteRange(base.offset() - Math.min(base.offset(), 10), base.length() + 20));
+        ranges.add(new ByteRange(base.offset() + Math.min(1L, base.length() - 1), Math.max(1L, base.length() / 4)));
+
+        List<MergedRange> merged = CoalescedRangeReader.mergeRanges(ranges, CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP, true);
+        int covered = 0;
+        for (MergedRange group : merged) {
+            long useful = uniqueCoveredBytes(group.constituents());
+            long holes = group.length() - useful;
+            assertTrue("holes " + holes + " exceed useful " + useful + " in " + group, holes <= useful);
+            if (group.constituents().size() > 1) {
+                assertTrue(group.length() <= CoalescedRangeReader.MAX_MERGED_RANGE_BYTES);
+            }
+            covered += group.constituents().size();
+        }
+        assertEquals(ranges.size(), covered);
+        for (ByteRange range : ranges) {
+            assertEquals(1L, merged.stream().filter(group -> group.constituents().contains(range)).count());
+        }
+    }
+
+    private static long uniqueCoveredBytes(List<ByteRange> constituents) {
+        List<ByteRange> sorted = new ArrayList<>(constituents);
+        sorted.sort(Comparator.comparingLong(ByteRange::offset));
+        long covered = 0L;
+        long cursor = Long.MIN_VALUE;
+        for (ByteRange range : sorted) {
+            long start = Math.max(range.offset(), cursor);
+            if (range.end() > start) {
+                covered += range.end() - start;
+                cursor = range.end();
+            }
+        }
+        return covered;
     }
 
     public void testMergeSingleRange() {

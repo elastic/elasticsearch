@@ -45,6 +45,8 @@ abstract class AmazonBedrockStreamingProcessor<T> implements Flow.Processor<Conv
 
     volatile Flow.Subscriber<? super T> downstream;
 
+    private volatile StreamSubscription downstreamSubscription;
+
     @Override
     public void onSubscribe(Flow.Subscription subscription) {
         if (upstream == null) {
@@ -62,9 +64,23 @@ abstract class AmazonBedrockStreamingProcessor<T> implements Flow.Processor<Conv
     public void subscribe(Flow.Subscriber<? super T> subscriber) {
         if (downstream == null) {
             downstream = subscriber;
-            downstream.onSubscribe(new StreamSubscription());
+            downstreamSubscription = new StreamSubscription();
+            downstream.onSubscribe(downstreamSubscription);
         } else {
             subscriber.onError(new IllegalStateException("Subscriber already set."));
+        }
+    }
+
+    /**
+     * Requests the next item for an event that reset demand but produced nothing to send. Going through the downstream subscription
+     * restores that demand, so a completion or error that arrives next is still delivered.
+     */
+    void requestNextOnBehalfOfDownstream() {
+        var subscription = downstreamSubscription;
+        if (subscription != null) {
+            subscription.request(1);
+        } else if (upstream != null) {
+            upstream.request(1);
         }
     }
 

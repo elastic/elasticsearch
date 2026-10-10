@@ -40,6 +40,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.FielddataOperation;
@@ -52,6 +53,7 @@ import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -794,6 +796,39 @@ public class SearchExecutionContext extends QueryRewriteContext {
             }
         }
         return fieldsInIndex.contains(fieldname);
+    }
+
+    /**
+     * Whether a document of this shard may hold, in its {@code _source}, a field that the mapping does not declare. When this
+     * returns {@code false}, reading {@code _source} can find nothing beyond what the mapped fields already describe, so a
+     * caller looking for unmapped fields can skip it.
+     * <p>
+     * The answer is {@code false} in any of these cases:
+     * <ul>
+     *   <li>The index mode is strict columnar and unmapped fields are not routed to the flattened {@code _unmapped} field: such
+     *       an index drops the fields its mapping does not declare while parsing the document.</li>
+     *   <li>{@code _source} is synthetic and no segment has an {@code _ignored_source} field: a synthetic {@code _source} is
+     *       rebuilt from the mapped fields plus {@code _ignored_source}, which is where an unmapped field is kept.</li>
+     *   <li>{@code _source} is stored, the mapping never allowed an unmapped field to be kept (see
+     *       {@link RootObjectMapper#retainsUnmappedFields()}) and no segment has an {@code _ignored} field, which records the
+     *       dynamic fields that were skipped for exceeding a limit.</li>
+     * </ul>
+     * Without a searcher the segments cannot be inspected, so the answer is {@code true} unless the index mode alone decides.
+     * <p>
+     * A value a mapped field keeps under its own name, such as the keys of an object-valued field, is not an unmapped field
+     * and is not covered by this method.
+     */
+    public boolean mayHoldUnmappedFields() {
+        if (indexSettings.getMode().isStrictColumnar() && indexSettings.isFlattenedUnmappedFieldsEnabled() == false) {
+            return false;
+        }
+        if (searcher == null) {
+            return true;
+        }
+        if (mappingLookup.isSourceSynthetic()) {
+            return fieldExistsInIndex(IgnoredSourceFieldMapper.NAME);
+        }
+        return mappingLookup.getMapping().getRoot().retainsUnmappedFields() || fieldExistsInIndex(IgnoredFieldMapper.NAME);
     }
 
     /**

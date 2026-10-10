@@ -1,0 +1,37 @@
+{
+  "query_sampling.golden_check": {
+    "documentation": {
+      "url": null,
+      "description": "Tell which queries of a version of the golden dataset have a ground truth that is out of date"
+    },
+    "stability": "experimental",
+    "visibility": "feature_flag",
+    "feature_flag": "es.query_sampling_feature_flag_enabled",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_query_sampling/golden/check",
+          "methods": [
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params": {
+      "version": {
+        "type": "number",
+        "description": "The version of the dataset to check, by default the latest that is complete"
+      },
+      "max": {
+        "type": "number",
+        "description": "The most queries to check",
+        "default": 1000
+      }
+    }
+  }
+}

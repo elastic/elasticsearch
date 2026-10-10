@@ -1,0 +1,216 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.querysampling;
+
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
+import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
+import org.elasticsearch.xpack.querysampling.dedup.Hardness;
+import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
+import org.elasticsearch.xpack.querysampling.dedup.QueryFingerprint;
+import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
+import org.elasticsearch.xpack.querysampling.groundtruth.CostBudget;
+import org.elasticsearch.xpack.querysampling.sampling.EventSlice;
+import org.elasticsearch.xpack.querysampling.sampling.PickBudget;
+import org.elasticsearch.xpack.querysampling.sampling.QuerySampler;
+import org.elasticsearch.xpack.querysampling.sampling.SpatialStrata;
+import org.elasticsearch.xpack.querysampling.storage.SampledQuery;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
+import java.util.Set;
+
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
+
+public class SamplingPipelineTests extends ESTestCase {
+
+    private final MultiplicityTracker tracker = new MultiplicityTracker(100);
+    private final List<SampledQuery> sampled = new ArrayList<>();
+
+    public void testRepeatedQueryIsPickedOnceAndKeepsBeingCounted() {
+        SamplingPipeline pipeline = pipeline(new Random(0L) {
+            @Override
+            public double nextDouble() {
+                return 0.0; // every draw picks
+            }
+        });
+        float[] vector = { 1f, 2f, 3f };
+
+        for (int i = 0; i < 5; i++) {
+            pipeline.accept(search(vector));
+        }
+
+        assertThat(sampled.size(), equalTo(1));
+        assertThat(pipeline.picked(), equalTo(1L));
+        assertThat(tracker.distinct(), equalTo(1));
+    }
+
+    public void testDistinctQueriesArePickedSeparately() {
+        SamplingPipeline pipeline = pipeline(new Random(0L) {
+            @Override
+            public double nextDouble() {
+                return 0.0;
+            }
+        });
+
+        pipeline.accept(search(new float[] { 1f }));
+        pipeline.accept(search(new float[] { 2f }));
+        pipeline.accept(search(new float[] { 3f }));
+
+        assertThat(sampled.size(), equalTo(3));
+        assertThat(pipeline.picked(), equalTo(3L));
+        assertThat(tracker.distinct(), equalTo(3));
+    }
+
+    public void testNothingIsPassedOnWhenNothingIsPicked() {
+        SamplingPipeline pipeline = pipeline(new Random(0L) {
+            @Override
+            public double nextDouble() {
+                return 0.999999; // never below the acceptance probability
+            }
+        });
+
+        for (int i = 0; i < 10; i++) {
+            pipeline.accept(search(new float[] { i }));
+        }
+
+        assertThat(sampled.size(), equalTo(0));
+        assertThat(pipeline.picked(), equalTo(0L));
+        assertThat(tracker.distinct(), equalTo(10));
+    }
+
+    public void testEveryListenerIsToldAndAFailingOneDoesNotStopTheOthers() {
+        List<SampledQuery> first = new ArrayList<>();
+        List<SampledQuery> last = new ArrayList<>();
+        SamplingPipeline pipeline = new SamplingPipeline(tracker, new QuerySampler(1.0, 100, new Random(0L) {
+            @Override
+            public double nextDouble() {
+                return 0.0;
+            }
+        }), List.of(first::add, query -> { throw new IllegalStateException("listener failed"); }, last::add));
+
+        pipeline.accept(search(new float[] { 1f }));
+
+        assertThat(first.size(), equalTo(1));
+        assertThat(last.size(), equalTo(1));
+        assertThat(last.get(0), sameInstance(first.get(0)));
+    }
+
+    public void testCapturedSearchesEarnTheTimeOfTheSearchesTheyStandFor() {
+        CostBudget budget = new CostBudget(0.5, 1_000_000);
+        SamplingPipeline pipeline = new SamplingPipeline(tracker, new QuerySampler(1.0, 100, new Random(0L)), List.of(), budget);
+        CapturedQuery query = new CapturedQuery(new String[] { "idx" }, "vec", new float[] { 1f }, 10, 100, null, null, List.of(), null);
+
+        // a search of 10 ms captured with a probability of 0.1 stands for ten searches of 10 ms
+        pipeline.accept(new CapturedSearch(query, List.of(), 10, 0.1));
+
+        assertThat(budget.credit(), closeTo(0.5 * 100, 1e-9));
+    }
+
+    public void testASearchThatTookLessThanAMillisecondCountsAsOne() {
+        CostBudget budget = new CostBudget(1.0, 1_000_000);
+        SamplingPipeline pipeline = new SamplingPipeline(tracker, new QuerySampler(1.0, 100, new Random(0L)), List.of(), budget);
+
+        pipeline.accept(new CapturedSearch(search(new float[] { 1f }).query(), List.of(), 0, 0.5));
+
+        assertThat("a millisecond over a probability of one half", budget.credit(), closeTo(2.0, 1e-9));
+    }
+
+    public void testAQueryIsPutInTheVectorSpaceWhenItIsSeenForTheFirstTimeOnly() {
+        SpatialStrata spatial = new SpatialStrata(2, 2, () -> new Random(3L));
+        QuerySampler sampler = new QuerySampler(1.0, 100, new Random(0L), new PickBudget(System::nanoTime), spatial);
+        SamplingPipeline pipeline = new SamplingPipeline(tracker, sampler, List.of(sampled::add));
+
+        pipeline.accept(search(new float[] { 0f, 0f }));
+        pipeline.accept(search(new float[] { 0f, 0f }));
+        assertThat("the clusters are not fitted yet, and the repeat does not count", spatial.counts("vec/2").length, equalTo(0));
+
+        pipeline.accept(search(new float[] { 9f, 9f }));
+
+        assertThat(spatial.counts("vec/2"), equalTo(new long[] { 1, 1 }));
+    }
+
+    public void testAQueryIsToldHowHardItIsWhenItIsSeenForTheFirstTimeOnly() {
+        SamplingPipeline pipeline = pipeline(new Random(0L));
+        float[] vector = { 1f, 2f };
+        CapturedQuery query = new CapturedQuery(new String[] { "idx" }, "vec", vector, 10, 100, null, null, List.of(), null);
+        List<CapturedSearch.Hit> hits = List.of(
+            new CapturedSearch.Hit("idx", "1", 1f),
+            new CapturedSearch.Hit("idx", "2", 0.9f),
+            new CapturedSearch.Hit("idx", "3", 0.8f)
+        );
+
+        pipeline.accept(new CapturedSearch(query, hits, 1, 1.0));
+
+        TrackedQuery tracked = tracker.record(QueryFingerprint.of(query));
+        assertThat("there are no others to tell it from yet", tracked.hardness(), equalTo(Hardness.MEDIUM));
+
+        pipeline.accept(search(new float[] { 5f, 5f })); // no hits, so nothing to tell it by
+        assertThat(tracker.record(QueryFingerprint.of(search(new float[] { 5f, 5f }).query())).hardness(), nullValue());
+    }
+
+    public void testSomeCapturedSearchesAreAlsoKeptAsEventsWhateverHappensToTheQuery() {
+        EventSlice events = new EventSlice(() -> new Random(0L) {
+            @Override
+            public double nextDouble() {
+                return 0.0; // every search is kept
+            }
+        });
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.builder().put(QuerySamplingSettings.EVENT_SLICE_RATE.getKey(), 0.25).build(),
+            Set.of(QuerySamplingSettings.EVENT_SLICE_RATE)
+        );
+        events.watch(clusterSettings);
+        // the sampler picks nothing, and the tracker is too small to hold the queries
+        MultiplicityTracker tiny = new MultiplicityTracker(1);
+        SamplingPipeline pipeline = new SamplingPipeline(tiny, new QuerySampler(0.1, 100, new Random(0L) {
+            @Override
+            public double nextDouble() {
+                return 0.999999; // above any probability the small scale gives
+            }
+        }), List.of(sampled::add), new CostBudget(0.0, 0.0), events);
+        CapturedQuery query = new CapturedQuery(new String[] { "idx" }, "vec", new float[] { 1f }, 10, 100, null, null, List.of(), null);
+
+        pipeline.accept(new CapturedSearch(query, List.of(), 1, 0.5));
+        pipeline.accept(new CapturedSearch(query, List.of(), 1, 0.5));
+        pipeline.accept(search(new float[] { 2f })); // not tracked, as there is no room
+
+        assertThat(pipeline.picked(), equalTo(0L));
+        assertThat(pipeline.eventsKept(), equalTo(3L));
+        assertThat(sampled.size(), equalTo(3));
+        assertTrue(sampled.stream().allMatch(SampledQuery::isEvent));
+        assertThat("two events of the same query", sampled.get(0).eventId().equals(sampled.get(1).eventId()), equalTo(false));
+        assertThat("captured with 0.5 and kept with 0.25", sampled.get(0).tracked().inclusionProbability(), closeTo(0.125, 1e-12));
+        assertThat("each is one search, standing for two", sampled.get(0).tracked().weightedMultiplicity(), closeTo(2.0, 1e-12));
+    }
+
+    public void testNoEventsAreKeptWithoutARate() {
+        SamplingPipeline pipeline = pipeline(new Random(0L));
+
+        pipeline.accept(search(new float[] { 1f }));
+        pipeline.accept(search(new float[] { 1f }));
+
+        assertThat(pipeline.eventsKept(), equalTo(0L));
+        assertTrue(sampled.stream().noneMatch(query -> query.eventId() != null));
+    }
+
+    private SamplingPipeline pipeline(Random random) {
+        return new SamplingPipeline(tracker, new QuerySampler(1.0, 100, random), List.of(sampled::add));
+    }
+
+    private static CapturedSearch search(float[] vector) {
+        CapturedQuery query = new CapturedQuery(new String[] { "idx" }, "vec", vector, 10, 100, null, null, List.of(), null);
+        return new CapturedSearch(query, List.of(), 1, 1.0);
+    }
+}

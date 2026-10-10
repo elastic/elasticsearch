@@ -45,6 +45,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.OTEL_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.PROFILING_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.PROMETHEUS_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.QUERY_SAMPLING_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.REINDEX_DATA_STREAM_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ROLLUP_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SEARCHABLE_SNAPSHOTS_ORIGIN;
@@ -182,6 +183,7 @@ public final class AuthorizationUtils {
             case CONNECTORS_ORIGIN:
             case INFERENCE_ORIGIN:
             case ESQL_ORIGIN:
+            case QUERY_SAMPLING_ORIGIN:
             case DATA_RECOVERY_ORIGIN:
             case TASKS_ORIGIN:   // TODO use a more limited user for tasks
                 securityContext.executeAsInternalUser(InternalUsers.XPACK_USER, version, consumer);

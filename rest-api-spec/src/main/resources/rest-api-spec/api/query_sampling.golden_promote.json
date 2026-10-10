@@ -1,0 +1,33 @@
+{
+  "query_sampling.golden_promote": {
+    "documentation": {
+      "url": null,
+      "description": "Promote stored sampled queries that have their ground truth to a new version of the golden dataset"
+    },
+    "stability": "experimental",
+    "visibility": "feature_flag",
+    "feature_flag": "es.query_sampling_feature_flag_enabled",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_query_sampling/golden/promote",
+          "methods": [
+            "POST"
+          ]
+        }
+      ]
+    },
+    "params": {
+      "max": {
+        "type": "number",
+        "description": "The most queries to promote",
+        "default": 1000
+      }
+    }
+  }
+}

@@ -1207,6 +1207,10 @@ public class StatelessPlugin extends Plugin
                     memoryMetricsService,
                     objectStoreService
                 );
+                final var snapshotBacklogTracker = snapshotBacklogTrackerRef.get();
+                if (snapshotBacklogTracker != null) {
+                    provider.onSnapshotBacklogTrackerCreated(snapshotBacklogTracker);
+                }
             }
         }
 

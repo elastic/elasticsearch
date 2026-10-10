@@ -21,17 +21,18 @@ Dedicated page
 :   [elastic.co](https://www.elastic.co/downloads/jdbc-client) provides links, typically for manual downloads.
 
 Maven dependency
-:   [Maven](https://maven.apache.org/)-compatible tools can retrieve it automatically as a dependency:
+:   [Maven](https://maven.apache.org/)-compatible tools can retrieve it automatically as a dependency from [Maven Central Repository](https://search.maven.org/artifact/org.elasticsearch.plugin/x-pack-sql-jdbc):
 
 ```xml subs=true
 <dependency>
   <groupId>org.elasticsearch.plugin</groupId>
   <artifactId>x-pack-sql-jdbc</artifactId>
-  <version>{{version.stack}}</version>
+  <version>{{version.stack}}</version> <1>
 </dependency>
 ```
+1. Replace the version with your {{es}} version if it differs.
 
-from [Maven Central Repository](https://search.maven.org/artifact/org.elasticsearch.plugin/x-pack-sql-jdbc), or from `artifacts.elastic.co/maven` by adding it to the repositories list:
+You can also retrieve the driver from `artifacts.elastic.co/maven` by adding it to the repositories list:
 
 ```xml
 <repositories>

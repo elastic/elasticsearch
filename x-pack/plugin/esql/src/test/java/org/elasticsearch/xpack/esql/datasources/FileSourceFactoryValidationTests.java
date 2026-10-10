@@ -93,15 +93,29 @@ public class FileSourceFactoryValidationTests extends ESTestCase {
 
     /**
      * The provider cache keys on the whole config map, so a framework-injected key left in it
-     * fragments the cloud-client pool. With the definition version that is per dataset: every
+     * fragments the cloud-client pool. With a definition version that is per dataset: every
      * dataset over one bucket would build its own client, and past
      * {@code StorageProviderCache.MAX_TOTAL_ENTRIES} concurrent ones the query fails outright.
+     * <p>
+     * Enumerated from {@link DefinitionVersion} rather than named one at a time, because naming them
+     * is what failed: this case asserted the file-tier key alone and passed while the dataset-tier key
+     * it did not mention reached provider configuration. Every version that travels in a query's config
+     * has this property, so the census is the assertion.
      */
-    public void testFrameworkKeysStripTheDefinitionVersion() {
-        assertTrue(
-            "the definition version must not reach a storage provider configuration",
-            StorageProviderRegistry.FRAMEWORK_KEYS.contains(DefinitionVersion.CONFIG_KEY)
-        );
+    public void testFrameworkKeysStripEveryDefinitionVersion() throws Exception {
+        Set<String> versionKeys = new TreeSet<>();
+        for (Field field : DefinitionVersion.class.getFields()) {
+            if (Modifier.isStatic(field.getModifiers()) && field.getType() == String.class && field.getName().endsWith("CONFIG_KEY")) {
+                versionKeys.add((String) field.get(null));
+            }
+        }
+        assertTrue("DefinitionVersion must publish at least the two tiers' keys, found " + versionKeys, versionKeys.size() >= 2);
+        for (String key : versionKeys) {
+            assertTrue(
+                "a definition version must not reach a storage provider configuration: " + key,
+                StorageProviderRegistry.FRAMEWORK_KEYS.contains(key)
+            );
+        }
     }
 
     public void testCoordinatorKeysIncludesAllErrorPolicyKeys() {

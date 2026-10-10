@@ -14,45 +14,29 @@ import java.util.Objects;
 /**
  * Address of the memoized multi-file statistics fold for one resolved file SET.
  * <p>
- * Identity is the listing's 128-bit file-set fingerprint - a commutative fold of every file's path, mtime and
- * size, plus the file count - which makes this key correct-or-miss by construction: any file added, removed or
- * modified derives a different key, and the stale entry ages out through the LRU with no invalidation protocol.
+ * The file-set fingerprint - a commutative fold of every file's path, mtime and size, plus the count - makes this
+ * key correct-or-miss by construction: any file added, removed or modified derives a different key and the stale
+ * entry ages out through the LRU. {@code pattern} is part of the address rather than diagnostics, because two
+ * globs that happen to resolve to one file set are two datasets.
  * <p>
- * A kind of its own, rather than a per-file key with a fingerprint hung off it. The per-file reconcile and
- * lookup paths cannot reach this address at all now, which is what the previous shape needed a
- * {@code requireNonNull} tripwire and an {@code isDatasetAggregate()} test on every consumer to approximate.
+ * {@code datasetVersion} is which definition exactly ({@code DefinitionVersion.ofDataset}). A dataset-level fold
+ * is determined by one definition entire, so any edit to it moves this address and the previous definition's fold
+ * becomes unreachable - this tier's invalidation protocol, in place of a notification.
  * <p>
- * {@code pattern} is the glob this fold was resolved from. It is part of the address and not diagnostics: two
- * different globs that happen to resolve to one file set are two datasets, and sharing a fold between them
- * would be a behaviour change rather than a saving.
- * <p>
- * <b>This address carries no read configuration.</b> It stores a bare row count with no stamp and no licence,
- * so the serve path's unstamped pass-through - which exists for the columnar readers, that harvest without
- * stamping - fires on it, and nothing compares the configuration that produced the fold against the one
- * consuming it.
- * <p>
- * <b>That is reachable as a wrong count, and it is not new here.</b> A dynamic-declared dataset and an
- * inferred one over the same resource and settings mint the same address: {@code DefinitionVersion} folds the
- * resource, the dataset settings and the parent, and a mapping is neither of those, so the identity cannot
- * tell them apart. A dynamic mapping is not {@code isDeclaredSchema}, so it takes the first-file-wins rail and
- * reaches this address; and the non-strict overlay does more than retype in place - appending an absent
- * declared column upgrades a CSV or TSV read to DECLARED, which binds a headerless file differently from an
- * inferred read of it, so the two do NOT see the same survivor set. Once the per-file records are evicted and
- * the fold is not, the declared read is served the inferred read's count having read nothing. Measured, not
- * argued. The previous shape keyed this address equally blind to the mapping, so the exposure predates the
- * split; what the split changes is that the fold now outlives the per-file records in its own slice.
- * <p>
- * The fix is to fold the bound read's configuration into this key, or to refuse the memoized fold whenever a
- * declared mapping is in play.
+ * No read configuration: one definition over one file set performs one read. A per-file record is addressed by
+ * {@link DatasetIdentity} instead, because one file's measurements are reusable by any dataset reading it and
+ * there a read configuration does have two reads to separate.
  */
-public record DatasetAggregateKey(DatasetIdentity dataset, String pattern, FileSetFingerprint fileSet) {
+public record DatasetAggregateKey(String datasetVersion, String pattern, FileSetFingerprint fileSet) {
 
     public DatasetAggregateKey {
-        Objects.requireNonNull(dataset, "dataset aggregate key requires a dataset identity");
         Objects.requireNonNull(fileSet, "dataset aggregate key requires a file-set fingerprint");
+        if (datasetVersion == null || datasetVersion.isEmpty()) {
+            throw new IllegalArgumentException("a dataset aggregate address needs the definition it belongs to");
+        }
     }
 
-    public static DatasetAggregateKey of(String pattern, FileSetFingerprint fileSet, DatasetIdentity dataset) {
-        return new DatasetAggregateKey(dataset, pattern == null ? "" : pattern, fileSet);
+    public static DatasetAggregateKey of(String pattern, FileSetFingerprint fileSet, String datasetVersion) {
+        return new DatasetAggregateKey(datasetVersion, pattern == null ? "" : pattern, fileSet);
     }
 }

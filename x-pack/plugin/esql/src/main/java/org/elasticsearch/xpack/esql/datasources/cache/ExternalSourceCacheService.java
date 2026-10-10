@@ -767,12 +767,13 @@ public class ExternalSourceCacheService implements Closeable {
      */
     @Nullable
     private static Map<String, Object> foldQueryDeltaStripes(StripeDelta delta) {
-        // TRIPWIRE — coercion asymmetry vs foldCommittedStripes: the stripes folded here are the delta's
-        // RAW per-stripe stats, while foldCommittedStripes folds entry-committed stripes that went through
-        // coerceColumnStatsToResolvedTypes. Safe today because this fold's only consumer is the dataset
-        // aggregate (sumIfFullyCovered), which reads row_count/mtime/fingerprint — never per-column
-        // min/max. If GA extends the dataset aggregate to MIN/MAX, this fold must coerce like the
-        // committed path (or the two folds must share the coercion) before per-column keys are served.
+        // TRIPWIRE — coercion asymmetry vs foldCommittedStripes. Three cases now, not two: the stripes folded
+        // HERE are the delta's RAW per-stripe stats; foldCommittedStripes folds entry-committed stripes, which
+        // went through coerceColumnStatsToResolvedTypes where the delta's read was the record's own and are
+        // stored as harvested where it was not. Safe today because this fold's only consumer is the dataset
+        // aggregate (sumIfFullyCovered), which reads row_count/mtime/fingerprint — never per-column min/max.
+        // If GA extends the dataset aggregate to MIN/MAX, this fold must coerce like the committed path (or the
+        // two folds must share the coercion) before per-column keys are served.
         return foldStripes(
             delta.lastStripeOrdinal(),
             k -> delta.stripes().get(k),
@@ -843,8 +844,8 @@ public class ExternalSourceCacheService implements Closeable {
             }
             // Load-bearing on the stripes.size() == 1 branch, which bypasses mergeStatistics entirely; on the fold
             // branch this is now an idempotent overwrite, since the merge folds the read configuration itself. The
-            // value written here is the entry's own, and stripes within one entry are same-configuration by the
-            // read-configuration gate in applyStripeDelta, so the two agree by construction.
+            // value written here is the entry's own, and stripes within one entry are same-configuration because
+            // the statistics address carries the read: a foreign read's stripes accumulate in their own record.
             if (readConfig != null && readConfig.isEmpty() == false) {
                 whole.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, readConfig);
             }
@@ -1370,14 +1371,11 @@ public class ExternalSourceCacheService implements Closeable {
             // of fact. The check this replaces existed because both kinds shared a store, and the sibling
             // whole-file arm had it while this one did not — which was a shipped defect.
             StatisticsKey statsKey = StatisticsKey.of(key, delta.readConfig());
-            // Read-shape gate, stricter than the whole-file path's: stripe state is an accumulating fold, so a
-            // foreign-configured delta cannot contribute even its row count without mixing two reads' stripes
-            // into one cover. Same-shape only; anything else safe-misses to a scan. The gate is now the address
-            // itself for the stripe state, and this comparison keeps a delta off a file whose schema record was
-            // resolved under a different read, where the types below would be the wrong ones to coerce against.
-            if (Objects.equals(readConfigStampOf(schemaRecord), delta.readConfig()) == false) {
-                continue;
-            }
+            // A foreign read's stripes accumulate in their own record, which the address above already separates,
+            // so they cannot mix into this record's cover. Refusing them instead cost the whole measurement: a
+            // retyping declaration resolves to a read whose stamp never equals the record's, so a segmented read
+            // of a mapped dataset filed nothing anywhere. This is the whole-file arm's rule for the chunked path.
+            boolean deltaIsTheRecordsOwnRead = Objects.equals(readConfigStampOf(schemaRecord), delta.readConfig());
             if (applied.add(statsKey) == false) {
                 continue;
             }
@@ -1399,16 +1397,17 @@ public class ExternalSourceCacheService implements Closeable {
             for (Map.Entry<Long, Map<String, Object>> stripe : delta.stripes().entrySet()) {
                 // Push the resolved column type down to each stripe's min/max before it is stored, so the
                 // 0..K fold (foldCommittedStripes -> mergeStatistics) never folds a Long extremum against a
-                // Double one for the same column. The types are the schema record's OWN, which is sound here
-                // precisely because the gate above established that this delta's read IS that record's read.
+                // Double one for the same column. The types are the schema record's OWN, so this is sound only
+                // where this delta's read IS that record's read.
                 // dropUnrepresentable=false: an unrepresentable value is left for that fold's POISON to
                 // safe-miss the whole column (a per-stripe drop would fold a subset).
-                Map<String, Object> stripeStats = coerceColumnStatsToResolvedTypes(
-                    stripe.getValue(),
-                    schemaRecord.columnNames(),
-                    schemaRecord.columnTypes(),
-                    false
-                );
+                //
+                // A foreign read is stored as harvested: no record holds the right types to normalise it against,
+                // and its values are already in the types its own address names. A pair that still cannot fold is
+                // poisoned by mergeStatistics and safe-misses the column, never a wrong number.
+                Map<String, Object> stripeStats = deltaIsTheRecordsOwnRead
+                    ? coerceColumnStatsToResolvedTypes(stripe.getValue(), schemaRecord.columnNames(), schemaRecord.columnTypes(), false)
+                    : stripe.getValue();
                 enriched.put(ExternalStats.STRIPE_ENTRY_PREFIX + stripe.getKey(), stripeStats);
             }
             if (delta.lastStripeOrdinal() >= 0) {
@@ -1418,7 +1417,10 @@ public class ExternalSourceCacheService implements Closeable {
             if (wholeFile != null) {
                 clearStripeState(enriched); // compaction: the fold subsumes the stripes; weight back to O(1)
                 enriched.putAll(wholeFile);
-                if (completedFold == null) {
+                // Only the record's own read returns a fold, which is this method's contract: the value returned
+                // describes the record it was matched against. It is not what keeps a foreign read off the pending
+                // dataset-aggregate promise - the caller folds its own delta when nothing is returned.
+                if (completedFold == null && deltaIsTheRecordsOwnRead) {
                     completedFold = wholeFile;
                 }
             }
@@ -1577,8 +1579,9 @@ public class ExternalSourceCacheService implements Closeable {
      */
     private static Map<String, Object> foldCommittedStripes(Map<String, Object> enriched, StripeDelta delta) {
         long lastIndex = enriched.get(ExternalStats.STRIPE_LAST_INDEX_KEY) instanceof Number n ? n.longValue() : -1L;
-        // The stripes folded here went through coerceColumnStatsToResolvedTypes when committed — see the
-        // TRIPWIRE on foldQueryDeltaStripes for the coercion asymmetry between the two foldStripes callers.
+        // Coerced on commit only where the delta's read was the record's own; a foreign read's stripes are stored
+        // as harvested, in their own record, where they are already in that address's types. See the TRIPWIRE on
+        // foldQueryDeltaStripes.
         return foldStripes(lastIndex, k -> {
             if (enriched.get(ExternalStats.STRIPE_ENTRY_PREFIX + k) instanceof Map<?, ?> stripe) {
                 @SuppressWarnings("unchecked")

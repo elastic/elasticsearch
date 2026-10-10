@@ -183,20 +183,26 @@ public class ExternalReadConfigContaminationIT extends AbstractExternalDataSourc
     }
 
     /**
-     * The other direction, so the fix cannot be an over-restriction. Under the default FAIL_FAST policy the physical
-     * record count is the same number for every declaration, and the producers stamp a licence saying so. That
-     * licence must survive the multi-file fold as an AND, and the declared read must still be served the count
-     * without re-reading. This one is NOT red on the parent -- it passes there through the unstamped pass-through --
-     * so read it as a guard against the fix taking too much, not as evidence the fix works.
+     * The other direction, so the fix cannot be an over-restriction: under FAIL_FAST the physical record count is
+     * the same number for every declaration, and the licence saying so survives the multi-file fold.
+     * <p>
+     * What the licence does not do is carry one dataset's fold to another. A dataset-level fold is addressed by the
+     * definition it belongs to, so these two - same files, same settings, different mapping - hold separate folds
+     * and the second pays one cold scan to measure its own. The cost is asserted rather than implied: one scan per
+     * definition, not one per query.
      */
-    public void testLicensedCountStillCrossesTheMultiFileFold() throws Exception {
+    public void testLicensedCountCrossesReadsWithinADatasetButNotBetweenDatasets() throws Exception {
         String uris = writeTwoFileFixture(false);
         String inferred = register("lic_inferred", uris, null, false);
         String declared = register("lic_declared", uris, mappingTsWithDialect(), false);
 
         assertScanRows(inferred, 2L * ROWS);
         assertScanRows(inferred, 0L);
-        assertScanRows(declared, 0L); // the licensed count crosses; only the extrema are configuration-bound
+        // A different definition: its own fold has not been measured yet, so this scan measures it.
+        assertScanRows(declared, 2L * ROWS);
+        // And having measured it, the declared read warms - which is what shows the licence still works across the
+        // reads of one definition, since the extrema remain configuration-bound either way.
+        assertScanRows(declared, 0L);
     }
 
     /**
@@ -235,6 +241,40 @@ public class ExternalReadConfigContaminationIT extends AbstractExternalDataSourc
      * uncoercible value therefore fails to coerce whenever the column is projected, which a plain header would
      * never produce — inference would see the value and widen the column to text instead.
      */
+    /**
+     * The SINGLE-FILE case of the same cost, where no dataset-level fold exists to be blamed for it. A dataset tier
+     * needs at least two files, so this isolates the per-file half: a retyping read asks only its own overlaid
+     * address, and the licensed row count the reconcile files at the record's OWN address is no longer read by it.
+     * <p>
+     * The bound is what this pins. One scan per definition, then warm - not one scan per query, and not a
+     * permanently cold dataset. Its multi-file sibling cannot show which half caused it, because both halves are
+     * in play there.
+     */
+    public void testASingleFileRetypingReadPaysOneScanThenWarms() throws Exception {
+        String uri = writeOneFileFixture();
+        String plain = register("single_plain", uri, null, false);
+        String declared = register("single_declared", uri, mappingTsWithDialect(), false);
+
+        assertScanRows(plain, ROWS);
+        assertScanRows(plain, 0L);
+        // A different definition over the same file: its own address holds nothing yet, so this scan measures it.
+        assertScanRows(declared, ROWS);
+        // And having measured it, the declared read warms - one scan, not one per query.
+        assertScanRows(declared, 0L);
+    }
+
+    /** One file of the dialect fixture, so no dataset-level fold can exist (that tier needs two files or more). */
+    private String writeOneFileFixture() throws Exception {
+        String[] dates = { "2024-03-02", "2024-01-05", "2024-12-01", "2024-07-08", "2024-05-11" };
+        StringBuilder a = new StringBuilder("id:integer,ts:datetime\n");
+        for (int i = 0; i < ROWS; i++) {
+            a.append(i).append(',').append(dates[i % dates.length]).append("T00:00:00").append('\n');
+        }
+        Path file = createTempDir().resolve("single.csv");
+        Files.writeString(file, a.toString());
+        return StoragePath.fileUri(file);
+    }
+
     private String writeTypedDropFixture() throws Exception {
         StringBuilder sb = new StringBuilder("name:keyword,age:integer\n");
         for (int i = 0; i < ROWS; i++) {

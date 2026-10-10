@@ -54,9 +54,17 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 
 public class ExternalSourceCacheServiceTests extends ESTestCase {
+
+    /**
+     * Stands in for {@code DefinitionVersion.ofDataset}. These cases are about the store, not about what the
+     * version folds, so one opaque value of the right shape is enough; what it must fold is pinned in
+     * {@code DefinitionVersionTests}.
+     */
+    private static final String DATASET_VERSION = "0123456789abcdef0123456789abcdef";
     private static final Map<String, Object> HIVE_ON = Map.of();
 
     private static Settings defaultSettings() {
@@ -1100,9 +1108,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
-    public void testForeignConfiguredStripeDeltaDoesNotEnrich() throws Exception {
-        // Stripe state is an accumulating per-entry cover, so a delta from another read cannot contribute even its
-        // row count without mixing two reads into one fold. Stricter than the whole-file path, deliberately.
+    /**
+     * A stripe delta from another read keeps out of this record's cover and lands in its OWN, which is what makes a
+     * segmented read of a declared dataset warm at all. Asserting only its absence here would pass either way,
+     * since this path never writes the schema record; the two addresses are what discriminate.
+     */
+    public void testForeignStripeDeltaIsFiledAtItsOwnReadNotTheRecords() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/a.ndjson";
             long mtime = 1000L;
@@ -1135,6 +1146,26 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 "a stripe delta from another read must not enter this entry's cover",
                 entry.safeMetadata().get(ExternalStats.STRIPE_ENTRY_PREFIX + "0")
             );
+
+            Map<String, Object> ownRead = service.getStatistics(StatisticsKey.of(key, "config-own"));
+            assertTrue(
+                "the foreign delta must not reach the record's own read, at any key",
+                ownRead == null || ownRead.containsKey(ExternalStats.STRIPE_ENTRY_PREFIX + "0") == false
+            );
+
+            Map<String, Object> foreignRead = service.getStatistics(StatisticsKey.of(key, "config-foreign"));
+            assertNotNull("a stripe delta must be filed under the read that produced it", foreignRead);
+            assertNotNull(
+                "the foreign read's own cover must carry its stripe, or a segmented read of a declared dataset can " + "never warm",
+                foreignRead.get(ExternalStats.STRIPE_ENTRY_PREFIX + "0")
+            );
+            @SuppressWarnings("unchecked")
+            Map<String, Object> stripeZero = (Map<String, Object>) foreignRead.get(ExternalStats.STRIPE_ENTRY_PREFIX + "0");
+            assertEquals(
+                "and the stripe carries the rows that read measured",
+                30L,
+                stripeZero.get(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
         }
     }
 
@@ -1145,8 +1176,8 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
      * cover. That is worse on this rail than on the whole-file one: the cover accumulates, so a foreign fragment can
      * complete a span and make a partial read answer as a whole one.
      * <p>
-     * Distinct from {@link #testForeignConfiguredStripeDeltaDoesNotEnrich}: there the read configs differ and the
-     * read-shape gate rejects the delta. Here they agree, and only refusing an unattributable match stops it.
+     * Distinct from {@link #testForeignStripeDeltaIsFiledAtItsOwnReadNotTheRecords}: there the read configs differ, so
+     * the delta lands in its own record. Here they agree, and only refusing an unattributable match stops it.
      */
     public void testStripeDeltaFromAnotherStoreEntersNeitherCover() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
@@ -1303,7 +1334,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             );
 
             Map<String, Object> aggregate = service.getDatasetAggregate(key);
-            assertNotNull("the folded stripe result must carry its read configuration through to the promise", aggregate);
+            assertNotNull("the folded stripe result must reach the promise it was registered against", aggregate);
             assertEquals(100L, ((Number) aggregate.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
         }
     }
@@ -2276,7 +2307,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
      * normalise one read's extrema against another read's types — which it did, because the sibling whole-file
      * arm had that check and this one did not. There is nothing left to guard. The schema store holds one kind
      * of fact, so the delta cannot be handed the wrong thing, and the types it coerces against are the schema
-     * record's own because the read-shape gate established that the delta's read IS that record's read.
+     * record's own, which is now established by the address rather than by a refusal.
      * <p>
      * What is asserted now is the placement, and that the coercion still happens where it should: a DOUBLE
      * column and a long past 2^53 show the extremum rounding in the committed stripe, which is the behaviour
@@ -3040,11 +3071,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     // --- dataset-level aggregate (warm COUNT(*) survival independent of per-file entries) ---
 
     private static DatasetAggregateKey datasetKey() {
-        return DatasetAggregateKey.of(
-            "s3://bucket/data/*.csv",
-            new FileSetFingerprint(111, 222),
-            TestDatasetIdentities.identity("csv", "", Map.of("format", "csv"))
-        );
+        return DatasetAggregateKey.of("s3://bucket/data/*.csv", new FileSetFingerprint(111, 222), DATASET_VERSION);
     }
 
     public void testDatasetAggregateRoundtrip() {
@@ -3213,7 +3240,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 DatasetAggregateKey key = DatasetAggregateKey.of(
                     "s3://bucket/g" + g + "/*.csv",
                     new FileSetFingerprint(g, g),
-                    TestDatasetIdentities.identity("csv", "", Map.of("format", "csv"))
+                    DATASET_VERSION
                 );
                 service.registerPendingDatasetAggregate(key, paths, pathsPerGlob, "fp", Map.of(), "csv", "s3://bucket/g" + g + "/*.csv");
             }
@@ -3233,11 +3260,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         // reconcile would enrich the entry and overwrite the whole-set 100 with the contribution's 42.
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String glob = "s3://bucket/data/*.csv";
-            DatasetAggregateKey key = DatasetAggregateKey.of(
-                glob,
-                new FileSetFingerprint(1, 2),
-                TestDatasetIdentities.identity("csv", "", Map.of("format", "csv"))
-            );
+            DatasetAggregateKey key = DatasetAggregateKey.of(glob, new FileSetFingerprint(1, 2), DATASET_VERSION);
             service.putDatasetAggregate(key, 100L);
 
             Map<String, Object> strayContribution = new LinkedHashMap<>();
@@ -3472,18 +3495,10 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             String pathA = "s3://bucket/data/a.csv";
             String pathB = "s3://bucket/data/b.csv";
             Map<String, Long> paths = Map.of(pathA, 1000L, pathB, 2000L);
-            DatasetAggregateKey oldest = DatasetAggregateKey.of(
-                "g0",
-                new FileSetFingerprint(0, 0),
-                TestDatasetIdentities.identity("csv", "", Map.of())
-            );
+            DatasetAggregateKey oldest = DatasetAggregateKey.of("g0", new FileSetFingerprint(0, 0), DATASET_VERSION);
             service.registerPendingDatasetAggregate(oldest, paths, 2, "fp", Map.of(), "csv", "g0");
             for (int i = 1; i <= 64; i++) {
-                DatasetAggregateKey k = DatasetAggregateKey.of(
-                    "g" + i,
-                    new FileSetFingerprint(i, i),
-                    TestDatasetIdentities.identity("csv", "", Map.of())
-                );
+                DatasetAggregateKey k = DatasetAggregateKey.of("g" + i, new FileSetFingerprint(i, i), DATASET_VERSION);
                 service.registerPendingDatasetAggregate(k, paths, 2, "fp", Map.of(), "csv", "g" + i);
             }
 
@@ -3492,11 +3507,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             );
 
             assertNull("evicted oldest promise must not materialize", service.getDatasetAggregate(oldest));
-            DatasetAggregateKey newest = DatasetAggregateKey.of(
-                "g64",
-                new FileSetFingerprint(64, 64),
-                TestDatasetIdentities.identity("csv", "", Map.of())
-            );
+            DatasetAggregateKey newest = DatasetAggregateKey.of("g64", new FileSetFingerprint(64, 64), DATASET_VERSION);
             Map<String, Object> served = service.getDatasetAggregate(newest);
             assertNotNull("surviving promise must materialize", served);
             assertEquals(300L, served.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
@@ -3604,8 +3615,8 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
     /**
      * The read-configuration arm. The entry is seeded carrying {@code rcA} deliberately: with an unstamped entry the
-     * entry-level read-configuration gate in applyStripeDelta refuses the delta first and this test passes even with
-     * the fold's own arm disabled -- measured, so the seeding is what makes it discriminate.
+     * delta reaches a different address and this test passes even with the fold's own arm disabled -- measured, so
+     * the seeding is what makes it discriminate.
      */
     public void testReadConfigMismatchInsideFoldBails() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
@@ -4047,23 +4058,29 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     }
 
     /**
-     * A stripe delta from a FOREIGN read must not be committed at all, because there is no record whose types
-     * are the right ones to normalise it against.
+     * A stripe delta from a FOREIGN read is committed at its OWN address and NEVER NORMALISED, because there is no
+     * record whose types are the right ones to normalise it against.
+     * <p>
+     * Refusing it outright keeps them apart too, and costs the measurement: a retyping declaration resolves to a
+     * read whose stamp never equals the record's, so a segmented read of such a dataset files nothing at any
+     * address. The hazard to stop is the COERCION, not the storage - and its
+     * whole-file sibling has stored a foreign read as harvested all along.
      * <p>
      * The per-stripe coercion targets the schema record's resolved types, and that is sound only when the
-     * delta's read IS that record's read — which is what the read-shape gate establishes. Without the gate the
-     * delta lands at the foreign read's own address and its extrema are coerced through a resolution that
-     * belongs to neither: this read did not produce those types, and the record that did is not this one.
+     * delta's read IS that record's read, which {@code deltaIsTheRecordsOwnRead} decides. Coercing a foreign
+     * read's extrema would push them through a resolution belonging to neither: this read did not produce those
+     * types, and the record that did is not this one.
      * <p>
      * It is asserted at the FOREIGN address, which is the part the sibling cases cannot see: they read through
      * the record's own stamp, so a delta misfiled under another read is invisible to them. That is why
      * mutating this gate to a no-op left every test in the suite green.
      * <p>
-     * Inject the defect by making the {@code Objects.equals(readConfigStampOf(schemaRecord), delta.readConfig())}
-     * gate in {@code applyStripeDelta} a no-op: stripe state appears at the foreign address, carrying a value
-     * rounded through a DOUBLE resolution this read never asked for.
+     * Inject the defect by coercing unconditionally in {@code applyStripeDelta} - dropping the
+     * {@code deltaIsTheRecordsOwnRead} branch around {@code coerceColumnStatsToResolvedTypes}: the foreign read's
+     * exact extremum is then rounded through a DOUBLE resolution this read never asked for, and the assertion on
+     * the stored value fails while the addresses still look right.
      */
-    public void testAForeignReadsStripeDeltaIsNotCommittedAnywhere() throws Exception {
+    public void testAForeignReadsStripeDeltaIsCommittedUncoercedAtItsOwnAddress() throws Exception {
         long mtime = 1000L;
         long pastExactDoubleRange = 9007199254740993L; // 2^53 + 1
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
@@ -4077,9 +4094,17 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             delta.put(SourceStatisticsSerializer.STATS_COL_PREFIX + "v.min", pastExactDoubleRange);
             service.reconcileSourceStatsFromContributions(Map.of(path, List.of(delta)));
 
-            assertNull(
-                "a foreign read's stripe delta must not be committed at its own address: nothing there types it",
-                service.getStatistics(StatisticsKey.of(key, "foreign"))
+            Map<String, Object> foreign = service.getStatistics(StatisticsKey.of(key, "foreign"));
+            assertNotNull("a foreign read's stripe delta belongs at the address of the read that produced it", foreign);
+            Object storedStripe = foreign.get(ExternalStats.STRIPE_ENTRY_PREFIX + "0");
+            assertThat("the foreign read's own cover carries its stripe", storedStripe, instanceOf(Map.class));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> storedStats = (Map<String, Object>) storedStripe;
+            assertEquals(
+                "the extremum is stored EXACTLY as harvested: nothing here types it, so nothing may round it through "
+                    + "another read's resolution",
+                pastExactDoubleRange,
+                storedStats.get(SourceStatisticsSerializer.STATS_COL_PREFIX + "v.min")
             );
             Map<String, Object> own = service.getStatistics(StatisticsKey.of(key, "own"));
             assertTrue(

@@ -8,11 +8,22 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.cluster.metadata.Dataset;
+import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
+import org.elasticsearch.cluster.metadata.DatasetMapping;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.hash.MurmurHash3;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Locale;
@@ -78,6 +89,62 @@ public final class DefinitionVersion {
 
     private DefinitionVersion() {}
 
+    private static final int MEMO_ENTRIES = 1024;
+    private static final TimeValue MEMO_TTL = TimeValue.timeValueMinutes(30);
+
+    /**
+     * Both versions are a pure function of two immutable cluster-state objects, and the rewrite that mints them
+     * runs once per QUERY - so without this every query after the first rebuilds a value that cannot have changed,
+     * walking every declared column to do it.
+     * <p>
+     * Keyed by the IDENTITY of the two definitions, not by their contents. {@code Dataset.equals} deep-compares
+     * the mapping, which is the work this exists to avoid; and identity is the right question, because
+     * {@code DatasetMetadata} is a diffable custom - an unchanged one survives a publish by reference, and any
+     * edit replaces every {@code Dataset} in the project. An identity HASH collision lands two keys in one bucket
+     * and then fails {@code equals}, so it costs a recomputation rather than a wrong answer.
+     * <p>
+     * The premise is that a {@code Dataset} does not change under its own reference. It holds final fields, but
+     * its constructor wraps the caller's settings map rather than copying it, so a caller that retained and
+     * mutated that map would be served a pre-mutation version for as long as the entry lives. Neither production
+     * construction site retains it. The TTL bounds how long such a mistake could persist, and is also why this
+     * cache has one at all: every sibling cache in this package expires its entries, and a definition's version
+     * is cheap enough to re-derive that holding cluster-state objects indefinitely buys nothing.
+     * <p>
+     * Bounded by ENTRY COUNT ({@code Cache}'s default weigher is one per entry), not by bytes: a wide declared
+     * mapping is retained in full, and nothing charges it to a breaker. Exceeding the bound costs recomputation.
+     */
+    private static final Cache<Memo, String> MEMO = CacheBuilder.<Memo, String>builder()
+        .setMaximumWeight(MEMO_ENTRIES)
+        .setExpireAfterWrite(MEMO_TTL)
+        .build();
+
+    private static String memoized(Dataset dataset, DataSource parent, boolean datasetTier) {
+        Memo key = new Memo(dataset, parent, datasetTier);
+        String cached = MEMO.get(key);
+        if (cached != null) {
+            return cached;
+        }
+        String computed = datasetTier ? computeOfDataset(dataset, parent) : computeOf(dataset, parent);
+        MEMO.put(key, computed);
+        return computed;
+    }
+
+    /**
+     * An identity key over the two definitions. {@code equals} compares by reference deliberately: see
+     * {@link #MEMO}. Two distinct instances that happen to be equal simply miss and recompute.
+     */
+    private record Memo(Dataset dataset, DataSource parent, boolean datasetTier) {
+        @Override
+        public boolean equals(Object o) {
+            return o instanceof Memo other && dataset == other.dataset && parent == other.parent && datasetTier == other.datasetTier;
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * (31 * System.identityHashCode(dataset) + System.identityHashCode(parent)) + Boolean.hashCode(datasetTier);
+        }
+    }
+
     /**
      * The version for {@code dataset} read under {@code parent}. Both are folded in, because a dataset
      * inherits its data source's settings: rotating a credential on the source changes what every
@@ -88,39 +155,133 @@ public final class DefinitionVersion {
      * privileged operation; a reader who could choose it could also read what it addresses.
      */
     public static String of(Dataset dataset, DataSource parent) {
-        StringBuilder encoded = new StringBuilder();
-        append(encoded, "res", dataset.resource());
-        encodeSettings(encoded, dataset.settings());
-        append(encoded, "type", parent.type());
-        encodeDataSourceSettings(encoded, parent);
+        return memoized(dataset, parent, false);
+    }
 
-        byte[] bytes = encoded.toString().getBytes(StandardCharsets.UTF_8);
+    private static String computeOf(Dataset dataset, DataSource parent) {
+        return render(canonical(dataset, parent, false));
+    }
+
+    /** Key under which the dataset-tier version travels in a query's merged config map. See {@link #ofDataset}. */
+    public static final String DATASET_CONFIG_KEY = "_dataset_version";
+
+    /**
+     * The version of one dataset <em>as a dataset</em>: everything {@link #of} folds, plus the two names and the
+     * declared mapping. A dataset-level fact is determined by one definition entire, where a per-file fact is
+     * reusable by any dataset reading that file. Neither metadata type carries a version counter, so the content
+     * IS the version and a field left out is an edit that silently reuses the previous measurements;
+     * {@code description} is left out on purpose, changing nothing a reader does.
+     * <p>
+     * A secret contributes what {@link #renderSettingValue} renders - the key id, for the encrypted shape - so a
+     * rotation under the same key id does NOT move this version, where the {@code secretIdentity} this replaced
+     * did. Two data sources are still separated by {@code parent.name()}; one source across a rotation is not,
+     * and the fold it holds is a count over a file set the fingerprint pins.
+     */
+    public static String ofDataset(Dataset dataset, DataSource parent) {
+        return memoized(dataset, parent, true);
+    }
+
+    private static String computeOfDataset(Dataset dataset, DataSource parent) {
+        return render(canonical(dataset, parent, true));
+    }
+
+    /**
+     * The pre-image's fixed-width rendering, shared by both versions so the two cannot drift. Zero-padded,
+     * matching {@code ReadConfigFingerprint} in the hash and the padding, though no longer in how the pre-image
+     * is built: {@code Long.toHexString} does not pad, so (0x1, 0x23) and
+     * (0x12, 0x3) would both render "123", and two definitions rendering to one version share every cache
+     * address - the failure this class exists to prevent.
+     */
+    private static String render(String encoded) {
+        byte[] bytes = encoded.getBytes(StandardCharsets.UTF_8);
         MurmurHash3.Hash128 hash = MurmurHash3.hash128(bytes, 0, bytes.length, 0, new MurmurHash3.Hash128());
-        // Zero-padded, matching ReadConfigFingerprint: Long.toHexString does not pad, so (0x1, 0x23) and
-        // (0x12, 0x3) would both render "123" — and two definitions rendering to one version share every
-        // cache address, which is the failure this class exists to prevent.
         return String.format(Locale.ROOT, "%016x%016x", hash.h1, hash.h2);
     }
 
-    /** Sorted, so two equal definitions encode identically whatever order their settings were stored in. */
-    private static void encodeSettings(StringBuilder encoded, Map<String, Object> settings) {
-        for (Map.Entry<String, Object> e : new TreeMap<>(settings).entrySet()) {
-            append(encoded, e.getKey(), e.getValue() == null ? null : e.getValue().toString());
+    /**
+     * The pre-image, as a canonical JSON document. Serialized rather than hand-encoded for two reasons that are
+     * both about correctness, not brevity.
+     * <p>
+     * JSON quoting delimits every user-controlled string by construction, so no setting key and no declared column
+     * name can forge a field boundary - the failure that a hand-rolled token stream needs length prefixes, block
+     * counts and a test per forgery to hold off, and that two reviews found holes in anyway.
+     * <p>
+     * And a declared column is written by {@link DatasetFieldMapping#toXContent}, so a field added to it is folded
+     * here automatically. The hand-rolled version named {@code type}, {@code path} and {@code format} one at a
+     * time, which meant a new one was silently left out - an edit that would have gone on serving the previous
+     * definition's measurements.
+     * <p>
+     * Canonical means every map is sorted: a parsed definition's iteration order is not part of its identity, and
+     * two equal definitions that hashed differently would never warm.
+     */
+    private static String canonical(Dataset dataset, DataSource parent, boolean datasetTier) {
+        try (XContentBuilder json = JsonXContent.contentBuilder()) {
+            json.startObject();
+            if (datasetTier) {
+                // Which definition exactly. The file tier omits both names: one file's facts are reusable by any
+                // dataset that reads it, so a rename must keep those entries warm.
+                json.field("dataset", dataset.name());
+                json.field("source", parent.name());
+            }
+            json.field("resource", dataset.resource());
+            json.field("type", parent.type());
+            json.field("settings", renderedSettings(dataset.settings()));
+            json.field("source_settings", renderedSourceSettings(parent));
+            if (datasetTier) {
+                encodeMapping(json, dataset.mapping());
+            }
+            json.endObject();
+            return Strings.toString(json);
+        } catch (IOException e) {
+            // JsonXContent writes to a byte array: there is no I/O to fail, so this cannot happen in practice.
+            throw new UncheckedIOException("cannot encode the definition version pre-image", e);
         }
     }
 
     /**
-     * A data source's settings. An encrypted secret contributes its name and the key id it is stored under, never
-     * its value; a secret held as plaintext contributes its value. See the class javadoc for why they differ.
+     * Dataset settings as text, through the same renderer the data source's settings use - a {@code byte[]} would
+     * otherwise render as its identity hash, minting a new version per deserialization. {@code null} renders
+     * distinctly from the absent key, which JSON keeps apart.
      */
-    private static void encodeDataSourceSettings(StringBuilder encoded, DataSource parent) {
-        Map<String, String> sorted = new TreeMap<>();
+    private static Map<String, String> renderedSettings(Map<String, Object> settings) {
+        Map<String, String> rendered = new TreeMap<>();
+        for (Map.Entry<String, Object> e : settings.entrySet()) {
+            rendered.put(e.getKey(), renderSettingValue(e.getValue()));
+        }
+        return rendered;
+    }
+
+    /**
+     * A data source's settings as text. An encrypted secret contributes its key id, never its value; a secret held
+     * as plaintext contributes its value. See the class javadoc for why they differ.
+     */
+    private static Map<String, String> renderedSourceSettings(DataSource parent) {
+        Map<String, String> rendered = new TreeMap<>();
         for (Map.Entry<String, DataSourceSetting> e : parent.settings()) {
-            sorted.put(e.getKey(), renderSettingValue(e.getValue().rawValue()));
+            rendered.put(e.getKey(), renderSettingValue(e.getValue().rawValue()));
         }
-        for (Map.Entry<String, String> e : sorted.entrySet()) {
-            append(encoded, e.getKey(), e.getValue());
+        return rendered;
+    }
+
+    /**
+     * The declared mapping: the dynamic mode, then each column sorted by its logical name and written by its own
+     * {@link DatasetFieldMapping#toXContent}, so a field added to a declared column is folded without an edit here.
+     */
+    private static void encodeMapping(XContentBuilder json, @Nullable DatasetMapping mapping) throws IOException {
+        DatasetMapping.Mappings mappings = mapping == null ? null : mapping.mappings();
+        if (mappings == null) {
+            json.nullField("mapping");
+            return;
         }
+        json.startObject("mapping");
+        json.field("dynamic", mappings.dynamic().name());
+        json.startObject("properties");
+        for (Map.Entry<String, DatasetFieldMapping> e : new TreeMap<>(mappings.properties()).entrySet()) {
+            json.field(e.getKey());
+            e.getValue().toXContent(json, null);
+        }
+        json.endObject();
+        json.endObject();
     }
 
     /** The stored value as something whose text changes whenever the value does. */
@@ -140,17 +301,4 @@ public final class DefinitionVersion {
         return rawValue.toString();
     }
 
-    /**
-     * One field of the pre-image, length-prefixed like {@code ReadConfigFingerprint} so that no
-     * user-controlled value can forge a field boundary: without it the single setting
-     * {@code {"a": "1\u0000b=2"}} and the pair {@code {"a":"1","b":"2"}} encode identically.
-     */
-    private static void append(StringBuilder out, String name, String value) {
-        out.append(name.length()).append(':').append(name);
-        if (value == null) {
-            out.append("-1:");
-        } else {
-            out.append(value.length()).append(':').append(value);
-        }
-    }
 }

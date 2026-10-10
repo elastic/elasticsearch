@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
+import org.elasticsearch.xpack.esql.datasources.DefinitionVersion;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 
@@ -118,6 +119,40 @@ public class ExternalRelationSerializationTests extends AbstractLogicalPlanSeria
             fullSchema,
             roundTripped.metadata().schema()
         );
+    }
+
+    /**
+     * The dataset-tier definition version is coordinator-only and must not reach a data node. THIS is the route it
+     * would take: the Mapper wraps this relation into a {@code FragmentExec} and the data node expands it locally,
+     * so {@code ExternalSourceExec.writeTo} - which strips the same key - never runs on that path.
+     * <p>
+     * Why it matters rather than being tidiness: a data node builds its storage provider from this config map and
+     * {@code StorageProviderCache} keys on the whole map, which is why {@code FRAMEWORK_KEYS} strips the file-tier
+     * version. An older node's {@code FRAMEWORK_KEYS} does not know this key, so it would reach that cache key and
+     * fragment the client pool per dataset definition - a pool that throws at its ceiling rather than degrading.
+     */
+    public void testDatasetVersionDoesNotRideTheRelationOntoTheWire() throws IOException {
+        List<Attribute> output = randomFieldAttributes(1, 3, false);
+        Map<String, Object> config = new HashMap<>();
+        config.put("format", "csv");
+        config.put(DefinitionVersion.DATASET_CONFIG_KEY, "0123456789abcdef0123456789abcdef");
+        SimpleSourceMetadata metadata = new SimpleSourceMetadata(output, "csv", "s3://bucket/x.csv", null, null, Map.of(), config);
+        ExternalRelation original = new ExternalRelation(
+            randomSource(),
+            metadata.location(),
+            metadata,
+            output,
+            FileList.UNRESOLVED,
+            Map.of()
+        );
+
+        ExternalRelation roundTripped = copyInstance(original);
+
+        assertFalse(
+            "the coordinator-only dataset version must not reach a data node",
+            roundTripped.metadata().config().containsKey(DefinitionVersion.DATASET_CONFIG_KEY)
+        );
+        assertEquals("and the rest of the config still travels", "csv", roundTripped.metadata().config().get("format"));
     }
 
     /** The declared read-instructions ride the wire on a node supporting {@code dataset_declared_schema}. */

@@ -10,12 +10,15 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperator;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheTestAccess;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 
@@ -23,7 +26,9 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -32,6 +37,8 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Multi-FILE warm short-circuit regression test. The sibling fold ITs
@@ -48,14 +55,18 @@ import static org.hamcrest.Matchers.equalTo;
  * entries are in place before MIN/MAX, reproducing the production ordering where COUNT short-circuits and
  * MIN/MAX must still serve from the merged dataset-wide column min/max. Run for CSV and NDJSON.
  * <p>
- * <b>Every harvest here is whole-file</b>, and the reason is that no query pragma reaches the request.
+ * <b>Almost every harvest here is whole-file</b>, because no query pragma reaches the request:
  * {@code AbstractEsqlIntegTestCase} attaches {@code getPragmas()} only from its {@code run(String, TimeValue)}
- * overload; every query below builds its own {@code syncEsqlQueryRequest} and goes through the
- * {@code run(EsqlQueryRequest, TimeValue)} override, so nothing selects the parallel-parse path. The
- * contributions this suite produces therefore classify as {@code WholeFile} and never as
- * {@code StripeFragment}, {@code applyStripeDelta} matches nothing, and the cross-file merge is fed by the
- * whole-file path alone. The per-stripe rail is covered by {@code ExternalMultiChunkPerStripeWarmFoldIT};
- * a divergent file read in chunk mode is covered by neither and is a gap, not a claim this suite makes.
+ * overload, and every query below builds its own {@code syncEsqlQueryRequest} and goes through the
+ * {@code run(EsqlQueryRequest, TimeValue)} override. Those contributions classify as {@code WholeFile}, never as
+ * {@code StripeFragment}, so {@code applyStripeDelta} matches nothing and the cross-file merge is fed by the
+ * whole-file path alone.
+ * <p>
+ * The exception is {@code testRetypingMappingWarmsASegmentedRead}, which reaches the chunked commit by SIZE
+ * rather than by pragma - its files pass twice the reader's minimum segment at a 64 KiB {@code segment_size} - and
+ * asserts that geometry from the cold profile rather than assuming it. The multiple-chunks-per-stripe geometry is
+ * still the sibling {@code ExternalMultiChunkPerStripeWarmFoldIT}'s; a divergent file read in chunk mode is
+ * covered by neither and is a gap, not a claim this suite makes.
  * <p>
  * The precise pre-fix-fail / post-fix-pass regression for the cross-file column-stat merge defect lives in
  * {@code MergedSplitStatsTests#testColumnMinMaxUsesChildValueWhenNullCountUnknownButMinMaxPresent}: a
@@ -228,7 +239,6 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
         assertWarmCountShortCircuits(dataset, total);
     }
 
-    @AwaitsFix(bugUrl = "the non-strict declared overlay is not wired to the read-addressed statistics record")
     public void testCsvHeterogeneousCorpusWarmCountServedUnderNullFieldDeclaredDynamic() throws Exception {
         Path dir = createTempDir();
         long total = writeCsvCorpus(dir, true);
@@ -238,15 +248,28 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
             declaredColumns(),
             nullFieldSettings("first_file_wins")
         );
+        // Under null_field no row count is licensed to cross read configurations, so neither the licence nor the
+        // dataset aggregate can answer this warm count - the per-file records at the overlaid address are the only
+        // source. The fallback guard says so rather than leaving it to be re-derived.
+        ExternalSourceCacheService cacheService = internalCluster().getInstance(PlanExecutor.class, internalCluster().getMasterName())
+            .cacheService();
+        long fallbacksBefore = ExternalSourceCacheTestAccess.datasetAggregateFallbacks(cacheService);
         assertWarmCountShortCircuits(dataset, total);
+        assertThat(
+            "the warm count must come from the per-file records, not from the dataset-aggregate fallback",
+            ExternalSourceCacheTestAccess.datasetAggregateFallbacks(cacheService),
+            equalTo(fallbacksBefore)
+        );
     }
 
     /**
      * Two datasets over the same files with the same settings, one declaring its schema and one inferring it. They
      * bind their columns differently — by name against each file's own header, or by position — so they bound a
      * row's width differently and need not count the same rows. Neither may be served the other's memoized count.
-     * <p>Fails if the dataset key stops carrying the binding mode: the strict dataset is then handed the inferred
-     * one's count and answers its first query without reading anything.
+     * <p>What keeps them apart is that a dataset-level fold is addressed by the whole definition it belongs to,
+     * and a declaration is part of a definition. Fails if the dataset key stops carrying the definition version,
+     * or if the version stops folding the mapping: the strict dataset is then handed the inferred one's count and
+     * answers its first query without reading anything.
      */
     public void testStrictAndInferredDatasetsOverOneGlobNeverShareAnAggregate() throws Exception {
         Path dir = createTempDir();
@@ -315,6 +338,230 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
 
     private static final int NDJSON_FILE_COUNT = 12;
     private static final int NDJSON_ROWS_PER_FILE = 4_000;
+
+    /**
+     * Rows per file for the segmented corpus, sized so every file passes {@code 2 * segment_size} at the 64 KiB
+     * minimum and is therefore split into byte-range segments rather than parsed whole. At ~45 bytes a row this is
+     * ~360 KiB a file, comfortably over the 128 KiB a split needs, without writing megabytes into a test.
+     */
+    private static final int SEGMENTED_ROWS_PER_FILE = 8_000;
+    private static final int SEGMENTED_FILE_COUNT = 3;
+
+    /** A corpus whose files are each big enough to be split, so the read publishes stripes instead of whole files. */
+    private static long writeSegmentableNdjsonCorpus(Path dir) throws IOException {
+        long total = 0;
+        for (int f = 0; f < SEGMENTED_FILE_COUNT; f++) {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < SEGMENTED_ROWS_PER_FILE; i++) {
+                long v = total + i;
+                sb.append("{\"id\":").append(v);
+                sb.append(",\"color\":").append(v % 7);
+                sb.append(",\"order_id\":").append(v % 1000);
+                sb.append(",\"value\":").append(v).append("}\n");
+            }
+            Files.writeString(dir.resolve(String.format(Locale.ROOT, "part-%02d.ndjson", f)), sb.toString(), StandardCharsets.UTF_8);
+            total += SEGMENTED_ROWS_PER_FILE;
+        }
+        return total;
+    }
+
+    /** A declaration that RETYPES a column: {@code order_id} is inferred integer and declared keyword. */
+    private static LinkedHashMap<String, DatasetFieldMapping> retypedOrderId() {
+        LinkedHashMap<String, DatasetFieldMapping> columns = new LinkedHashMap<>();
+        columns.put("order_id", new DatasetFieldMapping("keyword", null));
+        return columns;
+    }
+
+    /**
+     * A retyping declaration over SPLIT files - the ordinary shape, since a file splits once it reaches twice its
+     * reader's minimum segment. A split file publishes per-stripe fragments, and that commit path refused any
+     * measurement whose read was not the record's own, so such a dataset filed nothing anywhere. The only arm here
+     * large enough to split; {@code segment_size} sits at its 64 KiB minimum so ~360 KiB files suffice.
+     */
+    public void testRetypingMappingWarmsASegmentedRead() throws Exception {
+        Path dir = createTempDir();
+        long total = writeSegmentableNdjsonCorpus(dir);
+        String dataset = registerNonStrictDataset(
+            "segmented_retyped_ndjson",
+            globUri(dir, "*.ndjson"),
+            retypedOrderId(),
+            Map.of(
+                "format",
+                "ndjson",
+                "error_mode",
+                "null_field",
+                "schema_resolution",
+                "first_file_wins",
+                "file_sort_by",
+                "name",
+                "segment_size",
+                "64kb"
+            )
+        );
+        // The split needs more than one parser thread, and external_parsing_parallelism defaults to the allocated
+        // processors, so on a single-processor runner the read is a whole-file sequential scan: the warm
+        // assertions would still pass and only the geometry assertion would redden, on a correct build. The
+        // sibling suite skips for the same reason.
+        assumeTrue(
+            "a segmented read needs external_parsing_parallelism > 1 (allocated processors)",
+            EsExecutors.allocatedProcessors(Settings.EMPTY) > 1
+        );
+        ExternalSourceCacheService cacheService = internalCluster().getInstance(PlanExecutor.class, internalCluster().getMasterName())
+            .cacheService();
+        String countQuery = "FROM " + dataset + " | STATS c = COUNT(*)";
+        try (var response = run(syncEsqlQueryRequest(countQuery).profile(true), TimeValue.timeValueMinutes(5))) {
+            assertSingleLong(response, total);
+            assertThat("cold COUNT(*) reads every row", response.documentsFound(), equalTo(total));
+            assertEveryFileArrivedAsStripeFragments(response);
+        }
+        long fallbacksBefore = ExternalSourceCacheTestAccess.datasetAggregateFallbacks(cacheService);
+        try (var response = run(syncEsqlQueryRequest(countQuery).profile(true), TimeValue.timeValueMinutes(5))) {
+            assertSingleLong(response, total);
+            assertThat("warm COUNT(*) must be served from the per-file statistics", response.documentsFound(), equalTo(0L));
+        }
+        assertThat(
+            "the warm count must come from the per-file records, not from the dataset-aggregate fallback",
+            ExternalSourceCacheTestAccess.datasetAggregateFallbacks(cacheService),
+            equalTo(fallbacksBefore)
+        );
+    }
+
+    /**
+     * The geometry this arm exists for, asserted rather than assumed. A read that quietly stops splitting still
+     * short-circuits warm - a whole-file measurement is authoritative - so without this the arm stays green while
+     * guarding nothing, which is what happens if parse parallelism resolves to 1 or a segment floor moves. The
+     * sibling {@code ExternalMultiChunkPerStripeWarmFoldIT} asserts the same property the same way, behind the
+     * same processor-count assumption.
+     */
+    private static void assertEveryFileArrivedAsStripeFragments(EsqlQueryResponse response) {
+        assertThat("the query must run with profile(true) to read the scan's contributions", response.profile(), notNullValue());
+        Map<String, List<Map<String, Object>>> byPath = new HashMap<>();
+        for (var driver : response.profile().drivers()) {
+            for (var op : driver.operators()) {
+                if (op.status() instanceof AsyncExternalSourceOperator.Status status) {
+                    for (var e : status.capturedSourceMetadata().entrySet()) {
+                        byPath.computeIfAbsent(e.getKey(), k -> new ArrayList<>()).addAll(e.getValue());
+                    }
+                }
+            }
+        }
+        assertThat("every file must contribute captured stats", byPath.keySet(), hasSize(SEGMENTED_FILE_COUNT));
+        for (Map.Entry<String, List<Map<String, Object>>> file : byPath.entrySet()) {
+            for (Map<String, Object> contribution : file.getValue()) {
+                assertTrue(
+                    "file [" + file.getKey() + "] must be read as byte-range segments, not a whole-file pass: " + contribution,
+                    Boolean.TRUE.equals(contribution.get(ExternalStats.PARTIAL_CHUNK_KEY))
+                );
+            }
+        }
+    }
+
+    /**
+     * The {@code fail_fast} discriminator: no licence carries extrema across reads and the dataset aggregate holds
+     * none, so a warm MIN/MAX can only have come from a record at this read's own address. {@code value} is
+     * declared by nothing, so the overlay poison does not reach it. Homogeneous corpus, because {@code fail_fast}
+     * refuses the heterogeneous one's empty {@code order_id}.
+     */
+    public void testRetypingMappingWarmsMinMaxOnAnUntouchedColumn() throws Exception {
+        Path dir = createTempDir();
+        long total = writeCsvCorpus(dir, false);
+        String dataset = registerNonStrictDataset(
+            "retyped_minmax_csv",
+            globUri(dir, "*.csv"),
+            retypedOrderId(),
+            Map.of("format", "csv", "schema_resolution", "first_file_wins", "file_sort_by", "name")
+        );
+        String minMaxQuery = "FROM " + dataset + " | STATS lo = MIN(value), hi = MAX(value)";
+        try (var response = run(syncEsqlQueryRequest(minMaxQuery).profile(true), TimeValue.timeValueMinutes(5))) {
+            assertMinMax(response, 0L, total - 1);
+            assertThat("cold MIN/MAX reads every row", response.documentsFound(), equalTo(total));
+        }
+        try (var response = run(syncEsqlQueryRequest(minMaxQuery).profile(true), TimeValue.timeValueMinutes(5))) {
+            assertMinMax(response, 0L, total - 1);
+            assertThat("warm MIN/MAX must be served from the per-file statistics", response.documentsFound(), equalTo(0L));
+        }
+    }
+
+    /**
+     * The ticket's acceptance shape: a plain dataset and a retyping one over the same corpus under the default
+     * {@code fail_fast}, both warming their repeated COUNT(*).
+     * <p>
+     * Separate directories because of the LICENCE, not the addresses: under {@code fail_fast} a row count crosses
+     * read configurations, so over one corpus the retyping dataset could be served the plain one's count and the
+     * cold assertion would fail for a legitimate reason. That licence also makes this arm acceptance rather than a
+     * discriminator. The fallback guard keeps it from passing by way of the dataset aggregate.
+     */
+    public void testPlainAndRetypingDatasetsBothWarmTheirCount() throws Exception {
+        Path plainDir = createTempDir();
+        long plainTotal = writeCsvCorpus(plainDir, false);
+        Map<String, Object> settings = Map.of("format", "csv", "schema_resolution", "first_file_wins", "file_sort_by", "name");
+        String plain = registerDataset("pair_plain_csv", globUri(plainDir, "*.csv"), settings);
+        assertWarmCountShortCircuits(plain, plainTotal);
+
+        Path overlaidDir = createTempDir();
+        long overlaidTotal = writeCsvCorpus(overlaidDir, false);
+        String overlaid = registerNonStrictDataset("pair_retyped_csv", globUri(overlaidDir, "*.csv"), retypedOrderId(), settings);
+
+        ExternalSourceCacheService cacheService = internalCluster().getInstance(PlanExecutor.class, internalCluster().getMasterName())
+            .cacheService();
+        String countQuery = "FROM " + overlaid + " | STATS c = COUNT(*)";
+        try (var response = run(syncEsqlQueryRequest(countQuery).profile(true), TimeValue.timeValueMinutes(5))) {
+            assertSingleLong(response, overlaidTotal);
+            assertThat("cold COUNT(*) reads every row", response.documentsFound(), equalTo(overlaidTotal));
+        }
+        long fallbacksBefore = ExternalSourceCacheTestAccess.datasetAggregateFallbacks(cacheService);
+        try (var response = run(syncEsqlQueryRequest(countQuery).profile(true), TimeValue.timeValueMinutes(5))) {
+            assertSingleLong(response, overlaidTotal);
+            assertThat("warm COUNT(*) must be served from the per-file statistics", response.documentsFound(), equalTo(0L));
+        }
+        assertThat(
+            "the warm count must come from the per-file records, not from the dataset-aggregate fallback",
+            ExternalSourceCacheTestAccess.datasetAggregateFallbacks(cacheService),
+            equalTo(fallbacksBefore)
+        );
+    }
+
+    /**
+     * {@code union_by_name} with a retyping declaration over a corpus every file of which infers one schema. The
+     * rail reached the lookup with no mapping in scope at all, so it addressed every file by its own pre-overlay
+     * stamp.
+     * <p>
+     * A corpus whose files infer DIFFERENT schemas is a different defect - a file read at a schema other than
+     * its own - and its arms in this class stay muted.
+     */
+    public void testRetypingMappingWarmsCountUnderUnionByName() throws Exception {
+        Path dir = createTempDir();
+        long total = writeCsvCorpus(dir, false);
+        String dataset = registerNonStrictDataset(
+            "retyped_ubn_csv",
+            globUri(dir, "*.csv"),
+            retypedOrderId(),
+            Map.of("format", "csv", "error_mode", "null_field", "schema_resolution", "union_by_name")
+        );
+        assertWarmCountShortCircuits(dataset, total);
+    }
+
+    /**
+     * A declaration naming a column no file carries. The overlay appends it to every per-file read schema and, for
+     * CSV and TSV, upgrades the binding to by-name - so the read the data node performs differs from the inferred
+     * one in its provenance as well as its columns. Both are hashed, so a derivation that dropped either would
+     * address a read nothing performs.
+     * <p>
+     * This is the only shape in the class that covers the provenance upgrade end to end.
+     */
+    public void testDeclaringAnAbsentColumnWarmsCount() throws Exception {
+        Path dir = createTempDir();
+        long total = writeCsvCorpus(dir, false);
+        LinkedHashMap<String, DatasetFieldMapping> absent = new LinkedHashMap<>();
+        absent.put("not_in_any_file", new DatasetFieldMapping("keyword", null));
+        String dataset = registerNonStrictDataset(
+            "absent_declared_csv",
+            globUri(dir, "*.csv"),
+            absent,
+            nullFieldSettings("first_file_wins")
+        );
+        assertWarmCountShortCircuits(dataset, total);
+    }
 
     /**
      * Parts that do not all infer the same schema, in the two ways NDJSON produces: {@code color} holds a string
@@ -506,7 +753,7 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
             + "established. The mechanism the union_by_name cells name is not it: "
             + "RunningFileStatsFold.applyPinnedColumns is reached only from "
             + "resolveMultiFileWithReconciliation, which is gated on schemaResolution != FIRST_FILE_WINS, "
-            + "so this rail never calls it. Fails identically on main; tracked by elastic/esql-planning#2201"
+            + "so this rail never calls it. Fails identically on main."
     )
     public void testCsvSparseCorpusWarmMinMaxServedUnderSkipRowFirstFileWins() throws Exception {
         Path dir = createTempDir();
@@ -533,7 +780,7 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
             + "established. The mechanism the union_by_name cells name is not it: "
             + "RunningFileStatsFold.applyPinnedColumns is reached only from "
             + "resolveMultiFileWithReconciliation, which is gated on schemaResolution != FIRST_FILE_WINS, "
-            + "so this rail never calls it. Fails identically on main; tracked by elastic/esql-planning#2201"
+            + "so this rail never calls it. Fails identically on main."
     )
     public void testCsvSparseCorpusWarmCountServedUnderSkipRowFirstFileWins() throws Exception {
         Path dir = createTempDir();
@@ -661,7 +908,7 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
             + "RunningFileStatsFold.applyPinnedColumns returns null as soon as ANY file is pinned, so the "
             + "whole dataset aggregate is discarded rather than overlaid. strict is served because its "
             + "corpus pins nothing; null_field is served because it overlays instead of dropping. "
-            + "Fails identically on main; tracked by elastic/esql-planning#2201"
+            + "Fails identically on main."
     )
     public void testMatrixCountSkipRowUnionByName() throws Exception {
         assertWarmMatrixCell("m_count_skip_unio", "skip_row", "union_by_name", false);
@@ -672,7 +919,7 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
             + "RunningFileStatsFold.applyPinnedColumns returns null as soon as ANY file is pinned, so the "
             + "whole dataset aggregate is discarded rather than overlaid. strict is served because its "
             + "corpus pins nothing; null_field is served because it overlays instead of dropping. "
-            + "Fails identically on main; tracked by elastic/esql-planning#2201"
+            + "Fails identically on main."
     )
     public void testMatrixMinMaxSkipRowUnionByName() throws Exception {
         assertWarmMatrixCell("m_minmax_skip_unio", "skip_row", "union_by_name", true);
@@ -725,7 +972,7 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
             + "established. The mechanism the union_by_name cells name is not it: "
             + "RunningFileStatsFold.applyPinnedColumns is reached only from "
             + "resolveMultiFileWithReconciliation, which is gated on schemaResolution != FIRST_FILE_WINS, "
-            + "so this rail never calls it. Fails identically on main; tracked by elastic/esql-planning#2201"
+            + "so this rail never calls it. Fails identically on main."
     )
     public void testMatrixMinMaxSkipRowFirstFileWins() throws Exception {
         assertWarmMatrixCell("m_minmax_skip_firs", "skip_row", "first_file_wins", true);
@@ -736,7 +983,7 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
             + "established. The mechanism the union_by_name cells name is not it: "
             + "RunningFileStatsFold.applyPinnedColumns is reached only from "
             + "resolveMultiFileWithReconciliation, which is gated on schemaResolution != FIRST_FILE_WINS, "
-            + "so this rail never calls it. Fails identically on main; tracked by elastic/esql-planning#2201"
+            + "so this rail never calls it. Fails identically on main."
     )
     public void testMatrixCountSkipRowFirstFileWins() throws Exception {
         assertWarmMatrixCell("m_count_skip_firs", "skip_row", "first_file_wins", false);

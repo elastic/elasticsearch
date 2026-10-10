@@ -2954,14 +2954,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
         assertNull(
             "an implicit-nulls (footer) format must not carry a row-count-only dataset aggregate",
-            resolver.datasetAggregateKey(parquetListing, "", "", Map.of())
+            resolver.datasetAggregateKey(parquetListing, versionedConfig(Map.of()))
         );
 
         FileList textListing = GlobExpander.fileListOf(
             List.of(entry("s3://bucket/data/a.ndjson", 100), entry("s3://bucket/data/b.ndjson", 200)),
             "s3://bucket/data/*.ndjson"
         );
-        DatasetAggregateKey textKey = resolver.datasetAggregateKey(textListing, "", "", Map.of());
+        DatasetAggregateKey textKey = resolver.datasetAggregateKey(textListing, versionedConfig(Map.of()));
         assertNotNull("a text-format listing must qualify (positive control)", textKey);
         // No isDatasetAggregate() to assert any more: datasetAggregateKey returns a DatasetAggregateKey,
         // so a per-file consumer cannot be handed one and the distinction is the type rather than a flag.
@@ -2981,7 +2981,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
         assertNull(
             "an unregistered extension must refuse the aggregate, not throw",
-            resolver.datasetAggregateKey(unknownListing, "", "", Map.of())
+            resolver.datasetAggregateKey(unknownListing, versionedConfig(Map.of()))
         );
     }
 
@@ -2998,7 +2998,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
         assertNull(
             "format=parquet must gate .ndjson-named files as parquet (config wins over extension)",
-            resolver.datasetAggregateKey(ndjsonNamed, "", "", Map.of("format", "parquet"))
+            resolver.datasetAggregateKey(ndjsonNamed, versionedConfig(Map.of("format", "parquet")))
         );
     }
 
@@ -3017,8 +3017,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals("s3://bucket/data/a.csv", csvThenGz.path(0).toString());
         assertEquals("s3://bucket/data/b.csv.gz", gzThenCsv.path(0).toString());
         assertEquals(csvThenGz.fileSetFingerprint(), gzThenCsv.fileSetFingerprint());
-        DatasetAggregateKey keyA = resolver.datasetAggregateKey(csvThenGz, "", "", Map.of());
-        DatasetAggregateKey keyB = resolver.datasetAggregateKey(gzThenCsv, "", "", Map.of());
+        DatasetAggregateKey keyA = resolver.datasetAggregateKey(csvThenGz, versionedConfig(Map.of()));
+        DatasetAggregateKey keyB = resolver.datasetAggregateKey(gzThenCsv, versionedConfig(Map.of()));
         assertNotNull("csv+csv.gz must qualify for a dataset aggregate key", keyA);
         assertEquals(keyA, keyB);
     }
@@ -3038,12 +3038,12 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals("s3://bucket/data/b.parq", parqThenParquet.path(0).toString());
         assertEquals(parquetThenParq.fileSetFingerprint(), parqThenParquet.fileSetFingerprint());
         assertEquals(
-            resolver.datasetAggregateKey(parquetThenParq, "", "", Map.of()),
-            resolver.datasetAggregateKey(parqThenParquet, "", "", Map.of())
+            resolver.datasetAggregateKey(parquetThenParq, versionedConfig(Map.of())),
+            resolver.datasetAggregateKey(parqThenParquet, versionedConfig(Map.of()))
         );
         assertNull(
             "parquet (including .parq) still refuses the row-count-only aggregate",
-            resolver.datasetAggregateKey(parquetThenParq, "", "", Map.of())
+            resolver.datasetAggregateKey(parquetThenParq, versionedConfig(Map.of()))
         );
     }
 
@@ -3061,7 +3061,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
             String path = "s3://bucket/data/a.ndjson";
             FileList duplicated = GlobExpander.fileListOf(List.of(entry(path, 100), entry(path, 100)), path + "," + path);
-            DatasetAggregateKey duplicatedKey = resolver.datasetAggregateKey(duplicated, "", "", Map.of());
+            DatasetAggregateKey duplicatedKey = resolver.datasetAggregateKey(duplicated, versionedConfig(Map.of()));
             assertNotNull("the key factory itself does not police duplicates", duplicatedKey);
             Map<String, Object> served = resolver.applyDatasetAggregate(
                 null,
@@ -3078,7 +3078,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 List.of(entry("s3://bucket/data/a.ndjson", 100), entry("s3://bucket/data/b.ndjson", 200)),
                 "s3://bucket/data/*.ndjson"
             );
-            DatasetAggregateKey distinctKey = resolver.datasetAggregateKey(distinct, "", "", Map.of());
+            DatasetAggregateKey distinctKey = resolver.datasetAggregateKey(distinct, versionedConfig(Map.of()));
             resolver.applyDatasetAggregate(
                 null,
                 new ExternalSourceResolver.DatasetAggregatePrefetch(distinctKey, null),
@@ -3107,7 +3107,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 List.of(entry("s3://bucket/data/a.ndjson", 100), entry("s3://bucket/data/b.ndjson", 200)),
                 "s3://bucket/data/*.ndjson"
             );
-            DatasetAggregateKey key = resolver.datasetAggregateKey(distinct, "", "", Map.of());
+            DatasetAggregateKey key = resolver.datasetAggregateKey(distinct, versionedConfig(Map.of()));
 
             // First warm resolve, prefetch missed (null): the successful merge writes through.
             resolver.applyDatasetAggregate(
@@ -3155,7 +3155,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 List.of(entry("s3://bucket/data/a.ndjson", 100), entry("s3://bucket/data/b.ndjson", 200)),
                 "s3://bucket/data/*.ndjson"
             );
-            DatasetAggregateKey key = resolver.datasetAggregateKey(distinct, "", "", Map.of());
+            DatasetAggregateKey key = resolver.datasetAggregateKey(distinct, versionedConfig(Map.of()));
 
             // Needed (per-file merge null) AND present (prefetch hit) -> one hit, no miss.
             resolver.applyDatasetAggregate(
@@ -3419,7 +3419,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             String pathB = "s3://bucket/data/b.ndjson";
             SourceMetadata referenceMeta = new SimpleSourceMetadata(List.of(), "ndjson", pathA);
             FileList listing = GlobExpander.fileListOf(List.of(entry(pathA, 100), entry(pathB, 200)), "s3://bucket/data/*.ndjson");
-            DatasetAggregateKey key = resolver.datasetAggregateKey(listing, "", "", Map.of());
+            DatasetAggregateKey key = resolver.datasetAggregateKey(listing, versionedConfig(Map.of()));
             assertNotNull(key);
             String promised = ReadConfigFingerprint.of(List.of(attr("x", DataType.LONG)), DeclaredReadSpec.NONE);
 
@@ -3491,7 +3491,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 // the dataset reader. Lookup keys must use that same map.
                 Map<String, Object> effectiveConfig = new HashMap<>(config);
                 effectiveConfig.put(FormatNameResolver.CONFIG_FORMAT, "ndjson");
-                DatasetAggregateKey key = resolver.datasetAggregateKey(GlobExpander.fileListOf(listing, glob), "", "", effectiveConfig);
+                DatasetAggregateKey key = resolver.datasetAggregateKey(
+                    GlobExpander.fileListOf(listing, glob),
+                    versionedConfig(effectiveConfig)
+                );
                 assertNotNull("[" + strategy + "] the resolve must have minted a dataset key", key);
                 // Derived the one way production derives it, by asking the reader. Computing it a second way here
                 // would let the two drift and the test would pass while the warm path was dead.
@@ -3649,6 +3652,22 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /** Shared parquet+ndjson+csv module for the dataset-aggregate gate tests; see {@link TextAggregatePushdownSupport}. */
+    /**
+     * A query config as the resolve path hands one over: carrying the dataset-tier definition version that
+     * {@code DatasetRewriter} publishes under {@link DefinitionVersion#DATASET_CONFIG_KEY}. A config without it
+     * is a query with no stored definition behind it, and the dataset tier refuses those - so a case about the
+     * tier has to carry one, and the one case about that refusal passes a bare map on purpose.
+     */
+    private static Map<String, Object> versionedConfig(Map<String, Object> config) {
+        return versionedConfig(config, "0123456789abcdef0123456789abcdef");
+    }
+
+    private static Map<String, Object> versionedConfig(Map<String, Object> config, String datasetVersion) {
+        Map<String, Object> versioned = new HashMap<>(config);
+        versioned.put(DefinitionVersion.DATASET_CONFIG_KEY, datasetVersion);
+        return versioned;
+    }
+
     private ExternalSourceResolver datasetGateResolver(ExternalSourceCacheService cacheService) {
         StubFormatReaderWithStats footerReader = new StubFormatReaderWithStats(Map.of(), Map.of()) {
             @Override
@@ -7642,8 +7661,19 @@ public class ExternalSourceResolverTests extends ESTestCase {
         FormatReader.SchemaResolution.UNION_BY_NAME
     );
 
+    /**
+     * A resolve config as a query over a stored DATASET carries one: with the dataset-tier definition version
+     * {@code DatasetRewriter} publishes. The version is what addresses a dataset-level fold, so a config without
+     * it is a bare {@code FROM} over a URI and skips that tier entirely - which is a different query shape from
+     * the one most cases here are about, and the cases that ARE about it build their config without this helper.
+     */
     private static Map<String, Object> configFor(FormatReader.SchemaResolution strategy) {
-        return Map.of("schema_resolution", strategy.name().toLowerCase(Locale.ROOT));
+        return Map.of(
+            "schema_resolution",
+            strategy.name().toLowerCase(Locale.ROOT),
+            DefinitionVersion.DATASET_CONFIG_KEY,
+            "0123456789abcdef0123456789abcdef"
+        );
     }
 
     private ExternalSourceResolution resolveSingleFile(String path, Map<String, List<Attribute>> schemasByPath) throws Exception {
@@ -11176,12 +11206,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * Pins the end-to-end resolver path: {@link ExternalSourceResolver#datasetAggregateKey} must produce
-     * different {@link SchemaCacheKey}s for dataset configs that differ only in {@code _datasource.endpoint},
-     * without pre-flattening via {@code storageConfig}. If the {@code storageConfig(config)} call inside
-     * {@code datasetAggregateKey} is removed, this test catches the regression.
+     * The resolver's whole part in keeping two datasets apart: it reads the definition version off the config and
+     * addresses by it. Which EDITS move that version is {@code ofDataset}'s contract, pinned in
+     * {@code DefinitionVersionTests}, so it is not asserted again here.
+     * <p>
+     * The second half catches a regression to the previous shape: two configs carrying one version must mint one
+     * address, so nothing else in the config may reach it.
      */
-    public void testDatasetAggregateKeyIsolatedByEndpointInDatasource() {
+    public void testTheDatasetAddressIsTheDefinitionVersionAndNothingElse() {
         ExternalSourceResolver resolver = datasetGateResolver(null);
         // datasetAggregateKey requires at least 2 files (the dataset-level aggregate is only meaningful
         // for multi-file datasets; single-file listings return null to fall back to per-file caching).
@@ -11189,28 +11221,231 @@ public class ExternalSourceResolverTests extends ESTestCase {
             List.of(entry("s3://bucket/data/a.ndjson", 100), entry("s3://bucket/data/b.ndjson", 200)),
             "s3://bucket/data/*.ndjson"
         );
-        Map<String, Object> dsA = new HashMap<>(Map.of("endpoint", "http://endpoint-a.example.com"));
-        Map<String, Object> dsB = new HashMap<>(Map.of("endpoint", "http://endpoint-b.example.com"));
-        Map<String, Object> configA = new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsA));
-        Map<String, Object> configB = new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsB));
 
-        // The resolver folds the provider's report into the aggregate key, so give the two resolves the identities
-        // two providers over different endpoints would report.
-        DatasetAggregateKey keyA = resolver.datasetAggregateKey(
-            listing,
-            Configured.identityOf(Map.of("endpoint", "http://endpoint-a.example.com"), Set.of("endpoint")),
-            "",
-            configA
-        );
-        DatasetAggregateKey keyB = resolver.datasetAggregateKey(
-            listing,
-            Configured.identityOf(Map.of("endpoint", "http://endpoint-b.example.com"), Set.of("endpoint")),
-            "",
-            configB
-        );
+        DatasetAggregateKey keyA = resolver.datasetAggregateKey(listing, versionedConfig(Map.of(), "version-of-dataset-a"));
+        DatasetAggregateKey keyB = resolver.datasetAggregateKey(listing, versionedConfig(Map.of(), "version-of-dataset-b"));
         assertNotNull("ndjson listing must qualify for a dataset aggregate key", keyA);
         assertNotNull("ndjson listing must qualify for a dataset aggregate key", keyB);
-        assertNotEquals("datasetAggregateKey must produce different keys for different _datasource.endpoint values", keyA, keyB);
+        assertNotEquals("two dataset definitions must not share a fold", keyA, keyB);
+
+        Map<String, Object> withEndpoint = new HashMap<>(
+            Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, new HashMap<>(Map.of("endpoint", "http://endpoint-a.example.com")))
+        );
+        assertEquals(
+            "one definition addresses one fold however much else the query's config carries",
+            resolver.datasetAggregateKey(listing, versionedConfig(Map.of(), "version-of-dataset-a")),
+            resolver.datasetAggregateKey(listing, versionedConfig(withEndpoint, "version-of-dataset-a"))
+        );
+    }
+
+    /**
+     * A bare {@code FROM} over a URI has no stored definition behind it, so there is no version to address a
+     * dataset-level fold by - and nothing that would move when anything changed, because there is nothing to
+     * change. Such a query must keep the per-file rail rather than share one unversioned slot with every other
+     * query over the same bytes, which is what minting a key with no version would do.
+     */
+    public void testADatasetFoldIsRefusedWithNoStoredDefinition() {
+        ExternalSourceResolver resolver = datasetGateResolver(null);
+        FileList listing = GlobExpander.fileListOf(
+            List.of(entry("s3://bucket/data/a.ndjson", 100), entry("s3://bucket/data/b.ndjson", 200)),
+            "s3://bucket/data/*.ndjson"
+        );
+        assertNull("a query with no stored definition must not reach the dataset tier", resolver.datasetAggregateKey(listing, Map.of()));
+        assertNull("nor may it reach it with an empty version", resolver.datasetAggregateKey(listing, versionedConfig(Map.of(), "")));
+        assertNotNull("while a versioned query does (positive control)", resolver.datasetAggregateKey(listing, versionedConfig(Map.of())));
+    }
+
+    /**
+     * The overlaid-read derivation is the one owner of the pair a statistics lookup addresses by and the serve gate
+     * compares against. Each case asserts the pair against an independently built expectation, never against another
+     * call of the same helper: a test that derived both sides from production code would pass whatever the production
+     * code did.
+     * <p>
+     * The rename case is the control. A pure {@code path} move must NOT move the fingerprint - both sides physicalize
+     * through the rename map - so a derivation that reddened it would be hashing logical names, which would split a
+     * renamed dataset off from its own harvests.
+     */
+    public void testOverlaidReadOfDerivesTheReadTheDataNodeWillBind() {
+        List<Attribute> inferred = List.of(
+            attr("id", DataType.INTEGER),
+            attr("order_id", DataType.INTEGER),
+            attr("value", DataType.INTEGER)
+        );
+
+        // 1. Retype: the declared type replaces the inferred one in place, and the read is a different read.
+        Map<String, DatasetFieldMapping> retype = new LinkedHashMap<>();
+        retype.put("order_id", new DatasetFieldMapping("keyword", null));
+        ExternalSourceResolver.OverlaidRead retyped = ExternalSourceResolver.overlaidReadOf(
+            inferred,
+            inferred,
+            new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, retype)),
+            "csv"
+        );
+        assertEquals(
+            "the overlaid read schema is the inferred one with the declared type substituted",
+            List.of(DataType.INTEGER, DataType.KEYWORD, DataType.INTEGER),
+            retyped.readSchema().stream().map(Attribute::dataType).toList()
+        );
+        assertEquals("a retype appends no column", 3, retyped.readSchema().size());
+        assertEquals(SchemaProvenance.INFERRED, retyped.spec().provenance());
+        assertNotEquals(
+            "a retyping declaration must resolve to a DIFFERENT read than inference - this inequality is the whole "
+                + "defect: the lookup used to address by the inferred side while the harvest hashed the overlaid one",
+            ReadConfigFingerprint.of(inferred, DeclaredReadSpec.NONE),
+            ReadConfigFingerprint.of(retyped.readSchema(), retyped.spec())
+        );
+
+        // 2. Rename only (the control): same read, different names.
+        Map<String, DatasetFieldMapping> rename = new LinkedHashMap<>();
+        rename.put("order_ref", new DatasetFieldMapping("integer", "order_id"));
+        ExternalSourceResolver.OverlaidRead renamed = ExternalSourceResolver.overlaidReadOf(
+            inferred,
+            inferred,
+            new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, rename)),
+            "csv"
+        );
+        assertEquals(
+            "a pure path rename resolves to the SAME read: both sides physicalize, so no statistic changes meaning",
+            ReadConfigFingerprint.of(inferred, DeclaredReadSpec.NONE),
+            ReadConfigFingerprint.of(renamed.readSchema(), renamed.spec())
+        );
+
+        // 3. A declared date format on a renamed column: the format decides which values parse, so it is a new read.
+        Map<String, DatasetFieldMapping> renameWithFormat = new LinkedHashMap<>();
+        renameWithFormat.put("order_ref", DatasetFieldMapping.withFormat("integer", "order_id", "epoch_second"));
+        ExternalSourceResolver.OverlaidRead formatted = ExternalSourceResolver.overlaidReadOf(
+            inferred,
+            inferred,
+            new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, renameWithFormat)),
+            "csv"
+        );
+        assertNotEquals(
+            "a declared format on a renamed column is a second way the pre-overlay derivation diverged from the harvest",
+            ReadConfigFingerprint.of(renamed.readSchema(), renamed.spec()),
+            ReadConfigFingerprint.of(formatted.readSchema(), formatted.spec())
+        );
+
+        // 4. A declared column the files do not carry: appended, and for CSV/TSV the binding becomes by-name.
+        Map<String, DatasetFieldMapping> absent = new LinkedHashMap<>();
+        absent.put("sparse", new DatasetFieldMapping("keyword", null));
+        DatasetMapping absentMapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, absent));
+        ExternalSourceResolver.OverlaidRead appendedCsv = ExternalSourceResolver.overlaidReadOf(inferred, inferred, absentMapping, "csv");
+        assertEquals("the absent declared column is appended to the per-file read schema", 4, appendedCsv.readSchema().size());
+        assertEquals("sparse", appendedCsv.readSchema().get(3).name());
+        assertEquals(
+            "CSV/TSV bind an appended absent column by header name, so provenance becomes DECLARED and the read differs",
+            SchemaProvenance.DECLARED,
+            appendedCsv.spec().provenance()
+        );
+
+        // The same mapping over NDJSON resolves fields by JSON key, so the binding mode does not change. Without this
+        // the provenance assertion above would pass for a derivation that upgraded unconditionally.
+        ExternalSourceResolver.OverlaidRead appendedNdjson = ExternalSourceResolver.overlaidReadOf(
+            inferred,
+            inferred,
+            absentMapping,
+            "ndjson"
+        );
+        assertEquals(4, appendedNdjson.readSchema().size());
+        assertEquals(SchemaProvenance.INFERRED, appendedNdjson.spec().provenance());
+        assertNotEquals(
+            "the two formats bind an appended column differently, so they are different reads",
+            ReadConfigFingerprint.of(appendedCsv.readSchema(), appendedCsv.spec()),
+            ReadConfigFingerprint.of(appendedNdjson.readSchema(), appendedNdjson.spec())
+        );
+    }
+
+    /**
+     * The two addressing derivations, pinned directly rather than only through an integration arm.
+     * {@code ffwBoundRead} answers for the whole first-file-wins listing; {@code overlaidBoundReadOf} answers per
+     * record. Each must name the OVERLAID read, and naming the pre-overlay one is the defect.
+     * <p>
+     * The expectation is hand-built from the schema the reader will bind, so the test cannot pass by both sides
+     * being the same wrong expression.
+     */
+    /**
+     * {@code datasetFormat} wins over the record's own source type, and this is the case where the two DISAGREE -
+     * without it the argument is asserted only where they happen to agree, which proves nothing.
+     * <p>
+     * It matters because the provenance upgrade is format-dependent: appending a declared column no file carries
+     * makes a csv or tsv reader bind by header name instead of by position, and nothing else. A record whose own
+     * source type is not csv, read under {@code format=csv}, is upgraded by the read and would not be upgraded by
+     * a derivation that trusted the record - addressing a read the data node does not perform.
+     */
+    public void testTheBoundReadFollowsTheResolvedFormatNotTheRecordsOwn() {
+        List<Attribute> inferred = List.of(attr("id", DataType.INTEGER));
+        // A declared column NO file carries: that is what the overlay appends, and appending is what triggers the
+        // by-name upgrade for csv and tsv.
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("absent", new DatasetFieldMapping("keyword", null));
+        DatasetMapping declaringAbsent = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+
+        // The record's own type is NOT csv - an extension the registry does not claim as one.
+        SchemaCacheEntry record = SchemaCacheEntry.from(inferred, "txt", "s3://bucket/data/a.txt", Map.of(), Map.of());
+
+        String underResolvedCsv = ExternalSourceResolver.overlaidBoundReadOf(declaringAbsent, "csv").apply(record);
+        String underTheRecordsOwn = ExternalSourceResolver.overlaidBoundReadOf(declaringAbsent, null).apply(record);
+        assertNotEquals(
+            "the resolved format must decide the upgrade: a txt-typed record read as csv binds by name, and a "
+                + "derivation that trusted the record's own type would address a read nothing performs",
+            underResolvedCsv,
+            underTheRecordsOwn
+        );
+
+        // And the csv answer is the DECLARED-provenance one, built here rather than taken from the production helper.
+        List<Attribute> overlaidSchema = List.of(attr("id", DataType.INTEGER), attr("absent", DataType.KEYWORD));
+        DeclaredReadSpec declaredProvenance = DeclaredReadSpec.of(Map.of(), Map.of(), Set.of("absent"), SchemaProvenance.DECLARED);
+        assertEquals(
+            "reading a txt record as csv appends the absent column and upgrades the binding to DECLARED",
+            ReadConfigFingerprint.of(overlaidSchema, declaredProvenance),
+            underResolvedCsv
+        );
+    }
+
+    public void testTheBoundReadHandedToAStatisticsLookupIsTheOverlaidRead() {
+        List<Attribute> inferred = List.of(attr("id", DataType.INTEGER), attr("order_id", DataType.INTEGER));
+        List<Attribute> overlaid = List.of(attr("id", DataType.INTEGER), attr("order_id", DataType.KEYWORD));
+        String overlaidRead = ReadConfigFingerprint.of(overlaid, DeclaredReadSpec.NONE);
+        String inferredRead = ReadConfigFingerprint.of(inferred, DeclaredReadSpec.NONE);
+        assertNotEquals("the fixture must separate the two reads or it discriminates nothing", overlaidRead, inferredRead);
+
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("order_id", new DatasetFieldMapping("keyword", null));
+        DatasetMapping retyping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+
+        SchemaCacheEntry record = SchemaCacheEntry.from(
+            inferred,
+            "csv",
+            "s3://bucket/data/a.csv",
+            Map.of(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, inferredRead),
+            Map.of()
+        );
+        ExternalSourceMetadata anchor = ExternalSourceResolver.buildMetadataFromCache(record, inferred, Map.of(), null, null);
+
+        assertEquals(
+            "first-file-wins must address every file by the overlaid anchor read",
+            overlaidRead,
+            ExternalSourceResolver.ffwBoundRead(anchor, retyping)
+        );
+        assertEquals(
+            "the per-record rails must address a file by the overlaid version of its own read",
+            overlaidRead,
+            ExternalSourceResolver.overlaidBoundReadOf(retyping, "csv").apply(record)
+        );
+
+        // No declaration, and the two helpers answer DIFFERENTLY on purpose. First-file-wins reads every file at
+        // the anchor's schema, so it names that read even undeclared - the per-file records of a corpus whose
+        // files differ are addressed by it, and returning null there takes them cold.
+        assertEquals(
+            "an undeclared first-file-wins read is still bound to the anchor's own read",
+            inferredRead,
+            ExternalSourceResolver.ffwBoundRead(anchor, null)
+        );
+        // The per-record helper has no listing-wide read to name, so it defers to each record's own stamp.
+        assertNull(
+            "an undeclared per-record read has no bound of its own: the record's own stamp is the read",
+            ExternalSourceResolver.overlaidBoundReadOf(null, "csv")
+        );
     }
 
 }

@@ -20,10 +20,12 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.sourcebatch.LuceneColumn;
 import org.elasticsearch.sourcebatch.MappedColumns;
+import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 
 /**
  * The single per-batch context metadata mappers read and write during columnar batch mapping (see
@@ -48,6 +50,26 @@ public final class BatchMappingContext implements Releasable {
     private final List<LuceneColumn> columns = new ArrayList<>();
     private final List<Releasable> resources = new ArrayList<>();
     private final FieldNamesFieldMapper fieldNamesFieldMapper;
+
+    /**
+     * The per-field {@code _source} writers registered by data field mappers that support the {@code columnar_stored} direct source
+     * path (see {@link FieldMapper#supportsColumnarSource()}). Drained by {@link SourceFieldMapper#postColumnarParse} to build the
+     * blob directly, bypassing the per-document synthetic-source loader, but only when {@link #directSourceAvailable()} holds.
+     */
+    private final List<CompositeSourceColumn> sourceColumns = new ArrayList<>();
+    /**
+     * Set to {@code true} the moment any source-contributing field of the batch cannot be written directly — because its mapper does
+     * not support the direct path, or supports it in general but not for the shapes in this batch. Default-deny: a mapper added later
+     * is correct (it falls back to the loader path) without any change here, only slower.
+     */
+    private boolean directSourceUnavailable;
+    /**
+     * Set by {@link FieldMapper#mapColumnBatch} around a single {@link FieldMapper#doMapColumnBatch} call, for a source-contributing
+     * field whose mapper {@link FieldMapper#supportsColumnarSource() supports} the direct path. It tells that mapper to build its
+     * {@link CompositeSourceColumn} during the same scan that maps the field's Lucene columns — registering it via
+     * {@link #registerSourceColumn} — instead of re-scanning the source column in a second pass.
+     */
+    private boolean buildSourceColumnRequested;
 
     private boolean frozen;
     /** Accumulates {@code (doc, name)} pairs for {@code _field_names}. */
@@ -155,6 +177,85 @@ public final class BatchMappingContext implements Releasable {
         resources.add(resource);
     }
 
+    /**
+     * Registers a field's direct {@code columnar_stored} {@code _source} writer. Called from {@link FieldMapper#mapColumnBatch} for a
+     * source-contributing field whose mapper supports the direct path for this batch. Ignored once the batch is already marked
+     * {@link #markDirectSourceUnavailable() unavailable}, since the whole batch will then take the loader path.
+     */
+    public void registerSourceColumn(CompositeSourceColumn sourceColumn) {
+        assert frozen == false;
+        if (directSourceUnavailable == false) {
+            sourceColumns.add(sourceColumn);
+        }
+    }
+
+    /**
+     * Enables direct {@code _source} writer construction for the field about to be mapped. Called by {@link FieldMapper#mapColumnBatch}
+     * immediately before invoking {@link FieldMapper#doMapColumnBatch} for a source-contributing field whose mapper supports the direct
+     * path, and cleared via {@link #clearSourceColumnRequest()} right after. While set, a mapper reads it through
+     * {@link #shouldBuildSourceColumn()} and builds its {@link CompositeSourceColumn} in the same pass it maps its Lucene columns.
+     */
+    void requestSourceColumn() {
+        assert frozen == false;
+        buildSourceColumnRequested = true;
+    }
+
+    /** Clears the per-field request set by {@link #requestSourceColumn()} once the field's {@code doMapColumnBatch} returns. */
+    void clearSourceColumnRequest() {
+        buildSourceColumnRequested = false;
+    }
+
+    /**
+     * Whether the field currently being mapped should build its direct {@code columnar_stored} {@code _source} writer during this
+     * {@code doMapColumnBatch} pass and register it via {@link #registerSourceColumn}. A mapper that builds nothing while this holds
+     * sends the whole batch to the loader path (default-deny, enforced by {@link FieldMapper#mapColumnBatch}).
+     */
+    public boolean shouldBuildSourceColumn() {
+        return buildSourceColumnRequested;
+    }
+
+    /**
+     * Marks the batch as unable to use the direct {@code columnar_stored} {@code _source} path, so {@link SourceFieldMapper} rebuilds
+     * every row through the synthetic-source loader instead. Irreversible for the batch, and discards any writers registered so far.
+     */
+    public void markDirectSourceUnavailable() {
+        assert frozen == false;
+        directSourceUnavailable = true;
+        sourceColumns.clear();
+    }
+
+    /**
+     * Whether every source-contributing field of the batch registered a direct writer, so {@link SourceFieldMapper#postColumnarParse}
+     * may build the blob from {@link #sourceColumns()} instead of the loader.
+     */
+    public boolean directSourceAvailable() {
+        return directSourceUnavailable == false;
+    }
+
+    /** The registered direct {@code _source} writers; meaningful only when {@link #directSourceAvailable()} holds. */
+    public List<CompositeSourceColumn> sourceColumns() {
+        return sourceColumns;
+    }
+
+    /**
+     * Returns a cursor that reassembles, one document at a time, the Lucene fields of every column attached so far — the row-oriented
+     * view of the batch, for mappers that must read back what the other mappers produced (e.g. {@code columnar_stored} rebuilding
+     * {@code _source}). Unlike {@link #columns()} this does not {@link #frozen freeze} the context, so the caller may still
+     * attach or {@link #removeColumnsIf remove} columns afterwards; columns attached later are not seen by the returned cursor.
+     */
+    public MappedColumns.RowCursor rowCursor() {
+        return mappedColumns().rowCursor();
+    }
+
+    /**
+     * Detaches every column whose Lucene field name matches {@code nameFilter}. The backing data of a detached column stays registered
+     * with this context and is released on {@link #close()}.
+     */
+    public void removeColumnsIf(Predicate<String> nameFilter) {
+        assert frozen == false;
+        columns.removeIf(column -> nameFilter.test(column.toLuceneColumn().name()));
+    }
+
     @Override
     public void close() {
         Releasables.close(resources);
@@ -214,6 +315,22 @@ public final class BatchMappingContext implements Releasable {
      */
     public BytesReference[] sources() {
         return batch.sources();
+    }
+
+    /**
+     * Returns the size in bytes of document {@code doc}'s source, for accounting rather than storage.
+     *
+     * <p>A document that arrives as a row of a pre-built {@link SourceBatch} carries no source bytes on its request, so
+     * {@link #sources()} cannot size it; its size is estimated from the batch row instead, which is what the row-major path does
+     * for row-backed sources (see {@code DocumentSource#estimatedSizeInBytes}). A document with neither has size {@code 0}.
+     */
+    public int sourceSizeInBytes(int doc) {
+        final BytesReference source = batch.sources()[doc];
+        if (source != null && source.length() > 0) {
+            return source.length();
+        }
+        final SourceBatch sourceBatch = batch.sourceBatch();
+        return sourceBatch != null ? sourceBatch.row(doc).sizeInBytes() : 0;
     }
 
     /**
@@ -319,6 +436,14 @@ public final class BatchMappingContext implements Releasable {
         return mappingLookup.isSourceSynthetic();
     }
 
+    /**
+     * Whether {@code _source} is stored as a {@code columnar_stored} whole-document blob, the only mode that uses the direct source
+     * path driven by {@link #registerSourceColumn} and {@link #sourceColumns()}.
+     */
+    public boolean isSourceColumnarStored() {
+        return mappingLookup.isSourceColumnarStored();
+    }
+
     /** The number of documents in this chunk. */
     public int docCount() {
         return batch.docCount();
@@ -336,6 +461,10 @@ public final class BatchMappingContext implements Releasable {
      */
     public MappedColumns columns() {
         frozen = true;
+        return mappedColumns();
+    }
+
+    private MappedColumns mappedColumns() {
         return new MappedColumns(0, batch.docCount(), batch.seqNoBytes(), batch.primaryTermBytes(), batch.versionBytes(), columns);
     }
 }

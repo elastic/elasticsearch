@@ -87,6 +87,90 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
             .build();
     }
 
+    private static Settings columnarStoredSettings() {
+        return Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
+            .build();
+    }
+
+    // =========================================================================
+    // columnar_stored direct source path: the blob is written straight from the mapped keyword values, bypassing the per-document
+    // synthetic-source loader. Byte-for-byte equality with the loader (hence the row path) is covered by every scenario above running a
+    // second time in columnar_stored mode; these pin that the direct path is actually taken, and that ineligible shapes fall back.
+    // =========================================================================
+
+    public void testPlainKeywordUsesDirectSourcePath() throws IOException {
+        final MapperService mapperService = createMapperService(
+            columnarStoredSettings(),
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject())
+        );
+        final FieldMapper mapper = (FieldMapper) mapperService.mappingLookup().getMapper(FIELD);
+        assertEquals(
+            "precondition: columnar_stored keyword uses the columnar-payload layout, which preserves source order",
+            KeywordFieldMapper.KeywordFieldType.DocValuesDiskFormat.BINARY_COLUMNAR_PAYLOAD,
+            ((KeywordFieldMapper.KeywordFieldType) mapper.fieldType()).diskFormat()
+        );
+        assertTrue("plain keyword supports the direct source path", mapper.supportsColumnarSource());
+
+        final ColumnarBatchOutcome outcome = runColumnarBatch(mapperService, "{\"f\":\"alpha\"}", "{\"f\":[\"beta\",\"gamma\"]}", "{}");
+        assertTrue("every field registered a direct writer", outcome.directSourceAvailable());
+        assertEquals("the one keyword field registered one writer", 1, outcome.sourceColumnCount());
+    }
+
+    public void testNullArrayElementFallsBackToLoader() throws IOException {
+        // A null kept inside an array is a shape the keyword writer declines (it registers no direct writer during doMapColumnBatch),
+        // so the whole batch falls back to the loader path, which reproduces the null exactly.
+        final MapperService mapperService = createMapperService(
+            columnarStoredSettings(),
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject())
+        );
+        assertTrue(((FieldMapper) mapperService.mappingLookup().getMapper(FIELD)).supportsColumnarSource());
+
+        final ColumnarBatchOutcome outcome = runColumnarBatch(mapperService, "{\"f\":[\"a\",null,\"b\"]}", "{}");
+        assertFalse("a null array element declines the direct path", outcome.directSourceAvailable());
+    }
+
+    public void testIgnoreAboveStaysDirectInColumnar() throws IOException {
+        // ignore_above is a no-op in strict columnar modes (no value is dropped and no fallback layer is added), so the keyword stays
+        // eligible for the direct path and remains byte-for-byte correct.
+        final MapperService mapperService = createMapperService(
+            columnarStoredSettings(),
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").field("ignore_above", 4).endObject())
+        );
+        final FieldMapper mapper = (FieldMapper) mapperService.mappingLookup().getMapper(FIELD);
+        assertTrue("ignore_above is a no-op in columnar, so the field stays direct-eligible", mapper.supportsColumnarSource());
+
+        final ColumnarBatchOutcome outcome = runColumnarBatch(mapperService, "{\"f\":\"ok\"}", "{\"f\":\"toolong\"}");
+        assertTrue(outcome.directSourceAvailable());
+    }
+
+    public void testNullValueIsIneligibleForDirectSource() throws IOException {
+        final MapperService mapperService = createMapperService(
+            columnarStoredSettings(),
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").field("null_value", "NULL").endObject())
+        );
+        assertFalse(
+            "null_value substitution is not reproduced by the writer",
+            ((FieldMapper) mapperService.mappingLookup().getMapper(FIELD)).supportsColumnarSource()
+        );
+    }
+
+    public void testUnsupportedSiblingFieldForcesWholeBatchToLoader() throws IOException {
+        // Mapping-level default-deny: one unsupported field (a long, which has no direct writer yet) sends the whole batch to the
+        // loader path even though the keyword beside it could be direct-written.
+        final MapperService mapperService = createMapperService(columnarStoredSettings(), mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword").endObject();
+            b.startObject("n").field("type", "long").endObject();
+        }));
+        assertTrue(((FieldMapper) mapperService.mappingLookup().getMapper(FIELD)).supportsColumnarSource());
+        assertFalse(((FieldMapper) mapperService.mappingLookup().getMapper("n")).supportsColumnarSource());
+
+        final ColumnarBatchOutcome outcome = runColumnarBatch(mapperService, "{\"f\":\"a\",\"n\":1}", "{\"f\":\"b\",\"n\":2}");
+        assertFalse("an unsupported sibling field disables the direct path for the whole batch", outcome.directSourceAvailable());
+    }
+
     public void testSingleValue() throws IOException {
         assertColumnarMatchesXContent(
             mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),

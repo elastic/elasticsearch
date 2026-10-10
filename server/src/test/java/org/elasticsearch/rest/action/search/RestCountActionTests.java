@@ -45,20 +45,6 @@ public class RestCountActionTests extends RestActionTestCase {
         assertEquals(SliceIndexing.SLICE_ALL, countRequest.searchSlice());
     }
 
-    public void testApplyRoutingOrSliceRejectsSliceQueryParam() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
-            .withPath("/my-index/_count?_slice=tenant-a")
-            .withParams(Map.of("index", "my-index"))
-            .build();
-        SearchRequest countRequest = new SearchRequest();
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> RestCountAction.applyRoutingOrSliceForCountRequest(request, countRequest)
-        );
-        assertEquals("[_slice] query parameter is not supported for search; use /{index}/{_slice}/_search", e.getMessage());
-    }
-
     public void testApplyRoutingOrSliceRejectsRoutingAndSliceTogether() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)

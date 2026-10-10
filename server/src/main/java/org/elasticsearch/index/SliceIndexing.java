@@ -13,7 +13,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.rest.RequestParams;
 import org.elasticsearch.rest.RestRequest;
 
 import java.util.regex.Pattern;
@@ -129,11 +128,6 @@ public final class SliceIndexing {
      */
     public static ParsedRouting parseRoutingOrSliceWithProvenance(RestRequest request) {
         final String routing = request.param("routing");
-        if (queryParam(request, FIELD_NAME) != null) {
-            throw new IllegalArgumentException(
-                "[" + FIELD_NAME + "] query parameter is not supported; use the /{index}/{_slice}/... path form"
-            );
-        }
         final String slice = request.param(FIELD_NAME);
         if (slice != null && SLICE_FEATURE_FLAG.isEnabled() == false) {
             throw new IllegalArgumentException("request does not support [" + FIELD_NAME + "]");
@@ -155,11 +149,6 @@ public final class SliceIndexing {
      */
     public static ParsedRouting parseSearchRoutingOrSliceWithProvenance(RestRequest request) {
         final String routing = request.param("routing");
-        if (queryParam(request, FIELD_NAME) != null) {
-            throw new IllegalArgumentException(
-                "[" + FIELD_NAME + "] query parameter is not supported for search; use /{index}/{_slice}/_search"
-            );
-        }
         if (isPathBasedSliceSearch(request)) {
             if (SLICE_FEATURE_FLAG.isEnabled() == false) {
                 throw new IllegalArgumentException("request does not support [" + FIELD_NAME + "]");
@@ -249,10 +238,6 @@ public final class SliceIndexing {
                 || ("_fleet".equals(parts[2]) && "_fleet_search".equals(parts[3]));
         }
         return false;
-    }
-
-    private static String queryParam(RestRequest request, String key) {
-        return RequestParams.fromUri(request.uri()).get(key);
     }
 
     /**

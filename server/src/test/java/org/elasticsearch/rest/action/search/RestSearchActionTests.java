@@ -175,20 +175,6 @@ public final class RestSearchActionTests extends RestActionTestCase {
         assertEquals(SliceIndexing.SLICE_ALL, searchRequest.searchSlice());
     }
 
-    public void testParseSearchRequestRejectsSliceQueryParam() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
-            .withPath("/my-index/_search?_slice=tenant-a")
-            .withParams(Map.of("index", "my-index"))
-            .build();
-        SearchRequest searchRequest = new SearchRequest();
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> RestSearchAction.parseSearchRequest(searchRequest, request, null, nf -> false, size -> searchRequest.source().size(size))
-        );
-        assertEquals("[_slice] query parameter is not supported for search; use /{index}/{_slice}/_search", e.getMessage());
-    }
-
     public void testParseSearchRequestRejectsRoutingAndSliceTogether() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
@@ -244,20 +230,6 @@ public final class RestSearchActionTests extends RestActionTestCase {
         assertEquals("tenant-a", searchRequest.routing());
         assertTrue(searchRequest.isRoutingFromSlice());
         assertEquals("tenant-a", searchRequest.searchSlice());
-    }
-
-    public void testParseSearchRequestRejectsPathSliceWithQuerySlice() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
-            .withPath("/my-index/tenant-a/_search?_slice=tenant-b")
-            .withParams(Map.of("index", "my-index", SliceIndexing.FIELD_NAME, "tenant-a"))
-            .build();
-        SearchRequest searchRequest = new SearchRequest();
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> RestSearchAction.parseSearchRequest(searchRequest, request, null, nf -> false, size -> searchRequest.source().size(size))
-        );
-        assertEquals("[_slice] query parameter is not supported for search; use /{index}/{_slice}/_search", e.getMessage());
     }
 
     public void testPathSliceSearchRouteIsRegistered() {

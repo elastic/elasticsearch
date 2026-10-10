@@ -96,6 +96,32 @@ public class RestEsqlQueryAction extends BaseRestHandler {
         return restChannelConsumer(esqlRequest, request, client);
     }
 
+    /**
+     * Parses and validates the {@code batch_size} parameter. This is the single place {@code batch_size} is
+     * validated: nothing downstream re-checks it, so the bounds here are the whole contract. The upper bound
+     * is provisional pending the benchmarking in F8.
+     */
+    static int parseBatchSize(String batchSizeParam) {
+        if (batchSizeParam == null) {
+            return DEFAULT_BATCH_SIZE;
+        }
+        int batchSize;
+        try {
+            batchSize = Integer.parseInt(batchSizeParam);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("[" + BATCH_SIZE_OPTION + "] must be an integer, got [" + batchSizeParam + "]");
+        }
+        if (batchSize < 1) {
+            throw new IllegalArgumentException("[" + BATCH_SIZE_OPTION + "] must be at least 1, got [" + batchSize + "]");
+        }
+        if (batchSize > MAX_BATCH_SIZE) {
+            throw new IllegalArgumentException(
+                "[" + BATCH_SIZE_OPTION + "] must be at most " + MAX_BATCH_SIZE + ", got [" + batchSize + "]"
+            );
+        }
+        return batchSize;
+    }
+
     static RestChannelConsumer streamingChannelConsumer(
         EsqlQueryRequest esqlRequest,
         RestRequest request,
@@ -110,26 +136,12 @@ public class RestEsqlQueryAction extends BaseRestHandler {
         }
         request.param(URL_PARAM_HEADER);
 
-        int batchSize = DEFAULT_BATCH_SIZE;
-        if (batchSizeParam != null) {
-            try {
-                batchSize = Integer.parseInt(batchSizeParam);
-            } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("[" + BATCH_SIZE_OPTION + "] must be an integer, got [" + batchSizeParam + "]");
-            }
-            if (batchSize < 1) {
-                throw new IllegalArgumentException("[" + BATCH_SIZE_OPTION + "] must be at least 1, got [" + batchSize + "]");
-            }
-            if (batchSize > MAX_BATCH_SIZE) {
-                throw new IllegalArgumentException("[" + BATCH_SIZE_OPTION + "] must be at most 1000, got [" + batchSize + "]");
-            }
-        }
+        final int batchSize = parseBatchSize(batchSizeParam);
 
         final Boolean partialResults = request.paramAsBoolean("allow_partial_results", null);
         if (partialResults != null) {
             esqlRequest.allowPartialResults(partialResults);
         }
-        final int resolvedBatchSize = batchSize;
         LOGGER.debug("Beginning streaming execution of ESQL query.\nQuery string: [{}]", esqlRequest.queryDescription());
 
         return channel -> {
@@ -138,7 +150,7 @@ public class RestEsqlQueryAction extends BaseRestHandler {
                 esqlRequest,
                 restListener.resultStreamListener(),
                 request.paramAsBoolean(EsqlQueryResponse.DROP_NULL_COLUMNS_OPTION, false),
-                resolvedBatchSize
+                batchSize
             );
             new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
                 EsqlStreamQueryAction.INSTANCE,

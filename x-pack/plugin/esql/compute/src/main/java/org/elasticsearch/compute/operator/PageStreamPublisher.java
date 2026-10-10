@@ -108,9 +108,8 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
     private int outstandingProducers;
 
     public PageStreamPublisher(int pageSize) {
-        if (pageSize < 1) {
-            throw new IllegalArgumentException("pageSize must be at least 1, got [" + pageSize + "]");
-        }
+        // The REST layer validates the user-supplied batch_size; this is only an internal invariant.
+        assert pageSize >= 1 : "pageSize must be at least 1, got [" + pageSize + "]";
         this.pageSize = pageSize;
     }
 

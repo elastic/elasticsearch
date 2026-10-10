@@ -63,6 +63,14 @@ public class BreakingBytesRefBuilder implements Accountable, Releasable {
     }
 
     /**
+     * Create a separate builder that shares this builder's breaker and label, pre-sized to
+     * {@code capacity}.
+     */
+    public BreakingBytesRefBuilder newChildOfSize(int capacity) {
+        return new BreakingBytesRefBuilder(breaker, label, capacity);
+    }
+
+    /**
      * Make sure that the underlying bytes has a capacity of at least
      * {@code capacity}.
      */

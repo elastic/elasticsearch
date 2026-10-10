@@ -105,15 +105,16 @@ public class FromBase64 extends UnaryScalarFunction implements AnyNullIsNull {
 
     @Evaluator(warnExceptions = { IllegalArgumentException.class })
     static BytesRef process(BytesRef field, @Fixed(includeInToString = false, scope = THREAD_LOCAL) BreakingBytesRefBuilder oScratch) {
-        byte[] bytes = new byte[field.length];
-        System.arraycopy(field.bytes, field.offset, bytes, 0, field.length);
         oScratch.grow(field.length);
         oScratch.clear();
-        int decodedSize = Base64.getDecoder().decode(bytes, oScratch.bytes());
-        if (Utf8Sanitizer.isWellFormed(oScratch.bytes(), 0, decodedSize) == false) {
-            throw new IllegalArgumentException("decoded value is not valid UTF-8, which is not supported yet");
+        try (BreakingBytesRefBuilder inScratch = oScratch.newChildOfSize(field.length)) {
+            System.arraycopy(field.bytes, field.offset, inScratch.bytes(), 0, field.length);
+            int decodedSize = Base64.getDecoder().decode(inScratch.bytes(), oScratch.bytes());
+            if (Utf8Sanitizer.isWellFormed(oScratch.bytes(), 0, decodedSize) == false) {
+                throw new IllegalArgumentException("decoded value is not valid UTF-8, which is not supported yet");
+            }
+            return new BytesRef(oScratch.bytes(), 0, decodedSize);
         }
-        return new BytesRef(oScratch.bytes(), 0, decodedSize);
     }
 
     @Override

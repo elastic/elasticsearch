@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.querysampling.groundtruth;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
 import org.elasticsearch.xpack.querysampling.storage.AttachmentKey;
 
@@ -17,8 +18,14 @@ import java.util.List;
  * the hits the live search returned tells how much of the true answer the approximate search found.
  *
  * @param neighbors the exact top-k, best first
+ * @param dataState what the data was like when it was computed, which tells later if it went out of date. {@code null}
+ *                  if that was not taken
  */
-public record GroundTruth(List<CapturedSearch.Hit> neighbors) {
+public record GroundTruth(List<CapturedSearch.Hit> neighbors, @Nullable DataState dataState) {
+
+    public GroundTruth(List<CapturedSearch.Hit> neighbors) {
+        this(neighbors, null);
+    }
 
     public static final AttachmentKey<GroundTruth> KEY = new AttachmentKey<>("ground_truth", GroundTruth.class);
 }

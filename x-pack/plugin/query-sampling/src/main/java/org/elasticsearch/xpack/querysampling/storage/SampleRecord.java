@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.querysampling.dedup.QueryFingerprint;
 import org.elasticsearch.xpack.querysampling.dedup.Selectivity;
 import org.elasticsearch.xpack.querysampling.dedup.Stratum;
 import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
+import org.elasticsearch.xpack.querysampling.groundtruth.DataState;
 import org.elasticsearch.xpack.querysampling.groundtruth.GroundTruth;
 
 import java.io.IOException;
@@ -133,7 +134,7 @@ public final class SampleRecord {
 
         if (groundTruth != null) {
             builder.startObject("ground_truth");
-            hits(builder, "neighbors", groundTruth.neighbors());
+            groundTruth(builder, groundTruth);
             builder.endObject();
         }
         return builder.endObject();
@@ -155,7 +156,7 @@ public final class SampleRecord {
     public static XContentBuilder groundTruthUpdate(XContentBuilder builder, GroundTruth groundTruth, long nowMillis) throws IOException {
         builder.startObject();
         builder.startObject("ground_truth");
-        hits(builder, "neighbors", groundTruth.neighbors());
+        groundTruth(builder, groundTruth);
         builder.endObject();
         builder.field("has_ground_truth", true);
         builder.field("updated_at", nowMillis);
@@ -214,9 +215,7 @@ public final class SampleRecord {
             ((Number) source.get("seen_probability")).doubleValue(),
             captureRate
         );
-        GroundTruth groundTruth = source.get("ground_truth") == null
-            ? null
-            : new GroundTruth(hits(map(source.get("ground_truth")).get("neighbors")));
+        GroundTruth groundTruth = source.get("ground_truth") == null ? null : parseGroundTruth(map(source.get("ground_truth")));
         Stratum stratum = source.get("spatial_space") == null
             ? null
             : new Stratum((String) source.get("spatial_space"), ((Number) source.get("spatial_cluster")).intValue());
@@ -241,6 +240,16 @@ public final class SampleRecord {
     @SuppressWarnings("unchecked") // objects of a source are maps of strings, this class is what writes them
     private static Map<String, Object> map(Object object) {
         return (Map<String, Object>) object;
+    }
+
+    private static GroundTruth parseGroundTruth(Map<String, Object> groundTruth) {
+        Map<String, Object> state = groundTruth.get("data_state") == null ? null : map(groundTruth.get("data_state"));
+        return new GroundTruth(
+            hits(groundTruth.get("neighbors")),
+            state == null
+                ? null
+                : new DataState(((Number) state.get("documents")).longValue(), ((Number) state.get("seq_no_sum")).doubleValue())
+        );
     }
 
     private static Float optionalFloat(Object value) {
@@ -278,6 +287,19 @@ public final class SampleRecord {
         builder.field("inclusion_probability", weights.inclusionProbability());
         builder.field("seen_probability", weights.seenProbability());
         builder.field("capture_rate", weights.captureRate());
+    }
+
+    /**
+     * The fields of the object of a ground truth.
+     */
+    private static void groundTruth(XContentBuilder builder, GroundTruth groundTruth) throws IOException {
+        hits(builder, "neighbors", groundTruth.neighbors());
+        if (groundTruth.dataState() != null) {
+            builder.startObject("data_state");
+            builder.field("documents", groundTruth.dataState().documents());
+            builder.field("seq_no_sum", groundTruth.dataState().seqNoSum());
+            builder.endObject();
+        }
     }
 
     private static void hits(XContentBuilder builder, String name, Iterable<CapturedSearch.Hit> hits) throws IOException {

@@ -14,10 +14,16 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.metrics.Sum;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.vectors.ExactKnnQueryBuilder;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.test.ESTestCase;
@@ -25,6 +31,7 @@ import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
 import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -76,16 +83,40 @@ public class ExactSearchTests extends ESTestCase {
     public void testParseOfAnEmptyResponse() {
         SearchResponse response = response();
         try {
-            assertThat(ExactSearch.parse(response).neighbors().isEmpty(), equalTo(true));
+            GroundTruth truth = ExactSearch.parse(response);
+            assertThat(truth.neighbors().isEmpty(), equalTo(true));
+            assertThat("a response that was not asked for the state does not say it", truth.dataState(), nullValue());
         } finally {
             response.decRef();
         }
+    }
+
+    public void testRequestAlsoAsksForTheStateOfTheDataItScans() {
+        CapturedQuery query = new CapturedQuery(new String[] { "idx" }, "vec", new float[] { 1f }, 10, 100, null, null, List.of(), null);
+
+        SearchRequest request = ExactSearch.request(query);
+
         assertThat(
-            ExactSearch.request(new CapturedQuery(new String[0], "vec", new float[] { 1f }, 1, 1, null, null, List.of(), null))
-                .source()
-                .aggregations(),
-            nullValue()
+            "it has to count all the documents",
+            request.source().trackTotalHitsUpTo(),
+            equalTo(SearchContext.TRACK_TOTAL_HITS_ACCURATE)
         );
+        List<AggregationBuilder> aggregations = List.copyOf(request.source().aggregations().getAggregatorFactories());
+        assertThat(aggregations.size(), equalTo(1));
+        assertThat(aggregations.get(0), equalTo(AggregationBuilders.sum("seq_no_sum").field("_seq_no")));
+    }
+
+    public void testParseTellsTheStateOfTheData() {
+        SearchHits searchHits = new SearchHits(new SearchHit[0], new TotalHits(42, TotalHits.Relation.EQUAL_TO), 1f);
+        SearchResponse response = SearchResponseUtils.response(searchHits)
+            .aggregations(InternalAggregations.from(List.of(new Sum("seq_no_sum", 1234.0, DocValueFormat.RAW, Map.of()))))
+            .build();
+        searchHits.decRef(); // the response holds its own reference
+        try {
+            assertThat(ExactSearch.parse(response).dataState(), equalTo(new DataState(42, 1234.0)));
+        } finally {
+            response.decRef();
+        }
     }
 
     private static SearchHit hit(String index, String id, float score) {

@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.querysampling.dedup.QueryFingerprint;
 import org.elasticsearch.xpack.querysampling.dedup.Selectivity;
 import org.elasticsearch.xpack.querysampling.dedup.Stratum;
 import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
+import org.elasticsearch.xpack.querysampling.groundtruth.DataState;
 import org.elasticsearch.xpack.querysampling.groundtruth.GroundTruth;
 
 import java.io.IOException;
@@ -228,7 +229,13 @@ public class SampleRecordTests extends ESTestCase {
             tracked(captureRate)
         );
         if (randomBoolean()) {
-            sampled.attach(GroundTruth.KEY, new GroundTruth(List.of(new CapturedSearch.Hit("a", "d3", 1f))));
+            sampled.attach(
+                GroundTruth.KEY,
+                new GroundTruth(
+                    List.of(new CapturedSearch.Hit("a", "d3", 1f)),
+                    randomBoolean() ? null : new DataState(randomNonNegativeInt(), randomDoubleBetween(0, 1e15, true))
+                )
+            );
         }
 
         StoredSample stored = SampleRecord.parse(
@@ -261,6 +268,17 @@ public class SampleRecordTests extends ESTestCase {
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return new NamedXContentRegistry(new SearchModule(Settings.EMPTY, List.of()).getNamedXContents());
+    }
+
+    @SuppressWarnings("unchecked") // the update is JSON whose shape this class defines
+    public void testGroundTruthUpdateHasTheStateOfTheData() throws IOException {
+        GroundTruth groundTruth = new GroundTruth(List.of(new CapturedSearch.Hit("a", "d1", 1f)), new DataState(7, 123456.0));
+
+        Map<String, Object> update = toMap(SampleRecord.groundTruthUpdate(JsonXContent.contentBuilder(), groundTruth, 9L));
+
+        Map<String, Object> stored = (Map<String, Object>) update.get("ground_truth");
+        assertThat(stored.get("data_state"), equalTo(Map.of("documents", 7, "seq_no_sum", 123456.0)));
+        assertThat(((List<?>) stored.get("neighbors")).size(), equalTo(1));
     }
 
     public void testWeightsUpdateOnlyHasWhatChanges() throws IOException {

@@ -67,6 +67,10 @@ public class QuerySamplingGroundTruthIT extends QuerySamplingRestTestCase {
         assertThat(last, equalTo(0L));
         assertBusy(() -> assertThat(storedValue(x, "has_ground_truth"), equalTo(true)));
         assertThat(((List<?>) storedValue(x, "ground_truth.neighbors")).size(), equalTo(3));
+        // what the data was like is taken by the exact search itself: the five documents of the index, with sequence numbers
+        // that are 0 to 4 for the first of them
+        assertThat(((Number) storedValue(x, "ground_truth.data_state.documents")).longValue(), equalTo(5L));
+        assertThat(((Number) storedValue(x, "ground_truth.data_state.seq_no_sum")).doubleValue(), equalTo(10.0));
 
         // the queries that have ground truth now are what the recall is estimated from
         refreshSampleIndex();

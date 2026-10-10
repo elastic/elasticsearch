@@ -120,6 +120,12 @@ String systemdOutputs = 'build/outputs/systemd'
 String integTestOutputs = 'build/outputs/integ-test-only'
 String externalTestOutputs = 'build/outputs/external-test'
 
+// absolute module directories for the packaging content mappings, which cannot resolve
+// project-relative paths of this project from the packages subproject
+File defaultModulesDirectory = file("${defaultOutputs}/modules")
+File systemdModulesDirectory = file("${systemdOutputs}/modules")
+File externalTestModulesDirectory = file("${externalTestOutputs}/modules")
+
 def processDefaultOutputsTaskProvider = tasks.register("processDefaultOutputs", Sync) {
   into defaultOutputs
 }
@@ -370,106 +376,231 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
   project.ext {
 
     /*****************************************************************************
+     *          Content sources shared by archive and package builds             *
+     *****************************************************************************
+     *
+     * The os package tasks (see distribution/packages) are not copy tasks: they
+     * walk their sources directly to preserve symbolic links without relying on
+     * Gradle internal APIs, so they cannot consume the copySpec helpers below.
+     * Keep the file selection/layout in one shared data model and render it as
+     * either copy specs (archives) or explicit package mappings (deb/rpm).
+     */
+    libContentMappings = { os, architecture ->
+      def serverLauncherSources = files(configurations.libsServerLauncher)
+      if (os == 'linux') {
+        if (architecture == 'x64') {
+          serverLauncherSources = serverLauncherSources.plus(files(configurations.libsServerLauncherNativeX64))
+        } else if (architecture == 'aarch64') {
+          serverLauncherSources = serverLauncherSources.plus(files(configurations.libsServerLauncherNativeAarch64))
+        }
+      }
+      String platformIncludePattern = os == null ? null : os + '-' + architecture + '/*'
+      return [
+        [relativeDir: '', source: configurations.libs],
+        [relativeDir: 'java-version-checker', source: configurations.libsVersionChecker],
+        [relativeDir: 'cli-launcher', source: configurations.libsCliLauncher],
+        [relativeDir: 'tools/server-cli', source: configurations.libsServerCli],
+        [relativeDir: 'tools/server-launcher', source: serverLauncherSources, executablePattern: 'server-launcher*'],
+        [relativeDir: 'tools/windows-service-cli', source: configurations.libsWindowsServiceCli],
+        [relativeDir: 'tools/geoip-cli', source: configurations.libsGeoIpCli],
+        [relativeDir: 'tools/plugin-cli', source: configurations.libsPluginCli],
+        [relativeDir: 'tools/keystore-cli', source: configurations.libsKeystoreCli],
+        [relativeDir: 'tools/security-cli', source: configurations.libsSecurityCli],
+        [relativeDir: 'tools/ansi-console', source: configurations.libsAnsiConsole],
+        [relativeDir: 'platform', source: configurations.libsNative, includePattern: platformIncludePattern],
+        [relativeDir: 'entitlement-agent', source: configurations.libsEntitlementAgent],
+        [relativeDir: 'entitlement-bridge', source: configurations.libsEntitlementBridge],
+      ]
+    }
+
+    /** module trees for the packaging tasks: source directory plus the task producing it */
+    packagingDefaultModulesDir = files(defaultModulesDirectory).builtBy(processDefaultOutputsTaskProvider)
+    packagingSystemdModulesDir = files(systemdModulesDirectory).builtBy(processSystemdOutputsTaskProvider)
+    packagingExternalTestModulesDir = files(externalTestModulesDirectory).builtBy(buildExternalTestModulesTaskProvider)
+    packagingNoticeFile = buildDefaultNoticeTaskProvider
+
+    moduleContentMappings = { os, architecture, forPackages ->
+      List excludePlatforms = ['linux-x86_64', 'linux-aarch64', 'windows-x86_64', 'darwin-x86_64', 'darwin-aarch64']
+      if (os != null) {
+        String platform = os + '-' + architecture
+        if (architecture == 'x64') {
+          // ML platform dir uses the x86_64 nomenclature
+          platform = os + '-x86_64'
+        }
+        excludePlatforms.remove(excludePlatforms.indexOf(platform))
+      } else {
+        excludePlatforms = []
+      }
+      List<String> executablePatterns = ['**/bin/*']
+      if (os == 'darwin') {
+        executablePatterns.add('**/MacOS/*')
+      }
+      List<String> excludes = ['**/geo/**']
+      excludes.addAll(excludePlatforms.collect { "**/platform/${it}/**" })
+      List<Map<String, Object>> mappings = [
+        [
+          source: forPackages ? packagingDefaultModulesDir : defaultModulesFiles,
+          excludes: excludes,
+          executablePatterns: executablePatterns,
+        ]
+      ]
+      if (buildParams.getSnapshotBuild()) {
+        mappings.add([
+          source: forPackages ? packagingExternalTestModulesDir : buildExternalTestModulesTaskProvider,
+          excludes: excludePlatforms.collect { "**/platform/${it}/**" },
+          executablePatterns: executablePatterns,
+        ])
+      }
+      if (forPackages) {
+        mappings.add([
+          source: packagingSystemdModulesDir,
+          excludes: excludePlatforms.collect { "**/platform/${it}/**" },
+          executablePatterns: executablePatterns,
+        ])
+      }
+      return mappings
+    }
+
+    jdkContentMapping = { Project project, String os, String architecture ->
+      List<String> excludes = ['demo/**', '**/src.zip']
+      /*
+       * The Contents/MacOS directory interferes with notarization, and is unused by our distribution, so we exclude
+       * it from the build.
+       */
+      if ("darwin".equals(os)) {
+        excludes.add('Contents/MacOS')
+      }
+      return [
+        source: project.jdks."bundled_${os}_${architecture}",
+        excludes: excludes,
+        executablePatterns: ['**/bin/*', '**/jspawnhelper'],
+      ]
+    }
+
+    configContentMappings = { distributionType, isTestDistro ->
+      [
+        [
+          source: '../src/config',
+          excludes: ['log4j2.properties'],
+          tokens: expansionsForDistribution(distributionType, isTestDistro),
+        ],
+        [source: buildDefaultLog4jConfigTaskProvider],
+        [source: isTestDistro ? integTestConfigFiles : defaultConfigFiles],
+      ]
+    }
+
+    binContentMappings = { distributionType, testDistro ->
+      List<Map<String, Object>> mappings = [
+        [
+          source: '../src/bin',
+          excludes: ['*.exe', '*.bat'],
+          fileMode: 0755,
+          tokens: expansionsForDistribution(distributionType, testDistro),
+        ]
+      ]
+      if (distributionType == 'zip') {
+        mappings.add([
+          source: '../src/bin',
+          includes: ['*.bat'],
+          crlf: true,
+          tokens: expansionsForDistribution(distributionType, testDistro),
+        ])
+        mappings.add([
+          source: '../src/bin',
+          includes: ['*.exe'],
+        ])
+      }
+      mappings.add([
+        source: testDistro ? integTestBinFiles : defaultBinFiles,
+        excludes: distributionType == 'zip' ? [] : ['*.bat'],
+        fileMode: 0755,
+      ])
+      return mappings
+    }
+
+    renderCopyMappings = { mappings ->
+      copySpec {
+        mappings.each { mapping ->
+          def source = mapping.source
+          String relativeDir = mapping.relativeDir
+          List<String> includes = mapping.includes ?: []
+          List<String> excludes = mapping.excludes ?: []
+          Integer fileMode = mapping.fileMode
+          Map<String, Object> tokens = mapping.tokens
+          boolean crlf = mapping.crlf == true
+          with copySpec {
+            if (relativeDir) {
+              into(relativeDir)
+            }
+            from(source)
+            includes.each { include(it) }
+            excludes.each { exclude(it) }
+            if (fileMode != null) {
+              eachFile {
+                it.permissions {
+                  unix(fileMode)
+                }
+              }
+            }
+            if (crlf) {
+              filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
+            }
+            if (tokens != null) {
+              filter("tokens": tokens, ReplaceTokens.class)
+            }
+          }
+        }
+      }
+    }
+
+    /*****************************************************************************
      *                   Common files in all distributions                       *
      *****************************************************************************/
     libFiles = { os, architecture ->
       copySpec {
-        // Delay by using closures, since they have not yet been configured, so no jar task exists yet.
-        from(configurations.libs)
-        into('java-version-checker') {
-          from(configurations.libsVersionChecker)
-        }
-        into('cli-launcher') {
-          from(configurations.libsCliLauncher)
-        }
-        into('tools/server-cli') {
-          from(configurations.libsServerCli)
-        }
-        into('tools/server-launcher') {
-          from(configurations.libsServerLauncher)
-          // Linux-only: include native binary for the matching architecture
-          if (os == 'linux') {
-            if (architecture == 'x64') {
-              from(configurations.libsServerLauncherNativeX64)
-            } else if (architecture == 'aarch64') {
-              from(configurations.libsServerLauncherNativeAarch64)
+        libContentMappings(os, architecture).each { mapping ->
+          String relativeDir = mapping.relativeDir
+          def source = mapping.source
+          String includePattern = mapping.includePattern
+          String executablePattern = mapping.executablePattern
+          with copySpec {
+            if (relativeDir) {
+              into(relativeDir)
+            }
+            // Delay by using closures, since they have not yet been configured, so no jar task exists yet.
+            from(source)
+            if (includePattern) {
+              include(includePattern)
+            }
+            if (executablePattern) {
+              eachFile {
+                if (org.apache.tools.ant.types.selectors.SelectorUtils.matchPath(executablePattern, it.relativePath.pathString)
+                  || org.apache.tools.ant.types.selectors.SelectorUtils.matchPath(executablePattern, it.name)) {
+                  it.permissions.unix(0755)
+                }
+              }
             }
           }
-          eachFile {
-            if (it.name == 'server-launcher' || it.name == 'server-launcher.exe') {
-              it.permissions.unix(0755)
-            }
-          }
-        }
-        into('tools/windows-service-cli') {
-          from(configurations.libsWindowsServiceCli)
-        }
-        into('tools/geoip-cli') {
-          from(configurations.libsGeoIpCli)
-        }
-        into('tools/plugin-cli') {
-          from(configurations.libsPluginCli)
-        }
-        into('tools/keystore-cli') {
-          from(configurations.libsKeystoreCli)
-        }
-        into('tools/security-cli') {
-          from(configurations.libsSecurityCli)
-        }
-        into('tools/ansi-console') {
-          from(configurations.libsAnsiConsole)
-        }
-        into('platform') {
-          from(configurations.libsNative)
-          if (os != null) {
-            include(os + '-' + architecture + '/*')
-          }
-        }
-        into('entitlement-agent') {
-          from(configurations.libsEntitlementAgent)
-        }
-        into('entitlement-bridge') {
-          from(configurations.libsEntitlementBridge)
         }
       }
     }
 
     modulesFiles = { os, architecture ->
       copySpec {
-        eachFile {
-          if (it.relativePath.segments[-2] == 'bin' || (os == 'darwin' && it.relativePath.segments[-2] == 'MacOS')) {
-            // bin files, wherever they are within modules (eg platform specific) should be executable
-            // and MacOS is an alternative to bin on macOS
-            it.permissions.unix(0755)
-          } else {
-            it.permissions.unix(0644)
+        moduleContentMappings(os, architecture, false).each { mapping ->
+          def source = mapping.source
+          List<String> excludes = mapping.excludes
+          List<String> executablePatterns = mapping.executablePatterns
+          with copySpec {
+            from(source)
+            excludes.each { exclude(it) }
+            eachFile {
+              boolean executable = executablePatterns.any { pattern ->
+                org.apache.tools.ant.types.selectors.SelectorUtils.matchPath(pattern, it.relativePath.pathString)
+              }
+              it.permissions.unix(executable ? 0755 : 0644)
+            }
           }
-        }
-        List excludePlatforms = ['linux-x86_64', 'linux-aarch64', 'windows-x86_64', 'darwin-x86_64', 'darwin-aarch64']
-        if (os != null) {
-          String platform = os + '-' + architecture
-          if (architecture == 'x64') {
-            // ML platform dir uses the x86_64 nomenclature
-            platform = os + '-x86_64'
-          }
-          excludePlatforms.remove(excludePlatforms.indexOf(platform))
-        } else {
-          excludePlatforms = []
-        }
-        from(defaultModulesFiles) {
-          // geo registers the geo_shape mapper that is overridden by
-          // the geo_shape mapper registered in the x-pack-spatial plugin
-          exclude "**/geo/**"
-
-          for (String excludePlatform : excludePlatforms) {
-            exclude "**/platform/${excludePlatform}/**"
-          }
-        }
-        if (buildParams.getSnapshotBuild()) {
-          from(buildExternalTestModulesTaskProvider)
-        }
-        if (project.path.startsWith(':distribution:packages')) {
-          from(systemdModuleFiles)
         }
       }
     }
@@ -479,54 +610,11 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     }
 
     configFiles = { distributionType, isTestDistro ->
-      copySpec {
-        with copySpec {
-          // main config files, processed with distribution specific substitutions
-          from '../src/config'
-          exclude 'log4j2.properties' // this is handled separately below
-          filter("tokens": expansionsForDistribution(distributionType, isTestDistro), ReplaceTokens.class)
-        }
-        from buildDefaultLog4jConfigTaskProvider
-        from isTestDistro ? integTestConfigFiles : defaultConfigFiles
-      }
+      renderCopyMappings(configContentMappings(distributionType, isTestDistro))
     }
 
     binFiles = { distributionType, testDistro ->
-      copySpec {
-        // non-windows files, for all distributions
-        with copySpec {
-          from '../src/bin'
-          exclude '*.exe'
-          exclude '*.bat'
-          eachFile {
-            it.permissions {
-              unix(0755)
-            }
-          }
-          filter("tokens": expansionsForDistribution(distributionType, testDistro), ReplaceTokens.class)
-        }
-        // windows files, only for zip
-        if (distributionType == 'zip') {
-          with copySpec {
-            from '../src/bin'
-            include '*.bat'
-            filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
-            filter("tokens": expansionsForDistribution(distributionType, testDistro), ReplaceTokens.class)
-          }
-          with copySpec {
-            from '../src/bin'
-            include '*.exe'
-          }
-        }
-        // module provided bin files
-        with copySpec {
-          eachFile { it.permissions.unix(0755) }
-          from(testDistro ? integTestBinFiles : defaultBinFiles)
-          if (distributionType != 'zip') {
-            exclude '*.bat'
-          }
-        }
-      }
+      renderCopyMappings(binContentMappings(distributionType, testDistro))
     }
 
     noticeFile = { testDistro ->
@@ -544,28 +632,19 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     }
 
     jdkFiles = { Project project, String os, String architecture ->
+      def mapping = jdkContentMapping(project, os, architecture)
+      def source = mapping.source
+      List<String> excludes = mapping.excludes
+      List<String> executablePatterns = mapping.executablePatterns
       return copySpec {
-        from project.jdks."bundled_${os}_${architecture}"
-        exclude "demo/**"
-        /*
-         * The Contents/MacOS directory interferes with notarization, and is unused by our distribution, so we exclude
-         * it from the build.
-         */
-        if ("darwin".equals(os)) {
-          exclude "Contents/MacOS"
-        }
+        from(source)
+        excludes.each { exclude(it) }
         eachFile { FileCopyDetails details ->
-          if (details.relativePath.segments[-2] == 'bin' || details.relativePath.segments[-1] == 'jspawnhelper') {
-            details.permissions {
-              unix(0755)
-            }
-          } else {
-            details.permissions {
-              unix(0644)
-            }
+          boolean executable = executablePatterns.any { pattern ->
+            org.apache.tools.ant.types.selectors.SelectorUtils.matchPath(pattern, details.relativePath.pathString)
           }
-          if (details.name == 'src.zip') {
-            details.exclude()
+          details.permissions {
+            unix(executable ? 0755 : 0644)
           }
         }
       }

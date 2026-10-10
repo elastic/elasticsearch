@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -71,6 +73,7 @@ public class ExternalRequestFilterRowGroupPruningIT extends AbstractExternalData
         assertThat("a selective time range must skip row groups", status.kept(), lessThan(status.total()));
     }
 
+    @Repeat(iterations = 25)
     public void testWhereAndRequestFilterPruneIdentically() throws Exception {
         String dataset = registerSortedDataset("rg_parity");
         List<Long> expected = idsWithTsBetween(0, 100);

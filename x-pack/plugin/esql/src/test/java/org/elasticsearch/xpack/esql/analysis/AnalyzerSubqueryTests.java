@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
@@ -65,6 +64,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -76,6 +76,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.rewriteDatasetsUnsecured;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
@@ -1412,10 +1413,14 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         // explaining that TS aggregations cannot span a union.
         analyzer().addK8s()
             .error(
-                """
-                    FROM (FROM k8s), (FROM k8s)
-                    | STATS x = last_over_time(event) BY time_bucket = bucket(@timestamp, 1 day)
-                    """,
+                "FROM (FROM k8s), (FROM k8s) | STATS x = last_over_time(event) BY time_bucket = bucket(@timestamp, 1 day)",
+                containsString(
+                    "cannot be applied over a union of data sources; apply the time-series aggregation inside each subquery instead"
+                )
+            );
+        analyzer().addK8s()
+            .error(
+                "FROM (TS k8s), (TS k8s) | STATS x = last_over_time(event) BY time_bucket = bucket(@timestamp, 1 day)",
                 containsString(
                     "cannot be applied over a union of data sources; apply the time-series aggregation inside each subquery instead"
                 )
@@ -1423,25 +1428,50 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
 
         analyzer().addK8s()
             .error(
-                """
-                    FROM (TS k8s), (FROM k8s)
-                    | STATS x = last_over_time(event) BY time_bucket = bucket(@timestamp, 1 day)
-                    """,
+                "FROM "
+                    + shuffle("(FROM k8s)", "(TS k8s)")
+                    + " | STATS x = last_over_time(event) BY time_bucket = bucket(@timestamp, 1 day)",
                 containsString(
                     "cannot be applied over a union of data sources; apply the time-series aggregation inside each subquery instead"
                 )
             );
+    }
 
+    public void testTimeSeriesAggregateFunctionAfterUnionAllViews() {
+        // index and regular view
         analyzer().addK8s()
+            .addView("k8s_view", "FROM k8s | EVAL f1=1")
             .error(
-                """
-                    FROM (TS k8s), (TS k8s)
-                    | STATS x = last_over_time(event) BY time_bucket = bucket(@timestamp, 1 day)
-                    """,
+                "FROM " + shuffle("k8s", "k8s_view") + " | STATS x = last_over_time(event) BY time_bucket = bucket(@timestamp, 1 day)",
                 containsString(
                     "cannot be applied over a union of data sources; apply the time-series aggregation inside each subquery instead"
                 )
             );
+        // index and ts view
+        analyzer().addK8s()
+            .addView("k8s_ts_view", "TS k8s | EVAL f2=2")
+            .error(
+                "FROM " + shuffle("k8s", "k8s_ts_view") + " | STATS x = last_over_time(event) BY time_bucket = bucket(@timestamp, 1 day)",
+                containsString(
+                    "cannot be applied over a union of data sources; apply the time-series aggregation inside each subquery instead"
+                )
+            );
+        // regular and ts view
+        analyzer().addK8s()
+            .addView("k8s_view", "FROM k8s | EVAL f1=1")
+            .addView("k8s_ts_view", "TS k8s | EVAL f2=2")
+            .error(
+                "FROM "
+                    + shuffle("k8s_view", "k8s_ts_view")
+                    + " | STATS x = last_over_time(event) BY time_bucket = bucket(@timestamp, 1 day)",
+                containsString(
+                    "cannot be applied over a union of data sources; apply the time-series aggregation inside each subquery instead"
+                )
+            );
+    }
+
+    private static String shuffle(String... sources) {
+        return String.join(",", shuffledList(Arrays.asList(sources)));
     }
 
     /*
@@ -1976,7 +2006,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
     }
 
     public void testForkInsideAndAfterFork() {
-        String message = analyzer().addEmployees("test").error("""
+        analyzer().addEmployees("test").error("""
                 FROM test
                 | FORK
                   (FORK (FORK (WHERE emp_no > 10) (WHERE emp_no <= 10))
@@ -2101,7 +2131,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
             .putCustom(DataSourceMetadata.TYPE, new DataSourceMetadata(Map.of("external_ds", dataSource)))
             .datasets(Map.of("salaries_int", intDataset, "salaries_long", longDataset))
             .build();
-        LogicalPlan rewritten = DatasetRewriter.rewriteUnsecured(
+        LogicalPlan rewritten = rewriteDatasetsUnsecured(
             TEST_PARSER.parseQuery(query),
             projectMetadata,
             TestIndexNameExpressionResolver.newInstance(),

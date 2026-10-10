@@ -87,14 +87,16 @@ $$$partition-path$$$
 $$$partition-spec$$$
 
 `partition_spec` {applies_to}`stack: experimental 9.6+`
-:   Maps file columns to partition keys, so that filters on those columns can skip folders.
+:   Binds file columns to partition keys, so that filters on those columns can skip folders. `lag` and `lead` are not bindings; they widen the listing window for a bound column.
 
     - **Default:** None
-    - **Valid values:** A comma-separated list of bindings, each in one of these forms:
+    - **Valid values:** A comma-separated list. Bindings take one of these forms:
       - `[key=]transform(column[, unit])`: A temporal or identity transform. `transform` is `identity`, `year`, `month`, `day`, or `hour`. `unit` is `epoch_second` or `epoch_millis`, and applies only to temporal transforms. The default unit is `epoch_millis`. Unit names follow the [date format](/reference/elasticsearch/mapping-reference/mapping-date-format.md) names.
-      - `key=column`: Maps a column to a differently named key.
-      - `column`: Maps a column to the key with the same name.
-    - **Requires:** Each key to be a `{name}` placeholder in `partition_path`, when `partition_path` is set
+      - `key=column`: Binds a column to a differently named key.
+      - `column`: Binds a column to the key with the same name.
+      Also allowed, and not bindings:
+      - `lag(column, duration)` / `lead(column, duration)`: Widen the listing window for a column that already has a time-based binding. They do not map a path key.
+    - **Requires:** Each binding key to be a `{name}` placeholder in `partition_path`, when `partition_path` is set. Bindings must name mapping fields, not mapping `path` sources.
     - **Conflicts with:** `partition_detection` set to `none`
     - **Related:** `partition_detection`, `partition_path`
 
@@ -179,6 +181,8 @@ $$$error-mode$$$
       - `skip_row`: Drops each malformed row.
       - `null_field`: Replaces a value that fails to parse with null and keeps the row.
     - **Related:** `max_errors`, `max_error_ratio`
+
+    {applies_to}`stack: experimental 9.6+` Under `null_field`, a multi-valued cell loses only the values that fail to parse, and is null only when none of its values can be read.
 
     :::{dropdown} When `null_field` drops rows
     `null_field` keeps a row only when the failure can be attributed to a single value. This applies to every format, including Parquet. When a failure affects the row's structure, `null_field` drops the row, as `skip_row` does. For example, an NDJSON line that isn't valid JSON is dropped, and so is a CSV row that can't be split into fields.
@@ -376,12 +380,14 @@ $$$csv-schema-sample-size$$$
 `schema_sample_size`
 :   The number of rows sampled to infer the schema.
 
-    - **Default:** `20000`
+    - **Default:** `40000`
     - **Valid values:**
-      - {applies_to}`stack: experimental 9.6+` An integer from `1` through `20000`
+      - {applies_to}`stack: experimental 9.6+` An integer from `1` through `40000`
       - {applies_to}`stack: experimental =9.5` An integer from `1` through `1000`
 
     The sample determines whether sparse or late-appearing fields get a column. To learn how schemas are inferred, refer to [schema inference](esql-data-federation-schema.md).
+
+    {applies_to}`stack: experimental 9.6+` With `union_by_name` or `strict`, the sample is split across the files a query reads. For details, refer to [How the sample is shared across files](esql-data-federation-schema.md#shared-schema-sample).
 
 $$$csv-quote$$$
 
@@ -475,6 +481,16 @@ $$$csv-max-field-size$$$
     - **Default:** 10 MiB (`10485760`)
     - **Valid values:** An integer number of bytes. `0` removes the limit.
 
+$$$csv-schema-max-fields$$$
+
+`schema_max_fields` {applies_to}`stack: experimental 9.6+`
+:   The maximum number of columns a file's schema can have.
+
+    - **Default:** `1000`, or the value of the `esql.external.schema_max_fields` [cluster setting](esql-data-federation-cluster-settings.md)
+    - **Valid values:** An integer from `1` through `100000`
+
+    If the header (or the widest sampled row, when `header_row` is `false`) names more columns, the query fails with an HTTP 400 error before the schema is built. With `dynamic: false`, a declared schema is held to the limit by its number of declared columns, not by the width of the file. With `dynamic: true`, the file's inferred schema is held to the limit as well.
+
 ## NDJSON settings
 
 The following settings apply to NDJSON files.
@@ -490,10 +506,12 @@ $$$ndjson-schema-sample-size$$$
 
     - **Default:** `20000`
     - **Valid values:**
-      - {applies_to}`stack: experimental 9.6+` An integer from `1` through `20000`
+      - {applies_to}`stack: experimental 9.6+` An integer from `1` through `40000`
       - {applies_to}`stack: experimental =9.5` An integer from `1` through `1000`
 
     The sample determines whether sparse or late-appearing fields get a column. To learn how schemas are inferred, refer to [schema inference](esql-data-federation-schema.md).
+
+    {applies_to}`stack: experimental 9.6+` With `union_by_name` or `strict`, the sample is split across the files a query reads. For details, refer to [How the sample is shared across files](esql-data-federation-schema.md#shared-schema-sample).
 
     {applies_to}`stack: experimental 9.6+` NDJSON inference skips malformed lines, including lines that repeat a key in the same object, for example `{"a":1,"a":2}`. A malformed line contributes no columns, even for fields it names before parsing fails, and doesn't count toward `schema_sample_size` or `schema_max_fields`. A column that appears only on malformed lines is absent from the schema. When the file is read, those lines are handled according to the dataset's [`error_mode`](#error-mode).
 
@@ -525,8 +543,18 @@ $$$ndjson-schema-max-fields$$$
     - **Default:** `1000`, or the value of the `esql.external.schema_max_fields` [cluster setting](esql-data-federation-cluster-settings.md)
     - **Valid values:** An integer from `1` through `100000`
 
-    Objects count as fields, as well as leaf fields, and each segment of a dotted key counts as a field. If a file's inferred schema exceeds the limit, the query fails.
+    Objects count as fields, as well as leaf fields, and each segment of a dotted key counts as a field. If a file's inferred schema exceeds the limit, the query fails with an HTTP 400 error. With `dynamic: false`, a declared schema is held to the limit by its number of declared columns, not by the width of the file. With `dynamic: true`, the file's inferred schema is held to the limit as well.
 
 ## Parquet settings
 
-Parquet is self-describing and has no format-specific dataset settings.
+Parquet is self-describing, so it has a single dataset setting.
+
+$$$parquet-schema-max-fields$$$
+
+`schema_max_fields` {applies_to}`stack: experimental 9.6+`
+:   The maximum number of columns a file's schema can have, counting each nested field as a column once groups are flattened.
+
+    - **Default:** `1000`, or the value of the `esql.external.schema_max_fields` [cluster setting](esql-data-federation-cluster-settings.md)
+    - **Valid values:** An integer from `1` through `100000`
+
+    If the file has more columns, the query fails with an HTTP 400 error. With `dynamic: false`, a declared schema is held to the limit by its number of declared columns, not by the width of the file, although a file wider than 100,000 columns can still be refused because the planner reads its footer at that limit to check the declared types. With `dynamic: true`, the file's inferred schema is held to the limit as well.

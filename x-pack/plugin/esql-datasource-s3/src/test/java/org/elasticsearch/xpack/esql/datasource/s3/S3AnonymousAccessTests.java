@@ -47,7 +47,7 @@ public class S3AnonymousAccessTests extends ESTestCase {
     private final S3Client mockS3Client = mock(S3Client.class);
 
     /**
-     * When HeadObject returns 403, fetchMetadata should fall back to a range GET
+     * When HeadObject returns 403, probeObject should fall back to a range GET
      * and discover the object length from the Content-Range header.
      */
     public void testHeadFallbackToRangeGet() throws IOException {
@@ -94,7 +94,7 @@ public class S3AnonymousAccessTests extends ESTestCase {
     }
 
     /**
-     * When the suffix-range GET fails with a retryable S3 status, metadata resolution falls back to HEAD.
+     * When the range GET fails with a retryable S3 status, metadata resolution falls back to HEAD.
      * A retryable HEAD status maps like a retryable GET: {@link ExternalUnavailableException} (HTTP 503),
      * not a client-class {@link IOException}.
      */
@@ -118,7 +118,7 @@ public class S3AnonymousAccessTests extends ESTestCase {
     }
 
     /**
-     * When the suffix-range GET succeeds, metadata is resolved without HEAD.
+     * When the range GET succeeds, metadata is resolved without HEAD.
      */
     public void testHeadSucceedsNormally() throws IOException {
         GetObjectResponse resp = GetObjectResponse.builder()
@@ -137,7 +137,7 @@ public class S3AnonymousAccessTests extends ESTestCase {
     }
 
     /**
-     * When suffix-range GET and the bytes=0-0 fallback both return 403, the error
+     * When the range GET is refused and the HEAD that follows a non-403 failure is refused too, the error
      * is a client-class error (not retryable), and includes the object name.
      */
     public void testHeadFallbackRangeGetAlsoFails() {

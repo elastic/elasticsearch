@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis.promql;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
@@ -31,6 +32,8 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.MetadataManipulationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.time.Instant;
@@ -40,6 +43,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -199,14 +203,41 @@ public class PromqlVerifierTests extends ESTestCase {
     }
 
     public void testUnionBranchLimit() {
-        // A union chain is translated into a single UnionAll, which supports up to MergePlan.MAX_BRANCHES (8) branches.
-        String maxOperands = String.join(" or ", Collections.nCopies(8, "network.bytes_in"));
-        assertTrue(tsdb.query("PROMQL index=test step=5m " + maxOperands).resolved());
+        // A union chain becomes one UnionAll, capped by the cluster max_branch_count_per_merge when no pragma is set.
+        int maxOperands = EsqlFlags.ESQL_MAX_BRANCH_COUNT_PER_MERGE.getDefault(Settings.EMPTY);
+        String atLimit = String.join(" or ", Collections.nCopies(maxOperands, "network.bytes_in"));
+        assertTrue(tsdb.query("PROMQL index=test step=5m " + atLimit).resolved());
 
-        String tooManyOperands = String.join(" or ", Collections.nCopies(9, "network.bytes_in"));
+        String tooManyOperands = String.join(" or ", Collections.nCopies(maxOperands + 1, "network.bytes_in"));
         tsdb.error(
             "PROMQL index=test step=5m " + tooManyOperands,
-            containsString("PromQL set operator [or] supports up to [8] operands, got [9]")
+            allOf(
+                containsString("PromQL set operator [or] supports up to [" + maxOperands + "] operands, got [" + (maxOperands + 1) + "]"),
+                containsString(
+                    "exceeding the limit set by the [" + EsqlFlags.ESQL_MAX_BRANCH_COUNT_PER_MERGE.getKey() + "] cluster setting"
+                )
+            )
+        );
+    }
+
+    public void testUnionBranchLimitHonorsPragma() {
+        int cap = 2;
+        TestAnalyzer analyzer = analyzer().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
+            .stripErrorPrefix(true)
+            .unmappedResolution(UnmappedResolution.NULLIFY)
+            .configuration(
+                configuration(new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT_PER_MERGE.getKey(), cap).build()))
+            );
+        String atLimit = String.join(" or ", Collections.nCopies(cap, "network.bytes_in"));
+        assertTrue(analyzer.query("PROMQL index=test step=5m " + atLimit).resolved());
+
+        String tooManyOperands = String.join(" or ", Collections.nCopies(cap + 1, "network.bytes_in"));
+        analyzer.error(
+            "PROMQL index=test step=5m " + tooManyOperands,
+            allOf(
+                containsString("PromQL set operator [or] supports up to [" + cap + "] operands, got [" + (cap + 1) + "]"),
+                containsString("[max_branch_count_per_merge] query pragma")
+            )
         );
     }
 
@@ -423,6 +454,134 @@ public class PromqlVerifierTests extends ESTestCase {
             "PROMQL index=test step=5m foo > bar",
             containsString("comparison operators with non-literal right-hand side are not supported at this time")
         );
+    }
+
+    /**
+     * An unmatched operator computes its two source-backed operands in one shared aggregation, so both must be aggregated alike:
+     * both per series, or both one level across series. Each other pairing is rejected with a message naming its shape.
+     */
+    public void testUnmatchedOperandsMustAggregateAlike() {
+        String query = "PROMQL index=test step=5m ";
+        for (String rejected : List.of(
+            "sum(network.bytes_in) / network.connections",
+            "network.connections * max by (host) (network.bytes_in)",
+            "stddev(network.bytes_in) + network.connections"
+        )) {
+            tsdb.error(
+                query + rejected,
+                containsString("binary operations between an aggregated and a raw vector are not supported at this time")
+            );
+        }
+        for (String rejected : List.of(
+            "scalar(sum(network.bytes_in)) * network.connections",
+            "network.connections / scalar(network.bytes_in)",
+            "network.connections * (scalar(network.bytes_in) + 1)",
+            "sum by (host) (network.bytes_in) * scalar(max(network.connections))",
+            "sum by (value) (label_replace(network.bytes_in, \"value\", \"$1\", \"host\", \"(.*)\")) "
+                + "* scalar(max(network.connections))"
+        )) {
+            tsdb.error(
+                query + rejected,
+                containsString("binary operations between scalar() of a vector and a vector with labels are not supported at this time")
+            );
+        }
+        for (String rejected : List.of(
+            "topk(1, network.bytes_in) / topk(1, network.connections)",
+            "bottomk(1, network.bytes_in) / bottomk(1, network.connections)",
+            "limitk(1, network.bytes_in) / limitk(1, network.connections)",
+            "limit_ratio(0.5, network.bytes_in) / network.connections",
+            "topk(2, network.bytes_in) * network.connections",
+            "sum by (host) (network.bytes_in) / topk(2, network.connections)"
+        )) {
+            tsdb.error(
+                query + rejected,
+                containsString("binary operations over topk, bottomk, limitk or limit_ratio are not supported at this time")
+            );
+        }
+        for (String rejected : List.of(
+            "bottomk(2, bottomk(1, network.bytes_in)) * network.connections",
+            "sum(network.bytes_in) / stdvar(topk(5, network.connections))",
+            "sum(limit_ratio(0.5, network.bytes_in)) / sum(network.connections)",
+            "sum(network.bytes_in) / scalar(sum(network.connections))"
+        )) {
+            tsdb.error(query + rejected, containsString("binary expressions with nested aggregations are not supported at this time"));
+        }
+        for (String accepted : List.of(
+            "network.bytes_in / network.connections",
+            "sum(network.bytes_in) / sum(network.connections)",
+            "sum by (host) (network.bytes_in) / sum by (host) (network.connections)",
+            "sum(network.bytes_in) * scalar(network.connections)",
+            "scalar(network.bytes_in) * scalar(network.connections)",
+            "scalar(sum(network.bytes_in)) * 2",
+            "topk(1, network.bytes_in) * 2",
+            "abs(topk(1, network.bytes_in))"
+        )) {
+            assertNotNull(accepted, tsdb.query(query + accepted));
+        }
+    }
+
+    /** A vector-matched operator computes each operand on its own, so a reduction in one operand is accepted. */
+    public void testMatchedOperandsMayUseReduction() {
+        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
+        assertNotNull(
+            tsdb.query("PROMQL index=test step=5m sum by (host) (network.bytes_in) / on(host) topk(1, sum by (host) (network.connections))")
+        );
+    }
+
+    /**
+     * A histogram function regroups by every label but {@code le}. A reduction or a {@code without} over raw series leaves those
+     * labels packed in one {@code _timeseries} column, so the regrouping cannot be expressed.
+     */
+    public void testHistogramOverReductionOrWithoutIsRejected() {
+        for (String function : List.of("histogram_quantile(0.9, ", "histogram_fraction(0, 0.2, ")) {
+            for (String buckets : List.of(
+                "topk(3, network.bytes_in)",
+                "bottomk(3, network.bytes_in)",
+                "limitk(3, network.bytes_in)",
+                "limit_ratio(0.5, network.bytes_in)",
+                "sum without (host) (network.bytes_in)"
+            )) {
+                tsdb.error(
+                    "PROMQL index=test step=5m " + function + buckets + ")",
+                    containsString(
+                        "over topk, bottomk, limitk, limit_ratio or a WITHOUT aggregate is not supported at this time "
+                            + "unless the input is first aggregated with BY"
+                    )
+                );
+            }
+        }
+    }
+
+    /** Over a {@code by} aggregate the labels are named columns, so a histogram function can regroup the buckets. */
+    public void testHistogramOverReductionOrWithoutOfByAggregateIsAccepted() {
+        TestAnalyzer classicHistograms = analyzer().addIndex("prom_hist", "mapping-promql-classic-histogram.json", IndexMode.TIME_SERIES);
+        for (String function : List.of("histogram_quantile(0.9, ", "histogram_fraction(0, 0.2, ")) {
+            for (String buckets : List.of(
+                "topk(5, sum by (job, le) (request_duration_seconds_bucket))",
+                "bottomk(5, sum by (job, le) (request_duration_seconds_bucket))",
+                "limitk(5, sum by (job, le) (request_duration_seconds_bucket))",
+                "limit_ratio(0.5, sum by (job, le) (request_duration_seconds_bucket))",
+                "sum without (instance) (sum by (job, le, instance) (request_duration_seconds_bucket))"
+            )) {
+                String query = "PROMQL index=prom_hist step=5m " + function + buckets + ")";
+                assertNotNull(query, classicHistograms.query(query));
+            }
+        }
+    }
+
+    /** A native histogram aggregated with {@code without} is rejected like classic buckets are. */
+    public void testNativeHistogramOverWithoutIsRejected() {
+        TestAnalyzer nativeHistograms = analyzer().addIndex("exp_histo", "exp_histo_sample-mappings.json", IndexMode.TIME_SERIES)
+            .stripErrorPrefix(true);
+        for (String rejected : List.of(
+            "histogram_quantile(0.5, sum without (instance) (responseTime))",
+            "histogram_fraction(0, 0.2, sum without (instance) (responseTime))"
+        )) {
+            nativeHistograms.error(
+                "PROMQL index=exp_histo step=5m " + rejected,
+                containsString("over topk, bottomk, limitk, limit_ratio or a WITHOUT aggregate is not supported at this time")
+            );
+        }
     }
 
     public void testNestedComparisons() {

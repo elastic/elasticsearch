@@ -3453,3 +3453,36 @@ c:long | client_ip:ip
 2      | 172.21.2.113
 2      | 172.21.2.162
 ;
+
+viewForkNullFillsInsideAndAfterUnionAll
+required_capability: fork_v9
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
+required_capability: subquery_in_from_command_union_types_conflict_resolution
+required_capability: subquery_in_from_command_fork_null_fill_date_nanos
+required_capability: fork_union_types
+required_capability: to_date_nanos
+
+FROM (FROM (FROM fork_over_union_view | WHERE message == "Disconnected"), (FROM sample_data | WHERE event_duration == 1232382 | KEEP @timestamp, message)
+          | FORK (WHERE message IS NOT NULL) (KEEP message)),
+         (FROM sample_data | WHERE event_duration == 1232382 | KEEP @timestamp, message)
+    | KEEP @timestamp, message, _fork
+    | SORT @timestamp NULLS FIRST, _fork NULLS FIRST
+;
+
+@timestamp:date_nanos          | message:keyword | _fork:keyword
+null                           | Disconnected    | fork1
+null                           | Disconnected    | fork1
+null                           | Disconnected    | fork2
+null                           | Disconnected    | fork2
+null                           | Disconnected    | fork2
+null                           | Disconnected    | fork2
+null                           | Disconnected    | fork2
+2023-10-23T13:33:34.937Z       | Disconnected    | null
+2023-10-23T13:33:34.937Z       | Disconnected    | fork1
+2023-10-23T13:33:34.937Z       | Disconnected    | fork1
+2023-10-23T13:33:34.937123456Z | Disconnected    | fork1
+;

@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.querysampling.rest.RestQuerySamplingStatsAction;
 import org.elasticsearch.xpack.querysampling.sampling.EventSlice;
 import org.elasticsearch.xpack.querysampling.sampling.PickBudget;
 import org.elasticsearch.xpack.querysampling.sampling.QuerySampler;
+import org.elasticsearch.xpack.querysampling.sampling.SelectivityStrata;
 import org.elasticsearch.xpack.querysampling.sampling.SpatialStrata;
 import org.elasticsearch.xpack.querysampling.storage.QuerySamplingIndex;
 import org.elasticsearch.xpack.querysampling.storage.SampleRetention;
@@ -152,7 +153,9 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
         budget.watch(clusterSettings);
         EventSlice eventSlice = new EventSlice();
         eventSlice.watch(clusterSettings);
-        SamplingPipeline pipeline = new SamplingPipeline(tracker, sampler, List.of(writer), budget, eventSlice);
+        SelectivityStrata selectivity = new SelectivityStrata(client::search, services.threadPool()::relativeTimeInMillis);
+        selectivity.watch(clusterSettings);
+        SamplingPipeline pipeline = new SamplingPipeline(tracker, sampler, List.of(writer), budget, eventSlice, selectivity);
         // the exact searches are done as the plugin: nobody is asking for them
         GroundTruthWorker groundTruthWorker = new GroundTruthWorker(
             client::search,

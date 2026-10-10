@@ -175,6 +175,19 @@ public final class QuerySamplingSettings {
     );
 
     /**
+     * Whether to count how much of the vectors the filters of a query leave, so that the recall can be told for the queries
+     * that leave little of them apart from the others. Every distinct query with filters that is seen for the first time costs
+     * two searches that return no hits, which are done as the plugin and not more than a few at a time, so it is off unless asked
+     * for.
+     */
+    public static final Setting<Boolean> ESTIMATE_SELECTIVITY = Setting.boolSetting(
+        "xpack.query_sampling.estimate_selectivity",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * γ, the scale of the probability with which a query is picked: how likely a query seen for the first time is
      * picked (about 0.69·γ), and how fast that falls as the query is searched more. A bigger value samples more
      * queries, and more of the popular ones.
@@ -227,6 +240,7 @@ public final class QuerySamplingSettings {
             SPATIAL_BALANCE,
             HARDNESS_TILT,
             EVENT_SLICE_RATE,
+            ESTIMATE_SELECTIVITY,
             ACCEPTANCE_SCALE,
             HEAD_THRESHOLD,
             MULTIPLICITY_WINDOW,

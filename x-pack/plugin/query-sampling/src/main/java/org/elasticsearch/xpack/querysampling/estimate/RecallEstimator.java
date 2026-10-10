@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.querysampling.estimate;
 
 import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
 import org.elasticsearch.xpack.querysampling.dedup.Hardness;
+import org.elasticsearch.xpack.querysampling.dedup.Selectivity;
 import org.elasticsearch.xpack.querysampling.dedup.Stratum;
 import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
 import org.elasticsearch.xpack.querysampling.groundtruth.GroundTruth;
@@ -48,7 +49,7 @@ import java.util.TreeMap;
  * make one of their own: the weighted average of their recalls, with weights of {@code 1 / π}. Where that is
  * available it needs no correction for how often a query is searched.
  * <p>
- * The same is done for the queries of each hardness and of each cluster of the vector space. Their weights are the
+ * The same is done for the queries of each hardness, of each cluster of the vector space and of each selectivity. Their weights are the
  * ones they have among all the queries, so each is an estimate for a part of the population, and the parts show what
  * the average of all of them hides.
  */
@@ -91,6 +92,7 @@ public final class RecallEstimator {
         int eventsUsed = 0;
         int queryRecords = 0;
         Map<Hardness, Estimates> byHardness = new EnumMap<>(Hardness.class);
+        Map<Selectivity, Estimates> bySelectivity = new EnumMap<>(Selectivity.class);
         Map<Stratum, Estimates> byCluster = new TreeMap<>(Comparator.comparing(Stratum::space).thenComparingInt(Stratum::cluster));
         int used = 0;
         for (StoredSample sample : samples) {
@@ -118,12 +120,18 @@ public final class RecallEstimator {
                 byHardness.computeIfAbsent(sample.hardness(), key -> new Estimates())
                     .add(trafficWeight, uniqueWeight, recall.getAsDouble());
             }
+            if (sample.selectivity() != null) {
+                bySelectivity.computeIfAbsent(sample.selectivity(), key -> new Estimates())
+                    .add(trafficWeight, uniqueWeight, recall.getAsDouble());
+            }
             if (sample.stratum() != null) {
                 byCluster.computeIfAbsent(sample.stratum(), key -> new Estimates()).add(trafficWeight, uniqueWeight, recall.getAsDouble());
             }
         }
         List<RecallEstimate.GroupEstimate> hardnesses = new ArrayList<>();
         byHardness.forEach((hardness, estimates) -> hardnesses.add(estimates.group(hardness.name().toLowerCase(Locale.ROOT))));
+        List<RecallEstimate.GroupEstimate> selectivities = new ArrayList<>();
+        bySelectivity.forEach((selectivity, estimates) -> selectivities.add(estimates.group(selectivity.name().toLowerCase(Locale.ROOT))));
         List<RecallEstimate.GroupEstimate> clusters = new ArrayList<>();
         byCluster.forEach((stratum, estimates) -> clusters.add(estimates.group(stratum.space() + "#" + stratum.cluster())));
         return new RecallEstimate(
@@ -135,6 +143,7 @@ public final class RecallEstimator {
             all.unique.effectiveSize(),
             hardnesses,
             clusters,
+            selectivities,
             new RecallEstimate.EventEstimate(eventRecords, eventsUsed, events.mean(), events.effectiveSize())
         );
     }

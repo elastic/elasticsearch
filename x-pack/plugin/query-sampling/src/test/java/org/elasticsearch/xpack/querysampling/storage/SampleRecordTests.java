@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
 import org.elasticsearch.xpack.querysampling.dedup.Hardness;
 import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
 import org.elasticsearch.xpack.querysampling.dedup.QueryFingerprint;
+import org.elasticsearch.xpack.querysampling.dedup.Selectivity;
 import org.elasticsearch.xpack.querysampling.dedup.Stratum;
 import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
 import org.elasticsearch.xpack.querysampling.groundtruth.GroundTruth;
@@ -96,6 +97,7 @@ public class SampleRecordTests extends ESTestCase {
         assertThat("a query that was not put anywhere says nothing of it", document, not(hasKey("spatial_cluster")));
         assertThat(document, not(hasKey("spatial_space")));
         assertThat(document, not(hasKey("hardness")));
+        assertThat(document, not(hasKey("selectivity")));
         assertThat("a picked query is not an event", document, not(hasKey("event_id")));
     }
 
@@ -141,6 +143,19 @@ public class SampleRecordTests extends ESTestCase {
         assertThat(stored.hardness(), equalTo(hardness));
     }
 
+    public void testSelectivityIsStoredAndReadBackWhenKnown() throws IOException {
+        CapturedQuery query = new CapturedQuery(new String[] { "a" }, "vec", new float[] { 1f }, 10, 100, null, null, List.of(), null);
+        TrackedQuery tracked = tracked(1.0);
+        Selectivity selectivity = randomFrom(Selectivity.values());
+        tracked.selectivity(selectivity);
+        SampledQuery sampled = new SampledQuery(FINGERPRINT, new CapturedSearch(query, List.of(), 1, 1.0), tracked);
+
+        Map<String, Object> document = toMap(SampleRecord.document(JsonXContent.contentBuilder(), "s1", sampled, 5L));
+
+        assertThat(document.get("selectivity"), equalTo(selectivity.name().toLowerCase(Locale.ROOT)));
+        assertThat(SampleRecord.parse(document, xContentRegistry()).selectivity(), equalTo(selectivity));
+    }
+
     public void testQueriesWithoutStrataAreReadBackWithoutThem() throws IOException {
         CapturedQuery query = new CapturedQuery(new String[] { "a" }, "vec", new float[] { 1f }, 10, 100, null, null, List.of(), null);
         SampledQuery sampled = new SampledQuery(FINGERPRINT, new CapturedSearch(query, List.of(), 1, 1.0), tracked(1.0));
@@ -152,6 +167,7 @@ public class SampleRecordTests extends ESTestCase {
 
         assertNull(stored.stratum());
         assertNull(stored.hardness());
+        assertNull(stored.selectivity());
     }
 
     @SuppressWarnings("unchecked") // as above
@@ -175,6 +191,7 @@ public class SampleRecordTests extends ESTestCase {
         TrackedQuery tracked = tracked(1.0);
         tracked.stratum(new Stratum("vec/1", 3));
         tracked.hardness(Hardness.HARD);
+        tracked.selectivity(Selectivity.LOW);
         // an event has an id as well, which makes every field there is
         SampledQuery sampled = SampledQuery.event(FINGERPRINT, new CapturedSearch(query, List.of(), 1, 1.0), tracked, "e1");
         sampled.attach(GroundTruth.KEY, new GroundTruth(List.of()));

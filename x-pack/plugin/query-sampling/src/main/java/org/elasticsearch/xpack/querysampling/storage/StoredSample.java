@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.querysampling.storage;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
 import org.elasticsearch.xpack.querysampling.dedup.Hardness;
+import org.elasticsearch.xpack.querysampling.dedup.Selectivity;
 import org.elasticsearch.xpack.querysampling.dedup.Stratum;
 import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
 import org.elasticsearch.xpack.querysampling.groundtruth.GroundTruth;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.querysampling.groundtruth.GroundTruth;
  * @param hardness     how hard the query is for the index to answer, or {@code null} if that was not told
  * @param eventId      the id of the event if the sample is one of the arrivals kept as events, {@code null} if it is a query
  *                     picked by the sampler
+ * @param selectivity  how much of the vectors the filters of the query leave, or {@code null} if that was not counted
  */
 public record StoredSample(
     String samplerId,
@@ -40,7 +42,8 @@ public record StoredSample(
     @Nullable GroundTruth groundTruth,
     @Nullable Stratum stratum,
     @Nullable Hardness hardness,
-    @Nullable String eventId
+    @Nullable String eventId,
+    @Nullable Selectivity selectivity
 ) {
 
     /**

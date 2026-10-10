@@ -34,7 +34,7 @@ public class QuerySamplingRecallActionTests extends ESTestCase {
 
     public void testResponseRendersTheEstimate() throws IOException {
         QuerySamplingRecallResponse response = new QuerySamplingRecallResponse(
-            new RecallEstimate(5, 4, 0.9, 3.5, 0.8, 4.0, List.of(), List.of(), NO_EVENTS),
+            new RecallEstimate(5, 4, 0.9, 3.5, 0.8, 4.0, List.of(), List.of(), List.of(), NO_EVENTS),
             null
         );
 
@@ -43,6 +43,7 @@ public class QuerySamplingRecallActionTests extends ESTestCase {
             equalTo(
                 "{\"records\":5,\"records_with_ground_truth\":4,\"traffic_weighted_recall\":0.9,\"traffic_effective_size\":3.5,"
                     + "\"unique_query_recall\":0.8,\"unique_query_effective_size\":4.0,\"by_hardness\":[],\"by_cluster\":[],"
+                    + "\"by_selectivity\":[],"
                     + NO_EVENTS_JSON
                     + "}"
             )
@@ -51,7 +52,7 @@ public class QuerySamplingRecallActionTests extends ESTestCase {
 
     public void testResponseRendersWhatIsUnknownAsNull() throws IOException {
         QuerySamplingRecallResponse response = new QuerySamplingRecallResponse(
-            new RecallEstimate(0, 0, null, 0, null, 0, List.of(), List.of(), NO_EVENTS),
+            new RecallEstimate(0, 0, null, 0, null, 0, List.of(), List.of(), List.of(), NO_EVENTS),
             List.of()
         );
 
@@ -61,6 +62,7 @@ public class QuerySamplingRecallActionTests extends ESTestCase {
                 "{\"records\":0,\"records_with_ground_truth\":0,\"traffic_weighted_recall\":null,\"traffic_effective_size\":0.0,"
                     + "\"unique_query_recall\":null,\"unique_query_effective_size\":0.0,"
                     + "\"by_hardness\":[],\"by_cluster\":[],"
+                    + "\"by_selectivity\":[],"
                     + NO_EVENTS_JSON
                     + ",\"samples\":[]}"
             )
@@ -77,6 +79,7 @@ public class QuerySamplingRecallActionTests extends ESTestCase {
             2.0,
             List.of(new RecallEstimate.GroupEstimate("hard", 1, 0.5, 1.0, null, 0.0)),
             List.of(new RecallEstimate.GroupEstimate("vec/2#3", 1, 1.0, 1.0, 1.0, 1.0)),
+            List.of(),
             NO_EVENTS
         );
 
@@ -89,6 +92,7 @@ public class QuerySamplingRecallActionTests extends ESTestCase {
                     + "\"traffic_effective_size\":1.0,\"unique_query_recall\":null,\"unique_query_effective_size\":0.0}],"
                     + "\"by_cluster\":[{\"cluster\":\"vec/2#3\",\"records_with_ground_truth\":1,\"traffic_weighted_recall\":1.0,"
                     + "\"traffic_effective_size\":1.0,\"unique_query_recall\":1.0,\"unique_query_effective_size\":1.0}],"
+                    + "\"by_selectivity\":[],"
                     + NO_EVENTS_JSON
                     + "}"
             )
@@ -105,6 +109,7 @@ public class QuerySamplingRecallActionTests extends ESTestCase {
             0,
             List.of(),
             List.of(),
+            List.of(),
             new RecallEstimate.EventEstimate(3, 2, 0.75, 1.5)
         );
 
@@ -113,14 +118,42 @@ public class QuerySamplingRecallActionTests extends ESTestCase {
             equalTo(
                 "{\"records\":0,\"records_with_ground_truth\":0,\"traffic_weighted_recall\":null,\"traffic_effective_size\":0.0,"
                     + "\"unique_query_recall\":null,\"unique_query_effective_size\":0.0,\"by_hardness\":[],\"by_cluster\":[],"
+                    + "\"by_selectivity\":[],"
                     + "\"event_slice\":{\"records\":3,\"records_with_ground_truth\":2,\"recall\":0.75,\"effective_size\":1.5}}"
+            )
+        );
+    }
+
+    public void testResponseRendersTheEstimatesOfTheSelectivities() throws IOException {
+        RecallEstimate estimate = new RecallEstimate(
+            1,
+            1,
+            0.5,
+            1.0,
+            0.5,
+            1.0,
+            List.of(),
+            List.of(),
+            List.of(new RecallEstimate.GroupEstimate("low", 1, 0.5, 1.0, 0.5, 1.0)),
+            NO_EVENTS
+        );
+
+        assertThat(
+            render(new QuerySamplingRecallResponse(estimate, null)),
+            equalTo(
+                "{\"records\":1,\"records_with_ground_truth\":1,\"traffic_weighted_recall\":0.5,\"traffic_effective_size\":1.0,"
+                    + "\"unique_query_recall\":0.5,\"unique_query_effective_size\":1.0,\"by_hardness\":[],\"by_cluster\":[],"
+                    + "\"by_selectivity\":[{\"selectivity\":\"low\",\"records_with_ground_truth\":1,\"traffic_weighted_recall\":0.5,"
+                    + "\"traffic_effective_size\":1.0,\"unique_query_recall\":0.5,\"unique_query_effective_size\":1.0}],"
+                    + NO_EVENTS_JSON
+                    + "}"
             )
         );
     }
 
     public void testResponseRendersWhatEachQueryContributed() throws IOException {
         QuerySamplingRecallResponse response = new QuerySamplingRecallResponse(
-            new RecallEstimate(1, 1, 1.0, 1, 1.0, 1, List.of(), List.of(), NO_EVENTS),
+            new RecallEstimate(1, 1, 1.0, 1, 1.0, 1, List.of(), List.of(), List.of(), NO_EVENTS),
             List.of(new QuerySamplingRecallResponse.Sample("q7", false, 3, 30.0, 0.5, 0.25, 0.75))
         );
 
@@ -130,6 +163,7 @@ public class QuerySamplingRecallActionTests extends ESTestCase {
                 "{\"records\":1,\"records_with_ground_truth\":1,\"traffic_weighted_recall\":1.0,\"traffic_effective_size\":1.0,"
                     + "\"unique_query_recall\":1.0,\"unique_query_effective_size\":1.0,"
                     + "\"by_hardness\":[],\"by_cluster\":[],"
+                    + "\"by_selectivity\":[],"
                     + NO_EVENTS_JSON
                     + ",\"samples\":[{\"label\":\"q7\",\"event\":false,\"multiplicity\":3,"
                     + "\"weighted_multiplicity\":30.0,\"inclusion_probability\":0.5,\"seen_probability\":0.25,\"recall\":0.75}]}"

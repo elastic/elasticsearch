@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
 import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
 import org.elasticsearch.xpack.querysampling.dedup.Hardness;
 import org.elasticsearch.xpack.querysampling.dedup.QueryFingerprint;
+import org.elasticsearch.xpack.querysampling.dedup.Selectivity;
 import org.elasticsearch.xpack.querysampling.dedup.Stratum;
 import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
 import org.elasticsearch.xpack.querysampling.groundtruth.GroundTruth;
@@ -97,6 +98,10 @@ public final class SampleRecord {
         Hardness hardness = sampled.tracked().hardness();
         if (hardness != null) {
             builder.field("hardness", hardness.name().toLowerCase(Locale.ROOT));
+        }
+        Selectivity selectivity = sampled.tracked().selectivity();
+        if (selectivity != null) {
+            builder.field("selectivity", selectivity.name().toLowerCase(Locale.ROOT));
         }
         builder.field("picked_at", nowMillis);
         builder.field("updated_at", nowMillis);
@@ -228,7 +233,8 @@ public final class SampleRecord {
             groundTruth,
             stratum,
             hardness,
-            (String) source.get("event_id")
+            (String) source.get("event_id"),
+            source.get("selectivity") == null ? null : Selectivity.valueOf(((String) source.get("selectivity")).toUpperCase(Locale.ROOT))
         );
     }
 

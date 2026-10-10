@@ -11,6 +11,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
 import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
 import org.elasticsearch.xpack.querysampling.dedup.Hardness;
+import org.elasticsearch.xpack.querysampling.dedup.Selectivity;
 import org.elasticsearch.xpack.querysampling.dedup.Stratum;
 import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
 import org.elasticsearch.xpack.querysampling.groundtruth.GroundTruth;
@@ -232,6 +233,29 @@ public class RecallEstimatorTests extends ESTestCase {
         assertThat(estimate.events().recall(), closeTo(1.0, 1e-12));
     }
 
+    public void testEachSelectivityHasItsOwnEstimate() {
+        List<StoredSample> samples = List.of(
+            withSelectivity(sample(2, List.of("a", "b"), List.of("a", "b"), 90, 1, 1), Selectivity.UNFILTERED), // recall 1
+            withSelectivity(sample(2, List.of("a", "b"), List.of("a", "b"), 10, 1, 1), Selectivity.UNFILTERED), // recall 1
+            withSelectivity(sample(2, List.of("x", "y"), List.of("a", "b"), 30, 1, 1), Selectivity.LOW), // recall 0
+            withSelectivity(sample(2, List.of("a", "y"), List.of("a", "b"), 10, 1, 1), Selectivity.LOW), // recall 0.5
+            sample(2, List.of("a", "b"), List.of("a", "b"), 10, 1, 1) // not counted, in no group
+        );
+
+        RecallEstimate estimate = RecallEstimator.estimate(samples);
+
+        assertThat(
+            "in the order of the enum, and only those there are",
+            estimate.bySelectivity().stream().map(RecallEstimate.GroupEstimate::key).toList(),
+            equalTo(List.of("unfiltered", "low"))
+        );
+        assertThat(estimate.bySelectivity().get(0).trafficWeightedRecall(), closeTo(1.0, 1e-12));
+        assertThat(estimate.bySelectivity().get(1).trafficWeightedRecall(), closeTo(5.0 / 40, 1e-12));
+        assertThat(estimate.bySelectivity().get(1).uniqueQueryRecall(), closeTo(0.25, 1e-12));
+        assertThat(estimate.bySelectivity().get(1).recordsWithGroundTruth(), equalTo(2));
+        assertThat(estimate.recordsWithGroundTruth(), equalTo(5));
+    }
+
     public void testNothingToEstimateFrom() {
         RecallEstimate estimate = RecallEstimator.estimate(List.of());
 
@@ -240,6 +264,7 @@ public class RecallEstimatorTests extends ESTestCase {
         assertThat(estimate.trafficEffectiveSize(), equalTo(0.0));
         assertThat(estimate.byHardness(), equalTo(List.of()));
         assertThat(estimate.byCluster(), equalTo(List.of()));
+        assertThat(estimate.bySelectivity(), equalTo(List.of()));
         assertThat(estimate.events().recall(), nullValue());
         assertThat(estimate.events().records(), equalTo(0));
     }
@@ -328,7 +353,7 @@ public class RecallEstimatorTests extends ESTestCase {
         double seenProbability
     ) {
         TrackedQuery.Weights weights = new TrackedQuery.Weights(1, multiplicity, inclusionProbability, seenProbability, 1.0);
-        return new StoredSample("sampler", "fingerprint", search, weights, 0, 0, groundTruth, null, null, null);
+        return new StoredSample("sampler", "fingerprint", search, weights, 0, 0, groundTruth, null, null, null, null);
     }
 
     private static StoredSample inStratum(StoredSample sample, Stratum stratum, Hardness hardness) {
@@ -342,7 +367,24 @@ public class RecallEstimatorTests extends ESTestCase {
             sample.groundTruth(),
             stratum,
             hardness,
-            sample.eventId()
+            sample.eventId(),
+            sample.selectivity()
+        );
+    }
+
+    private static StoredSample withSelectivity(StoredSample sample, Selectivity selectivity) {
+        return new StoredSample(
+            sample.samplerId(),
+            sample.fingerprint(),
+            sample.search(),
+            sample.weights(),
+            sample.pickedAt(),
+            sample.updatedAt(),
+            sample.groundTruth(),
+            sample.stratum(),
+            sample.hardness(),
+            sample.eventId(),
+            selectivity
         );
     }
 
@@ -358,7 +400,8 @@ public class RecallEstimatorTests extends ESTestCase {
             sample.groundTruth(),
             null,
             null,
-            eventId
+            eventId,
+            null
         );
     }
 

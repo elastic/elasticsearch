@@ -28,6 +28,9 @@ import java.util.List;
  * @param byCluster                 the same estimates for the queries of each cluster of the vector space, those that
  *                                  have one. A region where the recall is low is not seen in the averages of all the
  *                                  queries when most of them are somewhere else
+ * @param bySelectivity             the same estimates for the queries that have no filters, and for those of each selectivity:
+ *                                  how much of the vectors their filters leave. Queries that leave little of them are
+ *                                  often the ones that do worst
  * @param events                    what the uniform sample of arrivals says: the recall of the traffic, estimated without
  *                                  the weights of the sampler
  */
@@ -40,6 +43,7 @@ public record RecallEstimate(
     double uniqueQueryEffectiveSize,
     List<GroupEstimate> byHardness,
     List<GroupEstimate> byCluster,
+    List<GroupEstimate> bySelectivity,
     EventEstimate events
 ) {
 

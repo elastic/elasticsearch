@@ -97,6 +97,7 @@ public final class QuerySamplingRecallResponse extends ActionResponse implements
         builder.field("unique_query_effective_size", estimate.uniqueQueryEffectiveSize());
         groups(builder, "by_hardness", "hardness", estimate.byHardness());
         groups(builder, "by_cluster", "cluster", estimate.byCluster());
+        groups(builder, "by_selectivity", "selectivity", estimate.bySelectivity());
         builder.startObject("event_slice");
         builder.field("records", estimate.events().records());
         builder.field("records_with_ground_truth", estimate.events().recordsWithGroundTruth());

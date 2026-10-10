@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.querysampling.groundtruth.CostBudget;
 import org.elasticsearch.xpack.querysampling.sampling.EventSlice;
 import org.elasticsearch.xpack.querysampling.sampling.QuerySampler;
 import org.elasticsearch.xpack.querysampling.sampling.SampleListener;
+import org.elasticsearch.xpack.querysampling.sampling.SelectivityStrata;
 import org.elasticsearch.xpack.querysampling.storage.SampledQuery;
 
 import java.util.List;
@@ -38,6 +39,7 @@ public final class SamplingPipeline implements Consumer<CapturedSearch> {
     private final List<SampleListener> listeners;
     private final CostBudget budget;
     private final EventSlice events;
+    private final SelectivityStrata selectivity;
     private final LongAdder picked = new LongAdder();
     private final LongAdder eventsKept = new LongAdder();
 
@@ -49,12 +51,9 @@ public final class SamplingPipeline implements Consumer<CapturedSearch> {
      * @param budget earns from what the captured searches cost, which is how much exact searching can be afforded
      */
     public SamplingPipeline(MultiplicityTracker tracker, QuerySampler sampler, List<SampleListener> listeners, CostBudget budget) {
-        this(tracker, sampler, listeners, budget, new EventSlice());
+        this(tracker, sampler, listeners, budget, new EventSlice(), SelectivityStrata.none());
     }
 
-    /**
-     * @param events decides which captured searches are also kept as events, besides the queries that the sampler picks
-     */
     public SamplingPipeline(
         MultiplicityTracker tracker,
         QuerySampler sampler,
@@ -62,7 +61,23 @@ public final class SamplingPipeline implements Consumer<CapturedSearch> {
         CostBudget budget,
         EventSlice events
     ) {
+        this(tracker, sampler, listeners, budget, events, SelectivityStrata.none());
+    }
+
+    /**
+     * @param events      decides which captured searches are also kept as events, besides the queries that the sampler picks
+     * @param selectivity tells how much of the vectors the filters of a query leave
+     */
+    public SamplingPipeline(
+        MultiplicityTracker tracker,
+        QuerySampler sampler,
+        List<SampleListener> listeners,
+        CostBudget budget,
+        EventSlice events,
+        SelectivityStrata selectivity
+    ) {
         this.events = events;
+        this.selectivity = selectivity;
         this.tracker = tracker;
         this.sampler = sampler;
         this.listeners = List.copyOf(listeners);
@@ -108,6 +123,7 @@ public final class SamplingPipeline implements Consumer<CapturedSearch> {
         if (tracked != null && tracked.multiplicity() == 1) {
             sampler.assignStratum(tracked, captured.query().field(), captured.query().queryVector());
             sampler.assignHardness(tracked, captured.query().field(), captured.query().queryVector().length, captured.hits());
+            selectivity.assign(tracked, captured.query());
         }
         if (tracked != null && sampler.offer(tracked)) {
             picked.increment();

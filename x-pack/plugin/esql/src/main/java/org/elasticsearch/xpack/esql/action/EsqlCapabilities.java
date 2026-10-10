@@ -1549,6 +1549,12 @@ public class EsqlCapabilities {
         NESTED_SUBQUERY_IN_FROM_COMMAND_WITH_VIEW_FORK_DATASET,
 
         /**
+         * Fixes a false failure when a FORK follows a single {@code FROM (...)} subquery or a single inlined view whose body already
+         * contains a FORK. They are different from consecutive FORKs within one pipeline.
+         */
+        FORK_AFTER_SINGLE_FORK_SUBQUERY_OR_VIEW,
+
+        /**
          * Support IN non-correlated subqueries in WHERE command.
          */
         WHERE_IN_SUBQUERY,

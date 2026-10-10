@@ -1,0 +1,5 @@
+FROM (
+    FROM employees
+    | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10)
+)
+| FORK (WHERE emp_no > 5) (WHERE emp_no <= 5)

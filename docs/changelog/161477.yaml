@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 161477
+summary: Fix false failure on non-consecutive forks in the same pipeline
+type: bug

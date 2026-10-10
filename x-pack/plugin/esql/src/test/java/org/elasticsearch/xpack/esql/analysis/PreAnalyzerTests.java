@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
@@ -22,9 +23,19 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PreAnalyzerTests extends ESTestCase {
+
+    public void testMixedIndexModesReturnClientError() {
+        assumeTrue("TS command required", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
+        assumeTrue("LOOKUP JOIN on a subquery required", EsqlCapabilities.Cap.LOOKUP_JOIN_ON_SUBQUERY.isEnabled());
+
+        var plan = TEST_PARSER.parseQuery("TS idx | LOOKUP JOIN (FROM idx) ON host");
+        EsqlIllegalArgumentException exception = expectThrows(EsqlIllegalArgumentException.class, () -> new PreAnalyzer().preAnalyze(plan));
+        assertThat(exception.getMessage(), containsString("Index pattern [idx] is referenced with multiple index modes"));
+    }
 
     public void testCollectInferenceIds() {
         PreAnalyzer preAnalyzer = new PreAnalyzer();

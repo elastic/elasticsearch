@@ -9,18 +9,21 @@ package org.elasticsearch.xpack.esql.plan.logical.join;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
 
 /**
@@ -93,6 +96,62 @@ public class SubqueryLookupJoin extends Join implements IndependentSubqueryJoin,
     @Override
     public String telemetryLabel() {
         return "LOOKUP JOIN SUBQUERY";
+    }
+
+    @Override
+    public void postAnalysisVerification(Failures failures) {
+        for (int i = 0; i < config().leftFields().size(); i++) {
+            Attribute leftField = config().leftFields().get(i);
+            Attribute rightField = config().rightFields().get(i);
+            if (Join.comparableTypes(leftField, rightField) == false) {
+                failures.add(
+                    fail(
+                        leftField,
+                        "LOOKUP JOIN subquery left field [{}] of type [{}] is incompatible with right field [{}] of type [{}]",
+                        leftField.name(),
+                        leftField.dataType(),
+                        rightField.name(),
+                        rightField.dataType()
+                    )
+                );
+            }
+            if (AbstractSubqueryJoin.isSubqueryJoinUnsupported(rightField.dataType())) {
+                failures.add(
+                    fail(
+                        leftField,
+                        "LOOKUP JOIN subquery with right field [{}] of type [{}] is not supported",
+                        rightField.name(),
+                        rightField.dataType()
+                    )
+                );
+            }
+        }
+    }
+
+    @Override
+    public void postOptimizationVerification(Failures failures) {
+        for (Attribute rightField : rightOutputFields()) {
+            if (supportsPayloadLookup(rightField.dataType()) == false) {
+                failures.add(
+                    fail(
+                        rightField,
+                        "LOOKUP JOIN subquery cannot return column [{}] of type [{}]; remove it with KEEP or DROP",
+                        rightField.name(),
+                        rightField.dataType()
+                    )
+                );
+            }
+        }
+    }
+
+    static boolean supportsPayloadLookup(DataType dataType) {
+        return switch (dataType) {
+            case AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, DATE_RANGE, DOUBLE_RANGE -> false;
+            case UNSUPPORTED, NULL, BOOLEAN, COUNTER_LONG, COUNTER_INTEGER, COUNTER_DOUBLE, LONG, INTEGER, UNSIGNED_LONG, DOUBLE, SHORT,
+                BYTE, FLOAT, HALF_FLOAT, SCALED_FLOAT, KEYWORD, TEXT, DATETIME, DATE_NANOS, IP, VERSION, OBJECT, SOURCE, DATE_PERIOD,
+                TIME_DURATION, GEO_POINT, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_SHAPE, GEOHASH, GEOTILE, GEOHEX, DOC_DATA_TYPE,
+                TSID_DATA_TYPE, PARTIAL_AGG, HISTOGRAM, DENSE_VECTOR, FLATTENED -> true;
+        };
     }
 
     @Override

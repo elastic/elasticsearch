@@ -74,6 +74,7 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryLookupJoin;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.FieldNameUtils;
@@ -136,6 +137,14 @@ public class Verifier {
         Failures failures = new Failures();
         boolean unmappedTimestampHandled = unmappedResolution != UnmappedResolution.DEFAULT
             && isTimestampUnmappedInAllIndices(plan, failures);
+
+        if (unmappedResolution != UnmappedResolution.DEFAULT && plan.anyMatch(SubqueryLookupJoin.class::isInstance)) {
+            plan.forEachDown(
+                SubqueryLookupJoin.class,
+                join -> failures.add(fail(join, "LOOKUP JOIN subquery is only supported with [unmapped_fields=default]"))
+            );
+            return failures.failures();
+        }
 
         // quick verification for unresolved attributes
         checkUnresolvedAttributes(plan, failures, unmappedTimestampHandled);

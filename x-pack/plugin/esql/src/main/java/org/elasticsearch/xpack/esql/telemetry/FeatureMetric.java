@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryLookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
@@ -114,6 +115,7 @@ public enum FeatureMetric {
     RENAME(Rename.class::isInstance),
     LOOKUP_JOIN(plan -> plan instanceof LookupJoin lookupJoin && lookupJoin.config().joinOnConditions() == null),
     LOOKUP_JOIN_ON_EXPRESSION(plan -> plan instanceof LookupJoin lookupJoin && lookupJoin.config().joinOnConditions() != null),
+    LOOKUP_JOIN_SUBQUERY(SubqueryLookupJoin.class::isInstance),
     LOOKUP(Lookup.class::isInstance),
     CHANGE_POINT(ChangePoint.class::isInstance),
     INLINE_STATS(InlineStats.class::isInstance),

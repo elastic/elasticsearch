@@ -209,6 +209,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryLookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
@@ -367,6 +368,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     public static final TransportVersion ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION = TransportVersion.fromName(
         "esql_lookup_join_full_text_function"
     );
+    public static final TransportVersion ESQL_LOOKUP_JOIN_SUBQUERY = TransportVersion.fromName("esql_lookup_join_subquery");
 
     private final Verifier verifier;
 
@@ -1338,6 +1340,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case MvExpand p -> resolveMvExpand(p, childrenOutput);
                 case Lookup l -> resolveLookup(l, childrenOutput);
                 case LookupJoin j -> resolveLookupJoin(j, context);
+                case SubqueryLookupJoin j -> resolveSubqueryLookupJoin(j, context);
                 case AbstractSubqueryJoin sj -> resolveSubqueryJoin(sj);
                 case Fuse fuse -> resolveFuse(fuse, childrenOutput);
                 case Rerank r -> resolveRerank(r, childrenOutput, context);
@@ -1764,6 +1767,60 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case 1 -> relation.concreteIndices().containsKey(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false;
                 default -> true;
             };
+        }
+
+        private SubqueryLookupJoin resolveSubqueryLookupJoin(SubqueryLookupJoin join, AnalyzerContext context) {
+            JoinConfig config = join.config();
+            List<Attribute> leftFields = config.leftFields();
+            boolean leftNeedsResolution = leftFields.stream()
+                .anyMatch(attribute -> attribute instanceof UnresolvedAttribute unresolved && unresolved.customMessage() == false);
+            List<Attribute> leftKeys = leftNeedsResolution ? resolveUsingColumns(leftFields, join.left().output(), "left") : leftFields;
+            List<Attribute> rightFields = resolveSubqueryLookupJoinRightFields(join);
+
+            LogicalPlan right = join.right();
+            if (rightFields.stream().allMatch(Attribute::resolved)
+                && IndependentSubqueryJoin.anyMatchInMainScope(
+                    right,
+                    node -> node instanceof Project || node instanceof Aggregate
+                ) == false) {
+                right = new Project(join.source(), right, right.output());
+            }
+
+            ExecuteLocation mode = newSubqueryLookupJoinMode(context.minimumVersion(), join.left());
+            return new SubqueryLookupJoin(
+                join.source(),
+                join.left(),
+                right,
+                new JoinConfig(config.type(), leftKeys, rightFields, config.joinOnConditions()),
+                mode
+            );
+        }
+
+        private List<Attribute> resolveSubqueryLookupJoinRightFields(SubqueryLookupJoin join) {
+            List<Attribute> rightFields = join.config().rightFields();
+            if (rightFields.stream()
+                .anyMatch(attribute -> attribute instanceof UnresolvedAttribute unresolved && unresolved.customMessage())) {
+                return rightFields;
+            }
+
+            List<Attribute> rightOutput = join.right().output();
+            if (rightFields.stream().anyMatch(Attribute::resolved)
+                && rightFields.stream().anyMatch(field -> rightOutput.stream().noneMatch(output -> output.id().equals(field.id())))) {
+                rightFields = rightFields.stream()
+                    .map(field -> field.resolved() ? new UnresolvedAttribute(field.source(), field.name()) : field)
+                    .toList();
+            }
+            return resolveUsingColumns(rightFields, rightOutput, "right");
+        }
+
+        static ExecuteLocation newSubqueryLookupJoinMode(TransportVersion minimumVersion, LogicalPlan left) {
+            boolean hasRemoteIndices = IndependentSubqueryJoin.anyMatchInMainScope(
+                left,
+                node -> node instanceof EsRelation relation && hasRemoteIndices(relation)
+            );
+            return hasRemoteIndices || minimumVersion.supports(ESQL_LOOKUP_JOIN_SUBQUERY) == false
+                ? ExecuteLocation.COORDINATOR
+                : ExecuteLocation.ANY;
         }
 
         /**
@@ -3715,17 +3772,23 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private static class UnionTypeResolutionState {
             private final List<Attribute.IdIgnoringWrapper> unionFieldAttributes = new ArrayList<>();
+            private final Set<NameId> subqueryUnionOutputIds = new HashSet<>();
             private boolean isAfterAggregate = false;
         }
 
         private static LogicalPlan resolveInScope(LogicalPlan plan, UnionTypeResolutionState state, AnalyzerContext context) {
             List<LogicalPlan> children = plan.children();
             List<LogicalPlan> resolvedChildren = null;
+            UnionTypeResolutionState subqueryState = null;
             for (int i = 0; i < children.size(); i++) {
                 LogicalPlan child = children.get(i);
-                UnionTypeResolutionState childState = plan instanceof IndependentSubqueryJoin && i == 1
-                    ? new UnionTypeResolutionState()
-                    : state;
+                UnionTypeResolutionState childState;
+                if (plan instanceof IndependentSubqueryJoin && i == 1) {
+                    childState = new UnionTypeResolutionState();
+                    subqueryState = childState;
+                } else {
+                    childState = state;
+                }
                 LogicalPlan resolvedChild = resolveInScope(child, childState, context);
                 if (child.equals(resolvedChild) == false) {
                     if (resolvedChildren == null) {
@@ -3737,7 +3800,57 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (resolvedChildren != null) {
                 plan = plan.replaceChildren(resolvedChildren);
             }
-            return plan.childrenResolved() ? doRule(plan, state, context) : plan;
+            if (plan.childrenResolved() == false) {
+                return plan;
+            }
+            plan = doRule(plan, state, context);
+            if (plan instanceof SubqueryLookupJoin lookupJoin && subqueryState != null) {
+                recordSubqueryUnionOutputs(lookupJoin, subqueryState, state);
+            }
+            return plan;
+        }
+
+        private static void recordSubqueryUnionOutputs(
+            SubqueryLookupJoin lookupJoin,
+            UnionTypeResolutionState subqueryState,
+            UnionTypeResolutionState state
+        ) {
+            Set<NameId> rightOutputIds = lookupJoin.rightOutputFields().stream().map(Attribute::id).collect(Collectors.toSet());
+            for (Attribute output : lookupJoin.right().output()) {
+                if (rightOutputIds.contains(output.id()) && isUnconvertedUnionOutput(lookupJoin.right(), output, subqueryState)) {
+                    state.subqueryUnionOutputIds.add(output.id());
+                }
+            }
+        }
+
+        private static boolean isUnconvertedUnionOutput(LogicalPlan subquery, Attribute output, UnionTypeResolutionState subqueryState) {
+            if (subqueryState.subqueryUnionOutputIds.contains(output.id())) {
+                return true;
+            }
+            if (output instanceof FieldAttribute field && isUnconvertedUnionField(field)) {
+                return true;
+            }
+
+            Holder<Boolean> unionOutput = new Holder<>(false);
+            subquery.forEachExpressionDown(NamedExpression.class, namedExpression -> {
+                if (namedExpression.id().equals(output.id())) {
+                    if (namedExpression instanceof FieldAttribute field && isUnconvertedUnionField(field)) {
+                        unionOutput.set(true);
+                    } else {
+                        namedExpression.forEachDown(FieldAttribute.class, field -> {
+                            if (isUnconvertedUnionField(field)) {
+                                unionOutput.set(true);
+                            }
+                        });
+                    }
+                }
+            });
+            return unionOutput.get();
+        }
+
+        private static boolean isUnconvertedUnionField(FieldAttribute field) {
+            return field.field() instanceof TypeConflictedField
+                || (field.field() instanceof UnionTypeEsField && field.synthetic() == false);
         }
 
         private static LogicalPlan doRule(LogicalPlan plan, UnionTypeResolutionState state, AnalyzerContext context) {
@@ -3762,6 +3875,21 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // Replace the entire convert function with a new FieldAttribute (containing type conversion knowledge)
             plan = plan.transformExpressionsOnly(e -> {
                 if (e instanceof ConvertFunction convert) {
+                    Attribute subqueryUnionField = convert.field()
+                        .references()
+                        .stream()
+                        .filter(attribute -> state.subqueryUnionOutputIds.contains(attribute.id()))
+                        .findFirst()
+                        .orElse(null);
+                    if (subqueryUnionField != null) {
+                        return new UnresolvedAttribute(
+                            e.source(),
+                            subqueryUnionField.name(),
+                            "Union-typed field ["
+                                + subqueryUnionField.name()
+                                + "] from a LOOKUP JOIN subquery must be converted inside the subquery"
+                        );
+                    }
                     return resolveConvertFunction(convert, state.unionFieldAttributes, context);
                 }
                 return e;

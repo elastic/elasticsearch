@@ -347,7 +347,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         }
     }
 
-    private static boolean comparableTypes(Attribute left, Attribute right) {
+    static boolean comparableTypes(Attribute left, Attribute right) {
         DataType leftType = left.dataType();
         DataType rightType = right.dataType();
         if (leftType == NULL) {

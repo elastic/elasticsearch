@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
@@ -26,6 +27,11 @@ public interface IndependentSubqueryJoin extends SubPlanJoin {
      * Returns the outer pipeline whose rows are preserved or filtered by this join.
      */
     LogicalPlan left();
+
+    /**
+     * Returns the left-side attributes used to match or evaluate the join.
+     */
+    AttributeSet leftReferences();
 
     /**
      * Returns children that belong to the query scope rooted at {@code plan}.

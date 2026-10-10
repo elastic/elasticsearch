@@ -153,9 +153,10 @@ final class PreloadedRowGroupMetadata implements Releasable {
     /**
      * Preloads column indexes and offset indexes for all row groups.
      *
-     * <p>When a {@link StorageObject} is provided, all index byte ranges across all row groups
-     * are collected and fetched in a single batched {@link CoalescedRangeReader#readCoalesced}
-     * call — merging adjacent ranges and issuing parallel async reads. This reduces hundreds
+     * <p>When a {@link StorageObject} is provided, index ranges and dictionary/bloom ranges
+     * are collected and fetched in two {@link CoalescedRangeReader#readCoalesced} batches —
+     * indexes with the 1 MiB gap, then dictionary/bloom with waste bounded to useful bytes.
+     * Adjacent ranges merge; each batch issues parallel async reads. This reduces hundreds
      * of sequential I/O operations to a handful of coalesced requests.
      *
      * <p><b>Threading model:</b> This method is called from {@code ParquetFormatReader.read()}
@@ -362,6 +363,12 @@ final class PreloadedRowGroupMetadata implements Releasable {
      * ranges into typed objects and retains dictionary/bloom ranges as raw byte chunks for
      * {@link ParquetStorageObjectAdapter} pre-warming.
      *
+     * <p>Open-time {@code forceAdd} is at most twice the predicate columns' dictionary and
+     * bloom bytes in the split, plus the <em>index span</em> (first needed column/offset-index
+     * offset to last needed end; the 1 MiB gap also pulls unrequested indexes that sit
+     * between them), plus one window. Transient: released after the row-group filter. Still
+     * outside the node cap until a later ticket for the pre-warm.
+     *
      * <p><b>Parallelism:</b> {@link CoalescedRangeReader#readCoalesced} dispatches one
      * {@code readBytesAsync} call per merged range back-to-back without waiting between calls.
      * Dictionary and bloom ranges merge only when the gap is at most the remaining waste
@@ -436,6 +443,7 @@ final class PreloadedRowGroupMetadata implements Releasable {
             switch (meta.kind()) {
                 case COLUMN_INDEX, OFFSET_INDEX -> indexRanges.add(meta.range());
                 case DICTIONARY_PAGE, BLOOM_FILTER -> preWarmRanges.add(meta.range());
+                default -> throw new AssertionError(meta.kind());
             }
         }
 

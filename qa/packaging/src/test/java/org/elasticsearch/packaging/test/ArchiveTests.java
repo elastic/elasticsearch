@@ -222,16 +222,12 @@ public class ArchiveTests extends PackagingTestCase {
         Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
         FileUtils.assertPathsDoNotExist(installation.data);
         Path tempDir = createTempDir("bc-backup");
-        Files.move(
-            installation.lib.resolve("tools").resolve("security-cli").resolve("bcprov-jdk18on-1.86.jar"),
-            tempDir.resolve("bcprov-jdk18on-1.86.jar")
-        );
+        // the certificate generation code (and its shaded Bouncy Castle) lives in the security-cli-bc jar
+        final String bcJar = "elasticsearch-security-cli-bc-" + distribution.version + ".jar";
+        Files.move(installation.lib.resolve("tools").resolve("security-cli").resolve(bcJar), tempDir.resolve(bcJar));
         Shell.Result result = runElasticsearchStartCommand(null, false, false);
-        assertElasticsearchFailure(result, "java.lang.NoClassDefFoundError: org/bouncycastle/", null);
-        Files.move(
-            tempDir.resolve("bcprov-jdk18on-1.86.jar"),
-            installation.lib.resolve("tools").resolve("security-cli").resolve("bcprov-jdk18on-1.86.jar")
-        );
+        assertElasticsearchFailure(result, "java.lang.NoClassDefFoundError: org/elasticsearch/xpack/security/cli/bc/", null);
+        Files.move(tempDir.resolve(bcJar), installation.lib.resolve("tools").resolve("security-cli").resolve(bcJar));
         Platforms.onWindows(() -> sh.chown(installation.config));
         FileUtils.rm(tempDir);
     }

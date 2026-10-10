@@ -67,8 +67,9 @@ import static org.elasticsearch.core.Strings.format;
  * it starts a task and gives back when the task finishes. The runners that find the budget used up wait in a queue, and budget that is
  * given back is offered to them in the order in which they started waiting, so it is first come first served between repositories,
  * each getting what its runner can use; earliest deadline first, which the completion targets of the repositories would allow, is a
- * later design decision. While adaptive upload concurrency is off the budget is not consulted, so what runs is exactly what the repositories' own runners allow;
- * the tasks are still counted, which is all it costs, so that the budget is right when the switch is turned on while snapshots run.
+ * later design decision. While adaptive upload concurrency is off the budget is not consulted, so what runs is exactly what the
+ * repositories' own runners allow; the tasks are still counted, which is all it costs, so that the budget is right when the switch is
+ * turned on while snapshots run.
  * While both switches are off nothing else here does anything: no measurements are read, no bytes are counted and nothing is scheduled.
  * Background QoS only applies on stateless nodes, where snapshots read from the object store; on other nodes they read local disk.
  */

@@ -116,6 +116,25 @@ public class SnapshotInfoCollectorTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> SnapshotInfoCollector.create(randomSnapshotInfoComparator(), size, offset));
     }
 
+    /**
+     * {@code size} and {@code offset} are not bounded by the number of snapshots that exist, so a large page size must not
+     * cause the collector to reserve memory upfront.
+     */
+    public void testLargePageSizeDoesNotReserveMemoryUpfront() {
+        final var comparator = randomSnapshotInfoComparator();
+        final var collector = SnapshotInfoCollector.create(comparator, Integer.MAX_VALUE, 0);
+
+        final var snapshotInfos = randomList(1, 10, SnapshotInfoCollectorTests::randomSnapshotInfo);
+        for (final var info : snapshotInfos) {
+            collector.add(info);
+        }
+
+        assertThat(collector.getRemaining(), equalTo(0));
+        final var expected = new ArrayList<>(snapshotInfos);
+        expected.sort(comparator);
+        assertThat(collector.getSnapshotInfos(), equalTo(expected));
+    }
+
     private static Comparator<SnapshotInfo> randomSnapshotInfoComparator() {
         return randomFrom(SnapshotSortKey.values()).getSnapshotInfoComparator(randomFrom(SortOrder.values()));
     }

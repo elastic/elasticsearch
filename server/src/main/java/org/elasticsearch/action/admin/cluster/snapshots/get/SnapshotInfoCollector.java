@@ -95,8 +95,17 @@ interface SnapshotInfoCollector {
 
         BoundedSnapshotInfoCollector(Comparator<SnapshotInfo> comparator, int offset, int size) {
             assert size > 0;
+            if (size > Integer.MAX_VALUE - offset) {
+                throw new IllegalArgumentException(
+                    "size [" + size + "] plus offset [" + offset + "] must not exceed [" + Integer.MAX_VALUE + "]"
+                );
+            }
             this.capacity = offset + size;
-            this.snapshotInfos = new PriorityQueue<>(capacity, comparator.reversed()); // throws IAE if size+offset overflowed
+            // Deliberately not pre-sizing the queue to `capacity`: PriorityQueue allocates its backing array up front, and
+            // `capacity` is derived from the `size` and `offset` request parameters, which are not bounded by the number of
+            // snapshots that actually exist. A large page size would therefore reserve gigabytes before a single snapshot has
+            // been read. The queue grows on demand instead, and `capacity` still bounds how many snapshots we retain in #add.
+            this.snapshotInfos = new PriorityQueue<>(comparator.reversed());
             this.comparator = comparator;
             this.offset = offset;
         }

@@ -1,0 +1,171 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.expression.function.aggregate;
+
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.ChangesDoubleAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.ChangesExponentialHistogramAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.ChangesIntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.ChangesLongAggregatorFunctionSupplier;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionType;
+import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.planner.ToAggregator;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Objects;
+
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+
+/**
+ * Implements the PromQL {@code changes()} range-vector function for per-series numeric and native histogram values.
+ */
+public class Changes extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TimestampAware {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "Changes",
+        Changes::readFrom
+    );
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .withinSeries(Changes::new)
+        .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
+        .description("Returns the number of times the value changed in each time series in a range vector.")
+        .example("changes(process_start_time_seconds[1h])")
+        .stack(PromqlFunctionDefinition.STACK_GA_9_6)
+        .differenceFromPrometheus(
+            PromqlFunctionDefinition.COUNT_NOTE
+                + " A single Elasticsearch field has a fixed type, so transitions between float and native histogram samples "
+                + "cannot be represented."
+        )
+        .name("changes");
+
+    private final Expression timestamp;
+
+    @FunctionInfo(
+        type = FunctionType.TIME_SERIES_AGGREGATE,
+        returnType = { "long" },
+        briefSummary = "Calculates the number of value changes in a time window.",
+        description = "Calculates the number of times the value of a numeric or native histogram metric field changes in a time window.",
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.7.0"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.8.0") }
+    )
+    public Changes(
+        Source source,
+        @Param(
+            name = "field",
+            type = { "long", "integer", "double", "counter_long", "counter_integer", "counter_double", "exponential_histogram" },
+            description = "the metric field to calculate the value for"
+        ) Expression field,
+        @Param(
+            name = "window",
+            type = { "time_duration" },
+            description = "the time window over which to compute changes",
+            optional = true
+        ) Expression window,
+        Expression timestamp
+    ) {
+        this(source, field, timestamp, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW));
+    }
+
+    public Changes(Source source, Expression field, Expression timestamp, Expression filter, Expression window) {
+        super(source, List.of(field, timestamp), filter, window, List.of());
+        this.timestamp = timestamp;
+    }
+
+    private static Changes readFrom(StreamInput in) throws IOException {
+        Source source = Source.readFrom((PlanStreamInput) in);
+        Expression field = in.readNamedWriteable(Expression.class);
+        Expression filter = in.readNamedWriteable(Expression.class);
+        Expression window = readWindow(in);
+        Expression timestamp = in.readNamedWriteableCollectionAsList(Expression.class).getFirst();
+        return new Changes(source, field, timestamp, filter, window);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
+    @Override
+    protected NodeInfo<Changes> info() {
+        return NodeInfo.create(this, Changes::new, field(), timestamp, filter(), window());
+    }
+
+    @Override
+    public Changes replaceChildren(List<Expression> newChildren) {
+        return new Changes(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
+    }
+
+    @Override
+    public Changes withFilter(Expression filter) {
+        return new Changes(source(), field(), timestamp, filter, window());
+    }
+
+    @Override
+    public DataType dataType() {
+        return DataType.LONG;
+    }
+
+    @Override
+    protected TypeResolution resolveType() {
+        return isType(
+            field(),
+            dt -> dt == DataType.LONG
+                || dt == DataType.INTEGER
+                || dt == DataType.DOUBLE
+                || dt == DataType.EXPONENTIAL_HISTOGRAM
+                || DataType.isCounter(dt),
+            sourceText(),
+            DEFAULT,
+            "long, integer, double, counter_long, counter_integer, counter_double or exponential_histogram"
+        );
+    }
+
+    @Override
+    public AggregatorFunctionSupplier supplier() {
+        return switch (field().dataType()) {
+            case LONG, COUNTER_LONG -> new ChangesLongAggregatorFunctionSupplier();
+            case INTEGER, COUNTER_INTEGER -> new ChangesIntAggregatorFunctionSupplier();
+            case DOUBLE, COUNTER_DOUBLE -> new ChangesDoubleAggregatorFunctionSupplier();
+            case EXPONENTIAL_HISTOGRAM -> new ChangesExponentialHistogramAggregatorFunctionSupplier();
+            default -> throw EsqlIllegalArgumentException.illegalDataType(field().dataType());
+        };
+    }
+
+    @Override
+    public Changes perTimeSeriesAggregation() {
+        return this;
+    }
+
+    @Override
+    public String toString() {
+        return "changes(" + field() + ", " + timestamp() + ")";
+    }
+
+    @Override
+    public Expression timestamp() {
+        return timestamp;
+    }
+}

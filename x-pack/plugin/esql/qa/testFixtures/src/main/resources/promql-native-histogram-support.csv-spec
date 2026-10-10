@@ -1,4 +1,16 @@
-// End-to-end PromQL csv-spec coverage for histogram_count and histogram_sum on native histograms.
+// End-to-end PromQL csv-spec coverage for native histogram functions.
+
+///////////////////////////////////////////////////////////////////////////////
+// changes on exponential histograms
+///////////////////////////////////////////////////////////////////////////////
+
+changes_exp_histo_single_instance
+required_capability: promql_changes
+PROMQL index=exp_histo_sample step=5m start="2025-09-25T00:05:00.000Z" end="2025-09-25T00:05:00.000Z" result=(changes(responseTime{instance="instance-1"}[5m]));
+
+result:double | step:datetime            | _timeseries:keyword
+4.0           | 2025-09-25T00:05:00.000Z | "{""instance"":""instance-1""}"
+;
 
 ///////////////////////////////////////////////////////////////////////////////
 // histogram_count on exponential histograms

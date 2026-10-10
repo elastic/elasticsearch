@@ -17,6 +17,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.IntConsumer;
 
 public class ConcurrentMultipartHelper {
 
@@ -65,7 +66,6 @@ public class ConcurrentMultipartHelper {
 
     /**
      * Executes {@code tasks} independent tasks concurrently. The calling thread also participates
-     *
      * @param tasks        number of tasks to execute
      * @param executor     executor used to dispatch concurrent tasks
      * @param taskConsumer callback invoked per task index, must be thread-safe
@@ -75,29 +75,44 @@ public class ConcurrentMultipartHelper {
         final CountDownLatch latch = new CountDownLatch(tasks);
         final ConcurrentLinkedQueue<Exception> exceptions = new ConcurrentLinkedQueue<>();
 
-        final Runnable worker = () -> {
-            int i;
-            while ((i = nextTask.getAndIncrement()) < tasks) {
-                if (exceptions.isEmpty()) {
-                    try {
-                        taskConsumer.accept(i);
-                    } catch (Exception e) {
-                        exceptions.add(e);
-                    }
+        final IntConsumer runTask = i -> {
+            if (exceptions.isEmpty()) {
+                try {
+                    taskConsumer.accept(i);
+                } catch (Exception e) {
+                    exceptions.add(e);
                 }
-                latch.countDown();
             }
+            latch.countDown();
         };
 
-        for (int i = 0; i < tasks - 1; i++) {
-            try {
-                executor.execute(worker);
-            } catch (Exception e) {
-                // Ignore rejections, the calling thread will process unclaimed parts
+        // We use a `Worker` to allow for interleaving between different concurrent tasks (e.g., from multiple parallel multi-part uploads).
+        // The idea is that before we run the task, we **first** submit a new `Worker` to the `executor`. This way, if the underlying
+        // executor is `ThrottledTaskRunner` with a FIFO bounded-queue of `t` `maxRunningTasks` (i.e., slots), we'll quickly fill up all
+        // those `t` slots, but we want to submit more tasks to be sitting on the back of this bounded queue. As a result, if another
+        // multi-part upload takes place, it can also take slots and, we'll end up having them interleaved.
+        final class Worker implements Runnable {
+            @Override
+            public void run() {
+                final int i = nextTask.getAndIncrement();
+                if (i >= tasks) {
+                    return;
+                }
+                trySubmit(executor, new Worker());
+                runTask.accept(i);
             }
         }
-        // Calling thread also processes tasks
-        worker.run();
+
+        if (tasks > 1) {
+            trySubmit(executor, new Worker());
+        }
+
+        // calling thread also processes tasks to prevent a deadlock (e.g., executor has only 1 thread but because the calling thread is
+        // already using it, we never managed to run a task)
+        int i;
+        while ((i = nextTask.getAndIncrement()) < tasks) {
+            runTask.accept(i);
+        }
 
         try {
             latch.await();
@@ -122,6 +137,14 @@ public class ConcurrentMultipartHelper {
                 exception.addSuppressed(it.next());
             }
             throw exception;
+        }
+    }
+
+    private static void trySubmit(Executor executor, Runnable worker) {
+        try {
+            executor.execute(worker);
+        } catch (Exception e) {
+            // Ignore rejections, the calling thread will process unclaimed tasks
         }
     }
 }

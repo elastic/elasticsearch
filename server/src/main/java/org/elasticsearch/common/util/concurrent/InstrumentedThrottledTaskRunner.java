@@ -30,6 +30,7 @@ public class InstrumentedThrottledTaskRunner<T extends ActionListener<Releasable
     static final String THROTTLED_TASK_RUNNER_METRIC_NAME_RUNNING = ".tasks.running.current";
     static final String THROTTLED_TASK_RUNNER_METRIC_NAME_QUEUE_TIME = ".tasks.queue.latency.histogram";
 
+    private final String taskRunnerName;
     private final AbstractThrottledTaskRunner<TimedTask<T>> runner;
     private final LongSupplier relativeTimeNanosProvider;
     private final LongHistogram queueLatencyMillisHistogram;
@@ -55,6 +56,7 @@ public class InstrumentedThrottledTaskRunner<T extends ActionListener<Releasable
         final MeterRegistry meterRegistry,
         final LongSupplier relativeTimeNanosProvider
     ) {
+        this.taskRunnerName = name;
         this.relativeTimeNanosProvider = relativeTimeNanosProvider;
         this.runner = new AbstractThrottledTaskRunner<>(name, maxRunningTasks, executor, taskQueue) {
             @Override
@@ -99,6 +101,17 @@ public class InstrumentedThrottledTaskRunner<T extends ActionListener<Releasable
 
     int queuedTasks() {
         return runner.queuedTasks();
+    }
+
+    String getTaskRunnerName() {
+        return taskRunnerName;
+    }
+
+    /// Returns an [Executor] that runs each [Runnable] as a throttled task of `runner`.
+    /// NOTE: The executor has the same caveats as the [ThrottledTaskRunner#asExecutor()], meaning that [Runnable]s are throttled to
+    /// the extent they do NOT fork off on a different executor.
+    public static Executor asExecutor(InstrumentedThrottledTaskRunner<ActionListener<Releasable>> instrumentedRunner) {
+        return new ThrottledTaskRunner.ThrottledExecutorAdapter(instrumentedRunner.getTaskRunnerName(), instrumentedRunner::enqueueTask);
     }
 
     // we wrap each task in a TimedTask that includes its enqueued time, so we can compute the latency from the `runner'`s queue itself.

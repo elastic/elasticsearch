@@ -38,13 +38,25 @@ public final class PerFieldMapperCodec extends Elasticsearch96Codec {
         BigArrays bigArrays,
         ThreadPool threadPool
     ) {
+        this(compressionMode, storedFieldsMode, legacyMode, mapperService, bigArrays, threadPool, SegmentStatsCollectors.NONE);
+    }
+
+    public PerFieldMapperCodec(
+        Lucene104Codec.Mode compressionMode,
+        ElasticsearchStoredFieldsFormat.Mode storedFieldsMode,
+        ElasticsearchStoredFieldsFormat.Mode legacyMode,
+        MapperService mapperService,
+        BigArrays bigArrays,
+        ThreadPool threadPool,
+        SegmentStatsCollectors segmentStatsCollectors
+    ) {
         super(
             compressionMode,
             storedFieldsMode,
             legacyMode,
             mapperService != null && mapperService.getIndexSettings().useTimeSeriesSyntheticId()
         );
-        this.formatSupplier = new PerFieldFormatSupplier(mapperService, bigArrays, threadPool);
+        this.formatSupplier = new PerFieldFormatSupplier(mapperService, bigArrays, threadPool, segmentStatsCollectors);
         // If the below assertion fails, it is a sign that Lucene released a new codec. You must create a copy of the current Elasticsearch
         // codec that delegates to this new Lucene codec, and make PerFieldMapperCodec extend this new Elasticsearch codec.
         assert Codec.forName(Lucene.LATEST_CODEC).getClass() == delegate.getClass()
@@ -64,6 +76,11 @@ public final class PerFieldMapperCodec extends Elasticsearch96Codec {
     @Override
     public DocValuesFormat getDocValuesFormatForField(String field) {
         return formatSupplier.getDocValuesFormatForField(field);
+    }
+
+    @Override
+    public SegmentStatsCollectors getSegmentStatsCollectors() {
+        return formatSupplier.getSegmentStatsCollectors();
     }
 
 }

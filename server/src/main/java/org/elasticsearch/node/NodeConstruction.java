@@ -1109,7 +1109,8 @@ class NodeConstruction {
             taskLifecycleManager,
             dlmErrorStore,
             ipLocationService,
-            usageService
+            usageService,
+            throttlingRecoveryService
         );
 
         Collection<?> pluginComponents = pluginsService.flatMap(plugin -> {

@@ -7443,6 +7443,114 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    public void testDeleteThrottling() throws Exception {
+        indexDoc(engine, indexForDoc(createParsedDoc("1", null)));
+        indexDoc(engine, indexForDoc(createParsedDoc("2", null)));
+        final Engine.Delete deleteWithThrottlingCheck = spy(new Engine.Delete("1", Uid.encodeId("1"), primaryTerm.get()));
+        final Engine.Delete recoveryDeleteWithoutThrottlingCheck = spy(
+            new Engine.Delete(
+                "3",
+                Uid.encodeId("3"),
+                engine.getSeqNoStats(-1).getMaxSeqNo() + 1,
+                primaryTerm.get(),
+                1,
+                null,
+                LOCAL_TRANSLOG_RECOVERY,
+                System.nanoTime(),
+                UNASSIGNED_SEQ_NO,
+                0
+            )
+        );
+        final Engine.Delete deleteWithoutThrottlingCheck = spy(new Engine.Delete("2", Uid.encodeId("2"), primaryTerm.get()));
+        doAnswer(invocation -> {
+            assertTrue(engine.throttleLockIsHeldByCurrentThread());
+            return invocation.callRealMethod();
+        }).when(deleteWithThrottlingCheck).startTime();
+        doAnswer(invocation -> {
+            assertFalse(engine.throttleLockIsHeldByCurrentThread());
+            return invocation.callRealMethod();
+        }).when(recoveryDeleteWithoutThrottlingCheck).startTime();
+        doAnswer(invocation -> {
+            assertFalse(engine.throttleLockIsHeldByCurrentThread());
+            return invocation.callRealMethod();
+        }).when(deleteWithoutThrottlingCheck).startTime();
+        engine.activateThrottling();
+        engine.delete(recoveryDeleteWithoutThrottlingCheck);
+        engine.delete(deleteWithThrottlingCheck);
+        engine.deactivateThrottling();
+        engine.delete(deleteWithoutThrottlingCheck);
+        verify(deleteWithThrottlingCheck, atLeastOnce()).startTime();
+        verify(recoveryDeleteWithoutThrottlingCheck, atLeastOnce()).startTime();
+        verify(deleteWithoutThrottlingCheck, atLeastOnce()).startTime();
+    }
+
+    public void testDeleteThrottlingWithPause() throws Exception {
+        Settings.Builder settings = Settings.builder()
+            .put(defaultSettings.getSettings())
+            .put(IndexingMemoryController.PAUSE_INDEXING_ON_THROTTLE.getKey(), true);
+        final IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
+        try (
+            Store store = createStore();
+            InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), newMergePolicy()))
+        ) {
+            for (String id : List.of("1", "2", "3")) {
+                indexDoc(engine, indexForDoc(createParsedDoc(id, null)));
+            }
+            assertThat(getDocIds(engine, true).size(), equalTo(3));
+
+            final List<Thread> deleteThreads = new ArrayList<>();
+            engine.activateThrottling();
+            try {
+                assertTrue(engine.isThrottled());
+                final Thread deleteReleasedBySuspend = startDeleteThread(engine, "1");
+                deleteThreads.add(deleteReleasedBySuspend);
+                assertBusy(() -> assertWaitingOnThrottle(deleteReleasedBySuspend));
+                assertThat(getDocIds(engine, true).size(), equalTo(3));
+                engine.suspendThrottling();
+                safeJoin(deleteReleasedBySuspend);
+                assertTrue(engine.isThrottled());
+                assertThat(getDocIds(engine, true).size(), equalTo(2));
+
+                engine.resumeThrottling();
+                final Thread deleteReleasedByDeactivate = startDeleteThread(engine, "2");
+                deleteThreads.add(deleteReleasedByDeactivate);
+                assertBusy(() -> assertWaitingOnThrottle(deleteReleasedByDeactivate));
+                assertThat(getDocIds(engine, true).size(), equalTo(2));
+                engine.deactivateThrottling();
+                safeJoin(deleteReleasedByDeactivate);
+                assertThat(getDocIds(engine, true).size(), equalTo(1));
+            } finally {
+                if (engine.isThrottled()) {
+                    engine.deactivateThrottling();
+                }
+                for (Thread deleteThread : deleteThreads) {
+                    deleteThread.join(SAFE_AWAIT_TIMEOUT.millis());
+                }
+            }
+
+            engine.delete(new Engine.Delete("3", Uid.encodeId("3"), primaryTerm.get()));
+            assertThat(getDocIds(engine, true).size(), equalTo(0));
+        }
+    }
+
+    private Thread startDeleteThread(InternalEngine engine, String id) {
+        final Thread thread = new Thread(() -> {
+            try {
+                engine.delete(new Engine.Delete(id, Uid.encodeId(id), primaryTerm.get()));
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+        thread.start();
+        return thread;
+    }
+
+    private static void assertWaitingOnThrottle(Thread thread) {
+        assertThat(thread.getState(), equalTo(Thread.State.WAITING));
+        assertTrue(Arrays.stream(thread.getStackTrace()).anyMatch(frame -> frame.getMethodName().equals("acquireThrottle")));
+    }
+
     public void testRealtimeGetOnlyRefreshIfNeeded() throws Exception {
         MapperService mapperService = createMapperService();
         final AtomicInteger refreshCount = new AtomicInteger();

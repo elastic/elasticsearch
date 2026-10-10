@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.test.ESTestCase;
@@ -69,7 +70,7 @@ public class InnerJoinTests extends ESTestCase {
         LocalRelation materialized = localRelation(List.of(rightKey, value));
         LogicalPlan newMain = innerJoin.inlineSubqueryResult(
             materialized,
-            new SubqueryResultContext(0, TestBlockFactory.getNonBreakingInstance(), null)
+            new SubqueryResultContext(0, ByteSizeValue.ofMb(100), TestBlockFactory.getNonBreakingInstance(), null)
         );
 
         // Still an InnerJoin (not rewritten into a Filter/HashJoin like the SEMI family), now with the materialized build side on its

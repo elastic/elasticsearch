@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan.logical.join;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -947,7 +948,10 @@ public class SubqueryJoinTests extends ESTestCase {
         Block[] blocks = new Block[] { BlockUtils.constantBlock(TestBlockFactory.getNonBreakingInstance(), 42, 1) };
         LocalRelation result = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(blocks)));
 
-        LogicalPlan newPlan = semiJoin.inlineSubqueryResult(result, new SubqueryResultContext(HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null));
+        LogicalPlan newPlan = semiJoin.inlineSubqueryResult(
+            result,
+            new SubqueryResultContext(HASH_JOIN_THRESHOLD, ByteSizeValue.ofMb(100), BLOCK_FACTORY, null)
+        );
         var filter = as(newPlan, Filter.class);
         assertThat(filter.condition(), instanceOf(In.class));
     }

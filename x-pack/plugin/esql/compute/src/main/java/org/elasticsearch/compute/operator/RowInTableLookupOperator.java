@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
@@ -101,21 +102,37 @@ public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOpera
      * the {@link Key}s are never closed by this factory; each operator instance
      * deep-copies them into its own {@link BlockFactory} on construction.
      */
-    public record Factory(Key[] keys, int[] blockMapping) implements Operator.OperatorFactory {
+    public record Factory(Key[] keys, int[] blockMapping, boolean repeatedKeys, @Nullable WarningSourceLocation warningSource)
+        implements
+            Operator.OperatorFactory {
         public Factory {
             if (keys.length < 1) {
                 throw new IllegalArgumentException("expected [keys] to be non-empty");
             }
+            if (repeatedKeys && warningSource == null) {
+                throw new IllegalArgumentException("expected [warningSource] when [repeatedKeys] is true");
+            }
+        }
+
+        public Factory(Key[] keys, int[] blockMapping) {
+            this(keys, blockMapping, false, null);
         }
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new RowInTableLookupOperator(driverContext.blockFactory(), keys, blockMapping);
+            Warnings warnings = repeatedKeys ? Warnings.createWarnings(driverContext, warningSource) : Warnings.NOOP_WARNINGS;
+            return new RowInTableLookupOperator(driverContext.blockFactory(), keys, blockMapping, repeatedKeys, warnings);
         }
 
         @Override
         public String describe() {
-            return "RowInTableLookup[keys=" + Arrays.toString(keys) + ", mapping=" + Arrays.toString(blockMapping) + "]";
+            return "RowInTableLookup[keys="
+                + Arrays.toString(keys)
+                + ", mapping="
+                + Arrays.toString(blockMapping)
+                + ", repeatedKeys="
+                + repeatedKeys
+                + "]";
         }
     }
 
@@ -124,6 +141,10 @@ public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOpera
     private final int[] blockMapping;
 
     public RowInTableLookupOperator(BlockFactory blockFactory, Key[] keys, int[] blockMapping) {
+        this(blockFactory, keys, blockMapping, false, Warnings.NOOP_WARNINGS);
+    }
+
+    private RowInTableLookupOperator(BlockFactory blockFactory, Key[] keys, int[] blockMapping, boolean repeatedKeys, Warnings warnings) {
         if (keys.length < 1) {
             throw new IllegalArgumentException("expected [keys] to be non-empty");
         }
@@ -136,7 +157,7 @@ public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOpera
             blocks[k] = keys[k].block.deepCopy(blockFactory);
         }
         try {
-            this.lookup = RowInTableLookup.build(blockFactory, blocks);
+            this.lookup = RowInTableLookup.build(blockFactory, blocks, repeatedKeys, warnings);
         } finally {
             Releasables.closeExpectNoException(blocks);
         }

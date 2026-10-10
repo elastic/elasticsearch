@@ -135,6 +135,8 @@ import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.SubPlanJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryLookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryLookupJoinInliner;
 import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryResultContext;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -1213,12 +1215,16 @@ public class EsqlSession {
             subPlan.setOptimized();
             AtomicReference<Page> localRelationPage = new AtomicReference<>();
             subPlanAndCallback = new SubPlanAndCallback(subPlan, result -> {
-                LocalRelation resultWrapper = resultToPlan(subPlan.source(), result);
+                BlockFactory relationBlockFactory = subPlanJoin instanceof SubqueryLookupJoin
+                    ? SubqueryLookupJoinInliner.blockFactory(blockFactory)
+                    : blockFactory;
+                LocalRelation resultWrapper = resultToPlan(subPlan.source(), result, relationBlockFactory);
                 localRelationPage.set(resultWrapper.supplier().get());
                 subPlansResults.add(resultWrapper);
                 SubqueryResultContext context = new SubqueryResultContext(
                     resolveInSubqueryHashJoinThreshold(configuration),
-                    blockFactory,
+                    plannerSettings.intermediateLocalRelationMaxSize(),
+                    relationBlockFactory,
                     localRelationPage
                 );
                 return replaceSubPlanResult(mainPlan, subPlan, resultWrapper, context);
@@ -1418,6 +1424,10 @@ public class EsqlSession {
     }
 
     private LocalRelation resultToPlan(Source planSource, Result result) {
+        return resultToPlan(planSource, result, blockFactory);
+    }
+
+    private LocalRelation resultToPlan(Source planSource, Result result, BlockFactory relationBlockFactory) {
         List<Page> pages = result.pages();
         checkPagesBelowSize(
             pages,
@@ -1429,7 +1439,7 @@ public class EsqlSession {
         );
         List<Attribute> schema = result.schema();
 
-        Block[] blocks = SessionUtils.fromPages(schema, pages, blockFactory);
+        Block[] blocks = SessionUtils.fromPages(schema, pages, relationBlockFactory);
         return new LocalRelation(planSource, schema, LocalSupplier.of(blocks.length == 0 ? new Page(0) : new Page(blocks)));
     }
 

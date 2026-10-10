@@ -156,6 +156,6 @@ public class SubqueryLookupJoin extends Join implements IndependentSubqueryJoin,
 
     @Override
     public LogicalPlan inlineSubqueryResult(LocalRelation result, SubqueryResultContext context) {
-        throw new UnsupportedOperationException("subquery lookup join result inlining is not implemented");
+        return SubqueryLookupJoinInliner.inline(this, result, context);
     }
 }

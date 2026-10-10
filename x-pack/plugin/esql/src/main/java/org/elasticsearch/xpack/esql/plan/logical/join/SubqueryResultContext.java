@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Nullable;
@@ -18,6 +19,7 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public record SubqueryResultContext(
     int inSubqueryHashJoinThreshold,
+    ByteSizeValue intermediateLocalRelationMaxSize,
     BlockFactory blockFactory,
     @Nullable AtomicReference<Page> pageHolder
 ) {}

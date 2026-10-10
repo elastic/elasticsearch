@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 
@@ -22,7 +23,7 @@ import org.elasticsearch.core.ReleasableIterator;
  * offsets of each row in the table.
  */
 public abstract sealed class RowInTableLookup implements Releasable permits EmptyRowInTableLookup, AscendingSequenceRowInTableLookup,
-    BlockHashRowInTableLookup {
+    BlockHashRowInTableLookup, RepeatedKeyBlockHashRowInTableLookup {
     /**
      * Lookup the values in the {@link Page} and, for each row, return the offset in the
      * table that was provided when building the lookup.
@@ -37,6 +38,13 @@ public abstract sealed class RowInTableLookup implements Releasable permits Empt
     public abstract String toString();
 
     public static RowInTableLookup build(BlockFactory blockFactory, Block[] keys) {
+        return build(blockFactory, keys, false, Warnings.NOOP_WARNINGS);
+    }
+
+    /**
+     * Builds a lookup which can return every row sharing a key when {@code repeatedKeys} is true.
+     */
+    public static RowInTableLookup build(BlockFactory blockFactory, Block[] keys, boolean repeatedKeys, Warnings warnings) {
         if (keys.length < 1) {
             throw new IllegalArgumentException("expected [keys] to be non-empty");
         }
@@ -54,6 +62,9 @@ public abstract sealed class RowInTableLookup implements Releasable permits Empt
         }
         if (positions == 0) {
             return new EmptyRowInTableLookup(blockFactory);
+        }
+        if (repeatedKeys) {
+            return new RepeatedKeyBlockHashRowInTableLookup(blockFactory, keys, warnings);
         }
         if (keys.length == 1) {
             RowInTableLookup lookup = single(blockFactory, keys[0]);

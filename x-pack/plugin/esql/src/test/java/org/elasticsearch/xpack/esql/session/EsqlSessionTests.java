@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.TestBlockFactory;
@@ -132,7 +133,7 @@ public class EsqlSessionTests extends ESTestCase {
             plan,
             subPlan,
             result,
-            new SubqueryResultContext(0, TestBlockFactory.getNonBreakingInstance(), null)
+            new SubqueryResultContext(0, ByteSizeValue.ofMb(100), TestBlockFactory.getNonBreakingInstance(), null)
         );
 
         UnionAll union = (UnionAll) inlined;

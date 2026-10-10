@@ -7,27 +7,53 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.IntBigArrayBlock;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBigArrayBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
+import org.elasticsearch.xpack.esql.session.SessionUtils;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class SubqueryLookupJoinTests extends ESTestCase {
@@ -133,8 +159,425 @@ public class SubqueryLookupJoinTests extends ESTestCase {
         expectThrows(UnsupportedOperationException.class, join::getWriteableName);
     }
 
+    public void testInliningFiltersNullAndMultivaluedKeysAndRetainsRepeatedRows() {
+        BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
+        ReferenceAttribute leftKey = attribute("key", DataType.INTEGER);
+        ReferenceAttribute rightKey = attribute("key", DataType.INTEGER);
+        ReferenceAttribute payload = attribute("payload", DataType.INTEGER);
+        SubqueryLookupJoin join = lookupJoin(leftKey, rightKey, payload, ExecuteLocation.ANY);
+
+        Page inputPage;
+        try (IntBlock.Builder keys = blockFactory.newIntBlockBuilder(4); IntBlock.Builder values = blockFactory.newIntBlockBuilder(4)) {
+            keys.appendInt(1);
+            keys.appendNull();
+            keys.beginPositionEntry();
+            keys.appendInt(2);
+            keys.appendInt(3);
+            keys.endPositionEntry();
+            keys.appendInt(1);
+            values.appendInt(10);
+            values.appendInt(20);
+            values.appendInt(30);
+            values.appendInt(40);
+            inputPage = new Page(keys.build(), values.build());
+        }
+        AtomicReference<Page> pageHolder = new AtomicReference<>(inputPage);
+        Block inputKeyBlock = inputPage.getBlock(0);
+        Block inputPayloadBlock = inputPage.getBlock(1);
+        LocalRelation materialized = new LocalRelation(Source.EMPTY, List.of(rightKey, payload), LocalSupplier.of(inputPage));
+
+        LogicalPlan inlined = join.inlineSubqueryResult(materialized, resultContext(blockFactory, pageHolder, ByteSizeValue.ofMb(100)));
+        MaterializedLookupJoin rewritten = as(inlined, MaterializedLookupJoin.class);
+        assertThat(rewritten.executesOn(), equalTo(ExecuteLocation.ANY));
+        assertThat(rewritten.config().rightFields(), contains(rightKey));
+        LocalRelation right = as(rewritten.right(), LocalRelation.class);
+        assertThat(right.output(), contains(rightKey, payload));
+        assertNotSame(inputPage, pageHolder.get());
+        assertTrue(inputKeyBlock.isReleased());
+        assertTrue(inputPayloadBlock.isReleased());
+        Page normalizedPage = pageHolder.get();
+        try {
+            assertThat(normalizedPage.getPositionCount(), equalTo(2));
+            IntBlock normalizedKeys = normalizedPage.getBlock(0);
+            IntBlock normalizedPayload = normalizedPage.getBlock(1);
+            assertThat(normalizedKeys.getInt(0), equalTo(1));
+            assertThat(normalizedKeys.getInt(1), equalTo(1));
+            assertThat(normalizedPayload.getInt(0), equalTo(10));
+            assertThat(normalizedPayload.getInt(1), equalTo(40));
+        } finally {
+            pageHolder.set(null);
+            normalizedPage.releaseBlocks();
+        }
+
+        assertThat(
+            drainWarnings(),
+            contains(
+                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded",
+                "Line -1:-1: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value"
+            )
+        );
+    }
+
+    public void testInliningFiltersCompositeKeysWhenAnyComponentIsNullOrMultivalued() {
+        BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
+        ReferenceAttribute leftTenant = attribute("tenant", DataType.INTEGER);
+        ReferenceAttribute leftKey = attribute("key", DataType.KEYWORD);
+        ReferenceAttribute rightTenant = attribute("tenant", DataType.INTEGER);
+        ReferenceAttribute rightKey = attribute("key", DataType.KEYWORD);
+        ReferenceAttribute payload = attribute("payload", DataType.LONG);
+        SubqueryLookupJoin join = new SubqueryLookupJoin(
+            Source.EMPTY,
+            relation(List.of(leftTenant, leftKey)),
+            relation(List.of(rightTenant, rightKey, payload)),
+            LEFT,
+            List.of(leftTenant, leftKey),
+            List.of(rightTenant, rightKey),
+            null,
+            ExecuteLocation.ANY
+        );
+
+        Page inputPage;
+        try (
+            IntBlock.Builder tenants = blockFactory.newIntBlockBuilder(4);
+            BytesRefBlock.Builder keys = blockFactory.newBytesRefBlockBuilder(4);
+            LongBlock.Builder values = blockFactory.newLongBlockBuilder(4)
+        ) {
+            tenants.appendInt(1);
+            keys.appendBytesRef(new BytesRef("a"));
+            values.appendLong(10);
+            tenants.appendInt(1);
+            keys.appendNull();
+            values.appendLong(20);
+            tenants.appendInt(1);
+            keys.beginPositionEntry();
+            keys.appendBytesRef(new BytesRef("b"));
+            keys.appendBytesRef(new BytesRef("c"));
+            keys.endPositionEntry();
+            values.appendLong(30);
+            tenants.appendInt(2);
+            keys.appendBytesRef(new BytesRef("a"));
+            values.appendLong(40);
+            inputPage = new Page(tenants.build(), keys.build(), values.build());
+        }
+        AtomicReference<Page> pageHolder = new AtomicReference<>(inputPage);
+        LocalRelation materialized = new LocalRelation(Source.EMPTY, List.of(rightTenant, rightKey, payload), LocalSupplier.of(inputPage));
+
+        MaterializedLookupJoin rewritten = as(
+            join.inlineSubqueryResult(materialized, resultContext(blockFactory, pageHolder, ByteSizeValue.ofMb(100))),
+            MaterializedLookupJoin.class
+        );
+        assertThat(rewritten.config().rightFields(), contains(rightTenant, rightKey));
+        Page normalizedPage = pageHolder.getAndSet(null);
+        try {
+            assertThat(normalizedPage.getPositionCount(), equalTo(2));
+            assertThat(((IntBlock) normalizedPage.getBlock(0)).getInt(0), equalTo(1));
+            assertThat(((IntBlock) normalizedPage.getBlock(0)).getInt(1), equalTo(2));
+            assertThat(((LongBlock) normalizedPage.getBlock(2)).getLong(0), equalTo(10L));
+            assertThat(((LongBlock) normalizedPage.getBlock(2)).getLong(1), equalTo(40L));
+        } finally {
+            normalizedPage.releaseBlocks();
+        }
+        assertThat(
+            drainWarnings(),
+            contains(
+                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded",
+                "Line -1:-1: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value"
+            )
+        );
+    }
+
+    public void testInliningWidensRightNumericKeysAndRebindsKeyAttribute() {
+        BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
+        ReferenceAttribute leftKey = attribute("key", DataType.DOUBLE);
+        ReferenceAttribute rightKey = attribute("key", DataType.INTEGER);
+        ReferenceAttribute payload = attribute("payload", DataType.LONG);
+        SubqueryLookupJoin join = lookupJoin(leftKey, rightKey, payload, ExecuteLocation.COORDINATOR);
+
+        Page inputPage;
+        try (IntBlock.Builder keys = blockFactory.newIntBlockBuilder(2); LongBlock.Builder values = blockFactory.newLongBlockBuilder(2)) {
+            keys.appendInt(1);
+            keys.appendInt(2);
+            values.appendLong(10);
+            values.appendLong(20);
+            inputPage = new Page(keys.build(), values.build());
+        }
+        AtomicReference<Page> pageHolder = new AtomicReference<>(inputPage);
+        Block inputKeyBlock = inputPage.getBlock(0);
+        Block inputPayloadBlock = inputPage.getBlock(1);
+        LocalRelation materialized = new LocalRelation(Source.EMPTY, List.of(rightKey, payload), LocalSupplier.of(inputPage));
+
+        MaterializedLookupJoin rewritten = as(
+            join.inlineSubqueryResult(materialized, resultContext(blockFactory, pageHolder, ByteSizeValue.ofMb(100))),
+            MaterializedLookupJoin.class
+        );
+        assertThat(rewritten.executesOn(), equalTo(ExecuteLocation.COORDINATOR));
+        assertTrue(inputKeyBlock.isReleased());
+        assertTrue(inputPayloadBlock.isReleased());
+        LocalRelation right = as(rewritten.right(), LocalRelation.class);
+        Attribute widenedKey = right.output().get(0);
+        assertThat(widenedKey, instanceOf(ReferenceAttribute.class));
+        assertThat(widenedKey.dataType(), equalTo(DataType.DOUBLE));
+        assertThat(widenedKey.id(), equalTo(rightKey.id()));
+        assertSame(widenedKey, rewritten.config().rightFields().get(0));
+        DoubleBlock normalizedKeys = pageHolder.get().getBlock(0);
+        assertThat(normalizedKeys.getDouble(0), equalTo(1.0));
+        assertThat(normalizedKeys.getDouble(1), equalTo(2.0));
+
+        Page normalizedPage = pageHolder.getAndSet(null);
+        normalizedPage.releaseBlocks();
+    }
+
+    public void testInliningWidensLeftKeyAndProjectsAwaySyntheticKey() {
+        BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
+        ReferenceAttribute leftKey = attribute("key", DataType.INTEGER);
+        ReferenceAttribute rightKey = attribute("key", DataType.LONG);
+        ReferenceAttribute payload = attribute("payload", DataType.LONG);
+        SubqueryLookupJoin join = lookupJoin(leftKey, rightKey, payload, ExecuteLocation.ANY);
+
+        Page inputPage;
+        try (LongBlock.Builder keys = blockFactory.newLongBlockBuilder(1); LongBlock.Builder values = blockFactory.newLongBlockBuilder(1)) {
+            keys.appendLong(1);
+            values.appendLong(10);
+            inputPage = new Page(keys.build(), values.build());
+        }
+        AtomicReference<Page> pageHolder = new AtomicReference<>(inputPage);
+        LocalRelation materialized = new LocalRelation(Source.EMPTY, List.of(rightKey, payload), LocalSupplier.of(inputPage));
+
+        Project project = as(
+            join.inlineSubqueryResult(materialized, resultContext(blockFactory, pageHolder, ByteSizeValue.ofMb(100))),
+            Project.class
+        );
+        MaterializedLookupJoin rewritten = as(project.child(), MaterializedLookupJoin.class);
+        Eval cast = as(rewritten.left(), Eval.class);
+        assertThat(cast.fields().get(0).child(), instanceOf(ToLong.class));
+        assertThat(rewritten.config().leftFields().get(0).name(), equalTo("$$lookup_join_key_0"));
+        assertThat(project.output(), equalTo(join.output()));
+
+        pageHolder.getAndSet(null).releaseBlocks();
+    }
+
+    public void testNoMatchCreatesNullPayloadAndReleasesMaterializedPage() {
+        BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
+        ReferenceAttribute leftKey = attribute("key", DataType.INTEGER);
+        ReferenceAttribute rightKey = attribute("key", DataType.INTEGER);
+        ReferenceAttribute payload = attribute("payload", DataType.LONG);
+        SubqueryLookupJoin join = lookupJoin(leftKey, rightKey, payload, ExecuteLocation.ANY);
+
+        Page inputPage;
+        try (IntBlock.Builder keys = blockFactory.newIntBlockBuilder(2); LongBlock.Builder values = blockFactory.newLongBlockBuilder(2)) {
+            keys.appendNull();
+            keys.beginPositionEntry();
+            keys.appendInt(1);
+            keys.appendInt(2);
+            keys.endPositionEntry();
+            values.appendLong(10);
+            values.appendLong(20);
+            inputPage = new Page(keys.build(), values.build());
+        }
+        AtomicReference<Page> pageHolder = new AtomicReference<>(inputPage);
+        Block inputKeyBlock = inputPage.getBlock(0);
+        Block inputPayloadBlock = inputPage.getBlock(1);
+        LocalRelation materialized = new LocalRelation(Source.EMPTY, List.of(rightKey, payload), LocalSupplier.of(inputPage));
+
+        Project project = as(
+            join.inlineSubqueryResult(materialized, resultContext(blockFactory, pageHolder, ByteSizeValue.ofMb(100))),
+            Project.class
+        );
+        Eval eval = as(project.child(), Eval.class);
+        Alias nullPayload = eval.fields().get(0);
+        Literal literal = as(nullPayload.child(), Literal.class);
+        assertNull(literal.value());
+        assertThat(literal.dataType(), equalTo(DataType.LONG));
+        assertThat(pageHolder.get(), nullValue());
+        assertTrue(inputKeyBlock.isReleased());
+        assertTrue(inputPayloadBlock.isReleased());
+        assertThat(
+            drainWarnings(),
+            contains(
+                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded",
+                "Line -1:-1: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value"
+            )
+        );
+    }
+
+    public void testNullTypedLeftKeyDoesNotMaterializeRightSide() {
+        BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
+        ReferenceAttribute leftKey = attribute("key", DataType.NULL);
+        ReferenceAttribute rightKey = attribute("key", DataType.INTEGER);
+        ReferenceAttribute payload = attribute("payload", DataType.LONG);
+        SubqueryLookupJoin join = lookupJoin(leftKey, rightKey, payload, ExecuteLocation.ANY);
+
+        Page inputPage;
+        try (IntBlock.Builder keys = blockFactory.newIntBlockBuilder(1); LongBlock.Builder values = blockFactory.newLongBlockBuilder(1)) {
+            keys.appendInt(1);
+            values.appendLong(10);
+            inputPage = new Page(keys.build(), values.build());
+        }
+        AtomicReference<Page> pageHolder = new AtomicReference<>(inputPage);
+        Block inputKeyBlock = inputPage.getBlock(0);
+        LocalRelation materialized = new LocalRelation(Source.EMPTY, List.of(rightKey, payload), LocalSupplier.of(inputPage));
+
+        Project project = as(
+            join.inlineSubqueryResult(materialized, resultContext(blockFactory, pageHolder, ByteSizeValue.ofMb(100))),
+            Project.class
+        );
+        assertThat(as(project.child(), Eval.class).fields(), hasSize(1));
+        assertThat(pageHolder.get(), nullValue());
+        assertTrue(inputKeyBlock.isReleased());
+    }
+
+    public void testEmptyRightSideCreatesNullPayload() {
+        BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
+        ReferenceAttribute leftKey = attribute("key", DataType.INTEGER);
+        ReferenceAttribute rightKey = attribute("key", DataType.INTEGER);
+        ReferenceAttribute payload = attribute("payload", DataType.LONG);
+        SubqueryLookupJoin join = lookupJoin(leftKey, rightKey, payload, ExecuteLocation.ANY);
+
+        Page inputPage;
+        try (IntBlock.Builder keys = blockFactory.newIntBlockBuilder(0); LongBlock.Builder values = blockFactory.newLongBlockBuilder(0)) {
+            inputPage = new Page(keys.build(), values.build());
+        }
+        AtomicReference<Page> pageHolder = new AtomicReference<>(inputPage);
+        LocalRelation materialized = new LocalRelation(Source.EMPTY, List.of(rightKey, payload), LocalSupplier.of(inputPage));
+
+        Project project = as(
+            join.inlineSubqueryResult(materialized, resultContext(blockFactory, pageHolder, ByteSizeValue.ofMb(100))),
+            Project.class
+        );
+        assertThat(as(project.child(), Eval.class).fields(), hasSize(1));
+        assertThat(pageHolder.get(), nullValue());
+    }
+
+    public void testFinalMaterializedPageIsCheckedAgainstTheSizeLimit() {
+        BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
+        ReferenceAttribute leftKey = attribute("key", DataType.INTEGER);
+        ReferenceAttribute rightKey = attribute("key", DataType.INTEGER);
+        ReferenceAttribute payload = attribute("payload", DataType.KEYWORD);
+        SubqueryLookupJoin join = lookupJoin(leftKey, rightKey, payload, ExecuteLocation.ANY);
+
+        Page inputPage;
+        try (
+            IntBlock.Builder keys = blockFactory.newIntBlockBuilder(1);
+            BytesRefBlock.Builder values = blockFactory.newBytesRefBlockBuilder(1)
+        ) {
+            keys.appendInt(1);
+            values.appendBytesRef(new BytesRef("payload"));
+            inputPage = new Page(keys.build(), values.build());
+        }
+        AtomicReference<Page> pageHolder = new AtomicReference<>(inputPage);
+        Block inputKeyBlock = inputPage.getBlock(0);
+        Block inputPayloadBlock = inputPage.getBlock(1);
+        LocalRelation materialized = new LocalRelation(Source.EMPTY, List.of(rightKey, payload), LocalSupplier.of(inputPage));
+
+        IllegalArgumentException error = expectThrows(
+            IllegalArgumentException.class,
+            () -> join.inlineSubqueryResult(materialized, resultContext(blockFactory, pageHolder, ByteSizeValue.ofBytes(1)))
+        );
+        assertThat(error.getMessage(), containsString("sub-plan execution results too large"));
+        assertThat(pageHolder.get(), nullValue());
+        assertTrue(inputKeyBlock.isReleased());
+        assertTrue(inputPayloadBlock.isReleased());
+    }
+
+    public void testExpandedConstantPageIsCheckedAgainstTheSizeLimit() {
+        BlockFactory blockFactory = SubqueryLookupJoinInliner.blockFactory(TestBlockFactory.getNonBreakingInstance());
+        ByteSizeValue maxSize = ByteSizeValue.ofKb(128);
+        ReferenceAttribute leftKey = attribute("key", DataType.INTEGER);
+        ReferenceAttribute rightKey = attribute("key", DataType.INTEGER);
+        ReferenceAttribute payload = attribute("payload", DataType.KEYWORD);
+        SubqueryLookupJoin join = lookupJoin(leftKey, rightKey, payload, ExecuteLocation.ANY);
+        Page compactPage = new Page(
+            BlockUtils.constantBlock(TestBlockFactory.getNonBreakingInstance(), 1, 256),
+            BlockUtils.constantBlock(TestBlockFactory.getNonBreakingInstance(), "x".repeat(2048), 256)
+        );
+        assertTrue(compactPage.ramBytesUsedByBlocks() < maxSize.getBytes());
+
+        Page materializedPage = new Page(SessionUtils.fromPages(List.of(rightKey, payload), List.of(compactPage), blockFactory));
+        assertTrue(materializedPage.ramBytesUsedByBlocks() > maxSize.getBytes());
+        AtomicReference<Page> pageHolder = new AtomicReference<>(materializedPage);
+        Block inputKeyBlock = materializedPage.getBlock(0);
+        try {
+            LocalRelation materialized = new LocalRelation(Source.EMPTY, List.of(rightKey, payload), LocalSupplier.of(materializedPage));
+            IllegalArgumentException error = expectThrows(
+                IllegalArgumentException.class,
+                () -> join.inlineSubqueryResult(materialized, resultContext(blockFactory, pageHolder, maxSize))
+            );
+            assertThat(error.getMessage(), containsString("sub-plan execution results too large"));
+            assertThat(pageHolder.get(), nullValue());
+            assertTrue(inputKeyBlock.isReleased());
+        } finally {
+            compactPage.releaseBlocks();
+            Page remainingPage = pageHolder.getAndSet(null);
+            if (remainingPage != null) {
+                remainingPage.releaseBlocks();
+            }
+        }
+    }
+
+    public void testMaterializedPageUsesSerializablePrimitiveArrayBlocks() {
+        BlockFactory blockFactory = SubqueryLookupJoinInliner.blockFactory(TestBlockFactory.getNonBreakingInstance());
+        ReferenceAttribute leftKey = attribute("key", DataType.INTEGER);
+        ReferenceAttribute rightKey = attribute("key", DataType.INTEGER);
+        ReferenceAttribute payload = attribute("payload", DataType.LONG);
+        SubqueryLookupJoin join = lookupJoin(leftKey, rightKey, payload, ExecuteLocation.ANY);
+        int positionCount = 200_000;
+
+        Page inputPage;
+        try (
+            IntBlock.Builder keys = blockFactory.newIntBlockBuilder(positionCount);
+            LongBlock.Builder values = blockFactory.newLongBlockBuilder(positionCount)
+        ) {
+            for (int p = 0; p < positionCount; p++) {
+                keys.appendInt(p);
+                values.appendLong(p);
+            }
+            inputPage = new Page(keys.build(), values.build());
+        }
+        AtomicReference<Page> pageHolder = new AtomicReference<>(inputPage);
+        LocalRelation materialized = new LocalRelation(Source.EMPTY, List.of(rightKey, payload), LocalSupplier.of(inputPage));
+        try {
+            join.inlineSubqueryResult(materialized, resultContext(blockFactory, pageHolder, ByteSizeValue.ofMb(10)));
+            Page shippedPage = pageHolder.get();
+            assertNotNull(shippedPage);
+            assertFalse(shippedPage.getBlock(0) instanceof IntBigArrayBlock);
+            assertFalse(shippedPage.getBlock(1) instanceof LongBigArrayBlock);
+        } finally {
+            Page shippedPage = pageHolder.getAndSet(null);
+            if (shippedPage != null) {
+                shippedPage.releaseBlocks();
+            }
+        }
+    }
+
     private static LocalRelation relation(List<Attribute> output) {
         return new LocalRelation(Source.EMPTY, output, LocalSupplier.of(new Page(0)));
+    }
+
+    private static SubqueryLookupJoin lookupJoin(Attribute leftKey, Attribute rightKey, Attribute payload, ExecuteLocation mode) {
+        return new SubqueryLookupJoin(
+            Source.EMPTY,
+            relation(List.of(leftKey)),
+            relation(List.of(rightKey, payload)),
+            LEFT,
+            List.of(leftKey),
+            List.of(rightKey),
+            null,
+            mode
+        );
+    }
+
+    private static SubqueryResultContext resultContext(BlockFactory blockFactory, AtomicReference<Page> pageHolder, ByteSizeValue maxSize) {
+        return new SubqueryResultContext(0, maxSize, blockFactory, pageHolder);
+    }
+
+    private List<String> drainWarnings() {
+        List<String> warnings = threadContext.getResponseHeaders()
+            .getOrDefault("Warning", List.of())
+            .stream()
+            .map(warning -> HeaderWarning.extractWarningValueFromWarningHeader(warning, false))
+            .collect(Collectors.toCollection(ArrayList::new));
+        threadContext.stashContext();
+        return warnings;
     }
 
     private static SubqueryLookupJoin joinForKeyTypes(DataType leftType, DataType rightType) {

@@ -1027,9 +1027,20 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         ParquetIoWatermark.AdmitHold hold,
         long decodeBytes
     ) {
+        attachHoldToFuture(future, hold, decodeBytes, true);
+    }
+
+    private static void attachHoldToFuture(
+        CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future,
+        ParquetIoWatermark.AdmitHold hold,
+        long decodeBytes,
+        boolean dropOnError
+    ) {
         future.whenComplete((chunks, error) -> {
             if (error != null || chunks == null) {
-                hold.drop();
+                if (dropOnError) {
+                    hold.drop();
+                }
             } else {
                 hold.dropIoRemainder(decodeBytes);
             }
@@ -2588,7 +2599,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     /**
      * Starts Phase-2 I/O without joining. Returns {@code true} when {@link #waitForReady()} should
      * park (GET still in flight). Uses the group reservation already held; never {@code admitAsync}.
-     * Retarget and the GET launch run on this thread with no park between them.
+     * Filtered phase 2 may drop leftover estimate, never grow it. Retarget and the GET launch
+     * run on this thread with no park between them.
      */
     private boolean startPhase2Fetch(BlockMetaData block, @Nullable RowRanges rowRanges) {
         ParquetIoWatermark watermark = formatReader.ioWatermark();
@@ -2599,16 +2611,13 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         RowGroupIo lease = leaseFor(rowGroupOrdinal);
         ParquetIoWatermark.AdmitHold hold = currentGroupHold;
         if (hold != null) {
-            if (phase2Bytes > hold.remaining()) {
+            long remaining = hold.remaining();
+            if (phase2Bytes > remaining) {
                 phase2TrimGrowths++;
-                logger.debug(
-                    "phase-2 filtered size [{}] exceeds remaining reservation [{}] in [{}]",
-                    phase2Bytes,
-                    hold.remaining(),
-                    fileLocation
-                );
+                logger.debug("phase-2 filtered size [{}] exceeds remaining reservation [{}] in [{}]", phase2Bytes, remaining, fileLocation);
+            } else {
+                retargetGroupHold(phase2Bytes);
             }
-            hold.retarget(phase2Bytes);
         }
         launchPhase2Io(block, rowRanges, lease, watermark, hold, decodeBytes);
         return phase2Future != null && phase2Future.isDone() == false;
@@ -2636,7 +2645,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 gate
             );
             if (hold != null) {
-                attachHoldToFuture(future, hold, decodeBytes);
+                attachHoldToFuture(future, hold, decodeBytes, false);
                 reserved = false;
                 adoptDecodeBudget(watermark, decodeBytes);
             }
@@ -2666,6 +2675,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             if (unwrapped instanceof Error error) {
                 phase2Future = null;
                 closePhase2Pending();
+                releaseHeldGroup();
                 throw error;
             }
             phase2Future = null;
@@ -2673,34 +2683,29 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             RuntimeException asyncFailure = ParquetReadFailures.wrap(e, failureContext);
             if (isCredentialsExpired(asyncFailure)) {
                 closePhase2Pending();
+                releaseHeldGroup();
                 abortPrefetchOnExpiredCredentials(asyncFailure, null, failureContext);
             }
             if (storageObject != null && storageObject.supportsNativeAsync() && isCredentialsExpired(asyncFailure) == false) {
                 if (phase2Retried) {
                     closePhase2Pending();
+                    releaseHeldGroup();
                     throw asyncFailure;
                 }
                 phase2Retried = true;
                 prefetchFailed();
-                logger.debug(() -> Strings.format("%s; retrying Phase 2 ungated", failureContext), asyncFailure);
-                // Retry is ungated: decode uses ParquetDecodeBudget.NOOP (breaker only).
-                dropCurrentGroupHold();
-                launchPhase2Io(
-                    pending.block,
-                    pending.usePageFiltering ? pending.survivorRanges : null,
-                    leaseFor(rowGroupOrdinal),
-                    formatReader.ioWatermark(),
-                    null,
-                    0L
-                );
+                logger.debug(() -> Strings.format("%s; retrying Phase 2", failureContext), asyncFailure);
+                startPhase2Fetch(pending.block, pending.usePageFiltering ? pending.survivorRanges : null);
                 return false;
             }
             closePhase2Pending();
+            releaseHeldGroup();
             throw asyncFailure;
         }
         phase2Future = null;
         if (result == null) {
             closePhase2Pending();
+            releaseHeldGroup();
             throw new IllegalStateException("Phase 2 future completed without chunks in [" + fileLocation + "]");
         }
         try {
@@ -2711,6 +2716,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             }
         } catch (Throwable t) {
             closePhase2Pending();
+            releaseHeldGroup();
             throw t;
         }
         phase2Pending = null;

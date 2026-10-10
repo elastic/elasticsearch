@@ -189,6 +189,9 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         hold.retarget(40);
         assertEquals(40, watermark.used());
         assertEquals(40, hold.remaining());
+        hold.retarget(80);
+        assertEquals("retarget must not grow past admitted bytes", 50, watermark.used());
+        assertEquals(50, hold.remaining());
         hold.drop();
         assertEquals(0, watermark.used());
     }

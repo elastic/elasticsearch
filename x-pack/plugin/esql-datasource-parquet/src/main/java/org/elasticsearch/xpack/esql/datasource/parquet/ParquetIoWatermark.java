@@ -300,13 +300,13 @@ final class ParquetIoWatermark implements AdmissionGate {
 
         /**
          * Grows or drops leftover estimate so {@link #remaining()} equals {@code target}.
-         * Growth never waits. A drop re-runs the grant loop.
+         * Never grows past {@link #bytes()}; a drop re-runs the grant loop.
          */
         synchronized void retarget(long target) {
             if (counted.get() == false) {
                 return;
             }
-            long want = Math.max(0L, target);
+            long want = Math.max(0L, Math.min(target, inner.bytes()));
             long current = inner.remaining();
             if (want > current) {
                 inner.grow(want - current);

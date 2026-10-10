@@ -448,6 +448,37 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
         }
     }
 
+    public void testPhase2RetryKeepsGroupReservation() throws Exception {
+        byte[] parquet = twoColumnFile();
+        PhaseSizes group0 = phaseSizes(parquet, 0);
+        FailOnceAfterArmStorage storage = new FailOnceAfterArmStorage(parquet, asyncIo, new IOException("injected phase-2 miss"));
+        ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
+        Expression filter = new LessThan(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 4L, DataType.LONG), null);
+        ParquetIoWatermark watermark = new ParquetIoWatermark(1 << 20);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
+            .withPushedFilter(new ParquetPushedExpressions(List.of(filter)));
+        try (CloseableIterator<Page> iter = reader.read(storage, FormatReadContext.of(null, 64))) {
+            assertBusy(() -> assertTrue(iter.waitForReady().isDone()), 5, TimeUnit.SECONDS);
+            long usedAfterPhase1 = watermark.used();
+            assertTrue("phase 1 must hold R; used=" + usedAfterPhase1, usedAfterPhase1 >= group0.reservation);
+            storage.arm.set(true);
+            assertNull(iter.tryAdvance());
+            assertEquals("phase-2 retry must not re-ticket", 0, watermark.waiterCount());
+            assertTrue(
+                "phase-2 retry must keep the group hold; used=" + watermark.used() + " R=" + group0.reservation,
+                watermark.used() >= group0.reservation
+            );
+            assertBusy(() -> assertTrue(iter.waitForReady().isDone()), 5, TimeUnit.SECONDS);
+            Page page = iter.tryAdvance();
+            if (page != null) {
+                page.releaseBlocks();
+            }
+            assertEquals(1, storage.failures.get());
+            assertTrue(storage.successes.get() >= 1);
+        }
+        assertLedgerClear(watermark);
+    }
+
     public void testCloseQueuedTicketReleasesLedger() throws Exception {
         byte[] parquet = smallFile();
         ParquetIoWatermark watermark = new ParquetIoWatermark(1);

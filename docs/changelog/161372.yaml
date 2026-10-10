@@ -1,0 +1,5 @@
+area: Infra/Core
+issues: []
+pr: 161372
+summary: Upgrade to lucene 10.5.2
+type: enhancement

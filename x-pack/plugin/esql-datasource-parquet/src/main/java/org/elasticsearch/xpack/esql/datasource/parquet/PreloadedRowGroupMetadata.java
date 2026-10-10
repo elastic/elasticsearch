@@ -21,6 +21,7 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -909,7 +910,7 @@ final class PreloadedRowGroupMetadata implements Releasable {
     }
 
     private static void abandonCoalescedRead(StartedCoalescedRead started) {
-        started.future().cancel(false);
+        FutureUtils.cancel(started.future());
         try {
             Releasables.close(started.cancel());
         } finally {

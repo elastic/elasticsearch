@@ -129,6 +129,28 @@ public class RepositoryFilesCacheTests extends ESTestCase {
         assertTrue(holds(cache.getShardFiles(shard1), "_1.cfs", 20));
     }
 
+    public void testAShardIsUpToDateOnlyWhenItsFilesAreThoseOfTheLatestGeneration() {
+        repository.shardFiles.put(gen0, shardSnapshots("_0.cfs", 10L));
+        repository.shardFiles.put(gen1, shardSnapshots("_1.cfs", 20L));
+        // no generation known, and the shards are asked about, which is what makes the cache read their files
+        assertFalse(cache.isUpToDate(shard0));
+        cache.getShardFiles(shard0);
+        cache.getShardFiles(shard1);
+
+        // known but not read yet, so not up to date, and a shard without a generation holds nothing, which is known right away
+        cache.onShardGenerations(1, generations(gen0, null));
+        assertFalse(cache.isUpToDate(shard0));
+        assertTrue(cache.isUpToDate(shard1));
+        executor.runAll();
+        assertTrue(cache.isUpToDate(shard0));
+
+        // a new generation: the old files are served but are not up to date, until the new ones are read
+        cache.onShardGenerations(2, generations(gen1, null));
+        assertFalse(cache.isUpToDate(shard0));
+        executor.runAll();
+        assertTrue(cache.isUpToDate(shard0));
+    }
+
     public void testAShardWithoutAGenerationHoldsNoFilesButAShardThatWasNotAnsweredIsUnknown() {
         // the repository knows nothing of shard 0, e.g. a new index, and the answer does not include shard 1
         cache.getShardFiles(shard0);

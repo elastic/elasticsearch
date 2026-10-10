@@ -1,0 +1,5 @@
+area: Authorization
+issues: []
+pr: 161500
+summary: Grant Nightshift source view privileges implicitly per space
+type: enhancement

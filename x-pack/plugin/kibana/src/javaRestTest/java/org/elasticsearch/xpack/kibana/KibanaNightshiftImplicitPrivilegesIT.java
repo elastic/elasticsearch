@@ -48,9 +48,13 @@ public class KibanaNightshiftImplicitPrivilegesIT extends ESRestTestCase {
 
     private static final String KIBANA_APPLICATION = "kibana-.kibana";
     private static final String NIGHTSHIFT_READ_PRIVILEGE = "feature_nightshift.read";
+    private static final String NIGHTSHIFT_ALL_PRIVILEGE = "feature_nightshift.all";
     private static final String STREAMS_READ_PRIVILEGE = "feature_streams.read";
     private static final String DETECTIONS_INDEX = ".significant_events-detections-000001";
     private static final String KNOWLEDGE_INDICATORS_INDEX = ".significant_events-knowledge_indicators-000001";
+    private static final String MARKETING_VIEW = "$.nightshift.sources.marketing.a";
+    private static final String OTHER_VIEW = "$.nightshift.sources.other.b";
+    private static final String VIEW_DATA_INDEX = "nightshift-view-data";
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
@@ -93,16 +97,96 @@ public class KibanaNightshiftImplicitPrivilegesIT extends ESRestTestCase {
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
     }
 
+    public void testReadRoleImplicitlyReadsOnlyItsSpaceViews() throws Exception {
+        putKibanaPrivileges();
+        putRole("nightshift_view_reader", NIGHTSHIFT_READ_PRIVILEGE, "space:marketing");
+        putUser("nightshift_view_reader_user", "nightshift_view_reader");
+        createViewFixtures();
+
+        assertThat(viewStatusAs("nightshift_view_reader_user", "GET", MARKETING_VIEW), equalTo(200));
+        assertThat(viewStatusAs("nightshift_view_reader_user", "GET", OTHER_VIEW), equalTo(403));
+        // A missing view in an authorized space must be a 404, not a 403.
+        assertThat(viewStatusAs("nightshift_view_reader_user", "GET", "$.nightshift.sources.marketing.missing"), equalTo(404));
+        assertThat(viewStatusAs("nightshift_view_reader_user", "PUT", MARKETING_VIEW), equalTo(403));
+    }
+
+    public void testReadRoleQueriesViewWithExplicitDataIndexPrivilege() throws Exception {
+        putKibanaPrivileges();
+        final Request role = new Request("PUT", "/_security/role/nightshift_view_querier");
+        role.setJsonEntity(Strings.format("""
+            {
+              "cluster": [],
+              "indices": [ { "names": ["%s"], "privileges": ["read"] } ],
+              "applications": [
+                { "application": "%s", "privileges": ["%s"], "resources": ["space:marketing"] }
+              ]
+            }
+            """, VIEW_DATA_INDEX, KIBANA_APPLICATION, NIGHTSHIFT_READ_PRIVILEGE));
+        assertOK(client().performRequest(role));
+        putUser("nightshift_view_querier_user", "nightshift_view_querier");
+        createViewFixtures();
+
+        final Request query = new Request("POST", "/_query");
+        query.setJsonEntity("{\"query\": \"FROM " + MARKETING_VIEW + " | KEEP message | LIMIT 10\"}");
+        query.setOptions(
+            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuth("nightshift_view_querier_user", USER_PASSWORD))
+        );
+        final Response response = client().performRequest(query);
+        assertOK(response);
+        assertThat(entityAsMap(response).get("values"), equalTo(List.of(List.of("hello"))));
+    }
+
+    public void testAllRoleManagesOnlyItsSpaceViews() throws Exception {
+        putKibanaPrivileges();
+        putRole("nightshift_view_manager", NIGHTSHIFT_ALL_PRIVILEGE, "space:marketing");
+        putUser("nightshift_view_manager_user", "nightshift_view_manager");
+        createViewFixtures();
+
+        final String managed = "$.nightshift.sources.marketing.managed";
+        assertThat(viewStatusAs("nightshift_view_manager_user", "PUT", managed), equalTo(200));
+        assertThat(viewStatusAs("nightshift_view_manager_user", "GET", managed), equalTo(200));
+        assertThat(viewStatusAs("nightshift_view_manager_user", "DELETE", managed), equalTo(200));
+        assertThat(viewStatusAs("nightshift_view_manager_user", "PUT", "$.nightshift.sources.other.managed"), equalTo(403));
+    }
+
+    private void createViewFixtures() throws Exception {
+        final Request index = new Request("PUT", "/" + VIEW_DATA_INDEX + "/_doc/1");
+        index.addParameter("refresh", "true");
+        index.setJsonEntity("""
+            { "message": "hello" }""");
+        assertOK(client().performRequest(index));
+        for (String view : List.of(MARKETING_VIEW, OTHER_VIEW)) {
+            final Request put = new Request("PUT", "/_query/view/" + view);
+            put.setJsonEntity("{\"query\": \"FROM " + VIEW_DATA_INDEX + "\"}");
+            assertOK(client().performRequest(put));
+        }
+    }
+
+    /** Performs a view API call as {@code username} and returns the HTTP status, including error statuses. */
+    private int viewStatusAs(String username, String method, String view) throws Exception {
+        final Request request = new Request(method, "/_query/view/" + view);
+        if (method.equals("PUT")) {
+            request.setJsonEntity("{\"query\": \"FROM " + VIEW_DATA_INDEX + "\"}");
+        }
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuth(username, USER_PASSWORD)));
+        try {
+            return client().performRequest(request).getStatusLine().getStatusCode();
+        } catch (ResponseException e) {
+            return e.getResponse().getStatusLine().getStatusCode();
+        }
+    }
+
     private void putKibanaPrivileges() throws Exception {
         final Request request = new Request("PUT", "/_security/privilege");
         request.setJsonEntity(Strings.format("""
             {
               "%s": {
                 "%s": { "actions": ["api:read_nightshift"] },
+                "%s": { "actions": ["api:read_nightshift", "api:manage_nightshift"] },
                 "%s": { "actions": ["api:read_stream"] }
               }
             }
-            """, KIBANA_APPLICATION, NIGHTSHIFT_READ_PRIVILEGE, STREAMS_READ_PRIVILEGE));
+            """, KIBANA_APPLICATION, NIGHTSHIFT_READ_PRIVILEGE, NIGHTSHIFT_ALL_PRIVILEGE, STREAMS_READ_PRIVILEGE));
         assertOK(client().performRequest(request));
     }
 
@@ -185,8 +269,9 @@ public class KibanaNightshiftImplicitPrivilegesIT extends ESRestTestCase {
         final List<Map<String, Object>> indices = (List<Map<String, Object>>) role.get("indices");
         final List<Map<String, Object>> implicitEntries = indices.stream()
             .filter(entry -> Boolean.TRUE.equals(entry.get("implicitly_granted")))
+            .filter(entry -> List.of(".significant_events-*").equals(entry.get("names")))
             .toList();
-        assertThat("expected exactly one implicit grant, got " + indices, implicitEntries, hasSize(1));
+        assertThat("expected exactly one significant events implicit grant, got " + indices, implicitEntries, hasSize(1));
 
         final Map<String, Object> implicit = implicitEntries.get(0);
         assertThat((List<String>) implicit.get("names"), equalTo(List.of(".significant_events-*")));

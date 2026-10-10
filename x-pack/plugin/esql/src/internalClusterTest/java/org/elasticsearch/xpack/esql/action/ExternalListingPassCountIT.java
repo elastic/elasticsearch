@@ -7,13 +7,8 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.spi.Configured;
-import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -23,7 +18,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
@@ -58,36 +52,6 @@ public class ExternalListingPassCountIT extends AbstractExternalDataSourceIT {
 
     /** Folders the glob matches: {@code date=2024-01-01} .. {@code date=2024-01-09}. */
     private static final int MATCHING_FOLDERS = 9;
-
-    /**
-     * Registers {@link CountingStorageProvider} under its scheme. Storage-provider schemes are only picked up
-     * for {@link DataSourcePlugin}s found via SPI, so this class is listed in the internalClusterTest
-     * {@code META-INF/services} file rather than in {@link #nodePlugins()}.
-     */
-    public static final class CountingDataSourcePlugin extends Plugin implements DataSourcePlugin {
-        @Override
-        public Set<String> supportedSchemes() {
-            return Set.of(CountingStorageProvider.SCHEME);
-        }
-
-        @Override
-        public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
-            return Map.of(CountingStorageProvider.SCHEME, new Factory());
-        }
-
-        private static final class Factory implements StorageProviderFactory {
-            @Override
-            public StorageProvider create(Settings settings) {
-                return new CountingStorageProvider();
-            }
-
-            @Override
-            public Configured<StorageProvider> createTrackingConsumedKeys(Settings settings, Map<String, Object> config) {
-                // No config keys are consumed, so nothing identifies this provider's configuration.
-                return new Configured<>(new CountingStorageProvider(), Set.of(), "", "");
-            }
-        }
-    }
 
     /**
      * Only the format reader. The base class supplies the licensed ESQL plugin, the HTTP/local data source and the

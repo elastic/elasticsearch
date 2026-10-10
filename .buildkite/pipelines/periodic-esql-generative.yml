@@ -1,7 +1,7 @@
 steps:
   - label: esql-generative-single-node
-    command: .ci/scripts/run-gradle.sh :x-pack:plugin:esql:qa:server:single-node:generativeTests
-    timeout_in_minutes: 120
+    command: .ci/scripts/run-gradle.sh -Ptests.mutes.enabled=false :x-pack:plugin:esql:qa:server:single-node:generativeTests
+    timeout_in_minutes: 210
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404
@@ -10,8 +10,8 @@ steps:
       buildDirectory: /dev/shm/bk
 
   - label: esql-generative-multi-node
-    command: .ci/scripts/run-gradle.sh :x-pack:plugin:esql:qa:server:multi-node:generativeTests
-    timeout_in_minutes: 120
+    command: .ci/scripts/run-gradle.sh -Ptests.mutes.enabled=false :x-pack:plugin:esql:qa:server:multi-node:generativeTests
+    timeout_in_minutes: 210
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404

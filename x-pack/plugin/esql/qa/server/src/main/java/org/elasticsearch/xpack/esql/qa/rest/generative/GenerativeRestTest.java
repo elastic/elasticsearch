@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.esql.qa.rest.generative;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
+import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
@@ -78,12 +80,16 @@ import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.unquote;
 import static org.elasticsearch.xpack.esql.generator.command.pipe.KeepGenerator.UNMAPPED_FIELD_NAMES;
 import static org.elasticsearch.xpack.esql.generator.command.source.FromGenerator.SET_UNMAPPED_FIELDS_PREFIX;
 
+// ITERATIONS runs per parameterized case and all cases share one suite, so the default 20 minutes is too short.
+// Keep this below the 210 minute step timeout in .buildkite/pipelines/periodic-esql-generative.yml so the suite
+// timeout fires first and dumps threads instead of Buildkite killing the job.
+@TimeoutSuite(millis = 180 * TimeUnits.MINUTE)
 public abstract class GenerativeRestTest extends ESRestTestCase implements QueryExecutor {
 
     @Rule(order = Integer.MIN_VALUE)
     public ProfileLogger profileLogger = new ProfileLogger();
 
-    public static final int ITERATIONS = 100;
+    public static final int ITERATIONS = 1000;
     public static final int MAX_DEPTH = 20;
 
     /**

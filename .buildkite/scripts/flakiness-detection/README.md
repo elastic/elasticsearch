@@ -228,24 +228,24 @@ Derived in priority order by `analyzer/outcome.ts` (`deriveOutcome`):
 | outcome         | how it is decided                                                              |
 | --------------- | ------------------------------------------------------------------------------ |
 | `flaky_detected`| `realFailures > 0` (failing test cases, excluding suite-timeout markers)        |
-| `timeout`       | `rc == 124`, or `rc == 137` with duration at/after the inner timeout            |
-| `infra_fail`    | `rc == 137` short run (`oom_killed`), a non-zero `rc` with a heap dump (`oom`), or any other non-zero `rc` with no real failures |
+| `timeout`       | `rc == 124`, or `rc == 137` with duration at/after the inner timeout, and no heap dump (with one it is `infra_fail`/`oom`) |
+| `infra_fail`    | `rc == 137` short run (`oom_killed`), a non-zero `rc` or a timeout with a heap dump (`oom`), or any other non-zero `rc` with no real failures |
 | `hang`          | `rc == 0`, zero recorded test cases, and at least one requested task actually ran |
 | `clean_pass`    | `rc == 0` with recorded cases and no real failures                              |
 | `not_applicable`| two sources, both meaning "nothing to re-run" and both excluded from the false-failure metric. **Upstream** (not by `deriveOutcome`): the resolver found no enabled `Test` task (`no-runnable-task`) or only destructive packaging tasks (`requires-packaging-host`). A re-homed subclass carries whichever of those its *owning* source set reported, not the base target's. Two more come from the resolver: `not-a-test-class` for something a `Test` task cannot address (a helper sharing a test source set, or an inner/anonymous subclass surfaced by bytecode expansion), and `subclass-outside-target-output`, a fallback for a class directory no project claimed a source set for - reachable in principle since `main` outputs are scanned but carry no disposition, though not in practice because `main` cannot depend on a test source set. **By `deriveOutcome`** (`task-skipped`): `rc == 0`, zero test cases, and gradle-runner's `task-status.json` reports *every* task the batch asked for as `SKIPPED` - Gradle's verdict for a task rejected by `onlyIf` or with no source. This is the only way to catch `onlyIf`, which is an execution-time `Spec` the resolver cannot introspect |
 | `build_failed`  | assigned upstream when the `compile` orchestration step fails: the PR did not compile, so `scan` was skipped and `generate` uploaded no batches. `analyze` emits one `build_failed` (keyed under `flakiness-orchestration:compile`, not a test batch), excluded from the false-failure metric (the PR is already red from its main build). |
 
-`timedOut` is reported alongside `outcome` so the two timeout shapes stay
-distinguishable: a job that times out **with** a real failure is
-`flaky_detected` + `timedOut=true` (flakiness proven, so it is not a false
-positive), while a job that times out with **no** failing run is `timeout`
-(`timedOut=true`) — the false positive we want to drive down.
+`timedOut` is reported alongside `outcome` so the three timeout shapes stay distinguishable.
+A job that times out **with** a real failure is `flaky_detected` + `timedOut=true` (flakiness proven, so it is not a false positive).
+A job that times out with **no** failing run is `timeout` (`timedOut=true`) - the false positive we want to drive down.
+A job that times out with no failing run but left a test-JVM heap dump is `infra_fail`/`oom` + `timedOut=true` (see below).
 
-`infraSubtype` is `oom_killed` (rc 137 + short run, the kernel OOM-killer) or
-`oom` (a JVM-heap `OutOfMemoryError`: rc != 0 with a `*/build/heapdump/*.hprof`
-file present, detected by the never-fail wrapper; the analyze step does not read
-the job log). Finer infra subtypes (disk-full, etc.) would require the job log,
-which we currently choose not to read, so they are left unset. Jobs that fail
+`infraSubtype` is `oom_killed` (rc 137 + short run, the kernel OOM-killer) or `oom` (a JVM-heap `OutOfMemoryError`: a `*/build/heapdump/*.hprof` file present, detected by the never-fail wrapper; the analyze step does not read the job log).
+`oom` is set in two cases: the OOM makes the tests fail and Gradle exits with rc != 0, or the test JVM gets stuck after the OOM and the job runs until the wrapper's timeout (then `timedOut=true`).
+The heap dump shows the OOM caused the timeout, so the stuck case is `infra_fail`/`oom` rather than a `timeout`.
+Only test JVMs dump under `build/heapdump`: a testclusters node (REST tests) dumps to its logs dir, so a cluster-node OOM is not detected and a resulting hang stays a `timeout`.
+Finer infra subtypes (disk-full, etc.) would require the job log, which we currently choose not to read, so they are left unset.
+Jobs that fail
 *before* the wrapper runs (e.g. a pre-command hook failure) write no status file
 and so produce no payload; the external pipeline records those as `infra_fail`
 from job state. This is where the `flakiness-orchestration:` key split matters:

@@ -12,6 +12,7 @@ package org.elasticsearch.search.runtime;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.TwoPhaseIterator;
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.script.Script;
@@ -19,7 +20,7 @@ import org.elasticsearch.script.StringFieldScript;
 
 import java.util.List;
 
-public abstract class AbstractStringScriptFieldAutomatonQuery extends AbstractStringScriptFieldQuery {
+public abstract class AbstractStringScriptFieldAutomatonQuery extends AbstractStringScriptFieldQuery implements Accountable {
     private final ByteRunAutomaton automaton;
 
     public AbstractStringScriptFieldAutomatonQuery(
@@ -30,6 +31,11 @@ public abstract class AbstractStringScriptFieldAutomatonQuery extends AbstractSt
     ) {
         super(script, leafFactory, fieldName);
         this.automaton = automaton;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return automaton.ramBytesUsed();
     }
 
     @Override

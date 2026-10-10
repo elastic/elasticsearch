@@ -183,6 +183,10 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
                 f -> BinaryDocValuesScanCost.estimateDecodeBytes(f, reader)
             );
             bytes = RamUsageEstimator.shallowSizeOf(query) + decodeBytes;
+            // A scan query that is also Accountable retains something a shallow size misses (e.g. its automaton).
+            if (query instanceof Accountable acc) {
+                bytes += acc.ramBytesUsed();
+            }
         } else if (query instanceof Accountable a) {
             bytes = a.ramBytesUsed();
         } else {

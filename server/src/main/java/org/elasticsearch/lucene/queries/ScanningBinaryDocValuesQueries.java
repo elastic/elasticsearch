@@ -86,8 +86,8 @@ final class ScanningBinaryDocValuesQueries implements BinaryDocValuesQueries {
     }
 
     @Override
-    public Query wildcard(String field, String pattern, boolean caseInsensitive) {
-        return ScanningBinaryDocValuesAutomatonQuery.forWildcard(field, pattern, caseInsensitive, format);
+    public Query wildcard(String field, String pattern, boolean caseInsensitive, @Nullable CircuitBreaker breaker) {
+        return ScanningBinaryDocValuesAutomatonQuery.forWildcard(field, pattern, caseInsensitive, format, breaker);
     }
 
     @Override

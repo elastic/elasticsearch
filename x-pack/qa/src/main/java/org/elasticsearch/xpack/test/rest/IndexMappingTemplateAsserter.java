@@ -244,6 +244,9 @@ public class IndexMappingTemplateAsserter {
         indexMappings.remove("_meta");
         templateMappings.remove("_meta");
 
+        // The index records this about its own mapping, a template does not carry it.
+        indexMappings.remove("retains_unmapped_fields");
+
         // We cannot do a simple comparison of mappings e.g
         // Objects.equals(indexMappings, templateMappings) because some
         // templates use strings for the boolean values - "true" and "false"

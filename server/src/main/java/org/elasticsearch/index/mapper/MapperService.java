@@ -176,6 +176,16 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Property.IndexScope,
         Property.ServerlessPublic
     );
+    /**
+     * Whether a bulk request that needs several dynamic mapping updates sends the updates of consecutive documents together
+     * instead of one update per document.
+     */
+    public static final Setting<Boolean> INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING = Setting.boolSetting(
+        "index.mapping.combine_dynamic_updates",
+        false,
+        Property.Dynamic,
+        Property.IndexScope
+    );
     public static final Setting<Long> INDEX_MAPPING_DEPTH_LIMIT_SETTING = Setting.longSetting(
         "index.mapping.depth.limit",
         20L,

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Iterator;
@@ -135,7 +136,7 @@ public final class ListingCountingStorageProvider implements StorageProvider {
     }
 
     @Override
-    public StorageObject newObject(StoragePath path, long length, java.time.Instant lastModified) {
+    public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
         return delegate.newObject(toFileScheme(path), length, lastModified);
     }
 

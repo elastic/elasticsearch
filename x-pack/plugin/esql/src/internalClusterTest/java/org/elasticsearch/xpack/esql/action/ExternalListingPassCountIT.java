@@ -145,11 +145,7 @@ public class ExternalListingPassCountIT extends AbstractExternalDataSourceIT {
         // Both asserted absolutely rather than against each other. Equality alone can hold because both regressed
         // together, which would report a pass for the wrong reason; these say what each number must be.
         assertThat("a glob with no unrelated keys ahead of its matches lists once", smallPasses, equalTo(1L));
-        assertThat(
-            "listing passes must not scale with how many unrelated keys share the prefix",
-            largePasses,
-            equalTo(1L)
-        );
+        assertThat("listing passes must not scale with how many unrelated keys share the prefix", largePasses, equalTo(1L));
     }
 
     /**

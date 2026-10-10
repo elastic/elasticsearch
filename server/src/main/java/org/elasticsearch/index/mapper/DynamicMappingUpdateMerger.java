@@ -46,6 +46,7 @@ public final class DynamicMappingUpdateMerger {
     private final MappingParser mappingParser;
     private final Predicate<String> isMappedField;
     private final CompressedXContent first;
+    // the accepted updates that define something that the previous ones don't
     private final List<CompressedXContent> accepted = new ArrayList<>();
     private final NewFieldsBudget budget;
     private final ParseFieldLimits limits;
@@ -121,6 +122,9 @@ public final class DynamicMappingUpdateMerger {
                 closed = true;
                 return false;
             }
+            if (definesNothingNew(definitions, updateDefinitions)) {
+                return true;
+            }
             builder.merge(parse(update), REASON, limits);
             addMissing(definitions, updateDefinitions);
             fieldPaths.addAll(updateFieldPaths);
@@ -190,6 +194,23 @@ public final class DynamicMappingUpdateMerger {
         for (Map.Entry<String, Object> field : children(incoming, PROPERTIES).entrySet()) {
             Object existingField = existingFields.get(field.getKey());
             if (existingField != null && identicalWhereOverlapping(asMap(existingField), asMap(field.getValue())) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Returns true if the existing definitions have all the fields and runtime fields of the incoming update.
+     */
+    private static boolean definesNothingNew(Map<String, Object> existing, Map<String, Object> incoming) {
+        if (children(existing, RUNTIME).keySet().containsAll(children(incoming, RUNTIME).keySet()) == false) {
+            return false;
+        }
+        Map<String, Object> existingFields = children(existing, PROPERTIES);
+        for (Map.Entry<String, Object> field : children(incoming, PROPERTIES).entrySet()) {
+            Object existingField = existingFields.get(field.getKey());
+            if (existingField == null || definesNothingNew(asMap(existingField), asMap(field.getValue())) == false) {
                 return false;
             }
         }

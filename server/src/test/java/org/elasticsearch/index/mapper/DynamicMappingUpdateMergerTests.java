@@ -217,6 +217,32 @@ public class DynamicMappingUpdateMergerTests extends MapperServiceTestCase {
         assertThat(merger.merged(), equalTo(dynamicUpdate(mapperService, valueFirst ? value : object)));
     }
 
+    /**
+     * Updates that only define what the previous ones define are accepted and leave the combined update unchanged.
+     */
+    public void testUpdatesThatDefineNothingNewAreAccepted() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {}));
+        CompressedXContent first = dynamicUpdate(mapperService, """
+            {"a":1,"obj":{"b":"text"}}""");
+        DynamicMappingUpdateMerger merger = mapperService.dynamicMappingUpdateMerger(first);
+        for (int i = 0; i < 10; i++) {
+            assertTrue(merger.add(dynamicUpdate(mapperService, randomFrom("""
+                {"a":2}""", """
+                {"obj":{"b":"other"}}""", """
+                {"obj":{"b":"other"},"a":3}"""))));
+        }
+        assertThat(merger.merged(), sameInstance(first));
+
+        assertTrue(merger.add(dynamicUpdate(mapperService, """
+            {"obj":{"c":1}}""")));
+        assertTrue(merger.add(dynamicUpdate(mapperService, """
+            {"obj":{"c":2},"a":4}""")));
+        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, merger.merged(), MergeReason.MAPPING_AUTO_UPDATE);
+        assertThat(mapperService.fieldType("a"), notNullValue());
+        assertThat(mapperService.fieldType("obj.b"), notNullValue());
+        assertThat(mapperService.fieldType("obj.c"), notNullValue());
+    }
+
     public void testUpdatesBeyondTotalFieldsLimitAreRejected() throws IOException {
         Settings settings = Settings.builder()
             .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 3)

@@ -223,6 +223,9 @@ tests:
 - class: org.elasticsearch.integration.FieldLevelSecurityTests
   method: testPercolatorConstantKeywordQueryDependsOnIndexingUsersFls
   issue: https://github.com/elastic/elasticsearch/issues/161396
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {yaml=security/authz/14_cat_indices/Test empty request while single authorized index}
+  issue: https://github.com/elastic/elasticsearch/issues/161609
 
 # Examples:
 #

@@ -15,17 +15,20 @@ import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.test.RollingUpgradePerformer;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.junit.Before;
-import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.rules.ExternalResource;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -57,48 +60,41 @@ public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCas
         return oldClusterHasFeature(feature.id());
     }
 
-    private static boolean randomizeColumnarIndexMode;
+    private final ElasticsearchCluster cluster;
 
-    /**
-     * Opt in to randomly running with the {@code logsdb_columnar} index mode in addition to plain
-     * {@code logsdb}. Call from a static initializer in the concrete subclass:
-     * <pre>{@code
-     * static {
-     *     enableColumnarIndexModeRandomization();
-     * }
-     * }</pre>
-     * The columnar mode is only applied when the old cluster version already supports it (≥ 9.5.0).
-     */
-    protected static void enableColumnarIndexModeRandomization() {
-        randomizeColumnarIndexMode = true;
+    @Rule
+    public final TestRule clusterRule;
+
+    protected AbstractLogsdbRollingUpgradeTestCase() {
+        this(Clusters.oldVersionCluster(USER, PASS));
     }
 
-    // Set in columnarRandomizer.before() and exposed so that opt-in subclasses can branch their
-    // assertions on which mode was actually selected for the run.
-    protected static boolean columnarEnabled;
+    /**
+     * @param cluster a new, unstarted cluster for this test instance. Each test method performs its own rolling upgrade, so it
+     *                needs its own cluster starting on the old version.
+     */
+    protected AbstractLogsdbRollingUpgradeTestCase(ElasticsearchCluster cluster) {
+        this.cluster = cluster;
+        this.clusterRule = RuleChain.outerRule(cluster).around(resetStaticClusterState());
+    }
 
-    private static final ExternalResource columnarRandomizer = new ExternalResource() {
-        @Override
-        protected void before() {
-            String oldVersionProp = System.getProperty("tests.old_cluster_version");
-            columnarEnabled = randomizeColumnarIndexMode
-                && oldVersionProp != null
-                && Version.fromString(oldVersionProp).onOrAfter(Version.fromString("9.5.0"))
-                && randomBoolean();
-        }
-
-        @Override
-        protected void after() {
-            // Reset so the flag from an opt-in class does not bleed into subsequent classes in the
-            // same JVM. The subclass static initializer re-sets it before the next class's before().
-            randomizeColumnarIndexMode = false;
-        }
-    };
-
-    public static final ElasticsearchCluster cluster = Clusters.oldVersionCluster(USER, PASS, () -> columnarEnabled);
-
-    @ClassRule
-    public static final TestRule ruleChain = RuleChain.outerRule(columnarRandomizer).around(cluster);
+    /**
+     * The REST clients and old-cluster features are static; drop them after each test so the next test connects to its own
+     * cluster.
+     */
+    private static TestRule resetStaticClusterState() {
+        return new ExternalResource() {
+            @Override
+            protected void after() {
+                try {
+                    closeClients();
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+                oldClusterTestFeatureService = null;
+            }
+        };
+    }
 
     @Override
     protected String getTestRestCluster() {
@@ -111,6 +107,7 @@ public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCas
     }
 
     protected void clusterRollingUpgrade(CheckedConsumer<Integer, Exception> onNodeUpgradeComplete) throws IOException {
+        assertAllNodesVersion(true);
         closeClients();
 
         var serverlessBwcStackVersion = System.getProperty("tests.serverless.bwc_stack_version");
@@ -130,6 +127,25 @@ public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCas
             }
         });
         initClient();
+        assertAllNodesVersion(false);
+    }
+
+    /**
+     * Asserts that every node is on the old version, or that none are. A rolling upgrade must start from a fully old cluster
+     * and end on a fully upgraded one.
+     */
+    private static void assertAllNodesVersion(boolean oldVersion) throws IOException {
+        Map<String, Object> nodes = ObjectPath.evaluate(entityAsMap(client().performRequest(new Request("GET", "/_nodes"))), "nodes");
+        for (Object node : nodes.values()) {
+            Map<?, ?> nodeInfo = (Map<?, ?>) node;
+            String version = (String) nodeInfo.get("version");
+            String buildHash = (String) nodeInfo.get("build_hash");
+            assertThat(
+                "node [" + nodeInfo.get("name") + "] version [" + version + "] build_hash [" + buildHash + "]",
+                RollingUpgradePerformer.isOldClusterVersion(version, buildHash),
+                equalTo(oldVersion)
+            );
+        }
     }
 
     protected ElasticsearchCluster getCluster() {

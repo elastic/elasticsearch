@@ -744,6 +744,17 @@ public class S3StorageProvider implements StorageProvider {
     }
 
     @Override
+    public StorageEntry objectMetadata(StoragePath path) throws IOException {
+        validateS3Scheme(path);
+        String bucket = path.host();
+        String key = extractKey(path);
+        DiscoveredClients dc = resolveClientsForBucket(bucket);
+        S3Client sync = dc != null ? dc.sync() : s3Client;
+        S3AsyncClient async = dc != null ? dc.async() : s3AsyncClient;
+        return new S3StorageObject(sync, async, asyncReadRetryStrategy, storageIdentity, bucket, key, path).headObjectMetadata();
+    }
+
+    @Override
     public StorageObject newObject(StoragePath path) {
         validateS3Scheme(path);
         String bucket = path.host();

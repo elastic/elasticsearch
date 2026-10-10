@@ -174,6 +174,23 @@ public class RetryableStorageProviderTests extends ESTestCase {
         assertEquals(2, calls.get());
     }
 
+    public void testObjectMetadataRetriesOnTransientFailure() throws IOException {
+        AtomicInteger calls = new AtomicInteger();
+        StorageProvider delegate = new StubStorageProvider() {
+            @Override
+            public StorageEntry objectMetadata(StoragePath path) throws IOException {
+                if (calls.incrementAndGet() < 2) {
+                    throw new SocketTimeoutException("timeout");
+                }
+                return new StorageEntry(path, 42L, Instant.EPOCH);
+            }
+        };
+        RetryableStorageProvider provider = new RetryableStorageProvider(delegate, new RetryPolicy(3, 1, 10));
+
+        assertEquals(42L, provider.objectMetadata(StoragePath.of("s3://bucket/file.csv")).length());
+        assertEquals(2, calls.get());
+    }
+
     public void testSupportedSchemesDelegates() {
         StorageProvider delegate = new StubStorageProvider() {
             @Override

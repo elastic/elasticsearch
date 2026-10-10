@@ -13,6 +13,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
@@ -351,6 +352,11 @@ public class StorageProviderCache implements Closeable {
                 }
                 evictExcessIdle();
             });
+        }
+
+        @Override
+        public StorageEntry objectMetadata(StoragePath path) throws IOException {
+            return delegate.objectMetadata(path);
         }
 
         @Override

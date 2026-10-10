@@ -33,6 +33,11 @@ class ConcurrencyLimitedStorageProvider implements StorageProvider {
     }
 
     @Override
+    public StorageEntry objectMetadata(StoragePath path) throws IOException {
+        return delegate.objectMetadata(path);
+    }
+
+    @Override
     public StorageObject newObject(StoragePath path) {
         return new ConcurrencyLimitedStorageObject(delegate.newObject(path), limiter);
     }

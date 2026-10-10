@@ -37,6 +37,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -753,6 +754,50 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         }
     }
 
+    /**
+     * The object's length and modification time from a single {@code HeadObject}, for a caller that will not read
+     * the object — {@link org.elasticsearch.xpack.esql.datasources.spi.StorageProvider#objectMetadata}.
+     * <p>
+     * Deliberately not {@link #probeObject}, which this leaves untouched: that path serves callers who go on to
+     * read, so it uses a range GET and latches the generation in {@code pinnedEtag} for later ranged reads to
+     * validate against. This one establishes no pin, because its caller has nothing to validate.
+     * <p>
+     * No range-GET fallback on a refusal either. {@code HeadObject} and {@code GetObject} are both authorized by
+     * {@code s3:GetObject}, so a 403 here means a GET would be refused too, and retrying only spends a second
+     * request to be told the same thing.
+     */
+    StorageEntry headObjectMetadata() throws IOException {
+        try {
+            HeadObjectResponse response = s3Client.headObject(HeadObjectRequest.builder().bucket(bucket).key(key).build());
+            Long length = response.contentLength();
+            if (length == null) {
+                throw new IOException("Failed to determine external object size: HeadObject response carried no Content-Length");
+            }
+            StorageEntry entry = new StorageEntry(path, length, response.lastModified());
+            ExternalPlanningIo.addMetadataGet(0);
+            return entry;
+        } catch (Exception e) {
+            ExternalPlanningIo.addMetadataGet(0);
+            if (e instanceof IOException io && e instanceof SdkException == false) {
+                throw io;
+            }
+            Exception mapped = mapReadFailure("Failed to read object metadata for", e);
+            if (mapped instanceof ExternalCredentialsExpiredException expired) {
+                throw expired;
+            }
+            if (e instanceof S3Exception s3e && s3e.statusCode() == 403) {
+                // A refusal arrives with no response body, so it carries no S3 error code and cannot say WHICH
+                // action was denied: GetObject, an anonymous request, or kms:Decrypt on the object's key. All
+                // three would collapse into one unactionable message. Spend a range GET to recover the body and
+                // its code. Paid only when the query is already failing, so the single-request success path above
+                // is unaffected.
+                probeObjectViaRangeGet();
+                return new StorageEntry(path, cachedLength, cachedLastModified);
+            }
+            throw throwReadFailure("Failed to read object metadata for", e);
+        }
+    }
+
     private void probeObjectViaHead() throws IOException {
         try {
             HeadObjectRequest request = HeadObjectRequest.builder().bucket(bucket).key(key).build();
@@ -781,6 +826,9 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 throw archived;
             }
             if (e instanceof S3Exception s3e && s3e.statusCode() == 403) {
+                // Never a retry of a denial: probeObject throws on its own 403 rather than trying HEAD, so a
+                // first GET that was refused cannot reach here. What does reach here is a first GET that failed
+                // for an unrelated reason, or one that succeeded without a Content-Range.
                 probeObjectViaRangeGet();
             } else {
                 throw throwReadFailure("HeadObject request failed for", e);

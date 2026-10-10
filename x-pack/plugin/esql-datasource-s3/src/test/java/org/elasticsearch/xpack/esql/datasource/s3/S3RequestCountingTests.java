@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.s3;
 
+import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.http.AbortableInputStream;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -21,6 +22,7 @@ import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
@@ -32,6 +34,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -71,8 +74,50 @@ public class S3RequestCountingTests extends ESTestCase {
     }
 
     /**
-     * length() is answered by a first-byte range GET, not a HEAD.
+     * The metadata lookup a resolve makes is one HeadObject and nothing else. No range GET: the caller is not going
+     * to read the object, so it has no use for the generation pin a GET would establish, and HeadObject needs the
+     * same s3:GetObject so it costs no more.
      */
+    public void testObjectMetadataIsOneHeadAndNoGet() throws IOException {
+        when(mockS3.headObject(any(HeadObjectRequest.class))).thenReturn(
+            HeadObjectResponse.builder().contentLength(FILE_SIZE).lastModified(LAST_MODIFIED).build()
+        );
+
+        StorageEntry metadata = new S3StorageObject(mockS3, BUCKET, KEY, PATH).headObjectMetadata();
+
+        assertEquals(FILE_SIZE, metadata.length());
+        assertEquals(LAST_MODIFIED, metadata.lastModified());
+        verify(mockS3, times(1)).headObject(any(HeadObjectRequest.class));
+        verify(mockS3, never()).getObject(any(GetObjectRequest.class));
+    }
+
+    /**
+     * A refused HEAD carries no response body, so it has no S3 error code and cannot say which action was denied.
+     * One range GET recovers the body, which is what makes the three denial conditions distinguishable. Asserting
+     * the mapped condition AND the code matters: a 403 that reached the caller with the code stripped would still
+     * satisfy expectThrows(Exception.class) while telling an operator nothing it could act on.
+     */
+    public void testObjectMetadataDenialRecoversTheErrorCode() {
+        when(mockS3.headObject(any(HeadObjectRequest.class))).thenThrow(
+            S3Exception.builder().statusCode(403).message("Access Denied").build()
+        );
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(
+            S3Exception.builder()
+                .statusCode(403)
+                .message("Access Denied")
+                .awsErrorDetails(AwsErrorDetails.builder().errorCode("AccessDenied").errorMessage("Access Denied").build())
+                .build()
+        );
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        ExternalClientException denied = expectThrows(ExternalClientException.class, obj::headObjectMetadata);
+        assertEquals(ExternalClientException.Condition.ACCESS_DENIED, denied.condition());
+        assertThat(denied.getMessage(), containsString("AccessDenied"));
+
+        verify(mockS3, times(1)).headObject(any(HeadObjectRequest.class));
+        verify(mockS3, times(1)).getObject(any(GetObjectRequest.class));
+    }
+
     public void testLengthTriggersOneRangeGet() throws IOException {
         stubFirstByteResponse();
         S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);

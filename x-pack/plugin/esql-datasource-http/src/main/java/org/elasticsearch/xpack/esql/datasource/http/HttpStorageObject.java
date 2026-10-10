@@ -450,10 +450,6 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
         return handle::cancel;
     }
 
-    /**
-     * Records {@code subscriber.getBody()} on {@code handle} when the JDK creates the subscriber
-     * (response headers). Cancel before headers still cancels that body future as soon as it exists.
-     */
     private static HttpResponse.BodyHandler<DirectReadBuffer> capturingBody(
         HttpResponse.BodyHandler<DirectReadBuffer> inner,
         AsyncReadHandle handle
@@ -467,14 +463,23 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
 
     /**
      * Cancellation handle for one {@code sendAsync} GET. {@link #cancel} claims the listener
-     * immediately and cancels both the response future and the subscriber body future. Whoever
-     * wins {@link #tryCompleteListener()} owns the destination buffer: the listener through
-     * {@link #deliverRead}, otherwise the handle discards it exactly once.
+     * immediately and cancels both the response future and the subscriber body future (including
+     * a body that only exists once headers arrive). Buffer ownership is not "whoever wins
+     * {@link #tryCompleteListener()}": the 200/206 success path marks {@link BodyOwner#LISTENER}
+     * and {@link #deliverRead} hands the buffer off; cancel that wins the listener CAS marks
+     * {@link BodyOwner#HANDLE} and {@link #discardBody} closes it exactly once. A completed body
+     * whose cancel returns false is discarded only for {@code HANDLE}.
      */
     private final class AsyncReadHandle {
+        private enum BodyOwner {
+            NONE,
+            HANDLE,
+            LISTENER
+        }
+
         private volatile boolean cancelled;
         private final AtomicBoolean listenerDone = new AtomicBoolean();
-        private final AtomicBoolean handleOwnsBody = new AtomicBoolean();
+        private final AtomicReference<BodyOwner> bodyOwner = new AtomicReference<>(BodyOwner.NONE);
         private final AtomicBoolean bodyDiscarded = new AtomicBoolean();
         private final AtomicReference<CompletableFuture<?>> inFlight = new AtomicReference<>();
         private final AtomicReference<CompletableFuture<DirectReadBuffer>> body = new AtomicReference<>();
@@ -505,12 +510,13 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
         }
 
         void markListenerOwnsBody() {
-            bodyDiscarded.set(true);
+            bodyOwner.set(BodyOwner.LISTENER);
+            bodyDiscarded.compareAndSet(false, true);
         }
 
         boolean notifyCancelled() {
             if (tryCompleteListener()) {
-                handleOwnsBody.set(true);
+                bodyOwner.set(BodyOwner.HANDLE);
                 counters.addRequest(System.nanoTime() - startNanos, 0L);
                 listener.onFailure(new TaskCancelledException("read cancelled"));
                 return true;
@@ -529,17 +535,14 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
             return cancelled;
         }
 
-        /**
-         * Cancels the subscriber body future so its {@code whenComplete(isCancelled)} hook
-         * releases the destination. If the body already completed, {@code cancel} returns
-         * false and the handle discards the parked buffer when it owns the listener.
-         */
         private void abortBody(CompletableFuture<DirectReadBuffer> bodyFuture) {
             if (bodyFuture == null) {
                 return;
             }
-            if (FutureUtils.cancel(bodyFuture) == false && handleOwnsBody.get()) {
-                bodyFuture.thenAccept(this::discardBody);
+            if (FutureUtils.cancel(bodyFuture) == false
+                && bodyOwner.get() == BodyOwner.HANDLE
+                && bodyFuture.isCompletedExceptionally() == false) {
+                discardBody(bodyFuture.getNow(null));
             }
         }
 
@@ -553,7 +556,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
             try {
                 buffer.close();
             } catch (RuntimeException ignored) {
-                // Cancel already owns the listener; a close fault must not hide TaskCancelledException.
+                // Listener outcome is already chosen; a close fault must not replace it.
             }
         }
     }

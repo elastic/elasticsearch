@@ -103,6 +103,7 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
@@ -738,10 +739,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         // Only the first STATS command in a TS query is treated as the time-series aggregation.
         // After METRICS_INFO or TS_INFO, the output is metadata, not time series data, so use regular Aggregate.
         return input -> {
-            boolean hasAggregate = input.anyMatch(p -> p instanceof Aggregate);
-            boolean hasPromqlCommand = input.anyMatch(p -> p instanceof PromqlCommand);
+            boolean hasAggregate = IndependentSubqueryJoin.anyMatchInMainScope(input, p -> p instanceof Aggregate);
+            boolean hasPromqlCommand = IndependentSubqueryJoin.anyMatchInMainScope(input, p -> p instanceof PromqlCommand);
             boolean hasTimeSeries = hasOuterTimeSeries(input);
-            boolean hasInfoCommand = input.anyMatch(p -> p instanceof MetricsInfo || p instanceof TsInfo);
+            boolean hasInfoCommand = IndependentSubqueryJoin.anyMatchInMainScope(
+                input,
+                p -> p instanceof MetricsInfo || p instanceof TsInfo
+            );
             if (hasAggregate == false && hasPromqlCommand == false && hasTimeSeries && hasInfoCommand == false) {
                 return new TimeSeriesAggregate(
                     source(ctx),
@@ -775,7 +779,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (plan instanceof UnresolvedRelation ur && ur.indexMode().isTsdb()) {
             return true;
         }
-        for (LogicalPlan child : plan.children()) {
+        for (LogicalPlan child : IndependentSubqueryJoin.mainScopeChildren(plan)) {
             if (hasOuterTimeSeries(child)) {
                 return true;
             }
@@ -931,16 +935,18 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
             // If this is a remote-only ENRICH, any upstream LOOKUP JOINs need to be treated as remote-only, too.
             if (mode == Mode.REMOTE) {
-                child = child.transformDown(
-                    LookupJoin.class,
-                    lj -> new LookupJoin(
-                        lj.source(),
-                        lj.left(),
-                        lj.right(),
-                        lj.config(),
-                        lj.executesOn() == ExecuteLocation.COORDINATOR ? ExecuteLocation.COORDINATOR : ExecuteLocation.REMOTE
-                    )
-                );
+                child = IndependentSubqueryJoin.transformDownInMainScope(child, node -> {
+                    if (node instanceof LookupJoin lj) {
+                        return new LookupJoin(
+                            lj.source(),
+                            lj.left(),
+                            lj.right(),
+                            lj.config(),
+                            lj.executesOn() == ExecuteLocation.COORDINATOR ? ExecuteLocation.COORDINATOR : ExecuteLocation.REMOTE
+                        );
+                    }
+                    return node;
+                });
             }
 
             return new Enrich(

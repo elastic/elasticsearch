@@ -34,7 +34,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunctio
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 
 import java.io.IOException;
 import java.util.List;
@@ -242,11 +242,10 @@ public class Aggregate extends UnaryPlan
         // check aggregates - accept only aggregate functions or expressions over grouping
         // don't allow the group by itself to avoid duplicates in the output
         // and since the groups are copied, only look at the declared aggregates
-        Holder<Boolean> containsTimeSeries = new Holder<>(false);
-        forEachDown(TimeSeriesAggregate.class, ts -> containsTimeSeries.set(true));
+        boolean containsTimeSeries = IndependentSubqueryJoin.anyMatchInMainScope(this, TimeSeriesAggregate.class::isInstance);
         aggregates.subList(0, aggregates.size() - groupings.size()).forEach(e -> {
             var exp = Alias.unwrap(e);
-            if (exp.foldable() && containsTimeSeries.get() == false) {
+            if (exp.foldable() && containsTimeSeries == false) {
                 failures.add(fail(exp, "expected an aggregate function but found [{}]", exp.sourceText()));
             }
             // traverse the tree to find invalid matches
@@ -305,7 +304,7 @@ public class Aggregate extends UnaryPlan
 
     /**
      * Returns {@code true} if {@code plan} (or any non-{@link UnionAll} descendant, excluding the right-hand side
-     * of an {@link AbstractSubqueryJoin}) holds an {@link EsRelation} in time-series index mode.
+     * of an {@link IndependentSubqueryJoin}) holds an {@link EsRelation} in time-series index mode.
      * <p>
      * Traversal stops at {@link UnionAll} boundaries so that a {@code TS} source nested inside a {@code FROM}
      * subquery (e.g. {@code FROM (TS k8s), (FROM sample_data)}) does not allow time-series aggregate functions
@@ -319,7 +318,7 @@ public class Aggregate extends UnaryPlan
         if (plan instanceof UnionAll) {
             return false;
         }
-        if (plan instanceof AbstractSubqueryJoin join) {
+        if (plan instanceof IndependentSubqueryJoin join) {
             return hasTimeSeriesSource(join.left());
         }
         for (LogicalPlan child : plan.children()) {
@@ -518,9 +517,8 @@ public class Aggregate extends UnaryPlan
             }
             // TimeSeriesAggregates allow bare named expressions as they are implicitly wrapped in a time series aggregate function
             if (foundInGrouping == false && (this instanceof TimeSeriesAggregate) == false) {
-                Holder<Boolean> foundTsAgg = new Holder<>(Boolean.FALSE);
-                forEachDown(TimeSeriesAggregate.class, ts -> { foundTsAgg.set(Boolean.TRUE); });
-                if (foundTsAgg.get() == false) {
+                boolean foundTsAgg = IndependentSubqueryJoin.anyMatchInMainScope(this, TimeSeriesAggregate.class::isInstance);
+                if (foundTsAgg == false) {
                     failures.add(fail(e, "column [{}] must appear in the STATS BY clause or be used in an aggregate function", ne.name()));
                 }
             }

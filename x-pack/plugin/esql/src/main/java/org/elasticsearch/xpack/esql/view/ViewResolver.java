@@ -45,7 +45,8 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -79,7 +80,7 @@ import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
  *       plans</li>
  *   <li>{@link MergePlan}: Recursively processes each child branch. This includes {@code Fork}
  *       and user-written {@code UnionAll}; {@link ViewUnionAll} is handled separately below</li>
- *   <li>{@link AbstractSubqueryJoin}: Recursively processes the left and right sides</li>
+ *   <li>{@link IndependentSubqueryJoin}: Recursively processes the left and right sides</li>
  *   <li>{@link Filter}: Calls {@link InSubqueryResolver} to expand any {@code InSubquery} into a {@code SemiJoin}/{@code AntiJoin}/
  *       {@code MarkJoin}, then recurses into the newly created subquery plans to resolve view references nested there</li>
  *   <li>{@link Eval}: Calls {@link InSubqueryResolver} to expand any {@code InSubquery} in field definitions into a {@code MarkJoin},
@@ -372,7 +373,7 @@ public class ViewResolver {
                         );
                     }
                 }
-                case AbstractSubqueryJoin subqueryJoin -> replaceViewsSubqueryJoin(
+                case Join subqueryJoin when subqueryJoin instanceof IndependentSubqueryJoin -> replaceViewsSubqueryJoin(
                     subqueryJoin,
                     projectRouting,
                     wildcardsMatchViews,
@@ -466,7 +467,7 @@ public class ViewResolver {
     }
 
     private void replaceViewsSubqueryJoin(
-        AbstractSubqueryJoin subqueryJoin,
+        Join subqueryJoin,
         String projectRouting,
         boolean wildcardsMatchViews,
         BiFunction<String, String, LogicalPlan> parser,

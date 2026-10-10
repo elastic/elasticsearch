@@ -201,6 +201,7 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
@@ -1733,7 +1734,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         : resolveUsingColumns(config.rightFields(), join.right().output(), "right");
                 }
                 config = new JoinConfig(type, leftKeys, rightKeys, joinOnConditions);
-                boolean hasRemoteIndices = join.left().anyMatch(node -> node instanceof EsRelation relation && hasRemoteIndices(relation));
+                boolean hasRemoteIndices = IndependentSubqueryJoin.anyMatchInMainScope(
+                    join.left(),
+                    node -> node instanceof EsRelation relation && hasRemoteIndices(relation)
+                );
                 var newLookupJoinMode = newLookupJoinMode(join.executesOn(), hasRemoteIndices);
                 return new LookupJoin(join.source(), join.left(), join.right(), config, newLookupJoinMode);
             } else {
@@ -1808,7 +1812,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // since we have no concrete attribute to project.
             LogicalPlan right = subqueryJoin.right();
             if (rightFields.stream().allMatch(Attribute::resolved)
-                && right.anyMatch(p -> p instanceof Project || p instanceof Aggregate) == false) {
+                && IndependentSubqueryJoin.anyMatchInMainScope(right, p -> p instanceof Project || p instanceof Aggregate) == false) {
                 right = new Project(subqueryJoin.source(), right, rightFields);
             }
 
@@ -3287,13 +3291,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class AddImplicitLimit extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan logicalPlan, AnalyzerContext context) {
-            List<LogicalPlan> limits = logicalPlan.collectFirstChildren(Limit.class::isInstance);
+            List<LogicalPlan> limits = IndependentSubqueryJoin.collectFirstChildrenInMainScope(logicalPlan, Limit.class::isInstance);
             // We check whether the query contains a TimeSeriesAggregate to determine if we should apply
             // the default limit for TS queries or for non-TS queries.
             // NOTE: PromqlCommand is translated to TimeSeriesAggregate during optimization.
             // TimeSeriesCollapse is included because const-folded PromQL plans (e.g. literals on empty indices)
             // replace PromqlCommand with a LocalRelation but retain the TimeSeriesCollapse wrapper.
-            boolean isTsAggregate = logicalPlan.collectFirstChildren(
+            boolean isTsAggregate = IndependentSubqueryJoin.collectFirstChildrenInMainScope(
+                logicalPlan,
                 lp -> lp instanceof TimeSeriesAggregate || lp instanceof PromqlCommand || lp instanceof TimeSeriesCollapse
             ).isEmpty() == false;
 
@@ -3331,35 +3336,46 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private LogicalPlan injectTimestampSort(Limit limit) {
             LogicalPlan child = limit.child();
 
-            boolean hasExplicitSortOrAggregate = child.collectFirstChildren(lp -> lp instanceof OrderBy || lp instanceof Aggregate)
-                .isEmpty() == false;
+            boolean hasExplicitSortOrAggregate = IndependentSubqueryJoin.collectFirstChildrenInMainScope(
+                child,
+                lp -> lp instanceof OrderBy || lp instanceof Aggregate
+            ).isEmpty() == false;
 
             if (hasExplicitSortOrAggregate) {
                 return limit;
             }
 
-            boolean hasTimeSeries = child.collect(EsRelation.class, r -> r.indexMode().isTsdb()).isEmpty() == false;
+            boolean hasTimeSeries = IndependentSubqueryJoin.anyMatchInMainScope(
+                child,
+                lp -> lp instanceof EsRelation relation && relation.indexMode().isTsdb()
+            );
             if (hasTimeSeries == false) {
                 return limit;
             }
 
             // Inject the OrderBy below each (to handle FORK) innermost Limit.
-            return limit.transformDown(Limit.class, l -> {
-                if (l.child().collect(Limit.class).isEmpty()) {
-                    var localChild = l.child();
-                    var localTimestampAttr = localChild.collect(EsRelation.class, r -> r.indexMode().isTsdb())
-                        .stream()
-                        .findFirst()
-                        .flatMap(r -> r.output().stream().filter(a -> MetadataAttribute.TIMESTAMP_FIELD.equals(a.name())).findFirst())
-                        .flatMap(ts -> localChild.output().stream().filter(a -> a.id().equals(ts.id())).findFirst());
+            return IndependentSubqueryJoin.transformDownInMainScope(limit, node -> {
+                if (node instanceof Limit l) {
+                    if (IndependentSubqueryJoin.collectFirstChildrenInMainScope(l.child(), Limit.class::isInstance).isEmpty()) {
+                        var localChild = l.child();
+                        var localTimestampAttr = IndependentSubqueryJoin.collectFirstChildrenInMainScope(
+                            localChild,
+                            p -> p instanceof EsRelation relation && relation.indexMode().isTsdb()
+                        )
+                            .stream()
+                            .findFirst()
+                            .map(EsRelation.class::cast)
+                            .flatMap(r -> r.output().stream().filter(a -> MetadataAttribute.TIMESTAMP_FIELD.equals(a.name())).findFirst())
+                            .flatMap(ts -> localChild.output().stream().filter(a -> a.id().equals(ts.id())).findFirst());
 
-                    if (localTimestampAttr.isPresent()) {
-                        var source = l.source();
-                        Order order = new Order(source, localTimestampAttr.get(), Order.OrderDirection.DESC, Order.NullsPosition.LAST);
-                        return l.replaceChild(new OrderBy(source, localChild, List.of(order)));
+                        if (localTimestampAttr.isPresent()) {
+                            var source = l.source();
+                            Order order = new Order(source, localTimestampAttr.get(), Order.OrderDirection.DESC, Order.NullsPosition.LAST);
+                            return l.replaceChild(new OrderBy(source, localChild, List.of(order)));
+                        }
                     }
                 }
-                return l;
+                return node;
             });
         }
     }
@@ -3694,13 +3710,34 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-            UnionTypeResolutionState state = new UnionTypeResolutionState();
-            return plan.transformUp(LogicalPlan.class, p -> p.childrenResolved() == false ? p : doRule(p, state, context));
+            return resolveInScope(plan, new UnionTypeResolutionState(), context);
         }
 
         private static class UnionTypeResolutionState {
             private final List<Attribute.IdIgnoringWrapper> unionFieldAttributes = new ArrayList<>();
             private boolean isAfterAggregate = false;
+        }
+
+        private static LogicalPlan resolveInScope(LogicalPlan plan, UnionTypeResolutionState state, AnalyzerContext context) {
+            List<LogicalPlan> children = plan.children();
+            List<LogicalPlan> resolvedChildren = null;
+            for (int i = 0; i < children.size(); i++) {
+                LogicalPlan child = children.get(i);
+                UnionTypeResolutionState childState = plan instanceof IndependentSubqueryJoin && i == 1
+                    ? new UnionTypeResolutionState()
+                    : state;
+                LogicalPlan resolvedChild = resolveInScope(child, childState, context);
+                if (child.equals(resolvedChild) == false) {
+                    if (resolvedChildren == null) {
+                        resolvedChildren = new ArrayList<>(children);
+                    }
+                    resolvedChildren.set(i, resolvedChild);
+                }
+            }
+            if (resolvedChildren != null) {
+                plan = plan.replaceChildren(resolvedChildren);
+            }
+            return plan.childrenResolved() ? doRule(plan, state, context) : plan;
         }
 
         private static LogicalPlan doRule(LogicalPlan plan, UnionTypeResolutionState state, AnalyzerContext context) {
@@ -3764,19 +3801,21 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<FieldAttribute> unionFieldAttributes,
             boolean preserveResolvingProject
         ) {
-            var res = plan.transformDown(EsRelation.class, esr -> {
-                List<Attribute> missing = new ArrayList<>();
-                for (FieldAttribute fa : unionFieldAttributes) {
-                    // Using outputSet().contains looks by NameId, resp. uses semanticEquals.
-                    if (esr.outputSet().contains(fa) == false) {
-                        missing.add(fa);
+            var res = IndependentSubqueryJoin.transformDownInMainScope(plan, node -> {
+                if (node instanceof EsRelation esr) {
+                    List<Attribute> missing = new ArrayList<>();
+                    for (FieldAttribute fa : unionFieldAttributes) {
+                        // Using outputSet().contains looks by NameId, resp. uses semanticEquals.
+                        if (esr.outputSet().contains(fa) == false) {
+                            missing.add(fa);
+                        }
+                    }
+
+                    if (missing.isEmpty() == false) {
+                        return esr.withAttributes(CollectionUtils.combine(esr.output(), missing));
                     }
                 }
-
-                if (missing.isEmpty() == false) {
-                    return esr.withAttributes(CollectionUtils.combine(esr.output(), missing));
-                }
-                return esr;
+                return node;
             });
             if (res.equals(plan) == false) {
                 res = carryOverSyntheticAttributesThroughProjects(res, preserveResolvingProject);
@@ -4427,13 +4466,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      */
     private static class ImplicitCastAggregateMetricDoubles extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
 
-        private boolean isTimeSeries = false;
-
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-            Holder<IndexMode> indexMode = new Holder<>(IndexMode.STANDARD);
-            plan.forEachUp(EsRelation.class, esRelation -> { indexMode.set(esRelation.indexMode()); });
-            isTimeSeries = indexMode.get().isTsdb();
             return plan.transformUp(LogicalPlan.class, p -> doRule(p, context));
         }
 
@@ -4441,6 +4475,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (plan instanceof EsRelation || plan instanceof Project || plan.childrenResolved() == false) {
                 return plan;
             }
+            Holder<IndexMode> indexMode = new Holder<>(IndexMode.STANDARD);
+            IndependentSubqueryJoin.forEachUpInMainScope(plan, node -> {
+                if (node instanceof EsRelation esRelation) {
+                    indexMode.set(esRelation.indexMode());
+                }
+            });
+            boolean isTimeSeries = indexMode.get().isTsdb();
             Map<String, FieldAttribute> unionFields = new HashMap<>();
             Holder<Boolean> aborted = new Holder<>(Boolean.FALSE);
             var newPlan = plan.transformExpressionsOnly(AggregateFunction.class, aggFunc -> {
@@ -4454,9 +4495,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 Expression child;
                 if (field instanceof ToAggregateMetricDouble toAMD) {
-                    child = tryToTransformFunction(aggFunc, toAMD.field(), aborted, unionFields, context);
+                    child = tryToTransformFunction(aggFunc, toAMD.field(), aborted, unionFields, context, isTimeSeries);
                 } else {
-                    child = tryToTransformFunction(aggFunc, field, aborted, unionFields, context);
+                    child = tryToTransformFunction(aggFunc, field, aborted, unionFields, context, isTimeSeries);
                 }
                 return child;
             }).transformExpressionsOnly(EsqlBinaryComparison.class, comparison -> {
@@ -4524,7 +4565,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Expression field,
             Holder<Boolean> aborted,
             Map<String, FieldAttribute> unionFields,
-            AnalyzerContext context
+            AnalyzerContext context,
+            boolean isTimeSeries
         ) {
             if (field instanceof FieldAttribute fa && fa.field() instanceof TypeConflictedField tcf) {
                 // A bare PUNK is a single mapped type, not a multi-type conflict: leave it so UnionTypesCleanup replaces it with the plain
@@ -4554,7 +4596,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     );
                 }
 
-                Map<String, Expression> typeConverters = typeConverters(aggFunc, fa, tcf);
+                Map<String, Expression> typeConverters = typeConverters(aggFunc, fa, tcf, isTimeSeries);
                 var newField = unionFields.computeIfAbsent(
                     Attribute.rawTemporaryName(fa.name(), aggFunc.functionName(), aggFunc.sourceText()),
                     newName -> new FieldAttribute(
@@ -4582,7 +4624,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return aggFunc;
         }
 
-        private Map<String, Expression> typeConverters(AggregateFunction aggFunc, FieldAttribute fa, TypeConflictedField tcf) {
+        private Map<String, Expression> typeConverters(
+            AggregateFunction aggFunc,
+            FieldAttribute fa,
+            TypeConflictedField tcf,
+            boolean isTimeSeries
+        ) {
             var metric = getMetric(aggFunc, isTimeSeries);
             Map<String, Expression> typeConverter = new HashMap<>();
             for (DataType type : tcf.types()) {
@@ -4696,7 +4743,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private LogicalPlan doRule(Aggregate plan) {
             Holder<IndexMode> indexMode = new Holder<>(IndexMode.STANDARD);
-            plan.forEachUp(EsRelation.class, esRelation -> { indexMode.set(esRelation.indexMode()); });
+            IndependentSubqueryJoin.forEachUpInMainScope(plan, node -> {
+                if (node instanceof EsRelation esRelation) {
+                    indexMode.set(esRelation.indexMode());
+                }
+            });
             final boolean isTimeSeries = indexMode.get().isTsdb();
             return plan.transformExpressionsOnly(AggregateFunction.class, aggFunc -> {
                 Expression field;
@@ -4975,8 +5026,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Map<LogicalPlan, LogicalPlan> parentOf
         ) {
             Map<String, Set<AbstractConvertFunction>> convertFunctions = new HashMap<>();
-            LogicalPlan current = parentOf.get(unionAll);
+            LogicalPlan child = unionAll;
+            LogicalPlan current = parentOf.get(child);
             while (current != null) {
+                if (current instanceof IndependentSubqueryJoin subqueryJoin && child == subqueryJoin.right()) {
+                    break;
+                }
                 current.forEachExpression(AbstractConvertFunction.class, f -> {
                     if (f.field() instanceof Attribute attr) {
                         // get the attribute from the UnionAll output by name and id
@@ -4992,6 +5047,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     // preserves the same name and id. Stop here, as ResolveUnionTypes does for its isAfterAggregate guard.
                     break;
                 }
+                child = current;
                 current = parentOf.get(current);
             }
             return convertFunctions;
@@ -5129,7 +5185,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<LogicalPlan> children = null;
             for (int i = 0; i < plan.children().size(); i++) {
                 LogicalPlan child = plan.children().get(i);
-                LogicalPlan updated = carryOverSyntheticAttributesThroughProjects(child, childMergeOutputNames, preserveResolvingProject);
+                LogicalPlan updated = plan instanceof IndependentSubqueryJoin && i == 1
+                    ? child
+                    : carryOverSyntheticAttributesThroughProjects(child, childMergeOutputNames, preserveResolvingProject);
                 if (child.equals(updated) == false) {
                     if (children == null) {
                         children = new ArrayList<>(plan.children());
@@ -5722,26 +5780,29 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * overload that also gates synthetics against the enclosing {@link MergePlan} output.
      */
     private static LogicalPlan carryOverSyntheticAttributesThroughProjects(LogicalPlan plan, boolean preserveResolvingProject) {
-        return plan.transformUp(Project.class, p -> {
-            // Skip Projects whose projections are not yet resolved (e.g. an unexpanded KEEP wildcard sitting above a still-unresolved
-            // union-typed field reference). Their output cannot be computed yet — calling p.output() would throw UnresolvedException.
-            // Such Projects are revisited in a later analyzer iteration once they resolve.
-            if (p.expressionsResolved() == false) {
-                return p;
-            }
-            List<Attribute> syntheticAttributesToCarryOver = new ArrayList<>();
-            for (Attribute attr : p.inputSet()) {
-                if (attr.synthetic() && p.outputSet().contains(attr) == false) {
-                    syntheticAttributesToCarryOver.add(attr);
+        return IndependentSubqueryJoin.transformUpInMainScope(plan, node -> {
+            if (node instanceof Project p) {
+                // Skip Projects whose projections are not yet resolved (e.g. an unexpanded KEEP wildcard sitting above a still-unresolved
+                // union-typed field reference). Their output cannot be computed yet — calling p.output() would throw UnresolvedException.
+                // Such Projects are revisited in a later analyzer iteration once they resolve.
+                if (p.expressionsResolved() == false) {
+                    return p;
                 }
+                List<Attribute> syntheticAttributesToCarryOver = new ArrayList<>();
+                for (Attribute attr : p.inputSet()) {
+                    if (attr.synthetic() && p.outputSet().contains(attr) == false) {
+                        syntheticAttributesToCarryOver.add(attr);
+                    }
+                }
+                if (syntheticAttributesToCarryOver.isEmpty()) {
+                    return p;
+                }
+                List<NamedExpression> newProjections = new ArrayList<>(p.projections());
+                newProjections.addAll(syntheticAttributesToCarryOver);
+                // LOAD_ALL KEEP/DROP is a ResolvingProject whose original pattern must survive. Default KEEP is a plain Project.
+                return preserveResolvingProject ? p.withProjections(newProjections) : new Project(p.source(), p.child(), newProjections);
             }
-            if (syntheticAttributesToCarryOver.isEmpty()) {
-                return p;
-            }
-            List<NamedExpression> newProjections = new ArrayList<>(p.projections());
-            newProjections.addAll(syntheticAttributesToCarryOver);
-            // LOAD_ALL KEEP/DROP is a ResolvingProject whose original pattern must survive. Default KEEP is a plain Project.
-            return preserveResolvingProject ? p.withProjections(newProjections) : new Project(p.source(), p.child(), newProjections);
+            return node;
         });
     }
 }

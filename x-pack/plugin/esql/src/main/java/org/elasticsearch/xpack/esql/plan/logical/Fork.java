@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
@@ -163,7 +163,7 @@ public final class Fork extends MergePlan implements TelemetryAware {
     /**
      * Rejects two user-written FORKs on the same uninterrupted pipeline path. A {@link UnionAll} is a real merge boundary, whether it
      * came from user subqueries, a view, an external dataset, or federation, so each of its branches starts a new FORK segment. The right
-     * side of an {@link AbstractSubqueryJoin} is an independently executed query scope and is verified by its own FORK node.
+     * side of an {@link IndependentSubqueryJoin} is an independently executed query scope and is verified by its own FORK node.
      */
     private static void checkForUnseparatedFork(LogicalPlan plan, boolean forkSeen, Failures failures) {
         if (plan instanceof UnionAll unionAll) {
@@ -172,7 +172,7 @@ public final class Fork extends MergePlan implements TelemetryAware {
             }
             return;
         }
-        if (plan instanceof AbstractSubqueryJoin join) {
+        if (plan instanceof IndependentSubqueryJoin join) {
             checkForUnseparatedFork(join.left(), forkSeen, failures);
             return;
         }

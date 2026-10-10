@@ -373,7 +373,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
     }
 
     private void checkForRemoteJoinBlockers(LogicalPlan plan, Failures failures) {
-        if (plan instanceof AbstractSubqueryJoin subqueryJoin) {
+        if (plan instanceof IndependentSubqueryJoin subqueryJoin) {
             // The right side is an independent subquery; do not traverse into it.
             checkForRemoteJoinBlockers(subqueryJoin.left(), failures);
         } else {

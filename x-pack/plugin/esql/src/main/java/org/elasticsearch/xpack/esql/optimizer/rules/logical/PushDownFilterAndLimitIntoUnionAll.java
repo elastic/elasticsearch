@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -347,7 +347,7 @@ public class PushDownFilterAndLimitIntoUnionAll extends OptimizerRules.Parameter
      * {@code Knn.postOptimizationVerification} rejects the query.
      *
      * <p>The per-path search matches {@link #appendLimitIfNeededForOrderBy}: a {@code Limit} bounds everything below it, a nested
-     * {@code UnionAll} ends our concern, and an {@link AbstractSubqueryJoin} is walked on the left only. Unlike that method the first
+     * {@code UnionAll} ends our concern, and an {@link IndependentSubqueryJoin} is walked on the left only. Unlike that method the first
      * match on a path is not enough, because the appended limit has to cover the largest k any unbounded {@code Knn} asked for, so
      * {@link #maxUnboundedImplicitK} accumulates rather than stopping.
      *
@@ -438,7 +438,7 @@ public class PushDownFilterAndLimitIntoUnionAll extends OptimizerRules.Parameter
     /**
      * The largest {@code implicitK} of any {@code Knn} reachable from {@code plan} without crossing a {@code Limit} - which already
      * bounds everything below it - or a nested {@code UnionAll} - whose own branches are bounded when the enclosing transformDown
-     * reaches them; {@code null} if there is none. An {@link AbstractSubqueryJoin} is walked on the left only: see
+     * reaches them; {@code null} if there is none. An {@link IndependentSubqueryJoin} is walked on the left only: see
      * {@link #limitSearchChildren}.
      *
      * Each path is cut independently, so one branch's {@code Limit} cannot suppress another branch's {@code Knn}, which would make the
@@ -481,7 +481,7 @@ public class PushDownFilterAndLimitIntoUnionAll extends OptimizerRules.Parameter
      * <p>For each path down the branch, the search finds the first node that settles the question: a {@code Limit} already bounds
      * whatever is below it, an {@code OrderBy} below no {@code Limit} is the unbounded sort we have to bound, and a nested
      * {@code UnionAll} ends our concern - its own branches are handled when the enclosing transformDown reaches it. An
-     * {@link AbstractSubqueryJoin} is walked on the left only: see {@link #limitSearchChildren}.
+     * {@link IndependentSubqueryJoin} is walked on the left only: see {@link #limitSearchChildren}.
      *
      * <p>Each path is cut independently. Walking the whole subtree with one shared "found a limit" flag would let an unrelated branch
      * of a nested union abort the search, making the outcome depend on the order the branches happen to be written in.
@@ -572,7 +572,7 @@ public class PushDownFilterAndLimitIntoUnionAll extends OptimizerRules.Parameter
 
     /**
      * Whether {@code plan} contains an {@code OrderBy} that is not already under a {@code Limit}, ignoring nested {@code UnionAll}s
-     * (handled by a later transformDown) and the right side of an {@link AbstractSubqueryJoin} (see {@link #limitSearchChildren}).
+     * (handled by a later transformDown) and the right side of an {@link IndependentSubqueryJoin} (see {@link #limitSearchChildren}).
      */
     private static boolean hasUnboundedSort(LogicalPlan plan) {
         if (plan instanceof Limit || plan instanceof UnionAll) {
@@ -591,13 +591,10 @@ public class PushDownFilterAndLimitIntoUnionAll extends OptimizerRules.Parameter
 
     /**
      * Children of {@code plan} that this rule may search for a {@code Knn} or unbounded {@code SORT} to bound with a {@code Limit}
-     * at the union-branch root. Skip the RHS of an {@link AbstractSubqueryJoin} because the RHS is an independently executed subquery.
+     * at the union-branch root. Skip the RHS of an {@link IndependentSubqueryJoin} because the RHS is an independently executed subquery.
      */
     private static List<LogicalPlan> limitSearchChildren(LogicalPlan plan) {
-        if (plan instanceof AbstractSubqueryJoin join) {
-            return List.of(join.left());
-        }
-        return plan.children();
+        return IndependentSubqueryJoin.mainScopeChildren(plan);
     }
 
     private static Limit planWithLimit(LogicalPlan plan, int limitValue) {

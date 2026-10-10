@@ -393,14 +393,17 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
         HttpRequest request = buildRangeRequest(position, length);
         long startNanos = System.nanoTime();
         AsyncReadHandle handle = new AsyncReadHandle(listener, startNanos);
-        CompletableFuture<HttpResponse<DirectReadBuffer>> future = client.sendAsync(
-            request,
-            DirectByteBufferBodyHandlers.ofRangeRead(position, (int) length, factory, path)
+        HttpResponse.BodyHandler<DirectReadBuffer> bodyHandler = capturingBody(
+            DirectByteBufferBodyHandlers.ofRangeRead(position, (int) length, factory, path),
+            handle
         );
+        CompletableFuture<HttpResponse<DirectReadBuffer>> future = client.sendAsync(request, bodyHandler);
         handle.register(future);
         onReadComplete(future, (response, throwable) -> {
             if (handle.isCancelled()) {
-                closeBodyQuietly(response);
+                if (response != null) {
+                    handle.discardBody(response.body());
+                }
                 handle.notifyCancelled();
                 return;
             }
@@ -421,20 +424,21 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                     observeHeaders(response.headers(), position, true);
                 } catch (ExternalObjectChangedException e) {
                     counters.addRequest(System.nanoTime() - startNanos, 0L);
-                    response.body().close();
+                    handle.discardBody(response.body());
                     if (handle.tryCompleteListener()) {
                         listener.onFailure(e);
                     }
                     return;
                 }
                 if (handle.tryCompleteListener()) {
+                    handle.markListenerOwnsBody();
                     deliverRead(listener, response.body(), startNanos);
                 } else {
-                    response.body().close();
+                    handle.discardBody(response.body());
                 }
             } else {
                 counters.addRequest(System.nanoTime() - startNanos, 0L);
-                response.body().close();
+                handle.discardBody(response.body());
                 if (handle.tryCompleteListener()) {
                     long retryAfterMs = ExternalUnavailableException.parseRetryAfterMs(
                         response.headers().firstValue("retry-after").orElse(null)
@@ -446,25 +450,34 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
         return handle::cancel;
     }
 
-    private static void closeBodyQuietly(HttpResponse<DirectReadBuffer> response) {
-        if (response == null || response.body() == null) {
-            return;
-        }
-        try {
-            response.body().close();
-        } catch (RuntimeException ignored) {
-            // Cancel already owns the listener; a close fault must not hide TaskCancelledException.
-        }
+    /**
+     * Records {@code subscriber.getBody()} on {@code handle} when the JDK creates the subscriber
+     * (response headers). Cancel before headers still cancels that body future as soon as it exists.
+     */
+    private static HttpResponse.BodyHandler<DirectReadBuffer> capturingBody(
+        HttpResponse.BodyHandler<DirectReadBuffer> inner,
+        AsyncReadHandle handle
+    ) {
+        return responseInfo -> {
+            HttpResponse.BodySubscriber<DirectReadBuffer> subscriber = inner.apply(responseInfo);
+            handle.registerBody(subscriber.getBody().toCompletableFuture());
+            return subscriber;
+        };
     }
 
     /**
-     * Cancellation handle for one {@code sendAsync} GET. {@link #cancel} aborts the JDK future and
-     * claims the listener immediately so notify does not wait on the client completing the future.
+     * Cancellation handle for one {@code sendAsync} GET. {@link #cancel} claims the listener
+     * immediately and cancels both the response future and the subscriber body future. Whoever
+     * wins {@link #tryCompleteListener()} owns the destination buffer: the listener through
+     * {@link #deliverRead}, otherwise the handle discards it exactly once.
      */
     private final class AsyncReadHandle {
         private volatile boolean cancelled;
         private final AtomicBoolean listenerDone = new AtomicBoolean();
+        private final AtomicBoolean handleOwnsBody = new AtomicBoolean();
+        private final AtomicBoolean bodyDiscarded = new AtomicBoolean();
         private final AtomicReference<CompletableFuture<?>> inFlight = new AtomicReference<>();
+        private final AtomicReference<CompletableFuture<DirectReadBuffer>> body = new AtomicReference<>();
         private final ActionListener<DirectReadBuffer> listener;
         private final long startNanos;
 
@@ -480,25 +493,68 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
             }
         }
 
+        void registerBody(CompletableFuture<DirectReadBuffer> bodyFuture) {
+            body.set(bodyFuture);
+            if (cancelled) {
+                abortBody(bodyFuture);
+            }
+        }
+
         boolean tryCompleteListener() {
             return listenerDone.compareAndSet(false, true);
         }
 
-        void notifyCancelled() {
+        void markListenerOwnsBody() {
+            bodyDiscarded.set(true);
+        }
+
+        boolean notifyCancelled() {
             if (tryCompleteListener()) {
+                handleOwnsBody.set(true);
                 counters.addRequest(System.nanoTime() - startNanos, 0L);
                 listener.onFailure(new TaskCancelledException("read cancelled"));
+                return true;
             }
+            return false;
         }
 
         void cancel() {
             cancelled = true;
             FutureUtils.cancel(inFlight.get());
             notifyCancelled();
+            abortBody(body.get());
         }
 
         boolean isCancelled() {
             return cancelled;
+        }
+
+        /**
+         * Cancels the subscriber body future so its {@code whenComplete(isCancelled)} hook
+         * releases the destination. If the body already completed, {@code cancel} returns
+         * false and the handle discards the parked buffer when it owns the listener.
+         */
+        private void abortBody(CompletableFuture<DirectReadBuffer> bodyFuture) {
+            if (bodyFuture == null) {
+                return;
+            }
+            if (FutureUtils.cancel(bodyFuture) == false && handleOwnsBody.get()) {
+                bodyFuture.thenAccept(this::discardBody);
+            }
+        }
+
+        void discardBody(DirectReadBuffer buffer) {
+            if (buffer == null) {
+                return;
+            }
+            if (bodyDiscarded.compareAndSet(false, true) == false) {
+                return;
+            }
+            try {
+                buffer.close();
+            } catch (RuntimeException ignored) {
+                // Cancel already owns the listener; a close fault must not hide TaskCancelledException.
+            }
         }
     }
 

@@ -21,7 +21,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.snapshots.blobstore.RateLimitingInputStream;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.monitor.network.NetworkProbe;
@@ -57,10 +56,11 @@ import static org.elasticsearch.core.Strings.format;
  *     headroom, never below today's network-only rate. Foreground is node traffic from {@link NetworkProbe} minus the bytes that passed
  *     through the limiter. Only active when the node bandwidth settings are set. Restores are not affected.</li>
  *     <li>{@link #ADAPTIVE_UPLOAD_CONCURRENCY_ENABLED_SETTING}: the number of concurrent shard snapshot uploads, which run on their own
- *     thread pool, is adjusted every few seconds by an {@link UploadConcurrencyController}, up to
- *     {@link #UPLOAD_CONCURRENCY_MAX_SETTING}. It reads CPU contention directly (cgroup pressure stall information and throttling)
- *     because uploads also use CPU outside their threads, and upload errors. Off, uploads run on the snapshot pool at today's
- *     concurrency.</li>
+ *     thread pool, has a fixed target per node, which an {@link UploadConcurrencyController} backs off from
+ *     every few seconds and then recovers to, one upload at a time: 10 below 8GiB of node memory, 20 from 8GiB, capped by
+ *     {@link #UPLOAD_CONCURRENCY_MAX_SETTING}. It backs off when CPU contention (cgroup pressure stall information and throttling,
+ *     read directly because uploads also use CPU outside their threads) delays foreground work, or when uploads fail. Off, uploads run
+ *     on the snapshot pool at today's concurrency.</li>
  * </ul>
  * Every repository always has its own task runner and queue for shard snapshot tasks, as it has always had. Adaptive upload concurrency
  * only adds a limit shared by all of them, a node-wide budget of tasks that may run at once, which a repository's runner asks for before
@@ -92,12 +92,12 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
     );
 
     /**
-     * The most shard snapshot uploads the node runs at once, if the node is big enough: the ceiling is the lower of this and what the
-     * node's size allows (10 per 2GiB of node memory), see {@link ThreadPool.Names#SNAPSHOT_UPLOAD}, which is also how far this can be
-     * raised at runtime. Never below today's concurrency.
+     * The most shard snapshot uploads the node runs at once: the ceiling is the lower of this and what the node's size allows (10 below
+     * 8GiB of node memory, 20 from 8GiB, see {@link ThreadPool.Names#SNAPSHOT_UPLOAD}), which is also how far this can be raised at
+     * runtime. Never below today's concurrency.
      * <p>
      * The default is 20 because in QA on GCP large nodes, more than about 20 concurrent uploads crossed the CPU-pressure guard with no
-     * throughput gain.
+     * throughput gain. A node below 8GiB gets 10 because in QA the 4GiB pods were CPU-throttled at 10 uploads.
      * <p>
      * Before raising the default above 20, the ceiling must also respect the connection limit of the object store client (50 by default
      * for the client used for backups), keeping a share of the connections for foreground work: every upload holds a connection while
@@ -166,7 +166,6 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
     private final AtomicInteger runningUploadTasks = new AtomicInteger();
     private final UploadConcurrencyController uploadConcurrencyController;
     private final LongAdder uploadBytes = new LongAdder();
-    private final LongAdder uploadPauseNanos = new LongAdder();
     private final LongAdder uploadReadErrors = new LongAdder();
     private final LongAdder uploadWriteErrors = new LongAdder();
 
@@ -197,8 +196,6 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
     private boolean trackingInterval;
     private long lastNetworkTickNanos;
     private long intervalStartNanos;
-    private long intervalStartUploadBytes;
-    private long intervalStartUploadPauseNanos;
     private long intervalStartReadErrors;
     private long intervalStartWriteErrors;
     @Nullable
@@ -476,7 +473,7 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
     }
 
     /**
-     * Wraps a snapshot upload stream to count the background bytes, an input to the limiters and to the upload concurrency controller.
+     * Wraps a snapshot upload stream to count the background bytes, an input to the limiters.
      * Every byte is counted once each time it is read, so bytes that are read again after a reset of the stream, or by a retried
      * upload, are counted again: they cross the network again, except when the stream replays them from memory, which overstates the
      * background traffic a little. The foreground traffic is what is left of the node's traffic after the background traffic, so it is
@@ -502,17 +499,6 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
                 }
                 return n;
             }
-        };
-    }
-
-    /**
-     * Wraps a snapshot upload throttle listener to count the time uploads spend paused in any rate limiter, an input to the upload
-     * concurrency controller.
-     */
-    public RateLimitingInputStream.Listener wrapUploadThrottleListener(RateLimitingInputStream.Listener listener) {
-        return nanos -> {
-            uploadPauseNanos.add(nanos);
-            listener.onPause(nanos);
         };
     }
 
@@ -648,7 +634,7 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
                 lastUploadBytes = uploadBytesNow;
 
                 if (adaptive && tickCount % UPLOAD_CONCURRENCY_INTERVAL_TICKS == 0) {
-                    updateUploadConcurrency(now, uploadBytesNow);
+                    updateUploadConcurrency(now);
                 }
                 if (tickCount % LOG_INTERVAL_TICKS == 0 && everActive && now - lastActiveNanos <= LOG_ACTIVE_WINDOW_NANOS) {
                     logStatus(qosEnabled);
@@ -674,8 +660,7 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
         resources.forEach(Resource::stopTracking);
     }
 
-    private void updateUploadConcurrency(long now, long uploadBytesNow) {
-        final long uploadPauseNanosNow = uploadPauseNanos.sum();
+    private void updateUploadConcurrency(long now) {
         final long readErrorsNow = uploadReadErrors.sum();
         final long writeErrorsNow = uploadWriteErrors.sum();
         final CgroupV2Probe.CpuPressure cpuPressureNow = probes.cpuPressure().get();
@@ -683,13 +668,7 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
 
         final boolean hadStart = trackingInterval;
         final long intervalNanos = now - intervalStartNanos;
-        final long bytes = uploadBytesNow - intervalStartUploadBytes;
-        final long pauseNanos = uploadPauseNanosNow - intervalStartUploadPauseNanos;
         final UploadConcurrencyController.Signals signals = new UploadConcurrencyController.Signals(
-            queuedUploadTasks(),
-            runningUploadTasks.get(),
-            intervalNanos > 0L ? bytes * (double) TimeUnit.SECONDS.toNanos(1) / intervalNanos : 0.0,
-            pauseNanos,
             intervalNanos,
             cpuPressure(intervalStartCpuPressure, cpuPressureNow, intervalNanos),
             throttledMicros(intervalStartCpuThrottling, cpuThrottlingNow),
@@ -698,8 +677,6 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
         );
 
         intervalStartNanos = now;
-        intervalStartUploadBytes = uploadBytesNow;
-        intervalStartUploadPauseNanos = uploadPauseNanosNow;
         intervalStartReadErrors = readErrorsNow;
         intervalStartWriteErrors = writeErrorsNow;
         intervalStartCpuPressure = cpuPressureNow;

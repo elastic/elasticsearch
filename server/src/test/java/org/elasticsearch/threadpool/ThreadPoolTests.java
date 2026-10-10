@@ -372,16 +372,18 @@ public class ThreadPoolTests extends ESTestCase {
         assertThat(getMaxSnapshotThreadPoolSize(allocatedProcessors, ByteSizeValue.ofGb(4)), equalTo(10));
     }
 
-    public void testSnapshotUploadConcurrencyCeiling() {
-        assertThat(ThreadPool.getSnapshotUploadConcurrencyCeiling(0L), equalTo(10));
-        assertThat(ThreadPool.getSnapshotUploadConcurrencyCeiling(ByteSizeValue.ofGb(1).getBytes()), equalTo(10));
-        assertThat(ThreadPool.getSnapshotUploadConcurrencyCeiling(ByteSizeValue.ofGb(2).getBytes()), equalTo(10));
-        assertThat(ThreadPool.getSnapshotUploadConcurrencyCeiling(ByteSizeValue.ofGb(4).getBytes()), equalTo(20));
-        assertThat(ThreadPool.getSnapshotUploadConcurrencyCeiling(ByteSizeValue.ofGb(16).getBytes()), equalTo(80));
-        // no upper bound of its own: the node's actual limit is the lower of this and the indices.recovery.upload_concurrency.max setting
-        assertThat(ThreadPool.getSnapshotUploadConcurrencyCeiling(ByteSizeValue.ofGb(28).getBytes()), equalTo(140));
-        assertThat(ThreadPool.getSnapshotUploadConcurrencyCeiling(ByteSizeValue.ofGb(64).getBytes()), equalTo(320));
-        assertThat(ThreadPool.getSnapshotUploadConcurrencyCeiling(Long.MAX_VALUE / 10), equalTo(Integer.MAX_VALUE));
+    public void testSnapshotUploadConcurrencyTarget() {
+        // 10 below 8GiB, including when the memory is unknown
+        assertThat(ThreadPool.getSnapshotUploadConcurrencyTarget(0L), equalTo(10));
+        assertThat(ThreadPool.getSnapshotUploadConcurrencyTarget(ByteSizeValue.ofGb(2).getBytes()), equalTo(10));
+        assertThat(ThreadPool.getSnapshotUploadConcurrencyTarget(ByteSizeValue.ofGb(4).getBytes()), equalTo(10));
+        assertThat(ThreadPool.getSnapshotUploadConcurrencyTarget(ByteSizeValue.ofGb(8).getBytes() - 1), equalTo(10));
+        assertThat(ThreadPool.getSnapshotUploadConcurrencyTarget(randomLongBetween(0L, ByteSizeValue.ofGb(8).getBytes() - 1)), equalTo(10));
+        // 20 from 8GiB, however large the node
+        assertThat(ThreadPool.getSnapshotUploadConcurrencyTarget(ByteSizeValue.ofGb(8).getBytes()), equalTo(20));
+        assertThat(ThreadPool.getSnapshotUploadConcurrencyTarget(ByteSizeValue.ofGb(16).getBytes()), equalTo(20));
+        assertThat(ThreadPool.getSnapshotUploadConcurrencyTarget(ByteSizeValue.ofGb(64).getBytes()), equalTo(20));
+        assertThat(ThreadPool.getSnapshotUploadConcurrencyTarget(Long.MAX_VALUE), equalTo(20));
     }
 
     public void testMaxSnapshotUploadThreadPoolSize() {
@@ -397,10 +399,14 @@ public class ThreadPoolTests extends ESTestCase {
             getMaxSnapshotUploadThreadPoolSize(allocatedProcessors, smallHeap, randomLongBetween(0L, ByteSizeValue.ofGb(256).getBytes())),
             equalTo(getMaxSnapshotThreadPoolSize(allocatedProcessors, smallHeap))
         );
-        // otherwise sized for the ceiling, but never below the SNAPSHOT pool
+        // otherwise sized for the node's target, but never below the SNAPSHOT pool
         assertThat(
             getMaxSnapshotUploadThreadPoolSize(allocatedProcessors, ByteSizeValue.ofGb(2), ByteSizeValue.ofGb(8).getBytes()),
-            equalTo(40)
+            equalTo(20)
+        );
+        assertThat(
+            getMaxSnapshotUploadThreadPoolSize(allocatedProcessors, ByteSizeValue.ofGb(2), ByteSizeValue.ofGb(4).getBytes()),
+            equalTo(10)
         );
         assertThat(getMaxSnapshotUploadThreadPoolSize(allocatedProcessors, ByteSizeValue.ofGb(2), 0L), equalTo(10));
     }

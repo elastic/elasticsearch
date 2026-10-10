@@ -4069,14 +4069,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             return rateLimitStream;
         }
-        final RateLimitingInputStream.Listener listener = backgroundNetworkQos.wrapUploadThrottleListener(throttleListener);
-        InputStream rateLimitStream = maybeRateLimit(stream, () -> snapshotRateLimiter, listener);
+        InputStream rateLimitStream = maybeRateLimit(stream, () -> snapshotRateLimiter, throttleListener);
         if (backgroundNetworkQos.isBackgroundQosEnabled()) {
             // the snapshot reads each byte from the object store and uploads it, so it uses both background directions
-            rateLimitStream = maybeRateLimit(rateLimitStream, backgroundNetworkQos::getIngressLimiter, listener);
-            rateLimitStream = maybeRateLimit(rateLimitStream, backgroundNetworkQos::getEgressLimiter, listener);
+            rateLimitStream = maybeRateLimit(rateLimitStream, backgroundNetworkQos::getIngressLimiter, throttleListener);
+            rateLimitStream = maybeRateLimit(rateLimitStream, backgroundNetworkQos::getEgressLimiter, throttleListener);
         } else if (recoverySettings.nodeBandwidthSettingsExist()) {
-            rateLimitStream = maybeRateLimit(rateLimitStream, recoverySettings::rateLimiter, listener);
+            rateLimitStream = maybeRateLimit(rateLimitStream, recoverySettings::rateLimiter, throttleListener);
         }
         return backgroundNetworkQos.countUploadBytes(rateLimitStream);
     }

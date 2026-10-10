@@ -716,10 +716,16 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
     }
 
     /**
-     * Shard snapshot upload concurrency of a node with 2GiB of memory, the smallest node size, which is also what the SNAPSHOT pool
-     * allows on nodes with enough heap.
+     * Shard snapshot upload concurrency of a node with less than {@link #LARGE_NODE_MEMORY_BYTES} of memory, which is also what the
+     * SNAPSHOT pool allows on nodes with enough heap.
      */
     static final int MIN_SNAPSHOT_UPLOAD_CONCURRENCY = 10;
+
+    /** Shard snapshot upload concurrency of a node with {@link #LARGE_NODE_MEMORY_BYTES} of memory or more. */
+    static final int LARGE_NODE_SNAPSHOT_UPLOAD_CONCURRENCY = 20;
+
+    /** The node memory from which {@link #LARGE_NODE_SNAPSHOT_UPLOAD_CONCURRENCY} uploads are allowed: 8GiB. */
+    static final long LARGE_NODE_MEMORY_BYTES = ByteSizeUnit.GB.toBytes(8);
 
     /**
      * The size of the {@link Names#SNAPSHOT_UPLOAD} pool, the most shard snapshot uploads a node may run at once. Like the SNAPSHOT pool
@@ -735,20 +741,23 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
         if (maxHeapSize.compareTo(ByteSizeValue.of(750, ByteSizeUnit.MB)) < 0) {
             return snapshotPoolSize;
         }
-        return Math.max(snapshotPoolSize, getSnapshotUploadConcurrencyCeiling(totalMemoryBytes));
+        return Math.max(snapshotPoolSize, getSnapshotUploadConcurrencyTarget(totalMemoryBytes));
     }
 
     /**
-     * The most shard snapshot uploads a node may run at once: 10 for the smallest (2GiB) node, scaled linearly with node memory. Never
-     * below {@link #MIN_SNAPSHOT_UPLOAD_CONCURRENCY}, e.g. when memory is unknown. How many uploads a node actually runs is bounded by
-     * the lower of this and {@code indices.recovery.upload_concurrency.max}, which is where limits other than node size, such as the
-     * connections of the object store client, are applied.
+     * The number of shard snapshot uploads a node runs at once, if nothing holds it back: {@link #MIN_SNAPSHOT_UPLOAD_CONCURRENCY} (10)
+     * below 8GiB of memory, and {@link #LARGE_NODE_SNAPSHOT_UPLOAD_CONCURRENCY} (20) from 8GiB. It is also the most the node can run, as
+     * the {@link Names#SNAPSHOT_UPLOAD} pool is this big. The upload concurrency controller backs off from it under CPU pressure or
+     * upload errors, and {@code indices.recovery.upload_concurrency.max} caps it.
+     * <p>
+     * 10 below 8GiB because in QA the 4GiB pods were CPU-throttled at 10 uploads, so there is no room for more on a node that small.
+     * 20 from 8GiB because in QA on GCP large nodes, more than about 20 concurrent uploads crossed the CPU-pressure guard with no
+     * throughput gain.
      *
      * @param totalMemoryBytes total node memory (the container limit when running in a container), or 0 if unknown
      */
-    static int getSnapshotUploadConcurrencyCeiling(long totalMemoryBytes) {
-        final long scaled = MIN_SNAPSHOT_UPLOAD_CONCURRENCY * Math.max(totalMemoryBytes, 0L) / ByteSizeUnit.GB.toBytes(2);
-        return Math.clamp(scaled, MIN_SNAPSHOT_UPLOAD_CONCURRENCY, Integer.MAX_VALUE);
+    static int getSnapshotUploadConcurrencyTarget(long totalMemoryBytes) {
+        return totalMemoryBytes >= LARGE_NODE_MEMORY_BYTES ? LARGE_NODE_SNAPSHOT_UPLOAD_CONCURRENCY : MIN_SNAPSHOT_UPLOAD_CONCURRENCY;
     }
 
     static class ThreadedRunnable implements Runnable {

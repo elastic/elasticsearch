@@ -18,10 +18,8 @@ import java.util.OptionalLong;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.indices.recovery.UploadConcurrencyController.CONTENDED_CPU_PRESSURE;
-import static org.elasticsearch.indices.recovery.UploadConcurrencyController.CONTENTION_COOLDOWN_INTERVALS;
 import static org.elasticsearch.indices.recovery.UploadConcurrencyController.ERROR_COOLDOWN_INTERVALS;
 import static org.elasticsearch.indices.recovery.UploadConcurrencyController.QUIET_CPU_PRESSURE;
-import static org.elasticsearch.indices.recovery.UploadConcurrencyController.REVERT_COOLDOWN_INTERVALS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -29,21 +27,13 @@ public class UploadConcurrencyControllerTests extends ESTestCase {
 
     private static final long INTERVAL_NANOS = TimeUnit.SECONDS.toNanos(5);
     private static final int FLOOR = 10;
-    private static final int CEILING = 140;
+    private static final int CEILING = 20;
 
     private final UploadConcurrencyController controller = new UploadConcurrencyController(FLOOR, CEILING);
 
-    /** queued work, no limiter waits, every other signal known and quiet */
-    private Signals quiet(double throughput) {
-        return quiet(randomIntBetween(1, 100), controller.getTarget(), throughput);
-    }
-
-    private static Signals quiet(int queued, int running, double throughput) {
+    /** every signal known and quiet, no errors */
+    private static Signals quiet() {
         return new Signals(
-            queued,
-            running,
-            throughput,
-            0L,
             INTERVAL_NANOS,
             OptionalDouble.of(randomDoubleBetween(0.0, QUIET_CPU_PRESSURE, false)),
             OptionalLong.of(0L),
@@ -52,46 +42,27 @@ public class UploadConcurrencyControllerTests extends ESTestCase {
         );
     }
 
-    private static Signals with(Signals s, OptionalDouble cpuPressure, OptionalLong throttledMicros) {
-        return new Signals(
-            s.queued(),
-            s.running(),
-            s.throughputBytesPerSec(),
-            s.limiterPauseNanos(),
-            s.intervalNanos(),
-            cpuPressure,
-            throttledMicros,
-            s.readErrors(),
-            s.uploadErrors()
-        );
+    private static Signals withCpu(Signals s, OptionalDouble cpuPressure, OptionalLong throttledMicros) {
+        return new Signals(s.intervalNanos(), cpuPressure, throttledMicros, s.readErrors(), s.uploadErrors());
     }
 
     private static Signals withErrors(Signals s, long readErrors, long uploadErrors) {
-        return new Signals(
-            s.queued(),
-            s.running(),
-            s.throughputBytesPerSec(),
-            s.limiterPauseNanos(),
-            s.intervalNanos(),
-            s.cpuPressure(),
-            s.throttledMicros(),
-            readErrors,
-            uploadErrors
-        );
+        return new Signals(s.intervalNanos(), s.cpuPressure(), s.throttledMicros(), readErrors, uploadErrors);
     }
 
-    private static Signals withPause(Signals s, long limiterPauseNanos) {
-        return new Signals(
-            s.queued(),
-            s.running(),
-            s.throughputBytesPerSec(),
-            limiterPauseNanos,
-            s.intervalNanos(),
-            s.cpuPressure(),
-            s.throttledMicros(),
-            s.readErrors(),
-            s.uploadErrors()
-        );
+    private static Signals contended() {
+        return withCpu(quiet(), OptionalDouble.of(Math.nextUp(CONTENDED_CPU_PRESSURE)), OptionalLong.of(0L));
+    }
+
+    private static Signals erroring() {
+        return withErrors(quiet(), 0L, randomLongBetween(1, 3));
+    }
+
+    private void climbTo(int target) {
+        while (controller.getTarget() < target) {
+            controller.onInterval(quiet());
+        }
+        assertThat(controller.getTarget(), equalTo(target));
     }
 
     public void testStartsAtFloor() {
@@ -100,310 +71,254 @@ public class UploadConcurrencyControllerTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> new UploadConcurrencyController(10, 9));
     }
 
-    public void testRaisesWhenQueuedAndQuiet() {
-        final Decision decision = controller.onInterval(quiet(100.0));
-        assertThat(decision.action(), equalTo("raise"));
-        assertThat(decision.target(), equalTo(FLOOR + 1));
-        assertThat(controller.getTarget(), equalTo(FLOOR + 1));
-    }
-
-    public void testRaisesByOneWhateverTheTarget() {
-        // additive increase: one more per interval, however large the target is
-        final var big = new UploadConcurrencyController(100, 140);
-        assertThat(big.onInterval(quiet(1, 100, 1000.0)).target(), equalTo(101));
-        assertThat(big.onInterval(quiet(1, 101, 1100.0)).target(), equalTo(102));
-        assertThat(big.onInterval(quiet(1, 102, 1200.0)).target(), equalTo(103));
-    }
-
-    public void testQuietThresholds() {
-        final Signals base = quiet(100.0);
-        // just below the quiet thresholds raises
-        assertThat(
-            controller.onInterval(with(base, OptionalDouble.of(Math.nextDown(QUIET_CPU_PRESSURE)), OptionalLong.of(0L))).action(),
-            equalTo("raise")
-        );
-        controller.reset();
-
-        // at the threshold it holds, with the signal as the reason
-        final Decision pressure = controller.onInterval(with(base, OptionalDouble.of(QUIET_CPU_PRESSURE), OptionalLong.of(0L)));
-        assertThat(pressure.action(), equalTo("hold"));
-        assertThat(pressure.reason(), containsString("cpu pressure"));
-        assertThat(controller.getTarget(), equalTo(FLOOR));
-    }
-
-    public void testNeverRaisesBlind() {
-        final Signals base = quiet(100.0);
-        final var empty = OptionalDouble.empty();
-        final Decision noPressure = controller.onInterval(with(base, empty, base.throttledMicros()));
-        assertThat(noPressure.action(), equalTo("hold"));
-        assertThat(noPressure.reason(), equalTo("cpu pressure unavailable"));
-        final Decision noThrottling = controller.onInterval(with(base, base.cpuPressure(), OptionalLong.empty()));
-        assertThat(noThrottling.action(), equalTo("hold"));
-        assertThat(noThrottling.reason(), equalTo("cpu throttling unavailable"));
-        assertThat(controller.getTarget(), equalTo(FLOOR));
-    }
-
-    public void testUnavailableSignalsDoNotCut() {
-        final Decision decision = controller.onInterval(with(quiet(100.0), OptionalDouble.empty(), OptionalLong.empty()));
-        assertThat(decision.action(), equalTo("hold"));
-    }
-
-    public void testKeepsRaiseAndRaisesAgainInTheSameInterval() {
-        controller.onInterval(quiet(100.0));
-        // each of the 10 uploads brought 10, the 11th brings 6, more than half of that
-        final Decision decision = controller.onInterval(quiet(106.0));
-        assertThat(decision.action(), equalTo("raise"));
-        assertThat(decision.reason(), containsString("kept"));
-        assertThat(decision.target(), equalTo(FLOOR + 2));
-        assertThat(controller.getTarget(), equalTo(FLOOR + 2));
-    }
-
-    public void testKeepRuleIsHalfTheIdealGain() {
-        // at 100 uploads each brings 10 on average, so a raise must bring at least 5
-        final var big = new UploadConcurrencyController(100, 140);
-        big.onInterval(quiet(1, 100, 1000.0));
-        assertThat(big.onInterval(quiet(1, 101, 1004.9)).action(), equalTo("revert"));
-        assertThat(big.getTarget(), equalTo(100));
-
-        final var other = new UploadConcurrencyController(100, 140);
-        other.onInterval(quiet(1, 100, 1000.0));
-        assertThat(other.onInterval(quiet(1, 101, 1005.0)).action(), equalTo("raise"));
-        assertThat(other.getTarget(), equalTo(102));
-    }
-
-    public void testClimbsPastTwentyWhenEachUploadAddsMostOfItsShare() {
-        final int cap = 40;
-        final var climbing = new UploadConcurrencyController(FLOOR, cap);
-        int previous = FLOOR;
-        boolean passedTwenty = false;
-        for (int interval = 0; interval < 60; interval++) {
-            final int target = climbing.getTarget();
-            // 100 per upload at the floor, and every further upload adds 80% of that
-            final double throughput = 100.0 * FLOOR + 80.0 * (target - FLOOR);
-            climbing.onInterval(quiet(10, target, throughput));
-            assertThat(climbing.getTarget(), org.hamcrest.Matchers.greaterThanOrEqualTo(previous));
-            previous = climbing.getTarget();
-            passedTwenty |= previous > 20;
+    public void testClimbsToTheCeilingOneUploadPerInterval() {
+        for (int expected = FLOOR + 1; expected <= CEILING; expected++) {
+            final Decision decision = controller.onInterval(quiet());
+            assertThat(decision.action(), equalTo("raise"));
+            assertThat(decision.target(), equalTo(expected));
+            assertThat(controller.getTarget(), equalTo(expected));
         }
-        assertTrue(passedTwenty);
-        assertThat(climbing.getTarget(), equalTo(cap));
+        final Decision atCeiling = controller.onInterval(quiet());
+        assertThat(atCeiling.action(), equalTo("hold"));
+        assertThat(atCeiling.reason(), equalTo("at ceiling"));
+        assertThat(controller.getTarget(), equalTo(CEILING));
     }
 
-    public void testFlatThroughputIsNoise() {
-        controller.onInterval(quiet(100.0));
-        final Decision flat = controller.onInterval(quiet(100.0));
-        assertThat(flat.action(), equalTo("revert"));
-        assertThat(controller.getTarget(), equalTo(FLOOR));
-        // a little more than flat is still not half the ideal gain
-        final var other = new UploadConcurrencyController(FLOOR, CEILING);
-        other.onInterval(quiet(1, FLOOR, 100.0));
-        assertThat(other.onInterval(quiet(1, FLOOR + 1, 102.0)).action(), equalTo("revert"));
-        // and so is less
-        final var down = new UploadConcurrencyController(FLOOR, CEILING);
-        down.onInterval(quiet(1, FLOOR, 100.0));
-        assertThat(down.onInterval(quiet(1, FLOOR + 1, 90.0)).action(), equalTo("revert"));
-    }
-
-    public void testNoGainFromZeroThroughput() {
-        controller.onInterval(quiet(0.0));
-        assertThat(controller.onInterval(quiet(0.0)).action(), equalTo("revert"));
-    }
-
-    public void testRevertsRaiseWithoutGainAndCoolsDown() {
-        controller.onInterval(quiet(100.0));
-        final Decision decision = controller.onInterval(quiet(104.0));
-        assertThat(decision.action(), equalTo("revert"));
-        assertThat(decision.target(), equalTo(FLOOR));
-        for (int i = 0; i < REVERT_COOLDOWN_INTERVALS; i++) {
-            final Decision hold = controller.onInterval(quiet(100.0));
-            assertThat(hold.action(), equalTo("hold"));
-            assertThat(hold.reason(), equalTo("cooldown"));
-            assertThat(hold.target(), equalTo(FLOOR));
+    public void testTargetIsTheCeilingOnLargeAndSmallNodes() {
+        // 10 on a node below 8GiB: the floor is the ceiling, nothing to climb to
+        final var small = new UploadConcurrencyController(10, 10);
+        assertThat(small.onInterval(quiet()).target(), equalTo(10));
+        assertThat(small.onInterval(quiet()).reason(), equalTo("at ceiling"));
+        // 20 from 8GiB
+        final var large = new UploadConcurrencyController(10, 20);
+        for (int i = 0; i < 30; i++) {
+            large.onInterval(quiet());
         }
-        assertThat(controller.onInterval(quiet(100.0)).action(), equalTo("raise"));
+        assertThat(large.getTarget(), equalTo(20));
     }
 
-    public void testHoldsWhenNothingQueued() {
-        final Decision decision = controller.onInterval(quiet(0, randomIntBetween(0, FLOOR), 100.0));
-        assertThat(decision.action(), equalTo("hold"));
-        assertThat(decision.reason(), equalTo("nothing queued"));
-        assertThat(decision.target(), equalTo(FLOOR));
+    public void testCeilingCappedBySetting() {
+        // a setting below the node's target caps it, and a setting above it does not raise it
+        controller.setCeiling(15);
+        assertThat(controller.getCeiling(), equalTo(15));
+        climbTo(15);
+        assertThat(controller.onInterval(quiet()).reason(), equalTo("at ceiling"));
+        assertThat(controller.getTarget(), equalTo(15));
+        // raised again, it climbs by one per interval and does not jump
+        controller.setCeiling(20);
+        assertThat(controller.onInterval(quiet()).target(), equalTo(16));
+        assertThat(controller.onInterval(quiet()).target(), equalTo(17));
     }
 
-    public void testHoldsWhenLimiterIsWaiting() {
-        final int running = FLOOR;
-        // each running upload paused for 10% of the interval or more
-        final long pauseNanos = INTERVAL_NANOS * running / 10 + randomLongBetween(0L, INTERVAL_NANOS * running);
-        final Decision decision = controller.onInterval(withPause(quiet(randomIntBetween(1, 100), running, 100.0), pauseNanos));
-        assertThat(decision.action(), equalTo("hold"));
-        assertThat(decision.reason(), containsString("limiter wait"));
-        assertThat(decision.target(), equalTo(FLOOR));
-        // just below 10% raises
-        final long lowPauseNanos = INTERVAL_NANOS * running / 10 - 1;
-        assertThat(controller.onInterval(withPause(quiet(1, running, 100.0), lowPauseNanos)).action(), equalTo("raise"));
-    }
-
-    public void testStopsAtCeiling() {
-        final var small = new UploadConcurrencyController(10, 12);
-        assertThat(small.onInterval(quiet(1, 10, 100.0)).target(), equalTo(11));
-        assertThat(small.onInterval(quiet(1, 11, 200.0)).target(), equalTo(12));
-        // the last raise is kept, and there is nothing to raise to
-        final Decision kept = small.onInterval(quiet(1, 12, 300.0));
-        assertThat(kept.action(), equalTo("keep"));
-        assertThat(kept.reason(), containsString("at ceiling"));
-        assertThat(kept.target(), equalTo(12));
-        final Decision decision = small.onInterval(quiet(1, 12, 300.0));
-        assertThat(decision.action(), equalTo("hold"));
-        assertThat(decision.reason(), equalTo("at ceiling"));
-        assertThat(decision.target(), equalTo(12));
-    }
-
-    public void testLoweredCeilingCutsTheTargetAndCancelsProbe() {
-        final double throughput = climbToPendingProbe();
-        final int target = controller.getTarget();
-        controller.setCeiling(target - 5);
-        final Decision decision = controller.onInterval(quiet(throughput));
+    public void testLoweredCeilingCutsTheTarget() {
+        climbTo(CEILING);
+        controller.setCeiling(13);
+        final Decision decision = controller.onInterval(quiet());
         assertThat(decision.action(), equalTo("cut"));
         assertThat(decision.reason(), containsString("ceiling lowered"));
-        assertThat(decision.target(), equalTo(target - 5));
-        assertThat(controller.getCeiling(), equalTo(target - 5));
-        // the probe was cancelled and the target stays at the ceiling
-        final Decision next = controller.onInterval(quiet(0.0));
-        assertThat(next.action(), equalTo("hold"));
-        assertThat(next.reason(), equalTo("at ceiling"));
-        // raised again, it can grow again
-        controller.setCeiling(target + 5);
-        assertThat(controller.onInterval(quiet(0.0)).action(), equalTo("raise"));
+        assertThat(decision.target(), equalTo(13));
+        assertThat(controller.getCeiling(), equalTo(13));
     }
 
     public void testCeilingNeverBelowFloor() {
         controller.setCeiling(1);
         assertThat(controller.getCeiling(), equalTo(FLOOR));
-        assertThat(controller.onInterval(quiet(100.0)).reason(), equalTo("at ceiling"));
+        assertThat(controller.onInterval(quiet()).reason(), equalTo("at ceiling"));
         assertThat(controller.getTarget(), equalTo(FLOOR));
     }
 
-    private static final int CLIMB_STEPS = 20;
-
-    /** Climbs a few steps, each raise kept by doubled throughput, and so one raise per interval, the last one still pending. */
-    private double climbToPendingProbe() {
-        double throughput = 100.0;
-        for (int i = 0; i < CLIMB_STEPS; i++) {
-            controller.onInterval(quiet(throughput));
-            throughput *= 2;
+    public void testHeapGuardedNodeStaysAtTodaysValue() {
+        // today's value is below 10 on a node with little heap, and so is the ceiling: there is nothing above it
+        final int todays = randomIntBetween(1, 5);
+        final var guarded = new UploadConcurrencyController(todays, todays);
+        for (int i = 0; i < 20; i++) {
+            guarded.onInterval(quiet());
+            assertThat(guarded.getTarget(), equalTo(todays));
         }
-        assertThat(controller.getTarget(), equalTo(FLOOR + CLIMB_STEPS));
-        return throughput;
+        // it backs off no lower than today's value either
+        assertThat(guarded.onInterval(contended()).target(), equalTo(todays));
+        assertThat(guarded.onInterval(erroring()).target(), equalTo(todays));
     }
 
-    public void testCutsOnCpuPressureAndCancelsProbe() {
-        final double throughput = climbToPendingProbe();
-        final int target = controller.getTarget();
-        final Decision decision = controller.onInterval(
-            with(quiet(1, target, 0.0), OptionalDouble.of(Math.nextUp(CONTENDED_CPU_PRESSURE)), OptionalLong.of(0L))
-        );
+    public void testCutsToThreeQuartersOnCpuPressure() {
+        climbTo(CEILING);
+        final Decision decision = controller.onInterval(contended());
         assertThat(decision.action(), equalTo("cut"));
         assertThat(decision.reason(), containsString("cpu pressure"));
-        assertThat(decision.target(), equalTo(target * 3 / 4));
-        // the pending probe was cancelled, so low throughput next time does not revert, but the cooldown holds it
-        final Decision next = controller.onInterval(quiet(throughput));
-        assertThat(next.action(), equalTo("hold"));
-        assertThat(next.reason(), equalTo("cooldown"));
+        assertThat(decision.target(), equalTo(15));
+        assertThat(controller.getTarget(), equalTo(15));
     }
 
-    public void testCutsOnThrottling() {
-        final Signals base = quiet(100.0);
+    public void testCutsToThreeQuartersOnThrottling() {
+        climbTo(CEILING);
         // more than 1% of the interval
         final long throttledMicros = randomLongBetween(50_001L, 5_000_000L);
-        final Decision throttled = controller.onInterval(with(base, base.cpuPressure(), OptionalLong.of(throttledMicros)));
-        assertThat(throttled.action(), equalTo("cut"));
-        assertThat(throttled.reason(), containsString("cpu throttled"));
-        assertThat(throttled.target(), equalTo(FLOOR));
-
-        // the threshold itself is not contention
-        controller.reset();
-        final Decision atThreshold = controller.onInterval(with(base, OptionalDouble.of(CONTENDED_CPU_PRESSURE), OptionalLong.of(0L)));
-        assertThat(atThreshold.action(), equalTo("hold"));
+        final Decision decision = controller.onInterval(withCpu(quiet(), quiet().cpuPressure(), OptionalLong.of(throttledMicros)));
+        assertThat(decision.action(), equalTo("cut"));
+        assertThat(decision.reason(), containsString("cpu throttled"));
+        assertThat(decision.target(), equalTo(15));
     }
 
-    public void testBriefThrottlingStopsRaisesButDoesNotCut() {
-        final Signals base = quiet(100.0);
-        // 1% of the interval exactly is not more than 1%
-        final long brief = TimeUnit.NANOSECONDS.toMicros(INTERVAL_NANOS) / 100;
-        final Decision decision = controller.onInterval(with(base, base.cpuPressure(), OptionalLong.of(randomLongBetween(1L, brief))));
-        assertThat(decision.action(), equalTo("hold"));
-        assertThat(decision.reason(), containsString("cpu throttled"));
-        assertThat(controller.getTarget(), equalTo(FLOOR));
+    public void testContentionThresholds() {
+        climbTo(CEILING);
+        // the thresholds themselves are not contention: 1% of the interval throttled, and the pressure threshold
+        final long onePercentMicros = TimeUnit.NANOSECONDS.toMicros(INTERVAL_NANOS) / 100;
+        final Decision atThreshold = controller.onInterval(
+            withCpu(quiet(), OptionalDouble.of(CONTENDED_CPU_PRESSURE), OptionalLong.of(onePercentMicros))
+        );
+        assertThat(atThreshold.action(), equalTo("hold"));
+        assertThat(controller.getTarget(), equalTo(CEILING));
+        // just above either cuts
+        assertThat(controller.onInterval(contended()).action(), equalTo("cut"));
+        controller.reset();
+        climbTo(CEILING);
+        final Decision throttled = controller.onInterval(withCpu(quiet(), quiet().cpuPressure(), OptionalLong.of(onePercentMicros + 1)));
+        assertThat(throttled.action(), equalTo("cut"));
     }
 
     public void testContentionReasonNamesEverySignal() {
-        final Decision decision = controller.onInterval(with(quiet(100.0), OptionalDouble.of(0.5), OptionalLong.of(1_000_000L)));
+        climbTo(CEILING);
+        final Decision decision = controller.onInterval(withCpu(quiet(), OptionalDouble.of(0.5), OptionalLong.of(1_000_000L)));
         assertThat(decision.reason(), containsString("cpu pressure"));
         assertThat(decision.reason(), containsString("cpu throttled"));
     }
 
-    public void testContentionCutStopsAtFloorAndCoolsDown() {
-        final Signals contended = with(quiet(1, FLOOR, 0.0), OptionalDouble.of(1.0), OptionalLong.of(0L));
+    public void testContentionCutStopsAtFloor() {
+        climbTo(13);
+        assertThat(controller.onInterval(contended()).target(), equalTo(FLOOR));
         for (int i = 0; i < 3; i++) {
-            final Decision decision = controller.onInterval(contended);
+            final Decision decision = controller.onInterval(contended());
             assertThat(decision.action(), equalTo("cut"));
             assertThat(decision.target(), equalTo(FLOOR));
         }
-        for (int i = 0; i < CONTENTION_COOLDOWN_INTERVALS; i++) {
-            assertThat(controller.onInterval(quiet(100.0)).action(), equalTo("hold"));
-        }
-        assertThat(controller.onInterval(quiet(100.0)).action(), equalTo("raise"));
     }
 
-    public void testCutsToHalfOnUploadErrors() {
-        final double throughput = climbToPendingProbe();
+    public void testHalvesOnUploadErrors() {
+        climbTo(CEILING);
         final long readErrors = randomLongBetween(0, 3);
         final long uploadErrors = readErrors == 0 ? randomLongBetween(1, 3) : randomLongBetween(0, 3);
-        final int target = controller.getTarget();
-        final Decision decision = controller.onInterval(withErrors(quiet(1, target, 0.0), readErrors, uploadErrors));
+        final Decision decision = controller.onInterval(withErrors(quiet(), readErrors, uploadErrors));
         assertThat(decision.action(), equalTo("cut"));
-        assertThat(decision.target(), equalTo(target / 2));
+        assertThat(decision.target(), equalTo(CEILING / 2));
         assertThat(decision.reason(), containsString(readErrors + " reading the source"));
         assertThat(decision.reason(), containsString(uploadErrors + " writing to the repository"));
-
-        // the pending probe was cancelled and raising waits for the cooldown
-        for (int i = 0; i < ERROR_COOLDOWN_INTERVALS; i++) {
-            final Decision hold = controller.onInterval(quiet(throughput));
-            assertThat(hold.action(), equalTo("hold"));
-            assertThat(hold.reason(), equalTo("cooldown"));
-        }
-        assertThat(controller.onInterval(quiet(throughput)).action(), equalTo("raise"));
-    }
-
-    public void testErrorsBeatContentionAndLongCooldownIsKept() {
-        // errors and contention in the same interval: the errors rule applies
-        climbToPendingProbe();
-        final int target = controller.getTarget();
-        final Signals both = withErrors(with(quiet(1, target, 0.0), OptionalDouble.of(1.0), OptionalLong.of(0L)), 0L, 1L);
-        final Decision decision = controller.onInterval(both);
-        assertThat(decision.target(), equalTo(target / 2));
-        assertThat(decision.reason(), containsString("upload errors"));
-
-        // a contention cut right after must not shorten the cooldown the errors started
-        controller.onInterval(with(quiet(1, target / 2, 0.0), OptionalDouble.of(1.0), OptionalLong.of(0L)));
-        for (int i = 0; i < ERROR_COOLDOWN_INTERVALS - 1; i++) {
-            assertThat(controller.onInterval(quiet(100.0)).action(), equalTo("hold"));
-        }
-        assertThat(controller.onInterval(quiet(100.0)).action(), equalTo("raise"));
     }
 
     public void testErrorCutStopsAtFloor() {
-        final Decision decision = controller.onInterval(withErrors(quiet(1, FLOOR, 0.0), 1L, 0L));
-        assertThat(decision.action(), equalTo("cut"));
-        assertThat(decision.target(), equalTo(FLOOR));
+        climbTo(FLOOR + 3);
+        // half of 13 is below the floor
+        assertThat(controller.onInterval(erroring()).target(), equalTo(FLOOR));
+        assertThat(controller.onInterval(erroring()).target(), equalTo(FLOOR));
+    }
+
+    public void testErrorCooldownThenGradualRecovery() {
+        climbTo(CEILING);
+        controller.onInterval(erroring());
+        assertThat(controller.getTarget(), equalTo(FLOOR));
+        // no recovery during the cooldown, however quiet the node is
+        for (int i = 0; i < ERROR_COOLDOWN_INTERVALS; i++) {
+            final Decision hold = controller.onInterval(quiet());
+            assertThat(hold.action(), equalTo("hold"));
+            assertThat(hold.reason(), equalTo("error cooldown"));
+            assertThat(hold.target(), equalTo(FLOOR));
+        }
+        // then one more per interval
+        assertThat(controller.onInterval(quiet()).target(), equalTo(FLOOR + 1));
+        assertThat(controller.onInterval(quiet()).target(), equalTo(FLOOR + 2));
+    }
+
+    public void testErrorsInTheCooldownRestartIt() {
+        climbTo(CEILING);
+        controller.onInterval(erroring());
+        for (int i = 0; i < ERROR_COOLDOWN_INTERVALS - 1; i++) {
+            assertThat(controller.onInterval(quiet()).action(), equalTo("hold"));
+        }
+        controller.onInterval(erroring());
+        for (int i = 0; i < ERROR_COOLDOWN_INTERVALS; i++) {
+            assertThat(controller.onInterval(quiet()).reason(), equalTo("error cooldown"));
+        }
+        assertThat(controller.onInterval(quiet()).action(), equalTo("raise"));
+    }
+
+    public void testErrorsBeatContention() {
+        climbTo(CEILING);
+        final Decision decision = controller.onInterval(withErrors(contended(), 0L, 1L));
+        assertThat(decision.target(), equalTo(CEILING / 2));
+        assertThat(decision.reason(), containsString("upload errors"));
+    }
+
+    public void testGradualRecoveryAfterContention() {
+        climbTo(CEILING);
+        assertThat(controller.onInterval(contended()).target(), equalTo(15));
+        // there is no cooldown after contention, but the target never jumps straight back
+        for (int expected = 16; expected <= CEILING; expected++) {
+            final Decision decision = controller.onInterval(quiet());
+            assertThat(decision.action(), equalTo("raise"));
+            assertThat(decision.target(), equalTo(expected));
+        }
+        assertThat(controller.onInterval(quiet()).reason(), equalTo("at ceiling"));
+    }
+
+    public void testNoRecoveryWhileCpuIsNotQuiet() {
+        climbTo(CEILING);
+        controller.onInterval(contended());
+        final int target = controller.getTarget();
+        // between quiet and contended, the target holds
+        final Decision pressure = controller.onInterval(withCpu(quiet(), OptionalDouble.of(QUIET_CPU_PRESSURE), OptionalLong.of(0L)));
+        assertThat(pressure.action(), equalTo("hold"));
+        assertThat(pressure.reason(), containsString("cpu pressure"));
+        // brief throttling, 1% of the interval or less, stops recovery but does not cut
+        final long brief = TimeUnit.NANOSECONDS.toMicros(INTERVAL_NANOS) / 100;
+        final Decision throttled = controller.onInterval(
+            withCpu(quiet(), quiet().cpuPressure(), OptionalLong.of(randomLongBetween(1L, brief)))
+        );
+        assertThat(throttled.action(), equalTo("hold"));
+        assertThat(throttled.reason(), containsString("cpu throttled"));
+        assertThat(controller.getTarget(), equalTo(target));
+        // just below the quiet threshold recovers
+        final Signals justQuiet = withCpu(quiet(), OptionalDouble.of(Math.nextDown(QUIET_CPU_PRESSURE)), OptionalLong.of(0L));
+        assertThat(controller.onInterval(justQuiet).target(), equalTo(target + 1));
+    }
+
+    public void testProbeUnavailableNeverRaisesAboveTodaysValue() {
+        final var noPressure = withCpu(quiet(), OptionalDouble.empty(), OptionalLong.of(0L));
+        final var noThrottling = withCpu(quiet(), OptionalDouble.of(0.0), OptionalLong.empty());
+        final var neither = withCpu(quiet(), OptionalDouble.empty(), OptionalLong.empty());
+        for (int i = 0; i < 20; i++) {
+            final Signals signals = randomFrom(noPressure, noThrottling, neither);
+            final Decision decision = controller.onInterval(signals);
+            assertThat(decision.action(), equalTo("hold"));
+            assertThat(decision.reason(), containsString("unavailable"));
+            assertThat(controller.getTarget(), equalTo(FLOOR));
+        }
+        assertThat(controller.onInterval(noPressure).reason(), equalTo("cpu pressure unavailable"));
+        assertThat(controller.onInterval(noThrottling).reason(), equalTo("cpu throttling unavailable"));
+    }
+
+    public void testUnavailableSignalsStillBackOffOnErrorsAndOnTheOtherSignal() {
+        climbTo(CEILING);
+        // a signal that is not available does not count as contention, and does not move the target
+        assertThat(controller.onInterval(withCpu(quiet(), OptionalDouble.empty(), OptionalLong.empty())).target(), equalTo(CEILING));
+        // the one that is available still does
+        final Signals onlyPressure = withCpu(quiet(), OptionalDouble.of(1.0), OptionalLong.empty());
+        assertThat(controller.onInterval(onlyPressure).target(), equalTo(15));
+        final Signals onlyThrottling = withCpu(quiet(), OptionalDouble.empty(), OptionalLong.of(1_000_000L));
+        assertThat(controller.onInterval(onlyThrottling).target(), equalTo(15 * 3 / 4));
+        // and errors need no probe at all
+        climbTo(CEILING);
+        assertThat(
+            controller.onInterval(withErrors(withCpu(quiet(), OptionalDouble.empty(), OptionalLong.empty()), 1L, 0L)).target(),
+            equalTo(CEILING / 2)
+        );
     }
 
     public void testReset() {
-        controller.onInterval(quiet(100.0));
+        controller.onInterval(quiet());
         assertThat(controller.getTarget(), equalTo(FLOOR + 1));
+        controller.onInterval(erroring());
         controller.reset();
         assertThat(controller.getTarget(), equalTo(FLOOR));
-        // no pending probe after a reset
-        assertThat(controller.onInterval(quiet(0.0)).action(), equalTo("raise"));
+        // no cooldown after a reset
+        assertThat(controller.onInterval(quiet()).action(), equalTo("raise"));
     }
 }

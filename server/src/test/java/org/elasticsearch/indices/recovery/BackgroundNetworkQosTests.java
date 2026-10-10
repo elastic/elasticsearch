@@ -951,6 +951,64 @@ public class BackgroundNetworkQosTests extends ESTestCase {
         }
     }
 
+    public void testBudgetBacksOffAndRecoversToTheNodeTarget() {
+        // a node with the target of an 8GiB node: today's concurrency is 10 and the pool allows 20
+        final ThreadPool largeThreadPool = new TestThreadPool(
+            getTestName() + "-large",
+            Settings.builder()
+                .put("thread_pool.snapshot.core", 1)
+                .put("thread_pool.snapshot.max", 10)
+                .put("thread_pool.snapshot_upload.core", 1)
+                .put("thread_pool.snapshot_upload.max", 20)
+                .build()
+        );
+        try {
+            final TestNode node = new TestNode(Settings.EMPTY, true, largeThreadPool);
+            node.apply(adaptive(true));
+            runUploadConcurrencyInterval(node);
+            assertThat(node.qos.getUploadBudget(), equalTo(10));
+
+            // quiet: one more per interval up to the target, and no further
+            for (int expected = 11; expected <= 20; expected++) {
+                runUploadConcurrencyInterval(node);
+                assertThat(node.qos.getUploadBudget(), equalTo(expected));
+            }
+            runUploadConcurrencyInterval(node);
+            assertThat(node.qos.getUploadBudget(), equalTo(20));
+
+            // cpu pressure over the interval: three quarters, then back up one at a time
+            node.probes.cpuPressure.set(new CgroupV2Probe.CpuPressure(1_000_000L));
+            runUploadConcurrencyInterval(node);
+            assertThat(node.qos.getUploadBudget(), equalTo(15));
+            runUploadConcurrencyInterval(node);
+            assertThat(node.qos.getUploadBudget(), equalTo(16));
+
+            // upload errors: half, and no recovery while the cooldown runs
+            node.qos.onUploadWriteError();
+            runUploadConcurrencyInterval(node);
+            assertThat(node.qos.getUploadBudget(), equalTo(10));
+            for (int i = 0; i < UploadConcurrencyController.ERROR_COOLDOWN_INTERVALS; i++) {
+                runUploadConcurrencyInterval(node);
+                assertThat(node.qos.getUploadBudget(), equalTo(10));
+            }
+            runUploadConcurrencyInterval(node);
+            assertThat(node.qos.getUploadBudget(), equalTo(11));
+
+            // a probe that cannot be read stops the recovery
+            node.probes.cpuThrottling.set(null);
+            runUploadConcurrencyInterval(node);
+            assertThat(node.qos.getUploadBudget(), equalTo(11));
+        } finally {
+            terminate(largeThreadPool);
+        }
+    }
+
+    private static void runUploadConcurrencyInterval(TestNode node) {
+        for (int i = 0; i < UPLOAD_CONCURRENCY_INTERVAL_TICKS; i++) {
+            node.tick();
+        }
+    }
+
     public void testHeapGuardedNodeNeverGrows() {
         // a node where today's heap guard applies has an upload pool that is the SNAPSHOT pool's size
         final int snapshotMax = randomIntBetween(1, 5);

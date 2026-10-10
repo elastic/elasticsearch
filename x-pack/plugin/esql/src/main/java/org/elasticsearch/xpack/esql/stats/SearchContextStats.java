@@ -59,6 +59,9 @@ public class SearchContextStats implements SearchStats {
 
     private final List<SearchExecutionContext> contexts;
 
+    /** Computed on first use: it inspects the segments of every shard. */
+    private Boolean mayHoldUnmappedFields;
+
     private record FieldConfig(boolean exists, boolean hasExactSubfield, boolean indexed, boolean hasDocValues, MappedFieldType fieldType) {
         FieldConfig(boolean exists, boolean hasExactSubfield, boolean indexed, boolean hasDocValues) {
             this(exists, hasExactSubfield, indexed, hasDocValues, null);
@@ -159,6 +162,38 @@ public class SearchContextStats implements SearchStats {
 
     private static boolean isNestedSubfield(SearchExecutionContext context, String field) {
         return context.nestedLookup().hasNestedParent(field);
+    }
+
+    @Override
+    public boolean mayHoldUnmappedFields() {
+        if (mayHoldUnmappedFields == null) {
+            boolean mayHold = false;
+            for (SearchExecutionContext context : contexts) {
+                if (context.mayHoldUnmappedFields()) {
+                    mayHold = true;
+                    break;
+                }
+            }
+            mayHoldUnmappedFields = mayHold;
+        }
+        return mayHoldUnmappedFields;
+    }
+
+    @Override
+    public boolean mayHoldUnmappedField(FieldName field) {
+        if (mayHoldUnmappedFields()) {
+            return true;
+        }
+        String name = field.string();
+        for (int dot = name.lastIndexOf('.'); dot > 0; dot = name.lastIndexOf('.', dot - 1)) {
+            String ancestor = name.substring(0, dot);
+            for (SearchExecutionContext context : contexts) {
+                if (context.isMappedField(ancestor)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     @Override

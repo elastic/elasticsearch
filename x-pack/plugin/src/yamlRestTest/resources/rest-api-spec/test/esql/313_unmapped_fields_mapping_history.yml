@@ -1,0 +1,152 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_all_v2 ]
+      reason: >
+        A shard that cannot hold an unmapped field is not read for one. These tests pin the cases where a shard must
+        still be read although its current mapping maps every field: a mapping that used to keep unmapped fields, and
+        a dynamic field skipped for exceeding the field limit. They also pin what such a shard returns when it is not read.
+
+  # Indexed under dynamic:false, so "extra" stays in _source only. The mapping is tightened afterwards.
+  - do:
+      indices.create:
+        index: unmapped-history
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+  - do:
+      index:
+        index: unmapped-history
+        id: "1"
+        refresh: true
+        body:
+          id: "1"
+          extra: "kept"
+  - do:
+      indices.put_mapping:
+        index: unmapped-history
+        body:
+          dynamic: true
+
+  # Every field is mapped, and nothing was ever skipped. "span" keeps an object under its own name.
+  - do:
+      indices.create:
+        index: unmapped-none
+        body:
+          mappings:
+            properties:
+              id:
+                type: keyword
+              span:
+                type: integer_range
+  - do:
+      index:
+        index: unmapped-none
+        id: "1"
+        refresh: true
+        body:
+          id: "1"
+          span:
+            gte: 1
+            lt: 5
+
+  # Stored source and a dynamic mapping: f2 does not fit the field limit, so it is neither mapped nor rejected.
+  - do:
+      indices.create:
+        index: unmapped-beyond-limit
+        body:
+          settings:
+            index:
+              mapping:
+                total_fields:
+                  limit: 2
+                  ignore_dynamic_beyond_limit: true
+          mappings:
+            properties:
+              id:
+                type: keyword
+  - do:
+      index:
+        index: unmapped-beyond-limit
+        id: "1"
+        refresh: true
+        body:
+          id: "1"
+          f1: 1
+          f2: 2
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: unmapped-history,unmapped-none,unmapped-beyond-limit
+        ignore_unavailable: true
+
+---
+'a field kept before the mapping was tightened is still discovered':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM unmapped-history | LIMIT 5'
+  - length: { columns: 2 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: extra }
+  - match: { columns.1.type: keyword }
+  - match: { values.0: [ "1", "kept" ] }
+
+---
+'a field kept before the mapping was tightened is still loaded by name':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD"; FROM unmapped-history | WHERE extra == "kept" | KEEP id, extra | LIMIT 5'
+  - length: { values: 1 }
+  - match: { values.0: [ "1", "kept" ] }
+
+---
+'a dynamic field skipped for exceeding the field limit is still discovered':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM unmapped-beyond-limit | KEEP id, f* | LIMIT 5'
+  - length: { columns: 3 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: f1 }
+  - match: { columns.1.type: long }
+  - match: { columns.2.name: f2 }
+  - match: { columns.2.type: keyword }
+  - match: { values.0: [ "1", 1, "2" ] }
+
+---
+'an unmapped name reads as null where every field is mapped':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD"; FROM unmapped-none | KEEP id, nowhere | LIMIT 5'
+  - match: { columns.1.name: nowhere }
+  - match: { columns.1.type: keyword }
+  - match: { values.0: [ "1", null ] }
+
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD"; FROM unmapped-none | WHERE nowhere == "x" | KEEP id | LIMIT 5'
+  - length: { values: 0 }
+
+---
+'a key below a mapped field is still read by name':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD"; FROM unmapped-none | KEEP id, span.gte | LIMIT 5'
+  - match: { columns.1.name: span.gte }
+  - match: { columns.1.type: keyword }
+  - match: { values.0: [ "1", "1" ] }

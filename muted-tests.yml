@@ -639,3 +639,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/161607
 - class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/161608
+- class: org.elasticsearch.xpack.esql.datasource.parquet.OptimizedParquetColumnIteratorReadinessTests
+  method: testNoMatchReleasesGroupReservation
+  issue: https://github.com/elastic/elasticsearch/issues/161623

@@ -70,7 +70,7 @@ class RetryableStorageProvider implements StorageProvider {
 
     @Override
     public StorageEntry objectMetadata(StoragePath path) throws IOException {
-        return delegate.objectMetadata(path);
+        return policyFor(path).execute(() -> delegate.objectMetadata(path), "objectMetadata", path);
     }
 
     @Override

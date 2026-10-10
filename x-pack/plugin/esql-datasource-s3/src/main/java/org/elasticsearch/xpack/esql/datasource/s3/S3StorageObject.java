@@ -769,16 +769,30 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     StorageEntry headObjectMetadata() throws IOException {
         try {
             HeadObjectResponse response = s3Client.headObject(HeadObjectRequest.builder().bucket(bucket).key(key).build());
+            Long length = response.contentLength();
+            if (length == null) {
+                throw new IOException("Failed to determine external object size: HeadObject response carried no Content-Length");
+            }
+            StorageEntry entry = new StorageEntry(path, length, response.lastModified());
             ExternalPlanningIo.addMetadataGet(0);
-            return new StorageEntry(path, response.contentLength(), response.lastModified());
-        } catch (NoSuchKeyException e) {
-            ExternalPlanningIo.addMetadataGet(0);
-            throw new ExternalClientException(ExternalClientException.Condition.OBJECT_NOT_FOUND, path, "", "");
+            return entry;
         } catch (Exception e) {
             ExternalPlanningIo.addMetadataGet(0);
+            if (e instanceof IOException io && e instanceof SdkException == false) {
+                throw io;
+            }
             Exception mapped = mapReadFailure("Failed to read object metadata for", e);
             if (mapped instanceof ExternalCredentialsExpiredException expired) {
                 throw expired;
+            }
+            if (e instanceof S3Exception s3e && s3e.statusCode() == 403) {
+                // A refusal arrives with no response body, so it carries no S3 error code and cannot say WHICH
+                // action was denied: GetObject, an anonymous request, or kms:Decrypt on the object's key. All
+                // three would collapse into one unactionable message. Spend a range GET to recover the body and
+                // its code. Paid only when the query is already failing, so the single-request success path above
+                // is unaffected.
+                probeObjectViaRangeGet();
+                return new StorageEntry(path, cachedLength, cachedLastModified);
             }
             throw throwReadFailure("Failed to read object metadata for", e);
         }
@@ -812,9 +826,9 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 throw archived;
             }
             if (e instanceof S3Exception s3e && s3e.statusCode() == 403) {
-                // Only reachable after the first range GET already failed for some OTHER reason, so this retries
-                // that transient failure rather than a denial. A denied first GET never arrives here: probeObject
-                // throws on its own 403 instead of trying HEAD.
+                // Never a retry of a denial: probeObject throws on its own 403 rather than trying HEAD, so a
+                // first GET that was refused cannot reach here. What does reach here is a first GET that failed
+                // for an unrelated reason, or one that succeeded without a Content-Range.
                 probeObjectViaRangeGet();
             } else {
                 throw throwReadFailure("HeadObject request failed for", e);

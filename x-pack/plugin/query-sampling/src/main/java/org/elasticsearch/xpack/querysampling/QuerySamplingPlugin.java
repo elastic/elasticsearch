@@ -28,9 +28,11 @@ import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
+import org.elasticsearch.xpack.querysampling.action.QuerySamplingGoldenPromoteAction;
 import org.elasticsearch.xpack.querysampling.action.QuerySamplingGroundTruthAction;
 import org.elasticsearch.xpack.querysampling.action.QuerySamplingRecallAction;
 import org.elasticsearch.xpack.querysampling.action.QuerySamplingStatsAction;
+import org.elasticsearch.xpack.querysampling.action.TransportQuerySamplingGoldenPromoteAction;
 import org.elasticsearch.xpack.querysampling.action.TransportQuerySamplingGroundTruthAction;
 import org.elasticsearch.xpack.querysampling.action.TransportQuerySamplingRecallAction;
 import org.elasticsearch.xpack.querysampling.action.TransportQuerySamplingStatsAction;
@@ -39,6 +41,7 @@ import org.elasticsearch.xpack.querysampling.capture.QueryCaptureFilter;
 import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
 import org.elasticsearch.xpack.querysampling.groundtruth.CostBudget;
 import org.elasticsearch.xpack.querysampling.groundtruth.GroundTruthWorker;
+import org.elasticsearch.xpack.querysampling.rest.RestQuerySamplingGoldenPromoteAction;
 import org.elasticsearch.xpack.querysampling.rest.RestQuerySamplingGroundTruthAction;
 import org.elasticsearch.xpack.querysampling.rest.RestQuerySamplingRecallAction;
 import org.elasticsearch.xpack.querysampling.rest.RestQuerySamplingStatsAction;
@@ -47,6 +50,7 @@ import org.elasticsearch.xpack.querysampling.sampling.PickBudget;
 import org.elasticsearch.xpack.querysampling.sampling.QuerySampler;
 import org.elasticsearch.xpack.querysampling.sampling.SelectivityStrata;
 import org.elasticsearch.xpack.querysampling.sampling.SpatialStrata;
+import org.elasticsearch.xpack.querysampling.storage.GoldenIndex;
 import org.elasticsearch.xpack.querysampling.storage.QuerySamplingIndex;
 import org.elasticsearch.xpack.querysampling.storage.SampleRetention;
 import org.elasticsearch.xpack.querysampling.storage.SampleWriter;
@@ -186,7 +190,8 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
         return List.of(
             new ActionHandler(QuerySamplingStatsAction.INSTANCE, TransportQuerySamplingStatsAction.class),
             new ActionHandler(QuerySamplingGroundTruthAction.INSTANCE, TransportQuerySamplingGroundTruthAction.class),
-            new ActionHandler(QuerySamplingRecallAction.INSTANCE, TransportQuerySamplingRecallAction.class)
+            new ActionHandler(QuerySamplingRecallAction.INSTANCE, TransportQuerySamplingRecallAction.class),
+            new ActionHandler(QuerySamplingGoldenPromoteAction.INSTANCE, TransportQuerySamplingGoldenPromoteAction.class)
         );
     }
 
@@ -199,7 +204,12 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
         if (QUERY_SAMPLING_FEATURE_FLAG.isEnabled() == false) {
             return List.of();
         }
-        return List.of(new RestQuerySamplingStatsAction(), new RestQuerySamplingGroundTruthAction(), new RestQuerySamplingRecallAction());
+        return List.of(
+            new RestQuerySamplingStatsAction(),
+            new RestQuerySamplingGroundTruthAction(),
+            new RestQuerySamplingRecallAction(),
+            new RestQuerySamplingGoldenPromoteAction()
+        );
     }
 
     @Override
@@ -207,7 +217,7 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
         if (QUERY_SAMPLING_FEATURE_FLAG.isEnabled() == false) {
             return List.of();
         }
-        return List.of(QuerySamplingIndex.descriptor());
+        return List.of(QuerySamplingIndex.descriptor(), GoldenIndex.descriptor());
     }
 
     @Override

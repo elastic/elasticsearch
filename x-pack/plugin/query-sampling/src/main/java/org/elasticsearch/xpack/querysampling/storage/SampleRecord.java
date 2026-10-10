@@ -108,6 +108,21 @@ public final class SampleRecord {
         builder.field("updated_at", nowMillis);
         builder.field("has_ground_truth", groundTruth != null);
 
+        query(builder, query);
+        liveHits(builder, search);
+
+        if (groundTruth != null) {
+            builder.startObject("ground_truth");
+            groundTruth(builder, groundTruth);
+            builder.endObject();
+        }
+        return builder.endObject();
+    }
+
+    /**
+     * The object that holds the query as it was searched.
+     */
+    static void query(XContentBuilder builder, CapturedQuery query) throws IOException {
         builder.startObject("query");
         builder.field("query_vector", query.queryVector());
         builder.field("num_candidates", query.numCandidates());
@@ -126,18 +141,25 @@ public final class SampleRecord {
             builder.field("opaque_id", query.opaqueId());
         }
         builder.endObject();
+    }
 
+    /**
+     * The object that holds what the live search answered.
+     */
+    static void liveHits(XContentBuilder builder, CapturedSearch search) throws IOException {
         builder.startObject("live_hits");
         builder.field("took_millis", search.tookMillis());
         hits(builder, "hits", search.hits());
         builder.endObject();
+    }
 
-        if (groundTruth != null) {
-            builder.startObject("ground_truth");
-            groundTruth(builder, groundTruth);
-            builder.endObject();
-        }
-        return builder.endObject();
+    /**
+     * The object that holds the ground truth.
+     */
+    static void groundTruthObject(XContentBuilder builder, GroundTruth groundTruth) throws IOException {
+        builder.startObject("ground_truth");
+        groundTruth(builder, groundTruth);
+        builder.endObject();
     }
 
     /**
@@ -281,7 +303,7 @@ public final class SampleRecord {
         }
     }
 
-    private static void weights(XContentBuilder builder, TrackedQuery.Weights weights) throws IOException {
+    static void weights(XContentBuilder builder, TrackedQuery.Weights weights) throws IOException {
         builder.field("multiplicity", weights.multiplicity());
         builder.field("weighted_multiplicity", weights.weightedMultiplicity());
         builder.field("inclusion_probability", weights.inclusionProbability());

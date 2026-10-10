@@ -119,7 +119,7 @@ abstract class QuerySamplingRestTestCase extends ESRestTestCase {
     /**
      * The index of the sample is a system index: reading it directly is allowed, but gets a deprecation warning.
      */
-    private static RequestOptions systemIndexAccess() {
+    static RequestOptions systemIndexAccess() {
         return RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build();
     }
 }

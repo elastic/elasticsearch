@@ -16,11 +16,13 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
+import org.elasticsearch.xpack.core.security.authz.support.DlsLookup;
 import org.elasticsearch.xpack.core.security.authz.support.SecurityQueryTemplateEvaluator.DlsQueryEvaluationContext;
 import org.elasticsearch.xpack.core.security.support.CacheKey;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -127,6 +129,37 @@ public class IndicesAccessControl {
 
     public List<String> getIndicesWithDocumentLevelSecurity() {
         return getIndexNames(iac -> iac.documentPermissions.hasDocumentLevelPermissions());
+    }
+
+    /**
+     * The union of the {@link DlsLookup}s declared by the DLS queries of every index in this access control. These are the
+     * lookups the coordinating node must resolve before the action is dispatched. Indices sharing equal document permissions
+     * are only inspected once, since the lookups are a function of the queries alone.
+     */
+    public Set<DlsLookup> getDlsLookups() {
+        Set<DlsLookup> lookups = null;
+        Set<DocumentPermissions> inspected = null;
+        for (IndexAccessControl iac : getAllIndexPermissions().values()) {
+            final DocumentPermissions documentPermissions = iac.documentPermissions;
+            if (documentPermissions.hasDocumentLevelPermissions() == false) {
+                continue;
+            }
+            if (inspected == null) {
+                inspected = new HashSet<>();
+            }
+            if (inspected.add(documentPermissions) == false) {
+                continue;
+            }
+            final Set<DlsLookup> declared = documentPermissions.getDlsLookups();
+            if (declared.isEmpty()) {
+                continue;
+            }
+            if (lookups == null) {
+                lookups = new HashSet<>();
+            }
+            lookups.addAll(declared);
+        }
+        return lookups == null ? Set.of() : Collections.unmodifiableSet(lookups);
     }
 
     private List<String> getIndexNames(Predicate<IndexAccessControl> predicate) {

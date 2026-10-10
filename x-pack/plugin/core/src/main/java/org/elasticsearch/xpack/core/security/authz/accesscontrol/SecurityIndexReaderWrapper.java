@@ -23,6 +23,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
+import org.elasticsearch.xpack.core.security.authz.support.ResolvedDlsLookups;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -90,7 +91,13 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
             DirectoryReader wrappedReader = reader;
             DocumentPermissions documentPermissions = permissions.getDocumentPermissions();
             if (documentPermissions.hasDocumentLevelPermissions()) {
-                BooleanQuery filterQuery = documentPermissions.filter(getUser(), scriptService, shardId, searchExecutionContextProvider);
+                BooleanQuery filterQuery = documentPermissions.filter(
+                    getUser(),
+                    getResolvedDlsLookups(),
+                    scriptService,
+                    shardId,
+                    searchExecutionContextProvider
+                );
                 if (filterQuery != null) {
                     wrappedReader = DocumentSubsetReader.wrap(wrappedReader, bitsetCache, new ConstantScoreQuery(filterQuery));
                 }
@@ -117,6 +124,10 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
 
     protected User getUser() {
         return Objects.requireNonNull(securityContext.getUser());
+    }
+
+    protected ResolvedDlsLookups getResolvedDlsLookups() {
+        return securityContext.getResolvedDlsLookups();
     }
 
 }

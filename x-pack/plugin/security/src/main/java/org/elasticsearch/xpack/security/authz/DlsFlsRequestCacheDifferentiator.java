@@ -61,7 +61,11 @@ public class DlsFlsRequestCacheDifferentiator implements CheckedBiConsumer<Shard
             );
             indexAccessControl.buildCacheKey(
                 out,
-                SecurityQueryTemplateEvaluator.wrap(securityContext.getUser(), scriptServiceReference.get())
+                SecurityQueryTemplateEvaluator.wrap(
+                    securityContext.getUser(),
+                    scriptServiceReference.get(),
+                    securityContext.getResolvedDlsLookups()
+                )
             );
         }
     }

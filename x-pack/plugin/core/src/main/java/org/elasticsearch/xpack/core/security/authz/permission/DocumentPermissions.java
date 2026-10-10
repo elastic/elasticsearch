@@ -25,12 +25,16 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
+import org.elasticsearch.xpack.core.security.authz.support.DlsLookup;
+import org.elasticsearch.xpack.core.security.authz.support.ResolvedDlsLookups;
 import org.elasticsearch.xpack.core.security.authz.support.SecurityQueryTemplateEvaluator;
 import org.elasticsearch.xpack.core.security.authz.support.SecurityQueryTemplateEvaluator.DlsQueryEvaluationContext;
 import org.elasticsearch.xpack.core.security.support.CacheKey;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -53,6 +57,9 @@ public final class DocumentPermissions implements CacheKey {
     private final List<Set<BytesReference>> listOfQueries;
     @Nullable
     private List<List<String>> listOfEvaluatedQueries;
+    // Lazily derived from listOfQueries, so it is a pure function of the state that equals/hashCode already cover.
+    @Nullable
+    private Set<DlsLookup> dlsLookups;
 
     private static final DocumentPermissions ALLOW_ALL = new DocumentPermissions();
 
@@ -91,6 +98,26 @@ public final class DocumentPermissions implements CacheKey {
         return listOfQueries != null;
     }
 
+    /**
+     * The {@link DlsLookup}s declared by any of the queries, in declaration order. Empty when there is no DLS or no query declares
+     * a lookup. Parsed on first use and cached for the lifetime of this instance.
+     */
+    public Set<DlsLookup> getDlsLookups() {
+        if (listOfQueries == null) {
+            return Set.of();
+        }
+        if (dlsLookups == null) {
+            final Set<DlsLookup> lookups = new LinkedHashSet<>();
+            for (Set<BytesReference> queries : listOfQueries) {
+                for (BytesReference query : queries) {
+                    lookups.addAll(DlsLookup.extractFromRoleQuery(query));
+                }
+            }
+            dlsLookups = lookups.isEmpty() ? Set.of() : Collections.unmodifiableSet(lookups);
+        }
+        return dlsLookups;
+    }
+
     public boolean hasStoredScript() throws IOException {
         if (listOfQueries != null) {
             for (Set<BytesReference> queries : listOfQueries) {
@@ -123,8 +150,23 @@ public final class DocumentPermissions implements CacheKey {
         ShardId shardId,
         Function<ShardId, SearchExecutionContext> searchExecutionContextProvider
     ) throws IOException {
+        return filter(user, ResolvedDlsLookups.EMPTY, scriptService, shardId, searchExecutionContextProvider);
+    }
+
+    /**
+     * Like {@link #filter(User, ScriptService, ShardId, Function)} but also supplies the values resolved for any
+     * {@link DlsLookup}s the queries declare, as carried on the request's thread context. Templates that declare a lookup
+     * absent from {@code resolvedLookups} fail evaluation.
+     */
+    public BooleanQuery filter(
+        User user,
+        ResolvedDlsLookups resolvedLookups,
+        ScriptService scriptService,
+        ShardId shardId,
+        Function<ShardId, SearchExecutionContext> searchExecutionContextProvider
+    ) throws IOException {
         if (hasDocumentLevelPermissions()) {
-            evaluateQueries(SecurityQueryTemplateEvaluator.wrap(user, scriptService));
+            evaluateQueries(SecurityQueryTemplateEvaluator.wrap(user, scriptService, resolvedLookups));
             assert listOfEvaluatedQueries != null : "evaluated queries must not be null";
             assert false == listOfEvaluatedQueries.isEmpty() : "evaluated queries must not be empty";
 

@@ -17,15 +17,19 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.authz.support.DlsLookup;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -135,5 +139,37 @@ public class DocumentPermissionsTests extends ESTestCase {
         }
         final DocumentPermissions documentPermissions0 = DocumentPermissions.filteredBy(queries);
         assertThat(documentPermissions0.hasStoredScript(), is(hasStoredScript));
+    }
+
+    public void testGetDlsLookups() {
+        assertThat(DocumentPermissions.allowAll().getDlsLookups(), is(empty()));
+        assertThat(DocumentPermissions.filteredBy(Set.of(new BytesArray("{\"term\":{\"tag\":\"prod\"}}"))).getDlsLookups(), is(empty()));
+        assertThat(
+            DocumentPermissions.filteredBy(Set.of(new BytesArray("{\"template\":{\"source\":\"{}\"}}"))).getDlsLookups(),
+            is(empty())
+        );
+
+        final BytesReference jobsQuery = new BytesArray("""
+            {"template":{"source":"{}"},"lookups":{"jobs":{"type":"ml_job_ids","params":{"spaces":["a"]}}}}""");
+        final BytesReference ownerQuery = new BytesArray("""
+            {"template":{"source":"{}"},"lookups":{"owner":{"type":"profile_uid"}}}""");
+        final DlsLookup jobs = new DlsLookup("jobs", "ml_job_ids", Map.of("spaces", List.of("a")));
+        final DlsLookup owner = new DlsLookup("owner", "profile_uid", Map.of());
+
+        final DocumentPermissions single = DocumentPermissions.filteredBy(Set.of(jobsQuery, new BytesArray("{\"match_all\":{}}")));
+        assertThat(single.getDlsLookups(), contains(jobs));
+        // cached on first use
+        assertThat(single.getDlsLookups(), is(single.getDlsLookups()));
+
+        // limiting unions the lookups of both sides
+        final DocumentPermissions limited = single.limitDocumentPermissions(DocumentPermissions.filteredBy(Set.of(ownerQuery)));
+        assertThat(limited.getDlsLookups(), equalTo(Set.of(jobs, owner)));
+        assertThat(DocumentPermissions.allowAll().limitDocumentPermissions(single).getDlsLookups(), contains(jobs));
+
+        // lookups are a function of the queries, so equal permissions report equal lookups
+        assertThat(
+            DocumentPermissions.filteredBy(Set.of(jobsQuery)).getDlsLookups(),
+            equalTo(DocumentPermissions.filteredBy(Set.of(jobsQuery)).getDlsLookups())
+        );
     }
 }

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizedProjectsResolver;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ImplicitPrivilegesProvider;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
+import org.elasticsearch.xpack.core.security.authz.support.DlsLookupResolver;
 
 import java.util.Collections;
 import java.util.List;
@@ -187,5 +188,21 @@ public interface SecurityExtension {
      */
     default List<ImplicitPrivilegesProvider> getImplicitPrivilegesProviders(SecurityComponents components) {
         return Collections.emptyList();
+    }
+
+    /**
+     * Returns resolvers for the DLS lookups that templated role queries may declare, keyed by lookup type. A privilege
+     * synthesized by an {@link ImplicitPrivilegesProvider} references a resolver by that type name in the {@code lookups}
+     * section of its DLS query; see {@link org.elasticsearch.xpack.core.security.authz.support.DlsLookup}.
+     * <p>
+     * A type may be registered by at most one extension; a conflict fails node startup. A query that references an
+     * unregistered type fails authorization of the affected request.
+     * <p>
+     * By default, an empty map is returned.
+     *
+     * @param components Access to components that may be used to build resolvers
+     */
+    default Map<String, DlsLookupResolver> getDlsLookupResolvers(SecurityComponents components) {
+        return Collections.emptyMap();
     }
 }

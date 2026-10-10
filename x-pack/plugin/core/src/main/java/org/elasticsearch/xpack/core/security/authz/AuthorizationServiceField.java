@@ -25,6 +25,13 @@ public final class AuthorizationServiceField {
     public static final ThreadContextTransient<AuthorizationEngine.AuthorizationInfo> AUTHORIZATION_INFO_VALUE = ThreadContextTransient
         .transientValue("_authz_info", AuthorizationEngine.AuthorizationInfo.class);
 
+    /**
+     * Request header carrying the values resolved for the DLS lookups of the current request, so that shard-level actions
+     * authorized on other nodes reuse them instead of resolving again. Written once by the coordinating node's authorization.
+     * See {@link org.elasticsearch.xpack.core.security.authz.support.ResolvedDlsLookups}.
+     */
+    public static final String DLS_LOOKUPS_KEY = "_security_dls_lookups";
+
     // Most often, transient authorisation headers are scoped (i.e. set, read and cleared) for the authorisation and execution
     // of individual actions (i.e. there is a different scope between the parent and the child actions)
     public static final Collection<String> ACTION_SCOPE_AUTHORIZATION_KEYS = List.of(

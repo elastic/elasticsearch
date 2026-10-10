@@ -275,6 +275,22 @@ public class ColumnarStringQueryConsistencyTests extends ESTestCase {
                 v -> any(v, x -> x.contains("google")) && any(v, x -> x.contains(".google.")) == false
             )
         );
+        cases.add(
+            new Case(
+                "contains [google] and negated contains [.google.]",
+                new BooleanQuery.Builder().add(ColumnarStringTermQuery.contains(FIELD, new BytesRef("google"), s -> {}), Occur.FILTER)
+                    .add(new ColumnarNegatedQuery(ColumnarStringTermQuery.contains(FIELD, new BytesRef(".google."), s -> {})), Occur.FILTER)
+                    .build(),
+                v -> any(v, x -> x.contains("google")) && any(v, x -> x.contains(".google.")) == false
+            )
+        );
+        // Whatever a query selects, negating it must select exactly the rest: documents without the field, with only
+        // nulls, or with no slot at all are not excluded, as a prohibited clause does not exclude them.
+        final List<Case> negations = new ArrayList<>();
+        for (Case c : cases) {
+            negations.add(new Case("negated " + c.label(), new ColumnarNegatedQuery(c.query()), v -> c.expected().test(v) == false));
+        }
+        cases.addAll(negations);
         return cases;
     }
 

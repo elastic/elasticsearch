@@ -9,14 +9,19 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.columnar.ColumnarNegatedQuery;
+import org.elasticsearch.columnar.ColumnarStringTermQuery;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -47,6 +52,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
@@ -920,6 +926,147 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         @Override
         public String getWriteableName() {
             return "";
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.current();
+        }
+    }
+
+    public void testColumnarScanExclusionIsRequiredRatherThanProhibited() throws IOException {
+        Query scan = ColumnarStringTermQuery.contains("kw", new BytesRef("google"), s -> {});
+        BoolQueryBuilder builder = boolQuery().filter(new FixedQueryBuilder(new TermQuery(new Term("f", "x"))))
+            .mustNot(new FixedQueryBuilder(scan));
+        BooleanQuery query = (BooleanQuery) builder.toQuery(createSearchExecutionContext());
+        assertThat(query.clauses().size(), equalTo(2));
+        for (BooleanClause clause : query.clauses()) {
+            assertThat(clause.occur(), equalTo(BooleanClause.Occur.FILTER));
+        }
+        assertThat(
+            queriesOf(query, BooleanClause.Occur.FILTER),
+            containsInAnyOrder(new TermQuery(new Term("f", "x")), new ColumnarNegatedQuery(scan))
+        );
+    }
+
+    /** ES|QL emits each NOT as a bool query of its own; Lucene only folds it into the enclosing conjunction at rewrite. */
+    public void testLoneColumnarScanExclusionIsRequired() throws IOException {
+        Query scan = ColumnarStringTermQuery.term("kw", new BytesRef(""), s -> {});
+        BooleanQuery query = (BooleanQuery) boolQuery().mustNot(new FixedQueryBuilder(scan)).toQuery(createSearchExecutionContext());
+        assertThat(query.clauses().size(), equalTo(1));
+        assertThat(query.clauses().get(0).occur(), equalTo(BooleanClause.Occur.FILTER));
+        assertEquals(new ColumnarNegatedQuery(scan), query.clauses().get(0).query());
+    }
+
+    /** ES|QL wraps what it pushes down, so the scan is found inside the clause rather than being it. */
+    public void testWrappedColumnarScanExclusionIsRequired() throws IOException {
+        Query scan = ColumnarStringTermQuery.contains("kw", new BytesRef("google"), s -> {});
+        Query wrapped = new BooleanQuery.Builder().add(scan, BooleanClause.Occur.FILTER)
+            .add(Queries.ALL_DOCS_INSTANCE, BooleanClause.Occur.FILTER)
+            .build();
+        BooleanQuery query = (BooleanQuery) boolQuery().filter(new FixedQueryBuilder(new TermQuery(new Term("f", "x"))))
+            .mustNot(new FixedQueryBuilder(wrapped))
+            .toQuery(createSearchExecutionContext());
+        assertThat(
+            queriesOf(query, BooleanClause.Occur.FILTER),
+            containsInAnyOrder(new TermQuery(new Term("f", "x")), new ColumnarNegatedQuery(wrapped))
+        );
+        assertThat(queriesOf(query, BooleanClause.Occur.MUST_NOT), empty());
+    }
+
+    public void testOtherExclusionsStayProhibited() throws IOException {
+        Query indexed = new TermQuery(new Term("f", "y"));
+        BooleanQuery query = (BooleanQuery) boolQuery().filter(new FixedQueryBuilder(new TermQuery(new Term("f", "x"))))
+            .mustNot(new FixedQueryBuilder(indexed))
+            .toQuery(createSearchExecutionContext());
+        assertThat(queriesOf(query, BooleanClause.Occur.MUST_NOT), equalTo(List.of(indexed)));
+    }
+
+    public void testOnlyColumnarScanExclusionsAreConverted() throws IOException {
+        Query scan = ColumnarStringTermQuery.contains("kw", new BytesRef("google"), s -> {});
+        Query indexed = new TermQuery(new Term("f", "y"));
+        BooleanQuery query = (BooleanQuery) boolQuery().filter(new FixedQueryBuilder(new TermQuery(new Term("f", "x"))))
+            .mustNot(new FixedQueryBuilder(indexed))
+            .mustNot(new FixedQueryBuilder(scan))
+            .toQuery(createSearchExecutionContext());
+        assertThat(
+            query.clauses().stream().filter(BooleanClause::isProhibited).map(BooleanClause::query).toList(),
+            equalTo(List.of(indexed))
+        );
+        assertThat(
+            query.clauses().stream().filter(c -> c.query() instanceof ColumnarNegatedQuery).map(BooleanClause::occur).toList(),
+            equalTo(List.of(BooleanClause.Occur.FILTER))
+        );
+    }
+
+    /** With should clauses, minimum_should_match decides what matches, so the exclusions are left as they are. */
+    public void testColumnarScanExclusionStaysProhibitedWithShouldClauses() throws IOException {
+        Query scan = ColumnarStringTermQuery.contains("kw", new BytesRef("google"), s -> {});
+        BooleanQuery query = (BooleanQuery) boolQuery().should(new FixedQueryBuilder(new TermQuery(new Term("f", "x"))))
+            .mustNot(new FixedQueryBuilder(scan))
+            .toQuery(createSearchExecutionContext());
+        assertThat(query.clauses().stream().filter(BooleanClause::isProhibited).map(BooleanClause::query).toList(), equalTo(List.of(scan)));
+    }
+
+    /** adjust_pure_negative: false asks for a pure-negative query to match nothing; requiring the exclusion would match. */
+    public void testPureNegativeColumnarScanExclusionIsKeptWhenNotAdjusted() throws IOException {
+        Query scan = ColumnarStringTermQuery.contains("kw", new BytesRef("google"), s -> {});
+        BooleanQuery query = (BooleanQuery) boolQuery().adjustPureNegative(false)
+            .mustNot(new FixedQueryBuilder(scan))
+            .toQuery(createSearchExecutionContext());
+        assertThat(query.clauses().size(), equalTo(1));
+        assertThat(query.clauses().get(0).occur(), equalTo(BooleanClause.Occur.MUST_NOT));
+        assertSame(scan, query.clauses().get(0).query());
+
+        // Next to a required clause the same setting leaves nothing pure-negative, so the exclusion is required.
+        query = (BooleanQuery) boolQuery().adjustPureNegative(false)
+            .filter(new FixedQueryBuilder(new TermQuery(new Term("f", "x"))))
+            .mustNot(new FixedQueryBuilder(scan))
+            .toQuery(createSearchExecutionContext());
+        assertThat(queriesOf(query, BooleanClause.Occur.MUST_NOT), empty());
+        assertThat(
+            queriesOf(query, BooleanClause.Occur.FILTER),
+            containsInAnyOrder(new TermQuery(new Term("f", "x")), new ColumnarNegatedQuery(scan))
+        );
+    }
+
+    private static List<Query> queriesOf(BooleanQuery query, BooleanClause.Occur occur) {
+        return query.clauses().stream().filter(c -> c.query() != null && c.occur() == occur).map(BooleanClause::query).toList();
+    }
+
+    /** A query builder that yields a fixed Lucene query, for tests of how a bool query arranges its clauses. */
+    private static final class FixedQueryBuilder extends LeafQueryBuilder<FixedQueryBuilder> {
+        private final Query query;
+
+        private FixedQueryBuilder(Query query) {
+            super();
+            this.query = query;
+        }
+
+        @Override
+        protected void doWriteTo(StreamOutput out) {}
+
+        @Override
+        protected void doXContent(XContentBuilder builder, Params params) {}
+
+        @Override
+        protected Query doToQuery(SearchExecutionContext context) {
+            return query;
+        }
+
+        @Override
+        protected boolean doEquals(FixedQueryBuilder other) {
+            return query.equals(other.query);
+        }
+
+        @Override
+        protected int doHashCode() {
+            return query.hashCode();
+        }
+
+        @Override
+        public String getWriteableName() {
+            return "fixed_query_for_tests";
         }
 
         @Override

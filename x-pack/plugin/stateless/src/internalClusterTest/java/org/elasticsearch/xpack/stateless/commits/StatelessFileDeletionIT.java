@@ -1819,11 +1819,13 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
             }
         }
 
-        for (var openPit : openPITs) {
-            logger.debug(
-                "Opened PIT with id: [{}]",
-                new PointInTimeBuilder(openPit.v1().get()).getSearchContextId(this.writableRegistry()).toString().replace("},", "\n")
-            );
+        if (logger.isDebugEnabled()) {
+            for (var openPit : openPITs) {
+                logger.debug(
+                    "Opened PIT with id: [{}]",
+                    new PointInTimeBuilder(openPit.v1().get()).getSearchContextId(this.writableRegistry()).toString().replace("},", "\n")
+                );
+            }
         }
 
         // Run a force merge so only the open PITs are retaining the previous commits
@@ -1934,15 +1936,38 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         ensureGreen(indexName);
 
         // prevent a race between the above `ensureGreen` and the below PIT searches used for keeping accurate state (PIT IDs):
-        // the above `ensureGreen` guarantees `firstSearchNode` has applied the cluster state, but it marks its PIT contexts as relocating
-        // asynchronously after that. If a PIT search below runs before the async part, it still succeeds on `firstSearchNode` and the
-        // PIT ID state we keep is stale and keeps pointing to `firstSearchNode`,
-        // so the later closePITs never reaches the copy on `newSearchNode` and the BCCs it pins are never deleted.
-        if (testScenario == PITRetentionTestScenarios.SUCCESSFUL_RELOCATION) {
-            var sourceSearchService = internalCluster().getInstance(SearchService.class, firstSearchNode);
-            assertBusy(
-                () -> assertTrue(sourceSearchService.getActivePITContexts(shardId).stream().allMatch(PitReaderContext::isRelocating))
-            );
+        // the above `ensureGreen` guarantees `firstSearchNode` has applied the cluster state, but the source only stops serving its PIT
+        // contexts asynchronously after that. If a PIT search below runs before the source has stopped serving, it still succeeds on
+        // `firstSearchNode` and the PIT ID state we keep is stale and keeps pointing to `firstSearchNode`, so the later closePITs never
+        // reaches the copy on `newSearchNode` and the BCCs it pins are never deleted.
+        // This affects every scenario where the source relinquishes the shard, so we must wait for it before re-querying the PITs below.
+        switch (testScenario) {
+            case SUCCESSFUL_RELOCATION, FAIL_SOURCE -> {
+                // the source node is still alive: wait until it has marked all its PIT contexts for the shard as relocating, so the
+                // searches below are redirected to `newSearchNode` and the PIT ids are re-encoded to their new location.
+                var sourceSearchService = internalCluster().getInstance(SearchService.class, firstSearchNode);
+                assertBusy(
+                    () -> assertTrue(sourceSearchService.getActivePITContexts(shardId).stream().allMatch(PitReaderContext::isRelocating))
+                );
+            }
+            case STOP_SOURCE_NODE ->
+                // the source node is stopped: wait until it has fully left the cluster so the searches below cannot be routed to it and
+                // are served (and re-encoded) by `newSearchNode` instead.
+                assertBusy(
+                    () -> assertFalse(
+                        internalCluster().clusterService(newSearchNode)
+                            .state()
+                            .nodes()
+                            .getNodes()
+                            .values()
+                            .stream()
+                            .anyMatch(node -> node.getName().equals(firstSearchNode))
+                    )
+                );
+            // FAIL_TARGET and STOP_TARGET_NODE keep (or revert) the shard on `firstSearchNode`, so there is no stale source copy to guard
+            // against here.
+            case FAIL_TARGET, STOP_TARGET_NODE -> {
+            }
         }
 
         // in case of a successful relocation and when source node fails or is stopped, we should be able to continue PIT searches

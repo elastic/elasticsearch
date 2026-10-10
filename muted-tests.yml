@@ -484,3 +484,6 @@ tests:
 - class: org.elasticsearch.test.apmintegration.OTelMetricsBufferSurvivesRestartIT
   method: testPreExistingBufferFilesDrainAfterRestart
   issue: https://github.com/elastic/elasticsearch/issues/161602
+- class: org.elasticsearch.blobcache.common.SparseFileTrackerTests
+  method: testWaitForEmptySubRangeReturnsImmediately
+  issue: https://github.com/elastic/elasticsearch/issues/161611

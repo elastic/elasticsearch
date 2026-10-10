@@ -53,6 +53,7 @@ import org.elasticsearch.index.query.SimpleQueryStringBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
+import org.elasticsearch.index.query.ZeroTermsQueryOption;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -215,6 +216,28 @@ public class TextNoTermsSearchTests extends MapperServiceTestCase {
         for (int q = 0; q < queries.size(); q++) {
             assertEquals(queries.get(q).toString(), indexed.get(q), notIndexed.get(q));
         }
+    }
+
+    /**
+     * A query the analyzer leaves no term of, which {@code zero_terms_query} answers for. The query standing in for
+     * the clauses names no field, so nothing reads a document's values for it.
+     */
+    public void testAQueryOfNoTermsAnswersAsItIsAskedTo() throws IOException {
+        final List<QueryBuilder> queries = new ArrayList<>();
+        for (MultiMatchQueryBuilder.Type type : MultiMatchQueryBuilder.Type.values()) {
+            queries.add(new MultiMatchQueryBuilder("the", "body").type(type).analyzer("stop").zeroTermsQuery(ZeroTermsQueryOption.ALL));
+            queries.add(new MultiMatchQueryBuilder("the", "body").type(type).analyzer("stop").zeroTermsQuery(ZeroTermsQueryOption.NONE));
+        }
+        queries.add(new MatchQueryBuilder("body", "the").analyzer("stop").zeroTermsQuery(ZeroTermsQueryOption.ALL));
+        queries.add(new MatchQueryBuilder("body", "the").analyzer("stop").zeroTermsQuery(ZeroTermsQueryOption.NONE));
+
+        final List<List<Integer>> indexed = matching(true, queries);
+        final List<List<Integer>> notIndexed = matching(false, queries);
+        for (int q = 0; q < queries.size(); q++) {
+            assertEquals(queries.get(q).toString(), indexed.get(q), notIndexed.get(q));
+        }
+        assertEquals("all of them, where it is asked to", List.of(0, 1, 2, 3), notIndexed.get(0));
+        assertEquals("none of them otherwise", List.of(), notIndexed.get(1));
     }
 
     private MapperService mapper(boolean indexed) throws IOException {

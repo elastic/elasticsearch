@@ -1,0 +1,24 @@
+pr: 161562
+summary: Read an external dataset's column the same way whoever supplied its type
+area: ES|QL
+type: bug
+issues: []
+breaking:
+  area: ES|QL
+  title: An external dataset column that cannot be read now follows the error mode
+  details: >-
+    A column whose type in a file cannot be read as the type a query uses was previously returned
+    as nulls for its whole length, under every error mode, unless the dataset declared that
+    column's type. It now follows the mode that was asked for. Under the default `fail_fast` the
+    query fails naming the column and the file, where it previously returned a column of nulls and
+    a warning. Under `skip_row` the file's rows are dropped, and under `null_field` the column is
+    nulled as before. Separately, a column whose values the query's type can hold is now converted
+    per value rather than nulled, so queries that returned nulls for a widened or narrowed column
+    now return its values.
+  impact: >-
+    Queries over external datasets whose files disagree with the query's column types, or whose
+    files drift from the first file under first-file-wins schema resolution, may now fail where
+    they returned nulls and a warning. Setting the dataset's error mode to `null_field` keeps the
+    previous null-filling behaviour. Reachable on a release build by a non-Windows deployment that
+    enables ES|QL federation, which is off by default there.
+  notable: false

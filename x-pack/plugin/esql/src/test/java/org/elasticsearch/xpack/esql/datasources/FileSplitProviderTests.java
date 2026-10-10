@@ -6526,7 +6526,12 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(2L, ((Number) stats.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
     }
 
-    public void testRangeAwareSplitsRewriteFirstFileWinsUnrepresentableFooterColumn() {
+    /**
+     * A split's stamped statistics follow the same rule as the fold: a column the scan narrows per value
+     * cannot have its pre-narrowing extrema or counts served, so they are withheld rather than rewritten
+     * as all-null, which would have claimed the column holds no values at all.
+     */
+    public void testRangeAwareSplitsSafeMissANarrowedFooterColumn() {
         Map<String, Object> rawStats = harvestStats("x", -10L, 20L);
         RangeAwareFormatReader mockReader = createMockRangeReader(List.of(new SplitRange(100, 500, rawStats)));
         FileSplitProvider splitter = splitterFor(mockReader);
@@ -6541,14 +6546,7 @@ public class FileSplitProviderTests extends ESTestCase {
 
         List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
         assertEquals(1, splits.size());
-        Map<String, Object> stats = ((FileSplit) splits.get(0)).statistics();
-        assertEquals(0L, stats.get(SourceStatisticsSerializer.columnValueCountKey("x")));
-        assertEquals(2L, stats.get(SourceStatisticsSerializer.columnNullCountKey("x")));
-        assertNull(stats.get(SourceStatisticsSerializer.columnMinKey("x")));
-        assertNull(stats.get(SourceStatisticsSerializer.columnMaxKey("x")));
-        assertNull(stats.get(SourceStatisticsSerializer.columnMinUnservableKey("x")));
-        assertNull(stats.get(SourceStatisticsSerializer.columnMaxUnservableKey("x")));
-        assertEquals(2L, ((Number) stats.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+        assertUnknownColumnStats(((FileSplit) splits.get(0)).statistics(), "x", 2L);
     }
 
     public void testUnknownFirstFileWinsNativeTypesPublishUnknownCountsNotAllNulls() {
@@ -6649,30 +6647,90 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(2L, stats.get(SourceStatisticsSerializer.columnValueCountKey("x")));
     }
 
-    public void testDeclaredProvenanceDoesNotTreatMissingInferredTypesAsUnknown() {
-        Map<String, Object> rawStats = harvestStats("x", -10L, 20L);
-        RangeAwareFormatReader mockReader = createMockRangeReader(List.of(new SplitRange(100, 500, rawStats)));
-        FileSplitProvider splitter = splitterFor(mockReader);
+    /**
+     * An anchor-pinned read whose per-file types were never read must not publish that file's extrema,
+     * because nothing has established that the file's own column types match the schema the statistics
+     * are being interpreted against. Whether the schema was declared or inferred does not bear on it:
+     * every cell below is the same bytes read the same way, and all of them safe-miss.
+     * <p>
+     * The declared set is the one production builds - a strict mapping names every column of its schema - and
+     * the unified schema is varied because it is what decides whether this gate is the only thing protecting
+     * the column. With a unified schema, {@code normalizeSplitStats} reaches its declared branch, which
+     * poisons every declared column anyway; with none, that branch is skipped and the gate stands alone.
+     */
+    public void testAnchorPinnedFileWithUnreadTypesSafeMissesWhoeverDeclaredTheSchema() {
         ExternalSchema unified = new ExternalSchema(List.of(new ReferenceAttribute(SRC, "x", DataType.INTEGER)));
-        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/part-b.parquet"), 2000, Instant.EPOCH);
-        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
-            null,
-            GlobExpander.fileListOf(List.of(entry), "s3://b/*.parquet"),
-            Map.of(entry.path(), new SchemaReconciliation.FileSchemaInfo(unified, null, null)),
-            Map.of("schema_resolution", "first_file_wins"),
-            PartitionMetadata.EMPTY,
-            List.of(),
-            unified,
-            unified,
-            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-            () -> false,
-            DeclaredReadSpec.of(Map.of(), Map.of(), Set.of(), SchemaProvenance.DECLARED)
-        );
+        for (SchemaProvenance provenance : List.of(SchemaProvenance.DECLARED, SchemaProvenance.INFERRED)) {
+            for (ExternalSchema unifiedSchema : Arrays.asList(unified, null)) {
+                Map<String, Object> rawStats = harvestStats("x", -10L, 20L);
+                RangeAwareFormatReader mockReader = createMockRangeReader(List.of(new SplitRange(100, 500, rawStats)));
+                FileSplitProvider splitter = splitterFor(mockReader);
+                StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/part-b.parquet"), 2000, Instant.EPOCH);
+                SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+                    null,
+                    GlobExpander.fileListOf(List.of(entry), "s3://b/*.parquet"),
+                    Map.of(entry.path(), new SchemaReconciliation.FileSchemaInfo(unified, null, null)),
+                    Map.of("schema_resolution", "first_file_wins"),
+                    PartitionMetadata.EMPTY,
+                    List.of(),
+                    unified,
+                    unifiedSchema,
+                    SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                    () -> false,
+                    DeclaredReadSpec.of(Map.of(), Map.of(), Set.of("x"), provenance)
+                );
 
-        List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
-        Map<String, Object> stats = ((FileSplit) splits.get(0)).statistics();
-        assertEquals(-10L, stats.get(SourceStatisticsSerializer.columnMinKey("x")));
-        assertEquals(20L, stats.get(SourceStatisticsSerializer.columnMaxKey("x")));
+                List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
+                assertUnknownColumnStats(
+                    provenance + ", unifiedSchema=" + (unifiedSchema == null ? "none" : "present"),
+                    ((FileSplit) splits.get(0)).statistics(),
+                    "x",
+                    2L
+                );
+            }
+        }
+    }
+
+    /**
+     * The twin of the above, and the reason it is not simply "anchor-pinned reads publish nothing": once
+     * the file's own types have been read, its extrema are interpretable and are published. Both
+     * provenances again agree, so the published statistics follow from what was read, not from who
+     * supplied the schema.
+     */
+    public void testAnchorPinnedFilePublishesExtremaOnceItsOwnTypesWereRead() {
+        for (SchemaProvenance provenance : List.of(SchemaProvenance.DECLARED, SchemaProvenance.INFERRED)) {
+            Map<String, Object> rawStats = harvestStats("x", -10L, 20L);
+            RangeAwareFormatReader mockReader = createMockRangeReader(List.of(new SplitRange(100, 500, rawStats)));
+            FileSplitProvider splitter = splitterFor(mockReader);
+            ExternalSchema unified = new ExternalSchema(List.of(new ReferenceAttribute(SRC, "x", DataType.INTEGER)));
+            StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/part-b.parquet"), 2000, Instant.EPOCH);
+            SchemaReconciliation.FileSchemaInfo read = new SchemaReconciliation.FileSchemaInfo(
+                unified,
+                null,
+                null,
+                Map.of("x", DataType.INTEGER)
+            );
+            assertTrue("the four-arg form records that the types were read", read.nativeTypesRead());
+            SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+                null,
+                GlobExpander.fileListOf(List.of(entry), "s3://b/*.parquet"),
+                Map.of(entry.path(), read),
+                Map.of("schema_resolution", "first_file_wins"),
+                PartitionMetadata.EMPTY,
+                List.of(),
+                unified,
+                unified,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                () -> false,
+                DeclaredReadSpec.of(Map.of(), Map.of(), Set.of(), provenance)
+            );
+
+            List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
+            Map<String, Object> stats = ((FileSplit) splits.get(0)).statistics();
+            assertEquals(-10L, stats.get(SourceStatisticsSerializer.columnMinKey("x")));
+            assertEquals(20L, stats.get(SourceStatisticsSerializer.columnMaxKey("x")));
+            assertEquals(2L, ((Number) stats.get(SourceStatisticsSerializer.columnValueCountKey("x"))).longValue());
+        }
     }
 
     public void testUnknownFirstFileWinsRenamePoisonsLogicalSplitColumns() {
@@ -6753,18 +6811,19 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
-     * An extensionless object with {@code format: parquet} still applies the footer rewrite;
-     * implicit-nulls come from the configured reader, not the filename extension.
+     * The all-null contract survives for a pair the scan cannot convert at all: an {@code INTEGER} column
+     * read as {@code BOOLEAN} is null-filled whole by the footer reader, so the stamp says zero values and
+     * every row null rather than withholding the counts.
      */
-    public void testCachedExtensionlessSplitsRewriteUnrepresentableFooterColumn() throws Exception {
+    public void testCachedExtensionlessSplitsRewriteUnconvertibleFooterColumn() throws Exception {
         Map<String, Object> rawStats = harvestStats("x", -10L, 20L);
         RangeAwareFormatReader mockReader = createCachedRangeReader(List.of(new SplitRange(0, 2000, rawStats)));
         FileSplitProvider splitter = rangeAwareProvider(mockReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        ExternalSchema unified = new ExternalSchema(List.of(new ReferenceAttribute(SRC, "x", DataType.INTEGER)));
+        ExternalSchema unified = new ExternalSchema(List.of(new ReferenceAttribute(SRC, "x", DataType.BOOLEAN)));
         SplitDiscoveryContext ctx = singleFileStatsContext(
             "s3://b/part-b",
             "s3://b/part-b",
-            new SchemaReconciliation.FileSchemaInfo(unified, null, null, Map.of("x", DataType.LONG)),
+            new SchemaReconciliation.FileSchemaInfo(unified, null, null, Map.of("x", DataType.INTEGER)),
             unified,
             Map.of(FormatNameResolver.CONFIG_FORMAT, "parquet")
         );
@@ -6791,6 +6850,16 @@ public class FileSplitProviderTests extends ESTestCase {
         rawStats.put(SourceStatisticsSerializer.columnValueCountKey(column), 2L);
         rawStats.put(SourceStatisticsSerializer.columnNullCountKey(column), 0L);
         return rawStats;
+    }
+
+    private static void assertUnknownColumnStats(String message, Map<String, Object> stats, String column, long rowCount) {
+        assertNull(message, stats.get(SourceStatisticsSerializer.columnMinKey(column)));
+        assertNull(message, stats.get(SourceStatisticsSerializer.columnMaxKey(column)));
+        assertEquals(message, Boolean.TRUE, stats.get(SourceStatisticsSerializer.columnMinUnservableKey(column)));
+        assertEquals(message, Boolean.TRUE, stats.get(SourceStatisticsSerializer.columnMaxUnservableKey(column)));
+        assertNull(message, stats.get(SourceStatisticsSerializer.columnValueCountKey(column)));
+        assertNull(message, stats.get(SourceStatisticsSerializer.columnNullCountKey(column)));
+        assertEquals(message, rowCount, ((Number) stats.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
     }
 
     private static void assertUnknownColumnStats(Map<String, Object> stats, String column, long rowCount) {

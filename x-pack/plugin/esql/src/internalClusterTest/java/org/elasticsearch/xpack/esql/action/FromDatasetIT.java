@@ -77,6 +77,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -2043,7 +2044,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                         .getResponseHeaders()
                         .getOrDefault("Warning", List.of())
                         .stream()
-                        .filter(w -> w.contains("cannot be read as their declared type"))
+                        .filter(w -> w.contains("cannot be read as the type the query uses"))
                         .forEach(coercionWarnings::add);
                 } finally {
                     latch.countDown();
@@ -2398,13 +2399,12 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
-    public void testDeclaredNumericNarrowingCoercesWhereInferredClashWouldNull() throws Exception {
-        // The end-to-end contrast to an INFERRED first_file_wins clash (parquet-multifile.parquetFfwAllRows null-fills an
-        // int64-vs-INTEGER divergence). Here the INTEGER target for the same physical int64 column comes from an explicit
-        // DECLARATION: the coordinator marks it a declared-type column, FileSourceFactory physicalizes that to `emp_no`,
-        // and the reader keeps the coercion escape — narrowing int64 -> integer per value instead of null-filling the
-        // whole column. Guards the declared-vs-inferred null-fill gate split through the non-strict overlay. The
-        // Integer-valued (not Long) non-null results prove both the coercion happened AND the target type is INTEGER.
+    public void testDeclaredNumericNarrowingCoercesPerValue() throws Exception {
+        // A declared INTEGER target over a physical int64 column, reached through the non-strict overlay and a `path`
+        // rename: FileSourceFactory physicalizes the target to `emp_no` and the reader narrows int64 -> integer per
+        // value. The Integer-valued (not Long) non-null results prove both that the conversion happened and that the
+        // target type is INTEGER. This used to be the contrast to an inferred first_file_wins clash, which null-filled
+        // the same column whole (parquet-multifile.parquetFfwAllRows); that read now narrows too, so the two agree.
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         Path parquet = writeParquetRenameFixture(); // physical emp_no int64 = 1,2,3 (all fit in integer)
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
@@ -6648,37 +6648,35 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertDeclaredUnsignedLongReadsFullMagnitude("ul_ndjson", ndjsonUnsignedLongFixture, "ndjson");
     }
 
-    public void testFirstFileWinsWarmAggregateMatchesTheScanOnDivergentColumnTypes() throws Exception {
+    public void testFirstFileWinsAggregateOverAConvertedColumnScansAndMatchesIt() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         Path dir = createTempDir();
         writeParquet(dir.resolve("part-a.parquet"), "message m { required int32 x; }", 2, 1024, (g, i) -> g.add("x", i + 1));
         writeParquet(dir.resolve("part-b.parquet"), "message m { required int64 x; }", 2, 1024, (g, i) -> g.add("x", i == 0 ? -10L : 20L));
         putFirstFileWinsGlob("drift_pq_type_ffw", dir);
 
-        // The INTEGER anchor cannot represent part-b's LONG, so that file's x is read as null.
-        // Parquet emits a SkipWarnings summary plus one per-column detail; the file path is a temp URI.
-        List<String> warnings = collectWarningsContaining("FROM drift_pq_type_ffw | KEEP x | SORT x", "the query");
-        assertThat(warnings, hasSize(2));
-        assertThat(warnings, hasItem(containsString("have a type the query cannot read; returning null")));
-        assertThat(warnings, hasItem(containsString("part-b.parquet")));
-        assertThat(warnings, hasItem(containsString("column [x]: ")));
-        assertThat(warnings, hasItem(containsString("column [x]: [long] in the file, [integer] in the query")));
-        assertThat(columnValues("FROM drift_pq_type_ffw | KEEP x | SORT x"), containsInAnyOrder(1, 2, null, null));
-        assertThat(firstRowOf("FROM drift_pq_type_ffw | WHERE x IS NOT NULL | STATS c = COUNT(x)"), equalTo(List.of(2L)));
-        assertThat(firstRowOf("FROM drift_pq_type_ffw | STATS c = COUNT(x)"), equalTo(List.of(2L)));
-        assertThat(documentsReadBy("FROM drift_pq_type_ffw | STATS c = COUNT(x)"), equalTo(0L));
+        // part-b's int64 x is narrowed per value into the anchor's int32, and both values fit, so nothing is
+        // nulled and nothing is warned about. The warm aggregate must agree with the scan on the real values.
+        assertThat(collectWarningsContaining("FROM drift_pq_type_ffw | KEEP x | SORT x", "the query"), empty());
+        assertThat(columnValues("FROM drift_pq_type_ffw | KEEP x | SORT x"), containsInAnyOrder(1, 2, -10, 20));
+        assertThat(firstRowOf("FROM drift_pq_type_ffw | WHERE x IS NOT NULL | STATS c = COUNT(x)"), equalTo(List.of(4L)));
+        assertThat(firstRowOf("FROM drift_pq_type_ffw | STATS c = COUNT(x)"), equalTo(List.of(4L)));
+        // A converted column's footer statistics describe the values before conversion, so they are withheld and
+        // the aggregate is answered by scanning. It used to be served warm because the column read as all-null,
+        // which made the statistics trivially right about a column the user should never have been given.
+        assertThat(documentsReadBy("FROM drift_pq_type_ffw | STATS c = COUNT(x)"), greaterThan(0L));
         assertThat(
             firstRowOf("FROM drift_pq_type_ffw | WHERE x IS NOT NULL | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"),
-            equalTo(List.of(1, 2, 2L))
+            equalTo(List.of(-10, 20, 4L))
         );
-        assertThat(firstRowOf("FROM drift_pq_type_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(List.of(1, 2, 2L)));
-        assertThat(documentsReadBy("FROM drift_pq_type_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(0L));
-        assertThat(firstRowOf("FROM drift_pq_type_ffw | KEEP x | STATS c = COUNT(x)"), equalTo(List.of(2L)));
+        assertThat(firstRowOf("FROM drift_pq_type_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(List.of(-10, 20, 4L)));
+        assertThat(documentsReadBy("FROM drift_pq_type_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), greaterThan(0L));
+        assertThat(firstRowOf("FROM drift_pq_type_ffw | KEEP x | STATS c = COUNT(x)"), equalTo(List.of(4L)));
         assertThat(
             firstRowOf("FROM drift_pq_type_ffw | KEEP x | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"),
-            equalTo(List.of(1, 2, 2L))
+            equalTo(List.of(-10, 20, 4L))
         );
-        assertThat(documentsReadBy("FROM drift_pq_type_ffw | KEEP x | STATS c = COUNT(x)"), equalTo(0L));
+        assertThat(documentsReadBy("FROM drift_pq_type_ffw | KEEP x | STATS c = COUNT(x)"), greaterThan(0L));
     }
 
     public void testFirstFileWinsColdIsNullCountMatchesTheScanOnDivergentColumnTypes() throws Exception {
@@ -6700,8 +6698,12 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             // Each query gets new file paths so neither schema nor footer caches can be warmed by another query.
             actual.put(aggregation, columnValues("FROM drift_pq_cold_null_count_ffw | WHERE x IS NULL | " + aggregation));
             List<Object> scan = columnValues("FROM drift_pq_cold_null_count_ffw | KEEP x | SORT x");
-            assertThat(scan, containsInAnyOrder(1, 2, null, null));
-            expected.put(aggregation, List.of(scan.stream().filter(Objects::isNull).count()));
+            // part-b's int64 values narrow into the int32 anchor type, so none of them reads as null.
+            assertThat(scan, containsInAnyOrder(1, 2, -10, 20));
+            long nulls = scan.stream().filter(Objects::isNull).count();
+            // An ungrouped COUNT(*) over no rows is 0; a GROUPED one has no groups at all, so no rows come back.
+            boolean grouped = aggregation.contains(" BY ");
+            expected.put(aggregation, grouped && nulls == 0 ? List.of() : List.of(nulls));
         }
         assertThat(actual, equalTo(expected));
     }
@@ -6724,9 +6726,9 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         ) {
             rows = getValuesList(response);
         }
-        assertThat(rows.stream().map(row -> row.getFirst()).toList(), containsInAnyOrder(1, 2, null, null));
+        assertThat(rows.stream().map(row -> row.getFirst()).toList(), containsInAnyOrder(1, 2, -10, 20));
         for (List<Object> row : rows) {
-            assertThat("cold INLINE STATS rows: " + rows, row.subList(1, 4), equalTo(List.of(2L, 1, 2)));
+            assertThat("cold INLINE STATS rows: " + rows, row.subList(1, 4), equalTo(List.of(4L, -10, 20)));
         }
     }
 
@@ -6765,25 +6767,25 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertThat(second.settings().get("schema_resolution"), equalTo("first_file_wins"));
     }
 
-    public void testOmittedSchemaResolutionWarmAggregateMatchesTheScanOnDivergentColumnTypes() throws Exception {
+    public void testOmittedSchemaResolutionAggregateOverAConvertedColumnScansAndMatchesIt() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putLocalFileDataSourceRequest()));
         Path dir = createTempDir();
         writeParquet(dir.resolve("part-a.parquet"), "message m { required int32 x; }", 2, 1024, (g, i) -> g.add("x", i + 1));
         writeParquet(dir.resolve("part-b.parquet"), "message m { required int64 x; }", 2, 1024, (g, i) -> g.add("x", i == 0 ? -10L : 20L));
         putOmittedSchemaResolutionGlob("drift_pq_type_default", dir);
 
-        List<String> scanWarnings = collectWarningsContaining("FROM drift_pq_type_default | KEEP x | SORT x", "the query");
-        assertThat(scanWarnings, not(empty()));
-        assertThat(firstRowOf("FROM drift_pq_type_default | KEEP x | SORT x"), equalTo(List.of(1)));
-        assertThat(firstRowOf("FROM drift_pq_type_default | WHERE x IS NOT NULL | STATS c = COUNT(x)"), equalTo(List.of(2L)));
-        assertThat(firstRowOf("FROM drift_pq_type_default | STATS c = COUNT(x)"), equalTo(List.of(2L)));
-        assertThat(documentsReadBy("FROM drift_pq_type_default | STATS c = COUNT(x)"), equalTo(0L));
+        assertThat(collectWarningsContaining("FROM drift_pq_type_default | KEEP x | SORT x", "the query"), empty());
+        assertThat(firstRowOf("FROM drift_pq_type_default | KEEP x | SORT x"), equalTo(List.of(-10)));
+        assertThat(firstRowOf("FROM drift_pq_type_default | WHERE x IS NOT NULL | STATS c = COUNT(x)"), equalTo(List.of(4L)));
+        assertThat(firstRowOf("FROM drift_pq_type_default | STATS c = COUNT(x)"), equalTo(List.of(4L)));
+        // Withheld and scanned, for the reason given in the first_file_wins twin above.
+        assertThat(documentsReadBy("FROM drift_pq_type_default | STATS c = COUNT(x)"), greaterThan(0L));
         assertThat(
             firstRowOf("FROM drift_pq_type_default | WHERE x IS NOT NULL | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"),
-            equalTo(List.of(1, 2, 2L))
+            equalTo(List.of(-10, 20, 4L))
         );
-        assertThat(firstRowOf("FROM drift_pq_type_default | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(List.of(1, 2, 2L)));
-        assertThat(documentsReadBy("FROM drift_pq_type_default | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(0L));
+        assertThat(firstRowOf("FROM drift_pq_type_default | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(List.of(-10, 20, 4L)));
+        assertThat(documentsReadBy("FROM drift_pq_type_default | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), greaterThan(0L));
     }
 
     public void testOmittedSchemaResolutionWarmAggregateKeepsWideningFileValues() throws Exception {
@@ -6851,7 +6853,9 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertAcked(client().execute(PutDatasetAction.INSTANCE, putDatasetRequest("re_put_legacy_omit", FILE_DS, resource, settings)));
         Dataset second = getDataset("re_put_legacy_omit");
         assertThat(second.settings().get("schema_resolution"), equalTo("first_file_wins"));
-        assertThat(firstRowOf("FROM re_put_legacy_omit | STATS c = COUNT(x)"), equalTo(List.of(2L)));
+        // Both resolutions now count every row: under first_file_wins part-b's int64 x narrows into the anchor's
+        // int32 rather than reading as null, so the count no longer distinguishes them - the stored setting does.
+        assertThat(firstRowOf("FROM re_put_legacy_omit | STATS c = COUNT(x)"), equalTo(List.of(4L)));
     }
 
     public void testUnionByNameWarmAggregateWidensDivergentColumnTypes() throws Exception {

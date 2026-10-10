@@ -838,7 +838,7 @@ public class ExternalSourceResolver {
                 finalSource = resolvedSource;
                 effectiveReadSpec = declaredReadSpec;
             }
-            resolved.put(path, finalSource.withDeclaredReadSpec(effectiveReadSpec));
+            resolved.put(path, stampConversionMayNarrow(finalSource, config).withDeclaredReadSpec(effectiveReadSpec));
             LOGGER.debug("Successfully resolved external source: {}", path);
             // Dispatch to the executor rather than calling directly: on a cache-hit the callback fires
             // synchronously, so a direct recursive call would stack one frame per path and overflow the
@@ -1565,7 +1565,6 @@ public class ExternalSourceResolver {
                 // into the async aggregation so text-format multi-file merges force a re-scan instead of serving
                 // a subset COUNT/MIN/MAX (see foldsAbsentColumnAsImplicitNull / SourceStatisticsSerializer).
                 boolean implicitNulls = foldsAbsentColumnAsImplicitNull(base.sourceType());
-                Set<String> declaredTypeColumns = physicalDeclaredTypeColumnsOf(declaredMapping);
                 // Prefetch the dataset-level aggregate BEFORE the per-file stats gather — see
                 // applyDatasetAggregate for why post-gather reads self-defeat under cache pressure.
                 DatasetAggregatePrefetch datasetPrefetch = prefetchDatasetAggregate(
@@ -1590,11 +1589,7 @@ public class ExternalSourceResolver {
                 Map<String, String> ffwReadConfigs = new HashMap<>(listing.fileCount());
                 Map<StoragePath, Map<String, DataType>> ffwInferredTypes = new HashMap<>();
                 Map<StoragePath, SourceStatistics> ffwSlimStats = new HashMap<>();
-                RunningFileStatsFold fold = RunningFileStatsFold.firstFileWins(
-                    attributesToTypeMap(base.schema()),
-                    implicitNulls,
-                    declaredTypeColumns
-                );
+                RunningFileStatsFold fold = RunningFileStatsFold.firstFileWins(attributesToTypeMap(base.schema()), implicitNulls);
                 ActionListener<Map<String, Object>> statsListener = ActionListener.wrap(aggregatedStats -> {
                     try {
                         Map<String, Object> effective = applyDatasetAggregate(
@@ -1711,6 +1706,67 @@ public class ExternalSourceResolver {
         // Do NOT add STATS_PARTIAL — stats are now complete across all files.
         merged.remove(SourceStatisticsSerializer.STATS_PARTIAL);
         return replaceSourceMetadata(base, Map.copyOf(merged));
+    }
+
+    /**
+     * Stamps {@link SourceStatisticsSerializer#CONVERSION_MAY_NARROW_KEY} when reading any file of this source
+     * may convert a value and fail. Only the coordinator has seen the files, so the data node cannot work this
+     * out for itself; it decides filter pushdown, deferred extraction and the operator factory's extraction mode
+     * from this one fact, and those three must agree.
+     * <p>
+     * Narrowing is possible when the read type of a column is not reachable losslessly from the type the file
+     * holds it as, and also whenever a file's own types were never read - an unexamined file may hold anything.
+     * Every rail passes through here, so no rail can be left answering from provenance (esql-planning#2076).
+     * Written on every resolve, true or false, so a data node can tell "this coordinator says no" from "this
+     * coordinator never said" - the second is a pre-stamp plan and is answered the pre-stamp way.
+     */
+    static ExternalSourceResolution.ResolvedSource stampConversionMayNarrow(
+        ExternalSourceResolution.ResolvedSource source,
+        @Nullable Map<String, Object> config
+    ) {
+        Map<String, Object> current = source.metadata().sourceMetadata();
+        Map<String, Object> stamped = current == null ? new HashMap<>() : new HashMap<>(current);
+        stamped.put(SourceStatisticsSerializer.CONVERSION_MAY_NARROW_KEY, conversionMayNarrow(source, config));
+        return new ExternalSourceResolution.ResolvedSource(
+            replaceSourceMetadata(source.metadata(), Map.copyOf(stamped)),
+            source.fileList(),
+            source.schemaMap(),
+            source.declaredReadSpec()
+        );
+    }
+
+    private static boolean conversionMayNarrow(ExternalSourceResolution.ResolvedSource source, @Nullable Map<String, Object> config) {
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = source.schemaMap();
+        if (schemaMap == null || schemaMap.isEmpty()) {
+            // Nothing was examined, so nothing rules out a value that fails to convert.
+            return true;
+        }
+        // When the schema is pinned from one file, a file with no type snapshot was never examined and may hold
+        // anything. When it is not, each file's own schema IS its types, so a missing snapshot says nothing is
+        // being converted - the same reading applyNonStrictOverlay takes of the same two cases.
+        boolean schemaPinnedFromAnchorFile = isSchemaPinnedFromAnchorFile(
+            source.fileList() == null ? null : source.fileList().originalPattern(),
+            config
+        );
+        Map<String, String> renames = source.declaredReadSpec() == null ? Map.of() : source.declaredReadSpec().renames();
+        for (SchemaReconciliation.FileSchemaInfo info : schemaMap.values()) {
+            Map<String, DataType> nativeTypes = info.inferredTypes();
+            if (nativeTypes == null && schemaPinnedFromAnchorFile) {
+                return true;
+            }
+            for (Attribute attr : info.fileSchema().attributes()) {
+                // fileSchema carries LOGICAL names (a declaration's path rename is already applied to it) while
+                // inferredTypes is keyed PHYSICALLY, so the rename has to be undone to find the file's own type -
+                // the same translation normalizeSplitStats and fileBackedPhysicalColumns perform. Reading the
+                // logical name out of the physical map silently found nothing and called the column safe.
+                String physical = PhysicalNames.translate(attr.name(), renames);
+                DataType nativeType = nativeTypes == null ? attr.dataType() : nativeTypes.get(physical);
+                if (nativeType != null && DeclaredTypeCoercions.readsLossless(nativeType, attr.dataType()) == false) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /** Returns a wrapper that delegates to {@code base} but replaces {@code sourceMetadata()} with {@code replacement}. */
@@ -3560,26 +3616,15 @@ public class ExternalSourceResolver {
         return SourceStatisticsSerializer.mergeStatistics(perFileFlatStats, implicitNullsForAbsentColumn);
     }
 
-    /** Production FIRST_FILE_WINS fold of {@code allMetadata}. */
-    @Nullable
-    static Map<String, Object> aggregateFileStatistics(List<SourceMetadata> allMetadata, boolean implicitNullsForAbsentColumn) {
-        return aggregateFileStatistics(allMetadata, implicitNullsForAbsentColumn, Set.of());
-    }
-
     /** Production FIRST_FILE_WINS fold. The listing-order oracle is {@link #batchAggregateFileStatistics}. */
     @Nullable
-    static Map<String, Object> aggregateFileStatistics(
-        List<SourceMetadata> allMetadata,
-        boolean implicitNullsForAbsentColumn,
-        Set<String> declaredTypeColumns
-    ) {
+    static Map<String, Object> aggregateFileStatistics(List<SourceMetadata> allMetadata, boolean implicitNullsForAbsentColumn) {
         if (allMetadata.isEmpty()) {
             return null;
         }
         RunningFileStatsFold fold = RunningFileStatsFold.firstFileWins(
             attributesToTypeMap(allMetadata.get(0).schema()),
-            implicitNullsForAbsentColumn,
-            declaredTypeColumns
+            implicitNullsForAbsentColumn
         );
         for (int i = 0; i < allMetadata.size(); i++) {
             fold.accept(i, allMetadata.get(i));
@@ -3594,16 +3639,11 @@ public class ExternalSourceResolver {
      * {@link RunningFileStatsFold}.
      */
     @Nullable
-    static Map<String, Object> batchAggregateFileStatistics(
-        List<SourceMetadata> allMetadata,
-        boolean implicitNullsForAbsentColumn,
-        Set<String> declaredTypeColumns
-    ) {
+    static Map<String, Object> batchAggregateFileStatistics(List<SourceMetadata> allMetadata, boolean implicitNullsForAbsentColumn) {
         List<Map<String, Object>> perFileFlatStats = new ArrayList<>(allMetadata.size());
         Map<String, DataType> anchorTypes = null;
         Set<String> invalidCountColumns = new HashSet<>();
         Set<String> unsignedForeignDomainColumns = new HashSet<>();
-        Set<String> declaredColumns = declaredTypeColumns == null ? Set.of() : declaredTypeColumns;
         for (SourceMetadata meta : allMetadata) {
             Map<String, Object> flat = flatStatsOf(meta);
             if (flat == null) {
@@ -3619,7 +3659,6 @@ public class ExternalSourceResolver {
                     fileTypes,
                     anchorTypes,
                     implicitNullsForAbsentColumn,
-                    declaredColumns,
                     invalidCountColumns,
                     unsignedForeignDomainColumns
                 );
@@ -3649,8 +3688,7 @@ public class ExternalSourceResolver {
         @Nullable Map<String, Object> harvest,
         @Nullable Map<String, DataType> fileTypes,
         @Nullable Map<String, DataType> plannerTypes,
-        boolean implicitNullsForAbsentColumn,
-        Set<String> declaredTypeColumns
+        boolean implicitNullsForAbsentColumn
     ) {
         if (harvest == null
             || harvest.isEmpty()
@@ -3660,18 +3698,22 @@ public class ExternalSourceResolver {
             || plannerTypes.isEmpty()) {
             return harvest;
         }
-        Set<String> declaredColumns = declaredTypeColumns == null ? Set.of() : declaredTypeColumns;
         List<String> rewriteColumns = null;
         List<String> encodeColumns = null;
         List<String> poisonColumns = null;
+        List<String> invalidCountColumns = null;
         for (Map.Entry<String, DataType> entry : fileTypes.entrySet()) {
             DataType plannerType = plannerTypes.get(entry.getKey());
             DataType fileType = entry.getValue();
             if (unrepresentableUnderAnchor(plannerType, fileType)) {
-                if (declaredCoercible(declaredColumns, entry.getKey(), fileType, plannerType)) {
-                    continue;
-                }
-                if (implicitNullsForAbsentColumn) {
+                if (scanCoercesPerValue(fileType, plannerType)) {
+                    // The scan converts each value, so this harvest describes neither an all-null read
+                    // nor the converted one. Drop the extrema and the counts rather than serve either.
+                    if (invalidCountColumns == null) {
+                        invalidCountColumns = new ArrayList<>();
+                    }
+                    invalidCountColumns.add(entry.getKey());
+                } else if (implicitNullsForAbsentColumn) {
                     if (rewriteColumns == null) {
                         rewriteColumns = new ArrayList<>();
                     }
@@ -3705,6 +3747,10 @@ public class ExternalSourceResolver {
                 SourceStatisticsSerializer.poisonColumnExtrema(harvest, column);
             }
         }
+        if (invalidCountColumns != null) {
+            harvest = new HashMap<>(harvest);
+            dropColumnCounts(harvest, new HashSet<>(invalidCountColumns), true);
+        }
         return harvest;
     }
 
@@ -3725,8 +3771,14 @@ public class ExternalSourceResolver {
         return fileType == DataType.UNSIGNED_LONG && anchorType != null && anchorType != DataType.UNSIGNED_LONG;
     }
 
-    private static boolean declaredCoercible(Set<String> declaredTypeColumns, String name, DataType fileType, DataType plannerType) {
-        return declaredTypeColumns.contains(name) && DeclaredTypeCoercions.supports(fileType, plannerType);
+    /**
+     * Whether the scan converts this column's values rather than discarding the column. True when the
+     * file type can be converted to the planner's type, which is a property of the two types and of
+     * nothing else - asking in addition whether the column was declared gave two reads of the same
+     * file different statistics (esql-planning#2076).
+     */
+    private static boolean scanCoercesPerValue(DataType fileType, DataType plannerType) {
+        return DeclaredTypeCoercions.supports(fileType, plannerType);
     }
 
     /**
@@ -3739,7 +3791,6 @@ public class ExternalSourceResolver {
         Map<String, DataType> fileTypes,
         Map<String, DataType> anchorTypes,
         boolean implicitNullsForAbsentColumn,
-        Set<String> declaredColumns,
         Set<String> invalidCountColumns,
         Set<String> unsignedForeignDomainColumns
     ) {
@@ -3749,7 +3800,7 @@ public class ExternalSourceResolver {
             DataType anchorType = anchorTypes.get(entry.getKey());
             DataType fileType = entry.getValue();
             if (unrepresentableUnderAnchor(anchorType, fileType)) {
-                if (declaredCoercible(declaredColumns, entry.getKey(), fileType, anchorType)) {
+                if (scanCoercesPerValue(fileType, anchorType)) {
                     // The scan still coerces this column per value, so its harvest describes neither an
                     // all-null read nor the coerced one: drop extrema and counts after the merge.
                     invalidCountColumns.add(entry.getKey());
@@ -3837,21 +3888,38 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Whether this source is an inferred multi-file FIRST_FILE_WINS read, so every file is parsed
-     * at the anchor schema. Explicit single-file paths use their own schema; strict declared datasets
-     * use the declaration. A glob that matches one file still follows the multi-file resolver, so the
-     * source path (not {@code fileCount}) is the discriminator. Compute once per source, since parsing
-     * a comma-separated resource traverses the whole file list.
+     * Whether the read schema was pinned from one file rather than describing every file, so a second
+     * file's own types may differ from it. True for a multi-file FIRST_FILE_WINS read. An explicit
+     * single-file path is excluded because the pinned schema is that file's own schema; a glob matching
+     * one file still follows the multi-file resolver, so the source path (not {@code fileCount}) is the
+     * discriminator. Compute once per source, since parsing a comma-separated resource traverses the
+     * whole file list.
+     * <p>
+     * Deliberately does not ask how the schema was declared. A declared schema pinned across many files
+     * says no more about the second file's types than an inferred one does (esql-planning#2076).
+     */
+    public static boolean isSchemaPinnedFromAnchorFile(@Nullable String sourcePath, @Nullable Map<String, Object> config) {
+        if (GlobExpander.isMultiFile(sourcePath) == false) {
+            return false;
+        }
+        return effectiveSchemaResolution(config) == FormatReader.SchemaResolution.FIRST_FILE_WINS;
+    }
+
+    /**
+     * The pre-#2076 form: {@link #isSchemaPinnedFromAnchorFile} narrowed to inferred reads. Still read by
+     * {@code pinnedColumnsOf} and {@code EsqlSession.collectPinnedReads}, which strip columns from a
+     * statistics commit. Those two are not left here because the provenance question is harmless there -
+     * {@code SourceStatisticsSerializer#overlayPinnedColumnsOnStats} calls what they strip "wrong VALUES",
+     * so a strict read that skips the strip can commit a value a narrow read then serves. They are left
+     * because moving them changes what a cache entry holds rather than what one read returns, and that is
+     * worth doing on its own. Removed with the last provenance reader.
      */
     public static boolean isAnchorPinnedFirstFileWins(
         @Nullable String sourcePath,
         @Nullable Map<String, Object> config,
         @Nullable DeclaredReadSpec declaredReadSpec
     ) {
-        if (GlobExpander.isMultiFile(sourcePath) == false) {
-            return false;
-        }
-        if (effectiveSchemaResolution(config) != FormatReader.SchemaResolution.FIRST_FILE_WINS) {
+        if (isSchemaPinnedFromAnchorFile(sourcePath, config) == false) {
             return false;
         }
         SchemaProvenance provenance = declaredReadSpec == null ? SchemaProvenance.INFERRED : declaredReadSpec.provenance();
@@ -3859,12 +3927,25 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * True when an anchor-pinned FIRST_FILE_WINS read has no native-type snapshot for this file.
-     * Unknown is not incompatible: column statistics must not be interpreted until the file's
-     * own types are known.
+     * True when this file's own column types were never read, so column statistics must not be
+     * interpreted against them. Unknown is not incompatible: it means nobody looked.
+     * <p>
+     * Asks the record whether its own types were read rather than inferring it from how the schema was
+     * declared, which gave two reads of the same bytes different answers (esql-planning#2076). The
+     * structural question of whether the pinned schema can even describe this file is separate and is
+     * {@link #isSchemaPinnedFromAnchorFile}; a caller needs both.
+     */
+    static boolean nativeTypesUnknown(@Nullable SchemaReconciliation.FileSchemaInfo info) {
+        return info == null || info.nativeTypesRead() == false;
+    }
+
+    /**
+     * The pre-#2076 form, still read by {@code pinnedColumnsOf} and {@code EsqlSession}: those two decide
+     * which columns to safe-miss on the read-schema-blind cache, and routing a strict read through
+     * "types unknown" there pins every column rather than none. Removed with the last provenance reader.
      */
     static boolean nativeTypesUnknown(@Nullable SchemaReconciliation.FileSchemaInfo info, boolean anchorPinnedFirstFileWins) {
-        return anchorPinnedFirstFileWins && (info == null || info.inferredTypes() == null);
+        return anchorPinnedFirstFileWins && nativeTypesUnknown(info);
     }
 
     /**
@@ -4724,28 +4805,6 @@ public class ExternalSourceResolver {
     private static Set<String> declaredTypeColumnsOf(@Nullable DatasetMapping declaredMapping) {
         DatasetMapping.Mappings mappings = declaredMapping == null ? null : declaredMapping.mappings();
         return mappings == null ? Set.of() : Set.copyOf(mappings.properties().keySet());
-    }
-
-    /**
-     * Declared-type columns as the physical file names {@link #aggregateFileStatistics} sees on
-     * each file's schema. {@link #declaredTypeColumnsOf} is logical; a {@code path} rename is
-     * applied here so membership matches the harvest. {@link DeclaredReadSpec} keeps the logical
-     * set; {@link FileSourceFactory} physicalizes that copy at read time.
-     */
-    static Set<String> physicalDeclaredTypeColumnsOf(@Nullable DatasetMapping declaredMapping) {
-        Set<String> logical = declaredTypeColumnsOf(declaredMapping);
-        if (logical.isEmpty()) {
-            return logical;
-        }
-        Map<String, String> renames = DeclaredSchemaResolver.renameMap(declaredMapping);
-        if (renames.isEmpty()) {
-            return logical;
-        }
-        Set<String> physical = new HashSet<>(logical.size());
-        for (String col : logical) {
-            physical.add(PhysicalNames.translate(col, renames));
-        }
-        return Set.copyOf(physical);
     }
 
     /**
@@ -5664,10 +5723,9 @@ public class ExternalSourceResolver {
         // in the loop that already builds that schema per file.
         String expectedReadConfig = null;
         boolean perFileReadConfigsDisagree = false;
-        boolean anchorPinnedFirstFileWins = isAnchorPinnedFirstFileWins(
+        boolean schemaPinnedFromAnchorFile = isSchemaPinnedFromAnchorFile(
             resolved.fileList() == null ? null : resolved.fileList().originalPattern(),
-            inferred.config(),
-            DeclaredReadSpec.NONE
+            inferred.config()
         );
         // Per-file coercibility, at plan time only under fail_fast: a declared column a file stores under a type that
         // cannot be read as declared is a read failure of that file's column, which error_mode decides. Under fail_fast
@@ -5734,12 +5792,12 @@ public class ExternalSourceResolver {
             // inferred types onto info.inferredTypes(); preserve that snapshot so a widened+pinned column stays
             // identifiable after the overlay. Only when nothing upstream retyped the file (inferredTypes null) does
             // info.fileSchema() still carry the inferred types, so fall back to it for the declared-overlay-only path.
-            // An inferred FIRST_FILE_WINS glob is the exception: a missing snapshot means the native types were
+            // A schema pinned from one file is the exception: a missing snapshot means the native types were
             // never obtained, and filling from the pinned fileSchema would treat the pin as the found type.
             Map<String, DataType> preRetypeInferredTypes;
             if (info.inferredTypes() != null) {
                 preRetypeInferredTypes = info.inferredTypes();
-            } else if (anchorPinnedFirstFileWins) {
+            } else if (schemaPinnedFromAnchorFile) {
                 preRetypeInferredTypes = null;
             } else {
                 preRetypeInferredTypes = attributesToTypeMap(info.fileSchema().attributes());

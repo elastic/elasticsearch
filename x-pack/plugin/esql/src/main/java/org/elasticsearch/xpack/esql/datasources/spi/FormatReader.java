@@ -18,7 +18,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.Executor;
 
 /**
@@ -301,25 +300,6 @@ public interface FormatReader extends Closeable {
     }
 
     /**
-     * Returns a format reader that treats the given columns as <b>declared-type</b> columns: their target type came from
-     * an explicit declaration rather than inference, which licenses a lossy read-time coercion toward it (e.g. a declared
-     * {@code integer} over an {@code int64} file column narrows per value, null on overflow). An inferred target must
-     * never narrow — a cross-file clash widens-or-nulls. Keyed by <b>physical</b> (file) column name; the caller
-     * ({@code FileSourceFactory}) has already applied any declared {@code path} rename.
-     * <p>
-     * Only the by-name columnar formats (Parquet, ORC) make a whole-column incompatibility null-fill decision and
-     * override this — a declared column keeps the coercion escape, an inferred column null-fills whenever the file type
-     * is not widening-compatible. The text formats (CSV/TSV, NDJSON) parse straight into the target and keep the no-op
-     * default (their per-field failures are governed by the {@code ErrorPolicy}, not a whole-column type check).
-     *
-     * @param physicalDeclaredColumns physical names of the declared-type columns; empty when no column type was declared
-     * @return a new reader honoring the declared-type set, or {@code this} when none apply
-     */
-    default FormatReader withDeclaredTypeColumns(Set<String> physicalDeclaredColumns) {
-        return this;
-    }
-
-    /**
      * Tells a text reader whether the pinned schema it was handed is a DECLARED claim (provenance DECLARED) or an
      * INFERRED description. The bit matters only for a headerless file, which has no header to bind against:
      * <ul>
@@ -487,9 +467,9 @@ public interface FormatReader extends Closeable {
      * Overriding to {@code true} is a promise about a specific decode path and has to be demonstrated —
      * see {@code OrcFormatReaderTests#testDropsRowsUnderPushedFilter}.
      * <p>
-     * Only consulted when the read actually combines {@code skip_row} with declared-type columns — see
-     * {@code DeclaredReadSpec#dropsRowsOnCoercionFailure}. With no declared types there is nothing to
-     * coerce, hence no row to drop, and pushdown is always allowed.
+     * Only consulted when the read actually combines {@code skip_row} with files whose values the scan may
+     * have to convert — see {@code SourceStatisticsSerializer#CONVERSION_MAY_NARROW_KEY}. When every column
+     * reads losslessly there is nothing that can fail, hence no row to drop, and pushdown is always allowed.
      */
     default boolean dropsRowsUnderPushedFilter() {
         return false;

@@ -500,6 +500,22 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     }
 
     /**
+     * Whether reading this source may convert a value and fail, read from the resolution-time stamp in
+     * {@link #sourceMetadata()}. The coordinator is the only node that has seen the files, so this is how the fact
+     * reaches a data node.
+     * <p>
+     * A plan with no stamp came from a coordinator that predates it, and is answered the way that coordinator's own
+     * data nodes answered: any declared column type meant a value could fail. Reading absent as "cannot fail"
+     * instead would push a filter they withheld, which during a rolling upgrade is a row kept with a nulled cell.
+     */
+    public boolean conversionMayNarrow() {
+        if (SourceStatisticsSerializer.conversionNarrowingStamped(sourceMetadata)) {
+            return SourceStatisticsSerializer.conversionMayNarrow(sourceMetadata);
+        }
+        return declaredReadSpec().declaredTypeColumns().isEmpty() == false;
+    }
+
+    /**
      * The effective per-source statistics for this exec, resolved from the typed per-split
      * {@link org.elasticsearch.xpack.esql.datasources.spi.SplitStats} carried on {@link #splits()} when
      * available, falling back to the whole-file / anchor-file stats embedded in {@link #sourceMetadata()}

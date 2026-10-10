@@ -647,9 +647,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     // Declared per-column date formats: the spec keys them by logical name, but the reader sees physical
                     // (file) column names, so physicalize the keys through the same `path` renames here at the last mile.
                     .withDeclaredDateFormats(physicalDateFormats(context.declaredReadSpec()))
-                    // Declared-type columns (licensed to narrow toward their target): same logical->physical last-mile
-                    // translation, so the by-name columnar readers can key their null-fill escape on the physical names.
-                    .withDeclaredTypeColumns(physicalDeclaredTypeColumns(context.declaredReadSpec()))
                     // Keyed on provenance, not renames: a DECLARED schema binds by name even with no `path`, and an
                     // INFERRED (dynamic) schema must never re-bind at the reader (its positions already came from the file).
                     .withDeclaredProvenanceBinding(context.declaredReadSpec().provenance() == SchemaProvenance.DECLARED)
@@ -664,12 +661,18 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     partitionValues = fileSplit.partitionValues();
                 }
 
-                // Whether this read drops whole rows on a coercion failure. The plan already accounted for it:
-                // PushFiltersToSource withheld the pushdown for readers that cannot drop rows once filtered, and
-                // InsertExternalFieldExtraction skipped the extract exec. Recomputed here (rather than trusted from
-                // the plan) so the factory's own deferred-extraction decision cannot drift from the rule's — both
-                // resolve the policy against the same reader default via ErrorPolicy.forReader.
-                boolean dropsRowsOnCoercionFailure = context.declaredReadSpec().dropsRowsOnCoercionFailure(errorPolicy);
+                // Whether this read drops whole rows when a value fails to convert. The plan already accounted for
+                // it: PushFiltersToSource withheld the pushdown for readers that cannot drop rows once filtered, and
+                // InsertExternalFieldExtraction skipped the extract exec. The two halves are resolved the same way
+                // here as there, so the factory's own deferred-extraction decision cannot drift from the rules':
+                // the error mode against the reader's default via ErrorPolicy.forReader, and whether a value can
+                // fail at all from the resolution-time stamp the plan carries. Reading that stamp rather than the
+                // schema map is what makes the answer the same on a data node, where the map can be empty.
+                boolean mayNarrow = SourceStatisticsSerializer.conversionNarrowingStamped(context.sourceMetadata())
+                    ? SourceStatisticsSerializer.conversionMayNarrow(context.sourceMetadata())
+                    // A plan with no stamp predates it; answer as its own coordinator's data nodes did.
+                    : context.declaredReadSpec().declaredTypeColumns().isEmpty() == false;
+                boolean dropsRowsOnCoercionFailure = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW && mayNarrow;
 
                 List<Expression> pushedExpressions = context.pushedExpressions();
                 // Note: this only controls the per-file re-mint in AsyncExternalSourceOperatorFactory#readerForFile
@@ -781,25 +784,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
             // Route through the PhysicalNames chokepoint (the single source of truth for logical->physical) rather than
             // hand-rolling the lookup, so this reader-facing name surface stays consistent with the others.
             physical.put(PhysicalNames.translate(e.getKey(), renames), e.getValue());
-        }
-        return physical;
-    }
-
-    /**
-     * The declared-type columns as the physical (file) names the by-name columnar readers see. The spec keys them by
-     * logical name; physicalize through the same {@code path} renames as {@link #physicalDateFormats}. Empty in, empty
-     * out. A declared-type column is licensed to coerce (including narrow) toward its target; an inferred column may only
-     * widen, so the reader keys its whole-column incompatibility null-fill on membership in this set.
-     */
-    private static Set<String> physicalDeclaredTypeColumns(DeclaredReadSpec spec) {
-        Set<String> logical = spec.declaredTypeColumns();
-        if (logical.isEmpty()) {
-            return Set.of();
-        }
-        Map<String, String> renames = spec.renames();
-        Set<String> physical = new HashSet<>(logical.size());
-        for (String col : logical) {
-            physical.add(PhysicalNames.translate(col, renames));
         }
         return physical;
     }

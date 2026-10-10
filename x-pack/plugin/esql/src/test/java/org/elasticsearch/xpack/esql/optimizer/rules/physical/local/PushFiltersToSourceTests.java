@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
+import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -114,19 +115,25 @@ public class PushFiltersToSourceTests extends ESTestCase {
 
     /**
      * A pushed filter is the only signal Parquet keys late materialization off, and that path emits pages without
-     * the row-drop compaction — so a coercion failure there would null the cell and keep the row, silently serving
-     * {@code null_field} semantics for a {@code skip_row} read. The rule must leave the predicate in the FilterExec.
+     * the row-drop compaction — so a value that fails to convert there would null the cell and keep the row,
+     * silently serving {@code null_field} semantics for a {@code skip_row} read. A reader that cannot drop rows
+     * once a filter reaches it must therefore not be given one, and the predicate stays in the FilterExec.
      * <p>
      * This has to be decided here, at the mint. The operator factory cannot undo it later: for a
      * {@code Pushability.YES} conjunct the FilterExec is already gone, so suppressing the filter downstream would
      * leak unfiltered rows instead.
+     * <p>
+     * Both arms below read the same files; only the declared column set differs, and it used to decide this on its
+     * own (esql-planning#2076).
      */
     public void testDoesNotPushWhenReaderCannotDropRowsUnderPushedFilter() {
-        FilterExec filterExec = filterOverExternalSource("skip_row", Set.of("salary"));
+        for (Set<String> declaredTypeColumns : List.of(Set.of("salary"), Set.<String>of())) {
+            FilterExec filterExec = filterOverExternalSource("skip_row", true, declaredTypeColumns);
 
-        PhysicalPlan result = applyRule(filterExec, registry(/* dropsRowsUnderPushedFilter = */ false));
+            PhysicalPlan result = applyRule(filterExec, registry(/* dropsRowsUnderPushedFilter = */ false));
 
-        assertSame("the filter must stay above the source, unpushed", filterExec, result);
+            assertSame("the filter must stay above the source, unpushed", filterExec, result);
+        }
     }
 
     /**
@@ -141,7 +148,7 @@ public class PushFiltersToSourceTests extends ESTestCase {
 
     /** The same read on a reader that does drop rows on its filtered path (ORC) keeps the pushdown. */
     public void testPushesWhenReaderDropsRowsUnderPushedFilter() {
-        FilterExec filterExec = filterOverExternalSource("skip_row", Set.of("salary"));
+        FilterExec filterExec = filterOverExternalSource("skip_row", true, Set.of("salary"));
 
         PhysicalPlan result = applyRule(filterExec, registry(/* dropsRowsUnderPushedFilter = */ true));
 
@@ -180,20 +187,25 @@ public class PushFiltersToSourceTests extends ESTestCase {
         assertNotNull(((ExternalSourceExec) result).pushedFilter());
     }
 
-    /** No declared column types means nothing can fail to coerce, so no row is ever dropped: pushdown stays on
-     *  even for a reader that cannot drop rows, and skip_row costs nothing. */
-    public void testPushesUnderSkipRowWithoutDeclaredTypeColumns() {
-        FilterExec filterExec = filterOverExternalSource("skip_row", Set.of());
+    /**
+     * Files whose values all read losslessly can fail nothing, so no row is ever dropped: pushdown stays on
+     * even for a reader that cannot drop rows, and {@code skip_row} costs nothing. The control for the
+     * withheld-pushdown case above, run with both declared sets since neither decides it.
+     */
+    public void testPushesUnderSkipRowWhenNoValueCanFailToConvert() {
+        for (Set<String> declaredTypeColumns : List.of(Set.of("salary"), Set.<String>of())) {
+            FilterExec filterExec = filterOverExternalSource("skip_row", false, declaredTypeColumns);
 
-        PhysicalPlan result = applyRule(filterExec, registry(false));
+            PhysicalPlan result = applyRule(filterExec, registry(false));
 
-        assertThat(result, instanceOf(ExternalSourceExec.class));
-        assertNotNull(((ExternalSourceExec) result).pushedFilter());
+            assertThat(result, instanceOf(ExternalSourceExec.class));
+            assertNotNull(((ExternalSourceExec) result).pushedFilter());
+        }
     }
 
-    /** Declared column types under a mode that keeps every row are equally harmless. */
-    public void testPushesUnderNullFieldWithDeclaredTypeColumns() {
-        FilterExec filterExec = filterOverExternalSource("null_field", Set.of("salary"));
+    /** A mode that keeps every row is equally harmless where a value can fail to convert. */
+    public void testPushesUnderNullFieldWhenAValueCanFailToConvert() {
+        FilterExec filterExec = filterOverExternalSource("null_field", true, Set.of("salary"));
 
         PhysicalPlan result = applyRule(filterExec, registry(false));
 
@@ -219,24 +231,32 @@ public class PushFiltersToSourceTests extends ESTestCase {
         return new Literal(SRC, value, DataType.INTEGER);
     }
 
-    private static FilterExec filterOverExternalSource(String errorMode, Set<String> declaredTypeColumns) {
-        return filterOverExternalSource("file:///test.parquet", "parquet", errorMode, declaredTypeColumns);
+    private static FilterExec filterOverExternalSource(String errorMode, boolean conversionMayNarrow, Set<String> declaredTypeColumns) {
+        return filterOverExternalSource("file:///test.parquet", "parquet", errorMode, conversionMayNarrow, declaredTypeColumns);
+    }
+
+    private static FilterExec filterOverExternalSource(String sourcePath, String sourceType, String errorMode, Set<String> declared) {
+        return filterOverExternalSource(sourcePath, sourceType, errorMode, false, declared);
     }
 
     private static FilterExec filterOverExternalSource(
         String sourcePath,
         String sourceType,
         String errorMode,
+        boolean conversionMayNarrow,
         Set<String> declaredTypeColumns
     ) {
         FieldAttribute salary = fieldAttr("salary");
+        // Stamped explicitly either way; an absent stamp means a coordinator that predates it and is answered
+        // differently (see ExternalSourceResolverTests.testAnUnstampedPlanFallsBackToThePreStampAnswer).
+        Map<String, Object> sourceMetadata = Map.of(SourceStatisticsSerializer.CONVERSION_MAY_NARROW_KEY, conversionMayNarrow);
         ExternalSourceExec source = new ExternalSourceExec(
             SRC,
             sourcePath,
             sourceType,
             List.of(salary),
             Map.of(ErrorPolicy.CONFIG_ERROR_MODE, errorMode),
-            Map.of(),
+            sourceMetadata,
             /* pushedFilter = */ null,
             /* estimatedRowSize = */ null
         ).withDeclaredReadSpec(DeclaredReadSpec.of(Map.of(), Map.of(), declaredTypeColumns));

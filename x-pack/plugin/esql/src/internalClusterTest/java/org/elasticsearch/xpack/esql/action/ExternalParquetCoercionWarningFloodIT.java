@@ -143,7 +143,7 @@ public class ExternalParquetCoercionWarningFloodIT extends AbstractExternalDataS
         );
 
         List<String> coercionWarnings = warnings.stream()
-            .filter(w -> w.contains("cannot be read as their declared type") || w.contains("cannot read ["))
+            .filter(w -> w.contains("cannot be read as the type the query uses") || w.contains("cannot read ["))
             .toList();
         assertThat(
             "the null-fill drift must still surface at least one coercion warning, got: " + warnings,

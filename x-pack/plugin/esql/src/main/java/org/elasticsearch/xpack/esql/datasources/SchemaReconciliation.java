@@ -141,17 +141,31 @@ public final class SchemaReconciliation {
         ExternalSchema fileSchema,
         @Nullable ColumnMapping mapping,
         @Nullable SourceStatistics statistics,
-        // PRE-retype file types, physical-keyed; null means fileSchema IS the inferred schema,
-        // except on an inferred FIRST_FILE_WINS glob where a missing snapshot means the native
-        // types were never obtained and must not be filled from the pinned read schema.
-        // Populated by the UNION_BY_NAME pin, the declared overlay, and FIRST_FILE_WINS (which
-        // snapshots every file's own footer types when known, including files that agree with
-        // the anchor). Lets stats boundaries normalize footer stats with the real inferred types
-        // and identify pinned columns to safe-miss on the read-schema-blind cache.
+        // PRE-retype file types, physical-keyed. Populated by the UNION_BY_NAME pin, the declared
+        // overlay, and FIRST_FILE_WINS (which snapshots every file's own footer types when known,
+        // including files that agree with the anchor). Lets stats boundaries normalize footer stats
+        // with the real inferred types and identify pinned columns to safe-miss on the
+        // read-schema-blind cache.
         @Nullable Map<String, DataType> inferredTypes
     ) {
         public FileSchemaInfo(ExternalSchema fileSchema, @Nullable ColumnMapping mapping, @Nullable SourceStatistics statistics) {
             this(fileSchema, mapping, statistics, null);
+        }
+
+        /**
+         * Whether this file's own column types were read. Every consumer that must not fill a type in from the
+         * read schema asks this rather than re-deriving the distinction from how the schema was declared.
+         * <p>
+         * Derived from {@link #inferredTypes} rather than stored, because no producer can yet answer it any
+         * other way: the strict rail reads only the anchor's footer and keeps no per-file types at all, so
+         * every file of such a read answers false, the anchor included. Storing it would admit two states no
+         * producer builds and one of them - a true with no type map - is the #2076 failure itself, since
+         * {@code normalizeSplitStats} would then take the pinned read schema for the file's own types.
+         * Recording the anchor's footer types is what gives this its own answer, and what lets that anchor keep
+         * its statistics.
+         */
+        public boolean nativeTypesRead() {
+            return inferredTypes != null;
         }
     }
 

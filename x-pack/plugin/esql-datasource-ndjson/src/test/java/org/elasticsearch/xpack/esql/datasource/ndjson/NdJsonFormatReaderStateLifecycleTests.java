@@ -93,8 +93,6 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
         WitherLifecycle.SHARES_COUNTERS,
         "withPushedFilter",
         WitherLifecycle.IDENTITY_NO_COPY,
-        "withDeclaredTypeColumns",
-        WitherLifecycle.IDENTITY_NO_COPY,
         "withDeclaredProvenanceBinding",
         WitherLifecycle.SHARES_COUNTERS,
         "withHeaderBindingByProvenance",
@@ -251,7 +249,6 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
             case "withReadConfig" -> new Object[] { "0123456789abcdef0123456789abcdef" };
             case "withSchemaSampleShare" -> new Object[] { 8 };
             case "withPushedFilter" -> new Object[] { new Object() };
-            case "withDeclaredTypeColumns" -> new Object[] { Set.of("a") };
             case "withDeclaredProvenanceBinding" -> new Object[] { true };
             case "withHeaderBindingByProvenance" -> new Object[] { true };
             default -> throw new AssertionError("update sampleArgsFor() for new wither: " + wither);

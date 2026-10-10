@@ -58,7 +58,6 @@ import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -273,40 +272,19 @@ public class ParquetColumnExtractorTests extends ESTestCase {
         }
     }
 
-    public void testDeferredInferredIntegerOverInt64NullFillsWholeColumn() throws IOException {
-        // The deferred-extraction twin of ParquetFormatReaderTests.testInt64InferredIntegerNullFillsWholeColumn. After a
-        // TopN, an INFERRED INTEGER target over an int64 column must null-fill via coerceToTarget — never downcast —
-        // otherwise the column reads differently depending on whether extraction was deferred. supports(LONG, INTEGER) is
-        // true, so a plain (non-declared) reader here pins the deferred branch of the gate split: dropping the
-        // isDeclaredTypeColumn guard in coerceToTarget coerces here and this fails.
+    /**
+     * An {@code int64} column read as {@code integer} on the deferred path narrows per value, so values in range
+     * come back as integers rather than nulls. The deferred-extraction twin of
+     * {@code ParquetFormatReaderTests.testInt64IntegerNarrowsPerValue}: a column must read the same whether or not
+     * extraction was deferred.
+     * <p>
+     * This was two tests, one asserting that the same read null-filled the whole column when nobody had declared
+     * the target type (esql-planning#2076). Nothing about the file or the query differed between them.
+     */
+    public void testDeferredIntegerOverInt64NarrowsPerValue() throws IOException {
         byte[] data = writeSingleInt64File(new long[] { 5L, 7L, 9L });
         StorageObject so = createStorageObject(data);
-        try (ColumnExtractor extractor = newFullFileExtractor(so)) { // plain reader => "v" is inferred
-            long[] positions = { 0, 1, 2 };
-            Block[] blocks = extractor.extract(new String[] { "v" }, new DataType[] { DataType.INTEGER }, positions, blockFactory);
-            try (Block block = blocks[0]) {
-                assertEquals(3, block.getPositionCount());
-                for (int i = 0; i < positions.length; i++) {
-                    assertTrue("inferred int64->integer must null-fill on the deferred path, never downcast", block.isNull(i));
-                }
-            }
-        }
-        List<String> warnings = drainWarnings();
-        assertFalse("deferred inferred incompatibility must emit a response Warning", warnings.isEmpty());
-        assertTrue(
-            "warning must name the incompatibility, got: " + warnings,
-            warnings.toString().contains("column [v]: [long] in the file, [integer] in the query")
-        );
-    }
-
-    public void testDeferredDeclaredIntegerOverInt64Coerces() throws IOException {
-        // The declared contrast to the above on the SAME deferred path: when "v"'s INTEGER target is declared, the escape
-        // is licensed and coerceToTarget narrows per value (values in range => Integer results, not null) — proving the
-        // deferred gate distinguishes declared from inferred, exactly like the eager pair.
-        byte[] data = writeSingleInt64File(new long[] { 5L, 7L, 9L });
-        StorageObject so = createStorageObject(data);
-        ParquetFormatReader reader = (ParquetFormatReader) new ParquetFormatReader(blockFactory).withDeclaredTypeColumns(Set.of("v"));
-        try (ColumnExtractor extractor = new ParquetColumnExtractor(so, reader, loadFooter(so), ErrorPolicy.PERMISSIVE)) {
+        try (ColumnExtractor extractor = newFullFileExtractor(so)) {
             long[] positions = { 0, 1, 2 };
             Block[] blocks = extractor.extract(new String[] { "v" }, new DataType[] { DataType.INTEGER }, positions, blockFactory);
             try (Block block = blocks[0]) {
@@ -317,6 +295,7 @@ public class ParquetColumnExtractorTests extends ESTestCase {
                 assertEquals(9, ints.getInt(2));
             }
         }
+        assertTrue("a value that fits needs no warning, got: " + drainWarnings(), drainWarnings().isEmpty());
     }
 
     /**
@@ -327,14 +306,14 @@ public class ParquetColumnExtractorTests extends ESTestCase {
     public void testDeferredDeclaredUncoercibleColumnFollowsErrorMode() throws IOException {
         byte[] data = writeSingleInt64File(new long[] { 5L, 7L, 9L });
         StorageObject so = createStorageObject(data);
-        ParquetFormatReader reader = (ParquetFormatReader) new ParquetFormatReader(blockFactory).withDeclaredTypeColumns(Set.of("v"));
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
         long[] positions = { 0, 1, 2 };
         try (ColumnExtractor extractor = new ParquetColumnExtractor(so, reader, loadFooter(so), ErrorPolicy.STRICT)) {
             Exception e = expectThrows(
                 Exception.class,
                 () -> extractor.extract(new String[] { "v" }, new DataType[] { DataType.IP }, positions, blockFactory)
             );
-            assertThat(e.getMessage(), containsString("cannot be read as its declared type [ip]"));
+            assertThat(e.getMessage(), containsString("cannot be read as [ip]"));
         }
         try (ColumnExtractor extractor = new ParquetColumnExtractor(so, reader, loadFooter(so), ErrorPolicy.PERMISSIVE)) {
             for (int batch = 0; batch < 2; batch++) {
@@ -376,7 +355,7 @@ public class ParquetColumnExtractorTests extends ESTestCase {
             return groups;
         }, /* rowGroupBytes = */ 1024L);
         StorageObject so = createStorageObject(data);
-        ParquetFormatReader reader = (ParquetFormatReader) new ParquetFormatReader(blockFactory).withDeclaredTypeColumns(Set.of("v"));
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
         List<String> sink = new ArrayList<>();
         try (ColumnExtractor extractor = new ParquetColumnExtractor(so, reader, loadFooter(so), ErrorPolicy.PERMISSIVE, sink::add)) {
             long[] positions = { 0, 1, 2 };

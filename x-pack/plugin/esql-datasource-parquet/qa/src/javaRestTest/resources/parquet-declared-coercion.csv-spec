@@ -22,7 +22,7 @@ FROM employees_declared_parse
 | SORT id
 | LIMIT 3;
 warningRegex:column \[salary_change.keyword\]: cannot read \[keyword\] as \[double\]: empty String
-warningRegex:Some values in \[.*\] cannot be read as their declared type; returning null
+warningRegex:Some values in \[.*\] cannot be read as the type the query uses; returning null
 warningRegex:\.\.\. further warnings suppressed .*
 
 id:long | change:double

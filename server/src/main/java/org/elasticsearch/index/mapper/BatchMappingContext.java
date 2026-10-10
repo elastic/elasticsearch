@@ -232,6 +232,17 @@ public final class BatchMappingContext implements Releasable {
     }
 
     /**
+     * Returns the normalized size metered for document {@code doc} on the primary, or
+     * {@link org.elasticsearch.plugins.internal.XContentMeteringParserDecorator#UNKNOWN_SIZE} if the batch was not
+     * metered. Lets a metadata mapper persist the metered size as a column: the columnar counterpart of adding a field to
+     * {@link ParsedDocument#rootDoc()} from {@code DocumentSizeReporter#onParsingCompleted}, which has no
+     * {@link LuceneDocument} to add to on this path.
+     */
+    public long normalizedSize(int doc) {
+        return batch.normalizedSize(doc);
+    }
+
+    /**
      * Sets the synthetic {@code _id} and uid for document {@code doc}. Called by the time-series
      * columnar {@code _id} mapper during {@code postColumnarParse}.
      */

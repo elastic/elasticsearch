@@ -30,6 +30,7 @@ import org.elasticsearch.index.mapper.ShardBatchMapper.BatchMapperResolution;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.transport.BytesRefRecycler;
@@ -105,7 +106,8 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
             items.length,
             resolution,
             Engine.Operation.Origin.PRIMARY,
-            BytesRefRecycler.NON_RECYCLING_INSTANCE
+            BytesRefRecycler.NON_RECYCLING_INSTANCE,
+            DocumentParsingProvider.EMPTY_INSTANCE
         );
     }
 
@@ -467,7 +469,8 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
                     2,
                     resolution,
                     Engine.Operation.Origin.PRIMARY,
-                    BytesRefRecycler.NON_RECYCLING_INSTANCE
+                    BytesRefRecycler.NON_RECYCLING_INSTANCE,
+                    DocumentParsingProvider.EMPTY_INSTANCE
                 );
                 assertNotNull("chunk1 mapping should succeed", chunk1);
                 chunk1.columns().fillPrimaryTerm(1L);
@@ -490,7 +493,8 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
                     4,
                     resolution,
                     Engine.Operation.Origin.PRIMARY,
-                    BytesRefRecycler.NON_RECYCLING_INSTANCE
+                    BytesRefRecycler.NON_RECYCLING_INSTANCE,
+                    DocumentParsingProvider.EMPTY_INSTANCE
                 );
                 assertNotNull("chunk2 mapping should succeed", chunk2);
                 chunk2.columns().fillPrimaryTerm(1L);

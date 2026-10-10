@@ -569,6 +569,7 @@ public class IndexEngine extends InternalEngine {
     @Override
     public List<IndexResult> indexBatch(EngineBatch engineBatch) throws IOException {
         checkNoNewOperationsWhileHollow();
+        // TODO: Change documentParsingReporter to be batch aware and avoid materializeIndexOps here
         List<Index> operations = engineBatch.batch().materializeIndexOps();
         for (Index operation : operations) {
             documentParsingReporter.onParsingCompleted(operation.parsedDoc());

@@ -60,9 +60,10 @@ public interface NodeByteBudget {
     void release(long bytes);
 
     /**
-     * Drops {@code lease} as the node-wide overshoot owner if it currently holds that slot.
-     * Does not release bytes. Signals waiters. Call this when the lease is done; {@link Hold#close()}
-     * does not, because sliding-window buffers may still sit in {@link #used()}.
+     * Drops {@code lease} as the node-wide overshoot owner if it currently holds that slot,
+     * unpins it, and re-runs the grant loop even when {@code lease} is not the owner. Does not
+     * release bytes. Call this when the lease is done or cancelled; {@link Hold#close()} does
+     * not, because sliding-window buffers may still sit in {@link #used()}.
      */
     void clearOwner(RowGroupIo lease);
 
@@ -88,6 +89,15 @@ public interface NodeByteBudget {
     }
 
     /**
+     * Failure for a byte-ticket waiter whose lease has already {@link RowGroupIo#isFinished()
+     * finished}. Same fate as {@link #cancelled()}: the waiter cannot pin, so it must not sit
+     * on the FIFO head.
+     */
+    static EsRejectedExecutionException finished() {
+        return new EsRejectedExecutionException("Lease finished while waiting for I/O bytes");
+    }
+
+    /**
      * Reservation of {@link #tryAdmit} / {@link #admitAsync} bytes. {@link #drop(long)} swaps
      * leftover estimate for a real alloc; {@link #close()} clears any remainder. Idempotent.
      * {@link #close()} does not {@link NodeByteBudget#clearOwner}.
@@ -108,6 +118,13 @@ public interface NodeByteBudget {
          * beside it. Sibling in-flight ranges keep their estimate.
          */
         void drop(long bytes);
+
+        /**
+         * Unconditional extra charge. Credits {@link #remaining()} and never waits. Used to
+         * grow a group reservation at a phase switch; the caller must not exceed the bytes
+         * it is about to release. Callers serialize {@code grow} with {@link #close()}.
+         */
+        void grow(long bytes);
 
         /**
          * Releases leftover estimate. Does not {@link NodeByteBudget#clearOwner}: overshoot

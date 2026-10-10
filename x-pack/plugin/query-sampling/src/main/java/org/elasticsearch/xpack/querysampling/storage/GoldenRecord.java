@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.querysampling.storage;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
@@ -71,15 +72,27 @@ public final class GoldenRecord {
     /**
      * The document that tells a version of the dataset. It is made first, which gives out the number, and completed when the
      * records are in.
+     *
+     * @param sourceVersion the version that this one was made from, if it was made from one: a version made by promotion has
+     *                      none, a version in which the ground truth was computed again is made from the one it refreshes
      */
-    public static XContentBuilder manifest(XContentBuilder builder, long version, long createdAt, long records, boolean completed)
-        throws IOException {
+    public static XContentBuilder manifest(
+        XContentBuilder builder,
+        long version,
+        long createdAt,
+        long records,
+        boolean completed,
+        @Nullable Long sourceVersion
+    ) throws IOException {
         builder.startObject();
         builder.field("kind", GoldenIndex.VERSION);
         builder.field("dataset_version", version);
         builder.field("created_at", createdAt);
         builder.field("records", records);
         builder.field("completed", completed);
+        if (sourceVersion != null) {
+            builder.field("source_version", sourceVersion);
+        }
         return builder.endObject();
     }
 

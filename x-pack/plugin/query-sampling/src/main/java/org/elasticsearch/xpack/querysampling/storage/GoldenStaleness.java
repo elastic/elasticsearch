@@ -14,6 +14,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.querysampling.groundtruth.DataState;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
@@ -72,28 +73,56 @@ public final class GoldenStaleness {
     }
 
     private void read(long version, int max, ActionListener<Result> listener) {
-        reader.read(
-            version,
-            max,
-            ActionListener.wrap(read -> next(version, read.records(), read.unreadable(), 0, new int[4], listener), listener::onFailure)
-        );
+        reader.read(version, max, ActionListener.wrap(read -> classify(read.records(), ActionListener.wrap(statuses -> {
+            int[] counts = new int[Status.values().length];
+            statuses.forEach(status -> counts[status.ordinal()]++);
+            listener.onResponse(
+                new Result(
+                    version,
+                    read.records().size() + read.unreadable(),
+                    counts[Status.FRESH.ordinal()],
+                    counts[Status.STALE.ordinal()],
+                    counts[Status.UNKNOWN.ordinal()],
+                    read.unreadable() + counts[Status.FAILED.ordinal()]
+                )
+            );
+        }, listener::onFailure)), listener::onFailure));
     }
 
     /**
-     * Looks at the query at {@code index}, and then at the next.
-     *
-     * @param counts how many were found fresh, stale and unknown so far, and how many could not be looked at
+     * What a query of the dataset was found to be.
      */
-    private void next(long version, List<StoredSample> records, int unreadable, int index, int[] counts, ActionListener<Result> listener) {
+    public enum Status {
+        /** The data is as it was when the ground truth was computed. */
+        FRESH,
+        /** The data changed, so the ground truth cannot be trusted. */
+        STALE,
+        /** The ground truth was stored without the state of the data, which cannot be told. */
+        UNKNOWN,
+        /** The data could not be looked at. */
+        FAILED
+    }
+
+    /**
+     * Looks at each of the queries, one after the other.
+     *
+     * @param listener told the status of each, in the order of the queries
+     */
+    public void classify(List<StoredSample> records, ActionListener<List<Status>> listener) {
+        next(records, new ArrayList<>(records.size()), listener);
+    }
+
+    private void next(List<StoredSample> records, List<Status> statuses, ActionListener<List<Status>> listener) {
+        int index = statuses.size();
         if (index == records.size()) {
-            listener.onResponse(new Result(version, records.size() + unreadable, counts[0], counts[1], counts[2], unreadable + counts[3]));
+            listener.onResponse(statuses);
             return;
         }
         StoredSample record = records.get(index);
         DataState stored = record.groundTruth() == null ? null : record.groundTruth().dataState();
         if (stored == null) {
-            counts[2]++;
-            next(version, records, unreadable, index + 1, counts, listener);
+            statuses.add(Status.UNKNOWN);
+            next(records, statuses, listener);
             return;
         }
         ActionListener<SearchResponse> done = new ActionListener<>() {
@@ -116,8 +145,8 @@ public final class GoldenStaleness {
                 if (completed.compareAndSet(false, true) == false) {
                     return;
                 }
-                counts[stored.sameAs(now) ? 0 : 1]++;
-                next(version, records, unreadable, index + 1, counts, listener);
+                statuses.add(stored.sameAs(now) ? Status.FRESH : Status.STALE);
+                next(records, statuses, listener);
             }
 
             @Override
@@ -126,8 +155,8 @@ public final class GoldenStaleness {
                     return;
                 }
                 logger.debug("failed to look at the state of the data of a golden query", e);
-                counts[3]++; // neither fresh nor stale: it could not be told
-                next(version, records, unreadable, index + 1, counts, listener);
+                statuses.add(Status.FAILED);
+                next(records, statuses, listener);
             }
         };
         try {

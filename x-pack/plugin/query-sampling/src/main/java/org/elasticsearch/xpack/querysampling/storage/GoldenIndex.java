@@ -33,7 +33,7 @@ public final class GoldenIndex {
 
     public static final String NAME = ".query_golden";
 
-    static final int MAPPINGS_VERSION = 1;
+    static final int MAPPINGS_VERSION = 2;
 
     static final String RECORD = "record";
     static final String VERSION = "version";
@@ -78,6 +78,7 @@ public final class GoldenIndex {
             field(builder, "created_at", "date");
             field(builder, "records", "long");
             field(builder, "completed", "boolean");
+            field(builder, "source_version", "long");
             // of a record
             field(builder, "promoted_at", "date");
             field(builder, "source_picked_at", "date");

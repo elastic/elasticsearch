@@ -1,0 +1,37 @@
+{
+  "query_sampling.golden_refresh": {
+    "documentation": {
+      "url": null,
+      "description": "Make a new version of the golden dataset in which the ground truth of the queries whose data changed is computed again"
+    },
+    "stability": "experimental",
+    "visibility": "feature_flag",
+    "feature_flag": "es.query_sampling_feature_flag_enabled",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_query_sampling/golden/refresh",
+          "methods": [
+            "POST"
+          ]
+        }
+      ]
+    },
+    "params": {
+      "version": {
+        "type": "number",
+        "description": "The version of the dataset to refresh, by default the latest that is complete"
+      },
+      "max": {
+        "type": "number",
+        "description": "The most queries to look at",
+        "default": 1000
+      }
+    }
+  }
+}

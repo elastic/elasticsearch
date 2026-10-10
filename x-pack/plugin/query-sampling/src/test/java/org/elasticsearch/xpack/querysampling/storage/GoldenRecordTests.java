@@ -130,11 +130,17 @@ public class GoldenRecordTests extends ESTestCase {
     }
 
     public void testManifestTellsTheVersionAndWhetherItIsComplete() throws IOException {
-        Map<String, Object> manifest = toMap(GoldenRecord.manifest(JsonXContent.contentBuilder(), 4, 100L, 0, false));
+        Map<String, Object> manifest = toMap(GoldenRecord.manifest(JsonXContent.contentBuilder(), 4, 100L, 0, false, null));
         Map<String, Object> completion = toMap(GoldenRecord.completion(JsonXContent.contentBuilder(), 7));
 
         assertThat(manifest, equalTo(Map.of("kind", "version", "dataset_version", 4, "created_at", 100, "records", 0, "completed", false)));
         assertThat(completion, equalTo(Map.of("records", 7, "completed", true)));
+    }
+
+    public void testManifestOfAVersionMadeFromAnotherTellsWhichOne() throws IOException {
+        Map<String, Object> manifest = toMap(GoldenRecord.manifest(JsonXContent.contentBuilder(), 5, 100L, 0, false, 4L));
+
+        assertThat(manifest.get("source_version"), equalTo(4));
     }
 
     public void testIdsAreOfTheVersionAndOfTheQuery() {
@@ -151,7 +157,7 @@ public class GoldenRecordTests extends ESTestCase {
                 GoldenRecord.record(JsonXContent.contentBuilder(), 1, sample(new Stratum("vec/2", 0), Hardness.EASY, Selectivity.HIGH), 1L)
             ).keySet()
         );
-        written.addAll(toMap(GoldenRecord.manifest(JsonXContent.contentBuilder(), 1, 1L, 0, false)).keySet());
+        written.addAll(toMap(GoldenRecord.manifest(JsonXContent.contentBuilder(), 1, 1L, 0, false, 3L)).keySet());
         Map<String, Object> root = XContentHelper.convertToMap(BytesReference.bytes(GoldenIndex.mappings()), false, XContentType.JSON).v2();
         Map<String, Object> mapping = (Map<String, Object>) root.get("_doc");
 

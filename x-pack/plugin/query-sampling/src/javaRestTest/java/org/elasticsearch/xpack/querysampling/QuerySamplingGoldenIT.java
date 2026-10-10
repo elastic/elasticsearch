@@ -114,6 +114,34 @@ public class QuerySamplingGoldenIT extends QuerySamplingRestTestCase {
             ((Number) searchGolden("record", 1).evaluate("hits.total.value")).intValue(),
             equalTo(promoted)
         );
+
+        // a new version is made in which the ground truth of what is stale is computed again, and the version it is made from stays
+        ObjectPath refreshed = ObjectPath.createFromResponse(
+            client().performRequest(new Request("POST", "/_query_sampling/golden/refresh"))
+        );
+        assertThat(((Number) refreshed.evaluate("source_version")).longValue(), equalTo(2L));
+        assertThat(((Number) refreshed.evaluate("version")).longValue(), equalTo(3L));
+        assertThat(((Number) refreshed.evaluate("recomputed")).intValue(), equalTo(promoted));
+        assertThat(((Number) refreshed.evaluate("copied")).intValue(), equalTo(0));
+        assertThat(((Number) refreshed.evaluate("failed")).intValue(), equalTo(0));
+        assertThat(((Number) searchGolden("version", 3).evaluate("hits.hits.0._source.source_version")).longValue(), equalTo(2L));
+        // the sequence numbers of the five documents, of which one was updated, and as it was in the version it was made from
+        assertThat(
+            ((Number) searchGolden("record", 3).evaluate("hits.hits.0._source.ground_truth.data_state.seq_no_sum")).doubleValue(),
+            equalTo(15.0)
+        );
+        assertThat(
+            ((Number) searchGolden("record", 2).evaluate("hits.hits.0._source.ground_truth.data_state.seq_no_sum")).doubleValue(),
+            equalTo(10.0)
+        );
+        ObjectPath freshAgain = check("");
+        assertThat(((Number) freshAgain.evaluate("version")).longValue(), equalTo(3L));
+        assertThat(((Number) freshAgain.evaluate("fresh")).intValue(), equalTo(promoted));
+
+        // nothing is stale now, which makes no version
+        ObjectPath nothing = ObjectPath.createFromResponse(client().performRequest(new Request("POST", "/_query_sampling/golden/refresh")));
+        assertNull(nothing.evaluate("version"));
+        assertThat(((Number) nothing.evaluate("copied")).intValue(), equalTo(promoted));
     }
 
     private static ObjectPath check(String parameters) throws IOException {

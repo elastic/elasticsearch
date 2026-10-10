@@ -30,11 +30,13 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.xpack.querysampling.action.QuerySamplingGoldenCheckAction;
 import org.elasticsearch.xpack.querysampling.action.QuerySamplingGoldenPromoteAction;
+import org.elasticsearch.xpack.querysampling.action.QuerySamplingGoldenRefreshAction;
 import org.elasticsearch.xpack.querysampling.action.QuerySamplingGroundTruthAction;
 import org.elasticsearch.xpack.querysampling.action.QuerySamplingRecallAction;
 import org.elasticsearch.xpack.querysampling.action.QuerySamplingStatsAction;
 import org.elasticsearch.xpack.querysampling.action.TransportQuerySamplingGoldenCheckAction;
 import org.elasticsearch.xpack.querysampling.action.TransportQuerySamplingGoldenPromoteAction;
+import org.elasticsearch.xpack.querysampling.action.TransportQuerySamplingGoldenRefreshAction;
 import org.elasticsearch.xpack.querysampling.action.TransportQuerySamplingGroundTruthAction;
 import org.elasticsearch.xpack.querysampling.action.TransportQuerySamplingRecallAction;
 import org.elasticsearch.xpack.querysampling.action.TransportQuerySamplingStatsAction;
@@ -45,6 +47,7 @@ import org.elasticsearch.xpack.querysampling.groundtruth.CostBudget;
 import org.elasticsearch.xpack.querysampling.groundtruth.GroundTruthWorker;
 import org.elasticsearch.xpack.querysampling.rest.RestQuerySamplingGoldenCheckAction;
 import org.elasticsearch.xpack.querysampling.rest.RestQuerySamplingGoldenPromoteAction;
+import org.elasticsearch.xpack.querysampling.rest.RestQuerySamplingGoldenRefreshAction;
 import org.elasticsearch.xpack.querysampling.rest.RestQuerySamplingGroundTruthAction;
 import org.elasticsearch.xpack.querysampling.rest.RestQuerySamplingRecallAction;
 import org.elasticsearch.xpack.querysampling.rest.RestQuerySamplingStatsAction;
@@ -195,7 +198,8 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
             new ActionHandler(QuerySamplingGroundTruthAction.INSTANCE, TransportQuerySamplingGroundTruthAction.class),
             new ActionHandler(QuerySamplingRecallAction.INSTANCE, TransportQuerySamplingRecallAction.class),
             new ActionHandler(QuerySamplingGoldenPromoteAction.INSTANCE, TransportQuerySamplingGoldenPromoteAction.class),
-            new ActionHandler(QuerySamplingGoldenCheckAction.INSTANCE, TransportQuerySamplingGoldenCheckAction.class)
+            new ActionHandler(QuerySamplingGoldenCheckAction.INSTANCE, TransportQuerySamplingGoldenCheckAction.class),
+            new ActionHandler(QuerySamplingGoldenRefreshAction.INSTANCE, TransportQuerySamplingGoldenRefreshAction.class)
         );
     }
 
@@ -213,7 +217,8 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
             new RestQuerySamplingGroundTruthAction(),
             new RestQuerySamplingRecallAction(),
             new RestQuerySamplingGoldenPromoteAction(),
-            new RestQuerySamplingGoldenCheckAction()
+            new RestQuerySamplingGoldenCheckAction(),
+            new RestQuerySamplingGoldenRefreshAction()
         );
     }
 

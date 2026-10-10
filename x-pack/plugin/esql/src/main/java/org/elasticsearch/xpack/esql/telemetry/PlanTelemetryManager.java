@@ -26,6 +26,7 @@ public class PlanTelemetryManager {
     private final LongCounter functionsCounterAll;
     private final LongCounter settingsCounter;
     private final LongCounter settingsCounterAll;
+    private final LongCounter resolvedSettingsCounter;
     private final LongCounter linkedProjectsHistogram;
 
     /**
@@ -65,6 +66,13 @@ public class PlanTelemetryManager {
     public static final String SETTING_METRICS = "es.esql.settings.queries.total";
 
     /**
+     * Queries in which a setting resolved to a value. This covers every applicable setting, regardless
+     * of whether the user set it explicitly (from a {@code SET} or the request body), or left
+     * it to its default.
+     */
+    public static final String RESOLVED_SETTINGS_METRICS = "es.esql.resolved_settings.queries.total";
+
+    /**
      * Histogram of linked projects per ES|QL query.
      */
     public static final String LINKED_PROJECTS_HISTOGRAM = "es.esql.linked_projects.histogram";
@@ -75,6 +83,11 @@ public class PlanTelemetryManager {
      * the query was executed successfully or not
      */
     public static final String SUCCESS = "success";
+
+    /**
+     * Attribute of the setting counters: the value the setting took
+     */
+    public static final String SETTING_VALUE = "setting_value";
 
     public PlanTelemetryManager(MeterRegistry meterRegistry) {
         featuresCounter = meterRegistry.registerLongCounter(
@@ -95,6 +108,11 @@ public class PlanTelemetryManager {
             "unit"
         );
         settingsCounterAll = meterRegistry.registerLongCounter(SETTING_METRICS_ALL, "ESQL settings, total usage", "unit");
+        resolvedSettingsCounter = meterRegistry.registerLongCounter(
+            RESOLVED_SETTINGS_METRICS,
+            "ESQL settings, total number of queries in which a setting resolved to a value",
+            "unit"
+        );
         linkedProjectsHistogram = meterRegistry.registerLongCounter(
             LINKED_PROJECTS_HISTOGRAM,
             "Histogram of linked projects per esql query",
@@ -109,6 +127,7 @@ public class PlanTelemetryManager {
         metrics.commands().forEach((key, value) -> incCommand(key, value, success));
         metrics.functions().forEach((key, value) -> incFunction(key, value, success));
         metrics.settings().forEach((key, value) -> incSetting(key, value, success));
+        metrics.resolvedSettings().forEach((name, label) -> incResolvedSetting(name, label, success));
         if (metrics.linkedProjectsCount() != null) {
             linkedProjectsHistogram.incrementBy(1, Map.of("es_linked_projects_count", metrics.linkedProjectsCount()));
         }
@@ -127,5 +146,14 @@ public class PlanTelemetryManager {
     private void incSetting(String name, int count, boolean success) {
         this.settingsCounter.incrementBy(1, Map.ofEntries(Map.entry(FEATURE_NAME, name), Map.entry(SUCCESS, success)));
         this.settingsCounterAll.incrementBy(count, Map.ofEntries(Map.entry(FEATURE_NAME, name), Map.entry(SUCCESS, success)));
+    }
+
+    private void incResolvedSetting(String name, String label, boolean success) {
+        Map<String, Object> attributes = Map.ofEntries(
+            Map.entry(FEATURE_NAME, name),
+            Map.entry(SETTING_VALUE, label),
+            Map.entry(SUCCESS, success)
+        );
+        this.resolvedSettingsCounter.incrementBy(1, attributes);
     }
 }

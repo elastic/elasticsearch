@@ -162,6 +162,10 @@ public final class QuerySettings {
         )
         .withDefault(UnmappedResolution.DEFAULT)
         .withClusterDefault()
+        .withTelemetryLabels(
+            Arrays.stream(UnmappedResolution.values()).map(UnmappedResolution::settingValue).toList(),
+            UnmappedResolution::settingValue
+        )
         .build();
 
     @Param(
@@ -265,6 +269,12 @@ public final class QuerySettings {
         .withAliasAtRoot()
         .withReconciler((previous, current) -> new ApproximationSettings.Builder(false).merge(previous).merge(current).build())
         .withClusterDefault("false")
+        .withTelemetryLabels(List.of("false", "true", "map"), value -> {
+            if (ApproximationSettings.isOn(value) == false) {
+                return "false";
+            }
+            return ApproximationSettings.DEFAULT.equals(value) ? "true" : "map";
+        })
         .streamFormat((out, value) -> value.writeTo(out), ApproximationSettings::new)
         .build();
 

@@ -15,6 +15,7 @@ import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
@@ -88,22 +89,34 @@ public final class DefinitionVersion {
 
     private DefinitionVersion() {}
 
+    private static final int MEMO_ENTRIES = 1024;
+    private static final TimeValue MEMO_TTL = TimeValue.timeValueMinutes(30);
+
     /**
      * Both versions are a pure function of two immutable cluster-state objects, and the rewrite that mints them
-     * runs once per QUERY - so without this every query after the first rebuilds a value that cannot have changed.
-     * The pre-image walks every declared column, so the waste scales with the mapping: measured at 12 microseconds
-     * per query over 100 declared columns and 124 over 1000.
+     * runs once per QUERY - so without this every query after the first rebuilds a value that cannot have changed,
+     * walking every declared column to do it.
      * <p>
-     * Keyed by the IDENTITY of the two definitions, not by their contents. {@code Dataset.equals} deep-compares the
-     * mapping, which is the work this exists to avoid; and identity is exactly the right question, because the
-     * metadata is replaced wholesale on an edit - a new instance means a definition that may have changed, and the
-     * same instance means one that provably has not.
+     * Keyed by the IDENTITY of the two definitions, not by their contents. {@code Dataset.equals} deep-compares
+     * the mapping, which is the work this exists to avoid; and identity is the right question, because
+     * {@code DatasetMetadata} is a diffable custom - an unchanged one survives a publish by reference, and any
+     * edit replaces every {@code Dataset} in the project. An identity HASH collision lands two keys in one bucket
+     * and then fails {@code equals}, so it costs a recomputation rather than a wrong answer.
      * <p>
-     * Bounded, so a cluster with many datasets cannot pin unbounded stale cluster-state objects here. A miss costs
-     * one recomputation, which is what the uncached path cost on every query.
+     * The premise is that a {@code Dataset} does not change under its own reference. It holds final fields, but
+     * its constructor wraps the caller's settings map rather than copying it, so a caller that retained and
+     * mutated that map would be served a pre-mutation version for as long as the entry lives. Neither production
+     * construction site retains it. The TTL bounds how long such a mistake could persist, and is also why this
+     * cache has one at all: every sibling cache in this package expires its entries, and a definition's version
+     * is cheap enough to re-derive that holding cluster-state objects indefinitely buys nothing.
+     * <p>
+     * Bounded by ENTRY COUNT ({@code Cache}'s default weigher is one per entry), not by bytes: a wide declared
+     * mapping is retained in full, and nothing charges it to a breaker. Exceeding the bound costs recomputation.
      */
-    private static final int MEMO_ENTRIES = 1024;
-    private static final Cache<Memo, String> MEMO = CacheBuilder.<Memo, String>builder().setMaximumWeight(MEMO_ENTRIES).build();
+    private static final Cache<Memo, String> MEMO = CacheBuilder.<Memo, String>builder()
+        .setMaximumWeight(MEMO_ENTRIES)
+        .setExpireAfterWrite(MEMO_TTL)
+        .build();
 
     private static String memoized(Dataset dataset, DataSource parent, boolean datasetTier) {
         Memo key = new Memo(dataset, parent, datasetTier);
@@ -174,7 +187,8 @@ public final class DefinitionVersion {
 
     /**
      * The pre-image's fixed-width rendering, shared by both versions so the two cannot drift. Zero-padded,
-     * matching {@code ReadConfigFingerprint}: {@code Long.toHexString} does not pad, so (0x1, 0x23) and
+     * matching {@code ReadConfigFingerprint} in the hash and the padding, though no longer in how the pre-image
+     * is built: {@code Long.toHexString} does not pad, so (0x1, 0x23) and
      * (0x12, 0x3) would both render "123", and two definitions rendering to one version share every cache
      * address - the failure this class exists to prevent.
      */
@@ -211,8 +225,8 @@ public final class DefinitionVersion {
             }
             json.field("resource", dataset.resource());
             json.field("type", parent.type());
-            json.field("settings", new TreeMap<>(renderedSettings(dataset.settings())));
-            json.field("source_settings", new TreeMap<>(renderedSourceSettings(parent)));
+            json.field("settings", renderedSettings(dataset.settings()));
+            json.field("source_settings", renderedSourceSettings(parent));
             if (datasetTier) {
                 encodeMapping(json, dataset.mapping());
             }
@@ -224,11 +238,15 @@ public final class DefinitionVersion {
         }
     }
 
-    /** Dataset settings as text. {@code null} renders distinctly from the absent key, which JSON keeps apart. */
+    /**
+     * Dataset settings as text, through the same renderer the data source's settings use - a {@code byte[]} would
+     * otherwise render as its identity hash, minting a new version per deserialization. {@code null} renders
+     * distinctly from the absent key, which JSON keeps apart.
+     */
     private static Map<String, String> renderedSettings(Map<String, Object> settings) {
         Map<String, String> rendered = new TreeMap<>();
         for (Map.Entry<String, Object> e : settings.entrySet()) {
-            rendered.put(e.getKey(), e.getValue() == null ? null : e.getValue().toString());
+            rendered.put(e.getKey(), renderSettingValue(e.getValue()));
         }
         return rendered;
     }

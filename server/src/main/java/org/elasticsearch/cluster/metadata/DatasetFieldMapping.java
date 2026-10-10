@@ -125,6 +125,12 @@ public final class DatasetFieldMapping implements Writeable, ToXContentObject {
         return PARSER.parse(parser, null);
     }
 
+    /**
+     * Also a cache pre-image, not only the {@code GET _dataset} rendering: ES|QL folds this document into the
+     * version that addresses every cached fact about a dataset. A field added here is folded with it; a field
+     * dropped from here stops an edit to that field from moving the address, which leaves a stale measurement
+     * being served. Changing the shape for presentation reasons moves every dataset's address at once.
+     */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();

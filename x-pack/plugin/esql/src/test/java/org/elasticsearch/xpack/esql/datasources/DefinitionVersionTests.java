@@ -11,8 +11,11 @@ import org.elasticsearch.cluster.metadata.DataSourceReference;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
@@ -21,12 +24,17 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * The version exists so that everything derived from a dataset's definitions is addressed by those
@@ -515,6 +523,98 @@ public class DefinitionVersionTests extends ESTestCase {
 
         // And the two tiers must not answer for each other, which one shared memo could otherwise let happen.
         assertNotEquals("the file tier and the dataset tier are different values", once, DefinitionVersion.of(first, src));
+    }
+
+    /**
+     * The delimiting property, stated against the VERSIONS rather than against the encoder's internals - which is
+     * why the three cases this replaces are gone. Each of those forged a string against the old token stream
+     * ({@code "age1:t7:keyword..."}), so under a different encoding they passed for no reason at all.
+     * <p>
+     * Here the inputs are hostile in an encoder-agnostic way: a quote, a brace, a colon, a NUL and a newline, in
+     * both a setting key and a declared column name, shaped to close one field and open another. Whatever encodes
+     * the pre-image, two different definitions must not meet.
+     */
+    public void testHostileNamesCannotCollapseTwoDefinitionsIntoOne() {
+        DataSource src = source(Map.of("endpoint", "https://s3.example"));
+        String hostile = "a\":1,\"b\":{\"type\":\"long\"}\u0000:\n";
+
+        Map<String, Object> twoSettings = new LinkedHashMap<>();
+        twoSettings.put("a", "1");
+        twoSettings.put("b", "2");
+        assertNotEquals(
+            "a hostile setting key must not merge two settings into one",
+            DefinitionVersion.ofDataset(dataset("s3://b/*.csv", twoSettings), src),
+            DefinitionVersion.ofDataset(dataset("s3://b/*.csv", Map.of(hostile, "2")), src)
+        );
+        // The same forgery against a pre-image that delimited with NOTHING: key-then-value concatenated,
+        // "a"+"1"+"b"+"2" against "a1b"+"2". A JSON-shaped name cannot reach that encoding, and this one cannot
+        // reach JSON, so both shapes are needed for the case to outlive an encoder swap in either direction.
+        assertNotEquals(
+            "a setting key must not merge two settings under a delimiter-free pre-image either",
+            DefinitionVersion.ofDataset(dataset("s3://b/*.csv", twoSettings), src),
+            DefinitionVersion.ofDataset(dataset("s3://b/*.csv", Map.of("a1b", "2")), src)
+        );
+
+        Map<String, DatasetFieldMapping> twoColumns = new LinkedHashMap<>();
+        twoColumns.put("age", new DatasetFieldMapping("keyword", null));
+        twoColumns.put("zz", new DatasetFieldMapping("long", null));
+        assertNotEquals(
+            "a hostile declared column name must not merge two columns into one",
+            DefinitionVersion.ofDataset(mapped(declaring(DatasetMapping.Dynamic.TRUE, twoColumns)), src),
+            DefinitionVersion.ofDataset(
+                mapped(declaring(DatasetMapping.Dynamic.TRUE, Map.of(hostile, new DatasetFieldMapping("long", null)))),
+                src
+            )
+        );
+        assertNotEquals(
+            "nor under a delimiter-free one",
+            DefinitionVersion.ofDataset(mapped(declaring(DatasetMapping.Dynamic.TRUE, twoColumns)), src),
+            DefinitionVersion.ofDataset(
+                mapped(declaring(DatasetMapping.Dynamic.TRUE, Map.of("agekeywordzz", new DatasetFieldMapping("long", null)))),
+                src
+            )
+        );
+    }
+
+    /**
+     * A declared column is folded by {@link DatasetFieldMapping#toXContent}, which is what makes a field added
+     * there fold without an edit to this class. That is a claim about another class's output, so it gets an
+     * executor: each of the three fields a column declares must reach the rendered document, because a field
+     * {@code toXContent} omits is one an edit cannot move the version with.
+     */
+    public void testEveryFieldOfADeclaredColumnReachesTheRenderedDocument() throws IOException {
+        DatasetFieldMapping column = DatasetFieldMapping.withFormat("date", "physical_name", "yyyy-MM-dd");
+        try (XContentBuilder json = JsonXContent.contentBuilder()) {
+            column.toXContent(json, null);
+            String rendered = Strings.toString(json);
+            for (String part : List.of("date", "physical_name", "yyyy-MM-dd")) {
+                assertThat("a declared column's fields must all reach the pre-image: " + rendered, rendered, containsString(part));
+            }
+        }
+    }
+
+    /**
+     * The memo's bound, which is otherwise a javadoc sentence with no executor. Past the bound an entry is
+     * evicted, and eviction must cost a recomputation and never a wrong answer - so every definition still gets
+     * its own version, and they are all still distinct.
+     */
+    public void testExceedingTheMemoBoundCostsRecomputationAndNotCorrectness() {
+        DataSource src = source(Map.of("endpoint", "https://s3.example"));
+        int past = 2048; // comfortably past MEMO_ENTRIES
+        Set<String> versions = new HashSet<>();
+        List<Dataset> definitions = new ArrayList<>(past);
+        for (int i = 0; i < past; i++) {
+            definitions.add(dataset("parts_" + i, "s3://b/" + i + "/*.csv", Map.of("format", "csv")));
+        }
+        for (Dataset d : definitions) {
+            versions.add(DefinitionVersion.ofDataset(d, src));
+        }
+        assertEquals("every definition must get its own version however small the memo is", past, versions.size());
+        // And a definition evicted long ago must still answer with the same value it did before.
+        assertTrue(
+            "a recomputation after eviction must agree with the memoized value",
+            versions.contains(DefinitionVersion.ofDataset(definitions.get(0), src))
+        );
     }
 
     /**

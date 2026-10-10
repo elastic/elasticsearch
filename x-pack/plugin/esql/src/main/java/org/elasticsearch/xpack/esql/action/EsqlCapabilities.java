@@ -1464,6 +1464,15 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_INLINE_STATS_PRUNING,
 
         /**
+         * Fix for a conversion function above a {@code UnionAll} that resolves on a later analyzer pass than an equal one already
+         * pushed down into the branches, e.g. because an unmapped field under {@code unmapped_fields} delays its resolution.
+         * {@code ResolveUnionTypesInUnionAll} must reuse the existing synthetic {@code $$<field>$converted_to$<type>} union output
+         * instead of pushing another same-named alias on every pass, which made the Resolution batch loop until the rule
+         * execution limit.
+         */
+        SUBQUERY_IN_FROM_COMMAND_CONVERSION_RESOLVED_ON_LATER_PASS,
+
+        /**
          * Support IN non-correlated subqueries in WHERE command.
          */
         WHERE_IN_SUBQUERY,

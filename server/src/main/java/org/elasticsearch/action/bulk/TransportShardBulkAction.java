@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -51,7 +52,10 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.BytesSource;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DynamicMappingUpdateMerger;
 import org.elasticsearch.index.mapper.MapperException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.RowSource;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -73,6 +77,8 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.LongSupplier;
@@ -597,7 +603,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             return true;
         }
 
-        mappingUpdater.updateMappings(result.getRequiredMappingUpdate(), primary.shardId(), new ActionListener<>() {
+        final CompressedXContent ownMappingUpdate = result.getRequiredMappingUpdate();
+        final CompressedXContent mappingUpdate = context.shouldLookAheadForMappingUpdates()
+            ? withFollowingMappingUpdates(context, mapperService, ownMappingUpdate)
+            : ownMappingUpdate;
+        final ActionListener<Void> mappingUpdateListener = new ActionListener<>() {
             @Override
             public void onResponse(Void v) {
                 context.markAsRequiringMappingUpdate();
@@ -622,8 +632,97 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 assert context.isInitial();
                 itemDoneListener.onResponse(null);
             }
-        });
+        };
+        if (mappingUpdate == ownMappingUpdate) {
+            mappingUpdater.updateMappings(ownMappingUpdate, primary.shardId(), mappingUpdateListener);
+        } else {
+            // the operation only fails if its own update fails
+            mappingUpdater.updateMappings(
+                mappingUpdate,
+                primary.shardId(),
+                mappingUpdateListener.delegateResponse((l, e) -> mappingUpdater.updateMappings(ownMappingUpdate, primary.shardId(), l))
+            );
+        }
         return false;
+    }
+
+    /**
+     * Combines the dynamic mapping update of the current operation with the ones of the index operations that follow it. These
+     * are parsed to find their update and are indexed when their turn comes.
+     * <p>
+     * The look-ahead stops at the first operation that is not an index operation, that fails to parse, or whose update can't be
+     * combined with the previous ones, so that mappings are updated in the order of the operations.
+     * <p>
+     * Returns the update of the current operation alone if the combined update can't be applied to the mappings, or if one of the
+     * combined operations can't be indexed with the resulting mappings.
+     */
+    static CompressedXContent withFollowingMappingUpdates(
+        BulkPrimaryExecutionContext context,
+        MapperService mapperService,
+        CompressedXContent mappingUpdate
+    ) {
+        final DocumentMapper documentMapper = mapperService.documentMapper();
+        if (documentMapper == null) {
+            return mappingUpdate;
+        }
+        try {
+            final DynamicMappingUpdateMerger merger = mapperService.dynamicMappingUpdateMerger(mappingUpdate);
+            final List<IndexRequest> combined = new ArrayList<>();
+            context.lookAheadForMappingUpdates(request -> {
+                if (merger.hasCapacity() == false) {
+                    return false;
+                }
+                final CompressedXContent followingUpdate;
+                try {
+                    followingUpdate = parseForMappingUpdate(context, documentMapper, request);
+                } catch (Exception e) {
+                    return false;
+                }
+                if (followingUpdate == null) {
+                    return true;
+                }
+                if (merger.add(followingUpdate)) {
+                    combined.add(request);
+                    return true;
+                }
+                return false;
+            });
+            if (combined.isEmpty()) {
+                return mappingUpdate;
+            }
+            final CompressedXContent combinedUpdate = merger.merged();
+            final DocumentMapper updatedDocumentMapper = mapperService.previewDynamicMappingUpdate(combinedUpdate);
+            for (IndexRequest request : combined) {
+                if (parseForMappingUpdate(context, updatedDocumentMapper, request) != null) {
+                    return mappingUpdate;
+                }
+            }
+            return combinedUpdate;
+        } catch (Exception e) {
+            logger.debug(() -> format("%s failed to combine the mapping updates of several operations", context.getPrimary().shardId()), e);
+            return mappingUpdate;
+        }
+    }
+
+    /**
+     * Parses the document of an index request without indexing it, and returns the dynamic mapping update that it requires.
+     */
+    private static CompressedXContent parseForMappingUpdate(
+        BulkPrimaryExecutionContext context,
+        DocumentMapper documentMapper,
+        IndexRequest request
+    ) {
+        return documentMapper.parse(
+            sourceToParse(
+                request,
+                context.getBulkShardRequest().getBulkShardBatch(),
+                request.getDynamicTemplates(),
+                request.getDynamicTemplateParams(),
+                request.getIncludeSourceOnError(),
+                // documents are metered when they are indexed
+                XContentMeteringParserDecorator.NOOP
+            )
+        ).dynamicMappingsUpdate();
     }
 
     private static Engine.Result exceptionToResult(Exception e, IndexShard primary, boolean isDelete, long version, String id) {

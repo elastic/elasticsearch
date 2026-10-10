@@ -241,6 +241,78 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
         }
     }
 
+    /**
+     * Observations about one columnar batch beyond field-set equality, for tests that need to assert <em>how</em> the batch was mapped.
+     *
+     * @param directSourceAvailable whether every source-contributing field registered a direct {@code columnar_stored} {@code _source}
+     *                              writer, so {@link SourceFieldMapper#postColumnarParse} built the blob directly instead of via the loader
+     * @param sourceColumnCount     the number of registered direct source writers
+     */
+    protected record ColumnarBatchOutcome(boolean directSourceAvailable, int sourceColumnCount) {}
+
+    /**
+     * Drives the whole columnar batch — metadata {@code preColumnarParse}, every leaf and group field mapper, then metadata
+     * {@code postColumnarParse} — over {@code sources}, and reports {@link ColumnarBatchOutcome} observations. Lets a test assert that the
+     * {@code columnar_stored} direct source path was actually taken (or deliberately fell back), which field-set equality alone cannot show
+     * because both paths emit identical bytes by design.
+     */
+    protected final ColumnarBatchOutcome runColumnarBatch(MapperService mapperService, String... sources) throws IOException {
+        final int docCount = sources.length;
+        final BytesReference[] sourceBytesArray = new BytesReference[docCount];
+        final IndexRequest[] requests = new IndexRequest[docCount];
+        for (int i = 0; i < docCount; i++) {
+            sourceBytesArray[i] = new BytesArray(sources[i].getBytes(StandardCharsets.UTF_8));
+            requests[i] = new IndexRequest("test-index").id("d" + i).source(sourceBytesArray[i], XContentType.JSON);
+        }
+        final MappingLookup mappingLookup = mapperService.mappingLookup();
+        final IndexSettings indexSettings = mapperService.getIndexSettings();
+        try (
+            BatchMappingContext ctx = new BatchMappingContext(
+                EngineTestCase.initFromRequests(requests),
+                mappingLookup,
+                indexSettings,
+                new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
+            );
+            EscfBatch escfBatch = encode(Arrays.asList(sourceBytesArray), SourceEncoder.SIMD)
+        ) {
+            final MetadataFieldMapper[] allMetadata = mappingLookup.getMapping().getSortedMetadataMappers();
+            final List<MetadataFieldMapper> supportedMappers = Arrays.stream(allMetadata)
+                .filter(m -> m.supportsColumnarParse(indexSettings))
+                .toList();
+            for (MetadataFieldMapper m : supportedMappers) {
+                m.preColumnarParse(ctx);
+            }
+            final SourceSchema schema = escfBatch.schema();
+            final ColumnGroupResolver.Builder groupBuilder = new ColumnGroupResolver.Builder();
+            for (int c = 0; c < schema.leafCount(); c++) {
+                final String path = schema.getFullPath(c);
+                final Mapper mapper = mappingLookup.getMapper(path);
+                if (mapper instanceof FieldMapper fm) {
+                    fm.mapColumnBatch(ctx, escfBatch.column(c));
+                } else if (mapper == null
+                    && ColumnGroupResolver.findColumnGroup(
+                        path,
+                        mappingLookup
+                    ) instanceof ColumnGroupResolver.ColumnGroupLookup.Owned owned) {
+                        groupBuilder.add(owned, c);
+                    }
+            }
+            for (ColumnGroupResolver.ColumnGroupResolution group : groupBuilder.build()) {
+                final int[] leafIndexes = group.leafIndexes();
+                final EscfColumn[] groupColumns = new EscfColumn[leafIndexes.length];
+                for (int i = 0; i < leafIndexes.length; i++) {
+                    groupColumns[i] = escfBatch.column(leafIndexes[i]);
+                }
+                group.mapper().mapColumnGroupBatch(ctx, groupColumns, group.relativeKeys());
+            }
+            final ColumnarBatchOutcome outcome = new ColumnarBatchOutcome(ctx.directSourceAvailable(), ctx.sourceColumns().size());
+            for (MetadataFieldMapper m : supportedMappers) {
+                m.postColumnarParse(ctx);
+            }
+            return outcome;
+        }
+    }
+
     /** Creates a {@link Doc} with no routing and version {@code 1}. */
     protected static Doc doc(String id, long seqNo, String source) {
         return new Doc(id, null, seqNo, 1L, source, null);

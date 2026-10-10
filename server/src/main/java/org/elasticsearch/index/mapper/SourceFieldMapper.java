@@ -54,6 +54,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -701,18 +702,10 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         final EscfColumnBuilder blobs = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, context.recycler());
         blobs.lockScalar(EscfColumnKind.BINARY);
         try (blobs) {
-            final MappedColumns.RowCursor rows = context.rowCursor();
-            for (int d = 0; d < docCount; d++) {
-                rows.advance();
-                // The cursor's field list is only valid until the next advance(), which is fine: the blob is built before then.
-                final LuceneDocument doc = new LuceneDocument(rows.fields());
-                final BytesRef encodedValue = encodeColumnarSource(context.mappingLookup(), List.of(doc), doc);
-                blobs.setBinary(
-                    d,
-                    IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.encode(
-                        new IgnoredSourceFieldMapper.NameValue(NAME, 0, encodedValue, doc)
-                    )
-                );
+            if (canUseDirectColumnarSource(context)) {
+                writeDirectColumnarSource(context, blobs, docCount);
+            } else {
+                writeLoaderColumnarSource(context, blobs, docCount);
             }
             // Same pruning as postParse: the blob subsumes the per-field fallback columns, and the leftover _ignored_source columns
             // would otherwise collide with the blob's.
@@ -733,6 +726,86 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 LongColumn.NumericKind.LONG
             )
         );
+    }
+
+    /**
+     * Whether the batch may build each row's blob directly from the per-field {@link CompositeSourceColumn} writers the data mappers
+     * registered, instead of rebuilding the document and running the synthetic-source loader. Requires that every source-contributing
+     * field registered a writer ({@link BatchMappingContext#directSourceAvailable()}) and that no mapping-level rewrite stands between
+     * the mapped values and the blob: source filters, synthetic vector exclusions, and inference metadata fields all stay on the loader
+     * path for now (each is handled there and, left out of the blob, would otherwise make the direct output diverge).
+     */
+    private boolean canUseDirectColumnarSource(BatchMappingContext context) {
+        if (context.directSourceAvailable() == false) {
+            return false;
+        }
+        if (sourceFilter != null) {
+            return false;
+        }
+        final MappingLookup mappingLookup = context.mappingLookup();
+        if (mappingLookup.syntheticVectorFields().isEmpty() == false) {
+            return false;
+        }
+        if (InferenceMetadataFieldsMapper.isEnabled(mappingLookup) && mappingLookup.inferenceFields().isEmpty() == false) {
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Builds each row's blob directly from the registered writers: sort the fields by path once (the root {@link ObjectMapper} loader
+     * sorts by the same key), then per document write {@code {}} framing with each field's entry into one reusable builder and encode it,
+     * exactly as the loader path encodes its reconstructed document.
+     */
+    private void writeDirectColumnarSource(BatchMappingContext context, EscfColumnBuilder blobs, int docCount) throws IOException {
+        final List<CompositeSourceColumn> columns = new ArrayList<>(context.sourceColumns());
+        columns.sort(Comparator.comparing(CompositeSourceColumn::fullPath));
+        for (int d = 0; d < docCount; d++) {
+            final BytesRef encodedValue = encodeDirectColumnarSource(columns, d);
+            blobs.setBinary(
+                d,
+                IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.encode(
+                    new IgnoredSourceFieldMapper.NameValue(NAME, 0, encodedValue, null)
+                )
+            );
+        }
+    }
+
+    /**
+     * Writes one document's blob directly from the sorted field writers: {@code {}} framing (matching the root {@link ObjectMapper}
+     * loader, which emits {@code {}} even for a valueless document) with each field's entry, then the same
+     * {@link XContentDataHelper#encodeXContentBuilder} encoding the loader path uses.
+     */
+    private BytesRef encodeDirectColumnarSource(List<CompositeSourceColumn> columns, int doc) throws IOException {
+        try (var builder = XContentFactory.jsonBuilder()) {
+            builder.startObject();
+            for (CompositeSourceColumn column : columns) {
+                column.write(doc, builder);
+            }
+            builder.endObject();
+            return XContentDataHelper.encodeXContentBuilder(builder);
+        }
+    }
+
+    /**
+     * Reference and fallback path: rebuild each row's {@link LuceneDocument} from the mapped columns and run it through the
+     * synthetic-source loader, byte-for-byte identical to the row path's {@link #postParse}. Used whenever the direct path is not
+     * eligible (see {@link #canUseDirectColumnarSource}).
+     */
+    private void writeLoaderColumnarSource(BatchMappingContext context, EscfColumnBuilder blobs, int docCount) throws IOException {
+        final MappedColumns.RowCursor rows = context.rowCursor();
+        for (int d = 0; d < docCount; d++) {
+            rows.advance();
+            // The cursor's field list is only valid until the next advance(), which is fine: the blob is built before then.
+            final LuceneDocument doc = new LuceneDocument(rows.fields());
+            final BytesRef encodedValue = encodeColumnarSource(context.mappingLookup(), List.of(doc), doc);
+            blobs.setBinary(
+                d,
+                IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.encode(
+                    new IgnoredSourceFieldMapper.NameValue(NAME, 0, encodedValue, doc)
+                )
+            );
+        }
     }
 
     @Override

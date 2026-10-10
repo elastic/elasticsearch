@@ -51,6 +51,26 @@ public final class BatchMappingContext implements Releasable {
     private final List<Releasable> resources = new ArrayList<>();
     private final FieldNamesFieldMapper fieldNamesFieldMapper;
 
+    /**
+     * The per-field {@code _source} writers registered by data field mappers that support the {@code columnar_stored} direct source
+     * path (see {@link FieldMapper#supportsColumnarSource()}). Drained by {@link SourceFieldMapper#postColumnarParse} to build the
+     * blob directly, bypassing the per-document synthetic-source loader, but only when {@link #directSourceAvailable()} holds.
+     */
+    private final List<CompositeSourceColumn> sourceColumns = new ArrayList<>();
+    /**
+     * Set to {@code true} the moment any source-contributing field of the batch cannot be written directly — because its mapper does
+     * not support the direct path, or supports it in general but not for the shapes in this batch. Default-deny: a mapper added later
+     * is correct (it falls back to the loader path) without any change here, only slower.
+     */
+    private boolean directSourceUnavailable;
+    /**
+     * Set by {@link FieldMapper#mapColumnBatch} around a single {@link FieldMapper#doMapColumnBatch} call, for a source-contributing
+     * field whose mapper {@link FieldMapper#supportsColumnarSource() supports} the direct path. It tells that mapper to build its
+     * {@link CompositeSourceColumn} during the same scan that maps the field's Lucene columns — registering it via
+     * {@link #registerSourceColumn} — instead of re-scanning the source column in a second pass.
+     */
+    private boolean buildSourceColumnRequested;
+
     private boolean frozen;
     /** Accumulates {@code (doc, name)} pairs for {@code _field_names}. */
     private DeduplicatingStringColumnAccumulator fieldNames;
@@ -155,6 +175,66 @@ public final class BatchMappingContext implements Releasable {
     public void addResource(Releasable resource) {
         assert frozen == false;
         resources.add(resource);
+    }
+
+    /**
+     * Registers a field's direct {@code columnar_stored} {@code _source} writer. Called from {@link FieldMapper#mapColumnBatch} for a
+     * source-contributing field whose mapper supports the direct path for this batch. Ignored once the batch is already marked
+     * {@link #markDirectSourceUnavailable() unavailable}, since the whole batch will then take the loader path.
+     */
+    public void registerSourceColumn(CompositeSourceColumn sourceColumn) {
+        assert frozen == false;
+        if (directSourceUnavailable == false) {
+            sourceColumns.add(sourceColumn);
+        }
+    }
+
+    /**
+     * Enables direct {@code _source} writer construction for the field about to be mapped. Called by {@link FieldMapper#mapColumnBatch}
+     * immediately before invoking {@link FieldMapper#doMapColumnBatch} for a source-contributing field whose mapper supports the direct
+     * path, and cleared via {@link #clearSourceColumnRequest()} right after. While set, a mapper reads it through
+     * {@link #shouldBuildSourceColumn()} and builds its {@link CompositeSourceColumn} in the same pass it maps its Lucene columns.
+     */
+    void requestSourceColumn() {
+        assert frozen == false;
+        buildSourceColumnRequested = true;
+    }
+
+    /** Clears the per-field request set by {@link #requestSourceColumn()} once the field's {@code doMapColumnBatch} returns. */
+    void clearSourceColumnRequest() {
+        buildSourceColumnRequested = false;
+    }
+
+    /**
+     * Whether the field currently being mapped should build its direct {@code columnar_stored} {@code _source} writer during this
+     * {@code doMapColumnBatch} pass and register it via {@link #registerSourceColumn}. A mapper that builds nothing while this holds
+     * sends the whole batch to the loader path (default-deny, enforced by {@link FieldMapper#mapColumnBatch}).
+     */
+    public boolean shouldBuildSourceColumn() {
+        return buildSourceColumnRequested;
+    }
+
+    /**
+     * Marks the batch as unable to use the direct {@code columnar_stored} {@code _source} path, so {@link SourceFieldMapper} rebuilds
+     * every row through the synthetic-source loader instead. Irreversible for the batch, and discards any writers registered so far.
+     */
+    public void markDirectSourceUnavailable() {
+        assert frozen == false;
+        directSourceUnavailable = true;
+        sourceColumns.clear();
+    }
+
+    /**
+     * Whether every source-contributing field of the batch registered a direct writer, so {@link SourceFieldMapper#postColumnarParse}
+     * may build the blob from {@link #sourceColumns()} instead of the loader.
+     */
+    public boolean directSourceAvailable() {
+        return directSourceUnavailable == false;
+    }
+
+    /** The registered direct {@code _source} writers; meaningful only when {@link #directSourceAvailable()} holds. */
+    public List<CompositeSourceColumn> sourceColumns() {
+        return sourceColumns;
     }
 
     /**
@@ -354,6 +434,14 @@ public final class BatchMappingContext implements Releasable {
      */
     public boolean isSourceSynthetic() {
         return mappingLookup.isSourceSynthetic();
+    }
+
+    /**
+     * Whether {@code _source} is stored as a {@code columnar_stored} whole-document blob, the only mode that uses the direct source
+     * path driven by {@link #registerSourceColumn} and {@link #sourceColumns()}.
+     */
+    public boolean isSourceColumnarStored() {
+        return mappingLookup.isSourceColumnarStored();
     }
 
     /** The number of documents in this chunk. */

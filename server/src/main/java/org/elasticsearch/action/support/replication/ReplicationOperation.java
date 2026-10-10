@@ -460,6 +460,26 @@ public class ReplicationOperation<
                     }
 
                     @Override
+                    public void onRejection(Exception e) {
+                        // If the node is shutting down, follow the same path as nodeIsClosing above
+                        if (e instanceof EsRejectedExecutionException rejectedException && rejectedException.isExecutorShutdown()) {
+                            l.onFailure(
+                                new RetryOnPrimaryException(
+                                    primary.routingEntry().shardId(),
+                                    String.format(
+                                        Locale.ROOT,
+                                        "node with primary [%s] is shutting down while failing replica shard",
+                                        primary.routingEntry()
+                                    ),
+                                    failure
+                                )
+                            );
+                        } else {
+                            onFailure(e);
+                        }
+                    }
+
+                    @Override
                     public void onFailure(Exception e) {
                         e.addSuppressed(failure);
                         assert false : e;

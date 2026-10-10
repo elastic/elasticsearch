@@ -128,7 +128,8 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
                 localNode,
                 null,
                 IndexShardTestCase.NOOP_GCP_SYNCER,
-                RetentionLeaseSyncer.EMPTY
+                RetentionLeaseSyncer.EMPTY,
+                0
             );
             IndexShardTestCase.updateRoutingEntry(shard, newRouting);
             assertEquals(5, counter.get());
@@ -181,7 +182,8 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
                 localNode,
                 null,
                 IndexShardTestCase.NOOP_GCP_SYNCER,
-                RetentionLeaseSyncer.EMPTY
+                RetentionLeaseSyncer.EMPTY,
+                0
             );
             IndexShardTestCase.updateRoutingEntry(shard, newRouting);
             shard.markAsRecovering("store");

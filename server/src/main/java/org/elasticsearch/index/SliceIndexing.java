@@ -24,9 +24,8 @@ public final class SliceIndexing {
 
     private SliceIndexing() {}
 
-    /** REST request parameter name (mirrors {@code routing}); the field/output form is {@link #FIELD_NAME}. */
-    public static final String PARAM_NAME = "slice";
-    /** Metadata field / script-context name (mirrors {@code _routing}); the request-parameter form is {@link #PARAM_NAME}. */
+    /** Slice identifier name used everywhere: request-side (path segment, per-item body field, msearch header)
+     * and as the document metadata field / script-context name. */
     public static final String FIELD_NAME = "_slice";
     public static final FeatureFlag SLICE_FEATURE_FLAG = new FeatureFlag("slice_indexing");
     public static final TransportVersion SLICE_MISSING_EXCEPTION_VERSION = TransportVersion.fromName("slice_missing_exception");
@@ -52,7 +51,7 @@ public final class SliceIndexing {
     private static final Pattern VALID_SLICE_VALUE_PATTERN = Pattern.compile("[a-zA-Z0-9](?:[a-zA-Z0-9._:-]*[a-zA-Z0-9])?");
 
     /**
-     * A reserved value for the REST-only {@code slice} search parameter meaning "do not restrict to a routing value".
+     * A reserved value for the REST-only {@code _slice} search parameter meaning "do not restrict to a routing value".
      * This is used to query across all slices while still indicating intentional slice-mode access.
      */
     public static final String SLICE_ALL = "_all";
@@ -88,70 +87,157 @@ public final class SliceIndexing {
      */
     public static void validateUserSliceValue(String slice) {
         if (slice.isEmpty()) {
-            throw new IllegalArgumentException("invalid [slice] value: value must be non-empty");
+            throw new IllegalArgumentException("invalid [" + FIELD_NAME + "] value: value must be non-empty");
         }
         if (slice.length() > MAX_SLICE_VALUE_LENGTH) {
             throw new IllegalArgumentException(
-                "invalid [slice] value [" + slice + "]: length [" + slice.length() + "] exceeds max [" + MAX_SLICE_VALUE_LENGTH + "]"
+                "invalid ["
+                    + FIELD_NAME
+                    + "] value ["
+                    + slice
+                    + "]: length ["
+                    + slice.length()
+                    + "] exceeds max ["
+                    + MAX_SLICE_VALUE_LENGTH
+                    + "]"
             );
         }
         if (SLICE_ALL.equals(slice)) {
-            throw new IllegalArgumentException("invalid [slice] value [" + slice + "]: value is reserved");
+            throw new IllegalArgumentException("invalid [" + FIELD_NAME + "] value [" + slice + "]: value is reserved");
         }
         if (VALID_SLICE_VALUE_PATTERN.matcher(slice).matches() == false) {
             throw new IllegalArgumentException(
-                "invalid [slice] value [" + slice + "]: only [a-zA-Z0-9._:-] are allowed and max length is [" + MAX_SLICE_VALUE_LENGTH + "]"
+                "invalid ["
+                    + FIELD_NAME
+                    + "] value ["
+                    + slice
+                    + "]: only [a-zA-Z0-9._:-] are allowed and max length is ["
+                    + MAX_SLICE_VALUE_LENGTH
+                    + "]"
             );
         }
     }
 
     /**
-     * Parses and validates the REST-level {@code routing} and {@code slice} parameters.
-     * Returns the effective routing value and whether it was provided via {@code slice}.
+     * Parses and validates the REST-level {@code routing} and {@code _slice} for by-id document APIs (index, create, get, delete, update,
+     * term vectors, mget, bulk, explain).
+     * <p>
+     * Slice is encoded as a path segment, for example {@code /{index}/{_slice}/_doc/{id}}; the {@code _slice} query parameter is not
+     * supported. The value must be a single slice (the reserved token {@code _all} and comma-separated lists are rejected by
+     * {@link #validateUserSliceValue}). Returns the effective routing value and whether it was provided via {@code _slice}.
      */
     public static ParsedRouting parseRoutingOrSliceWithProvenance(RestRequest request) {
         final String routing = request.param("routing");
-        final String slice = request.param(PARAM_NAME);
+        final String slice = request.param(FIELD_NAME);
         if (slice != null && SLICE_FEATURE_FLAG.isEnabled() == false) {
-            throw new IllegalArgumentException("request does not support [slice]");
+            throw new IllegalArgumentException("request does not support [" + FIELD_NAME + "]");
         }
         if (slice != null) {
             validateUserSliceValue(slice);
         }
         if (slice != null && routing != null) {
-            throw new IllegalArgumentException("[routing] is not allowed together with [slice]");
+            throw new IllegalArgumentException("[routing] is not allowed together with [" + FIELD_NAME + "]");
         }
         return new ParsedRouting(slice != null ? slice : routing, slice != null);
     }
 
     /**
-     * Parses and validates the REST-level {@code routing} and {@code slice} parameters for search APIs.
-     * If {@code slice} is supplied, the returned routing contains the effective routing values
-     * (or {@code null} for {@code slice=_all}).
+     * Parses and validates slice routing for search APIs.
+     * <p>
+     * Slice is encoded in the path as {@code /{index}/{_slice}/_search}. The {@code {_slice}} segment may be a single slice,
+     * a comma-separated list (for example {@code tenant-a,tenant-b}), or the reserved token {@code _all}.
      */
     public static ParsedRouting parseSearchRoutingOrSliceWithProvenance(RestRequest request) {
         final String routing = request.param("routing");
-        final String slice = request.param(PARAM_NAME);
-        if (slice != null && SLICE_FEATURE_FLAG.isEnabled() == false) {
-            throw new IllegalArgumentException("request does not support [slice]");
+        if (isPathBasedSliceSearch(request)) {
+            if (SLICE_FEATURE_FLAG.isEnabled() == false) {
+                throw new IllegalArgumentException("request does not support [" + FIELD_NAME + "]");
+            }
+            if (routing != null) {
+                throw new IllegalArgumentException("[routing] is not allowed together with [" + FIELD_NAME + "]");
+            }
+            final String pathSlice = request.param(FIELD_NAME);
+            assert pathSlice != null : "path slice search must capture [" + FIELD_NAME + "] from the path";
+            return parseSearchPathSlice(pathSlice);
         }
-        if (slice != null && routing != null) {
-            throw new IllegalArgumentException("[routing] is not allowed together with [slice]");
-        }
-        if (slice == null) {
+        if (routing != null) {
             return new ParsedRouting(routing, false);
         }
-        if (SLICE_ALL.equals(slice)) {
+        return new ParsedRouting(null, false);
+    }
+
+    private static ParsedRouting parseSearchPathSlice(String pathSlice) {
+        if (SLICE_ALL.equals(pathSlice)) {
             return new ParsedRouting(null, true);
         }
-        final String[] slices = Strings.splitStringByCommaToArray(slice);
+        final String[] slices = Strings.splitStringByCommaToArray(pathSlice);
         if (slices.length == 0) {
-            throw new IllegalArgumentException("invalid [slice] value: value must be non-empty");
+            throw new IllegalArgumentException("invalid [" + FIELD_NAME + "] value: value must be non-empty");
         }
         for (String sliceValue : slices) {
             validateUserSliceValue(sliceValue);
         }
         return new ParsedRouting(String.join(",", slices), true);
+    }
+
+    /**
+     * Validates and normalizes a {@code _slice} value supplied inside the search {@code pit} object. A point-in-time search targets
+     * no index, so it cannot carry the slice as a {@code /{index}/{_slice}/_search} path segment; instead the slice is provided as
+     * the {@code _slice} field of the {@code pit} object. The value may be a single slice, a comma-separated list, or the reserved
+     * token {@code _all}. Requires the slice feature flag to be enabled.
+     */
+    public static ParsedRouting parsePitSearchSlice(String slice) {
+        if (SLICE_FEATURE_FLAG.isEnabled() == false) {
+            throw new IllegalArgumentException("request does not support [" + FIELD_NAME + "]");
+        }
+        return parseSearchPathSlice(slice);
+    }
+
+    /**
+     * Parses and validates the REST-level {@code routing} and {@code _slice} for search-family APIs that supply the slice via
+     * the {@code _slice} parameter rather than a path segment: {@code _msearch}, {@code _validate/query}, {@code _search_shards},
+     * and {@code _pit}.
+     * <p>
+     * These APIs either target multiple indices/sub-requests ({@code _msearch}) or otherwise have no per-index {@code {_slice}}
+     * path segment, so the slice is supplied as a parameter (mirroring the {@code routing} parameter). The value may be a single
+     * slice, a comma-separated list, or the reserved token {@code _all}. For {@code _msearch} this is the request-level default;
+     * per-sub-request overrides are handled separately via the metadata line.
+     */
+    public static ParsedRouting parseParamRoutingOrSliceWithProvenance(RestRequest request) {
+        final String routing = request.param("routing");
+        final String slice = request.param(FIELD_NAME);
+        if (slice != null && SLICE_FEATURE_FLAG.isEnabled() == false) {
+            throw new IllegalArgumentException("request does not support [" + FIELD_NAME + "]");
+        }
+        if (slice != null && routing != null) {
+            throw new IllegalArgumentException("[routing] is not allowed together with [" + FIELD_NAME + "]");
+        }
+        if (slice == null) {
+            return new ParsedRouting(routing, false);
+        }
+        return parseSearchPathSlice(slice);
+    }
+
+    /**
+     * Returns {@code true} when the request matched a path-based slice search endpoint. The supported shapes are
+     * {@code /{index}/{_slice}/_search}, {@code /{index}/{_slice}/_count}, {@code /{index}/{_slice}/_search/template}, and
+     * {@code /{index}/{_slice}/_fleet/_fleet_search}.
+     */
+    static boolean isPathBasedSliceSearch(RestRequest request) {
+        String rawPath = request.rawPath();
+        final int queryStart = rawPath.indexOf('?');
+        if (queryStart >= 0) {
+            rawPath = rawPath.substring(0, queryStart);
+        }
+        final String[] parts = Strings.tokenizeToStringArray(rawPath, "/");
+        if (parts.length == 3) {
+            return "_search".equals(parts[2]) || "_count".equals(parts[2]);
+        }
+        if (parts.length == 4) {
+            return ("_search".equals(parts[2]) && "template".equals(parts[3]))
+                || ("_fleet".equals(parts[2]) && "_fleet_search".equals(parts[3]));
+        }
+        return false;
     }
 
     /**
@@ -166,7 +252,13 @@ public final class SliceIndexing {
     ) {
         if (sliceEnabled == false && routingFromSlice) {
             throw new IllegalArgumentException(
-                "[slice] is not allowed when [index.slice.enabled] is false for " + requestDescription + " targeting [" + target + "]"
+                "["
+                    + FIELD_NAME
+                    + "] is not allowed when [index.slice.enabled] is false for "
+                    + requestDescription
+                    + " targeting ["
+                    + target
+                    + "]"
             );
         }
         if (sliceEnabled && routingFromSlice == false) {
@@ -176,19 +268,27 @@ public final class SliceIndexing {
                         + requestDescription
                         + " targeting ["
                         + target
-                        + "], use [slice] instead"
+                        + "], use ["
+                        + FIELD_NAME
+                        + "] instead"
                 );
             }
             throw new IllegalArgumentException(
-                "[slice] is required when [index.slice.enabled] is true for " + requestDescription + " targeting [" + target + "]"
+                "["
+                    + FIELD_NAME
+                    + "] is required when [index.slice.enabled] is true for "
+                    + requestDescription
+                    + " targeting ["
+                    + target
+                    + "]"
             );
         }
     }
 
     /**
      * Validates request-level slice/routing requirements and resolves effective routing for search-style APIs.
-     * When {@code anySliceEnabled} is true and no {@code slice} parameter was provided, the request is treated
-     * as {@code slice=_all} (routing is left unrestricted, covering all slices).
+     * When {@code anySliceEnabled} is true and no {@code _slice} parameter was provided, the request is treated
+     * as {@code _slice=_all} (routing is left unrestricted, covering all slices).
      */
     public static String validateAndResolveSliceRoutingRequirement(
         boolean anySliceEnabled,
@@ -205,12 +305,20 @@ public final class SliceIndexing {
                     + requestDescription
                     + " targeting ["
                     + target
-                    + "], use [slice] instead"
+                    + "], use ["
+                    + FIELD_NAME
+                    + "] instead"
             );
         }
         if (routingFromSlice && anySliceEnabled == false && allowSliceWhenNoLocalSliceEnabled == false) {
             throw new IllegalArgumentException(
-                "[slice] is not allowed when [index.slice.enabled] is false for " + requestDescription + " targeting [" + target + "]"
+                "["
+                    + FIELD_NAME
+                    + "] is not allowed when [index.slice.enabled] is false for "
+                    + requestDescription
+                    + " targeting ["
+                    + target
+                    + "]"
             );
         }
         if (routingFromSlice) {

@@ -60,7 +60,7 @@ public class SliceSelectionTests extends ESTestCase {
     public void testRejectsBlankNames() {
         for (String blank : List.of("", "   ", "s1,,s2", "s1, ")) {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SliceSelection.fromSearchSlice(blank));
-            assertThat(e.getMessage(), containsString("[slice] cannot be blank"));
+            assertThat(e.getMessage(), containsString("[_slice] cannot be blank"));
         }
         expectThrows(IllegalArgumentException.class, () -> SliceSelection.of(List.of()));
     }

@@ -25,7 +25,7 @@ setup:
       index:
           index:  slice_index
           id:     "1"
-          slice: a
+          _slice: a
           refresh: true
           body:   { value: va }
   - match: { _id: "1" }
@@ -35,7 +35,7 @@ setup:
       index:
           index:  slice_index
           id:     "1"
-          slice: b
+          _slice: b
           refresh: true
           body:   { value: vb }
   - match: { _id: "1" }
@@ -46,7 +46,7 @@ setup:
       get:
           index:  slice_index
           id:     "1"
-          slice: a
+          _slice: a
   - match: { _id: "1" }
   - match: { _source.value: va }
 
@@ -54,7 +54,7 @@ setup:
       get:
           index:  slice_index
           id:     "1"
-          slice: b
+          _slice: b
   - match: { _id: "1" }
   - match: { _source.value: vb }
 
@@ -62,7 +62,7 @@ setup:
   - do:
       search:
           index:  slice_index
-          slice: a
+          _slice: a
           body:   { query: { match_all: {} } }
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "1" }
@@ -71,7 +71,7 @@ setup:
   - do:
       search:
           index:  slice_index
-          slice: _all
+          _slice: _all
           body:   { query: { match_all: {} } }
   - match: { hits.total.value: 2 }
 
@@ -79,10 +79,60 @@ setup:
   - do:
       search:
           index:  slice_index
-          slice: b
+          _slice: b
           body:   { query: { ids: { values: ["1"] } } }
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._source.value: vb }
+
+---
+"A slice search spans multiple comma-separated indices":
+  - do:
+      indices.create:
+          index: slice_index_2
+          body:
+              settings:
+                  number_of_shards: 1
+                  index.slice.enabled: true
+              mappings:
+                  properties:
+                      value:
+                          type: keyword
+
+  # the same slice holds a doc in each index
+  - do:
+      index:
+          index:  slice_index
+          id:     "1"
+          _slice: a
+          refresh: true
+          body:   { value: va1 }
+  - do:
+      index:
+          index:  slice_index_2
+          id:     "1"
+          _slice: a
+          refresh: true
+          body:   { value: va2 }
+
+  # searching both indices in a single slice path request returns hits from each
+  - do:
+      search:
+          index:  slice_index,slice_index_2
+          _slice: a
+          body:   { query: { match_all: {} } }
+  - match: { hits.total.value: 2 }
+
+  # the hits come from both indices
+  - do:
+      search:
+          index:  slice_index,slice_index_2
+          _slice: a
+          body:   { query: { match_all: {} }, sort: [ { _index: asc } ] }
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._index: slice_index }
+  - match: { hits.hits.0._source.value: va1 }
+  - match: { hits.hits.1._index: slice_index_2 }
+  - match: { hits.hits.1._source.value: va2 }
 
 ---
 "Overwrite and delete are scoped to the slice":
@@ -90,14 +140,14 @@ setup:
       index:
           index:  slice_index
           id:     "1"
-          slice: a
+          _slice: a
           refresh: true
           body:   { value: va }
   - do:
       index:
           index:  slice_index
           id:     "1"
-          slice: b
+          _slice: b
           refresh: true
           body:   { value: vb }
 
@@ -106,7 +156,7 @@ setup:
       index:
           index:  slice_index
           id:     "1"
-          slice: a
+          _slice: a
           refresh: true
           body:   { value: va2 }
   - match: { result: updated }
@@ -116,14 +166,14 @@ setup:
       get:
           index:  slice_index
           id:     "1"
-          slice: a
+          _slice: a
   - match: { _source.value: va2 }
 
   - do:
       get:
           index:  slice_index
           id:     "1"
-          slice: b
+          _slice: b
   - match: { _source.value: vb }
 
   # deleting _id 1 in slice a leaves slice b intact
@@ -131,7 +181,7 @@ setup:
       delete:
           index:  slice_index
           id:     "1"
-          slice: a
+          _slice: a
           refresh: true
   - match: { result: deleted }
 
@@ -140,7 +190,7 @@ setup:
       get:
           index:  slice_index
           id:     "1"
-          slice: a
+          _slice: a
 
   # delete and update of the now-missing (slice a, id 1) report missing/404, not a wrong-slice error
   - do:
@@ -148,21 +198,21 @@ setup:
       delete:
           index:  slice_index
           id:     "1"
-          slice: a
+          _slice: a
 
   - do:
       catch: missing
       update:
           index:  slice_index
           id:     "1"
-          slice: a
+          _slice: a
           body:   { doc: { value: vX } }
 
   - do:
       get:
           index:  slice_index
           id:     "1"
-          slice: b
+          _slice: b
   - match: { _source.value: vb }
 
 ---
@@ -171,7 +221,7 @@ setup:
       index:
           index:  slice_index
           id:     "only-a"
-          slice: a
+          _slice: a
           refresh: true
           body:   { value: va }
 
@@ -181,12 +231,12 @@ setup:
       get:
           index:  slice_index
           id:     "only-a"
-          slice: b
+          _slice: b
 
   - do:
       search:
           index:  slice_index
-          slice: b
+          _slice: b
           body:   { query: { ids: { values: ["only-a"] } } }
   - match: { hits.total.value: 0 }
 
@@ -195,14 +245,14 @@ setup:
       delete:
           index:  slice_index
           id:     "only-a"
-          slice: b
+          _slice: b
 
   - do:
       catch: missing
       update:
           index:  slice_index
           id:     "only-a"
-          slice: b
+          _slice: b
           body:   { doc: { value: vb } }
 
   # slice a is untouched by the missing-slice operations
@@ -210,5 +260,5 @@ setup:
       get:
           index:  slice_index
           id:     "only-a"
-          slice: a
+          _slice: a
   - match: { _source.value: va }

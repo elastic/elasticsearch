@@ -28,7 +28,7 @@ setup:
       index:
         index: bbq_disk_slice
         id: "1"
-        slice: s1
+        _slice: s1
         body:
           vector: [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
@@ -36,7 +36,7 @@ setup:
       index:
         index: bbq_disk_slice
         id: "3"
-        slice: s1
+        _slice: s1
         body:
           vector: [0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
@@ -44,7 +44,7 @@ setup:
       index:
         index: bbq_disk_slice
         id: "2"
-        slice: s2
+        _slice: s2
         body:
           vector: [0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
@@ -52,7 +52,7 @@ setup:
       index:
         index: bbq_disk_slice
         id: "4"
-        slice: s2
+        _slice: s2
         body:
           vector: [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]
 
@@ -63,7 +63,7 @@ setup:
   - do:
       search:
         index: bbq_disk_slice
-        slice: s1
+        _slice: s1
         body:
           knn:
             field: vector
@@ -80,7 +80,7 @@ setup:
   - do:
       search:
         index: bbq_disk_slice
-        slice: s2
+        _slice: s2
         body:
           knn:
             field: vector
@@ -97,7 +97,7 @@ setup:
   - do:
       search:
         index: bbq_disk_slice
-        slice: s1,s2
+        _slice: s1,s2
         body:
           knn:
             field: vector
@@ -117,7 +117,7 @@ setup:
   - do:
       search:
         index: bbq_disk_slice
-        slice: s1,s2,s1,s2
+        _slice: s1,s2,s1,s2
         body:
           knn:
             field: vector
@@ -137,7 +137,7 @@ setup:
   - do:
       search:
         index: bbq_disk_slice
-        slice: _all
+        _slice: _all
         body:
           knn:
             field: vector
@@ -180,7 +180,7 @@ setup:
 ---
 "Index requires slice when slice indexing is enabled":
   - do:
-      catch: /\[slice\] is required when \[index.slice.enabled\] is true/
+      catch: /\[_slice\] is required when \[index.slice.enabled\] is true/
       index:
         index: bbq_disk_slice
         id: "5"

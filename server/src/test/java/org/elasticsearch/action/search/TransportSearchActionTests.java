@@ -2176,7 +2176,7 @@ public class TransportSearchActionTests extends ESTestCase {
             )
         );
         assertThat(e.getMessage(), containsString("[routing] is not allowed when [index.slice.enabled] is true"));
-        assertThat(e.getMessage(), containsString("use [slice] instead"));
+        assertThat(e.getMessage(), containsString("use [_slice] instead"));
     }
 
     public void testValidateAndResolveSearchSliceRoutingRejectsSliceWhenDisabled() {
@@ -2200,7 +2200,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 false
             )
         );
-        assertThat(e.getMessage(), containsString("[slice] is not allowed when [index.slice.enabled] is false"));
+        assertThat(e.getMessage(), containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
     }
 
     public void testValidateAndResolveSearchSliceRoutingAcceptsMixedTargets() {

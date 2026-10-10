@@ -28,6 +28,27 @@
               "description": "The name of the index"
             }
           }
+        },
+        {
+          "path": "/{index}/{_slice}/_doc/{id}",
+          "methods": [
+            "HEAD"
+          ],
+          "parts": {
+            "id": {
+              "type": "string",
+              "description": "The document ID"
+            },
+            "index": {
+              "type": "string",
+              "description": "The name of the index"
+            },
+            "_slice": {
+              "type": "string",
+              "description": "Slice identifier for a slice-enabled index (`index.slice.enabled=true`); scopes the operation to that slice",
+              "feature_flag": "es.slice_indexing_feature_flag_enabled"
+            }
+          }
         }
       ]
     },

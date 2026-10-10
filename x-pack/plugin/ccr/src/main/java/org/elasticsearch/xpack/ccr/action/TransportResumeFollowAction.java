@@ -545,7 +545,8 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC,
         DenseVectorFieldMapper.HNSW_EARLY_TERMINATION,
         DenseVectorFieldMapper.POST_FILTER_SELECTIVITY_THRESHOLD,
-        IndexSettings.INTRA_MERGE_PARALLELISM_ENABLED_SETTING
+        IndexSettings.INTRA_MERGE_PARALLELISM_ENABLED_SETTING,
+        MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING
     );
 
     public static Settings filter(Settings originalSettings) {

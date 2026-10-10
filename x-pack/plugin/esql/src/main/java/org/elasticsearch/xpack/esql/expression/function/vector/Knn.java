@@ -125,8 +125,30 @@ public class Knn extends SingleFieldFullTextFunction
     @FunctionInfo(
         returnType = "boolean",
         briefSummary = "Finds the k nearest vectors to a query vector using a similarity metric.",
-        description = "Finds the k nearest vectors to a query vector, as measured by a similarity metric. "
-            + "knn function finds nearest vectors through approximate search on indexed dense_vectors or semantic_text fields.",
+        description = """
+            `KNN` (the k-nearest neighbor) function finds the k nearest vectors to a query vector, as measured by a similarity metric.
+            It performs an approximate search on indexed dense_vectors or semantic_text fields.
+
+            {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+            `KNN` also works with dense_vector expressions that are not backed by an index. In this case, it performs
+            exact brute-force scoring over all vectors in the expression rather than approximate nearest-neighbor search.
+            """,
+        detailedDescription = """
+            `KNN` function in ES|QL performs [approximate kNN search](docs-content://solutions/search/vector/knn/approximate-knn.md)
+            on dense_vector and semantic_text fields with indexing enabled. This function
+            delegates search to the underlying vector index such as [`disk_bbq`](/reference/elasticsearch/mapping-reference/bbq.md#bbq-disk).
+
+            {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+            When the first argument is a dense_vector expression rather than an indexed field, no vector index is available for
+            approximate search. Instead, the function performs exact, brute-force scoring over every vector in the expression.
+            This changes the function's semantics:
+
+            1. Only `similarity` and `boost` options are supported. Options such as `k`, `min_candidates`, and `visit_percentage` are ignored.
+            2. The function filters rows by the similarity threshold and returns a score in `[0, 1]` (when `METADATA _score` is requested).
+            3. To retrieve the k nearest vectors, apply an explicit sort and limit: `SORT _score DESC | LIMIT 10`
+            4. The `similarity_function` option is supported for runtime (exact) search to override the default `cosine` metric.
+               Other supported values are `dot_product`, `l2_norm`, and `max_inner_product`.
+            """,
         examples = { @Example(file = "knn-function", tag = "knn-function") },
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),

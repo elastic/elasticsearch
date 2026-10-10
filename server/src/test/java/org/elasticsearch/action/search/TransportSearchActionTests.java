@@ -183,6 +183,41 @@ public class TransportSearchActionTests extends ESTestCase {
         return new MockResolvedIndices(remoteIndicesByCluster, localIndices, Map.of());
     }
 
+    /**
+     * {@link TransportSearchAction#frozenIndexCheck} must emit a single deprecation warning listing exactly the resolved local indices that
+     * carry the legacy {@code index.frozen} setting, and no warning at all when none of them do (the latter is enforced by the
+     * test framework, which fails on unexpected warnings).
+     */
+    public void testFrozenIndexCheck() {
+        final Map<Index, IndexMetadata> localIndexMetadata = new LinkedHashMap<>();
+        final List<String> expectedFrozen = new ArrayList<>();
+        final int numIndices = randomIntBetween(0, 10);
+        for (int i = 0; i < numIndices; i++) {
+            final String name = "index-" + i;
+            final Settings.Builder settings = indexSettings(IndexVersion.current(), 1, 0);
+            final Boolean frozen = randomFrom(true, false, null);
+            if (frozen != null) {
+                settings.put(IndexMetadata.LEGACY_FROZEN_SETTING_KEY, frozen);
+            }
+            if (Boolean.TRUE.equals(frozen)) {
+                expectedFrozen.add(name);
+            }
+            final IndexMetadata indexMetadata = IndexMetadata.builder(name).settings(settings).build();
+            localIndexMetadata.put(indexMetadata.getIndex(), indexMetadata);
+        }
+        final ResolvedIndices resolvedIndices = new MockResolvedIndices(
+            Map.of(),
+            new OriginalIndices(localIndexMetadata.keySet().stream().map(Index::getName).toArray(String[]::new), IndicesOptions.DEFAULT),
+            localIndexMetadata
+        );
+
+        TransportSearchAction.frozenIndexCheck(resolvedIndices);
+
+        if (expectedFrozen.isEmpty() == false) {
+            assertWarnings(TransportSearchAction.FROZEN_INDICES_DEPRECATION_MESSAGE.replace("{}", String.join(",", expectedFrozen)));
+        }
+    }
+
     public void testMergeShardsIterators() {
         Index[] indices = new Index[randomIntBetween(1, 10)];
         for (int i = 0; i < indices.length; i++) {

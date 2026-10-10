@@ -1865,16 +1865,20 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     /**
      * If any of the indices we are searching are frozen, issue deprecation warning.
      */
-    void frozenIndexCheck(ResolvedIndices resolvedIndices) {
-        List<String> frozenIndices = new ArrayList<>();
+    static void frozenIndexCheck(ResolvedIndices resolvedIndices) {
+        // This runs on the transport thread for every search, so keep the common (no frozen indices) case cheap and allocation-free.
+        List<String> frozenIndices = null;
         Map<Index, IndexMetadata> indexMetadataMap = resolvedIndices.getConcreteLocalIndicesMetadata();
         for (var entry : indexMetadataMap.entrySet()) {
-            if (entry.getValue().getSettings().getAsBoolean("index.frozen", false)) {
+            if (entry.getValue().isFrozen()) {
+                if (frozenIndices == null) {
+                    frozenIndices = new ArrayList<>();
+                }
                 frozenIndices.add(entry.getKey().getName());
             }
         }
 
-        if (frozenIndices.isEmpty() == false) {
+        if (frozenIndices != null) {
             DEPRECATION_LOGGER.warn(
                 DeprecationCategory.INDICES,
                 "search-frozen-indices",

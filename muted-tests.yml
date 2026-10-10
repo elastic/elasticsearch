@@ -637,3 +637,5 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecFuseIT
   method: test {csv-spec:fuse.fuseWithRowLinearAndMultiValueScoreColumn}
   issue: https://github.com/elastic/elasticsearch/issues/161607
+- class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/161608

@@ -187,6 +187,20 @@ public class NodeByteBudgetTests extends ESTestCase {
         }
     }
 
+    public void testGrowCreditsRemainingWithoutWaiting() {
+        NodeByteBudgetService budget = new NodeByteBudgetService(10);
+        NodeByteBudget.Hold hold = budget.tryAdmit(4);
+        assertNotNull(hold);
+        hold.grow(6);
+        assertEquals(10, budget.used());
+        assertEquals(10, hold.remaining());
+        hold.grow(5);
+        assertEquals("grow never waits, even past the cap", 15, budget.used());
+        hold.close();
+        hold.grow(4);
+        assertEquals("grow is a no-op after close", 0, budget.used());
+    }
+
     public void testHoldCloseIsIdempotent() {
         NodeByteBudgetService budget = new NodeByteBudgetService(10);
         NodeByteBudget.Hold hold = budget.tryAdmit(4);

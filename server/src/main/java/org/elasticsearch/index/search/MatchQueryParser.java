@@ -315,6 +315,14 @@ public class MatchQueryParser {
     }
 
     /** Whether {@code fieldType} answers a text query by reading its values rather than an index. */
+    /**
+     * Whether {@code fieldType} answers a query about positions by reading its values. A word a synonym replaces
+     * with several is then asked for as a phrase of those, as it is for a field that indexed positions of its own.
+     */
+    private boolean answersPositionsFromValues(MappedFieldType fieldType) {
+        return fieldType instanceof TextFamilyFieldType textFamily && textFamily.answersPositionsFromValues(context);
+    }
+
     boolean answersFromValues(MappedFieldType fieldType) {
         return fieldType instanceof TextFamilyFieldType textFamily && textFamily.answersTextQueryFromValues(context);
     }
@@ -359,7 +367,7 @@ public class MatchQueryParser {
             this.fieldType = fieldType;
             setEnablePositionIncrements(enablePositionIncrements);
             // a field answering from its values reads their positions, so it answers a phrase as an indexed one does
-            if (fieldType.getTextSearchInfo().hasPositions() || answersFromValues(fieldType)) {
+            if (fieldType.getTextSearchInfo().hasPositions() || answersPositionsFromValues(fieldType)) {
                 setAutoGenerateMultiTermSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);
             } else {
                 setAutoGenerateMultiTermSynonymsPhraseQuery(false);

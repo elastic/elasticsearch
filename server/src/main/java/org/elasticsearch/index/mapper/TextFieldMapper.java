@@ -1301,6 +1301,13 @@ public final class TextFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean answersPositionsFromValues(SearchExecutionContext context) {
+            // Reading the values answers a query about positions whether the field indexed terms without them or
+            // indexed nothing at all.
+            return answersFromValues(context);
+        }
+
+        @Override
         public boolean answersTextQueryFromValues(SearchExecutionContext context) {
             return scansEveryDocument() && answersFromValues(context);
         }

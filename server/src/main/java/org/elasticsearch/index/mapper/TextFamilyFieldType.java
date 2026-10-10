@@ -159,6 +159,14 @@ public abstract class TextFamilyFieldType extends StringFieldType {
     }
 
     /**
+     * Whether a query about positions this field did not index is answered by reading its values, which carry them.
+     * A query built for such a field may ask about positions, as one built for a field that indexed them does.
+     */
+    public boolean answersPositionsFromValues(SearchExecutionContext context) {
+        return false;
+    }
+
+    /**
      * Whether a text query over this field is answered by reading its values, which a field indexing no terms needs.
      * Only the analyzed field types of the family answer this.
      */

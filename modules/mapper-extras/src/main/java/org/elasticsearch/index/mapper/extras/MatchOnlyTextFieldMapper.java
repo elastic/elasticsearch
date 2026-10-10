@@ -896,6 +896,12 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
          * <p>A field whose values a query reads is not rejected: every document is a candidate there, so the confirmation runs over
          * all of them and the phrase is answered from the values alone.
          */
+        /** Every query this field answers about positions reads its values, which carry them. */
+        @Override
+        public boolean answersPositionsFromValues(SearchExecutionContext context) {
+            return true;
+        }
+
         private void failIfNotIndexedForPhraseQueries(String queryDescription, SearchExecutionContext context) {
             if (indexType().hasTerms() == false && answersTextQueryFromValues(context) == false) {
                 throw new IllegalArgumentException(

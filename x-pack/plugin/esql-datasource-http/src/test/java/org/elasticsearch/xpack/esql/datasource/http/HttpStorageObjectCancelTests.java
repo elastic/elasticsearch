@@ -42,6 +42,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -87,17 +88,18 @@ public class HttpStorageObjectCancelTests extends ESTestCase {
     private LimitedBreaker breaker;
     private DirectBufferFactory factory;
     private StoragePath path;
+    private final List<CountDownLatch> releases = new CopyOnWriteArrayList<>();
 
     @Before
     public void startHarness() throws IOException {
-        breaker = new LimitedBreaker("http-cancel", ByteSizeValue.ofMb(16));
+        breaker = new LimitedBreaker("http-cancel", ByteSizeValue.ofMb(64));
         factory = DirectBufferFactory.forBreaker(breaker);
         executor = Executors.newCachedThreadPool(r -> {
             Thread t = new Thread(r, "http-cancel-test");
             t.setDaemon(true);
             return t;
         });
-        server = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        server = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getByName("127.0.0.1"), 0), 0);
         server.createContext("/", exchange -> handler.get().handle(exchange));
         server.start();
         client = HttpClient.newBuilder()
@@ -110,15 +112,38 @@ public class HttpStorageObjectCancelTests extends ESTestCase {
 
     @After
     public void stopHarness() {
-        if (client != null) {
-            client.close();
+        for (CountDownLatch release : releases) {
+            release.countDown();
         }
-        if (executor != null) {
-            terminate(executor);
+        try {
+            if (server != null) {
+                server.stop(0);
+            }
+        } finally {
+            try {
+                if (client != null) {
+                    client.shutdown();
+                    if (client.awaitTermination(Duration.ofSeconds(5)) == false) {
+                        client.shutdownNow();
+                    }
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                if (client != null) {
+                    client.shutdownNow();
+                }
+            } finally {
+                if (executor != null) {
+                    terminate(executor);
+                }
+            }
         }
-        if (server != null) {
-            server.stop(0);
-        }
+    }
+
+    private CountDownLatch releaseLatch() {
+        CountDownLatch latch = new CountDownLatch(1);
+        releases.add(latch);
+        return latch;
     }
 
     public void testCompletedReadRefundsOnClose() throws Exception {
@@ -136,7 +161,7 @@ public class HttpStorageObjectCancelTests extends ESTestCase {
 
     public void testCancelBeforeHeadersRefundsCharge() throws Exception {
         byte[] payload = payload(LENGTH);
-        CountDownLatch releaseHeaders = new CountDownLatch(1);
+        CountDownLatch releaseHeaders = releaseLatch();
         CountDownLatch serverDone = new CountDownLatch(1);
         AtomicReference<String> outcome = new AtomicReference<>();
         handler.set(exchange -> {
@@ -180,7 +205,7 @@ public class HttpStorageObjectCancelTests extends ESTestCase {
         handler.set(exchange -> writeFull(exchange, 206, payload, serverDone, new AtomicReference<>()));
 
         CountDownLatch bodyCompleted = new CountDownLatch(1);
-        CountDownLatch releaseResponse = new CountDownLatch(1);
+        CountDownLatch releaseResponse = releaseLatch();
         HttpClient delaying = delayingClient(bodyCompleted, releaseResponse);
 
         CountDownLatch listenerDone = new CountDownLatch(1);
@@ -228,6 +253,7 @@ public class HttpStorageObjectCancelTests extends ESTestCase {
         assertNull(failure.get());
         assertNotNull(got.get());
         cancel.close();
+        assertTrue("cancel must not drop the listener-owned buffer", breaker.getUsed() > 0L);
         got.get().close();
         assertTrue(serverDone.await(5, TimeUnit.SECONDS));
         assertBreakerEmpty();
@@ -236,8 +262,25 @@ public class HttpStorageObjectCancelTests extends ESTestCase {
     public void testCancelAndCompleteRace() throws Exception {
         EnumSet<Outcome> seen = EnumSet.noneOf(Outcome.class);
         byte[] payload = payload(256);
+        CountDownLatch pinFirst = new CountDownLatch(1);
+        CountDownLatch pinRelease = releaseLatch();
+        CountDownLatch pinDone = new CountDownLatch(1);
+        handler.set(exchange -> writePaused(exchange, 206, payload, 1, pinFirst, pinRelease, pinDone, new AtomicReference<>()));
+        CountDownLatch pinListener = new CountDownLatch(1);
+        AtomicReference<Exception> pinFailure = new AtomicReference<>();
+        Releasable pinCancel = startExpectingCancel(object(), 0, payload.length, pinListener, pinFailure);
+        assertTrue(pinFirst.await(5, TimeUnit.SECONDS));
+        pinCancel.close();
+        assertTrue(pinListener.await(5, TimeUnit.SECONDS));
+        assertThat(pinFailure.get(), instanceOf(TaskCancelledException.class));
+        pinRelease.countDown();
+        assertTrue(pinDone.await(5, TimeUnit.SECONDS));
+        assertBreakerEmpty();
+        seen.add(Outcome.CANCELLED);
+
         handler.set(exchange -> writeFull(exchange, 206, payload, null, new AtomicReference<>()));
         for (int i = 0; i < RACE_ITERS; i++) {
+            boolean cancelThis = i != 0 && randomBoolean();
             CountDownLatch listenerDone = new CountDownLatch(1);
             AtomicReference<DirectReadBuffer> got = new AtomicReference<>();
             AtomicReference<Exception> failure = new AtomicReference<>();
@@ -254,9 +297,9 @@ public class HttpStorageObjectCancelTests extends ESTestCase {
                     listenerDone.countDown();
                 }
             });
-            if (randomBoolean()) {
+            if (cancelThis) {
                 if (randomBoolean()) {
-                    Thread.sleep(randomIntBetween(0, 2));
+                    Thread.yield();
                 }
                 cancel.close();
             }
@@ -265,31 +308,37 @@ public class HttpStorageObjectCancelTests extends ESTestCase {
                 assertNull("iteration " + i + " delivered a buffer and a failure", failure.get());
                 got.get().close();
                 seen.add(Outcome.COMPLETED);
-                cancel.close();
+                if (cancelThis == false) {
+                    cancel.close();
+                }
             } else {
+                assertTrue("iteration " + i + " failed without cancel", cancelThis);
                 assertThat("iteration " + i, failure.get(), instanceOf(TaskCancelledException.class));
                 seen.add(Outcome.CANCELLED);
             }
             assertBreakerEmpty();
         }
-        assertFalse("race test hit no outcomes", seen.isEmpty());
+        assertTrue("race missed a completed read: " + seen, seen.contains(Outcome.COMPLETED));
+        assertTrue("race missed a cancel: " + seen, seen.contains(Outcome.CANCELLED));
     }
 
     public void testCancelMidBodyAbortsExchange() throws Exception {
-        byte[] payload = payload(1024 * 1024);
+        byte[] payload = payload(8 * 1024 * 1024);
         int firstChunk = 64 * 1024;
         CountDownLatch firstChunkSent = new CountDownLatch(1);
-        CountDownLatch releaseBody = new CountDownLatch(1);
+        CountDownLatch releaseBody = releaseLatch();
         CountDownLatch serverDone = new CountDownLatch(1);
         AtomicReference<String> outcome = new AtomicReference<>();
         handler.set(exchange -> writePaused(exchange, 206, payload, firstChunk, firstChunkSent, releaseBody, serverDone, outcome));
 
         CountDownLatch listenerDone = new CountDownLatch(1);
-        Releasable cancel = startExpectingCancel(object(), 0, payload.length, listenerDone, new AtomicReference<>());
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        Releasable cancel = startExpectingCancel(object(), 0, payload.length, listenerDone, failure);
         assertTrue(firstChunkSent.await(5, TimeUnit.SECONDS));
         assertBusy(() -> assertTrue(breaker.getUsed() > 0L));
         cancel.close();
         assertTrue(listenerDone.await(5, TimeUnit.SECONDS));
+        assertThat(failure.get(), instanceOf(TaskCancelledException.class));
         releaseBody.countDown();
         assertTrue("server handler did not finish", serverDone.await(5, TimeUnit.SECONDS));
         assertBreakerEmpty();
@@ -302,7 +351,7 @@ public class HttpStorageObjectCancelTests extends ESTestCase {
     public void testCancelThroughConcurrencyLimiterRefundsPermitAndCharge() throws Exception {
         byte[] payload = payload(LENGTH);
         CountDownLatch firstChunkSent = new CountDownLatch(1);
-        CountDownLatch releaseBody = new CountDownLatch(1);
+        CountDownLatch releaseBody = releaseLatch();
         CountDownLatch serverDone = new CountDownLatch(1);
         handler.set(
             exchange -> writePaused(exchange, 206, payload, FIRST_CHUNK, firstChunkSent, releaseBody, serverDone, new AtomicReference<>())
@@ -311,11 +360,14 @@ public class HttpStorageObjectCancelTests extends ESTestCase {
         ConcurrencyLimitTestSupport limited = new ConcurrencyLimitTestSupport(object(), 1);
         assertEquals(1, limited.availablePermits());
         CountDownLatch listenerDone = new CountDownLatch(1);
-        Releasable cancel = startExpectingCancel(limited.object(), 0, LENGTH, listenerDone, new AtomicReference<>());
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        Releasable cancel = startExpectingCancel(limited.object(), 0, LENGTH, listenerDone, failure);
         assertTrue(firstChunkSent.await(5, TimeUnit.SECONDS));
         assertBusy(() -> assertTrue(breaker.getUsed() > 0L));
+        assertEquals(0, limited.availablePermits());
         cancel.close();
         assertTrue(listenerDone.await(5, TimeUnit.SECONDS));
+        assertThat(failure.get(), instanceOf(TaskCancelledException.class));
         assertEquals(1, limited.availablePermits());
         releaseBody.countDown();
         assertTrue(serverDone.await(5, TimeUnit.SECONDS));
@@ -324,7 +376,7 @@ public class HttpStorageObjectCancelTests extends ESTestCase {
 
     private void cancelMidBodyAndAssertRefund(int status, int position, byte[] payload) throws Exception {
         CountDownLatch firstChunkSent = new CountDownLatch(1);
-        CountDownLatch releaseBody = new CountDownLatch(1);
+        CountDownLatch releaseBody = releaseLatch();
         CountDownLatch serverDone = new CountDownLatch(1);
         handler.set(
             exchange -> writePaused(
@@ -399,8 +451,12 @@ public class HttpStorageObjectCancelTests extends ESTestCase {
         return new ActionListener<>() {
             @Override
             public void onResponse(DirectReadBuffer buffer) {
-                buffer.close();
-                fail("expected cancellation, got a buffer");
+                try {
+                    buffer.close();
+                    fail("expected cancellation, got a buffer");
+                } finally {
+                    listenerDone.countDown();
+                }
             }
 
             @Override

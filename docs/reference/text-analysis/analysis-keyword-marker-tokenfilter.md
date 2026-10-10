@@ -220,7 +220,7 @@ The API returns the following response. Note the `jumping` token has a `keyword`
 `keywords_path`
 :   (Required*, string) Path to a file that contains a list of keywords. Tokens that match these keywords are not stemmed.
 
-This path must be absolute or relative to the `config` location, and the file must be UTF-8 encoded. Each word in the file must be separated by a line break.
+This path must be absolute or relative to the `config` location, and the file must be UTF-8 encoded. Each word in the file must be separated by a line break. The file must be available on every node in the cluster. How you add it depends on where you run {{es}}: refer to the [custom configuration file instructions for your deployment type](docs-content://deploy-manage/plugins-and-custom-configuration-files.md#plugins-by-deployment-type).
 
 This parameter, `keywords`, or `keywords_pattern` must be specified. You cannot specify this parameter and `keywords_pattern`.
 

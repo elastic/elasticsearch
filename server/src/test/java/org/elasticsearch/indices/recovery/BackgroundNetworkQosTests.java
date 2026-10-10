@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.PrioritizedThrottledTaskRunner;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -565,9 +566,11 @@ public class BackgroundNetworkQosTests extends ESTestCase {
         final TestNode node = new TestNode(Settings.EMPTY);
         final int floor = threadPool.info(ThreadPool.Names.SNAPSHOT).getMax();
         final List<Releasable> permits = new ArrayList<>();
+        // one asker, as the runner of a repository is
+        final Runnable retry = () -> {};
         // not consulted: all are granted, however many, and counted
         for (int i = 0; i < floor + 3; i++) {
-            permits.add(node.qos.tryAcquireUploadPermit());
+            permits.add(node.qos.tryAcquireUploadPermit(retry));
             assertNotNull(permits.get(i));
         }
         assertThat(node.qos.getRunningUploadTasks(), equalTo(floor + 3));
@@ -575,22 +578,22 @@ public class BackgroundNetworkQosTests extends ESTestCase {
         // switched on while they run: they count against the budget, which starts at today's concurrency, so no more are granted
         node.apply(adaptive(true));
         assertThat(node.qos.getUploadBudget(), equalTo(floor));
-        assertNull(node.qos.tryAcquireUploadPermit());
+        assertNull(node.qos.tryAcquireUploadPermit(retry));
         Releasables.close(permits.remove(0));
         Releasables.close(permits.remove(0));
         Releasables.close(permits.remove(0));
         assertThat(node.qos.getRunningUploadTasks(), equalTo(floor));
-        assertNull(node.qos.tryAcquireUploadPermit());
+        assertNull(node.qos.tryAcquireUploadPermit(retry));
         // one more is only granted when one is given back, and then up to the budget
         Releasables.close(permits.remove(0));
-        final Releasable granted = node.qos.tryAcquireUploadPermit();
+        final Releasable granted = node.qos.tryAcquireUploadPermit(retry);
         assertNotNull(granted);
-        assertNull(node.qos.tryAcquireUploadPermit());
+        assertNull(node.qos.tryAcquireUploadPermit(retry));
         permits.add(granted);
 
         // switched off again: not consulted, and what runs is still counted
         node.apply(adaptive(false));
-        permits.add(node.qos.tryAcquireUploadPermit());
+        permits.add(node.qos.tryAcquireUploadPermit(retry));
         assertNotNull(permits.get(permits.size() - 1));
         assertThat(node.qos.getRunningUploadTasks(), equalTo(permits.size()));
         permits.forEach(Releasables::close);
@@ -725,6 +728,71 @@ public class BackgroundNetworkQosTests extends ESTestCase {
 
         waitingInB.release.countDown();
         releaseAll(runningInA);
+    }
+
+    /** A task that only counts that it was rejected, as at shutdown. */
+    private static class RejectedTask extends AbstractRunnable implements Comparable<RejectedTask> {
+        private static final AtomicLong SEQUENCE = new AtomicLong();
+
+        private final long order = SEQUENCE.incrementAndGet();
+        private final CountDownLatch rejected;
+
+        RejectedTask(CountDownLatch rejected) {
+            this.rejected = rejected;
+        }
+
+        @Override
+        protected void doRun() {
+            throw new AssertionError("the executor rejects everything");
+        }
+
+        @Override
+        public void onRejection(Exception e) {
+            rejected.countDown();
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            throw new AssertionError(e);
+        }
+
+        @Override
+        public int compareTo(RejectedTask other) {
+            return Long.compare(order, other.order);
+        }
+    }
+
+    public void testGivingBackBudgetOfRejectedTasksDoesNotNestTheRetriesOfTheWaitingRunners() {
+        final TestNode node = new TestNode(Settings.EMPTY);
+        node.apply(adaptive(true));
+        final int floor = threadPool.info(ThreadPool.Names.SNAPSHOT).getMax();
+        final int tasksPerRunner = 5_000;
+        final var rejected = new CountDownLatch(2 * tasksPerRunner);
+        // an executor that has shut down
+        final Executor rejecting = command -> ((AbstractRunnable) command).onRejection(new EsRejectedExecutionException("shut down"));
+        final var runners = new ArrayList<PrioritizedThrottledTaskRunner<RejectedTask>>();
+        for (int i = 0; i < 2; i++) {
+            final var runner = new PrioritizedThrottledTaskRunner<RejectedTask>("test", floor, rejecting, node.qos::tryAcquireUploadPermit);
+            registrations.add(node.qos.registerUploadTaskRunner(runner));
+            runners.add(runner);
+        }
+
+        // the budget is used up, so that the tasks of both runners queue, and then given back to them task by task
+        final List<Releasable> held = new ArrayList<>();
+        for (int i = 0; i < floor; i++) {
+            held.add(node.qos.tryAcquireUploadPermit(() -> {}));
+        }
+        for (var runner : runners) {
+            for (int i = 0; i < tasksPerRunner; i++) {
+                runner.enqueueTask(new RejectedTask(rejected));
+            }
+        }
+        assertThat(runners.get(0).queueSize() + runners.get(1).queueSize(), equalTo(2 * tasksPerRunner));
+        held.forEach(Releasable::close);
+
+        // each rejected task gives its budget back, which is handed on without nesting: this does not overflow the stack
+        safeAwait(rejected);
+        assertThat(runners.get(0).queueSize() + runners.get(1).queueSize(), equalTo(0));
     }
 
     public void testUploadErrorsAreOnlyCountedWhileAdaptiveIsOn() {

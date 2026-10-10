@@ -38,11 +38,13 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
         /**
          * Asks for permission to start a task. Only called when there is a task waiting and the runner has room for it.
          *
-         * @return a permit that the runner closes when the task is finished, or {@code null} if no task may start now, in which case
-         *         whoever limits the tasks calls {@link #runQueuedTasks()} when one may
+         * @param retry makes the runner try to start tasks again. If no permit is given, the owner of the permits must call it, from
+         *              another call stack and not before it has returned, once a permit may be available. The same instance is passed
+         *              every time, so that it can tell which runners wait, and in which order they started to.
+         * @return a permit that the runner closes when the task is finished, or {@code null} if no task may start now
          */
         @Nullable
-        Releasable tryAcquire();
+        Releasable tryAcquire(Runnable retry);
     }
 
     private static final Releasable NO_PERMIT = () -> {};
@@ -60,6 +62,7 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
     private final Executor executor;
     @Nullable
     private final StartPermits startPermits;
+    private final Runnable retryStarting = this::pollAndSpawn;
 
     public AbstractThrottledTaskRunner(final String name, final int maxRunningTasks, final Executor executor, final Queue<T> taskQueue) {
         this(name, maxRunningTasks, executor, taskQueue, null);
@@ -150,13 +153,14 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
         while (incrementRunningTasks()) {
             Releasable permit = NO_PERMIT;
             if (startPermits != null && tasks.peek() != null) {
-                permit = startPermits.tryAcquire();
+                permit = startPermits.tryAcquire(retryStarting);
                 if (permit == null) {
                     final int decremented = runningTasks.decrementAndGet();
                     assert decremented >= 0;
-                    // A permit may have been given back, and this runner asked to run its queued tasks, while this call was holding the
-                    // last free slot, which that request could not use. To not miss it, ask once more now that the slot is free.
-                    if (tasks.peek() == null || (permit = startPermits.tryAcquire()) == null) {
+                    // A permit may have been given back, and this runner asked to retry, while this call was holding the last free slot,
+                    // which that request could not use. To not miss it, ask once more now that the slot is free: the retry that this
+                    // asks for is then made when it can use the slot.
+                    if (tasks.peek() == null || (permit = startPermits.tryAcquire(retryStarting)) == null) {
                         break;
                     }
                     if (incrementRunningTasks() == false) {

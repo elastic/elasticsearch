@@ -32,6 +32,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.OptionalDouble;
 import java.util.OptionalLong;
@@ -39,6 +40,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongSupplier;
@@ -62,8 +64,10 @@ import static org.elasticsearch.core.Strings.format;
  * </ul>
  * Every repository always has its own task runner and queue for shard snapshot tasks, as it has always had. Adaptive upload concurrency
  * only adds a limit shared by all of them, a node-wide budget of tasks that may run at once, which a repository's runner asks for before
- * it starts a task and gives back when the task finishes. Budget is granted first come first served across repositories. While
- * adaptive upload concurrency is off the budget is not consulted, so what runs is exactly what the repositories' own runners allow;
+ * it starts a task and gives back when the task finishes. The runners that find the budget used up wait in a queue, and budget that is
+ * given back is offered to them in the order in which they started waiting, so it is first come first served between repositories,
+ * each getting what its runner can use; earliest deadline first, which the completion targets of the repositories would allow, is a
+ * later design decision. While adaptive upload concurrency is off the budget is not consulted, so what runs is exactly what the repositories' own runners allow;
  * the tasks are still counted, which is all it costs, so that the budget is right when the switch is turned on while snapshots run.
  * While both switches are off nothing else here does anything: no measurements are read, no bytes are counted and nothing is scheduled.
  * Background QoS only applies on stateless nodes, where snapshots read from the object store; on other nodes they read local disk.
@@ -146,6 +150,11 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
     private final Resource networkOut;
     private final List<Resource> resources;
 
+    // The runners that found the budget used up, in the order in which they did, as what to call to make them try again. Guarded by itself.
+    private final Set<Runnable> waitingUploadTaskRunners = new LinkedHashSet<>();
+    private final AtomicBoolean waitersOfferScheduled = new AtomicBoolean();
+    // The runner that is being offered budget on this thread
+    private final ThreadLocal<Runnable> offeredTo = new ThreadLocal<>();
     // The task runners of the repositories on this node, see registerUploadTaskRunner
     private final Set<PrioritizedThrottledTaskRunner<?>> uploadTaskRunners = ConcurrentHashMap.newKeySet();
     // The tasks the runners have started and not finished, counted whether or not the budget is consulted, so that it is right at once
@@ -264,6 +273,10 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
             uploadBudget = uploadConcurrencyController.getFloor();
             // the setting may have changed while nothing was looking
             uploadConcurrencyController.setCeiling(Math.min(uploadConcurrencyMax, nodeUploadConcurrencyCeiling));
+            // what waited for the budget before is not waiting for this one: applying the caps makes the runners try, and wait again
+            synchronized (waitingUploadTaskRunners) {
+                waitingUploadTaskRunners.clear();
+            }
             // the runners' caps change with the switch, which also lets them start what the new limits allow
             applyUploadTaskRunnerCap();
             updateTick();
@@ -334,15 +347,42 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
      * than the budget are running on the node. While it is off it is always granted, so that the budget has no say in what runs, but
      * still counted.
      *
-     * @return the permit to close when the task finishes, or {@code null} if the budget is used up, in which case the repositories'
-     *         runners are asked to start tasks again when it is not
+     * @param retry makes the runner try again, which is called, on another thread, when the budget is not used up any more, in the order
+     *              in which runners were refused
+     * @return the permit to close when the task finishes, or {@code null} if the budget is used up
      */
     @Nullable
-    public Releasable tryAcquireUploadPermit() {
+    public Releasable tryAcquireUploadPermit(Runnable retry) {
         if (adaptiveUploadConcurrencyEnabled == false) {
             runningUploadTasks.incrementAndGet();
             return Releasables.releaseOnce(this::releaseUploadPermit);
         }
+        // Budget goes to the runner that has waited longest, so a runner that is not that one, and not being offered the budget now, has
+        // to wait even if there is some, which it is about to be offered
+        final boolean first;
+        synchronized (waitingUploadTaskRunners) {
+            first = waitingUploadTaskRunners.isEmpty() || waitingUploadTaskRunners.iterator().next() == retry || offeredTo.get() == retry;
+        }
+        final Releasable permit = first ? tryAcquireBudget() : null;
+        if (permit != null) {
+            offeredTo.remove();
+            synchronized (waitingUploadTaskRunners) {
+                waitingUploadTaskRunners.remove(retry);
+            }
+        } else {
+            synchronized (waitingUploadTaskRunners) {
+                waitingUploadTaskRunners.add(retry);
+            }
+            // some may have been given back before the runner was in the queue, which then nobody offers it to
+            if (hasBudget()) {
+                offerBudgetToWaitingRunners();
+            }
+        }
+        return permit;
+    }
+
+    @Nullable
+    private Releasable tryAcquireBudget() {
         while (true) {
             final int running = runningUploadTasks.get();
             if (running >= uploadBudget) {
@@ -354,16 +394,63 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
         }
     }
 
+    private boolean hasBudget() {
+        return runningUploadTasks.get() < uploadBudget;
+    }
+
     private void releaseUploadPermit() {
         runningUploadTasks.decrementAndGet();
         if (adaptiveUploadConcurrencyEnabled) {
-            // a runner may be waiting for it, and the budget is shared, so it need not be the runner of the finished task
-            runQueuedUploadTasks();
+            offerBudgetToWaitingRunners();
         }
     }
 
-    private void runQueuedUploadTasks() {
-        uploadTaskRunners.forEach(PrioritizedThrottledTaskRunner::runQueuedTasks);
+    /**
+     * Makes the runners that wait for budget try again, in the order in which they started waiting, for as long as there is budget. It
+     * is never done on the call stack of the runner that gives the budget back: when the budget is given back because a task is rejected,
+     * as it is when the node shuts down, that would nest one call into another for every task that is queued.
+     */
+    private void offerBudgetToWaitingRunners() {
+        synchronized (waitingUploadTaskRunners) {
+            if (waitingUploadTaskRunners.isEmpty()) {
+                return;
+            }
+        }
+        if (waitersOfferScheduled.compareAndSet(false, true)) {
+            try {
+                threadPool.generic().execute(() -> {
+                    // what changes from here on is offered again by whoever changes it
+                    waitersOfferScheduled.set(false);
+                    Runnable waiting;
+                    while (hasBudget() && (waiting = pollWaitingUploadTaskRunner()) != null) {
+                        // it is its turn, which lasts for the first task it starts
+                        offeredTo.set(waiting);
+                        try {
+                            waiting.run();
+                        } finally {
+                            offeredTo.remove();
+                        }
+                    }
+                });
+            } catch (Exception e) {
+                // the node is shutting down
+                waitersOfferScheduled.set(false);
+                logger.trace("could not offer upload budget to waiting runners", e);
+            }
+        }
+    }
+
+    @Nullable
+    private Runnable pollWaitingUploadTaskRunner() {
+        synchronized (waitingUploadTaskRunners) {
+            final var iterator = waitingUploadTaskRunners.iterator();
+            if (iterator.hasNext() == false) {
+                return null;
+            }
+            final Runnable first = iterator.next();
+            iterator.remove();
+            return first;
+        }
     }
 
     /**
@@ -666,7 +753,7 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
             uploadBudget = budget;
             if (budget > current) {
                 // runners may have tasks waiting for it
-                runQueuedUploadTasks();
+                offerBudgetToWaitingRunners();
             }
         }
     }

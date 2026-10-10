@@ -286,7 +286,7 @@ public class AbstractThrottledTaskRunnerTests extends ESTestCase {
         final AtomicInteger released = new AtomicInteger();
 
         @Override
-        public Releasable tryAcquire() {
+        public Releasable tryAcquire(Runnable retry) {
             asked.incrementAndGet();
             while (true) {
                 final int current = available.get();
@@ -369,7 +369,7 @@ public class AbstractThrottledTaskRunnerTests extends ESTestCase {
             1,
             executor,
             ConcurrentCollections.newBlockingQueue(),
-            () -> asked.incrementAndGet() == 1 ? null : () -> {}
+            retry -> asked.incrementAndGet() == 1 ? null : () -> {}
         );
         taskRunner.enqueueTask(ActionListener.wrap(releasable -> {
             ran.countDown();

@@ -377,6 +377,52 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
     }
 
     /**
+     * Budget that is given back goes to the repository that has waited the longest, and then to the next one, so that none of several
+     * repositories with many tasks starves the others.
+     */
+    public void testFreedBudgetIsOfferedToRepositoriesInTheOrderTheyStartedWaiting() throws Exception {
+        try (var node = new UploadNode(2, 6)) {
+            node.switchAdaptive(true);
+            final var gates = new Gates();
+            final var repoA = node.newRepository(gates::run, (context, fileInfo) -> {});
+            final var repoB = node.newRepository(gates::run, (context, fileInfo) -> {});
+            final var a = new ArrayList<SnapshotShardContext>();
+            final var b = new ArrayList<SnapshotShardContext>();
+            for (int i = 0; i < 4; i++) {
+                a.add(gates.newSnapshot(i));
+                repoA.enqueueShardSnapshot(a.get(i));
+            }
+            // the first two take all the budget, and the repository A is the first to find it used up
+            gates.awaitStarted(a.get(0));
+            gates.awaitStarted(a.get(1));
+            for (int i = 0; i < 4; i++) {
+                b.add(gates.newSnapshot(i));
+                repoB.enqueueShardSnapshot(b.get(i));
+            }
+            assertThat(repoA.queueSize(), equalTo(2));
+            assertThat(repoB.queueSize(), equalTo(4));
+
+            gates.release(a.get(0));
+            gates.awaitStarted(a.get(2)); // A has waited longest
+            gates.release(a.get(1));
+            gates.awaitStarted(b.get(0)); // and now it is the turn of B, which has been waiting while A took one
+            assertFalse(gates.hasStarted(a.get(3)));
+            gates.release(a.get(2));
+            gates.awaitStarted(a.get(3));
+            assertFalse(gates.hasStarted(b.get(1)));
+
+            // both make progress until the end
+            a.forEach(gates::release);
+            b.forEach(gates::release);
+            assertBusy(() -> {
+                assertThat(gates.finished.get(), equalTo(8));
+                assertThat(repoA.runningTasks() + repoB.runningTasks(), equalTo(0));
+                assertThat(node.qos.getRunningUploadTasks(), equalTo(0));
+            });
+        }
+    }
+
+    /**
      * Switching adaptive upload concurrency on and off while a snapshot runs only changes whether the budget is consulted: nothing that
      * is queued gets lost, and nothing starts that the limit in effect does not allow.
      */

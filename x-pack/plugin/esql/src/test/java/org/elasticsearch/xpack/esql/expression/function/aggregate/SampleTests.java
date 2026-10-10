@@ -57,8 +57,9 @@ public class SampleTests extends AbstractAggregationTestCase {
                 MultiRowTestCaseSupplier.stringCases(1, 20, DataType.TEXT),
                 MultiRowTestCaseSupplier.geoPointCases(1, 1000, MultiRowTestCaseSupplier.IncludingAltitude.NO),
                 MultiRowTestCaseSupplier.cartesianPointCases(1, 1000, MultiRowTestCaseSupplier.IncludingAltitude.NO),
-                MultiRowTestCaseSupplier.geoShapeCasesWithoutCircle(1, 20, MultiRowTestCaseSupplier.IncludingAltitude.NO),
-                MultiRowTestCaseSupplier.cartesianShapeCasesWithoutCircle(1, 20, MultiRowTestCaseSupplier.IncludingAltitude.NO),
+                // SAMPLE keeps a copy of every value per group (up to 1000 groups), so bound shape size to stay under the breaker
+                MultiRowTestCaseSupplier.geoShapeCasesWithoutCircle(1, 20, MultiRowTestCaseSupplier.IncludingAltitude.NO, 200),
+                MultiRowTestCaseSupplier.cartesianShapeCasesWithoutCircle(1, 20, MultiRowTestCaseSupplier.IncludingAltitude.NO, 200),
                 MultiRowTestCaseSupplier.geohashCases(1, 1000),
                 MultiRowTestCaseSupplier.geotileCases(1, 1000),
                 MultiRowTestCaseSupplier.geohexCases(1, 1000),

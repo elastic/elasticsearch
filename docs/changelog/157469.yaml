@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 136533
+pr: 157469
+summary: Add FMT_BYTES, FMT_BYTES_SI, FMT_DURATION, FMT_PERCENT functions
+type: feature

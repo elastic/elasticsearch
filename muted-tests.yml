@@ -220,6 +220,9 @@ tests:
 - class: org.elasticsearch.upgrades.MlMappingsUpgradeIT
   method: testMappingsUpgrade {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/159043
+- class: org.elasticsearch.integration.FieldLevelSecurityTests
+  method: testPercolatorConstantKeywordQueryDependsOnIndexingUsersFls
+  issue: https://github.com/elastic/elasticsearch/issues/161396
 
 # Examples:
 #

@@ -2030,6 +2030,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
             {
               "_doc" : {
                 "dynamic" : "false",
+                "retains_unmapped_fields" : true,
                 "properties" : {
                   "parent" : {
                     "dynamic" : "true",

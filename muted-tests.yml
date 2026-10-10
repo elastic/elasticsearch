@@ -226,6 +226,9 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {yaml=security/authz/14_cat_indices/Test empty request while single authorized index}
   issue: https://github.com/elastic/elasticsearch/issues/161609
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {yaml=api_key/30_update/Test update api key}
+  issue: https://github.com/elastic/elasticsearch/issues/161612
 
 # Examples:
 #

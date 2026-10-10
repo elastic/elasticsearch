@@ -2280,6 +2280,12 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 }
 
                 @Override
+                public void grow(long bytes) {
+                    hold.grow(bytes);
+                    record();
+                }
+
+                @Override
                 public void close() {
                     hold.close();
                     record();

@@ -104,9 +104,9 @@ public class CoalescedRangeReaderTests extends ESTestCase {
     }
 
     /**
-     * Pre-warm coalescing: gap must be at most the useful bytes already merged (and at most
-     * {@link CoalescedRangeReader#DEFAULT_MAX_COALESCE_GAP}). Adjacent small ranges merge;
-     * a gap larger than the useful bytes does not, even when it is under 1 MiB.
+     * Pre-warm coalescing: gap must be at most the remaining waste budget (useful minus holes
+     * already merged, and at most {@link CoalescedRangeReader#DEFAULT_MAX_COALESCE_GAP}).
+     * Adjacent small ranges merge; a gap larger than remaining waste does not, even under 1 MiB.
      */
     public void testPreWarmMergeBoundsWasteToUsefulBytes() {
         List<ByteRange> adjacent = List.of(new ByteRange(0, 100), new ByteRange(150, 100));
@@ -137,6 +137,34 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         assertEquals(2, mergedOverlap.size());
         assertEquals(150, mergedOverlap.get(0).length());
         assertEquals(301, mergedOverlap.get(1).offset());
+
+        // Equal gaps of 100 stay at most 2× (remaining waste budget stays 100). A growing
+        // 100, 200, 300 chain must split: capping at cumulative usefulBytes would admit it.
+        List<ByteRange> equalGaps = List.of(
+            new ByteRange(0, 100),
+            new ByteRange(200, 100),
+            new ByteRange(400, 100),
+            new ByteRange(600, 100)
+        );
+        List<MergedRange> mergedEqual = CoalescedRangeReader.mergeRanges(equalGaps, CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP, true);
+        assertEquals(1, mergedEqual.size());
+        assertEquals(700, mergedEqual.get(0).length());
+
+        List<ByteRange> growingGaps = List.of(
+            new ByteRange(0, 100),
+            new ByteRange(200, 100),
+            new ByteRange(500, 100),
+            new ByteRange(900, 100)
+        );
+        List<MergedRange> mergedGrowing = CoalescedRangeReader.mergeRanges(
+            growingGaps,
+            CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP,
+            true
+        );
+        assertEquals(3, mergedGrowing.size());
+        assertEquals(300, mergedGrowing.get(0).length());
+        assertEquals(500, mergedGrowing.get(1).offset());
+        assertEquals(900, mergedGrowing.get(2).offset());
     }
 
     public void testMergeSingleRange() {

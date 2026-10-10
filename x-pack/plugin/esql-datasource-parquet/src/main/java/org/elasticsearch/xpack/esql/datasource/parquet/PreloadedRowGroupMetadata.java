@@ -364,10 +364,11 @@ final class PreloadedRowGroupMetadata implements Releasable {
      *
      * <p><b>Parallelism:</b> {@link CoalescedRangeReader#readCoalesced} dispatches one
      * {@code readBytesAsync} call per merged range back-to-back without waiting between calls.
-     * Dictionary and bloom ranges merge only when the gap is at most the useful bytes already
-     * in the merged range (and at most 1 MiB), so they do not swallow the data pages between
-     * small row groups. Index ranges keep the 1 MiB gap. For native async storage backends
-     * like S3, the SDK runs those requests on its own event loop in parallel. For local/default
+     * Dictionary and bloom ranges merge only when the gap is at most the remaining waste
+     * budget (useful bytes minus holes already merged, and at most 1 MiB), so they do not
+     * swallow the data pages between small row groups. Index ranges keep the 1 MiB gap. For
+     * native async storage backends like S3, the SDK runs those requests on its own event loop
+     * in parallel. For local/default
      * storage the dispatch is sequential on the calling thread, but local reads are microseconds
      * so the lack of parallelism is moot.
      */

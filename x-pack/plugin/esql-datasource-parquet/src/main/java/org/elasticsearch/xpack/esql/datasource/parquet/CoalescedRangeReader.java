@@ -195,7 +195,8 @@ final class CoalescedRangeReader {
      * As {@link #readCoalesced(StorageObject, List, long, CircuitBreaker, ParquetIoWatermark,
      * ParquetIoWatermark.AdmitHold, FooterByteCache, Executor, ActionListener)}. When
      * {@code boundWasteToUseful} is true, two ranges merge only if the gap is at most the
-     * unique useful bytes already in the merged range (and at most {@code maxCoalesceGap}).
+     * remaining waste budget (useful bytes minus holes already merged, and at most
+     * {@code maxCoalesceGap}).
      */
     static Releasable readCoalesced(
         StorageObject storageObject,
@@ -946,9 +947,9 @@ final class CoalescedRangeReader {
 
     /**
      * As {@link #mergeRanges(List, long)}. When {@code boundWasteToUseful} is true, two ranges
-     * merge only if the gap is at most the unique useful bytes already in the merged range (and
-     * at most {@code maxCoalesceGap}), so wasted bytes stay about the useful bytes. Overlapping
-     * constituents count once.
+     * merge only if the gap is at most the remaining waste budget (unique useful bytes minus
+     * holes already in the merged range, and at most {@code maxCoalesceGap}), so wasted bytes
+     * stay at most the useful bytes. Overlapping constituents count once.
      */
     static List<MergedRange> mergeRanges(List<ByteRange> ranges, long maxCoalesceGap, boolean boundWasteToUseful) {
         if (ranges.size() == 1) {
@@ -970,7 +971,11 @@ final class CoalescedRangeReader {
             long prevEnd = groupEnd;
             long mergedEnd = Math.max(groupEnd, current.end());
             long gap = current.offset - groupEnd;
-            long allowedGap = boundWasteToUseful ? Math.min(maxCoalesceGap, usefulBytes) : maxCoalesceGap;
+            // Remaining waste budget: useful so far minus holes already in the group.
+            // Capping at usefulBytes itself would admit a 1+2+...+(n-1) chain.
+            long wasteBytes = (groupEnd - groupStart) - usefulBytes;
+            long remainingWaste = Math.max(0L, usefulBytes - wasteBytes);
+            long allowedGap = boundWasteToUseful ? Math.min(maxCoalesceGap, remainingWaste) : maxCoalesceGap;
             if (gap <= allowedGap && mergedEnd - groupStart <= MAX_MERGED_RANGE_BYTES) {
                 groupEnd = mergedEnd;
                 // Overlaps must not inflate usefulBytes: two [0,100)+[50,150) cover 150, not 200.

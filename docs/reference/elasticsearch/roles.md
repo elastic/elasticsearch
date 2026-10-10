@@ -26,6 +26,14 @@ If the built-in roles do not address your use case, then you can create addition
 
 ## Available roles [available-roles]
 
+$$$built-in-roles-alertzero$$$ `alertzero_alert_triage`, `alertzero_attack_discovery`, `alertzero_endpoint_analysis`, `alertzero_rule_coverage`, `alertzero_rule_tuning`, `alertzero_threat_hunt` {applies_to}`stack: ga 9.6`
+:   Grants the privileges required by the service accounts of AlertZero workers in {{kib}}, in all {{kib}} spaces.
+
+    ::::{note}
+    These roles are intended only for the service accounts that {{kib}} creates for AlertZero workers. These roles should not be assigned to users, as the granted permissions may change between releases.
+    ::::
+
+
 $$$built-in-roles-apm-system$$$ `apm_system`
 :   Grants access necessary for the APM system user to send system-level data (such as monitoring) to {{es}}.
 

@@ -790,6 +790,16 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     "Grants access to manage all enrich indices (.enrich-*) and all operations on ingest pipelines."
                 )
             ),
+            // AlertZero worker service accounts
+            entry("alertzero_alert_triage", KibanaOwnedReservedRoleDescriptors.alertZeroAlertTriage("alertzero_alert_triage")),
+            entry("alertzero_attack_discovery", KibanaOwnedReservedRoleDescriptors.alertZeroAttackDiscovery("alertzero_attack_discovery")),
+            entry(
+                "alertzero_endpoint_analysis",
+                KibanaOwnedReservedRoleDescriptors.alertZeroEndpointAnalysis("alertzero_endpoint_analysis")
+            ),
+            entry("alertzero_threat_hunt", KibanaOwnedReservedRoleDescriptors.alertZeroThreatHunt("alertzero_threat_hunt")),
+            entry("alertzero_rule_tuning", KibanaOwnedReservedRoleDescriptors.alertZeroRuleTuning("alertzero_rule_tuning")),
+            entry("alertzero_rule_coverage", KibanaOwnedReservedRoleDescriptors.alertZeroRuleCoverage("alertzero_rule_coverage")),
             entry("viewer", buildViewerRoleDescriptor()),
             entry("editor", buildEditorRoleDescriptor())
         );

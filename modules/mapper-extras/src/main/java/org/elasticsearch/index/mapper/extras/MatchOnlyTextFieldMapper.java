@@ -258,7 +258,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 arrayOrderBinaryDocValues,
                 // Gated as a keyword field is: the codec stores the column, so the column is written in the
                 // payload it reads.
-                usesBinaryDocValues() && ColumnarDocValuesFormatSelector.useColumnarCodec(indexSettings)
+                usesBinaryDocValues() && ColumnarDocValuesFormatSelector.useColumnarCodec(indexSettings),
+                indexMode.isStrictColumnar()
             );
         }
 
@@ -311,6 +312,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         // Whether the binary doc values are written as the ColumNAR codec's payload rather than either other framing.
         private final boolean useColumnarPayload;
         private final FieldMapper.DocValuesParameter.Values docValuesParams;
+        // Whether the index is strictly columnar, where every field keeps its values in a column of its own.
+        private final boolean strictColumnar;
 
         public MatchOnlyTextFieldType(
             String name,
@@ -327,9 +330,11 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             boolean usesBinaryDocValues,
             FieldMapper.DocValuesParameter.Values docValuesParams,
             boolean useArrayOrderBinaryDocValues,
-            boolean useColumnarPayload
+            boolean useColumnarPayload,
+            boolean strictColumnar
         ) {
             super(name, IndexType.terms(indexed, docValuesParams.enabled()), false, tsi, meta, isSyntheticSource, withinMultiField);
+            this.strictColumnar = strictColumnar;
             this.indexAnalyzer = Objects.requireNonNull(indexAnalyzer);
             this.textFieldType = new TextFieldType(name, isSyntheticSource, withinMultiField, syntheticSourceDelegate);
             this.storedFieldInBinaryFormat = storedFieldInBinaryFormat;
@@ -372,6 +377,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 usesBinaryDocValues,
                 docValuesParams,
                 false,
+                false,
                 false
             );
         }
@@ -397,6 +403,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                     true,
                     FieldMapper.DocValuesParameter.Values.OnFailure.FAIL
                 ),
+                false,
                 false,
                 false
             );
@@ -590,7 +597,25 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         }
 
         private Query toQuery(Query query, SearchExecutionContext searchExecutionContext) {
-            return new ConstantScoreQuery(new ReanalyzingTextQuery(query, getValueFetcherProvider(searchExecutionContext), indexAnalyzer));
+            return new ConstantScoreQuery(
+                new ReanalyzingTextQuery(
+                    query,
+                    getValueFetcherProvider(searchExecutionContext),
+                    indexAnalyzer,
+                    indexType().hasTerms() == false
+                )
+            );
+        }
+
+        @Override
+        public boolean answersTextQueryFromValues(SearchExecutionContext context) {
+            // Only a strictly columnar index keeps every field's values in a column to read instead of an index.
+            return strictColumnar && indexType().hasTerms() == false && hasDocValues();
+        }
+
+        @Override
+        protected Query readingValues(Query query, SearchExecutionContext context) {
+            return toQuery(query, context);
         }
 
         private IntervalsSource toIntervalsSource(
@@ -612,6 +637,11 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 return new ConstantScoreQuery(super.termQuery(value, context));
             }
 
+            final Query fromValues = termQueryFromValues(value, context);
+            if (fromValues != null) {
+                return fromValues;
+            }
+
             failIfNotIndexedNorDocValuesFallback(context);
 
             if (usesBinaryDocValues) {
@@ -625,6 +655,11 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
             if (indexType().hasTerms()) {
                 return super.termsQuery(values, context);
+            }
+
+            final Query fromValues = termsQueryFromValues(values, context);
+            if (fromValues != null) {
+                return fromValues;
             }
 
             failIfNotIndexedNorDocValuesFallback(context);
@@ -647,6 +682,11 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             if (indexType().hasTerms()) {
                 return super.prefixQuery(value, method, caseInsensitive, context);
             }
+            final Query fromValues = prefixQueryFromValues(value, caseInsensitive, context);
+            if (fromValues != null) {
+                return fromValues;
+            }
+
             failIfNotIndexedNorDocValuesFallback(context);
             if (usesBinaryDocValues) {
                 return binaryQueries().prefix(name(), value, caseInsensitive);
@@ -673,6 +713,11 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             if (indexType().hasTerms()) {
                 return super.wildcardQuery(value, method, caseInsensitive, context);
             }
+            final Query fromValues = wildcardQueryFromValues(value, caseInsensitive, context);
+            if (fromValues != null) {
+                return fromValues;
+            }
+
             failIfNotIndexedNorDocValuesFallback(context);
             if (usesBinaryDocValues) {
                 return binaryQueries().wildcard(name(), value, caseInsensitive);
@@ -705,6 +750,11 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             if (indexType().hasTerms()) {
                 return super.regexpQuery(value, syntaxFlags, matchFlags, maxDeterminizedStates, method, context);
             }
+            final Query fromValues = regexpQueryFromValues(value, syntaxFlags, matchFlags, maxDeterminizedStates, context);
+            if (fromValues != null) {
+                return fromValues;
+            }
+
             failIfNotIndexedNorDocValuesFallback(context);
             value = AutomatonQueries.collapseConsecutiveQuantifiers(value);
             if (usesBinaryDocValues) {
@@ -811,7 +861,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         @Override
         public Query phraseQuery(TokenStream stream, int slop, boolean enablePosIncrements, SearchExecutionContext queryShardContext)
             throws IOException {
-            failIfNotIndexedForPhraseQueries("phrase queries");
+            failIfNotIndexedForPhraseQueries("phrase queries", queryShardContext);
             final Query query = textFieldType.phraseQuery(stream, slop, enablePosIncrements, queryShardContext);
             return toQuery(query, queryShardContext);
         }
@@ -823,7 +873,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             boolean enablePositionIncrements,
             SearchExecutionContext queryShardContext
         ) throws IOException {
-            failIfNotIndexedForPhraseQueries("phrase queries");
+            failIfNotIndexedForPhraseQueries("phrase queries", queryShardContext);
             final Query query = textFieldType.multiPhraseQuery(stream, slop, enablePositionIncrements, queryShardContext);
             return toQuery(query, queryShardContext);
         }
@@ -831,20 +881,29 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         @Override
         public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions, SearchExecutionContext queryShardContext)
             throws IOException {
-            failIfNotIndexedForPhraseQueries("phrase prefix queries");
+            failIfNotIndexedForPhraseQueries("phrase prefix queries", queryShardContext);
             final Query query = textFieldType.phrasePrefixQuery(stream, slop, maxExpansions, queryShardContext);
             return toQuery(query, queryShardContext);
         }
 
         /**
-         * Phrase queries on a {@code match_only_text} field are confirmed against {@code _source}, but the candidate documents are
-         * still seeded from the field's postings. When the field is mapped with {@code index: false} there are no postings, so the
+         * Phrase queries on a {@code match_only_text} field are confirmed against the values it keeps, but the candidate documents
+         * are seeded from the field's postings. When the field is mapped with {@code index: false} there are no postings, so the
          * approximation matches nothing and the phrase confirmation never runs, silently returning zero hits (see
          * <a href="https://github.com/elastic/elasticsearch/issues/160320">#160320</a>). Reject the query clearly instead, mirroring how
          * a {@code text} field rejects phrase queries when it is indexed without positions.
+         *
+         * <p>A field whose values a query reads is not rejected: every document is a candidate there, so the confirmation runs over
+         * all of them and the phrase is answered from the values alone.
          */
-        private void failIfNotIndexedForPhraseQueries(String queryDescription) {
-            if (indexType().hasTerms() == false) {
+        /** Every query this field answers about positions reads its values, which carry them. */
+        @Override
+        public boolean answersPositionsFromValues(SearchExecutionContext context) {
+            return true;
+        }
+
+        private void failIfNotIndexedForPhraseQueries(String queryDescription, SearchExecutionContext context) {
+            if (indexType().hasTerms() == false && answersTextQueryFromValues(context) == false) {
                 throw new IllegalArgumentException(
                     "Cannot run "
                         + queryDescription

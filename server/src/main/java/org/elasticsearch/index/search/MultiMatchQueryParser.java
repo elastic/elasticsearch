@@ -22,6 +22,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -58,6 +59,9 @@ public class MultiMatchQueryParser extends MatchQueryParser {
             query.visit(queryVisitor);
             return query;
         }
+        // A field reading its values asks the minimum of its own clauses, since what it returns is not a boolean
+        // query for a caller to ask it of.
+        setMinimumShouldMatch(minimumShouldMatch);
         final float tieBreaker = groupTieBreaker == null ? type.tieBreaker() : groupTieBreaker;
         final List<Query> queries = switch (type) {
             case PHRASE, PHRASE_PREFIX, BEST_FIELDS, MOST_FIELDS, BOOL_PREFIX -> buildFieldQueries(
@@ -150,6 +154,11 @@ public class MultiMatchQueryParser extends MatchQueryParser {
              */
             String representativeField = group.getValue().get(0).fieldType.name();
             Query query = builder.createBooleanQuery(representativeField, value.toString(), occur);
+            // Only what the clauses came to is read from the values; the query standing in for none of them below
+            // names no field to read.
+            final boolean readsValues = query != null
+                && group.getValue().size() == 1
+                && answersFromValues(group.getValue().get(0).fieldType);
             if (query == null) {
                 query = zeroTermsQuery.asQuery();
                 if (query != null) {
@@ -160,6 +169,11 @@ public class MultiMatchQueryParser extends MatchQueryParser {
             query = Queries.maybeApplyMinimumShouldMatch(query, minimumShouldMatch);
             if (query != null) {
                 if (group.getValue().size() == 1) {
+                    if (readsValues) {
+                        // The clauses name what they look for; nothing has read the field's values to find it yet,
+                        // as the query built for one field on its own is read elsewhere.
+                        query = ((TextFamilyFieldType) group.getValue().get(0).fieldType).toReanalyzingQuery(query, context);
+                    }
                     // apply the field boost to groups that contain a single field
                     float boost = group.getValue().get(0).boost;
                     if (boost != AbstractQueryBuilder.DEFAULT_BOOST) {

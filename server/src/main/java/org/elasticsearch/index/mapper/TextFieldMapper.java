@@ -1049,6 +1049,10 @@ public final class TextFieldMapper extends FieldMapper {
             if (indexType().hasTerms()) {
                 return super.termQuery(value, context);
             }
+            final Query fromValues = termQueryFromValues(value, context);
+            if (fromValues != null) {
+                return fromValues;
+            }
 
             failIfNotIndexedNorDocValuesFallback(context);
 
@@ -1063,6 +1067,10 @@ public final class TextFieldMapper extends FieldMapper {
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
             if (indexType().hasTerms()) {
                 return super.termsQuery(values, context);
+            }
+            final Query fromValues = termsQueryFromValues(values, context);
+            if (fromValues != null) {
+                return fromValues;
             }
 
             failIfNotIndexedNorDocValuesFallback(context);
@@ -1095,6 +1103,10 @@ public final class TextFieldMapper extends FieldMapper {
             if (indexType().hasTerms()) {
                 return super.prefixQuery(value, method, caseInsensitive, context);
             }
+            final Query fromValues = prefixQueryFromValues(value, caseInsensitive, context);
+            if (fromValues != null) {
+                return fromValues;
+            }
             failIfNotIndexedNorDocValuesFallback(context);
             if (usesBinaryDocValues) {
                 return binaryQueries().prefix(name(), value, caseInsensitive);
@@ -1120,6 +1132,10 @@ public final class TextFieldMapper extends FieldMapper {
         ) {
             if (indexType().hasTerms()) {
                 return super.wildcardQuery(value, method, caseInsensitive, context);
+            }
+            final Query fromValues = wildcardQueryFromValues(value, caseInsensitive, context);
+            if (fromValues != null) {
+                return fromValues;
             }
             failIfNotIndexedNorDocValuesFallback(context);
             if (usesBinaryDocValues) {
@@ -1152,6 +1168,10 @@ public final class TextFieldMapper extends FieldMapper {
         ) {
             if (indexType().hasTerms()) {
                 return super.regexpQuery(value, syntaxFlags, matchFlags, maxDeterminizedStates, method, context);
+            }
+            final Query fromValues = regexpQueryFromValues(value, syntaxFlags, matchFlags, maxDeterminizedStates, context);
+            if (fromValues != null) {
+                return fromValues;
             }
             failIfNotIndexedNorDocValuesFallback(context);
             value = AutomatonQueries.collapseConsecutiveQuantifiers(value);
@@ -1264,16 +1284,37 @@ public final class TextFieldMapper extends FieldMapper {
         }
 
         /**
-         * Whether a query over positions this field did not index can be answered by analyzing its values again. Only a
-         * strictly columnar index is taken to hold them, in the field's own doc values or, for a multi-field keeping
-         * none of its own, in its parent's.
+         * Whether a query reads this field's values rather than its index, which it does where the index lacks what
+         * the query asks for: the positions of a phrase, or the terms of anything. Only a strictly columnar index is
+         * taken to keep those values, in the field's own column or, for a multi-field keeping none, in its parent's.
          */
-        private boolean verifiesPositionsFromDocValues(SearchExecutionContext context) {
-            // The values are read for the documents the field's own terms match, so it needs those terms.
-            if (strictColumnar == false || indexType().hasTerms() == false || getTextSearchInfo().hasPositions()) {
+        private boolean answersFromValues(SearchExecutionContext context) {
+            if (strictColumnar == false || (indexType().hasTerms() && getTextSearchInfo().hasPositions())) {
                 return false;
             }
             return hasDocValues() || readsParentValues(context);
+        }
+
+        /** Whether the field indexes no terms, so nothing narrows the documents a query reads. */
+        private boolean scansEveryDocument() {
+            return indexType().hasTerms() == false;
+        }
+
+        @Override
+        public boolean answersPositionsFromValues(SearchExecutionContext context) {
+            // Reading the values answers a query about positions whether the field indexed terms without them or
+            // indexed nothing at all.
+            return answersFromValues(context);
+        }
+
+        @Override
+        public boolean answersTextQueryFromValues(SearchExecutionContext context) {
+            return scansEveryDocument() && answersFromValues(context);
+        }
+
+        @Override
+        protected Query readingValues(Query query, SearchExecutionContext context) {
+            return new ReanalyzingTextQuery(query, valueFetcherProvider(context), context.getIndexAnalyzer(f -> null), true);
         }
 
         /** Whether this field can read its parent's values, which a multi-field keeping none of its own does. */
@@ -1287,7 +1328,8 @@ public final class TextFieldMapper extends FieldMapper {
             if (parent instanceof KeywordFieldMapper.KeywordFieldType keywordParent && keywordParent.hasNormalizer()) {
                 return false;
             }
-            return parent.hasDocValues() || parent.isStored();
+            // A column is the only place this reads: no stored field, no _source.
+            return parent.hasDocValues();
         }
 
         /** Reads this field's values back, for the queries that analyze them again. */
@@ -1301,12 +1343,17 @@ public final class TextFieldMapper extends FieldMapper {
             return FieldValueFetchers.fromParent(context, name());
         }
 
-        /** {@code query} as it stands where the field indexed positions, over its values again where it did not. */
+        /** {@code query} as it stands where the field indexed positions, confirmed against its values where it did not. */
         private Query reanalyzePositions(Query query, SearchExecutionContext context) {
-            if (verifiesPositionsFromDocValues(context) == false) {
+            if (answersFromValues(context) == false) {
                 return query;
             }
-            return new ReanalyzingTextQuery(query, valueFetcherProvider(context), context.getIndexAnalyzer(f -> null));
+            return new ReanalyzingTextQuery(
+                query,
+                valueFetcherProvider(context),
+                context.getIndexAnalyzer(f -> null),
+                scansEveryDocument()
+            );
         }
 
         /** The same for an interval, which also needs the query that finds the documents worth reading. */
@@ -1314,12 +1361,16 @@ public final class TextFieldMapper extends FieldMapper {
             if (getTextSearchInfo().hasPositions()) {
                 return source;
             }
-            if (verifiesPositionsFromDocValues(context) == false) {
+            if (answersFromValues(context) == false) {
                 throw new IllegalArgumentException("Cannot create intervals over field [" + name() + "] with no positions indexed");
+            }
+            if (scansEveryDocument()) {
+                // Nothing narrows the documents read, as it does where the field's own terms name them.
+                failIfExpensiveQueriesDisallowed(context);
             }
             return new ReanalyzingIntervalsSource(
                 source,
-                approximation,
+                scansEveryDocument() ? Queries.ALL_DOCS_INSTANCE : approximation,
                 valueFetcherProvider(context),
                 context.getIndexAnalyzer(f -> null)
             );
@@ -1329,7 +1380,7 @@ public final class TextFieldMapper extends FieldMapper {
         public Query phraseQuery(TokenStream stream, int slop, boolean enablePosIncrements, SearchExecutionContext context)
             throws IOException {
             String field = name();
-            if (verifiesPositionsFromDocValues(context) == false) {
+            if (answersFromValues(context) == false) {
                 checkForPositions(false);
             }
             // we can't use the index_phrases shortcut with slop, if there are gaps in the stream,
@@ -1367,7 +1418,7 @@ public final class TextFieldMapper extends FieldMapper {
         public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, SearchExecutionContext context)
             throws IOException {
             String field = name();
-            if (verifiesPositionsFromDocValues(context) == false) {
+            if (answersFromValues(context) == false) {
                 checkForPositions(true);
             }
             if (indexPhrases && slop == 0 && hasGaps(stream) == false) {
@@ -1391,10 +1442,11 @@ public final class TextFieldMapper extends FieldMapper {
 
         @Override
         public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions, SearchExecutionContext context) throws IOException {
-            // One term asks nothing of positions - it is a query over the terms the index holds, which answers it
-            // whole - so the values are neither checked for positions nor read for them.
+            // One term asks nothing of positions, so the query over the terms answers it whole and the values are
+            // neither checked for positions nor read for them. Where the field holds no terms at all, the clause
+            // this was built for is read from the values whole.
             final boolean asksForPositions = countTokens(stream) > 1;
-            final boolean reanalyzes = asksForPositions && verifiesPositionsFromDocValues(context);
+            final boolean reanalyzes = asksForPositions && answersFromValues(context);
             if (asksForPositions && reanalyzes == false) {
                 checkForPositions(false);
             }

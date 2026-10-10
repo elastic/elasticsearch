@@ -117,7 +117,7 @@ public abstract class TransportWriteAction<
     protected Releasable checkOperationLimits(Request request) {
         return indexingPressure.validateAndMarkPrimaryOperationStarted(
             primaryOperationCount(request),
-            primaryOperationSize(request),
+            primaryOperationSize(request) + requestContextBytes(),
             primaryLargestOperationSize(request),
             force(request),
             primaryAllowsOperationsBeyondSizeLimit(request)
@@ -156,13 +156,22 @@ public abstract class TransportWriteAction<
             // primary delegation, after the primary relocation hand-off.
             return indexingPressure.validateAndMarkPrimaryOperationStarted(
                 primaryOperationCount(request),
-                primaryOperationSize(request),
+                primaryOperationSize(request) + requestContextBytes(),
                 primaryLargestOperationSize(request),
                 force(request),
                 primaryAllowsOperationsBeyondSizeLimit(request)
             );
 
         }
+    }
+
+    /**
+     * Estimated size of the request context (headers and transient security metadata) that a request received over the network
+     * retains for as long as it is in flight. Requests rerouted locally share the coordinating request's context, which has
+     * already been accounted for, so this is only added on the network-received paths: primary requests and replica requests.
+     */
+    private long requestContextBytes() {
+        return threadPool.getThreadContext().estimatedRequestContextBytes();
     }
 
     protected long primaryOperationSize(Request request) {
@@ -183,7 +192,11 @@ public abstract class TransportWriteAction<
 
     @Override
     protected Releasable checkReplicaLimits(ReplicaRequest request) {
-        return indexingPressure.markReplicaOperationStarted(replicaOperationCount(request), replicaOperationSize(request), force(request));
+        return indexingPressure.markReplicaOperationStarted(
+            replicaOperationCount(request),
+            replicaOperationSize(request) + requestContextBytes(),
+            force(request)
+        );
     }
 
     protected long replicaOperationSize(ReplicaRequest request) {

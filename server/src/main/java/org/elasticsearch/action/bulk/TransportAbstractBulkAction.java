@@ -157,7 +157,9 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         if (bulkRequest.incrementalState().indexingPressureAccounted()) {
             releasable = () -> {};
         } else {
-            releasable = indexingPressure.markCoordinatingOperationStarted(indexingOps, indexingBytes, isOnlySystem);
+            // The request context is retained for as long as this request is in flight, so it counts alongside the payload.
+            final long requestContextBytes = threadPool.getThreadContext().estimatedRequestContextBytes();
+            releasable = indexingPressure.markCoordinatingOperationStarted(indexingOps, indexingBytes + requestContextBytes, isOnlySystem);
         }
         final ActionListener<BulkResponse> releasingListener = ActionListener.runBefore(listener, releasable::close);
         // Use coordinationExecutor for dispatching coordination tasks

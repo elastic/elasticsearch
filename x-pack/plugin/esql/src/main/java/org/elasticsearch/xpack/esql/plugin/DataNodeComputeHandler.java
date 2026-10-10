@@ -136,6 +136,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         Set<String> concreteIndices,
         OriginalIndices originalIndices,
         ExchangeSourceHandler exchangeSource,
+        // See PlannerUtils#rowsNeededFromDataNodes: no more data nodes are needed once this many rows are received.
+        @Nullable Integer rowsNeededFromDataNodes,
         boolean retainSearchContexts,
         // Non-null iff retainSearchContexts: every request that asks a data node to retain contexts must have a releaser tracking it.
         @Nullable RemoteFetchService.RetainedSessionReleaser remoteFetchRetainedSessionReleaser,
@@ -165,7 +167,10 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 Map<Index, AliasFilter> aliasFilters,
                 NodeListener nodeListener
             ) {
-                if (exchangeSource.isFinished()) {
+                if (exchangeSource.isFinished()
+                    || (rowsNeededFromDataNodes != null
+                        && rowsNeededFromDataNodes > 0
+                        && exchangeSource.receivedPositions() >= rowsNeededFromDataNodes)) {
                     nodeListener.onSkip();
                     return;
                 }

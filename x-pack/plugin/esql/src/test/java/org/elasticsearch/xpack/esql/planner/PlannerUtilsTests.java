@@ -18,16 +18,20 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
@@ -256,6 +260,52 @@ public class PlannerUtilsTests extends ESTestCase {
 
         var exception = expectThrows(EsqlIllegalArgumentException.class, () -> PlannerUtils.buildSubPlan(siblingContainer));
         assertThat(exception.getMessage(), containsString("expected a single topmost MergeExec"));
+    }
+
+    /**
+     * The coordinator applies {@code LIMIT 10} directly to the exchange, so 10 received rows are enough. An outer
+     * {@code LIMIT 20} does not read the exchange, so it is ignored.
+     */
+    public void testRowsNeededFromDataNodes() {
+        ExchangeSourceExec exchange = new ExchangeSourceExec(Source.EMPTY, List.of(field("a")), false);
+        assertThat(PlannerUtils.rowsNeededFromDataNodes(limit(exchange, 10)), equalTo(10));
+        assertThat(PlannerUtils.rowsNeededFromDataNodes(limit(limit(exchange, 10), 20)), equalTo(10));
+    }
+
+    /**
+     * Unknown unless a {@code LIMIT} reads the exchange directly: a filter in between may drop received rows, and a
+     * {@code TopN} needs rows from every node to pick the first ones.
+     */
+    public void testRowsNeededFromDataNodesUnknown() {
+        ExchangeSourceExec exchange = new ExchangeSourceExec(Source.EMPTY, List.of(field("a")), false);
+        assertNull(PlannerUtils.rowsNeededFromDataNodes(exchange));
+        assertNull(PlannerUtils.rowsNeededFromDataNodes(limit(new FilterExec(Source.EMPTY, exchange, Literal.TRUE), 10)));
+        assertNull(
+            PlannerUtils.rowsNeededFromDataNodes(
+                new TopNExec(Source.EMPTY, exchange, List.of(), new Literal(Source.EMPTY, 10, DataType.INTEGER), null)
+            )
+        );
+        assertNull(PlannerUtils.rowsNeededFromDataNodes(localSource(List.of(field("a")))));
+    }
+
+    /**
+     * With more than one exchange source in the plan, rows received through the exchange may not all reach the same limit.
+     */
+    public void testRowsNeededFromDataNodesUnknownWithMultipleExchangeSources() {
+        List<Attribute> output = List.of(field("a"));
+        HashJoinExec join = new HashJoinExec(
+            Source.EMPTY,
+            limit(new ExchangeSourceExec(Source.EMPTY, output, false), 10),
+            limit(new ExchangeSourceExec(Source.EMPTY, output, false), 10),
+            List.of(),
+            List.of(),
+            List.of()
+        );
+        assertNull(PlannerUtils.rowsNeededFromDataNodes(join));
+    }
+
+    private static LimitExec limit(PhysicalPlan child, int limit) {
+        return new LimitExec(Source.EMPTY, child, new Literal(Source.EMPTY, limit, DataType.INTEGER), null);
     }
 
     private static FieldAttribute field(String name) {

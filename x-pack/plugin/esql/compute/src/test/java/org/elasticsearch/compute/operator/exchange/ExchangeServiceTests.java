@@ -168,6 +168,39 @@ public class ExchangeServiceTests extends ESTestCase {
         safeGet(remoteSinkFuture);
     }
 
+    /**
+     * Callers decide whether more data is needed from {@link ExchangeSourceHandler#receivedPositions()} when a remote sink completes,
+     * before any driver has consumed the fetched pages, so every fetched position must be counted by then.
+     */
+    public void testReceivedPositionsCountedBeforeSinkCompletes() {
+        BlockFactory blockFactory = blockFactory();
+        int numPages = between(1, 5);
+        List<Page> pages = new ArrayList<>();
+        long totalPositions = 0;
+        for (int i = 0; i < numPages; i++) {
+            int positions = between(1, 10);
+            totalPositions += positions;
+            pages.add(new Page(blockFactory.newConstantIntBlockWith(i, positions)));
+        }
+        ExchangeSinkHandler sinkHandler = new ExchangeSinkHandler(blockFactory, numPages, threadPool.relativeTimeInMillisSupplier());
+        ExchangeSink sink = sinkHandler.createExchangeSink(() -> {});
+        // Room for every page, so the fetch never waits for a reader.
+        ExchangeSourceHandler sourceHandler = new ExchangeSourceHandler(numPages + 1, threadPool.executor(ESQL_TEST_EXECUTOR));
+        ExchangeSource source = sourceHandler.createExchangeSource();
+        PlainActionFuture<Void> remoteSinkFuture = new PlainActionFuture<>();
+        sourceHandler.addRemoteSink(sinkHandler::fetchPageAsync, randomBoolean(), () -> {}, between(1, 3), remoteSinkFuture);
+        pages.forEach(sink::addPage);
+        sink.finish();
+        safeGet(remoteSinkFuture);
+        assertThat(sourceHandler.receivedPositions(), equalTo(totalPositions));
+        assertFalse(sourceHandler.isFinished());
+        Page page;
+        while ((page = source.pollPage()) != null) {
+            page.releaseBlocks();
+        }
+        source.finish();
+    }
+
     public void testLocalExchangeBasic() {
         BlockFactory blockFactory = blockFactory();
         Page[] pages = new Page[] {

@@ -561,6 +561,38 @@ public class ExternalSourceCacheService implements Closeable {
     }
 
     /**
+     * A complete cached listing for {@code key}, or {@code null} when the cache holds none.
+     * <p>
+     * For the caller that cannot use {@link #getOrComputeListingAsync} because its own listing is bounded. A bounded
+     * request may still be <em>served</em> from this cache: everything in here is a complete listing of the whole
+     * pattern (see {@link #putListingIfComplete}), which is a superset of the prefix the caller asked for and
+     * therefore a correct answer to it. Only the reverse direction is unsafe, and that is what the put guards.
+     * <p>
+     * No in-flight coalescing, deliberately. A waiter would have to be handed the leader's result, and the key does
+     * not say whether the leader asked for a bound — so a bounded leader could hand a prefix of the dataset to a
+     * query that needs all of it. Two cold bounded queries each list, exactly as they did before this cache was
+     * reachable from a bounded path at all.
+     */
+    @Nullable
+    public FileList getListingIfPresent(ListingCacheKey key) {
+        return enabled ? listingStore.get(key) : null;
+    }
+
+    /**
+     * Stores {@code listing} under {@code key} if it is a listing of the whole pattern, and drops it otherwise.
+     * <p>
+     * The refusal is the point. Cache entries are keyed by the path and its filters, never by how much of it the
+     * query that computed it needed, so a truncated listing stored here would be served to a later query as though
+     * it were the dataset, with nothing in it to say otherwise. A bounded listing that nonetheless drained its whole
+     * prefix is not truncated and is just as complete as an unbounded one, which is what makes it worth offering.
+     */
+    public void putListingIfComplete(ListingCacheKey key, FileList listing) {
+        if (enabled && listing != null && listing.isTruncated() == false) {
+            listingStore.put(key, listing);
+        }
+    }
+
+    /**
      * Async variant of {@link #getOrComputeListing} with in-flight coalescing: concurrent cold misses for
      * the same key share one {@code compute} invocation rather than each spawning a separate fan-out.
      * Failures are never cached. When the leader's compute fails with a

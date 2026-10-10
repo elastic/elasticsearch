@@ -187,6 +187,92 @@ public final class DatasetListingService {
     }
 
     /**
+     * The shared listing-cache address. Built here rather than at each caller because the two identities are the
+     * listing provider's own report of which of its settings name the same store twice and which are secret, and
+     * re-deriving them would take a fresh lease and decrypt again.
+     */
+    private static ListingCacheKey listingCacheKey(
+        String path,
+        StoragePath storagePath,
+        String storageIdentity,
+        String secretIdentity,
+        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        Map<String, Object> config
+    ) {
+        return ListingCacheKey.build(
+            storagePath.scheme(),
+            storagePath.host(),
+            storagePath.path(),
+            storageIdentity,
+            secretIdentity,
+            ExternalSourceResolver.storageConfig(config),
+            // intentional raw config: only reads partition-filter keys, not auth/connection params from _datasource
+            GlobExpander.listingCacheDiscriminator(path, hints, config)
+        );
+    }
+
+    /**
+     * A bounded listing, served from the shared cache when it holds a complete one and offered back to it when this
+     * one turns out complete too.
+     * <p>
+     * A bound and the cache used to be mutually exclusive: {@code boundsFileSet()} picked the uncached rail outright,
+     * so a bounded listing was recomputed on every execution however complete it was. That was sound while the bound
+     * counted keys visited, because such a listing was a prefix of the dataset whenever the prefix held more keys
+     * than the bound — which, for a selective glob, was always. Now that it counts matching files, a bounded listing
+     * over a glob with fewer matches than the bound drains its whole prefix and is complete, and a complete listing
+     * is the same artifact whoever asked for it. Both directions of the cache are open to it: reading, because every
+     * entry is a listing of the whole pattern and so a superset of the prefix asked for; writing, because this
+     * result is one too. {@link ExternalSourceCacheService#putListingIfComplete} is what holds the second half.
+     */
+    public void boundedListingAsync(
+        String path,
+        StoragePath storagePath,
+        StorageProvider provider,
+        String storageIdentity,
+        String secretIdentity,
+        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        Map<String, Object> config,
+        ListingExtents extents,
+        PlanningMemory memory,
+        BooleanSupplier cancelled,
+        int concurrency,
+        Executor executor,
+        ActionListener<FileList> listener
+    ) {
+        ListingCacheKey listingKey = listingCacheKey(path, storagePath, storageIdentity, secretIdentity, hints, config);
+        FileList cached = cacheService.getListingIfPresent(listingKey);
+        if (cached != null) {
+            try {
+                // Caps are not part of the listing key; see cachedListing. A hit allocated nothing in the walk, so
+                // it reserves what the walk would have, for the reasons cachedListing gives at length.
+                GlobExpander.checkDiscoveredFilesLimit(cached.fileCount(), maxDiscoveredFiles.getAsInt());
+                memory.reserve(cached.fileCount() * FileList.LISTING_BYTES_PER_ENTRY);
+            } catch (Exception e) {
+                listener.onFailure(e);
+                return;
+            }
+            listener.onResponse(cached);
+            return;
+        }
+        expandAsync(
+            path,
+            provider,
+            hints,
+            config,
+            storagePath,
+            extents,
+            memory,
+            cancelled,
+            concurrency,
+            executor,
+            listener.delegateFailureAndWrap((l, listing) -> {
+                cacheService.putListingIfComplete(listingKey, listing);
+                l.onResponse(listing);
+            })
+        );
+    }
+
+    /**
      * Async counterpart of {@link #cachedListing}, with the same key-and-compute pairing and the same reservation
      * rule. Concurrent cold misses for one key share one listing: the first query's listing is the one that runs, and
      * the others wait on it rather than each starting a fan-out. A query that waited allocated nothing in the walk, so
@@ -207,16 +293,7 @@ public final class DatasetListingService {
         Executor executor,
         ActionListener<FileList> listener
     ) {
-        ListingCacheKey listingKey = ListingCacheKey.build(
-            storagePath.scheme(),
-            storagePath.host(),
-            storagePath.path(),
-            storageIdentity,
-            secretIdentity,
-            ExternalSourceResolver.storageConfig(config),
-            // intentional raw config: only reads partition-filter keys, not auth/connection params from _datasource
-            GlobExpander.listingCacheDiscriminator(path, hints, config)
-        );
+        ListingCacheKey listingKey = listingCacheKey(path, storagePath, storageIdentity, secretIdentity, hints, config);
         // Set by whichever thread runs the compute and read by whichever completes the listing.
         AtomicBoolean computedHere = new AtomicBoolean();
         cacheService.getOrComputeListingAsync(listingKey, innerListener -> {
@@ -276,16 +353,7 @@ public final class DatasetListingService {
         // The two identities are passed in rather than derived here: only the provider that would list this prefix
         // knows which of its settings name the same store twice and which of them are declared secret, and the
         // resolver already holds what it reported. Re-deriving would take a fresh lease and decrypt again.
-        ListingCacheKey listingKey = ListingCacheKey.build(
-            storagePath.scheme(),
-            storagePath.host(),
-            storagePath.path(),
-            storageIdentity,
-            secretIdentity,
-            ExternalSourceResolver.storageConfig(config),
-            // intentional raw config: only reads partition-filter keys, not auth/connection params from _datasource
-            GlobExpander.listingCacheDiscriminator(path, hints, config)
-        );
+        ListingCacheKey listingKey = listingCacheKey(path, storagePath, storageIdentity, secretIdentity, hints, config);
         FileList listing;
         boolean[] servedFromCacheHolder = { true };
         try {

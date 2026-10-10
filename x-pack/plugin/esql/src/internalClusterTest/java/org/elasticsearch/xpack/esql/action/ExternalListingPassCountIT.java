@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -169,6 +170,58 @@ public class ExternalListingPassCountIT extends AbstractExternalDataSourceIT {
     }
 
     /**
+     * A second query over the same dataset must ask the store nothing.
+     * <p>
+     * This is the half of the cost a bound used to forfeit. A bounded listing took the uncached rail outright, so
+     * however complete it was it was recomputed on every execution -- on the ticket's own dataset that is 4082 date
+     * folders re-listed to answer a nine-file schema, every time, which is why the regression never felt like a cold
+     * cost. A bounded listing that drained its whole prefix is complete, and a complete listing is the same artifact
+     * whoever asked for it, so it belongs in the shared cache.
+     */
+    public void testASecondQueryListsNothing() throws Exception {
+        String dataset = registerCountingDataset("pass_warm", PADDING_FOLDERS);
+        String coordinator = internalCluster().getNodeNames()[0];
+
+        query(coordinator, "FROM " + dataset + " | LIMIT 0").close();
+
+        ListingCountingStorageProvider.reset();
+        try (EsqlQueryResponse response = query(coordinator, "FROM " + dataset + " | LIMIT 0")) {
+            assertThat(columnsOf(response), equalTo(List.of("id:integer", "v:keyword", "date:keyword")));
+        }
+
+        // Exactly zero, not "fewer": the listing is either served from the cache or it is not, and the whole point
+        // is that a complete bounded listing is cacheable. One pass here means it was thrown away again.
+        assertThat(
+            "a repeat query must be served from the listing cache and ask the store nothing",
+            ListingCountingStorageProvider.listingPasses(),
+            equalTo(0L)
+        );
+        assertThat("and visit no keys", ListingCountingStorageProvider.keysVisited(), equalTo(0L));
+    }
+
+    /**
+     * A truncated listing must still never be cached. The bound here is below the number of matching files, so the
+     * drain stops on matches it has rather than on exhaustion and the listing is a prefix of the dataset. Served to
+     * a later query it would pass for the whole of it, with nothing in it to say otherwise -- so the second query
+     * must list again.
+     */
+    public void testATruncatedListingIsNotCached() throws Exception {
+        String dataset = registerCountingDataset("pass_truncated", 0, Map.of("partition_sample_size", 2));
+        String coordinator = internalCluster().getNodeNames()[0];
+
+        query(coordinator, "FROM " + dataset + " | LIMIT 0").close();
+
+        ListingCountingStorageProvider.reset();
+        query(coordinator, "FROM " + dataset + " | LIMIT 0").close();
+
+        assertThat(
+            "a truncated listing is a prefix of the dataset and must not be served to a later query",
+            ListingCountingStorageProvider.listingPasses(),
+            equalTo(1L)
+        );
+    }
+
+    /**
      * Runs {@code query} on a named node. The listing cache is a per-node singleton and the resolver runs on
      * whichever node coordinates, so a test that counts listings has to pin the coordinator or it counts a
      * different node's work from one run to the next.
@@ -182,10 +235,11 @@ public class ExternalListingPassCountIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * Writes {@code paddingFolders} folders that sort ahead of the matched ones, then the nine the glob matches, and
-     * registers the glob under {@code first_file_wins} so the listing is eligible for the bound.
+     * Writes {@code paddingFolders} folders that sort ahead of the matched ones, then the nine the glob matches.
+     * The padding is {@code date=2023-*}: object listings are lexicographic, so it all sorts in front of the
+     * {@code date=2024-01-0*} the glob selects.
      */
-    private String registerCountingDataset(String name, int paddingFolders) throws IOException {
+    private Path writeFixture(int paddingFolders) throws IOException {
         Path dir = createTempDir();
         for (int f = 0; f < paddingFolders; f++) {
             Path folder = dir.resolve(String.format(Locale.ROOT, "date=2023-%06d", f));
@@ -197,7 +251,19 @@ public class ExternalListingPassCountIT extends AbstractExternalDataSourceIT {
             Files.createDirectories(folder);
             Files.writeString(folder.resolve("part.csv"), "id,v\n" + d + ",hit\n");
         }
+        return dir;
+    }
+
+    /** Registers the fixture's glob under {@code first_file_wins}, so the listing is eligible for the bound. */
+    private String registerCountingDataset(String name, int paddingFolders) throws IOException {
+        return registerCountingDataset(name, paddingFolders, Map.of());
+    }
+
+    private String registerCountingDataset(String name, int paddingFolders, Map<String, Object> extraSettings) throws IOException {
+        Path dir = writeFixture(paddingFolders);
         String glob = ListingCountingStorageProvider.SCHEME + "://" + dir.toAbsolutePath() + "/date=2024-01-0*/*.csv";
-        return registerDataset(name, glob, Map.of("format", "csv", "schema_resolution", "first_file_wins"));
+        Map<String, Object> settings = new HashMap<>(Map.of("format", "csv", "schema_resolution", "first_file_wins"));
+        settings.putAll(extraSettings);
+        return registerDataset(name, glob, settings);
     }
 }

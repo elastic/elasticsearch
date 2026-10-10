@@ -1945,9 +1945,10 @@ public class ExternalSourceResolver {
      * {@link #cachedListingAsync} regardless of merge strategy. Declared-schema resolution stays in
      * {@link #resolveStrictMultiFileAsync}, which repeats the bounded-is-never-cached rule below.
      *
-     * <p>A bounded listing is a prefix of the dataset, and cache entries are keyed by the path and its filters
-     * rather than by what the query needed, so a bounded listing never touches the cache in either direction.
-     * See {@link #listingExtentsFor}.
+     * <p>Cache entries are keyed by the path and its filters rather than by what the query needed, so what may be
+     * cached is decided by the listing that came back, not by the bound that was asked for: a bounded listing that
+     * drained its whole prefix is complete and is cached, and a truncated one is served to its own query and
+     * dropped. {@link #boundedListingAsync} is that rail; see also {@link #listingExtentsFor}.
      */
     private void listAndRecordAsync(
         String path,
@@ -1980,10 +1981,12 @@ public class ExternalSourceResolver {
             recordDiscovery(listing, discoveryStartNanos, storagePath.scheme(), schemaResolution);
             listener.onResponse(listing);
         }, listener::onFailure);
-        if (cacheable && extents.boundsFileSet() == false) {
-            cachedListingAsync(path, storagePath, provider, storageIdentity, secretIdentity, hints, config, recordingListener);
-        } else {
+        if (cacheable == false) {
             expandAndCompactAsync(path, provider, hints, config, storagePath, extents, recordingListener);
+        } else if (extents.boundsFileSet()) {
+            boundedListingAsync(path, storagePath, provider, storageIdentity, secretIdentity, hints, config, extents, recordingListener);
+        } else {
+            cachedListingAsync(path, storagePath, provider, storageIdentity, secretIdentity, hints, config, recordingListener);
         }
     }
 
@@ -1991,9 +1994,9 @@ public class ExternalSourceResolver {
      * How far this resolution's listing runs: how many files it returns, and how many paths partition detection
      * folds over. {@link ListingExtents#UNBOUNDED} is the whole glob for both.
      *
-     * <p>Answered here and nowhere else, and answered before the caller chooses whether to consult the listing
-     * cache, because the two are one decision: a bound revoked after the cache was bypassed lists the whole glob
-     * and neither reads nor writes the cache.
+     * <p>Answered here and nowhere else. It no longer decides whether the listing cache is consulted — a bounded
+     * listing reads it, and writes to it when what came back was complete — so a bound granted or revoked here
+     * changes how far the listing runs and nothing about its address.
      *
      * <p>Three things must hold. The mode's schema must not span every file, so a prefix of the listing
      * can answer it. The query must not want dataset-wide statistics, which are a fold over every
@@ -2170,6 +2173,38 @@ public class ExternalSourceResolver {
             secretIdentity,
             hints,
             config,
+            planningMemory(),
+            listingCancellation(),
+            listingConcurrency(),
+            metadataReadExecutor,
+            listener
+        );
+    }
+
+    /**
+     * As {@link #cachedListingAsync}, for a resolution whose listing is bounded: it reads the shared cache and
+     * writes back only a listing that turned out complete. See {@link DatasetListingService#boundedListingAsync}.
+     */
+    private void boundedListingAsync(
+        String path,
+        StoragePath storagePath,
+        StorageProvider provider,
+        String storageIdentity,
+        String secretIdentity,
+        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        Map<String, Object> config,
+        ListingExtents extents,
+        ActionListener<FileList> listener
+    ) {
+        listingService.boundedListingAsync(
+            path,
+            storagePath,
+            provider,
+            storageIdentity,
+            secretIdentity,
+            hints,
+            config,
+            extents,
             planningMemory(),
             listingCancellation(),
             listingConcurrency(),
@@ -5107,10 +5142,12 @@ public class ExternalSourceResolver {
                 return;
             }
             listingListener.onResponse(listing);
-        } else if (isCacheable(provider) && extents.boundsFileSet() == false) {
-            cachedListingAsync(path, storagePath, provider, storageIdentity, secretIdentity, hints, config, listingListener);
-        } else {
+        } else if (isCacheable(provider) == false) {
             expandAndCompactAsync(path, provider, hints, config, storagePath, extents, listingListener);
+        } else if (extents.boundsFileSet()) {
+            boundedListingAsync(path, storagePath, provider, storageIdentity, secretIdentity, hints, config, extents, listingListener);
+        } else {
+            cachedListingAsync(path, storagePath, provider, storageIdentity, secretIdentity, hints, config, listingListener);
         }
     }
 

@@ -1191,6 +1191,11 @@ public class EsqlCapabilities {
         JOIN_LOOKUP_V12,
 
         /**
+         * Use a non-correlated subquery as the lookup side of LOOKUP JOIN.
+         */
+        LOOKUP_JOIN_ON_SUBQUERY(Build.current().isSnapshot()),
+
+        /**
          * LOOKUP JOIN with TEXT fields on the right (right side of the join) (#119473)
          */
         LOOKUP_JOIN_TEXT(JOIN_LOOKUP_V12.isEnabled()),

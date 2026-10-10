@@ -19,8 +19,11 @@ import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
+import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryLookupJoin;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -97,6 +100,27 @@ public class LookupJoinParserTests extends AbstractStatementParserTests {
         )) {
             assertGrammarAccepts("FROM left | LOOKUP JOIN (" + subquery + ") ON key", config);
         }
+    }
+
+    public void testSubqueryTargetBuildsIndependentJoin() {
+        assumeTrue("requires LOOKUP JOIN subquery capability", EsqlCapabilities.Cap.LOOKUP_JOIN_ON_SUBQUERY.isEnabled());
+
+        var join = as(query("FROM main | LOOKUP JOIN (FROM sub | KEEP key, value) ON key"), SubqueryLookupJoin.class);
+        assertThat(join, instanceOf(IndependentSubqueryJoin.class));
+        assertThat(as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo("main"));
+        assertThat(as(as(join.right(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo("sub"));
+        assertThat(join.config().type().joinName(), equalTo("LEFT OUTER"));
+        assertThat(join.config().leftFields(), hasSize(1));
+        assertThat(((UnresolvedAttribute) join.config().leftFields().getFirst()).name(), equalTo("key"));
+        assertThat(join.config().rightFields(), equalTo(join.config().leftFields()));
+        assertNull(join.config().joinOnConditions());
+    }
+
+    public void testSubqueryTargetRejectsExpressionOn() {
+        expectError(
+            "FROM main | LOOKUP JOIN (FROM sub) ON left_key == right_key",
+            "LOOKUP JOIN on a subquery only supports a list of fields in ON"
+        );
     }
 
     /**

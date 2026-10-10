@@ -105,6 +105,7 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryLookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -1146,6 +1147,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         var target = ctx.joinTarget();
+        if (target.subquery() != null) {
+            if (EsqlCapabilities.Cap.LOOKUP_JOIN_ON_SUBQUERY.isEnabled() == false) {
+                throw new ParsingException(source, "LOOKUP JOIN on a subquery is in preview and only available in SNAPSHOT build");
+            }
+            var condition = ctx.joinCondition();
+            rejectExpressionBasedOn(condition, "LOOKUP JOIN on a subquery only supports a list of fields in ON");
+            LogicalPlan subquery = visitSubquery(target.subquery());
+            var joinInfo = typedParsing(this, condition, JoinInfo.class);
+            return p -> new SubqueryLookupJoin(source, p, subquery, joinInfo.joinFields());
+        }
+
         var rightPattern = visitIndexPattern(List.of(target.index));
         if (rightPattern.contains(WILDCARD)) {
             throw new ParsingException(source(target), "invalid index pattern [{}], * is not allowed in LOOKUP JOIN", rightPattern);
@@ -1187,6 +1199,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             Predicates.combineAndWithSource(joinInfo.joinExpressions(), source(condition)),
             mode
         );
+    }
+
+    private void rejectExpressionBasedOn(EsqlBaseParser.JoinConditionContext condition, String errorMessage) {
+        var expressions = visitList(this, condition.booleanExpression(), Expression.class);
+        if (expressions.stream().anyMatch(expression -> expression instanceof UnresolvedAttribute == false)) {
+            throw new ParsingException(source(condition), errorMessage);
+        }
     }
 
     private record JoinInfo(List<Attribute> joinFields, List<Expression> joinExpressions) {}

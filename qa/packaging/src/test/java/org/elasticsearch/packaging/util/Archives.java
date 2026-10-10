@@ -254,7 +254,7 @@ public class Archives {
         // pty allocation (it sets an SELinux type); pty propagation is controlled by the "use_pty" sudoers
         // policy setting, which CI enables explicitly (see .ci/scripts/packaging-test.sh).
         List<String> command = new ArrayList<>();
-        command.add("sudo -E -u %s %s -p %s");
+        command.add("sudo --preserve-env=" + String.join(",", sh.getEnv().keySet()) + " -u %s %s -p %s");
         if (daemonize) {
             command.add("-d");
         }
@@ -321,7 +321,7 @@ public class Archives {
             }
 
             List<String> command = new ArrayList<>();
-            command.add("sudo -E -u ");
+            command.add("sudo --preserve-env=" + String.join(",", sh.getEnv().keySet()) + " -u ");
             command.add(ARCHIVE_OWNER);
             command.add(bin.elasticsearch.toString());
             if (daemonize) {

@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.stateless.allocation;
 
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
@@ -16,6 +18,13 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import java.util.List;
 import java.util.function.Predicate;
 
+/**
+ * Existing-shards allocator for stateless. Shard data lives in the object store, so this allocator does not
+ * recover from local copies. It only defers unassigned snapshot primaries until
+ * {@link org.elasticsearch.snapshots.InternalSnapshotsInfoService} has fetched their size (mirroring
+ * {@code PrimaryShardAllocator}'s {@code FETCHING_SHARD_DATA} gate). Desired-balance reconciliation then
+ * assigns them with {@link SnapshotRestoreAllocationDecider} enforcing disk capacity.
+ */
 public class StatelessExistingShardsAllocator implements ExistingShardsAllocator {
 
     @Override
@@ -30,18 +39,25 @@ public class StatelessExistingShardsAllocator implements ExistingShardsAllocator
         RoutingAllocation allocation,
         UnassignedAllocationHandler unassignedAllocationHandler
     ) {
-        // In stateful implementation this method is called to determine the node that used to store the shard
-        // and assign it using `UnassignedIterator#initialize(...)` or postpone initialization via
-        // `UnassignedIterator#removeAndIgnore(...)` if the file list is not available yet to make a decision.
-
-        // In stateless implementation all data is kept in the object store and is downloaded before initializing.
-        // Existing shard is not ignored nor initialized here so that it would be assigned from scratch by
-        // ShardsAllocator implementation.
+        if (waitingForSnapshotShardSize(shardRouting, allocation)) {
+            unassignedAllocationHandler.removeAndIgnore(UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA, allocation.changes());
+        }
     }
 
     @Override
     public AllocateUnassignedDecision explainUnassignedShardAllocation(ShardRouting unassignedShard, RoutingAllocation routingAllocation) {
+        if (waitingForSnapshotShardSize(unassignedShard, routingAllocation)) {
+            // No per-node decider walk: capacity answers are meaningless until size is known.
+            return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA, null);
+        }
         return AllocateUnassignedDecision.NOT_TAKEN;
+    }
+
+    private static boolean waitingForSnapshotShardSize(ShardRouting shard, RoutingAllocation allocation) {
+        return shard.primary()
+            && shard.unassigned()
+            && shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT
+            && allocation.snapshotShardSizeInfo().getShardSize(shard) == null;
     }
 
     @Override

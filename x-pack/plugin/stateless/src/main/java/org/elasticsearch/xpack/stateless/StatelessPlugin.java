@@ -143,6 +143,8 @@ import org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocation
 import org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageMonitor;
 import org.elasticsearch.xpack.stateless.allocation.SharedCacheCapacityAllocationDecider;
 import org.elasticsearch.xpack.stateless.allocation.SharedCacheCapacityMonitor;
+import org.elasticsearch.xpack.stateless.allocation.SnapshotRestoreAllocationDecider;
+import org.elasticsearch.xpack.stateless.allocation.SnapshotRestoreStorageMonitor;
 import org.elasticsearch.xpack.stateless.allocation.StatelessAllocationDecider;
 import org.elasticsearch.xpack.stateless.allocation.StatelessBalancingWeightsFactory;
 import org.elasticsearch.xpack.stateless.allocation.StatelessExistingShardsAllocator;
@@ -578,6 +580,8 @@ public class StatelessPlugin extends Plugin
     private final boolean hasMasterRole;
     private final StatelessIndexSettingProvider statelessIndexSettingProvider;
     private final boolean hollowShardsEnabled;
+    private final SnapshotRestoreDiskPressure snapshotRestoreDiskPressure;
+    private final SnapshotRestoreAllocationDecider snapshotRestoreAllocationDecider;
 
     private final SetOnce<CodecProviderFactory> codecProviderFactory = new SetOnce<>();
     private final SetOnce<SearchShardSizeCollectorProvider> searchShardSizeCollectorProvider = new SetOnce<>();
@@ -652,6 +656,13 @@ public class StatelessPlugin extends Plugin
         hasMasterRole = DiscoveryNode.isMasterNode(settings);
         statelessIndexSettingProvider = new StatelessIndexSettingProvider();
         hollowShardsEnabled = STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.get(settings);
+        snapshotRestoreDiskPressure = new SnapshotRestoreDiskPressure(settings);
+        snapshotRestoreAllocationDecider = new SnapshotRestoreAllocationDecider(settings, snapshotRestoreDiskPressure);
+    }
+
+    /** Unmet restore-disk demand from live allocation, for autoscaling */
+    public SnapshotRestoreDiskPressure getSnapshotRestoreDiskPressure() {
+        return snapshotRestoreDiskPressure;
     }
 
     @Override
@@ -722,6 +733,7 @@ public class StatelessPlugin extends Plugin
         var settings = Settings.builder()
             .put(super.additionalSettings())
             .put(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
+            .put(InternalClusterInfoService.CLUSTER_INFO_UPDATE_DISK_ENABLED.getKey(), true)
             .put(DATA_STREAMS_LIFECYCLE_ONLY_MODE.getKey(), true)
             .put(FAILURE_STORE_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(30));
         settings.put(DiscoveryModule.ELECTION_STRATEGY_SETTING.getKey(), StatelessElectionStrategy.NAME)
@@ -1005,6 +1017,17 @@ public class StatelessPlugin extends Plugin
                 )::onNewInfo
             );
 
+        services.allocationService()
+            .getClusterInfoService()
+            .addListener(
+                new SnapshotRestoreStorageMonitor(
+                    clusterService.getClusterSettings(),
+                    threadPool.relativeTimeInMillisSupplier(),
+                    clusterService::state,
+                    rerouteService
+                )::onNewInfo
+            );
+
         recoveryCommitRegistrationHandler.set(new RecoveryCommitRegistrationHandler(client, clusterService));
 
         // Memory metrics service for heap usage tracking
@@ -1167,7 +1190,8 @@ public class StatelessPlugin extends Plugin
                     hollowShardsService,
                     searchShardSizeCollector,
                     memoryMetricsService,
-                    objectStoreService
+                    objectStoreService,
+                    snapshotRestoreDiskPressure
                 );
             }
         }
@@ -1394,6 +1418,8 @@ public class StatelessPlugin extends Plugin
             STATELESS_ENABLED,
             DATA_STREAMS_LIFECYCLE_ONLY_MODE,
             FAILURE_STORE_REFRESH_INTERVAL_SETTING,
+            InternalClusterInfoService.CLUSTER_INFO_UPDATE_DISK_ENABLED,
+            SnapshotRestoreStorageMonitor.REROUTE_INTERVAL_SETTING,
             ObjectStoreService.TYPE_SETTING,
             ObjectStoreService.BUCKET_SETTING,
             ObjectStoreService.CLIENT_SETTING,
@@ -2057,6 +2083,7 @@ public class StatelessPlugin extends Plugin
         return List.of(
             new DisableSimulationRebalancingDecider(clusterSettings),
             new StatelessAllocationDecider(),
+            snapshotRestoreAllocationDecider,
             new EstimatedHeapUsageAllocationDecider(estimatedHeapSettings.get(), clusterSettings),
             new SharedCacheCapacityAllocationDecider(clusterSettings),
             new StatelessThrottlingConcurrentRecoveriesAllocationDecider(clusterSettings)

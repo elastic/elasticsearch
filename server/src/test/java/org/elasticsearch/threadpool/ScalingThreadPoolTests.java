@@ -153,6 +153,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
         sizes.put(ThreadPool.Names.REFRESH, ThreadPool::halfAllocatedProcessorsMaxTen);
         sizes.put(ThreadPool.Names.WARMER, ThreadPool::halfAllocatedProcessorsMaxFive);
         sizes.put(ThreadPool.Names.SNAPSHOT, ThreadPool::halfAllocatedProcessorsMaxFive);
+        sizes.put(ThreadPool.Names.SNAPSHOT_UPLOAD, ThreadPool::getMaxSnapshotUploadThreadPoolSize);
         sizes.put(ThreadPool.Names.SNAPSHOT_META, n -> Math.min(n * 3, 50));
         sizes.put(ThreadPool.Names.FETCH_SHARD_STARTED, ThreadPool::twiceAllocatedProcessors);
         sizes.put(ThreadPool.Names.FETCH_SHARD_STORE, ThreadPool::twiceAllocatedProcessors);

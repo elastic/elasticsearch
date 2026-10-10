@@ -93,6 +93,18 @@ public class InstrumentedThrottledTaskRunner<T extends ActionListener<Releasable
         runner.runSyncTasksEagerly(executor);
     }
 
+    public void runQueuedTasks() {
+        runner.runQueuedTasks();
+    }
+
+    public int getMaxRunningTasks() {
+        return runner.getMaxRunningTasks();
+    }
+
+    public void setMaxRunningTasks(int maxRunningTasks) {
+        runner.setMaxRunningTasks(maxRunningTasks);
+    }
+
     int runningTasks() {
         return runner.runningTasks();
     }

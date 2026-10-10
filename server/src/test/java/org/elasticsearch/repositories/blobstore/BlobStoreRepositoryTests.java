@@ -366,6 +366,28 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         );
     }
 
+    public void testCompletionTarget() {
+        assertThat(setupRepo().getCompletionTarget(), equalTo(TimeValue.timeValueMinutes(30)));
+        removeRepo();
+
+        final Path location = ESIntegTestCase.randomRepoPath(node().settings());
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, TEST_REPO_NAME)
+                .setType(REPO_TYPE)
+                .setSettings(
+                    Settings.builder()
+                        .put(node().settings())
+                        .put("location", location)
+                        .put(BlobStoreRepository.COMPLETION_TARGET_SETTING.getKey(), "5m")
+                )
+                .setVerify(false)
+        );
+        final var repository = (BlobStoreRepository) getInstanceFromNode(RepositoriesService.class).repository(TEST_REPO_NAME);
+        assertThat(repository.getCompletionTarget(), equalTo(TimeValue.timeValueMinutes(5)));
+    }
+
     public void testBadChunksize() {
         final Client client = client();
         final Path location = ESIntegTestCase.randomRepoPath(node().settings());

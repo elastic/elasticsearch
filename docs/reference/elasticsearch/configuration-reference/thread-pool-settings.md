@@ -50,6 +50,9 @@ $$$search-throttled$$$`search_throttled`
 `snapshot`
 :   For snapshot/restore operations. Thread pool type is `scaling` with a keep-alive of `5m`. On nodes with at least 750MB of heap the maximum size of this pool is `10` by default. On nodes with less than 750MB of heap the maximum size of this pool is `min(5, (`[`# of allocated processors`](#node.processors)`) / 2)` by default.
 
+`snapshot_upload`
+:   For shard snapshot uploads when `indices.recovery.adaptive_upload_concurrency.enabled` is set, which otherwise run on the `snapshot` pool. Thread pool type is `scaling` with a keep-alive of `5m`. The maximum size of this pool is `10` on nodes with less than 8GiB of memory, `20` from 8GiB up to 64GiB, and `40` from 64GiB, and the same as the `snapshot` pool on nodes with less than 750MB of heap.
+
 `snapshot_meta`
 :   For snapshot repository metadata read operations. Thread pool type is `scaling` with a keep-alive of `5m` and a max of `min(50, (`[`# of allocated processors`](#node.processors)`* 3))`.
 

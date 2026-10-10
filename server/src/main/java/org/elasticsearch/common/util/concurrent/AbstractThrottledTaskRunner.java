@@ -12,6 +12,7 @@ package org.elasticsearch.common.util.concurrent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
@@ -28,9 +29,30 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
     private static final Logger logger = LogManager.getLogger(AbstractThrottledTaskRunner.class);
 
+    /**
+     * A limit on the tasks that may run at once which is not the runner's own {@code maxRunningTasks} but shared with something else,
+     * e.g. with other runners.
+     */
+    @FunctionalInterface
+    public interface StartPermits {
+        /**
+         * Asks for permission to start a task. Only called when there is a task waiting and the runner has room for it.
+         *
+         * @param retry makes the runner try to start tasks again. If no permit is given, the owner of the permits must call it, from
+         *              another call stack and not before it has returned, once a permit may be available. The same instance is passed
+         *              every time, so that it can tell which runners wait, and in which order they started to.
+         * @return a permit that the runner closes when the task is finished, or {@code null} if no task may start now
+         */
+        @Nullable
+        Releasable tryAcquire(Runnable retry);
+    }
+
+    private static final Releasable NO_PERMIT = () -> {};
+
     private final String taskRunnerName;
-    // The max number of tasks that this runner will schedule to concurrently run on the executor.
-    private final int maxRunningTasks;
+    // The max number of tasks that this runner will schedule to concurrently run on the executor. May be changed at runtime, see
+    // setMaxRunningTasks: a decrease takes effect as running tasks finish, so runningTasks may briefly exceed it.
+    private volatile int maxRunningTasks;
     // As we fork off dequeued tasks to the given executor, technically the following counter represents
     // the number of the concurrent pollAndSpawn calls currently checking the queue for a task to run. This
     // doesn't necessarily correspond to currently running tasks, since a pollAndSpawn could return without
@@ -38,17 +60,60 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
     private final AtomicInteger runningTasks = new AtomicInteger();
     private final Queue<T> tasks;
     private final Executor executor;
+    @Nullable
+    private final StartPermits startPermits;
+    private final Runnable retryStarting = this::pollAndSpawn;
 
     public AbstractThrottledTaskRunner(final String name, final int maxRunningTasks, final Executor executor, final Queue<T> taskQueue) {
+        this(name, maxRunningTasks, executor, taskQueue, null);
+    }
+
+    /**
+     * @param startPermits a limit shared with other runners that a task needs a permit of to start, in addition to there being room
+     *                     under {@code maxRunningTasks}, or {@code null} if there is none
+     */
+    public AbstractThrottledTaskRunner(
+        final String name,
+        final int maxRunningTasks,
+        final Executor executor,
+        final Queue<T> taskQueue,
+        @Nullable final StartPermits startPermits
+    ) {
         assert maxRunningTasks > 0;
         this.taskRunnerName = name;
         this.maxRunningTasks = maxRunningTasks;
         this.executor = executor;
         this.tasks = taskQueue;
+        this.startPermits = startPermits;
     }
 
     public String getTaskRunnerName() {
         return taskRunnerName;
+    }
+
+    public int getMaxRunningTasks() {
+        return maxRunningTasks;
+    }
+
+    /**
+     * Changes the max number of concurrently running tasks. An increase starts queued tasks straight away; a decrease takes effect as
+     * running tasks finish.
+     */
+    public void setMaxRunningTasks(final int maxRunningTasks) {
+        if (maxRunningTasks <= 0) {
+            throw new IllegalArgumentException("maxRunningTasks must be positive but was [" + maxRunningTasks + "]");
+        }
+        this.maxRunningTasks = maxRunningTasks;
+        // Spawn queued tasks into any new free slots. Harmless after a decrease since there are no free slots then.
+        pollAndSpawn();
+    }
+
+    /**
+     * Starts queued tasks for as long as the limits allow. The runner does this by itself whenever a task is enqueued or finishes, so
+     * this is only needed when a limit that the runner cannot see, the {@link StartPermits}, has become less strict.
+     */
+    public void runQueuedTasks() {
+        pollAndSpawn();
     }
 
     /**
@@ -86,8 +151,27 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
         // to get a "free slot", since we attempt to run a new task on every enqueueTask call and every time an
         // existing task is finished.
         while (incrementRunningTasks()) {
+            Releasable permit = NO_PERMIT;
+            if (startPermits != null && tasks.peek() != null) {
+                permit = startPermits.tryAcquire(retryStarting);
+                if (permit == null) {
+                    final int decremented = runningTasks.decrementAndGet();
+                    assert decremented >= 0;
+                    // A permit may have been given back, and this runner asked to retry, while this call was holding the last free slot,
+                    // which that request could not use. To not miss it, ask once more now that the slot is free: the retry that this
+                    // asks for is then made when it can use the slot.
+                    if (tasks.peek() == null || (permit = startPermits.tryAcquire(retryStarting)) == null) {
+                        break;
+                    }
+                    if (incrementRunningTasks() == false) {
+                        permit.close();
+                        break;
+                    }
+                }
+            }
             T task = tasks.poll();
             if (task == null) {
+                permit.close();
                 logger.trace("[{}] task queue is empty", taskRunnerName);
                 // We have taken up a "free slot", but there are no tasks in the queue! This could happen each time a worker
                 // sees an empty queue after running a task. Decrement to give competing pollAndSpawn calls a chance!
@@ -102,6 +186,7 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
             } else {
                 onDequeue(task);
                 final boolean isForceExecution = isForceExecution(task);
+                final Releasable taskPermit = permit;
                 var runnable = new AbstractRunnable() {
                     private boolean rejected; // need not be volatile - if we're rejected then that happens-before calling onAfter
                     volatile boolean callerLoopProceeded;
@@ -111,6 +196,7 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
                         // a task is finished.
                         int decremented = runningTasks.decrementAndGet();
                         assert decremented >= 0;
+                        taskPermit.close();
 
                         if (rejected == false && callerLoopProceeded) {
                             pollAndSpawn();
@@ -160,9 +246,10 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
 
     // Each worker thread that runs a task, first needs to get a "free slot" in order to respect maxRunningTasks.
     private boolean incrementRunningTasks() {
-        int preUpdateValue = runningTasks.getAndAccumulate(maxRunningTasks, (v, maxRunning) -> v < maxRunning ? v + 1 : v);
-        assert preUpdateValue <= maxRunningTasks;
-        return preUpdateValue < maxRunningTasks;
+        // read the volatile once; preUpdateValue may exceed it after setMaxRunningTasks lowered it
+        final int maxRunning = maxRunningTasks;
+        int preUpdateValue = runningTasks.getAndAccumulate(maxRunning, (v, max) -> v < max ? v + 1 : v);
+        return preUpdateValue < maxRunning;
     }
 
     int runningTasks() {

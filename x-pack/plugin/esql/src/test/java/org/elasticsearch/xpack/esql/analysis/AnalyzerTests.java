@@ -4112,6 +4112,25 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assertThat(function.dataType(), equalTo(DENSE_VECTOR));
     }
 
+    public void testTextEmbeddingFunctionNonFoldableArgumentsError() {
+        books().error(
+            String.format(Locale.ROOT, """
+                FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING(book_no, "%s")""", TEXT_EMBEDDING_INFERENCE_ID),
+            containsString(
+                String.format(
+                    Locale.ROOT,
+                    "first argument of [TEXT_EMBEDDING(book_no, \"%s\")] must be a constant, received [book_no]",
+                    TEXT_EMBEDDING_INFERENCE_ID
+                )
+            )
+        );
+        books().error(
+            """
+                FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe", book_no)""",
+            containsString("second argument of [TEXT_EMBEDDING(\"italian food recipe\", book_no)] must be a constant, received [book_no]")
+        );
+    }
+
     public void testTextEmbeddingFunctionMissingInferenceIdError() {
         books().error(
             String.format(Locale.ROOT, """

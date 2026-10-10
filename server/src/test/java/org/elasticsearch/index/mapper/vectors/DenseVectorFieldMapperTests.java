@@ -600,7 +600,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 checker,
                 "index_options",
                 indexedMapping::build,
-                b -> b.field("index_options", Map.of("type", "int4_flat", "m", 32)),
+                b -> b.field("index_options", Map.of("type", "int4_flat")),
                 b -> b.field("index_options", Map.of("type", newType))
             );
         }

@@ -88,7 +88,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -860,12 +859,12 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }
     }
 
-    private record ConflictCheck(XContentBuilder init, XContentBuilder update) {}
+    private record ConflictCheck(String param, XContentBuilder init, XContentBuilder update) {}
 
     public class ParameterChecker {
 
         List<UpdateCheck> updateChecks = new ArrayList<>();
-        Map<String, ConflictCheck> conflictChecks = new HashMap<>();
+        List<ConflictCheck> conflictChecks = new ArrayList<>();
         Set<String> checkedParameters = new HashSet<>();
 
         /**
@@ -907,7 +906,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
          */
         public void registerConflictCheck(String param, CheckedConsumer<XContentBuilder, IOException> update) throws IOException {
             checkedParameters.add(param);
-            conflictChecks.put(param, new ConflictCheck(fieldMapping(MapperTestCase.this::minimalMapping), fieldMapping(b -> {
+            conflictChecks.add(new ConflictCheck(param, fieldMapping(MapperTestCase.this::minimalMapping), fieldMapping(b -> {
                 minimalMapping(b);
                 update.accept(b);
             })));
@@ -922,7 +921,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
          */
         public void registerConflictCheck(String param, XContentBuilder init, XContentBuilder update) {
             checkedParameters.add(param);
-            conflictChecks.put(param, new ConflictCheck(init, update));
+            conflictChecks.add(new ConflictCheck(param, init, update));
         }
 
         /**
@@ -998,15 +997,16 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
             updateCheck.check.accept(mapper);
         }
-        for (String param : checker.conflictChecks.keySet()) {
-            MapperService mapperService = createMapperService(checker.conflictChecks.get(param).init);
+        for (ConflictCheck conflictCheck : checker.conflictChecks) {
+            String param = conflictCheck.param();
+            MapperService mapperService = createMapperService(conflictCheck.init());
             // merging the same change is fine
-            merge(mapperService, checker.conflictChecks.get(param).init);
+            merge(mapperService, conflictCheck.init());
             // merging the conflicting update should throw an exception
             Exception e = expectThrows(
                 IllegalArgumentException.class,
                 "No conflict when updating parameter [" + param + "]",
-                () -> merge(mapperService, checker.conflictChecks.get(param).update)
+                () -> merge(mapperService, conflictCheck.update())
             );
             assertThat(
                 e.getMessage(),
@@ -1039,9 +1039,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             );
         }
 
-        for (Map.Entry<String, ConflictCheck> entry : checker.conflictChecks.entrySet()) {
-            String param = entry.getKey();
-            ConflictCheck conflictCheck = entry.getValue();
+        for (ConflictCheck conflictCheck : checker.conflictChecks) {
+            String param = conflictCheck.param();
             String initSerialized = serializeMapping(createMapperService(conflictCheck.init));
             String updateSerialized = serializeMapping(createMapperService(conflictCheck.update));
             assertTrue(
@@ -1159,7 +1158,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     protected void registerDimensionChecks(ParameterChecker checker) throws IOException {
         // dimension cannot be updated
         checker.registerConflictCheck("time_series_dimension", b -> b.field("time_series_dimension", true));
-        checker.registerConflictCheck("time_series_dimension", b -> b.field("time_series_dimension", false));
         checker.registerConflictCheck("time_series_dimension", fieldMapping(b -> {
             minimalMapping(b);
             b.field("time_series_dimension", false);

@@ -925,7 +925,7 @@ public class BackgroundNetworkQosTests extends ESTestCase {
     }
 
     public void testUploadConcurrencyMaxSetting() {
-        assertThat(UPLOAD_CONCURRENCY_MAX_SETTING.get(Settings.EMPTY), equalTo(20));
+        assertThat(UPLOAD_CONCURRENCY_MAX_SETTING.get(Settings.EMPTY), equalTo(40));
         expectThrows(
             IllegalArgumentException.class,
             () -> UPLOAD_CONCURRENCY_MAX_SETTING.get(Settings.builder().put(UPLOAD_CONCURRENCY_MAX_SETTING.getKey(), 0).build())
@@ -935,7 +935,7 @@ public class BackgroundNetworkQosTests extends ESTestCase {
         final int floor = threadPool.info(ThreadPool.Names.SNAPSHOT).getMax();
         final int nodeCeiling = Math.max(floor, threadPool.info(ThreadPool.Names.SNAPSHOT_UPLOAD).getMax());
         // the ceiling is the lower of the setting and what the node's size allows, never below today's concurrency
-        assertThat(node.qos.getUploadConcurrencyCeiling(), equalTo(Math.max(floor, Math.min(20, nodeCeiling))));
+        assertThat(node.qos.getUploadConcurrencyCeiling(), equalTo(Math.max(floor, Math.min(40, nodeCeiling))));
         node.apply(Settings.builder().put(ADAPTIVE_UPLOAD_CONCURRENCY_ENABLED_SETTING.getKey(), true).build());
         for (int max : new int[] { 1, floor, nodeCeiling, nodeCeiling + 50, randomIntBetween(1, 200) }) {
             node.apply(
@@ -948,6 +948,27 @@ public class BackgroundNetworkQosTests extends ESTestCase {
                 node.tick();
             }
             assertThat(node.qos.getUploadConcurrencyCeiling(), equalTo(Math.max(floor, Math.min(max, nodeCeiling))));
+        }
+    }
+
+    public void testDefaultSettingDoesNotClipTheLargestNodes() {
+        // a node with the target of a 64GiB node: the pool allows 40, which the default of the setting must not cut
+        final ThreadPool xlargeThreadPool = new TestThreadPool(
+            getTestName() + "-xlarge",
+            Settings.builder()
+                .put("thread_pool.snapshot.core", 1)
+                .put("thread_pool.snapshot.max", 10)
+                .put("thread_pool.snapshot_upload.core", 1)
+                .put("thread_pool.snapshot_upload.max", 40)
+                .build()
+        );
+        try {
+            final TestNode node = new TestNode(Settings.EMPTY, true, xlargeThreadPool);
+            node.apply(adaptive(true));
+            runUploadConcurrencyInterval(node);
+            assertThat(node.qos.getUploadConcurrencyCeiling(), equalTo(40));
+        } finally {
+            terminate(xlargeThreadPool);
         }
     }
 

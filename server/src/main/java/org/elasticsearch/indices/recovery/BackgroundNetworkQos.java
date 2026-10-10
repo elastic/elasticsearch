@@ -57,7 +57,7 @@ import static org.elasticsearch.core.Strings.format;
  *     through the limiter. Only active when the node bandwidth settings are set. Restores are not affected.</li>
  *     <li>{@link #ADAPTIVE_UPLOAD_CONCURRENCY_ENABLED_SETTING}: the number of concurrent shard snapshot uploads, which run on their own
  *     thread pool, has a fixed target per node, which an {@link UploadConcurrencyController} backs off from
- *     every few seconds and then recovers to, one upload at a time: 10 below 8GiB of node memory, 20 from 8GiB, capped by
+ *     every few seconds and then recovers to, one upload at a time: 10 below 8GiB of node memory, 20 from 8GiB, 40 from 64GiB, capped by
  *     {@link #UPLOAD_CONCURRENCY_MAX_SETTING}. It backs off when CPU contention (cgroup pressure stall information and throttling,
  *     read directly because uploads also use CPU outside their threads) delays foreground work, or when uploads fail. Off, uploads run
  *     on the snapshot pool at today's concurrency.</li>
@@ -93,19 +93,20 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
 
     /**
      * The most shard snapshot uploads the node runs at once: the ceiling is the lower of this and what the node's size allows (10 below
-     * 8GiB of node memory, 20 from 8GiB, see {@link ThreadPool.Names#SNAPSHOT_UPLOAD}), which is also how far this can be raised at
-     * runtime. Never below today's concurrency.
+     * 8GiB of node memory, 20 from 8GiB, 40 from 64GiB, see {@link ThreadPool.Names#SNAPSHOT_UPLOAD}), which is also how far this can be
+     * raised at runtime. Never below today's concurrency.
      * <p>
-     * The default is 20 because in QA on GCP large nodes, more than about 20 concurrent uploads crossed the CPU-pressure guard with no
-     * throughput gain. A node below 8GiB gets 10 because in QA the 4GiB pods were CPU-throttled at 10 uploads.
+     * The default is 40 so that it does not clip the largest nodes: each upload moves roughly 15-30MiB/s because snapshot files are
+     * small and latency-bound, so a node needs enough parallel uploads to reach its computed background cap, which doubles from 32GiB
+     * to 64GiB nodes. Smaller nodes stay at the target for their size.
      * <p>
-     * Before raising the default above 20, the ceiling must also respect the connection limit of the object store client (50 by default
-     * for the client used for backups), keeping a share of the connections for foreground work: every upload holds a connection while
-     * it runs, and uploads waiting for a connection would only look like a slow object store.
+     * This must stay below the connection limit of the object store client (50 by default for the client used for backups), keeping a
+     * share of the connections for foreground work: every upload holds a connection while it runs, and uploads waiting for a connection
+     * would only look like a slow object store.
      */
     public static final Setting<Integer> UPLOAD_CONCURRENCY_MAX_SETTING = Setting.intSetting(
         "indices.recovery.upload_concurrency.max",
-        20,
+        40,
         1,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope

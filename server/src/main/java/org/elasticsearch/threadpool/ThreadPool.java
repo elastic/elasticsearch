@@ -721,11 +721,20 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
      */
     static final int MIN_SNAPSHOT_UPLOAD_CONCURRENCY = 10;
 
-    /** Shard snapshot upload concurrency of a node with {@link #LARGE_NODE_MEMORY_BYTES} of memory or more. */
+    /**
+     * Shard snapshot upload concurrency of a node with at least {@link #LARGE_NODE_MEMORY_BYTES} and less than
+     * {@link #XLARGE_NODE_MEMORY_BYTES} of memory.
+     */
     static final int LARGE_NODE_SNAPSHOT_UPLOAD_CONCURRENCY = 20;
+
+    /** Shard snapshot upload concurrency of a node with {@link #XLARGE_NODE_MEMORY_BYTES} of memory or more. */
+    static final int XLARGE_NODE_SNAPSHOT_UPLOAD_CONCURRENCY = 40;
 
     /** The node memory from which {@link #LARGE_NODE_SNAPSHOT_UPLOAD_CONCURRENCY} uploads are allowed: 8GiB. */
     static final long LARGE_NODE_MEMORY_BYTES = ByteSizeUnit.GB.toBytes(8);
+
+    /** The node memory from which {@link #XLARGE_NODE_SNAPSHOT_UPLOAD_CONCURRENCY} uploads are allowed: 64GiB. */
+    static final long XLARGE_NODE_MEMORY_BYTES = ByteSizeUnit.GB.toBytes(64);
 
     /**
      * The size of the {@link Names#SNAPSHOT_UPLOAD} pool, the most shard snapshot uploads a node may run at once. Like the SNAPSHOT pool
@@ -746,17 +755,22 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
 
     /**
      * The number of shard snapshot uploads a node runs at once, if nothing holds it back: {@link #MIN_SNAPSHOT_UPLOAD_CONCURRENCY} (10)
-     * below 8GiB of memory, and {@link #LARGE_NODE_SNAPSHOT_UPLOAD_CONCURRENCY} (20) from 8GiB. It is also the most the node can run, as
-     * the {@link Names#SNAPSHOT_UPLOAD} pool is this big. The upload concurrency controller backs off from it under CPU pressure or
-     * upload errors, and {@code indices.recovery.upload_concurrency.max} caps it.
+     * below 8GiB of memory, {@link #LARGE_NODE_SNAPSHOT_UPLOAD_CONCURRENCY} (20) from 8GiB up to 64GiB, and
+     * {@link #XLARGE_NODE_SNAPSHOT_UPLOAD_CONCURRENCY} (40) from 64GiB. It is also the most the node can run, as the
+     * {@link Names#SNAPSHOT_UPLOAD} pool is this big. The upload concurrency controller backs off from it under CPU pressure or upload
+     * errors, and {@code indices.recovery.upload_concurrency.max} caps it.
      * <p>
-     * 10 below 8GiB because in QA the 4GiB pods were CPU-throttled at 10 uploads, so there is no room for more on a node that small.
-     * 20 from 8GiB because in QA on GCP large nodes, more than about 20 concurrent uploads crossed the CPU-pressure guard with no
-     * throughput gain.
+     * The steps exist because each upload moves roughly 15-30MiB/s, as snapshot files are small and latency-bound, so a node needs
+     * enough parallel uploads to reach its computed background cap, which doubles from 32GiB to 64GiB nodes. In QA on 32GiB nodes, 10
+     * uploads reached only 0.66-0.69 of the cap and 20 reached 0.89-0.93. The target stays at 10 below 8GiB because in QA the 4GiB pods
+     * were CPU-throttled at 10 uploads. The cap setting must stay below the 50 connections the AWS backup client allows.
      *
      * @param totalMemoryBytes total node memory (the container limit when running in a container), or 0 if unknown
      */
     static int getSnapshotUploadConcurrencyTarget(long totalMemoryBytes) {
+        if (totalMemoryBytes >= XLARGE_NODE_MEMORY_BYTES) {
+            return XLARGE_NODE_SNAPSHOT_UPLOAD_CONCURRENCY;
+        }
         return totalMemoryBytes >= LARGE_NODE_MEMORY_BYTES ? LARGE_NODE_SNAPSHOT_UPLOAD_CONCURRENCY : MIN_SNAPSHOT_UPLOAD_CONCURRENCY;
     }
 

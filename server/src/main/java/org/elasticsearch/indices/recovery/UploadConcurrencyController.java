@@ -18,10 +18,10 @@ import java.util.OptionalLong;
 
 /**
  * Decides how many shard snapshot uploads a node runs at once. The aim is a fixed target per node, the ceiling: 10 below 8GiB of node
- * memory and 20 from 8GiB, capped by {@code indices.recovery.upload_concurrency.max}, see
- * {@link org.elasticsearch.threadpool.ThreadPool#getMaxSnapshotUploadThreadPoolSize(int)}. It is 10 below 8GiB because in QA the 4GiB
- * pods were CPU-throttled at 10 uploads, so there is no room for more on a node that small. It is 20 from 8GiB because in QA on GCP
- * large nodes, more than about 20 concurrent uploads crossed the CPU-pressure guard with no throughput gain. The floor is today's
+ * memory, 20 from 8GiB and 40 from 64GiB, capped by {@code indices.recovery.upload_concurrency.max}, see
+ * {@link org.elasticsearch.threadpool.ThreadPool#getMaxSnapshotUploadThreadPoolSize(int)}. The steps exist because each upload moves
+ * roughly 15-30MiB/s, as snapshot files are small and latency-bound, so a node needs enough parallel uploads to reach its computed
+ * background cap. It is 10 below 8GiB because in QA the 4GiB pods were CPU-throttled at 10 uploads. The floor is today's
  * concurrency, which is 10 and, on nodes with little heap, less. The current target starts at the floor and climbs to the ceiling, and
  * falls back when the node shows signs of strain:
  * <ul>

@@ -379,11 +379,21 @@ public class ThreadPoolTests extends ESTestCase {
         assertThat(ThreadPool.getSnapshotUploadConcurrencyTarget(ByteSizeValue.ofGb(4).getBytes()), equalTo(10));
         assertThat(ThreadPool.getSnapshotUploadConcurrencyTarget(ByteSizeValue.ofGb(8).getBytes() - 1), equalTo(10));
         assertThat(ThreadPool.getSnapshotUploadConcurrencyTarget(randomLongBetween(0L, ByteSizeValue.ofGb(8).getBytes() - 1)), equalTo(10));
-        // 20 from 8GiB, however large the node
+        // 20 from 8GiB up to, not including, 64GiB
         assertThat(ThreadPool.getSnapshotUploadConcurrencyTarget(ByteSizeValue.ofGb(8).getBytes()), equalTo(20));
         assertThat(ThreadPool.getSnapshotUploadConcurrencyTarget(ByteSizeValue.ofGb(16).getBytes()), equalTo(20));
-        assertThat(ThreadPool.getSnapshotUploadConcurrencyTarget(ByteSizeValue.ofGb(64).getBytes()), equalTo(20));
-        assertThat(ThreadPool.getSnapshotUploadConcurrencyTarget(Long.MAX_VALUE), equalTo(20));
+        assertThat(ThreadPool.getSnapshotUploadConcurrencyTarget(ByteSizeValue.ofGb(32).getBytes()), equalTo(20));
+        assertThat(ThreadPool.getSnapshotUploadConcurrencyTarget(ByteSizeValue.ofGb(64).getBytes() - 1), equalTo(20));
+        assertThat(
+            ThreadPool.getSnapshotUploadConcurrencyTarget(
+                randomLongBetween(ByteSizeValue.ofGb(8).getBytes(), ByteSizeValue.ofGb(64).getBytes() - 1)
+            ),
+            equalTo(20)
+        );
+        // 40 from 64GiB, however large the node
+        assertThat(ThreadPool.getSnapshotUploadConcurrencyTarget(ByteSizeValue.ofGb(64).getBytes()), equalTo(40));
+        assertThat(ThreadPool.getSnapshotUploadConcurrencyTarget(ByteSizeValue.ofGb(128).getBytes()), equalTo(40));
+        assertThat(ThreadPool.getSnapshotUploadConcurrencyTarget(Long.MAX_VALUE), equalTo(40));
     }
 
     public void testMaxSnapshotUploadThreadPoolSize() {
@@ -407,6 +417,14 @@ public class ThreadPoolTests extends ESTestCase {
         assertThat(
             getMaxSnapshotUploadThreadPoolSize(allocatedProcessors, ByteSizeValue.ofGb(2), ByteSizeValue.ofGb(4).getBytes()),
             equalTo(10)
+        );
+        assertThat(
+            getMaxSnapshotUploadThreadPoolSize(allocatedProcessors, ByteSizeValue.ofGb(2), ByteSizeValue.ofGb(64).getBytes() - 1),
+            equalTo(20)
+        );
+        assertThat(
+            getMaxSnapshotUploadThreadPoolSize(allocatedProcessors, ByteSizeValue.ofGb(2), ByteSizeValue.ofGb(64).getBytes()),
+            equalTo(40)
         );
         assertThat(getMaxSnapshotUploadThreadPoolSize(allocatedProcessors, ByteSizeValue.ofGb(2), 0L), equalTo(10));
     }

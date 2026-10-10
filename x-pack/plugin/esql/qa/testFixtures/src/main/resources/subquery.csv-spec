@@ -1661,6 +1661,7 @@ subqueryInFromWithSameConversionResolvedOnLaterPassLoad
 required_capability: subquery_in_from_command
 required_capability: subquery_in_from_command_conversion_resolved_on_later_pass
 required_capability: optional_fields_v5
+required_capability: optional_fields_load_with_fork_subqueries_and_views
 
 SET unmapped_fields="load"\;
 FROM (FROM sample_data), (FROM sample_data)

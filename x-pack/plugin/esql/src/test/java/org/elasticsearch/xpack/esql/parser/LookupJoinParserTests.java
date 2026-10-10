@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.parser;
 
+import org.antlr.v4.runtime.BailErrorStrategy;
+import org.antlr.v4.runtime.CharStreams;
+import org.antlr.v4.runtime.CommonTokenStream;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -24,6 +27,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.Features.CROSS_CLUSTER;
@@ -78,6 +82,21 @@ public class LookupJoinParserTests extends AbstractStatementParserTests {
             assertThat(as(join.config().leftFields().get(i), UnresolvedAttribute.class).name(), equalTo(existingIdentifiers.get(i)));
         }
         assertThat(join.config().type().joinName(), equalTo("LEFT OUTER"));
+    }
+
+    public void testSubqueryTargetGrammar() {
+        EsqlConfig config = new EsqlConfig(TEST_FUNCTION_REGISTRY);
+        assumeTrue("Requires a snapshot build", config.isDevVersion());
+        for (String subquery : List.of(
+            "FROM right | KEEP key",
+            "ROW key = 1 | KEEP key",
+            "TS metrics | KEEP key",
+            "FROM (FROM nested) | KEEP key",
+            "FROM right /* nested comment */ | WHERE key == ?_key | KEEP key",
+            "FROM right | LOOKUP JOIN nested ON key"
+        )) {
+            assertGrammarAccepts("FROM left | LOOKUP JOIN (" + subquery + ") ON key", config);
+        }
     }
 
     /**
@@ -384,6 +403,18 @@ public class LookupJoinParserTests extends AbstractStatementParserTests {
                 expectError("FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + onClause, "no viable alternative at input");
             }
         }
+
+    }
+
+    private void assertGrammarAccepts(String query, EsqlConfig config) {
+        EsqlBaseLexer lexer = new EsqlBaseLexer(CharStreams.fromString(query));
+        lexer.setEsqlConfig(config);
+        EsqlBaseParser parser = new EsqlBaseParser(new CommonTokenStream(lexer));
+        parser.setEsqlConfig(config);
+        parser.removeErrorListeners();
+        parser.setErrorHandler(new BailErrorStrategy());
+        parser.singleStatement();
+        assertEquals(0, parser.getNumberOfSyntaxErrors());
     }
 
     public void testLookupJoinOnExpressionWithNamedQueryParameters() {

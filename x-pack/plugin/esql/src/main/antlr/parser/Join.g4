@@ -15,11 +15,11 @@ joinTarget
     // require pushing a mode to the lexer to disambiguate.
     : {this.isDevVersion()}? index=indexPattern AS? qualifier=UNQUOTED_SOURCE
     | index=indexPattern
+    | {this.isDevVersion()}? subquery
     ;
 
 joinCondition
     : ON booleanExpression (COMMA booleanExpression)*
     ;
-
 
 

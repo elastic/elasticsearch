@@ -229,6 +229,8 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
     ) {
         List<DataStream> dataStreams = getDataStreams(state.metadata(), indexNameExpressionResolver, request);
         List<GetDataStreamAction.Response.DataStreamInfo> dataStreamInfos = new ArrayList<>(dataStreams.size());
+        boolean minimumLifecycleEnabled = dataStreamLifecycleSettings.minimumLifecycleEnabled();
+
         for (DataStream dataStream : dataStreams) {
             // For this action, we are returning whether the failure store is effectively enabled, either in metadata or by cluster setting.
             // Users can use the get data stream options API to find out whether it is explicitly enabled in metadata.
@@ -309,9 +311,21 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
 
             Map<Index, IndexProperties> backingIndicesSettingsValues = new HashMap<>();
             ProjectMetadata metadata = state.metadata();
-            collectIndexSettingsValues(dataStream, backingIndicesSettingsValues, metadata, dataStream.getIndices());
+            collectIndexSettingsValues(
+                dataStream,
+                backingIndicesSettingsValues,
+                metadata,
+                dataStream.getIndices(),
+                minimumLifecycleEnabled
+            );
             if (dataStream.getFailureIndices().isEmpty() == false) {
-                collectIndexSettingsValues(dataStream, backingIndicesSettingsValues, metadata, dataStream.getFailureIndices());
+                collectIndexSettingsValues(
+                    dataStream,
+                    backingIndicesSettingsValues,
+                    metadata,
+                    dataStream.getFailureIndices(),
+                    minimumLifecycleEnabled
+                );
             }
 
             GetDataStreamAction.Response.TimeSeries timeSeries = null;
@@ -385,7 +399,8 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                     indexTemplatePreferIlmValue,
                     maxTimestamps == null ? null : maxTimestamps.get(dataStream.getName()),
                     // Default to standard mode if not specified; should we set this to "unset" or "unspecified" instead?
-                    indexMode == null ? IndexMode.STANDARD.getName() : indexMode.getName()
+                    indexMode == null ? IndexMode.STANDARD.getName() : indexMode.getName(),
+                    minimumLifecycleEnabled
                 )
             );
         }
@@ -401,7 +416,8 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
         DataStream dataStream,
         Map<Index, IndexProperties> backingIndicesSettingsValues,
         ProjectMetadata metadata,
-        List<Index> backingIndices
+        List<Index> backingIndices,
+        boolean minimumLifecycleEnabled
     ) {
         for (Index index : backingIndices) {
             IndexMetadata indexMetadata = metadata.index(index);
@@ -420,7 +436,7 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
             ManagedBy managedBy = ManagedBy.fromLifecycleManagedBy(
                 DataStream.lifecycleManagedBy(
                     indexMetadata.getLifecyclePolicyName(),
-                    dataStream.getDataLifecycleForIndex(index),
+                    dataStream.getEffectiveLifecycleForIndex(index, minimumLifecycleEnabled),
                     indexMetadata.getSettings(),
                     indexMode
                 )

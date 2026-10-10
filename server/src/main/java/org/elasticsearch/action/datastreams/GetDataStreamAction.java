@@ -115,7 +115,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
 
         /**
          * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to read these requests until
-         * we no longer need to support calling this action remotely.
+         * we no longer need to support calling this action remotely. No need to add here fields that were added in 9.0.
          */
         @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
         public Request(StreamInput in) throws IOException {
@@ -227,6 +227,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             public static final ParseField NEXT_GENERATION_INDEX_MANAGED_BY = new ParseField("next_generation_managed_by");
             public static final ParseField ILM_POLICY_FIELD = new ParseField("ilm_policy");
             public static final ParseField LIFECYCLE_FIELD = new ParseField("lifecycle");
+            public static final ParseField MINIMUM_LIFECYCLE_ENABLED_FIELD = new ParseField("minimum_lifecycle_enabled");
             public static final ParseField HIDDEN_FIELD = new ParseField("hidden");
             public static final ParseField SYSTEM_FIELD = new ParseField("system");
             public static final ParseField ALLOW_CUSTOM_ROUTING = new ParseField("allow_custom_routing");
@@ -259,6 +260,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             private final Long maximumTimestamp;
             @Nullable
             private final String indexMode;
+            // This flag indicated if this data stream has the minimum lifecycle enabled.
+            private final boolean minimumLifecycleEnabled;
 
             public DataStreamInfo(
                 DataStream dataStream,
@@ -270,7 +273,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 Map<Index, IndexProperties> indexSettingsValues,
                 boolean templatePreferIlmValue,
                 @Nullable Long maximumTimestamp,
-                @Nullable String indexMode
+                @Nullable String indexMode,
+                boolean minimumLifecycleEnabled
             ) {
                 this.dataStream = dataStream;
                 this.failureStoreEffectivelyEnabled = failureStoreEffectivelyEnabled;
@@ -282,6 +286,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 this.templatePreferIlmValue = templatePreferIlmValue;
                 this.maximumTimestamp = maximumTimestamp;
                 this.indexMode = indexMode;
+                this.minimumLifecycleEnabled = dataStream.isMinimumLifecycleApplicable(minimumLifecycleEnabled);
             }
 
             public DataStream getDataStream() {
@@ -331,7 +336,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
 
             /**
              * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
-             * we no longer need to support calling this action remotely.
+             * we no longer need to support calling this action remotely. No need to add here fields that were added in 9.0.
              */
             @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
             @Override
@@ -386,6 +391,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     builder.field(LIFECYCLE_FIELD.getPreferredName());
                     dataStream.getDataLifecycle()
                         .toXContent(builder, params, rolloverConfiguration, dataGlobalRetention, dataStream.isInternal());
+                } else if (minimumLifecycleEnabled) {
+                    builder.field(MINIMUM_LIFECYCLE_ENABLED_FIELD.getPreferredName(), minimumLifecycleEnabled);
                 }
                 if (ilmPolicyName != null) {
                     builder.field(ILM_POLICY_FIELD.getPreferredName(), ilmPolicyName);
@@ -497,7 +504,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 return ManagedBy.fromLifecycleManagedBy(
                     DataStream.lifecycleManagedBy(
                         ilmPolicyName,
-                        dataStream.getDataLifecycle(),
+                        dataStream.getEffectiveDataLifecycle(minimumLifecycleEnabled),
                         () -> templatePreferIlmValue,
                         dataStream.getIndexMode()
                     )
@@ -522,7 +529,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     && Objects.equals(timeSeries, that.timeSeries)
                     && Objects.equals(indexSettingsValues, that.indexSettingsValues)
                     && Objects.equals(maximumTimestamp, that.maximumTimestamp)
-                    && Objects.equals(indexMode, that.indexMode);
+                    && Objects.equals(indexMode, that.indexMode)
+                    && minimumLifecycleEnabled == that.minimumLifecycleEnabled;
             }
 
             @Override
@@ -537,7 +545,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     indexSettingsValues,
                     templatePreferIlmValue,
                     maximumTimestamp,
-                    indexMode
+                    indexMode,
+                    minimumLifecycleEnabled
                 );
             }
         }
@@ -546,7 +555,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
 
             /**
              * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
-             * we no longer need to support calling this action remotely.
+             * we no longer need to support calling this action remotely. No need to add here fields that were added in 9.0.
              */
             @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
             @Override
@@ -643,7 +652,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
 
         /**
          * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
-         * we no longer need to support calling this action remotely.
+         * we no longer need to support calling this action remotely. No need to add here fields that were added in 9.0.
          */
         @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
         @Override

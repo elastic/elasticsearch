@@ -36,12 +36,14 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.session.SessionUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -284,6 +286,52 @@ public class SubqueryLookupJoinTests extends ESTestCase {
                 "Line -1:-1: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value"
             )
         );
+    }
+
+    public void testInlineStatsSubplanCopiesMaterializedLookupRows() {
+        BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
+        ReferenceAttribute leftKey = attribute("key", DataType.INTEGER);
+        ReferenceAttribute rightKey = attribute("key", DataType.INTEGER);
+        ReferenceAttribute payload = attribute("payload", DataType.LONG);
+        Page originalPage;
+        try (IntBlock.Builder keys = blockFactory.newIntBlockBuilder(2); LongBlock.Builder values = blockFactory.newLongBlockBuilder(2)) {
+            keys.appendInt(1);
+            keys.appendInt(1);
+            values.appendLong(10);
+            values.appendLong(11);
+            originalPage = new Page(keys.build(), values.build());
+        }
+        LocalRelation left = relation(List.of(leftKey));
+        LocalRelation right = new LocalRelation(Source.EMPTY, List.of(rightKey, payload), LocalSupplier.of(originalPage));
+        MaterializedLookupJoin materializedLookup = new MaterializedLookupJoin(
+            Source.EMPTY,
+            left,
+            right,
+            LEFT,
+            List.of(leftKey),
+            List.of(rightKey),
+            null,
+            ExecuteLocation.ANY
+        );
+        InlineJoin inlineJoin = new InlineJoin(Source.EMPTY, left, materializedLookup, LEFT, List.of(), List.of());
+
+        InlineJoin.LogicalPlanTuple subPlans = InlineJoin.firstSubPlan(inlineJoin, Set.of());
+        MaterializedLookupJoin copiedLookup = as(subPlans.stubReplacedSubPlan(), MaterializedLookupJoin.class);
+        LocalRelation copiedRelation = as(copiedLookup.right(), LocalRelation.class);
+        assertThat(copiedRelation.supplier(), instanceOf(CopyingLocalSupplier.class));
+        Page firstCopy = copiedRelation.supplier().get();
+        Page secondCopy = copiedRelation.supplier().get();
+        try {
+            assertNotSame(originalPage, firstCopy);
+            assertNotSame(firstCopy, secondCopy);
+            assertNotSame(firstCopy.getBlock(1), secondCopy.getBlock(1));
+            assertThat(((LongBlock) firstCopy.getBlock(1)).getLong(0), equalTo(10L));
+            assertThat(((LongBlock) secondCopy.getBlock(1)).getLong(1), equalTo(11L));
+        } finally {
+            firstCopy.releaseBlocks();
+            secondCopy.releaseBlocks();
+            originalPage.releaseBlocks();
+        }
     }
 
     public void testInliningWidensRightNumericKeysAndRebindsKeyAttribute() {

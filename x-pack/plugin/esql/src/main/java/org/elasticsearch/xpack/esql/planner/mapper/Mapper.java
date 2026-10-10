@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.join.MaterializedLookupJoin;
 import org.elasticsearch.xpack.esql.plan.physical.DistinctByExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
@@ -297,7 +298,8 @@ public class Mapper {
                     localData,
                     config.leftFields(),
                     config.rightFields(),
-                    join.rightOutputFields()
+                    join.rightOutputFields(),
+                    join instanceof MaterializedLookupJoin
                 );
             }
             if (right instanceof FragmentExec fragment) {

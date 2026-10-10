@@ -45,9 +45,11 @@ import org.elasticsearch.compute.operator.DistinctByOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.FilterOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
+import org.elasticsearch.compute.operator.MvExpandOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.compute.operator.ProjectOperator;
+import org.elasticsearch.compute.operator.ProjectOperator.ProjectOperatorFactory;
 import org.elasticsearch.compute.operator.RowInTableLookupOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.StreamingPageOperator;
@@ -1104,6 +1106,90 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         assertInnerJoinOutput(results, List.of(), List.of());
     }
 
+    public void testRepeatedKeyJoinExpandsEveryBuildMatch() throws IOException {
+        HashJoinExec join = lookupSubqueryJoinExec(
+            true,
+            new long[] { 1, 2, 9 },
+            new long[] { 100, 200, 900 },
+            new long[] { 1, 1, 2 },
+            new long[] { 10, 11, 20 },
+            "left_value",
+            "right_value"
+        );
+        LocalExecutionPlanner.PhysicalOperation operation = planLookupSubqueryJoin(join);
+        List<Class<?>> factories = operation.intermediateOperatorFactories.stream().map(Object::getClass).toList();
+        assertThat(
+            factories,
+            contains(
+                RowInTableLookupOperator.Factory.class,
+                MvExpandOperator.Factory.class,
+                ColumnLoadOperator.Factory.class,
+                ProjectOperatorFactory.class
+            )
+        );
+
+        List<Page> results = runPlanned(operation);
+        try {
+            assertThat(longColumn(results, operation.layout().get(join.left().output().get(0).id()).channel()), contains(1L, 1L, 2L, 9L));
+            assertThat(
+                longColumn(results, operation.layout().get(join.left().output().get(1).id()).channel()),
+                contains(100L, 100L, 200L, 900L)
+            );
+            assertThat(
+                longColumn(results, operation.layout().get(join.joinData().output().get(1).id()).channel()),
+                contains(10L, 11L, 20L, null)
+            );
+        } finally {
+            results.forEach(Page::releaseBlocks);
+        }
+    }
+
+    public void testRepeatedKeyJoinWithoutPayloadStillExpandsMatches() throws IOException {
+        HashJoinExec join = lookupSubqueryJoinExec(
+            true,
+            new long[] { 1, 9 },
+            new long[] { 100, 900 },
+            new long[] { 1, 1 },
+            null,
+            "left_value",
+            null
+        );
+        LocalExecutionPlanner.PhysicalOperation operation = planLookupSubqueryJoin(join);
+        List<Class<?>> factories = operation.intermediateOperatorFactories.stream().map(Object::getClass).toList();
+        assertThat(
+            factories,
+            contains(RowInTableLookupOperator.Factory.class, MvExpandOperator.Factory.class, ProjectOperatorFactory.class)
+        );
+
+        List<Page> results = runPlanned(operation);
+        try {
+            assertThat(longColumn(results, operation.layout().get(join.left().output().get(0).id()).channel()), contains(1L, 1L, 9L));
+            assertThat(longColumn(results, operation.layout().get(join.left().output().get(1).id()).channel()), contains(100L, 100L, 900L));
+        } finally {
+            results.forEach(Page::releaseBlocks);
+        }
+    }
+
+    public void testRepeatedKeyJoinLoadsPayloadThatShadowsALeftFieldName() throws IOException {
+        HashJoinExec join = lookupSubqueryJoinExec(
+            true,
+            new long[] { 1, 1 },
+            new long[] { 100, 200 },
+            new long[] { 1 },
+            new long[] { 10 },
+            "value",
+            "value"
+        );
+        LocalExecutionPlanner.PhysicalOperation operation = planLookupSubqueryJoin(join);
+        List<Page> results = runPlanned(operation);
+        try {
+            assertThat(longColumn(results, operation.layout().get(join.left().output().get(1).id()).channel()), contains(100L, 200L));
+            assertThat(longColumn(results, operation.layout().get(join.joinData().output().get(1).id()).channel()), contains(10L, 10L));
+        } finally {
+            results.forEach(Page::releaseBlocks);
+        }
+    }
+
     public void testInnerJoinMultivaluedBuildKeyThrows() {
         // The lookup table only supports single-valued keys; a multivalued build key is rejected.
         var blockFactory = TestBlockFactory.getNonBreakingInstance();
@@ -1214,6 +1300,57 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             EmptyIndexedByShardId.instance(),
             randomBoolean()
         );
+    }
+
+    private LocalExecutionPlanner.PhysicalOperation planLookupSubqueryJoin(HashJoinExec join) throws IOException {
+        return planner().plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            join,
+            EmptyIndexedByShardId.instance(),
+            randomBoolean()
+        ).driverFactories.get(0).driverSupplier().physicalOperation();
+    }
+
+    private static HashJoinExec lookupSubqueryJoinExec(
+        boolean repeatedKeys,
+        long[] probeKeys,
+        long[] probeValues,
+        long[] buildKeys,
+        long[] buildValues,
+        String leftValueName,
+        String rightValueName
+    ) {
+        var blockFactory = TestBlockFactory.getNonBreakingInstance();
+        ReferenceAttribute leftKey = new ReferenceAttribute(Source.EMPTY, "k", DataType.LONG);
+        ReferenceAttribute leftValue = new ReferenceAttribute(Source.EMPTY, leftValueName, DataType.LONG);
+        List<Block> probeBlocks = new ArrayList<>();
+        probeBlocks.add(blockFactory.newLongArrayVector(probeKeys, probeKeys.length).asBlock());
+        probeBlocks.add(blockFactory.newLongArrayVector(probeValues, probeValues.length).asBlock());
+        LocalSourceExec probe = new LocalSourceExec(
+            Source.EMPTY,
+            List.of(leftKey, leftValue),
+            LocalSupplier.of(new Page(probeBlocks.toArray(new Block[0])))
+        );
+
+        ReferenceAttribute rightKey = new ReferenceAttribute(Source.EMPTY, "k", DataType.LONG);
+        List<Attribute> buildOutput = new ArrayList<>(List.of(rightKey));
+        List<Attribute> addedFields = new ArrayList<>();
+        List<Block> buildBlocks = new ArrayList<>();
+        buildBlocks.add(blockFactory.newLongArrayVector(buildKeys, buildKeys.length).asBlock());
+        if (rightValueName != null) {
+            ReferenceAttribute rightValue = new ReferenceAttribute(Source.EMPTY, rightValueName, DataType.LONG);
+            buildOutput.add(rightValue);
+            addedFields.add(rightValue);
+            buildBlocks.add(blockFactory.newLongArrayVector(buildValues, buildValues.length).asBlock());
+        }
+        LocalSourceExec build = new LocalSourceExec(
+            Source.EMPTY,
+            buildOutput,
+            LocalSupplier.of(new Page(buildBlocks.toArray(new Block[0])))
+        );
+        return new HashJoinExec(Source.EMPTY, probe, build, List.of(leftKey), List.of(rightKey), addedFields, repeatedKeys);
     }
 
     /**
@@ -1376,6 +1513,17 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             }
         }
         return rows;
+    }
+
+    private static List<Long> longColumn(List<Page> pages, int channel) {
+        List<Long> values = new ArrayList<>();
+        for (Page page : pages) {
+            LongBlock block = page.getBlock(channel);
+            for (int p = 0; p < page.getPositionCount(); p++) {
+                values.add(block.isNull(p) ? null : block.getLong(block.getFirstValueIndex(p)));
+            }
+        }
+        return values;
     }
 
     /** Only membership in the selected project determines the parent data stream, regardless of the index name. */

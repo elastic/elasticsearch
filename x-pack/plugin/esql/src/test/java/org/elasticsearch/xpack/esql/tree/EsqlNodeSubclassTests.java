@@ -86,7 +86,9 @@ import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.MaterializedLookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryLookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramFraction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramQuantile;
@@ -430,9 +432,13 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return JoinTypes.MARK;
         } else if (toBuildClass == InnerJoin.class) {
             return JoinTypes.INNER;
-        } else if (toBuildClass == Join.class || toBuildClass == LookupJoin.class || toBuildClass == InlineJoin.class) {
-            return JoinTypes.LEFT;
-        }
+        } else if (toBuildClass == Join.class
+            || toBuildClass == LookupJoin.class
+            || toBuildClass == InlineJoin.class
+            || toBuildClass == MaterializedLookupJoin.class
+            || toBuildClass == SubqueryLookupJoin.class) {
+                return JoinTypes.LEFT;
+            }
         throw new IllegalArgumentException("Unknown join plan node [" + toBuildClass.getName() + "]; no JoinType mapping defined");
     }
 

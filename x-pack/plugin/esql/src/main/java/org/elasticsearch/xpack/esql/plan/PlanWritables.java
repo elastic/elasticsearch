@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.MaterializedLookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.ImmediateLocalSupplier;
@@ -117,6 +118,7 @@ public class PlanWritables {
             InlineJoin.ENTRY,
             InlineStats.ENTRY,
             Join.ENTRY,
+            MaterializedLookupJoin.ENTRY,
             LocalRelation.ENTRY,
             Limit.ENTRY,
             LimitBy.ENTRY,

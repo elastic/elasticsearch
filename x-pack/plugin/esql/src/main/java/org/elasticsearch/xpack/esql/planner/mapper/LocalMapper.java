@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.join.MaterializedLookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -165,7 +166,8 @@ public class LocalMapper {
                         localData,
                         config.leftFields(),
                         config.rightFields(),
-                        join.rightOutputFields()
+                        join.rightOutputFields(),
+                        join instanceof MaterializedLookupJoin
                     );
                 } else {
                     throw new EsqlIllegalArgumentException("Unsupported right plan for join [" + binary.right().nodeName() + "]");

@@ -91,6 +91,12 @@ public class TransportGetShardGenerationsAction extends TransportMasterNodeActio
     }
 
     /**
+     * Known limitation: the repository is asked for the index by its name, as a shard id of a running node says which index it is of by
+     * name and uuid but the repository tells indices apart by an id of its own. If an index was deleted and created again with the same
+     * name, until its first snapshot completes this finds the shard generation of the old index, so what the repository is said to hold
+     * of the new shards is what it holds of the old ones. Files are compared by name and length, so the backlog can be understated by the
+     * files that happen to be the same in both, until the first snapshot of the new index has completed.
+     *
      * @return the current generation of the shard-level metadata of the shard, or {@code null} if the repository has none: it does not
      *         know the index or the shard, or the shard is new (its first snapshot has not completed) or deleted
      */

@@ -388,7 +388,9 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
      * Wraps a snapshot upload stream to count the background bytes, an input to the limiters and to the upload concurrency controller.
      * Every byte is counted once each time it is read, so bytes that are read again after a reset of the stream, or by a retried
      * upload, are counted again: they cross the network again, except when the stream replays them from memory, which overstates the
-     * background traffic a little and so can only make the limiters more careful.
+     * background traffic a little. The foreground traffic is what is left of the node's traffic after the background traffic, so it is
+     * understated by as much, and the limiters, which give background work what the foreground does not use, become a little less
+     * careful, never more.
      */
     public InputStream countUploadBytes(InputStream stream) {
         return new FilterInputStream(stream) {

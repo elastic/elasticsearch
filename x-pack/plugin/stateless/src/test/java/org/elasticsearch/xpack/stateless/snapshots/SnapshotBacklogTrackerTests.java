@@ -34,6 +34,7 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.stateless.snapshots.SnapshotBacklogTestUtils.commitFiles;
 import static org.elasticsearch.xpack.stateless.snapshots.SnapshotBacklogTestUtils.shardSnapshots;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -79,13 +80,13 @@ public class SnapshotBacklogTrackerTests extends ESTestCase {
             new LocalShard(shardId(0), projectId, commitFiles("_0.cfs", 100L, "_1.cfs", 40L)),
             new LocalShard(shardId(1), projectId, commitFiles("_0.cfs", 100L, "_0.si", 5L))
         );
-        assertThat(compute(cache, shards, Map.of()), equalTo(new RepositoryBacklog(140, 2, 0, 100)));
+        assertThat(compute(cache, shards, Map.of()), equalTo(new RepositoryBacklog(140, 2, 0, 100, 5)));
     }
 
     public void testAShardWithNothingToUploadIsCountedNotUnknown() {
         cache.known.put(shardId(0), RepositoryShardFiles.of(GENERATION, shardSnapshots("_0.cfs", 100L)));
         final var shards = List.of(new LocalShard(shardId(0), projectId, commitFiles("_0.cfs", 100L)));
-        assertThat(compute(cache, shards, Map.of()), equalTo(new RepositoryBacklog(0, 1, 0, 0)));
+        assertThat(compute(cache, shards, Map.of()), equalTo(new RepositoryBacklog(0, 1, 0, 0, 0)));
     }
 
     public void testShardsWhoseFilesAreNotKnownAreReportedAsUnknownNotAsZero() {
@@ -97,7 +98,7 @@ public class SnapshotBacklogTrackerTests extends ESTestCase {
             new LocalShard(shardId(1), projectId, commitFiles("_0.cfs", 70L)),
             new LocalShard(shardId(2), projectId, null)
         );
-        assertThat(compute(cache, shards, Map.of()), equalTo(new RepositoryBacklog(100, 1, 2, 100)));
+        assertThat(compute(cache, shards, Map.of()), equalTo(new RepositoryBacklog(100, 1, 2, 100, 0)));
     }
 
     public void testWhatARunningSnapshotUploadedIsTakenOffTheBacklog() {
@@ -112,20 +113,53 @@ public class SnapshotBacklogTrackerTests extends ESTestCase {
         status.addProcessedFile(25);
 
         final var backlog = compute(cache, shards, Map.of(shardId(0), List.of(status)));
-        assertThat(backlog, equalTo(new RepositoryBacklog(75 + 100, 2, 0, 100)));
+        assertThat(backlog, equalTo(new RepositoryBacklog(75 + 100, 2, 0, 100, 0)));
+    }
+
+    public void testTheBacklogOfEachShardIsAvailableForTheDebugLog() {
+        cache.known.put(shardId(0), RepositoryShardFiles.of(GENERATION, shardSnapshots("_0.cfs", 100L)));
+        cache.known.put(shardId(1), RepositoryShardFiles.NONE);
+        final var shards = List.of(
+            new LocalShard(shardId(1), projectId, commitFiles("_0.cfs", 100L, "_0.si", 5L)),
+            new LocalShard(shardId(0), projectId, commitFiles("_0.cfs", 100L, "_1.cfs", 40L)),
+            new LocalShard(shardId(2), projectId, commitFiles("_0.cfs", 70L))
+        );
+        final List<SnapshotBacklogTracker.ShardDetail> details = new java.util.ArrayList<>();
+        SnapshotBacklogTracker.computeRepositoryBacklog(cache, shards, shard -> List.of(), details);
+        assertThat(
+            details,
+            containsInAnyOrder(
+                new SnapshotBacklogTracker.ShardDetail(shardId(0), true, 40, 0),
+                new SnapshotBacklogTracker.ShardDetail(shardId(1), true, 100, 5),
+                new SnapshotBacklogTracker.ShardDetail(shardId(2), false, 0, 0)
+            )
+        );
+        // one line, sorted, with the inlined bytes only where there are some, and the shards that are not known said so
+        assertThat(SnapshotBacklogTracker.formatShardDetails(details), equalTo("index[0]=40 index[1]=100+5 index[2]=unknown"));
+        assertThat(SnapshotBacklogTracker.formatShardDetails(List.of()), equalTo(""));
+        final var other = new ShardId(new Index("another", "another-uuid"), 3);
+        assertThat(
+            SnapshotBacklogTracker.formatShardDetails(
+                List.of(
+                    new SnapshotBacklogTracker.ShardDetail(shardId(0), true, 1, 0),
+                    new SnapshotBacklogTracker.ShardDetail(other, true, 2, 0)
+                )
+            ),
+            equalTo("another[3]=2 index[0]=1")
+        );
     }
 
     public void testShardsOfAllRepositoryStatesAddUpToNothingWhenThereAreNoShards() {
-        assertThat(compute(cache, List.of(), Map.of()), equalTo(new RepositoryBacklog(0, 0, 0, 0)));
+        assertThat(compute(cache, List.of(), Map.of()), equalTo(new RepositoryBacklog(0, 0, 0, 0, 0)));
         assertTrue(compute(cache, List.of(), Map.of()).isEmpty());
-        assertFalse(new RepositoryBacklog(0, 0, 1, 0).isEmpty());
+        assertFalse(new RepositoryBacklog(0, 0, 1, 0, 0).isEmpty());
     }
 
     public void testTheBacklogOfAShardDoesNotGoUnknownWhileTheRepositoryIsRefreshed() {
         final var oldFiles = RepositoryShardFiles.of(GENERATION, shardSnapshots("_0.cfs", 10L));
         cache.known.put(shardId(0), oldFiles);
         final var shards = List.of(new LocalShard(shardId(0), projectId, commitFiles("_0.cfs", 10L, "_1.cfs", 100L)));
-        assertThat(compute(cache, shards, Map.of()), equalTo(new RepositoryBacklog(100, 1, 0, 100)));
+        assertThat(compute(cache, shards, Map.of()), equalTo(new RepositoryBacklog(100, 1, 0, 100, 0)));
 
         // a snapshot of the shard finished: the repository has not caught up yet, the shard still has its old list and the
         // finished snapshot's uploads are subtracted
@@ -134,11 +168,11 @@ public class SnapshotBacklogTrackerTests extends ESTestCase {
         status.addProcessedFile(100);
         status.moveToFinalize();
         status.moveToDone(2, new ShardSnapshotResult(new ShardGeneration("new"), ByteSizeValue.ofBytes(100), 1));
-        assertThat(compute(cache, shards, Map.of(shardId(0), List.of(status))), equalTo(new RepositoryBacklog(0, 1, 0, 0)));
+        assertThat(compute(cache, shards, Map.of(shardId(0), List.of(status))), equalTo(new RepositoryBacklog(0, 1, 0, 0, 0)));
 
         // and once the new list is in, the status is not subtracted again
         cache.known.put(shardId(0), RepositoryShardFiles.of(new ShardGeneration("new"), shardSnapshots("_0.cfs", 10L, "_1.cfs", 100L)));
-        assertThat(compute(cache, shards, Map.of(shardId(0), List.of(status))), equalTo(new RepositoryBacklog(0, 1, 0, 0)));
+        assertThat(compute(cache, shards, Map.of(shardId(0), List.of(status))), equalTo(new RepositoryBacklog(0, 1, 0, 0, 0)));
     }
 
     public void testTheFilesOfACommitAreCountedWithTheirLengthsFromTheDirectoryWithoutBlobLocations() throws Exception {
@@ -153,10 +187,13 @@ public class SnapshotBacklogTrackerTests extends ESTestCase {
             final Map<String, Long> commitFiles = SnapshotBacklogTracker.getCommitFiles(commit);
             assertThat(commitFiles.keySet(), equalTo(Set.copyOf(commit.getFileNames())));
             long expectedBytes = 0;
+            long expectedInlinedBytes = 0;
             for (String fileName : commit.getFileNames()) {
                 assertThat(commitFiles.get(fileName), equalTo(directory.fileLength(fileName)));
                 if (Store.MetadataSnapshot.isReadAsHash(fileName) == false) {
                     expectedBytes += directory.fileLength(fileName);
+                } else {
+                    expectedInlinedBytes += directory.fileLength(fileName);
                 }
             }
             assertThat(expectedBytes, greaterThan(0L));
@@ -164,7 +201,7 @@ public class SnapshotBacklogTrackerTests extends ESTestCase {
             // the repository holds nothing, so the shard counts, rather than being unknown
             cache.known.put(shardId(0), RepositoryShardFiles.NONE);
             final var backlog = compute(cache, List.of(new LocalShard(shardId(0), projectId, commitFiles)), Map.of());
-            assertThat(backlog, equalTo(new RepositoryBacklog(expectedBytes, 1, 0, expectedBytes)));
+            assertThat(backlog, equalTo(new RepositoryBacklog(expectedBytes, 1, 0, expectedBytes, expectedInlinedBytes)));
         }
     }
 }

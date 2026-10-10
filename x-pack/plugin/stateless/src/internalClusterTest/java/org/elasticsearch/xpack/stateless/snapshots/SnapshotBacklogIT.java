@@ -342,7 +342,7 @@ public class SnapshotBacklogIT extends AbstractStatelessPluginIntegTestCase {
                 assertThat(unknown.bytes(), equalTo(0L));
             });
             // and the source node does not report it any more
-            assertBusy(() -> assertThat(getBacklog(sourceNode, repo), equalTo(new RepositoryBacklog(0, 0, 0, 0))));
+            assertBusy(() -> assertThat(getBacklog(sourceNode, repo), equalTo(new RepositoryBacklog(0, 0, 0, 0, 0))));
         } finally {
             targetRepository.unblock();
         }
@@ -376,7 +376,7 @@ public class SnapshotBacklogIT extends AbstractStatelessPluginIntegTestCase {
             assertBusy(() -> {
                 final var backlog = getBacklog(node, repo);
                 assertThat(denied.get(), greaterThan(1));
-                assertThat(backlog, equalTo(new RepositoryBacklog(0, 0, 1, 0)));
+                assertThat(backlog, equalTo(new RepositoryBacklog(0, 0, 1, 0, 0)));
             });
         } finally {
             masterTransport.clearAllRules();

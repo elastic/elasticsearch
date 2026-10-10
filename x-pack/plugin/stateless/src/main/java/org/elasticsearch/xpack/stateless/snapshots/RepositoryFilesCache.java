@@ -117,6 +117,23 @@ class RepositoryFilesCache {
     }
 
     /**
+     * @return whether the cached file list of the given shard is the one of the latest shard generation, so that it is what the
+     *         repository holds, as far as the shard generations are from, and no read of a newer list is needed. It is not if the shard
+     *         generation is not known, or the list has not been read yet, or is that of an older generation.
+     */
+    boolean isUpToDate(ShardId shardId) {
+        if (shardGenerations.containsKey(shardId) == false) {
+            return false;
+        }
+        final RepositoryShardGeneration latest = shardGenerations.get(shardId);
+        if (latest == null) {
+            return true; // the repository holds no shard-level metadata, which getShardFiles returns for it right away
+        }
+        final RepositoryShardFiles cached = shardFiles.get(shardId);
+        return cached != null && cached.generation().equals(latest.generation());
+    }
+
+    /**
      * @return the files the repository holds of the given shard, which may be the list of an older shard generation while the current one
      *         is being read, or {@code null} if this node has never read the files of the shard, in which case they are being read.
      */

@@ -20,6 +20,7 @@ import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TestRuleMarkFailure;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
@@ -27,6 +28,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.FsDirectoryFactory;
@@ -42,6 +44,7 @@ import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Random;
+import java.util.function.Supplier;
 
 public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
 
@@ -68,9 +71,19 @@ public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory
 
     @Override
     public Directory newDirectory(IndexSettings idxSettings, ShardPath path) throws IOException {
+        return newDirectory(idxSettings, path, null, () -> MappingLookup.EMPTY);
+    }
+
+    @Override
+    public Directory newDirectory(
+        IndexSettings idxSettings,
+        ShardPath path,
+        ShardRouting shardRouting,
+        Supplier<MappingLookup> mappingLookup
+    ) throws IOException {
         Settings indexSettings = idxSettings.getSettings();
         Random random = new Random(idxSettings.getValue(ESIntegTestCase.INDEX_TEST_SEED_SETTING));
-        return wrap(randomDirectoryService(random, idxSettings, path), random, indexSettings, path.getShardId());
+        return wrap(randomDirectoryService(random, idxSettings, path, mappingLookup), random, indexSettings, path.getShardId());
     }
 
     public static void checkIndex(Logger logger, Store store, ShardId shardId) {
@@ -136,7 +149,12 @@ public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory
         return w;
     }
 
-    private static Directory randomDirectoryService(Random random, IndexSettings indexSettings, ShardPath path) throws IOException {
+    private static Directory randomDirectoryService(
+        Random random,
+        IndexSettings indexSettings,
+        ShardPath path,
+        Supplier<MappingLookup> mappingLookup
+    ) throws IOException {
         final IndexMetadata build = IndexMetadata.builder(indexSettings.getIndexMetadata())
             .settings(
                 Settings.builder()
@@ -150,7 +168,7 @@ public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory
             )
             .build();
         final IndexSettings newIndexSettings = new IndexSettings(build, indexSettings.getNodeSettings());
-        return new FsDirectoryFactory().newDirectory(newIndexSettings, path);
+        return new FsDirectoryFactory().newDirectory(newIndexSettings, path, null, mappingLookup);
     }
 
     public static final class ElasticsearchMockDirectoryWrapper extends MockDirectoryWrapper {

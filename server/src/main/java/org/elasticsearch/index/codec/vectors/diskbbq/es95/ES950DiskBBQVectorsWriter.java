@@ -94,8 +94,6 @@ public class ES950DiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInde
     public ES950DiskBBQVectorsWriter(
         SegmentWriteState state,
         String rawVectorFormatName,
-        boolean useDirectIOReads,
-        boolean onDiskMerge,
         FlatVectorsWriter rawVectorDelegate,
         QuantEncoding encoding,
         int vectorPerCluster,
@@ -108,20 +106,53 @@ public class ES950DiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInde
         IvfFlushConfigSource flushConfigSource,
         IvfMergeConfigResolver mergeConfigResolver
     ) throws IOException {
+        this(
+            state,
+            rawVectorFormatName,
+            rawVectorDelegate,
+            encoding,
+            vectorPerCluster,
+            centroidsPerParentCluster,
+            mergeExec,
+            numMergeWorkers,
+            blockDimension,
+            doPrecondition,
+            flatVectorThreshold,
+            flushConfigSource,
+            mergeConfigResolver,
+            ES950DiskBBQVectorsFormat.VERSION_CURRENT
+        );
+    }
+
+    /** Writes segments of {@code writeVersion}, for tests reading segments of earlier versions. */
+    ES950DiskBBQVectorsWriter(
+        SegmentWriteState state,
+        String rawVectorFormatName,
+        FlatVectorsWriter rawVectorDelegate,
+        QuantEncoding encoding,
+        int vectorPerCluster,
+        int centroidsPerParentCluster,
+        TaskExecutor mergeExec,
+        int numMergeWorkers,
+        int blockDimension,
+        boolean doPrecondition,
+        int flatVectorThreshold,
+        IvfFlushConfigSource flushConfigSource,
+        IvfMergeConfigResolver mergeConfigResolver,
+        int writeVersion
+    ) throws IOException {
         super(
             state,
             rawVectorFormatName,
-            useDirectIOReads,
             rawVectorDelegate,
-            ES950DiskBBQVectorsFormat.VERSION_CURRENT,
+            writeVersion,
             ES950DiskBBQVectorsFormat.NAME,
             ES950DiskBBQVectorsFormat.IVF_META_EXTENSION,
             ES950DiskBBQVectorsFormat.CENTROID_EXTENSION,
             ES950DiskBBQVectorsFormat.CLUSTER_EXTENSION,
-            true,
+            writeVersion < ES950DiskBBQVectorsFormat.VERSION_NO_DIRECT_IO,
             flatVectorThreshold,
-            onDiskMerge,
-            true
+            writeVersion >= ES950DiskBBQVectorsFormat.VERSION_ON_DISK_MERGE && writeVersion < ES950DiskBBQVectorsFormat.VERSION_NO_DIRECT_IO
         );
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;

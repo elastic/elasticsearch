@@ -24,11 +24,11 @@ import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
-import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
+import org.elasticsearch.index.codec.vectors.AbstractFlatVectorsFormat;
 
 import java.io.IOException;
 
-public final class ES93BFloat16FlatVectorsFormat extends DirectIOCapableFlatVectorsFormat {
+public final class ES93BFloat16FlatVectorsFormat extends AbstractFlatVectorsFormat {
 
     static final String NAME = "ES93BFloat16FlatVectorsFormat";
     static final String META_CODEC_NAME = "ES93BFloat16FlatVectorsFormatMeta";
@@ -53,12 +53,12 @@ public final class ES93BFloat16FlatVectorsFormat extends DirectIOCapableFlatVect
     }
 
     @Override
-    protected FlatVectorsWriter createWriter(SegmentWriteState state) throws IOException {
+    public FlatVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
         return new ES93BFloat16FlatVectorsWriter(state, vectorsScorer);
     }
 
     @Override
-    protected FlatVectorsReader createReader(SegmentReadState state) throws IOException {
+    public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
         return new ES93BFloat16FlatVectorsReader(state, vectorsScorer);
     }
 }

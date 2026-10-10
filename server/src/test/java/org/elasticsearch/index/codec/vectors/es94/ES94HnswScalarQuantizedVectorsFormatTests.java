@@ -45,20 +45,13 @@ public class ES94HnswScalarQuantizedVectorsFormatTests extends BaseQuantizedHnsw
             DEFAULT_MAX_CONN,
             DEFAULT_BEAM_WIDTH,
             DenseVectorFieldMapper.ElementType.FLOAT,
-            randomBitsPerValue(),
-            false
+            randomBitsPerValue()
         );
     }
 
     @Override
     protected KnnVectorsFormat createFormat(int maxConn, int beamWidth) {
-        return new ES94HnswScalarQuantizedVectorsFormat(
-            maxConn,
-            beamWidth,
-            DenseVectorFieldMapper.ElementType.FLOAT,
-            randomBitsPerValue(),
-            false
-        );
+        return new ES94HnswScalarQuantizedVectorsFormat(maxConn, beamWidth, DenseVectorFieldMapper.ElementType.FLOAT, randomBitsPerValue());
     }
 
     @Override
@@ -68,7 +61,6 @@ public class ES94HnswScalarQuantizedVectorsFormatTests extends BaseQuantizedHnsw
             beamWidth,
             DenseVectorFieldMapper.ElementType.FLOAT,
             randomBitsPerValue(),
-            false,
             numMergeWorkers,
             service
         );
@@ -105,7 +97,7 @@ public class ES94HnswScalarQuantizedVectorsFormatTests extends BaseQuantizedHnsw
     }
 
     public void testToString() {
-        KnnVectorsFormat format = new ES94HnswScalarQuantizedVectorsFormat(10, 20, DenseVectorFieldMapper.ElementType.FLOAT, 2, false);
+        KnnVectorsFormat format = new ES94HnswScalarQuantizedVectorsFormat(10, 20, DenseVectorFieldMapper.ElementType.FLOAT, 2);
         assertThat(
             format,
             hasToString(
@@ -118,7 +110,7 @@ public class ES94HnswScalarQuantizedVectorsFormatTests extends BaseQuantizedHnsw
                         + "flatVectorScorer="
                         + ES94ScalarQuantizedVectorsFormat.flatVectorScorer
                         + ", rawVectorFormat="
-                        + new ES93GenericFlatVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, false, false)
+                        + new ES93GenericFlatVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT)
                         + "))"
                 )
             )
@@ -137,11 +129,9 @@ public class ES94HnswScalarQuantizedVectorsFormatTests extends BaseQuantizedHnsw
             beamWidth,
             DenseVectorFieldMapper.ElementType.FLOAT,
             randomBitsPerValue(),
-            false,
             numMergeWorkers,
             service,
-            hnswGraphThreshold,
-            false
+            hnswGraphThreshold
         );
     }
 

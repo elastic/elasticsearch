@@ -14,16 +14,23 @@ import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.MMapDirectory;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.HashSet;
+import java.util.function.Supplier;
 
 public final class SmbMmapFsDirectoryFactory extends FsDirectoryFactory {
 
     @Override
-    protected Directory newFSDirectory(Path location, LockFactory lockFactory, IndexSettings indexSettings) throws IOException {
+    protected Directory newFSDirectory(
+        Path location,
+        LockFactory lockFactory,
+        IndexSettings indexSettings,
+        Supplier<MappingLookup> mappingLookup
+    ) throws IOException {
         MMapDirectory mMapDirectory = adjustSharedArenaGrouping(new MMapDirectory(location, lockFactory));
         return new SmbDirectoryWrapper(
             setMMapFunctions(mMapDirectory, new HashSet<>(indexSettings.getValue(IndexModule.INDEX_STORE_PRE_LOAD_SETTING)))

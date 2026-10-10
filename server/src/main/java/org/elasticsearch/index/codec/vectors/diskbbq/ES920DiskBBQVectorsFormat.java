@@ -15,13 +15,13 @@ import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.search.TaskExecutor;
-import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
+import org.elasticsearch.index.codec.vectors.AbstractFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.VectorReadHints;
 import org.elasticsearch.index.codec.vectors.VectorWriteHints;
-import org.elasticsearch.index.codec.vectors.es93.DirectIOCapableLucene99FlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BFloat16FlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93GenericFlatVectorScorer;
+import org.elasticsearch.index.codec.vectors.es93.ES93Lucene99FlatVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
@@ -62,17 +62,19 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
 
     public static final int VERSION_START = 0;
     public static final int VERSION_DIRECT_IO = 1;
-    public static final int VERSION_CURRENT = VERSION_DIRECT_IO;
+    /** From this version, fields do not record their direct I/O options: the directory reads them from the mapping. */
+    public static final int VERSION_NO_DIRECT_IO = 2;
+    public static final int VERSION_CURRENT = VERSION_NO_DIRECT_IO;
 
     static final int BULK_SIZE = 16;
 
-    private static final DirectIOCapableFlatVectorsFormat float32VectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
+    private static final AbstractFlatVectorsFormat float32VectorFormat = new ES93Lucene99FlatVectorsFormat(
         ES93GenericFlatVectorScorer.INSTANCE
     );
-    private static final DirectIOCapableFlatVectorsFormat bfloat16VectorFormat = new ES93BFloat16FlatVectorsFormat(
+    private static final AbstractFlatVectorsFormat bfloat16VectorFormat = new ES93BFloat16FlatVectorsFormat(
         ES93GenericFlatVectorScorer.INSTANCE
     );
-    private static final Map<String, DirectIOCapableFlatVectorsFormat> supportedFormats = Map.of(
+    private static final Map<String, AbstractFlatVectorsFormat> supportedFormats = Map.of(
         float32VectorFormat.getName(),
         float32VectorFormat,
         bfloat16VectorFormat.getName(),
@@ -102,8 +104,7 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
 
     private final int vectorPerCluster;
     private final int centroidsPerParentCluster;
-    private final DirectIOCapableFlatVectorsFormat rawVectorFormat;
-    private final boolean useDirectIO;
+    private final AbstractFlatVectorsFormat rawVectorFormat;
     private final TaskExecutor mergeExec;
     private final int numMergeWorkers;
     private final int flatVectorThreshold;
@@ -113,7 +114,6 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
             vectorPerCluster,
             centroidsPerParentCluster,
             DenseVectorFieldMapper.ElementType.FLOAT,
-            false,
             null,
             1,
             defaultFlatThreshold(vectorPerCluster)
@@ -124,7 +124,6 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
         int vectorPerCluster,
         int centroidsPerParentCluster,
         DenseVectorFieldMapper.ElementType elementType,
-        boolean useDirectIO,
         ExecutorService mergingExecutorService,
         int maxMergingWorkers
     ) {
@@ -132,7 +131,6 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
             vectorPerCluster,
             centroidsPerParentCluster,
             elementType,
-            useDirectIO,
             mergingExecutorService,
             maxMergingWorkers,
             defaultFlatThreshold(vectorPerCluster)
@@ -143,7 +141,6 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
         int vectorPerCluster,
         int centroidsPerParentCluster,
         DenseVectorFieldMapper.ElementType elementType,
-        boolean useDirectIO,
         ExecutorService mergingExecutorService,
         int maxMergingWorkers,
         int flatVectorThreshold
@@ -181,7 +178,6 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
             case BFLOAT16 -> bfloat16VectorFormat;
             default -> throw new IllegalArgumentException("Unsupported element type " + elementType);
         };
-        this.useDirectIO = useDirectIO;
         this.mergeExec = mergingExecutorService == null ? null : new TaskExecutor(mergingExecutorService);
         this.numMergeWorkers = maxMergingWorkers;
         this.flatVectorThreshold = flatVectorThreshold == -1 ? defaultFlatThreshold(vectorPerCluster) : flatVectorThreshold;
@@ -194,12 +190,9 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        final Boolean writeDirectIOReads = Boolean.valueOf(useDirectIO);
-        validateDirectIOMetadata(writeDirectIOReads, VERSION_CURRENT);
         return new ES920DiskBBQVectorsWriter(
             state,
             rawVectorFormat.getName(),
-            writeDirectIOReads,
             rawVectorFormat.fieldsWriter(VectorWriteHints.writtenToRescore(state)),
             vectorPerCluster,
             centroidsPerParentCluster,
@@ -209,39 +202,27 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
         );
     }
 
-    // for testing
-    protected KnnVectorsWriter version0FieldsWriter(SegmentWriteState state) throws IOException {
-        validateDirectIOMetadata(null, VERSION_START);
+    /** Writes segments of {@code writeVersion}, for tests reading segments of earlier versions. */
+    protected KnnVectorsWriter fieldsWriterForVersion(SegmentWriteState state, int writeVersion) throws IOException {
         return new ES920DiskBBQVectorsWriter(
             state,
             rawVectorFormat.getName(),
-            null,
             rawVectorFormat.fieldsWriter(VectorWriteHints.writtenToRescore(state)),
             vectorPerCluster,
             centroidsPerParentCluster,
-            VERSION_START,
+            writeVersion,
             mergeExec,
             numMergeWorkers,
             flatVectorThreshold
         );
-    }
-
-    private static void validateDirectIOMetadata(Boolean useDirectIOReads, int writeVersion) {
-        final boolean shouldWriteDirectIOReads = writeVersion >= VERSION_DIRECT_IO;
-        if (shouldWriteDirectIOReads && useDirectIOReads == null) {
-            throw new IllegalArgumentException("useDirectIOReads must be provided when writing direct-IO metadata");
-        }
-        if (shouldWriteDirectIOReads == false && useDirectIOReads != null) {
-            throw new IllegalArgumentException("useDirectIOReads must be null when direct-IO metadata is not written");
-        }
     }
 
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new ES920DiskBBQVectorsReader(state, (f, dio, odm) -> {
+        return new ES920DiskBBQVectorsReader(state, f -> {
             var format = supportedFormats.get(f);
             if (format == null) return null;
-            return format.fieldsReader(VectorReadHints.readToRescore(state), dio, odm);
+            return format.fieldsReader(VectorReadHints.readToRescore(state));
         });
     }
 

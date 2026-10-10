@@ -71,6 +71,7 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
             ESNextDiskASHVectorsFormat.VERSION_CURRENT,
             ESNextDiskASHVectorsFormat.VERSION_DIRECT_IO,
             ESNextDiskASHVectorsFormat.VERSION_ON_DISK_MERGE,
+            ESNextDiskASHVectorsFormat.VERSION_NO_DIRECT_IO,
             ESNextDiskASHVectorsFormat.DYNAMIC_VISIT_RATIO
         );
         this.ashMatrixCache = new ConcurrentHashMap<>();
@@ -159,7 +160,6 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
     protected ASHFieldEntry doReadField(
         IndexInput input,
         String rawVectorFormat,
-        boolean useDirectIOReads,
         VectorSimilarityFunction similarityFunction,
         VectorEncoding vectorEncoding,
         int numCentroids,
@@ -185,7 +185,6 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
         int ashBitsPerDim = input.readVInt();
         return new ASHFieldEntry(
             rawVectorFormat,
-            useDirectIOReads,
             similarityFunction,
             vectorEncoding,
             numCentroids,
@@ -431,7 +430,6 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
 
         ASHFieldEntry(
             String rawVectorFormat,
-            boolean doDirectIOReads,
             VectorSimilarityFunction similarityFunction,
             VectorEncoding vectorEncoding,
             int numCentroids,
@@ -451,7 +449,6 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
         ) {
             super(
                 rawVectorFormat,
-                doDirectIOReads,
                 similarityFunction,
                 vectorEncoding,
                 numCentroids,

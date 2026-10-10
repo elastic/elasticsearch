@@ -11,15 +11,28 @@ package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.store.DataAccessHint;
+import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.NoReuseHint;
 
-/** How a format writes the raw vectors it keeps in a flat format, matching {@link VectorReadHints}. */
+/**
+ * How a format writes the raw vectors it keeps in a flat format, matching {@link VectorReadHints}. The field they hold is
+ * said by {@link FieldKnnVectorsFormat}.
+ */
 public final class VectorWriteHints {
 
     private VectorWriteHints() {}
 
     /** Raw vectors kept only to rescore: written sequentially and not reused. */
     public static SegmentWriteState writtenToRescore(SegmentWriteState state) {
-        return new SegmentWriteState(state, state.context.union(DataAccessHint.SEQUENTIAL, NoReuseHint.INSTANCE));
+        return withHints(state, DataAccessHint.SEQUENTIAL, NoReuseHint.INSTANCE);
+    }
+
+    /** Raw vectors searches scan: written sequentially, and read back by searches rather than by the merge writing them. */
+    public static SegmentWriteState writtenToScan(SegmentWriteState state) {
+        return withHints(state, DataAccessHint.SEQUENTIAL);
+    }
+
+    private static SegmentWriteState withHints(SegmentWriteState state, IOContext.FileOpenHint... hints) {
+        return new SegmentWriteState(state, state.context.union(hints));
     }
 }

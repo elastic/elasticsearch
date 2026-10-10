@@ -33,28 +33,12 @@ public class ES93HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseQuant
 
     @Override
     protected KnnVectorsFormat createFormat() {
-        return new ES93HnswScalarQuantizedVectorsFormat(
-            16,
-            100,
-            DenseVectorFieldMapper.ElementType.BFLOAT16,
-            null,
-            7,
-            false,
-            random().nextBoolean()
-        );
+        return new ES93HnswScalarQuantizedVectorsFormat(16, 100, DenseVectorFieldMapper.ElementType.BFLOAT16, null, 7, false);
     }
 
     @Override
     protected KnnVectorsFormat createFormat(int maxConn, int beamWidth) {
-        return new ES93HnswScalarQuantizedVectorsFormat(
-            maxConn,
-            beamWidth,
-            DenseVectorFieldMapper.ElementType.BFLOAT16,
-            null,
-            7,
-            false,
-            random().nextBoolean()
-        );
+        return new ES93HnswScalarQuantizedVectorsFormat(maxConn, beamWidth, DenseVectorFieldMapper.ElementType.BFLOAT16, null, 7, false);
     }
 
     @Override
@@ -66,7 +50,6 @@ public class ES93HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseQuant
             null,
             7,
             false,
-            random().nextBoolean(),
             numMergeWorkers,
             service
         );
@@ -95,7 +78,6 @@ public class ES93HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseQuant
             null,
             7,
             false,
-            random().nextBoolean(),
             1,
             null,
             0

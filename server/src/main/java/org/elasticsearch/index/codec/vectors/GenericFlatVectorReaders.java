@@ -25,41 +25,25 @@ public class GenericFlatVectorReaders {
 
     public interface Field {
         String rawVectorFormatName();
-
-        boolean useDirectIOReads();
     }
 
     @FunctionalInterface
     public interface LoadFlatVectorsReader {
-        FlatVectorsReader getReader(String formatName, boolean useDirectIO, boolean onDiskMerge) throws IOException;
+        FlatVectorsReader getReader(String formatName) throws IOException;
     }
 
-    private record FlatVectorsReaderKey(String formatName, boolean useDirectIO, boolean onDiskMerge) {
-        private FlatVectorsReaderKey(Field field, boolean onDiskMerge) {
-            this(field.rawVectorFormatName(), field.useDirectIOReads(), onDiskMerge);
-        }
-
-        @Override
-        public String toString() {
-            return formatName + (useDirectIO ? " with Direct IO" : "") + (onDiskMerge ? " with Direct IO merges" : "");
-        }
-    }
-
-    private final Map<FlatVectorsReaderKey, FlatVectorsReader> readers = new HashMap<>();
+    private final Map<String, FlatVectorsReader> readers = new HashMap<>();
     private final Map<Integer, FlatVectorsReader> readersForFields = new HashMap<>();
 
-    /**
-     * @param onDiskMerge whether merges read this field's raw vectors with direct I/O (the field's {@code on_disk_merge} option)
-     */
-    public void loadField(int fieldNumber, Field field, boolean onDiskMerge, LoadFlatVectorsReader loadReader) throws IOException {
-        FlatVectorsReaderKey key = new FlatVectorsReaderKey(field, onDiskMerge);
-        FlatVectorsReader reader = readers.get(key);
+    public void loadField(int fieldNumber, Field field, LoadFlatVectorsReader loadReader) throws IOException {
+        String formatName = field.rawVectorFormatName();
+        FlatVectorsReader reader = readers.get(formatName);
         if (reader == null) {
-            reader = loadReader.getReader(field.rawVectorFormatName(), field.useDirectIOReads(), onDiskMerge);
+            reader = loadReader.getReader(formatName);
             if (reader == null) {
-                throw new IllegalStateException("Cannot find flat vector format: " + field.rawVectorFormatName());
+                throw new IllegalStateException("Cannot find flat vector format: " + formatName);
             }
-            readers.put(key, reader);
+            readers.put(formatName, reader);
         }
         readersForFields.put(fieldNumber, reader);
     }

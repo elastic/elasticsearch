@@ -42,6 +42,7 @@ import org.elasticsearch.index.codec.vectors.cluster.ClusteringByteVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.ClusteringVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansByteVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
+import org.elasticsearch.index.store.VectorFieldHint;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
@@ -63,8 +64,6 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
     private final IndexOutput ivfCentroids, ivfClusters;
     private final IndexOutput ivfMeta;
     private final String rawVectorFormatName;
-    private final Boolean useDirectIOReads;
-    private final boolean onDiskMerge;
     private final boolean shouldWriteOnDiskMerge;
     private final FlatVectorsWriter rawVectorDelegate;
     protected final int flatVectorThreshold;
@@ -78,12 +77,14 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
         return false;
     }
 
-    /** @param shouldWriteOnDiskMerge whether this codec version records {@code onDiskMerge} in the meta */
+    /**
+     * @param shouldWriteDirectIoReads whether this codec version records the {@code on_disk_rescore} flag in the meta
+     * @param shouldWriteOnDiskMerge whether this codec version records the {@code on_disk_merge} flag in the meta
+     */
     @SuppressWarnings("this-escape")
     protected IVFVectorsWriter(
         SegmentWriteState state,
         String rawVectorFormatName,
-        Boolean useDirectIOReads,
         FlatVectorsWriter rawVectorDelegate,
         int writeVersion,
         String codecName,
@@ -92,13 +93,10 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
         String clusterExtension,
         boolean shouldWriteDirectIoReads,
         int flatVectorThreshold,
-        boolean onDiskMerge,
         boolean shouldWriteOnDiskMerge
     ) throws IOException {
         this.rawVectorFormatName = rawVectorFormatName;
-        this.onDiskMerge = onDiskMerge;
         this.shouldWriteOnDiskMerge = shouldWriteOnDiskMerge;
-        this.useDirectIOReads = useDirectIOReads;
         this.rawVectorDelegate = rawVectorDelegate;
         this.flatVectorThreshold = flatVectorThreshold;
         this.shouldWriteDirectIoReads = shouldWriteDirectIoReads;
@@ -644,14 +642,12 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
     ) throws IOException {
         ivfMeta.writeInt(field.number);
         ivfMeta.writeString(rawVectorFormatName);
+        // versions that record the direct I/O options write them as off; readers skip them
         if (shouldWriteDirectIoReads) {
-            assert useDirectIOReads != null : "shouldWriteDirectIoReads is true but useDirectIOReads is null";
-            ivfMeta.writeByte(useDirectIOReads ? (byte) 1 : 0);
+            ivfMeta.writeByte((byte) 0);
         }
         if (shouldWriteOnDiskMerge) {
-            ivfMeta.writeByte(onDiskMerge ? (byte) 1 : 0);
-        } else {
-            assert onDiskMerge == false : "onDiskMerge is true but shouldWriteOnDiskMerge is false";
+            ivfMeta.writeByte((byte) 0);
         }
         ivfMeta.writeInt(field.getVectorEncoding().ordinal());
         ivfMeta.writeInt(distFuncToOrd(field.getVectorSimilarityFunction()));
@@ -710,7 +706,7 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
             IndexOutput vectorsOut = mergeState.segmentInfo.dir.createTempOutput(
                 mergeState.segmentInfo.name,
                 "ivfvec_",
-                rawVectorsContext(DataAccessHint.SEQUENTIAL)
+                rawVectorsContext(fieldInfo, DataAccessHint.SEQUENTIAL)
             )
         ) {
             tempRawVectorsFileName = vectorsOut.getName();
@@ -762,7 +758,10 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
         // now open the temp files and build the index structures. Clustering reads the vectors in increasing order, over
         // several passes; the doc ids are looked up per cluster
         try (
-            IndexInput vectors = mergeState.segmentInfo.dir.openInput(tempRawVectorsFileName, rawVectorsContext(DataAccessHint.SEQUENTIAL));
+            IndexInput vectors = mergeState.segmentInfo.dir.openInput(
+                tempRawVectorsFileName,
+                rawVectorsContext(fieldInfo, DataAccessHint.SEQUENTIAL)
+            );
             IndexInput docs = docsFileName == null
                 ? null
                 : mergeState.segmentInfo.dir.openInput(docsFileName, mergeContext().union(DataAccessHint.RANDOM))
@@ -858,7 +857,7 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
                     try (
                         IndexInput postingsVectors = mergeState.segmentInfo.dir.openInput(
                             tempRawVectorsFileName,
-                            rawVectorsContext(DataAccessHint.RANDOM)
+                            rawVectorsContext(fieldInfo, DataAccessHint.RANDOM)
                         )
                     ) {
                         final ClusteringVectorValues<?> postingsVectorValues = isByte
@@ -1026,11 +1025,11 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
     }
 
     /**
-     * The context of the merged raw vectors in a temp file. They are much larger than the other files and not expected to fit in
-     * the page cache, so they are not reused.
+     * The context of the merged raw vectors of {@code fieldInfo} in a temp file. They are much larger than the other files and
+     * not expected to fit in the page cache, so they are not reused; the field they hold says how its mapping wants them read.
      */
-    private IOContext rawVectorsContext(DataAccessHint access) {
-        return mergeContext().union(access, NoReuseHint.INSTANCE);
+    private IOContext rawVectorsContext(FieldInfo fieldInfo, DataAccessHint access) {
+        return mergeContext().union(access, NoReuseHint.INSTANCE, new VectorFieldHint(fieldInfo.name));
     }
 
     private record FieldWriter(FieldInfo fieldInfo, FlatFieldVectorsWriter<?> delegate) {}

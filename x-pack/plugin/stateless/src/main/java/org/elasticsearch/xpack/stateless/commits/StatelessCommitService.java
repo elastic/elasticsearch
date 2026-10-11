@@ -754,8 +754,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
             success = true;
 
-            // Any upload bound installed after this commit was created will be pinned at or above its generation
-            // (the relocation's final flush follows it), so if no listener is installed it should be safe to notify right away.
+            // Any upload bound installed after this commit was created is pinned at or above its generation, since the
+            // relocation's final flush follows it. If no listener is installed, the commit can be notified right away.
             final SubscribableListener<Long> uploadBoundListener = commitState.relocationUploadBoundListener;
 
             // todo: ES-8431 remove commitState.isInitializingNoSearch, we only need this for relocations now.
@@ -789,10 +789,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                                     () -> format("%s skipping new-commit notification for [%s]: upload bound failed", shardId, generation),
                                     e
                                 );
-                                commitState.notifyCommitNotificationSuccessListeners(generation);
                             } else {
                                 // The relocation source abandoned the handoff before markRelocating, so no bound was pinned and
-                                // uploads were never paused. Advertise the commit, we know a future bound will include it.
+                                // uploads were never paused. Advertise the commit. Any future bound will include it.
                                 maybeSendNewCommitNotification(commitState, reference, virtualBcc, generation, Long.MAX_VALUE);
                             }
                         }
@@ -3300,8 +3299,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 .filter(bcc -> compoundCommitGeneration.onOrAfter(bcc.lastCompoundCommit().primaryTermAndGeneration()))
                 .orElse(latestUploaded);
 
-            assert pauseUpload(availableBcc.primaryTermAndGeneration().generation()) == false
-                : "available bcc ["
+            assert pauseUpload(availableBcc.lastCompoundCommit().primaryTermAndGeneration().generation()) == false
+                : "last compound commit ["
+                    + availableBcc.lastCompoundCommit().primaryTermAndGeneration().generation()
+                    + "] of available bcc ["
                     + availableBcc.primaryTermAndGeneration().generation()
                     + "] from unpromotable recovery cannot be higher than maxGenerationToUpload ["
                     + maxGenerationToUpload

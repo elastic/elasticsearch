@@ -39,6 +39,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -682,6 +683,50 @@ public class UploadConcurrencyServiceTests extends ESTestCase {
 
         releaseAll(tasks);
         releaseAll(waiting);
+    }
+
+    public void testARunnerRegisteredWhileTheCapChangesGetsTheNewCap() throws Exception {
+        final TestNode node = new TestNode(adaptive(true));
+        final int floor = threadPool.info(ThreadPool.Names.SNAPSHOT).getMax();
+
+        // a runner that is slow to be given the cap that registering read, as when a change of the cap happens in between
+        final var entered = new CountDownLatch(1);
+        final var proceed = new CountDownLatch(1);
+        final var slow = new AtomicBoolean(true);
+        final var runner = new PrioritizedThrottledTaskRunner<BlockingTask>("test", floor, node.service.getUploadExecutor()) {
+            @Override
+            public void setMaxRunningTasks(int maxRunningTasks) {
+                if (slow.getAndSet(false)) {
+                    entered.countDown();
+                    safeAwait(proceed);
+                }
+                super.setMaxRunningTasks(maxRunningTasks);
+            }
+        };
+        final Releasable[] registration = new Releasable[1];
+        final Thread registering = new Thread(() -> registration[0] = node.service.registerUploadTaskRunner(runner));
+        registering.start();
+        safeAwait(entered);
+
+        // the cap is lowered by the tick, which has to wait for the registration if it is to apply the cap to the runner too
+        final Thread ticking = new Thread(() -> {
+            node.apply(
+                Settings.builder()
+                    .put(ADAPTIVE_UPLOAD_CONCURRENCY_ENABLED_SETTING.getKey(), true)
+                    .put(UPLOAD_CONCURRENCY_MAX_SETTING.getKey(), floor)
+                    .build()
+            );
+            node.tick();
+        });
+        ticking.start();
+        assertBusy(() -> assertTrue(ticking.getState() == Thread.State.BLOCKED || ticking.getState() == Thread.State.TERMINATED));
+
+        proceed.countDown();
+        registering.join();
+        ticking.join();
+        registrations.add(registration[0]);
+        assertThat(node.service.getUploadConcurrencyCeiling(), equalTo(floor));
+        assertThat(runner.getMaxRunningTasks(), equalTo(floor));
     }
 
     public void testUploadConcurrencyMaxSetting() {

@@ -352,9 +352,11 @@ public class UploadConcurrencyService extends AbstractLifecycleComponent {
      * @return what to close when the repository is closed
      */
     public Releasable registerUploadTaskRunner(PrioritizedThrottledTaskRunner<?> taskRunner) {
-        uploadTaskRunners.add(taskRunner);
-        // whatever the state of the switch is now, which a change does not miss as it applies the cap to the runners it finds
-        taskRunner.setMaxRunningTasks(uploadTaskRunnerCap);
+        // under the lock that applying the cap holds, so that a change of the cap is not lost between reading it and setting it
+        synchronized (lock) {
+            uploadTaskRunners.add(taskRunner);
+            taskRunner.setMaxRunningTasks(uploadTaskRunnerCap);
+        }
         return () -> uploadTaskRunners.remove(taskRunner);
     }
 

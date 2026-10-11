@@ -433,6 +433,9 @@ public class RecoverySettings {
     private final ByteSizeValue availableDiskReadBandwidth;
     private final ByteSizeValue availableDiskWriteBandwidth;
 
+    @Nullable
+    private volatile UploadConcurrencyService uploadConcurrencyService;
+
     @SuppressWarnings("this-escape")
     public RecoverySettings(Settings settings, ClusterSettings clusterSettings) {
         this.retryDelayStateSync = INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING.get(settings);
@@ -663,6 +666,19 @@ public class RecoverySettings {
 
     public boolean nodeBandwidthSettingsExist() {
         return nodeBandwidthSettingsExist;
+    }
+
+    /**
+     * The node's upload concurrency component, or {@code null} if there is none (e.g. in tests). Kept here because every repository
+     * already has the {@link RecoverySettings}.
+     */
+    @Nullable
+    public UploadConcurrencyService getUploadConcurrencyService() {
+        return uploadConcurrencyService;
+    }
+
+    public void setUploadConcurrencyService(UploadConcurrencyService uploadConcurrencyService) {
+        this.uploadConcurrencyService = uploadConcurrencyService;
     }
 
     public boolean getUseSnapshotsDuringRecovery() {

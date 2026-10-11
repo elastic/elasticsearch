@@ -259,7 +259,9 @@ public class Node implements Closeable {
         injector.getInstance(AnalyzerMetrics.class).start();
         injector.getInstance(SnapshotMetrics.class).start();
         injector.getInstance(RecoveryMetricsCollector.class).start();
-        injector.getInstance(UploadConcurrencyService.class).start();
+        if (DiscoveryNode.isStateless(environment.settings())) {
+            injector.getInstance(UploadConcurrencyService.class).start();
+        }
         injector.getInstance(HealthPeriodicLogger.class).start();
         injector.getInstance(PersistentTaskLifecycleManager.class).start();
         nodeService.getMonitorService().start();
@@ -465,7 +467,9 @@ public class Node implements Closeable {
         stopIfStarted(AnalyzerMetrics.class);
         stopIfStarted(SnapshotMetrics.class);
         stopIfStarted(RecoveryMetricsCollector.class);
-        stopIfStarted(UploadConcurrencyService.class);
+        if (DiscoveryNode.isStateless(environment.settings())) {
+            stopIfStarted(UploadConcurrencyService.class);
+        }
 
         pluginLifecycleComponents.forEach(Node::stopIfStarted);
         // we should stop this last since it waits for resources to get released
@@ -520,7 +524,9 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(IndicesStore.class));
         toClose.add(injector.getInstance(ThrottlingRecoveryService.class));
         toClose.add(injector.getInstance(PeerRecoverySourceService.class));
-        toClose.add(injector.getInstance(UploadConcurrencyService.class));
+        if (DiscoveryNode.isStateless(environment.settings())) {
+            toClose.add(injector.getInstance(UploadConcurrencyService.class));
+        }
         toClose.add(() -> stopWatch.stop().start("cluster"));
         toClose.add(injector.getInstance(ClusterService.class));
         toClose.add(() -> stopWatch.stop().start("node_connections_service"));

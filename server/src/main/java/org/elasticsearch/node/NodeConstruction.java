@@ -807,12 +807,14 @@ class NodeConstruction {
         BigArrays bigArrays = serviceProvider.newBigArrays(pluginsService, pageCacheRecycler, circuitBreakerService);
 
         final RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
-        final UploadConcurrencyService uploadConcurrencyService = new UploadConcurrencyService(
-            settingsModule.getClusterSettings(),
-            threadPool,
-            DiscoveryNode.isStateless(settings)
-        );
-        recoverySettings.setUploadConcurrencyService(uploadConcurrencyService);
+        // Only stateless nodes adapt their upload concurrency, so that is where it exists. Other nodes snapshot as they always have.
+        final UploadConcurrencyService uploadConcurrencyService;
+        if (DiscoveryNode.isStateless(settings)) {
+            uploadConcurrencyService = new UploadConcurrencyService(settingsModule.getClusterSettings(), threadPool);
+            recoverySettings.setUploadConcurrencyService(uploadConcurrencyService);
+        } else {
+            uploadConcurrencyService = null;
+        }
         RepositoriesModule repositoriesModule = new RepositoriesModule(
             environment,
             pluginsService.filterPlugins(RepositoryPlugin.class).toList(),
@@ -1504,7 +1506,9 @@ class NodeConstruction {
             b.bind(IndicesMetrics.class).toInstance(indicesMetrics);
             b.bind(AnalyzerMetrics.class).toInstance(analyzerMetrics);
             b.bind(SnapshotMetrics.class).toInstance(snapshotMetrics);
-            b.bind(UploadConcurrencyService.class).toInstance(uploadConcurrencyService);
+            if (uploadConcurrencyService != null) {
+                b.bind(UploadConcurrencyService.class).toInstance(uploadConcurrencyService);
+            }
             b.bind(NetworkService.class).toInstance(networkService);
             b.bind(IndexMetadataVerifier.class).toInstance(indexMetadataVerifier);
             b.bind(ClusterInfoService.class).toInstance(clusterInfoService);

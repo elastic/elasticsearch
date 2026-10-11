@@ -267,7 +267,7 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
                     .put("thread_pool.snapshot_upload.max", ceiling)
                     .build()
             );
-            service = new UploadConcurrencyService(clusterSettings, threadPool, true);
+            service = new UploadConcurrencyService(clusterSettings, threadPool);
         }
 
         void switchAdaptive(boolean on) {

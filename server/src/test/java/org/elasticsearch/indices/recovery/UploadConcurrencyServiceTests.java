@@ -21,6 +21,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.os.CgroupV2Probe;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -587,19 +588,23 @@ public class UploadConcurrencyServiceTests extends ESTestCase {
     }
 
     private static void assertStatusLogged(TestNode node, boolean logged) {
+        assertLogged(node, "status line", Level.DEBUG, "snapshot upload concurrency; *", logged);
+    }
+
+    private static void assertLogged(TestNode node, String name, Level level, String message, boolean logged) {
         final String logger = UploadConcurrencyService.class.getCanonicalName();
-        final String message = "snapshot upload concurrency; *";
         try (var mockLog = MockLog.capture(UploadConcurrencyService.class)) {
             mockLog.addExpectation(
                 logged
-                    ? new MockLog.SeenEventExpectation("status line", logger, Level.INFO, message)
-                    : new MockLog.UnseenEventExpectation("status line", logger, Level.INFO, message)
+                    ? new MockLog.SeenEventExpectation(name, logger, level, message)
+                    : new MockLog.UnseenEventExpectation(name, logger, level, message)
             );
             node.tick();
             mockLog.assertAllExpectationsMatched();
         }
     }
 
+    @TestLogging(value = "org.elasticsearch.indices.recovery.UploadConcurrencyService:DEBUG", reason = "the status is logged at debug")
     public void testStatusIsLoggedWhileUploadsRunOrAreQueuedAndForThirtySecondsAfter() throws Exception {
         final TestNode node = new TestNode(adaptive(true));
         final var runner = newRepositoryRunner(node);
@@ -623,6 +628,42 @@ public class UploadConcurrencyServiceTests extends ESTestCase {
             assertStatusLogged(node, true);
         }
         assertStatusLogged(node, false);
+    }
+
+    @TestLogging(value = "org.elasticsearch.indices.recovery.UploadConcurrencyService:DEBUG", reason = "the status is logged at debug")
+    public void testOnlyAChangeOfTheBudgetIsLoggedAtInfo() throws Exception {
+        final TestNode node = new TestNode(adaptive(true));
+        final var runner = newRepositoryRunner(node);
+        final int floor = threadPool.info(ThreadPool.Names.SNAPSHOT).getMax();
+        final var tasks = enqueueBlockingTasks(runner, floor);
+        awaitStarted(tasks);
+        final String status = "snapshot upload concurrency; *";
+        final String change = "changing snapshot upload concurrency from *";
+
+        // the first interval has nothing to compare with, and the status is not at info
+        assertLogged(node, "no status at info", Level.INFO, status, false);
+
+        // quiet with work queued: up by one, with the reason, at info
+        final var waiting = enqueueBlockingTasks(runner, 1);
+        assertLogged(
+            node,
+            "raise",
+            Level.INFO,
+            "changing snapshot upload concurrency from [" + floor + "] to [" + (floor + 1) + "] (raise: *",
+            true
+        );
+        awaitStarted(waiting);
+
+        // some pressure, but not enough to cut: held, which is not a change
+        node.probes.cpuPressure.set(new CgroupV2Probe.CpuPressure(150_000L));
+        assertLogged(node, "hold", Level.INFO, change, false);
+
+        // more pressure: down, at info
+        node.probes.cpuPressure.set(new CgroupV2Probe.CpuPressure(1_150_000L));
+        assertLogged(node, "cut", Level.INFO, "changing snapshot upload concurrency from [" + (floor + 1) + "] to * (cut: *", true);
+
+        releaseAll(tasks);
+        releaseAll(waiting);
     }
 
     public void testUploadConcurrencyMaxSetting() {

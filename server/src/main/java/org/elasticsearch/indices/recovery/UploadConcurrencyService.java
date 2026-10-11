@@ -469,7 +469,7 @@ public class UploadConcurrencyService extends AbstractLifecycleComponent {
                 }
 
                 updateUploadConcurrency(now);
-                if (everActive && now - lastActiveNanos <= LOG_ACTIVE_WINDOW_NANOS) {
+                if (logger.isDebugEnabled() && everActive && now - lastActiveNanos <= LOG_ACTIVE_WINDOW_NANOS) {
                     logStatus();
                 }
             } catch (Exception e) {
@@ -553,7 +553,14 @@ public class UploadConcurrencyService extends AbstractLifecycleComponent {
     private void setUploadBudget(int budget) {
         final int current = uploadBudget;
         if (current != budget) {
-            logger.debug("changing snapshot upload concurrency from [{}] to [{}]", current, budget);
+            final UploadConcurrencyController.Decision decision = uploadConcurrencyController.getLastDecision();
+            logger.info(
+                "changing snapshot upload concurrency from [{}] to [{}] ({}: {})",
+                current,
+                budget,
+                decision.action(),
+                decision.reason()
+            );
             uploadBudget = budget;
             if (budget > current) {
                 // runners may have tasks waiting for it
@@ -565,7 +572,7 @@ public class UploadConcurrencyService extends AbstractLifecycleComponent {
     private void logStatus() {
         final UploadConcurrencyController.Decision decision = uploadConcurrencyController.getLastDecision();
         final UploadConcurrencyController.Signals signals = lastSignals;
-        logger.info(
+        logger.debug(
             "snapshot upload concurrency; cpu pressure [{}] throttled [{}us]; "
                 + "upload errors since last log read [{}] upload [{}]; uploads adaptive [{}] target [{}] running [{}] queued [{}] "
                 + "ceiling [{}] last decision [{}: {}]",

@@ -121,10 +121,20 @@ public class KeyStoreWrapper implements SecureSettings {
     public static final int LE_VERSION = 5;
     public static final int HIGHER_KDF_ITERATION_COUNT_VERSION = 6;
     public static final int CIPHER_KEY_BITS_256_VERSION = 7;
-    public static final int CURRENT_VERSION = CIPHER_KEY_BITS_256_VERSION;
+    /** From this version an unprotected keystore derives its cipher key from {@link #UNPROTECTED_KDF_INPUT} instead of "". */
+    public static final int UNPROTECTED_KDF_INPUT_VERSION = 8;
+    public static final int CURRENT_VERSION = UNPROTECTED_KDF_INPUT_VERSION;
 
     /** The algorithm used to derive the cipher key from a password. */
     private static final String KDF_ALGO = "PBKDF2WithHmacSHA512";
+
+    /**
+     * KDF input used when the keystore has no password. This is not a secret and provides no protection; it exists so that an
+     * unprotected keystore uses the same code path as a protected one, and so that providers which enforce a minimum
+     * password length for password based key derivation (e.g. FIPS 140 approved mode) accept it. Protection of secure
+     * settings at rest comes only from an operator supplied password.
+     */
+    private static final char[] UNPROTECTED_KDF_INPUT = "elasticsearch.keystore unprotected".toCharArray();
 
     /** The number of iterations to derive the cipher key. */
     private static final int KDF_ITERS = 210000;
@@ -152,6 +162,7 @@ public class KeyStoreWrapper implements SecureSettings {
     // 5: Lucene directory API changed to LE, ES 8.0
     // 6: increase KDF iteration count, ES 8.14
     // 7: increase cipher key length to 256 bits, ES 9.0
+    // 8: unprotected keystores use a fixed KDF input instead of an empty password, ES 9.6
 
     /** The metadata format version used to read the current keystore wrapper. */
     private final int formatVersion;
@@ -345,6 +356,11 @@ public class KeyStoreWrapper implements SecureSettings {
         return formatVersion < CIPHER_KEY_BITS_256_VERSION ? 128 : CIPHER_KEY_BITS;
     }
 
+    /** The password handed to the KDF: unprotected keystores from v8 on use a fixed input, earlier versions the empty password. */
+    private static char[] kdfInputForVersion(int formatVersion, char[] password) {
+        return password.length == 0 && formatVersion >= UNPROTECTED_KDF_INPUT_VERSION ? UNPROTECTED_KDF_INPUT : password;
+    }
+
     /**
      * Decrypts the underlying keystore data.
      *
@@ -375,7 +391,7 @@ public class KeyStoreWrapper implements SecureSettings {
 
         Cipher cipher = createCipher(
             Cipher.DECRYPT_MODE,
-            password,
+            kdfInputForVersion(formatVersion, password),
             salt,
             iv,
             getKdfIterationCountForVersion(formatVersion),
@@ -467,7 +483,7 @@ public class KeyStoreWrapper implements SecureSettings {
             random.nextBytes(iv);
             // encrypted data
             byte[] encryptedBytes = encrypt(
-                password,
+                kdfInputForVersion(CURRENT_VERSION, password),
                 salt,
                 iv,
                 getKdfIterationCountForVersion(CURRENT_VERSION),

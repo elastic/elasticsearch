@@ -575,9 +575,6 @@ public class ServerCliTests extends CommandTestCase {
         @Override
         public SecureSettings bootstrap(Environment environment, SecureString password) throws Exception {
             this.bootstrapped = true;
-            if (inFipsJvm() && (password == null || password.isEmpty())) {
-                return KeyStoreWrapper.create();
-            }
             return super.bootstrap(environment, password);
         }
     }

@@ -3283,6 +3283,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             // Consider minimum pending generation also available to search, since we are in the process of uploading it and search
             // node may have seen it before we process that the upload succeeded. This is also reasonable, because only timing
             // means it is not yet considered uploaded here.
+            // TODO: exclude paused pending-upload BCCs from latestUploading. See #160420.
             Optional<VirtualBatchedCompoundCommit> latestUploading = pendingUploadBccGenerations.values()
                 .stream()
                 .min(Comparator.comparing(PendingUploadVirtualBatchCompoundCommit::getPrimaryTermAndGeneration))
@@ -3296,9 +3297,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 .filter(bcc -> compoundCommitGeneration.onOrAfter(bcc.lastCompoundCommit().primaryTermAndGeneration()))
                 .orElse(latestUploaded);
 
-            // TODO: assert pauseUpload(availableBcc.lastCompoundCommit().primaryTermAndGeneration().generation()) == false
-            // once paused pending-upload BCCs are excluded above. While relocating, a search shard can report a commit
-            // that the relocation target uploaded with the same primary term and generation as a paused BCC on this node.
+            assert pauseUpload(availableBcc.lastCompoundCommit().primaryTermAndGeneration().generation()) == false
+                : "last compound commit ["
+                    + availableBcc.lastCompoundCommit().primaryTermAndGeneration().generation()
+                    + "] of available bcc ["
+                    + availableBcc.primaryTermAndGeneration().generation()
+                    + "] from unpromotable recovery cannot be higher than maxGenerationToUpload ["
+                    + maxGenerationToUpload
+                    + "]";
 
             var availableCommit = availableBcc.lastCompoundCommit();
             if (compoundCommitGeneration.after(availableCommit.primaryTermAndGeneration())) {

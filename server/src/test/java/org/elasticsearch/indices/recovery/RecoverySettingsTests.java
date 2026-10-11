@@ -279,6 +279,19 @@ public class RecoverySettingsTests extends ESTestCase {
         );
     }
 
+    public void testExplicitMaxBytesPerSecIsOnlySetWhenAnOperatorSetsIt() {
+        final var clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final var recoverySettings = new RecoverySettings(Settings.EMPTY, clusterSettings);
+        assertThat(recoverySettings.getExplicitMaxBytesPerSec(), equalTo(ByteSizeValue.MINUS_ONE));
+
+        final ByteSizeValue explicit = randomByteSizeValue();
+        clusterSettings.applySettings(Settings.builder().put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), explicit).build());
+        assertThat(recoverySettings.getExplicitMaxBytesPerSec(), equalTo(explicit));
+
+        clusterSettings.applySettings(Settings.EMPTY);
+        assertThat(recoverySettings.getExplicitMaxBytesPerSec(), equalTo(ByteSizeValue.MINUS_ONE));
+    }
+
     public void testDefaultMaxBytesPerSecOnDataNode() {
         assertThat(
             "Data nodes that are not dedicated to cold/frozen have a default 40mb rate limit",

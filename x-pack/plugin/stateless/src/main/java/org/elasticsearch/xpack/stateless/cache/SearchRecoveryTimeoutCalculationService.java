@@ -190,7 +190,7 @@ public class SearchRecoveryTimeoutCalculationService {
             countRelocationsFromShuttingDownNodesTo(state, targetNodeId),
             maxConcurrentRelocationRecoveriesSupplier.getAsInt()
         );
-        // The current shard is itself one such relocation; floor at 1 in case it is not yet visible on the source's RoutingNode.
+        // The current shard is itself one such relocation; floor at 1 in case it is not yet visible in the target's cluster state.
         if (concurrentRelocations <= 0) {
             concurrentRelocations = 1;
         }

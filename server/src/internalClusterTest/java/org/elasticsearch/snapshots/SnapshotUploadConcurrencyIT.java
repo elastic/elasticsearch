@@ -19,20 +19,23 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Collections;
 
 import static org.elasticsearch.indices.recovery.UploadConcurrencyService.ADAPTIVE_UPLOAD_CONCURRENCY_ENABLED_SETTING;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
- * Adaptive upload concurrency is for stateless nodes only. The nodes of these tests are stateful: whatever the setting says, there is
- * no upload concurrency service, and shard snapshots run on the {@code snapshot} pool, as they always have. The stateless nodes are
- * covered by {@code StatelessSnapshotUploadConcurrencyIT}.
+ * Adaptive upload concurrency is for stateless nodes only, where the stateless plugin adds its settings and its thread pool. The nodes
+ * of this test are stateful: they have none of it, and shard snapshots run on the {@code snapshot} pool, as they always have. The
+ * stateless nodes are covered by {@code StatelessSnapshotUploadConcurrencyIT}.
  */
 @ESIntegTestCase.ClusterScope(numDataNodes = 0, scope = ESIntegTestCase.Scope.TEST)
 public class SnapshotUploadConcurrencyIT extends AbstractSnapshotIntegTestCase {
 
-    public void testAdaptiveIsIgnoredOnStatefulNodes() {
-        final var adaptive = Settings.builder().put(ADAPTIVE_UPLOAD_CONCURRENCY_ENABLED_SETTING.getKey(), true).build();
-        internalCluster().startNodes(randomIntBetween(1, 3), adaptive);
-        updateClusterSettings(Settings.builder().put(ADAPTIVE_UPLOAD_CONCURRENCY_ENABLED_SETTING.getKey(), randomBoolean()));
+    public void testStatefulNodesHaveNoUploadConcurrency() {
+        internalCluster().startNodes(randomIntBetween(1, 3));
+
+        final String key = ADAPTIVE_UPLOAD_CONCURRENCY_ENABLED_SETTING.getKey();
+        final var e = expectThrows(IllegalArgumentException.class, () -> updateClusterSettings(Settings.builder().put(key, true)));
+        assertThat(e.getMessage(), containsString("unknown setting [" + key + "]"));
 
         createRepository("test-repo", "fs");
         createIndexWithRandomDocs("test-idx", 50);
@@ -45,16 +48,19 @@ public class SnapshotUploadConcurrencyIT extends AbstractSnapshotIntegTestCase {
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
         assertDocCount("test2-idx", 50L);
 
-        // no node has the service that the repositories would have used, and nothing ran on the pool for it
-        long uploads = 0;
+        // the uploads ran on the snapshot pool, and there is no pool or service for adaptive uploads on any node
+        long uploadsOnSnapshotPool = 0;
         for (String node : internalCluster().getNodeNames()) {
             expectThrows(ConfigurationException.class, () -> internalCluster().getInstance(UploadConcurrencyService.class, node));
-            for (var stats : internalCluster().getInstance(ThreadPool.class, node).stats()) {
-                if (stats.name().equals(ThreadPool.Names.SNAPSHOT_UPLOAD)) {
-                    uploads += stats.completed();
+            final ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, node);
+            assertNull(threadPool.info(ThreadPool.Names.SNAPSHOT_UPLOAD));
+            for (var stats : threadPool.stats()) {
+                assertNotEquals(ThreadPool.Names.SNAPSHOT_UPLOAD, stats.name());
+                if (stats.name().equals(ThreadPool.Names.SNAPSHOT)) {
+                    uploadsOnSnapshotPool += stats.completed();
                 }
             }
         }
-        assertEquals(0L, uploads);
+        assertThat(uploadsOnSnapshotPool, greaterThan(0L));
     }
 }

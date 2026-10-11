@@ -18,6 +18,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.PrioritizedThrottledTaskRunner;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -46,6 +47,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -251,22 +253,31 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
      */
     private static class UploadNode implements Releasable {
         final ThreadPool threadPool;
-        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        // the settings that the stateless plugin registers for the service
+        final ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            Sets.union(
+                ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+                Set.of(
+                    UploadConcurrencyService.ADAPTIVE_UPLOAD_CONCURRENCY_ENABLED_SETTING,
+                    UploadConcurrencyService.UPLOAD_CONCURRENCY_MAX_SETTING
+                )
+            )
+        );
         final UploadConcurrencyService service;
         final int floor;
         private final List<Releasable> registrations = new ArrayList<>();
 
         UploadNode(int floor, int ceiling) {
             this.floor = floor;
-            threadPool = new TestThreadPool(
-                "upload-node",
-                Settings.builder()
-                    .put("thread_pool.snapshot.core", 1)
-                    .put("thread_pool.snapshot.max", floor)
-                    .put("thread_pool.snapshot_upload.core", 1)
-                    .put("thread_pool.snapshot_upload.max", ceiling)
-                    .build()
-            );
+            final Settings poolSettings = Settings.builder()
+                .put("thread_pool.snapshot.core", 1)
+                .put("thread_pool.snapshot.max", floor)
+                .put("thread_pool.snapshot_upload.core", 1)
+                .put("thread_pool.snapshot_upload.max", ceiling)
+                .build();
+            // the pool for uploads is one that the stateless plugin adds
+            threadPool = new TestThreadPool("upload-node", poolSettings, ThreadPool.snapshotUploadExecutorBuilder(poolSettings));
             service = new UploadConcurrencyService(clusterSettings, threadPool);
         }
 

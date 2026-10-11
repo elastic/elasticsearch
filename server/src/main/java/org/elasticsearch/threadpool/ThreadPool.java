@@ -136,8 +136,9 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
         public static final String WARMER = "warmer";
         public static final String SNAPSHOT = "snapshot";
         /**
-         * Runs shard snapshot uploads on stateless nodes while {@code indices.recovery.adaptive_upload_concurrency.enabled} is set
-         * (they run on {@link #SNAPSHOT} otherwise). Sized for the most uploads a node may run, the node adjusts how many it uses.
+         * Runs shard snapshot uploads while {@code indices.recovery.adaptive_upload_concurrency.enabled} is set (they run on
+         * {@link #SNAPSHOT} otherwise). Sized for the most uploads a node may run, the node adjusts how many it uses. Only stateless
+         * nodes have it, as the stateless plugin registers it, see {@link ThreadPool#snapshotUploadExecutorBuilder}.
          */
         public static final String SNAPSHOT_UPLOAD = "snapshot_upload";
         public static final String SNAPSHOT_META = "snapshot_meta";
@@ -204,7 +205,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
         entry(Names.REFRESH, ThreadPoolType.SCALING),
         entry(Names.WARMER, ThreadPoolType.SCALING),
         entry(Names.SNAPSHOT, ThreadPoolType.SCALING),
-        entry(Names.SNAPSHOT_UPLOAD, ThreadPoolType.SCALING),
         entry(Names.SNAPSHOT_META, ThreadPoolType.SCALING),
         entry(Names.MERGE, ThreadPoolType.SCALING),
         entry(Names.FORCE_MERGE, ThreadPoolType.FIXED),
@@ -743,6 +743,30 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
     public static int getMaxSnapshotUploadThreadPoolSize(int allocatedProcessors) {
         final ByteSizeValue maxHeapSize = ByteSizeValue.ofBytes(Runtime.getRuntime().maxMemory());
         return getMaxSnapshotUploadThreadPoolSize(allocatedProcessors, maxHeapSize, OsProbe.getInstance().getTotalPhysicalMemorySize());
+    }
+
+    /**
+     * The builder of the {@link Names#SNAPSHOT_UPLOAD} pool, which the stateless plugin registers. Sized by
+     * {@link #getMaxSnapshotUploadThreadPoolSize(int)}, but never smaller than the SNAPSHOT pool as configured, whose size an operator may
+     * have raised: uploads run on the SNAPSHOT pool when adaptive upload concurrency is off, and need as many threads here when it is on.
+     */
+    public static ExecutorBuilder<?> snapshotUploadExecutorBuilder(Settings settings) {
+        final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
+        // the SNAPSHOT pool's builder, to read its size from the settings as the pool does
+        final int snapshotPoolMax = new ScalingExecutorBuilder(
+            Names.SNAPSHOT,
+            1,
+            getMaxSnapshotThreadPoolSize(allocatedProcessors),
+            TimeValue.timeValueMinutes(5),
+            false
+        ).getMaxThreads(settings);
+        return new ScalingExecutorBuilder(
+            Names.SNAPSHOT_UPLOAD,
+            1,
+            Math.max(getMaxSnapshotUploadThreadPoolSize(allocatedProcessors), snapshotPoolMax),
+            TimeValue.timeValueMinutes(5),
+            false
+        );
     }
 
     static int getMaxSnapshotUploadThreadPoolSize(int allocatedProcessors, final ByteSizeValue maxHeapSize, long totalMemoryBytes) {

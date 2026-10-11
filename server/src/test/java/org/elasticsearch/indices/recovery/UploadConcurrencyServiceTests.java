@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.PrioritizedThrottledTaskRunner;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -32,6 +33,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.OptionalDouble;
 import java.util.OptionalLong;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -59,7 +61,7 @@ public class UploadConcurrencyServiceTests extends ESTestCase {
     public void createThreadPool() {
         // the upload pool is only larger than the snapshot pool on nodes with enough heap, which the tests cannot rely on
         final int snapshotMax = randomIntBetween(1, 4);
-        threadPool = new TestThreadPool(
+        threadPool = newThreadPool(
             getTestName(),
             Settings.builder()
                 .put("thread_pool.snapshot.core", 1)
@@ -67,6 +69,22 @@ public class UploadConcurrencyServiceTests extends ESTestCase {
                 .put("thread_pool.snapshot_upload.core", 1)
                 .put("thread_pool.snapshot_upload.max", snapshotMax + randomIntBetween(3, 10))
                 .build()
+        );
+    }
+
+    /** A thread pool with the pool for uploads, which the stateless plugin adds to the pools of its nodes. */
+    private static ThreadPool newThreadPool(String name, Settings settings) {
+        return new TestThreadPool(name, settings, ThreadPool.snapshotUploadExecutorBuilder(settings));
+    }
+
+    /** The settings of a node that has upload concurrency, which the stateless plugin registers. */
+    private static ClusterSettings newClusterSettings(Settings settings) {
+        return new ClusterSettings(
+            settings,
+            Sets.union(
+                ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+                Set.of(ADAPTIVE_UPLOAD_CONCURRENCY_ENABLED_SETTING, UPLOAD_CONCURRENCY_MAX_SETTING)
+            )
         );
     }
 
@@ -82,7 +100,7 @@ public class UploadConcurrencyServiceTests extends ESTestCase {
         final List<TimeValue> intervals = new CopyOnWriteArrayList<>();
 
         RecordingThreadPool(String name) {
-            super(name);
+            super(name, ThreadPool.snapshotUploadExecutorBuilder(Settings.EMPTY));
         }
 
         @Override
@@ -119,7 +137,7 @@ public class UploadConcurrencyServiceTests extends ESTestCase {
         final UploadConcurrencyService service;
 
         TestNode(Settings settings, ThreadPool pool) {
-            clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+            clusterSettings = newClusterSettings(settings);
             service = new UploadConcurrencyService(clusterSettings, pool, probes.probes(), nanoTime::get);
         }
 
@@ -693,7 +711,7 @@ public class UploadConcurrencyServiceTests extends ESTestCase {
 
     public void testDefaultSettingDoesNotClipTheLargestNodes() {
         // a node with the target of a 64GiB node: the pool allows 40, which the default of the setting must not cut
-        final ThreadPool xlargeThreadPool = new TestThreadPool(
+        final ThreadPool xlargeThreadPool = newThreadPool(
             getTestName() + "-xlarge",
             Settings.builder()
                 .put("thread_pool.snapshot.core", 1)
@@ -714,7 +732,7 @@ public class UploadConcurrencyServiceTests extends ESTestCase {
 
     public void testBudgetBacksOffAndRecoversToTheNodeTarget() {
         // a node with the target of an 8GiB node: today's concurrency is 10 and the pool allows 20
-        final ThreadPool largeThreadPool = new TestThreadPool(
+        final ThreadPool largeThreadPool = newThreadPool(
             getTestName() + "-large",
             Settings.builder()
                 .put("thread_pool.snapshot.core", 1)
@@ -773,7 +791,7 @@ public class UploadConcurrencyServiceTests extends ESTestCase {
             .put("thread_pool.snapshot_upload.core", 1)
             .put("thread_pool.snapshot_upload.max", snapshotMax)
             .build();
-        final ThreadPool guardedThreadPool = new TestThreadPool(getTestName() + "-guarded", poolSettings);
+        final ThreadPool guardedThreadPool = newThreadPool(getTestName() + "-guarded", poolSettings);
         try {
             final TestNode node = new TestNode(Settings.EMPTY, guardedThreadPool);
             node.apply(

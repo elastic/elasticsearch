@@ -99,6 +99,7 @@ import org.elasticsearch.indices.recovery.RecoveryGateMonitor;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
 import org.elasticsearch.indices.recovery.StatelessUnpromotableRelocationAction;
+import org.elasticsearch.indices.recovery.UploadConcurrencyService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
@@ -510,7 +511,9 @@ public class StatelessPlugin extends Plugin
                 TimeValue.timeValueMinutes(5),
                 true,
                 BLOB_COPY_THREAD_POOL_SETTING
-            ), };
+            ),
+            // for the upload concurrency of shard snapshots, which only stateless nodes adapt
+            ThreadPool.snapshotUploadExecutorBuilder(settings) };
     }
 
     private final SetOnce<SplitTargetService> splitTargetService = new SetOnce<>();
@@ -1436,6 +1439,8 @@ public class StatelessPlugin extends Plugin
             STATELESS_ENABLED,
             DATA_STREAMS_LIFECYCLE_ONLY_MODE,
             FAILURE_STORE_REFRESH_INTERVAL_SETTING,
+            UploadConcurrencyService.ADAPTIVE_UPLOAD_CONCURRENCY_ENABLED_SETTING,
+            UploadConcurrencyService.UPLOAD_CONCURRENCY_MAX_SETTING,
             ObjectStoreService.TYPE_SETTING,
             ObjectStoreService.BUCKET_SETTING,
             ObjectStoreService.CLIENT_SETTING,

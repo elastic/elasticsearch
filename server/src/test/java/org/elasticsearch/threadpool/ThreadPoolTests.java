@@ -429,13 +429,37 @@ public class ThreadPoolTests extends ESTestCase {
         assertThat(getMaxSnapshotUploadThreadPoolSize(allocatedProcessors, ByteSizeValue.ofGb(2), 0L), equalTo(10));
     }
 
+    public void testSnapshotUploadPoolOnlyExistsWhenAddedAndKeepsItsSettingKeys() {
+        // the pool is not one of the node's own: the stateless plugin adds it, with the usual settings of a scaling pool
+        assertFalse(ThreadPool.THREAD_POOL_TYPES.containsKey(ThreadPool.Names.SNAPSHOT_UPLOAD));
+        final ThreadPool without = new TestThreadPool("test");
+        try {
+            assertNull(without.info(ThreadPool.Names.SNAPSHOT_UPLOAD));
+        } finally {
+            terminate(without);
+        }
+        final int max = randomIntBetween(200, 300);
+        final Settings settings = Settings.builder()
+            .put("thread_pool.snapshot_upload.core", 2)
+            .put("thread_pool.snapshot_upload.max", max)
+            .build();
+        final ThreadPool with = new TestThreadPool("test", settings, ThreadPool.snapshotUploadExecutorBuilder(settings));
+        try {
+            assertThat(with.info(ThreadPool.Names.SNAPSHOT_UPLOAD).getMin(), equalTo(2));
+            assertThat(with.info(ThreadPool.Names.SNAPSHOT_UPLOAD).getMax(), equalTo(max));
+        } finally {
+            terminate(with);
+        }
+    }
+
     public void testSnapshotUploadPoolIsAtLeastAsLargeAsTheSnapshotPool() {
         // an operator may raise the SNAPSHOT pool, and uploads run with as many threads on either pool
         final int snapshotMax = randomIntBetween(200, 400);
-        final ThreadPool threadPool = new TestThreadPool(
-            "test",
-            Settings.builder().put("thread_pool.snapshot.core", 1).put("thread_pool.snapshot.max", snapshotMax).build()
-        );
+        final Settings settings = Settings.builder()
+            .put("thread_pool.snapshot.core", 1)
+            .put("thread_pool.snapshot.max", snapshotMax)
+            .build();
+        final ThreadPool threadPool = new TestThreadPool("test", settings, ThreadPool.snapshotUploadExecutorBuilder(settings));
         try {
             assertThat(threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(), equalTo(snapshotMax));
             assertThat(threadPool.info(ThreadPool.Names.SNAPSHOT_UPLOAD).getMax(), equalTo(snapshotMax));

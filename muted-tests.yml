@@ -657,3 +657,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/161633
+- class: org.elasticsearch.xpack.esql.datasource.parquet.ParquetPreWarmReleaseTests
+  method: testEarlyCloseReleasesTicket
+  issue: https://github.com/elastic/elasticsearch/issues/161642

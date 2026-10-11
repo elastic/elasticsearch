@@ -35,6 +35,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.doThrow;
@@ -93,7 +94,7 @@ public class ReindexIdTests extends AbstractAsyncBulkByPaginatedSearchActionTest
         );
         expectThrows(
             XContentParseException.class,
-            equalTo("[1:5] failed to convert hit [source_index][doc_123] from JSON to CBOR"),
+            containsString("failed to convert hit [source_index][doc_123] from JSON to CBOR"),
             () -> action.buildRequest(hit)
         );
     }

@@ -1,6 +1,6 @@
 {
   "index_patterns": ["${xpack.stack.querylog.template.pattern}"],
-  "priority": 250,
+  "priority": 240,
   "data_stream": {
     "hidden": false
   },

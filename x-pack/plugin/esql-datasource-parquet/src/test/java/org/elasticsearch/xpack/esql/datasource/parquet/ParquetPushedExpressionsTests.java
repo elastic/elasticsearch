@@ -820,6 +820,122 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         assertThat(fp.toString(), containsString("100"));
     }
 
+    // --- Genuine ESQL UNSIGNED_LONG column ---
+
+    /**
+     * Over a genuine {@code UINT_64}-annotated physical column, every comparison — ordered included — pushes: the
+     * sign-flip-encoded literal is un-flipped back to the file's raw bits (the encode is its own inverse), and
+     * parquet-mr applies its native UNSIGNED comparator to those bits, which agrees with ESQL's true-unsigned
+     * ordering.
+     */
+    public void testUnsignedLongOverUint64PushesOrderedAndUnflipsLiteral() {
+        MessageType schema = uint64Schema();
+
+        // raw == 5: a "large" unsigned magnitude (2^63 + 5) whose sign-flip-encoded literal is negative.
+        long encodedLiteral = ParquetColumnDecoding.encodeUnsignedLong(5L);
+        Expression gt = new GreaterThan(
+            Source.EMPTY,
+            attr("u64", DataType.UNSIGNED_LONG),
+            lit(encodedLiteral, DataType.UNSIGNED_LONG),
+            null
+        );
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(gt)).toFilterPredicate(schema);
+        assertNotNull("ordered comparison over a genuine uint64 column must push", fp);
+        assertThat(
+            "the pushed predicate must carry the raw (un-flipped) bits, not the encoded literal",
+            fp.toString(),
+            containsString("gt(u64, 5)")
+        );
+    }
+
+    public void testUnsignedLongOverUint64EqPushes() {
+        MessageType schema = uint64Schema();
+        long encodedLiteral = ParquetColumnDecoding.encodeUnsignedLong(5L);
+        Expression expr = eq("u64", DataType.UNSIGNED_LONG, encodedLiteral);
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString("eq(u64, 5)"));
+    }
+
+    /**
+     * A column DECLARED {@code unsigned_long} over a plain (non-annotated) physical {@code INT64} decodes its
+     * blocks sign-flip-encoded regardless of the missing annotation, but the file's own footer stats were computed
+     * under a SIGNED comparator — disagreeing with ESQL's unsigned ordering for any row group spanning both
+     * bit-pattern halves. Every ordered comparison must decline; eq/notEq are bit-exact
+     * membership tests and remain safe.
+     */
+    public void testUnsignedLongOverPlainInt64OrderedDeclinesButEqStillPushes() {
+        MessageType schema = Types.buildMessage().required(INT64).named("u").named("test");
+        long encodedLiteral = ParquetColumnDecoding.encodeUnsignedLong(100L);
+
+        Expression gt = new GreaterThan(Source.EMPTY, attr("u", DataType.UNSIGNED_LONG), lit(encodedLiteral, DataType.UNSIGNED_LONG), null);
+        assertNull(
+            "ordered comparison over a plain (non-annotated) INT64 must decline",
+            new ParquetPushedExpressions(List.of(gt)).toFilterPredicate(schema)
+        );
+
+        Expression eqExpr = eq("u", DataType.UNSIGNED_LONG, encodedLiteral);
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(eqExpr)).toFilterPredicate(schema);
+        assertNotNull("eq is bit-exact and must still push", fp);
+        assertThat(fp.toString(), containsString("eq(u, 100)"));
+    }
+
+    /**
+     * parquet-mr's IN pruning reduces the pushed set to one combined min/max pair using natural (signed) ordering;
+     * over a genuine uint64 column (row-group stats compared with the UNSIGNED comparator instead) that reduction
+     * corrupts the range whenever the raw bits straddle both sign halves.
+     */
+    public void testUnsignedLongInMixedSignOverUint64IsNotPushed() {
+        MessageType schema = uint64Schema();
+        Expression inExpr = new In(
+            Source.EMPTY,
+            attr("u64", DataType.UNSIGNED_LONG),
+            List.of(
+                lit(ParquetColumnDecoding.encodeUnsignedLong(100_000L), DataType.UNSIGNED_LONG),
+                lit(ParquetColumnDecoding.encodeUnsignedLong(-1L), DataType.UNSIGNED_LONG)
+            )
+        );
+        assertNull(
+            "a raw-bit sign-mixed IN set against a genuine uint64 column must not be pushed",
+            new ParquetPushedExpressions(List.of(inExpr)).toFilterPredicate(schema)
+        );
+    }
+
+    public void testUnsignedLongInAllSameSignOverUint64StillPushes() {
+        MessageType schema = uint64Schema();
+        Expression inExpr = new In(
+            Source.EMPTY,
+            attr("u64", DataType.UNSIGNED_LONG),
+            List.of(
+                lit(ParquetColumnDecoding.encodeUnsignedLong(-1L), DataType.UNSIGNED_LONG),
+                lit(ParquetColumnDecoding.encodeUnsignedLong(-2L), DataType.UNSIGNED_LONG)
+            )
+        );
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(inExpr)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString("in(u64"));
+    }
+
+    /**
+     * Over a plain (non-annotated) physical column, the row-group stats and parquet-mr's internal query-set
+     * summary both use the same (signed) comparator, so there is no combined-range corruption to guard against —
+     * a raw-bit sign mix still pushes.
+     */
+    public void testUnsignedLongInOverPlainInt64AlwaysPushes() {
+        MessageType schema = Types.buildMessage().required(INT64).named("u").named("test");
+        Expression inExpr = new In(
+            Source.EMPTY,
+            attr("u", DataType.UNSIGNED_LONG),
+            List.of(
+                lit(ParquetColumnDecoding.encodeUnsignedLong(100_000L), DataType.UNSIGNED_LONG),
+                lit(ParquetColumnDecoding.encodeUnsignedLong(-1L), DataType.UNSIGNED_LONG)
+            )
+        );
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(inExpr)).toFilterPredicate(schema);
+        assertNotNull("a sign-mixed IN set over a plain INT64 column has no combined-range hazard and must push", fp);
+        assertThat(fp.toString(), containsString("in(u"));
+    }
+
     // --- INT96 (skip pushdown) ---
 
     public void testToFilterPredicateInt96SkipsPushdown() {

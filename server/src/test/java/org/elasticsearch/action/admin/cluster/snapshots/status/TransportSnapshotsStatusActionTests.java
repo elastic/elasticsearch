@@ -84,7 +84,7 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
             threadPool,
             repositoriesService,
             nodeClient,
-            new ActionFilters(Set.of()),
+            ActionFilters.EMPTY,
             TestProjectResolvers.DEFAULT_PROJECT_ONLY
         );
     }

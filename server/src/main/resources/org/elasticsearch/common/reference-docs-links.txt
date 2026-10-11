@@ -52,3 +52,4 @@ DELETE_INDEX_BLOCK                                              api/doc/elastics
 ARCHIVED_SETTINGS                                               deploy-manage/upgrade/deployment-or-cluster/archived-settings
 MACHINE_LEARNING_SETTINGS                                       reference/elasticsearch/configuration-reference/machine-learning-settings
 SEARCH_TASK_WATCHDOG                                            reference/elasticsearch/configuration-reference/search-settings#search-task-watchdog-settings
+ESQL_HISTOGRAM_FIELDS_HISTORICAL_DATA                           reference/query-languages/esql/esql-histogram-fields#query-historical-data-alongside-new-data

@@ -9,8 +9,6 @@
 
 package org.elasticsearch.cluster;
 
-import com.carrotsearch.hppc.ObjectDoubleHashMap;
-
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -37,7 +35,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.DoubleSupplier;
 
 import static org.elasticsearch.cluster.routing.ShardRouting.newUnassigned;
 import static org.elasticsearch.cluster.routing.UnassignedInfo.Reason.REINITIALIZED;
@@ -85,14 +82,6 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
     // max heap size per node ID
     final Map<String, ByteSizeValue> maxHeapSizePerNode;
     final Set<String> nodeIdsWriteLoadHotspotting;
-    /**
-     * Cache the write load of the largest shard, per node, as a proportion of the sum of all the
-     * shard write loads on that node. Computed as an online cache.
-     * This is not serialized or compared within ClusterInfo, as its values are computed
-     * from {@link #shardWriteLoads} by an AllocationDecider.
-
-     */
-    final ObjectDoubleHashMap<String> nodeMaxShardWriteLoadProportion;
     private final Map<ShardId, Set<String>> shardToNodeIds;
 
     protected ClusterInfo() {
@@ -192,7 +181,6 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         this.shardWriteLoads = Map.copyOf(shardWriteLoads);
         this.maxHeapSizePerNode = Map.copyOf(maxHeapSizePerNode);
         this.nodeIdsWriteLoadHotspotting = Set.copyOf(nodeIdsWriteLoadHotspotting);
-        this.nodeMaxShardWriteLoadProportion = new ObjectDoubleHashMap<>(nodeIdsWriteLoadHotspotting.size());
         this.shardToNodeIds = shardToNodeIds;
     }
 
@@ -238,7 +226,6 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         } else {
             this.defaultShardHeapUsageForShardsWithoutMetrics = ShardAndIndexHeapUsage.ZERO;
         }
-        this.nodeMaxShardWriteLoadProportion = new ObjectDoubleHashMap<>(this.nodeIdsWriteLoadHotspotting.size());
         this.shardToNodeIds = computeShardToNodeIds(dataPath);
     }
 
@@ -504,34 +491,6 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
 
     public boolean nodeIsWriteLoadHotspotting(String nodeId) {
         return nodeIdsWriteLoadHotspotting.contains(nodeId);
-    }
-
-    public double nodeMaxShardWriteLoadProportion(String nodeId, DoubleSupplier computeIfMissing) {
-        if (nodeMaxShardWriteLoadProportion.containsKey(nodeId)) {
-            assert cachedValueIsConsistent(nodeId, computeIfMissing);
-            return nodeMaxShardWriteLoadProportion.get(nodeId);
-        } else {
-            double shardWriteLoadProportion = computeIfMissing.getAsDouble();
-            nodeMaxShardWriteLoadProportion.put(nodeId, shardWriteLoadProportion);
-            return shardWriteLoadProportion;
-        }
-    }
-
-    private boolean cachedValueIsConsistent(String nodeId, DoubleSupplier computeIfMissing) {
-        final double computed = computeIfMissing.getAsDouble();
-        final double cached = nodeMaxShardWriteLoadProportion.get(nodeId);
-        assert Math.abs(cached - computed) < 1e-9
-            : "We cached a different value than we calculated for "
-                + nodeId
-                + ", this shouldn't happen. cached != computed: "
-                + cached
-                + " != "
-                + computed;
-        return true;
-    }
-
-    public void invalidateNodeMaxShardWriteLoadProportion(String nodeId) {
-        nodeMaxShardWriteLoadProportion.remove(nodeId);
     }
 
     /**

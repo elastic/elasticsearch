@@ -55,7 +55,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -98,7 +97,7 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
         breakerService = newLimitedBreakerService(ByteSizeValue.ofMb(64));
         action = new TransportFetchPhaseCoordinationAction(
             transportService,
-            new ActionFilters(Set.of()),
+            ActionFilters.EMPTY,
             activeFetchPhaseTasks,
             breakerService,
             namedWriteableRegistry

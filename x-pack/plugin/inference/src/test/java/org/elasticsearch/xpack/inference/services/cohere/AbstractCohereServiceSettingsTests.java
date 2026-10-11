@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings.CohereApiVersion;
+import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
@@ -289,6 +290,19 @@ public abstract class AbstractCohereServiceSettingsTests<T extends CohereService
         String xContentResult = Strings.toString(builder);
 
         assertThat(xContentResult, containsString(CohereCommonServiceSettings.API_VERSION));
+    }
+
+    public void testUpdateServiceSettings_ApiKey_IsIgnored() {
+        var serviceSettings = createGivenCommonSettings(
+            new HashMap<>(Map.of(ServiceFields.MODEL_ID, TEST_MODEL_ID)),
+            ConfigurationParseContext.REQUEST
+        );
+
+        var updatedServiceSettings = serviceSettings.updateServiceSettings(
+            new HashMap<>(Map.of(DefaultSecretSettings.API_KEY, "secret-key"))
+        );
+
+        assertThat(updatedServiceSettings, is(serviceSettings));
     }
 
     public void testUpdateServiceSettings_GivenImmutableFields_ShouldThrow() {

@@ -345,7 +345,7 @@ public class LookupExecutionPlanner {
         OperatorFactory mvBulkLookupMvFilterOperatorFactory = new OperatorFactory() {
             @Override
             public Operator get(DriverContext driverContext) {
-                Warnings warnings = Warnings.createWarnings(driverContext.warningsMode(), lookupSource);
+                Warnings warnings = driverContext.createWarnings(lookupSource);
                 return new FilterOperator(new BulkLookupSingleValued(driverContext, channelOffset, warnings));
             }
 
@@ -535,7 +535,7 @@ public class LookupExecutionPlanner {
             SearchExecutionContext searchExecutionContext = lookupDriverContext.searchExecutionContext();
             IndexedByShardId<? extends ShardContext> shardContexts = new IndexedByShardIdFromSingleton<>(shardContext, shardId);
 
-            Warnings warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, planSource);
+            Warnings warnings = lookupDriverContext.createWarnings(planSource);
             QueryBuilder rewrittenQuery = rewriteQuery(query, searchExecutionContext);
 
             LookupEnrichQueryGenerator queryList = getBulkKeywordQueryGenerator(warnings);

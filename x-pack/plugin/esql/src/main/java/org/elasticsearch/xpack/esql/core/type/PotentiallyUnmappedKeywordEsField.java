@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Map;
 
 /**
  * This class is used as a marker for fields that may be unmapped, where an unmapped field is a field which exists in the _source but is not
@@ -21,11 +22,22 @@ public class PotentiallyUnmappedKeywordEsField extends KeywordEsField {
     public PotentiallyUnmappedKeywordEsField(String name) {
         // Use a mutable map: IndexResolver may add child fields into the properties when the keyword field
         // has multi-fields (e.g. "my_field.analyzed") that are also partially unmapped.
-        super(name, new HashMap<>(), true, Short.MAX_VALUE, false, false, TimeSeriesFieldType.UNKNOWN);
+        this(name, new HashMap<>());
+    }
+
+    // Visible for testing
+    public PotentiallyUnmappedKeywordEsField(String name, Map<String, EsField> properties) {
+        super(name, properties, true, Short.MAX_VALUE, false, false, TimeSeriesFieldType.UNKNOWN);
     }
 
     public PotentiallyUnmappedKeywordEsField(StreamInput in) throws IOException {
         super(in);
+    }
+
+    @Override
+    public EsField withProperties(Map<String, EsField> newProperties) {
+        // Preserve the unmapped marker so data nodes still load this field from _source where it is unmapped.
+        return new PotentiallyUnmappedKeywordEsField(getName(), newProperties);
     }
 
     public String getWriteableName(TransportVersion transportVersion) {

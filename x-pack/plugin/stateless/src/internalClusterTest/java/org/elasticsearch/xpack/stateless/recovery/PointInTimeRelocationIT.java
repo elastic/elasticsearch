@@ -784,7 +784,7 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         closePointInTime(updatedPit2.get());
     }
 
-    public void testPointInTimeRelocationReferencingTheSameCommit() {
+    public void testPointInTimeRelocationReferencingTheSameCommit() throws Exception {
         assumeTrue("Requires pit relocation feature flag", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
         var indexNode = startMasterAndIndexNode(nodeSettings);
         var searchNodeA = startSearchNode(nodeSettings);
@@ -822,6 +822,9 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", searchNodeCurrent));
         ensureGreen(indexName);
         assertThat(internalCluster().nodesInclude(indexName), hasItem(searchNodeNext));
+
+        // ensureGreen is not enough, the source node serves this PIT with the old id until its PIT contexts are gone.
+        waitForNoPITContextOnNode(searchNodeCurrent, 5);
 
         // PIT search should still work after relocation, with an updated PIT id
         var updatedPitId = new AtomicReference<BytesReference>();
@@ -1402,6 +1405,18 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         );
         assertClosePit(updatedPit1.get(), numberOfShards);
         assertClosePit(updatedPit2.get(), numberOfShards);
+    }
+
+    private void waitForNoPITContextOnNode(String searchNodeName, long maxWaitTimeSeconds) throws Exception {
+        assertBusy(
+            () -> assertEquals(
+                "Node " + searchNodeName + " should have no active PIT contexts.",
+                0,
+                internalCluster().getInstance(SearchService.class, searchNodeName).getActivePITContexts()
+            ),
+            maxWaitTimeSeconds,
+            TimeUnit.SECONDS
+        );
     }
 
     private void assertClosePit(BytesReference pitId, int expectedFreedContexts) {

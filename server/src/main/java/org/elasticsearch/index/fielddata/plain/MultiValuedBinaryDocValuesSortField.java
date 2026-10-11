@@ -66,6 +66,21 @@ public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
     }
 
     @Override
+    public boolean equals(Object obj) {
+        if (!super.equals(obj)) return false;
+        final MultiValuedBinaryDocValuesSortField other = (MultiValuedBinaryDocValuesSortField) obj;
+        return maxMode == other.maxMode && arrayOrder == other.arrayOrder;
+    }
+
+    @Override
+    public int hashCode() {
+        int h = super.hashCode();
+        h = 31 * h + Boolean.hashCode(maxMode);
+        h = 31 * h + Boolean.hashCode(arrayOrder);
+        return h;
+    }
+
+    @Override
     protected BinaryDocValues getSortKeyDocValues(LeafReader reader) throws IOException {
         BinaryDocValues values = DocValues.getBinary(reader, getField());
         String countsFieldName = getField() + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;

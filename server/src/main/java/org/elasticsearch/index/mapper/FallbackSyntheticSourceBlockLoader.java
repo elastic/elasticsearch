@@ -28,7 +28,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.Stack;
 
 import static org.elasticsearch.index.mapper.BlockSourceReader.ESTIMATED_SIZE;
 
@@ -118,7 +117,13 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
         private final SourceFilter sourceFilter;
         private final Reader<T> reader;
         private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
+        /**
+         * Only set for {@link IgnoredSourceFieldMapper.IgnoredSourceFormat#DOC_VALUES_IGNORED_SOURCE}. Unlike the stored field formats,
+         * this is a forward-only iterator, so it is what makes this reader unable to revisit a document. See {@link #canReuse}.
+         */
         private final MultiValuedSortedBinaryDocValues ignoredSourceDocValues;
+        private final Thread creationThread;
+        private int docId = -1;
 
         IgnoredSourceRowStrideReader(
             CircuitBreaker breaker,
@@ -130,6 +135,7 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
         ) throws IOException {
             breaker.addEstimateBytesAndMaybeBreak(ESTIMATED_SIZE, "load blocks");
             this.breaker = breaker;
+            this.creationThread = Thread.currentThread();
             this.fieldName = fieldName;
             this.sourceFilter = sourceFilter;
             this.reader = reader;
@@ -145,6 +151,9 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
 
         @Override
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
+            assert ignoredSourceDocValues == null || docId >= this.docId
+                : "docs must be read in order, got [" + docId + "] after [" + this.docId + "]";
+            this.docId = docId;
             Map<String, List<IgnoredSourceFieldMapper.NameValue>> valuesGroupedByParent = ignoredSourceFormat.loadIgnoredFields(
                 sourceFilter,
                 storedFields.storedFields(),
@@ -220,52 +229,44 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
             var type = XContentDataHelper.decodeType(nameValue.value());
             assert type.isPresent();
 
-            String nameAtThisLevel = fieldName.substring(nameValue.name().length() + 1);
-            var filterParserConfig = XContentParserConfiguration.EMPTY.withFiltering(null, Set.of(nameAtThisLevel), Set.of(), true);
             try (
                 XContentParser parser = type.get()
                     .xContent()
-                    .createParser(filterParserConfig, nameValue.value().bytes, nameValue.value().offset + 1, nameValue.value().length - 1)
+                    .createParser(
+                        XContentParserConfiguration.EMPTY,
+                        nameValue.value().bytes,
+                        nameValue.value().offset + 1,
+                        nameValue.value().length - 1
+                    )
             ) {
-                parser.nextToken();
-                var fieldNames = new Stack<String>() {
-                    {
-                        push(nameValue.name());
-                    }
-                };
+                if (parser.nextToken() != null) {
+                    parseFieldAtPath(parser, nameValue.name(), blockValues);
+                }
+            }
+        }
 
-                while (parser.currentToken() != null) {
-                    // We are descending into an object/array hierarchy of arbitrary depth
-                    // until we find the field that we need.
-                    while (true) {
-                        if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
-                            fieldNames.push(parser.currentName());
-                            var nameInParser = String.join(".", fieldNames);
-                            if (nameInParser.equals(fieldName)) {
-                                parser.nextToken();
-                                break;
-                            }
-                        } else {
-                            assert parser.currentToken() == XContentParser.Token.START_OBJECT
-                                || parser.currentToken() == XContentParser.Token.START_ARRAY;
-                        }
-
-                        parser.nextToken();
-                    }
-                    parseWithReader(parser, blockValues);
+        private void parseFieldAtPath(XContentParser parser, String path, List<T> blockValues) throws IOException {
+            assert fieldName.startsWith(path) && path.length() < fieldName.length() : "[" + path + "] not prefix of [" + fieldName + "]";
+            XContentParser.Token token = parser.currentToken();
+            if (token == XContentParser.Token.START_OBJECT) {
+                while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
+                    String childPath = path + "." + parser.currentName();
                     parser.nextToken();
-
-                    // We are coming back up in object/array hierarchy.
-                    // If arrays are present we will explore all array items by going back down again.
-                    while (parser.currentToken() == XContentParser.Token.END_OBJECT
-                        || parser.currentToken() == XContentParser.Token.END_ARRAY) {
-                        // When exiting an object arrays we'll see END_OBJECT followed by END_ARRAY, but we only need to pop the object name
-                        // once.
-                        if (parser.currentToken() == XContentParser.Token.END_OBJECT) {
-                            fieldNames.pop();
+                    if (fieldName.startsWith(childPath)) {
+                        if (childPath.length() == fieldName.length()) {
+                            parseWithReader(parser, blockValues);
+                        } else if (fieldName.charAt(childPath.length()) == '.') {
+                            parseFieldAtPath(parser, childPath, blockValues);
+                        } else {
+                            parser.skipChildren();
                         }
-                        parser.nextToken();
+                    } else {
+                        parser.skipChildren();
                     }
+                }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                for (token = parser.nextToken(); token != null && token != XContentParser.Token.END_ARRAY; token = parser.nextToken()) {
+                    parseFieldAtPath(parser, path, blockValues);
                 }
             }
         }
@@ -276,7 +277,12 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
 
         @Override
         public boolean canReuse(int startingDocID) {
-            return true;
+            if (ignoredSourceDocValues == null) {
+                // The stored field formats read _ignored_source through the shared StoredFields, which the caller repositions per
+                // document, so this reader keeps no position of its own.
+                return true;
+            }
+            return creationThread == Thread.currentThread() && docId <= startingDocID;
         }
 
         @Override
@@ -334,14 +340,8 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
                 return;
             }
             if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
-                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                    if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-                        if (nullValue != null) {
-                            convertValue(nullValue, accumulator);
-                        }
-                    } else {
-                        parseNonNullValue(parser, accumulator);
-                    }
+                for (var token = parser.nextToken(); token != null && token != XContentParser.Token.END_ARRAY; token = parser.nextToken()) {
+                    parse(parser, accumulator);
                 }
                 return;
             }

@@ -66,6 +66,7 @@ public class InferenceFeatures implements FeatureSpecification {
     private static final NodeFeature COHERE_V2_API = new NodeFeature("inference.cohere.v2");
     public static final NodeFeature SEMANTIC_TEXT_HIGHLIGHTING_FLAT = new NodeFeature("semantic_text.highlighter.flat_index_options");
     private static final NodeFeature SEMANTIC_TEXT_FIELDS_CHUNKS_FORMAT = new NodeFeature("semantic_text.fields_chunks_format");
+    private static final NodeFeature SEMANTIC_EXISTS_QUERY_AUTO_PREFILTER_FIX = new NodeFeature("semantic.exists_query_auto_prefilter_fix");
 
     public static final NodeFeature INFERENCE_ENDPOINT_CACHE = new NodeFeature("inference.endpoint.cache");
     public static final NodeFeature INFERENCE_CCM_CACHE = new NodeFeature("inference.ccm.cache");
@@ -165,7 +166,8 @@ public class InferenceFeatures implements FeatureSpecification {
                 SEMANTIC_TEXT_EMBEDDING_TASK,
                 SemanticTextFieldMapper.SEMANTIC_TEXT_ORIGINAL_VALUES_DOC_VALUES,
                 SemanticFieldMapper.SEMANTIC_FIELD_MAPPER,
-                TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_EMPTY_RESULT_FIX
+                TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_EMPTY_RESULT_FIX,
+                SEMANTIC_EXISTS_QUERY_AUTO_PREFILTER_FIX
             )
         );
         testFeatures.addAll(getFeatures());

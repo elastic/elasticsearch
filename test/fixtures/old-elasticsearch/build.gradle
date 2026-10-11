@@ -7,6 +7,8 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
+import org.elasticsearch.gradle.Architecture
+
 apply plugin: 'elasticsearch.java'
 apply plugin: 'elasticsearch.cache-test-fixtures'
 apply plugin: 'elasticsearch.deploy-test-fixtures'
@@ -16,48 +18,61 @@ description = 'Testcontainers fixture for old Elasticsearch versions'
 def fixtureVersion = '1.3'
 def sharedDockerContext = project.file('src/main/resources/docker')
 
+// Elasticsearch only started publishing native linux-aarch64 distributions in 7.8.0. Earlier
+// majors ship x86-oriented distributions that do not start under aarch64 (see
+// OldElasticsearchContainer#start), so we build and publish their fixture images for amd64 only
+// rather than baking and pushing an arm64 manifest that cannot run.
+def amd64Only = [Architecture.X64.dockerPlatform]
+
 dockerFixtures {
   create('old-elasticsearch-0-90-13') {
     dockerContext = sharedDockerContext
     version = fixtureVersion
     baseImages = ['eclipse-temurin:8-jdk']
     buildArgs = ['ES_VERSION': '0.90.13']
+    platforms = amd64Only
   }
   create('old-elasticsearch-1-7-6') {
     dockerContext = sharedDockerContext
     version = fixtureVersion
     baseImages = ['eclipse-temurin:8-jdk']
     buildArgs = ['ES_VERSION': '1.7.6']
+    platforms = amd64Only
   }
   create('old-elasticsearch-2-4-5') {
     dockerContext = sharedDockerContext
     version = fixtureVersion
     baseImages = ['eclipse-temurin:8-jdk']
     buildArgs = ['ES_VERSION': '2.4.5']
+    platforms = amd64Only
   }
   create('old-elasticsearch-5-0-0') {
     dockerContext = sharedDockerContext
     version = fixtureVersion
     baseImages = ['eclipse-temurin:8-jdk']
     buildArgs = ['ES_VERSION': '5.0.0']
+    platforms = amd64Only
   }
   create('old-elasticsearch-5-6-16') {
     dockerContext = sharedDockerContext
     version = fixtureVersion
     baseImages = ['eclipse-temurin:8-jdk']
     buildArgs = ['ES_VERSION': '5.6.16']
+    platforms = amd64Only
   }
   create('old-elasticsearch-6-0-0') {
     dockerContext = sharedDockerContext
     version = fixtureVersion
     baseImages = ['eclipse-temurin:8-jdk']
     buildArgs = ['ES_VERSION': '6.0.0']
+    platforms = amd64Only
   }
   create('old-elasticsearch-6-8-20') {
     dockerContext = sharedDockerContext
     version = fixtureVersion
     baseImages = ['eclipse-temurin:8-jdk']
     buildArgs = ['ES_VERSION': '6.8.20']
+    platforms = amd64Only
   }
   create('old-elasticsearch-7-9-3') {
     dockerContext = sharedDockerContext

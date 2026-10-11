@@ -1,6 +1,0 @@
-pr: 155853
-summary: Upgrade JANSI to 2.4.3 to fix terminal detection on zlib-ng based systems (EL10)
-area: Infra/CLI
-type: bug
-issues:
- - 154510

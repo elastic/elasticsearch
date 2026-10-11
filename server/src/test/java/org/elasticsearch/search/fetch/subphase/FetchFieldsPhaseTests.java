@@ -109,20 +109,48 @@ public class FetchFieldsPhaseTests extends ESTestCase {
         dir.close();
     }
 
-    public void testStoredFieldsSpec() {
-        StoredFieldsContext storedFieldsContext = StoredFieldsContext.fromList(List.of("stored", "_metadata"));
-        FetchFieldsContext ffc = new FetchFieldsContext(List.of(new FieldAndFormat("field", null)));
+    public void testStoredFieldsSpecIncludesTypeWhenMetadata() {
+        assertStoredFieldsSpec(true, StoredFieldsContext.fromList(List.of("stored", "_metadata")));
+    }
 
+    public void testStoredFieldsSpecExcludesTypeWhenNotMetadata() {
+        // Explicit stored_fields list takes the if-branch in FetchFieldsPhase#getProcessor.
+        assertStoredFieldsSpec(false, StoredFieldsContext.fromList(List.of("stored", "_metadata")));
+    }
+
+    public void testDefaultSearchExcludesTypeWhenNotMetadata() {
+        // Plain _search uses StoredFieldsContext.metadataOnly() (null fieldNames), the else-branch.
+        assertStoredFieldsSpec(false, StoredFieldsContext.metadataOnly());
+    }
+
+    public void testDefaultSearchIncludesTypeWhenMetadata() {
+        assertStoredFieldsSpec(true, StoredFieldsContext.metadataOnly());
+    }
+
+    /**
+     * Builds a FetchFieldsPhase processor and asserts which default metadata fields land in the
+     * stored-fields spec when {@code _type} is or is not a metadata mapper.
+     */
+    private static void assertStoredFieldsSpec(boolean typeIsMetadata, StoredFieldsContext storedFieldsContext) {
+        FetchFieldsContext ffc = new FetchFieldsContext(List.of(new FieldAndFormat("field", null)));
         SearchLookup searchLookup = mock(SearchLookup.class);
 
         SearchExecutionContext sec = mock(SearchExecutionContext.class);
-        when(sec.isMetadataField(any())).then(invocation -> invocation.getArguments()[0].toString().startsWith("_"));
+        // Treat underscore-prefixed names as metadata, except a user-mapped `_type` when typeIsMetadata
+        // is false. `_type` is only a real metadata mapper on pre-6.0 archived indices.
+        when(sec.isMetadataField(any())).then(invocation -> {
+            String field = invocation.getArguments()[0].toString();
+            if ("_type".equals(field)) {
+                return typeIsMetadata;
+            }
+            return field.startsWith("_");
+        });
 
         MappedFieldType routingFt = mock(MappedFieldType.class);
         when(routingFt.valueFetcher(any(), any())).thenReturn(new StoredValueFetcher(searchLookup, "_routing"));
         when(sec.getFieldType(eq("_routing"))).thenReturn(routingFt);
 
-        // this would normally not be mapped -> getMatchingFieldsNames would not resolve it (unless for older archive indices)
+        // Included in the default metadata list; kept only when isMetadataField("_type") is true.
         MappedFieldType typeFt = mock(MappedFieldType.class);
         when(typeFt.valueFetcher(any(), any())).thenReturn(new StoredValueFetcher(searchLookup, "_type"));
         when(sec.getFieldType(eq("_type"))).thenReturn(typeFt);
@@ -132,7 +160,8 @@ public class FetchFieldsPhaseTests extends ESTestCase {
         when(sec.getFieldType(eq("_ignored"))).thenReturn(ignoredFt);
 
         // Ideally we would test that explicitly requested stored fields are included in stored fields spec, but isStored is final hence it
-        // can't be mocked. In reality, _metadata would be included but stored would not.
+        // can't be mocked. In reality, _metadata would be included but stored would not. These stubs exist only so getFieldType does not
+        // return null if the if-branch resolves names from the stored_fields list.
         MappedFieldType storedFt = mock(MappedFieldType.class);
         when(sec.getFieldType(eq("stored"))).thenReturn(storedFt);
         MappedFieldType metadataFt = mock(MappedFieldType.class);
@@ -159,12 +188,19 @@ public class FetchFieldsPhaseTests extends ESTestCase {
         when(fetchContext.fetchFieldsContext()).thenReturn(ffc);
         when(fetchContext.storedFieldsContext()).thenReturn(storedFieldsContext);
         when(fetchContext.getSearchExecutionContext()).thenReturn(sec);
+
         FetchFieldsPhase fetchFieldsPhase = new FetchFieldsPhase();
         FetchSubPhaseProcessor processor = fetchFieldsPhase.getProcessor(fetchContext);
+        assertNotNull(processor);
         StoredFieldsSpec storedFieldsSpec = processor.storedFieldsSpec();
-        assertEquals(3, storedFieldsSpec.requiredStoredFields().size());
         assertTrue(storedFieldsSpec.requiredStoredFields().contains("_routing"));
         assertTrue(storedFieldsSpec.requiredStoredFields().contains("_ignored"));
-        assertTrue(storedFieldsSpec.requiredStoredFields().contains("_type"));
+        if (typeIsMetadata) {
+            assertTrue(storedFieldsSpec.requiredStoredFields().contains("_type"));
+            assertEquals(3, storedFieldsSpec.requiredStoredFields().size());
+        } else {
+            assertFalse(storedFieldsSpec.requiredStoredFields().contains("_type"));
+            assertEquals(2, storedFieldsSpec.requiredStoredFields().size());
+        }
     }
 }

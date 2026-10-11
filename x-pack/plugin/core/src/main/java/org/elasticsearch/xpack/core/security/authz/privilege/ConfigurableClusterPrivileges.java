@@ -687,7 +687,8 @@ public final class ConfigurableClusterPrivileges {
                                     indexPrivilege -> requestIndexPatternsAllowed(
                                         indicesPermission,
                                         indexPrivilege.getIndices(),
-                                        indexPrivilege.getPrivileges()
+                                        indexPrivilege.getPrivileges(),
+                                        indexPrivilege.allowRestrictedIndices()
                                     ) == false
                                 );
                     } else if (request instanceof final BulkPutRolesRequest bulkPutRoleRequest) {
@@ -700,7 +701,8 @@ public final class ConfigurableClusterPrivileges {
                                             indexPrivilege -> requestIndexPatternsAllowed(
                                                 indicesPermission,
                                                 indexPrivilege.getIndices(),
-                                                indexPrivilege.getPrivileges()
+                                                indexPrivilege.getPrivileges(),
+                                                indexPrivilege.allowRestrictedIndices()
                                             ) == false
                                         )
                                 );
@@ -708,13 +710,15 @@ public final class ConfigurableClusterPrivileges {
                         return requestIndexPatternsAllowed(
                             indicesPermission,
                             new String[] { deleteRoleRequest.name() },
-                            DELETE_INDEX.name().toArray(String[]::new)
+                            DELETE_INDEX.name().toArray(String[]::new),
+                            false
                         );
                     } else if (request instanceof final BulkDeleteRolesRequest bulkDeleteRoleRequest) {
                         return requestIndexPatternsAllowed(
                             indicesPermission,
                             bulkDeleteRoleRequest.getRoleNames().toArray(String[]::new),
-                            DELETE_INDEX.name().toArray(String[]::new)
+                            DELETE_INDEX.name().toArray(String[]::new),
+                            false
                         );
                     }
                     throw new IllegalArgumentException("Unsupported request type [" + request.getClass() + "]");
@@ -918,9 +922,11 @@ public final class ConfigurableClusterPrivileges {
         private static boolean requestIndexPatternsAllowed(
             IndicesPermission indicesPermission,
             String[] requestIndexPatterns,
-            String[] privileges
+            String[] privileges,
+            boolean allowRestrictedIndices
         ) {
-            return indicesPermission.checkResourcePrivileges(Set.of(requestIndexPatterns), false, Set.of(privileges), true, null);
+            return allowRestrictedIndices == false
+                && indicesPermission.checkResourcePrivileges(Set.of(requestIndexPatterns), false, Set.of(privileges), true, null);
         }
 
         private static boolean hasNonIndexPrivileges(RoleDescriptor roleDescriptor) {

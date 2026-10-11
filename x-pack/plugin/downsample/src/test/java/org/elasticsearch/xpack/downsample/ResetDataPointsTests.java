@@ -201,6 +201,31 @@ public class ResetDataPointsTests extends ESTestCase {
         });
     }
 
+    /**
+     * Adding the same field name at the same timestamp twice must be ignored (defensive guard).
+     * In test builds with assertions enabled, this also fires an AssertionError so callers notice
+     * the violation immediately; the second add is still silently dropped so production keeps running.
+     */
+    public void testDuplicateDataPointIsIgnored() throws IOException {
+        ResetDataPoints dataPoints = new ResetDataPoints();
+        ExponentialHistogram h = histogram(1.0, 2.0);
+        long timestamp = randomLongBetween(100, 10000);
+
+        dataPoints.addDataPoint("latency", new ResetDataPoints.ResetPoint(timestamp, h));
+
+        // A second add for the same (field, timestamp) pair should be rejected with an AssertionError
+        // (assertions are always enabled in the test JVM) but must not corrupt the stored state.
+        expectThrows(AssertionError.class, () -> dataPoints.addDataPoint("latency", new ResetDataPoints.ResetPoint(timestamp, h)));
+
+        // Exactly one document and one entry for "latency"
+        assertThat(dataPoints.countResetDocuments(), equalTo(1));
+        dataPoints.processDataPoints((ts, values) -> {
+            assertThat(ts, equalTo(timestamp));
+            assertThat(values, hasSize(1));
+            assertThat(values.get(0).v1(), equalTo("latency"));
+        });
+    }
+
     public void testResetPointConvenienceConstructors() {
         var counterPoint = new ResetDataPoints.ResetPoint(100L, 42.0);
         assertThat(counterPoint.value(), equalTo(new ResetDataPoints.CounterResetValue(42.0)));

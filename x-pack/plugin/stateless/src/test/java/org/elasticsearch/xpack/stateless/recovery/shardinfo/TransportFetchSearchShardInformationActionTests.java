@@ -47,7 +47,6 @@ import org.mockito.ArgumentCaptor;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -89,7 +88,7 @@ public class TransportFetchSearchShardInformationActionTests extends ESTestCase 
         clusterService,
         DefaultProjectResolver.INSTANCE,
         transportService,
-        new ActionFilters(new HashSet<>()),
+        ActionFilters.EMPTY,
         indicesService
     );
 

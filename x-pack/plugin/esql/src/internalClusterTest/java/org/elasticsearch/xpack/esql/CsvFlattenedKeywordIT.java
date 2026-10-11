@@ -29,7 +29,6 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.AfterClass;
-import org.junit.AssumptionViolatedException;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -1292,34 +1291,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
             }
         }
 
-        /**
-         * An {@link AssumptionViolatedException} that does not carry a stack trace.
-         * <p>
-         * This variant skips the large majority of the CSV corpus &mdash; thousands of tests &mdash; and JUnit serialises
-         * the full stack trace of each thrown exception into the {@code <skipped>} element of the results XML. Those traces
-         * are identical from one skip to the next and add nothing beyond the human-readable message, yet at corpus scale
-         * they inflate the XML to tens of megabytes. The two overrides below reproduce the effect of constructing a
-         * {@link Throwable} with {@code writableStackTrace=false} &mdash; the constructor parameter that
-         * {@link AssumptionViolatedException} does not expose: {@link #fillInStackTrace()} never records a trace, and
-         * {@link #setStackTrace} ignores the synthetic seed frame the randomized runner would otherwise splice in. Each
-         * skip therefore keeps its reason while dropping the redundant trace entirely.
-         */
-        private static final class StacklessAssumptionViolatedException extends AssumptionViolatedException {
-            StacklessAssumptionViolatedException(String message) {
-                super(message);
-            }
-
-            @Override
-            public synchronized Throwable fillInStackTrace() {
-                return this;
-            }
-
-            @Override
-            public void setStackTrace(StackTraceElement[] stackTrace) {
-                // Intentionally a no-op: mirrors writableStackTrace=false so the randomized runner cannot re-attach a
-                // (single, identical) seed frame to the otherwise empty trace.
-            }
-        }
     }
 
     public static final java.util.List<String> EXPECTED_ERRORS = java.util.List.of(

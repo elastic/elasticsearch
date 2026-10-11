@@ -81,7 +81,7 @@ COPY --chmod=664 config/elasticsearch.yml config/log4j2.properties config/
 FROM ${base_image}
 
 RUN microdnf install --setopt=tsflags=nodocs -y \\
-    nc shadow-utils zip unzip findutils procps-ng && \\
+    nc shadow-utils tar zip unzip findutils procps-ng && \\
     microdnf clean all
 
 RUN groupadd -g 1000 elasticsearch && \\

@@ -107,7 +107,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Match", Match::readFrom);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Match.class)
         .ternaryConfig(Match::new)
-        .capabilities("runtime_filter", "unmapped_fields_pushdown_fix")
+        .capabilities("runtime_filter", "unmapped_fields_pushdown_fix", "to_text_on_indexed_field_fix", "to_string_on_indexed_field_fix")
         .name("match");
     public static final Set<DataType> FIELD_DATA_TYPES = Set.of(
         NULL,

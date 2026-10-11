@@ -173,7 +173,7 @@ public class MvSingleValueOrNull extends AbstractMultivalueFunction {
             if (warningsList == null) {
                 warningsList = new ArrayList<>(warningSources.size());
                 for (Source s : warningSources) {
-                    warningsList.add(Warnings.createWarnings(driverContext.warningsMode(), s));
+                    warningsList.add(driverContext.createWarnings(s));
                 }
             }
             return warningsList;

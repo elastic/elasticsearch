@@ -190,13 +190,14 @@ class TSDBSyntheticIdDocValuesHolder {
 
     /**
      * Use a doc values skipper to find a starting document ID for the provided _tsid ordinal. The returned document ID might have the
-     * exact _tsid ordinal provided, or a lower one.
+     * exact _tsid ordinal provided, or a lower one; every document before it is guaranteed to have a lower _tsid ordinal. Returns
+     * {@link DocIdSetIterator#NO_MORE_DOCS} if the provided ordinal is greater than every ordinal in the segment.
      *
      * @param tsIdOrd the _tsid ordinal
      * @return a docID to start scanning documents from in order to find the first document ID matching the provided _tsid
      * @throws IOException if any I/O exception occurs
      */
-    private int findStartDocIDForTsIdOrd(int tsIdOrd) throws IOException {
+    int findStartDocIDForTsIdOrd(int tsIdOrd) throws IOException {
         assert tsIdOrd >= 0 : tsIdOrd;
         if (hasTsIdSkipper == false) {
             return 0;

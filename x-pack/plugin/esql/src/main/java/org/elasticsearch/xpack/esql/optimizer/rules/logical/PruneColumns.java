@@ -196,13 +196,21 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         return p;
     }
 
+    /**
+     * Prunes unreferenced attributes for the two index modes where {@code InsertFieldExtraction} doesn't already trim to the
+     * fields the query needs.
+     * <p>
+     * {@link IndexMode#LOOKUP}: the right-hand index of a LOOKUP JOIN extracts every field except the join key.
+     * <p>
+     * {@link IndexMode#TIME_SERIES}: a {@code TS} relation resolves all of the index's dimensions, so a wide metrics mapping carries
+     * hundreds of unreferenced attributes into the plan fragment shipped to every data node. Besides the wasted bandwidth, an
+     * unreferenced field drags its sub-fields along in {@code EsField#properties}, and a sub-field whose type conflicts across indices
+     * cannot be serialized (#152322). Rules that read dimensions run earlier in the analyzer, so anything they need is already referenced.
+     */
     private static LogicalPlan pruneColumnsInEsRelation(EsRelation esr, AttributeSet.Builder used) {
         LogicalPlan p = esr;
 
-        if (esr.indexMode() == IndexMode.LOOKUP) {
-            // Normally, pruning EsRelation has no effect because InsertFieldExtraction only extracts the required fields, anyway.
-            // However, InsertFieldExtraction can't be currently used in LOOKUP JOIN right index,
-            // it works differently as we extract all fields (other than the join key) that the EsRelation has.
+        if (esr.indexMode() == IndexMode.LOOKUP || esr.indexMode() == IndexMode.TIME_SERIES) {
             var remaining = pruneUnusedAndAddReferences(esr.output(), used);
             if (remaining != null) {
                 p = esr.withAttributes(remaining);

@@ -231,7 +231,7 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
         TestTransportGetCheckpointAction() {
             super(
                 transportService,
-                new ActionFilters(emptySet()),
+                ActionFilters.EMPTY,
                 indicesService,
                 clusterService,
                 indexNameExpressionResolver,
@@ -263,7 +263,7 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
         private int calls;
 
         TestTransportGetCheckpointNodeAction() {
-            super(transportService, new ActionFilters(emptySet()), indicesService);
+            super(transportService, ActionFilters.EMPTY, indicesService);
             calls = 0;
             mockIndicesService = mock(IndicesService.class);
             for (int i = 0; i < numberOfIndices; ++i) {

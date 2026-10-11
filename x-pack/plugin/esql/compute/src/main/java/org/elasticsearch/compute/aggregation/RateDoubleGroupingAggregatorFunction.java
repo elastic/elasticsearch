@@ -62,7 +62,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
 
         @Override
         public RateDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
-            var warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+            var warnings = driverContext.createWarnings(source);
             return new RateDoubleGroupingAggregatorFunction(channels, driverContext, isRateOverTime, isDateNanos, warnings);
         }
 

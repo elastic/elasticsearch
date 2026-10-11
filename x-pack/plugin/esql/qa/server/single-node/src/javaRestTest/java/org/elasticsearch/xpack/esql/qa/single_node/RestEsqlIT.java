@@ -90,7 +90,7 @@ import static org.hamcrest.core.Is.is;
 public class RestEsqlIT extends RestEsqlTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(
-        specBuilder -> specBuilder.plugin("mapper-size").plugin("mapper-murmur3")
+        specBuilder -> specBuilder.name("esql-cluster").plugin("mapper-size").plugin("mapper-murmur3")
     );
 
     @Override
@@ -381,7 +381,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> plans = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("plans");
         for (Map<String, Object> plan : plans) {
-            assertThat(plan.get("cluster_name"), equalTo("test-cluster"));
+            assertThat(plan.get("cluster_name"), equalTo("esql-cluster"));
             assertThat(plan.get("node_name"), notNullValue());
             assertThat(plan.get("plan"), notNullValue());
             String description = (String) plan.get("description");
@@ -433,7 +433,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         // At least 1 metadata event to declare the node, and 2 events each for the data, node_reduce and final drivers, resp.
         assertThat(events.size(), greaterThanOrEqualTo(7));
 
-        String clusterName = "test-cluster";
+        String clusterName = "esql-cluster";
         Set<String> expectedProcessNames = new HashSet<>();
         for (int i = 0; i < cluster.getNumNodes(); i++) {
             expectedProcessNames.add(clusterName + ":" + cluster.getName(i));
@@ -1442,9 +1442,10 @@ public class RestEsqlIT extends RestEsqlTestCase {
                     String name = signature(o);
                     if (name.equals("LuceneSourceOperator")) {
                         // AUTO routes to DOC (docs_threshold_auto_partitioning=20 is below this
-                        // index's 1000 docs), but the DOC partitioner floors slice size at
-                        // MIN_DOCS_PER_SLICE (50_000), so this 1000-doc index must stay on a
-                        // single slice — the previous behavior over-split tiny indices.
+                        // index's 1000 docs), but the DOC partitioner caps slices at
+                        // totalDocs / MIN_DOCS_PER_SLICE (50_000), so this 1000-doc index —
+                        // even when Lucene flushed multiple segments — must stay on a single
+                        // slice rather than opening one bin per segment.
                         MapMatcher status = matchesMap().entry("total_slices", equalTo(1))
                             .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "DOC"))
                             .extraOk();

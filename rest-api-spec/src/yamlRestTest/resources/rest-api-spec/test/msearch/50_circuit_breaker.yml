@@ -15,7 +15,7 @@ teardown:
             indices.breaker.request.limit: null
 
 ---
-"msearch circuit breaker trips and returns failure item without aborting the request":
+"msearch circuit breaker trip aborts the whole request with a top-level 429":
   - do:
       indices.create:
         index: msearch-cb-test
@@ -208,9 +208,8 @@ teardown:
           persistent:
             indices.breaker.request.limit: "63000b"
 
-  # max_concurrent_searches=1 forces sequential execution so sub-search 0 completes and
-  # its estimate is reserved before sub-search 1 starts.
   - do:
+      catch: /circuit_breaking_exception/
       msearch:
         max_concurrent_searches: 1
         body:
@@ -218,10 +217,9 @@ teardown:
           - { query: { match_all: {} }, size: 80 }
           - index: msearch-cb-test
           - { query: { match_all: {} }, size: 80 }
+          - index: msearch-cb-test-missing
+          - { query: { match_all: {} } }
 
-  # Sub-search 0 completes normally.
-  - match: { responses.0.status: 200 }
-  - match: { responses.0.hits.total.value: 80 }
-  # Sub-search 1 is rejected by the circuit breaker; the overall request still returns HTTP 200.
-  - match: { responses.1.status: 429 }
-  - match: { responses.1.error.type: circuit_breaking_exception }
+  # The whole request is rejected with a single top-level 429; there is no per-sub-search responses array.
+  - match: { status: 429 }
+  - match: { error.type: circuit_breaking_exception }

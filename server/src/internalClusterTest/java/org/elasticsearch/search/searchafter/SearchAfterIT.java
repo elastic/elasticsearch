@@ -135,6 +135,17 @@ public class SearchAfterIT extends ESIntegTestCase {
                 assertThat(failure.toString(), containsString("Failed to parse search_after value for field [field1]."));
             }
         }
+
+        {
+            SearchPhaseExecutionException e = expectThrows(
+                SearchPhaseExecutionException.class,
+                prepareSearch("test").setQuery(matchAllQuery()).addSort("field1", SortOrder.ASC).searchAfter(new Object[] { null })
+            );
+            assertTrue(e.shardFailures().length > 0);
+            for (ShardSearchFailure failure : e.shardFailures()) {
+                assertThat(failure.toString(), containsString("cannot be null for sort field [field1]"));
+            }
+        }
     }
 
     public void testWithNullStrings() throws InterruptedException {

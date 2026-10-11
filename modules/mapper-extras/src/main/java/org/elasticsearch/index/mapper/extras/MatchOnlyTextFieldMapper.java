@@ -91,14 +91,13 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryM
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesAutomatonQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesPrefixQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRegexpQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermInSetQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
-import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesWildcardQuery;
-import org.elasticsearch.lucene.queries.SortedSetDocValuesRangeQuery;
+import org.elasticsearch.lucene.queries.XSortedSetDocValuesRangeQuery;
 import org.elasticsearch.lucene.search.FuzzyQueries;
-import org.elasticsearch.lucene.search.XDocValuesRewriteMethod;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.SortedSetDocValuesStringFieldScript;
 import org.elasticsearch.script.field.TextDocValuesField;
@@ -709,7 +708,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             if (usesBinaryDocValues) {
                 return new ScanningBinaryDocValuesTermQuery(name(), indexedValueForSearch(value), useArrayOrderBinaryDocValues);
             } else {
-                return SortedSetDocValuesRangeQuery.newSlowExactQuery(name(), indexedValueForSearch(value));
+                return XSortedSetDocValuesRangeQuery.newSlowExactQuery(name(), indexedValueForSearch(value));
             }
         }
 
@@ -744,7 +743,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 return new ScanningBinaryDocValuesPrefixQuery(name(), value, caseInsensitive, useArrayOrderBinaryDocValues);
             }
             if (caseInsensitive == false) {
-                return new PrefixQuery(new Term(name(), value), XDocValuesRewriteMethod.DOC_VALUES_REWRITE);
+                return new PrefixQuery(new Term(name(), value), MultiTermQuery.DOC_VALUES_REWRITE);
             }
             return new StringScriptFieldPrefixQuery(
                 new Script(""),
@@ -767,15 +766,15 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             }
             failIfNotIndexedNorDocValuesFallback(context);
             if (usesBinaryDocValues) {
-                return new ScanningBinaryDocValuesWildcardQuery(name(), value, caseInsensitive, useArrayOrderBinaryDocValues);
+                return ScanningBinaryDocValuesAutomatonQuery.forWildcard(name(), value, caseInsensitive, useArrayOrderBinaryDocValues);
             }
             if (caseInsensitive == false) {
                 Term term = new Term(name(), value);
                 if (context.getCircuitBreaker() != null) {
                     Automaton dfa = AutomatonQueries.toWildcardAutomaton(term, context.getCircuitBreaker());
-                    return new AutomatonQuery(term, dfa, false, XDocValuesRewriteMethod.DOC_VALUES_REWRITE);
+                    return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
                 }
-                return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, XDocValuesRewriteMethod.DOC_VALUES_REWRITE);
+                return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE);
             }
             return new StringScriptFieldWildcardQuery(
                 new Script(""),
@@ -820,7 +819,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                     maxDeterminizedStates,
                     context.getCircuitBreaker()
                 );
-                return new AutomatonQuery(term, dfa, false, XDocValuesRewriteMethod.DOC_VALUES_REWRITE);
+                return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
             }
             return new RegexpQuery(
                 new Term(name(), value),
@@ -828,7 +827,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 matchFlags,
                 RegexpQuery.DEFAULT_PROVIDER,
                 maxDeterminizedStates,
-                XDocValuesRewriteMethod.DOC_VALUES_REWRITE
+                MultiTermQuery.DOC_VALUES_REWRITE
             );
         }
 

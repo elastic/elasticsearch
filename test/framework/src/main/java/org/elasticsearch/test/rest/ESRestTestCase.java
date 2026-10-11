@@ -131,6 +131,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -376,7 +377,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Whether the old cluster version is not of the released versions, but a detached build.
      * In that case the Git ref has to be specified via {@code tests.bwc.refspec.main} system property.
      */
-    protected static boolean isOldClusterDetachedVersion() {
+    public static boolean isOldClusterDetachedVersion() {
         return System.getProperty("tests.bwc.refspec.main") != null;
     }
 
@@ -2023,6 +2024,33 @@ public abstract class ESRestTestCase extends ESTestCase {
                 request.addParameter("timeout", timeout);
             }
         });
+    }
+
+    /**
+     * Performs {@code request} once, translating a {@link ResponseException} whose HTTP status is one of
+     * {@code retryableStatuses} into an {@link AssertionError}. Wrap the call in {@link #assertBusy} at the
+     * call site so the enclosing loop retries transient failures (e.g. a 404 while an index relocates during
+     * a rolling upgrade); capture the result via an {@link AtomicReference} if the response is needed outside
+     * the loop. Non-retryable ResponseExceptions propagate unchanged.
+     */
+    protected Response performRequestRaisingAssertionOnTransientStatus(Request request, RestStatus... retryableStatuses)
+        throws IOException {
+        try {
+            return client().performRequest(request);
+        } catch (ResponseException e) {
+            int status = e.getResponse().getStatusLine().getStatusCode();
+            if (isRetryableStatus(status, retryableStatuses)) {
+                throw new AssertionError(
+                    "retryable status [" + status + "] from [" + request.getMethod() + " " + request.getEndpoint() + "]",
+                    e
+                );
+            }
+            throw e;
+        }
+    }
+
+    static boolean isRetryableStatus(int status, RestStatus... retryableStatuses) {
+        return Arrays.stream(retryableStatuses).anyMatch(s -> s.getStatus() == status);
     }
 
     /**

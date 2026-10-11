@@ -75,8 +75,8 @@ public class CalibrationModelsIntegrationTests extends ESTestCase {
     }
 
     /**
-     * End-to-end check that {@link ErrorModel#estimateErrorScalingFit} and
-     * {@link ErrorModel#estimateMagnitudeModel} compose: scaling is fit once at 4q/1d,
+     * End-to-end check that {@code ErrorModel#estimateErrorScalingFit} and
+     * {@code ErrorModel#estimateMagnitudeModel} compose: scaling is fit once at 4q/1d,
      * then magnitude is fit for a target encoding while reusing the scaling slope.
      */
     public void testErrorScalingFitAndMagnitudeModelCompose() throws IOException {
@@ -140,9 +140,9 @@ public class CalibrationModelsIntegrationTests extends ESTestCase {
         int dbits,
         int numVectors
     ) throws IOException {
-        double[] manifold = estimateManifold(fixture, similarityFunction);
-        double alpha = manifold[0];
-        double invDim = manifold[1];
+        ManifoldModel.ManifoldParams manifold = estimateManifold(fixture, similarityFunction);
+        double alpha = manifold.alpha();
+        double invDim = manifold.invDim();
 
         ErrorScalingFit scalingFit = estimateErrorScalingFit(fixture, similarityFunction);
         QuantizationErrorStdModel errorModel = estimateErrorMagnitude(fixture, similarityFunction, scalingFit, qbits, dbits);
@@ -151,7 +151,8 @@ public class CalibrationModelsIntegrationTests extends ESTestCase {
         return ExpectedRecall.expectedRecallAtK(similarityFunction, numVectors, alpha, invDim, errorStd, CALIBRATION_K, rerank);
     }
 
-    private static double[] estimateManifold(CalibrationFixture fixture, VectorSimilarityFunction similarityFunction) throws IOException {
+    private static ManifoldModel.ManifoldParams estimateManifold(CalibrationFixture fixture, VectorSimilarityFunction similarityFunction)
+        throws IOException {
         return ManifoldModel.estimateManifoldParameters(toSource(fixture, similarityFunction));
     }
 
@@ -187,7 +188,8 @@ public class CalibrationModelsIntegrationTests extends ESTestCase {
             false,
             null,
             fixture.corpusOrdinals(),
-            CALIBRATION_K
+            CALIBRATION_K,
+            fixture.fvv.size()
         );
     }
 

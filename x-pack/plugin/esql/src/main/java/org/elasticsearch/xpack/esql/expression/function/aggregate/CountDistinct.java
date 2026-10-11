@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -46,9 +48,9 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isWholeNumber;
-import static org.elasticsearch.xpack.esql.expression.Foldables.intValueOf;
 
 public class CountDistinct extends AggregateFunction implements OptionalArgument, ToAggregator, SurrogateExpression {
+
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "CountDistinct",
@@ -56,7 +58,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(CountDistinct.class)
         .binary(CountDistinct::new)
-        .capabilities("flattened")
+        .capabilities("flattened", "precision_clamp")
         .name("count_distinct");
 
     private static final Map<DataType, Function<Integer, AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
@@ -234,7 +236,18 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
     }
 
     private int precisionValue() {
-        return intValueOf(precision, source().text(), "Precision");
+        return clampPrecisionThreshold(precision.dataType(), (Number) ((Literal) precision).value());
+    }
+
+    /** Clamps a folded precision literal to {@code [0, {@link Integer#MAX_VALUE}]} without narrowing wraparound. */
+    static int clampPrecisionThreshold(DataType precisionType, Number value) {
+        if (precisionType == DataType.UNSIGNED_LONG) {
+            BigInteger unsignedValue = value instanceof BigInteger bigInteger
+                ? bigInteger
+                : NumericUtils.unsignedLongAsBigInteger(value.longValue());
+            return unsignedValue.min(BigInteger.valueOf(Integer.MAX_VALUE)).intValueExact();
+        }
+        return Math.clamp(value.longValue(), 0, Integer.MAX_VALUE);
     }
 
     @Override

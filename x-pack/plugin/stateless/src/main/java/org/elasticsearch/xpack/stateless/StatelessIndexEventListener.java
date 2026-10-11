@@ -143,7 +143,8 @@ class StatelessIndexEventListener implements IndexEventListener {
     @Override
     public void afterFilesRestoredFromRepository(IndexShard indexShard) {
         final var store = indexShard.store();
-        store.incRef();
+        // Store ref is held by IndicesService for the recovery lifetime.
+        assert store.hasReferences();
         try {
             final var userData = store.readLastCommittedSegmentsInfo().getUserData();
             final String startFile = userData.get(TRANSLOG_RECOVERY_START_FILE);
@@ -166,58 +167,44 @@ class StatelessIndexEventListener implements IndexEventListener {
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
-        } finally {
-            store.decRef();
         }
     }
 
     @Override
     public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
         final Store store = indexShard.store();
+        // Store ref is held by IndicesService for the recovery lifetime.
+        assert store.hasReferences();
         try {
-            store.incRef();
-            boolean success = false;
-            try {
-                final var projectId = projectResolver.getProjectId();
-                final var shardId = indexShard.shardId();
-                assert objectStoreService.assertProjectIdAndShardIdConsistency(projectId, shardId);
+            final var projectId = projectResolver.getProjectId();
+            final var shardId = indexShard.shardId();
+            assert objectStoreService.assertProjectIdAndShardIdConsistency(projectId, shardId);
 
-                final BlobStore blobStore = objectStoreService.getProjectBlobStore(projectId);
-                final BlobPath shardBasePath = objectStoreService.shardBasePath(projectId, shardId);
-                final BlobContainer existingBlobContainer = hasNoExistingBlobContainer(indexShard.recoveryState().getRecoverySource())
-                    ? null
-                    : blobStore.blobContainer(shardBasePath);
+            final BlobStore blobStore = objectStoreService.getProjectBlobStore(projectId);
+            final BlobPath shardBasePath = objectStoreService.shardBasePath(projectId, shardId);
+            final BlobContainer existingBlobContainer = hasNoExistingBlobContainer(indexShard.recoveryState().getRecoverySource())
+                ? null
+                : blobStore.blobContainer(shardBasePath);
 
-                BlobStoreCacheDirectory.unwrapDirectory(store.directory())
-                    .setBlobContainer(primaryTerm -> blobStore.blobContainer(shardBasePath.add(String.valueOf(primaryTerm))));
+            BlobStoreCacheDirectory.unwrapDirectory(store.directory())
+                .setBlobContainer(primaryTerm -> blobStore.blobContainer(shardBasePath.add(String.valueOf(primaryTerm))));
 
-                var releaseAfterListener = ActionListener.releaseAfter(listener, store::decRef);
-                if (indexShard.routingEntry().isSearchable()) {
-                    beforeRecoveryOnSearchShard(indexShard, existingBlobContainer, releaseAfterListener);
-                } else {
-                    if (IndexReshardingMetadata.isSplitTarget(shardId, indexSettings.getIndexMetadata().getReshardingMetadata())) {
-                        splitTargetService.startSplitTargetShardRecovery(
-                            indexShard,
-                            indexSettings.getIndexMetadata(),
-                            new ThreadedActionListener<>(
-                                threadPool.generic(),
-                                releaseAfterListener.delegateFailureAndWrap(
-                                    (listener1, unused) -> beforeRecoveryOnIndexingShard(
-                                        indexShard,
-                                        existingBlobContainer,
-                                        releaseAfterListener
-                                    )
-                                )
+            if (indexShard.routingEntry().isSearchable()) {
+                beforeRecoveryOnSearchShard(indexShard, existingBlobContainer, listener);
+            } else {
+                if (IndexReshardingMetadata.isSplitTarget(shardId, indexSettings.getIndexMetadata().getReshardingMetadata())) {
+                    splitTargetService.startSplitTargetShardRecovery(
+                        indexShard,
+                        indexSettings.getIndexMetadata(),
+                        new ThreadedActionListener<>(
+                            threadPool.generic(),
+                            listener.delegateFailureAndWrap(
+                                (listener1, unused) -> beforeRecoveryOnIndexingShard(indexShard, existingBlobContainer, listener1)
                             )
-                        );
-                    } else {
-                        beforeRecoveryOnIndexingShard(indexShard, existingBlobContainer, releaseAfterListener);
-                    }
-                }
-                success = true;
-            } finally {
-                if (success == false) {
-                    store.decRef();
+                        )
+                    );
+                } else {
+                    beforeRecoveryOnIndexingShard(indexShard, existingBlobContainer, listener);
                 }
             }
         } catch (Exception e) {

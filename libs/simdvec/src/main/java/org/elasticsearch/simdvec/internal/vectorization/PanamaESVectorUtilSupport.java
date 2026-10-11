@@ -1466,6 +1466,57 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
 
     @Override
     public void dotProductBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, int distancesOffset, float[] distances) {
+        // split aligned vs remainder lengths into separate methods so HotSpot keeps independent vector API profiles.
+        if (FLOAT_SPECIES.loopBound(query.length) == query.length) {
+            dotProductBulkAligned(query, v0, v1, v2, v3, distancesOffset, distances);
+        } else {
+            dotProductBulkUnaligned(query, v0, v1, v2, v3, distancesOffset, distances);
+        }
+    }
+
+    private static void dotProductBulkAligned(
+        float[] query,
+        float[] v0,
+        float[] v1,
+        float[] v2,
+        float[] v3,
+        int distancesOffset,
+        float[] distances
+    ) {
+        int i = 0;
+        final int end = query.length;
+
+        FloatVector sv0 = FloatVector.zero(FLOAT_SPECIES);
+        FloatVector sv1 = FloatVector.zero(FLOAT_SPECIES);
+        FloatVector sv2 = FloatVector.zero(FLOAT_SPECIES);
+        FloatVector sv3 = FloatVector.zero(FLOAT_SPECIES);
+        for (; i < end; i += FLOAT_SPECIES.length()) {
+            FloatVector qv = FloatVector.fromArray(FLOAT_SPECIES, query, i);
+            FloatVector dv0 = FloatVector.fromArray(FLOAT_SPECIES, v0, i);
+            FloatVector dv1 = FloatVector.fromArray(FLOAT_SPECIES, v1, i);
+            FloatVector dv2 = FloatVector.fromArray(FLOAT_SPECIES, v2, i);
+            FloatVector dv3 = FloatVector.fromArray(FLOAT_SPECIES, v3, i);
+            sv0 = fma(qv, dv0, sv0);
+            sv1 = fma(qv, dv1, sv1);
+            sv2 = fma(qv, dv2, sv2);
+            sv3 = fma(qv, dv3, sv3);
+        }
+
+        distances[distancesOffset] = sv0.reduceLanes(VectorOperators.ADD);
+        distances[distancesOffset + 1] = sv1.reduceLanes(VectorOperators.ADD);
+        distances[distancesOffset + 2] = sv2.reduceLanes(VectorOperators.ADD);
+        distances[distancesOffset + 3] = sv3.reduceLanes(VectorOperators.ADD);
+    }
+
+    private static void dotProductBulkUnaligned(
+        float[] query,
+        float[] v0,
+        float[] v1,
+        float[] v2,
+        float[] v3,
+        int distancesOffset,
+        float[] distances
+    ) {
         int i = 0;
         final int vectorEnd = FLOAT_SPECIES.loopBound(query.length);
 
@@ -1485,18 +1536,16 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             sv3 = fma(qv, dv3, sv3);
         }
 
-        if (i < query.length) {
-            VectorMask<Float> mask = FLOAT_SPECIES.indexInRange(i, query.length);
-            FloatVector qv = FloatVector.fromArray(FLOAT_SPECIES, query, i, mask);
-            FloatVector dv0 = FloatVector.fromArray(FLOAT_SPECIES, v0, i, mask);
-            FloatVector dv1 = FloatVector.fromArray(FLOAT_SPECIES, v1, i, mask);
-            FloatVector dv2 = FloatVector.fromArray(FLOAT_SPECIES, v2, i, mask);
-            FloatVector dv3 = FloatVector.fromArray(FLOAT_SPECIES, v3, i, mask);
-            sv0 = fma(qv, dv0, sv0);
-            sv1 = fma(qv, dv1, sv1);
-            sv2 = fma(qv, dv2, sv2);
-            sv3 = fma(qv, dv3, sv3);
-        }
+        VectorMask<Float> mask = FLOAT_SPECIES.indexInRange(i, query.length);
+        FloatVector qv = FloatVector.fromArray(FLOAT_SPECIES, query, i, mask);
+        FloatVector dv0 = FloatVector.fromArray(FLOAT_SPECIES, v0, i, mask);
+        FloatVector dv1 = FloatVector.fromArray(FLOAT_SPECIES, v1, i, mask);
+        FloatVector dv2 = FloatVector.fromArray(FLOAT_SPECIES, v2, i, mask);
+        FloatVector dv3 = FloatVector.fromArray(FLOAT_SPECIES, v3, i, mask);
+        sv0 = fma(qv, dv0, sv0);
+        sv1 = fma(qv, dv1, sv1);
+        sv2 = fma(qv, dv2, sv2);
+        sv3 = fma(qv, dv3, sv3);
 
         distances[distancesOffset] = sv0.reduceLanes(VectorOperators.ADD);
         distances[distancesOffset + 1] = sv1.reduceLanes(VectorOperators.ADD);
@@ -1516,9 +1565,70 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         float[] distances,
         int length
     ) {
+        // split aligned vs remainder lengths into separate methods so HotSpot keeps independent vector API profiles.
+        if (FLOAT_SPECIES.loopBound(length) == length) {
+            squareDistanceBulkAligned(query, vectorOffset, v0, v1, v2, v3, distancesOffset, distances, length);
+        } else {
+            squareDistanceBulkUnaligned(query, vectorOffset, v0, v1, v2, v3, distancesOffset, distances, length);
+        }
+    }
+
+    /** {@code length} is an exact multiple of {@link #FLOAT_SPECIES} lane count — no masked tail. */
+    private static void squareDistanceBulkAligned(
+        float[] query,
+        int vectorOffset,
+        float[] v0,
+        float[] v1,
+        float[] v2,
+        float[] v3,
+        int distancesOffset,
+        float[] distances,
+        int length
+    ) {
         int i = vectorOffset;
-        int vectorEnd = vectorOffset + FLOAT_SPECIES.loopBound(length);
-        int end = vectorOffset + length;
+        final int end = vectorOffset + length;
+
+        FloatVector sv0 = FloatVector.zero(FLOAT_SPECIES);
+        FloatVector sv1 = FloatVector.zero(FLOAT_SPECIES);
+        FloatVector sv2 = FloatVector.zero(FLOAT_SPECIES);
+        FloatVector sv3 = FloatVector.zero(FLOAT_SPECIES);
+        for (; i < end; i += FLOAT_SPECIES.length()) {
+            FloatVector qv = FloatVector.fromArray(FLOAT_SPECIES, query, i);
+            FloatVector dv0 = FloatVector.fromArray(FLOAT_SPECIES, v0, i);
+            FloatVector dv1 = FloatVector.fromArray(FLOAT_SPECIES, v1, i);
+            FloatVector dv2 = FloatVector.fromArray(FLOAT_SPECIES, v2, i);
+            FloatVector dv3 = FloatVector.fromArray(FLOAT_SPECIES, v3, i);
+            FloatVector diff0 = qv.sub(dv0);
+            FloatVector diff1 = qv.sub(dv1);
+            FloatVector diff2 = qv.sub(dv2);
+            FloatVector diff3 = qv.sub(dv3);
+            sv0 = fma(diff0, diff0, sv0);
+            sv1 = fma(diff1, diff1, sv1);
+            sv2 = fma(diff2, diff2, sv2);
+            sv3 = fma(diff3, diff3, sv3);
+        }
+
+        distances[distancesOffset] = sv0.reduceLanes(VectorOperators.ADD);
+        distances[distancesOffset + 1] = sv1.reduceLanes(VectorOperators.ADD);
+        distances[distancesOffset + 2] = sv2.reduceLanes(VectorOperators.ADD);
+        distances[distancesOffset + 3] = sv3.reduceLanes(VectorOperators.ADD);
+    }
+
+    /** {@code length} has a non-empty remainder relative to {@link #FLOAT_SPECIES} — masked tail required. */
+    private static void squareDistanceBulkUnaligned(
+        float[] query,
+        int vectorOffset,
+        float[] v0,
+        float[] v1,
+        float[] v2,
+        float[] v3,
+        int distancesOffset,
+        float[] distances,
+        int length
+    ) {
+        int i = vectorOffset;
+        final int vectorEnd = vectorOffset + FLOAT_SPECIES.loopBound(length);
+        final int end = vectorOffset + length;
 
         FloatVector sv0 = FloatVector.zero(FLOAT_SPECIES);
         FloatVector sv1 = FloatVector.zero(FLOAT_SPECIES);
@@ -1540,22 +1650,20 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             sv3 = fma(diff3, diff3, sv3);
         }
 
-        if (i < end) {
-            VectorMask<Float> mask = FLOAT_SPECIES.indexInRange(i, end);
-            FloatVector qv = FloatVector.fromArray(FLOAT_SPECIES, query, i, mask);
-            FloatVector dv0 = FloatVector.fromArray(FLOAT_SPECIES, v0, i, mask);
-            FloatVector dv1 = FloatVector.fromArray(FLOAT_SPECIES, v1, i, mask);
-            FloatVector dv2 = FloatVector.fromArray(FLOAT_SPECIES, v2, i, mask);
-            FloatVector dv3 = FloatVector.fromArray(FLOAT_SPECIES, v3, i, mask);
-            FloatVector diff0 = qv.sub(dv0);
-            FloatVector diff1 = qv.sub(dv1);
-            FloatVector diff2 = qv.sub(dv2);
-            FloatVector diff3 = qv.sub(dv3);
-            sv0 = fma(diff0, diff0, sv0);
-            sv1 = fma(diff1, diff1, sv1);
-            sv2 = fma(diff2, diff2, sv2);
-            sv3 = fma(diff3, diff3, sv3);
-        }
+        VectorMask<Float> mask = FLOAT_SPECIES.indexInRange(i, end);
+        FloatVector qv = FloatVector.fromArray(FLOAT_SPECIES, query, i, mask);
+        FloatVector dv0 = FloatVector.fromArray(FLOAT_SPECIES, v0, i, mask);
+        FloatVector dv1 = FloatVector.fromArray(FLOAT_SPECIES, v1, i, mask);
+        FloatVector dv2 = FloatVector.fromArray(FLOAT_SPECIES, v2, i, mask);
+        FloatVector dv3 = FloatVector.fromArray(FLOAT_SPECIES, v3, i, mask);
+        FloatVector diff0 = qv.sub(dv0);
+        FloatVector diff1 = qv.sub(dv1);
+        FloatVector diff2 = qv.sub(dv2);
+        FloatVector diff3 = qv.sub(dv3);
+        sv0 = fma(diff0, diff0, sv0);
+        sv1 = fma(diff1, diff1, sv1);
+        sv2 = fma(diff2, diff2, sv2);
+        sv3 = fma(diff3, diff3, sv3);
 
         distances[distancesOffset] = sv0.reduceLanes(VectorOperators.ADD);
         distances[distancesOffset + 1] = sv1.reduceLanes(VectorOperators.ADD);

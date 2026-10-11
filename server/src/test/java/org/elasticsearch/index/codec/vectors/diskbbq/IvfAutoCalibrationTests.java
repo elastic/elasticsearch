@@ -467,7 +467,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
             protected IvfSegmentConfig calibrate(
                 FloatVectorValues floatVectorValues,
                 VectorSimilarityFunction similarityFunction,
-                int realNumVectors,
+                int totalNumVectors,
                 IvfAutoCalibration.CalibrationMode mode
             ) {
                 return new IvfSegmentConfig(CentroidIndexFormat.FLAT, QuantEncoding.TWO_BIT_4BIT_QUERY, false, 2.5f);
@@ -570,7 +570,6 @@ public class IvfAutoCalibrationTests extends ESTestCase {
     }
 
     public void testProductionMergeResolverPersistsCalibratedConfig() throws IOException {
-        Random rnd = random();
         int vectorsPerSegment = IvfAutoCalibration.MIN_VECTORS_FOR_CALIBRATION / 2 + 100;
         try (Directory dir = newDirectory()) {
             try (
@@ -753,11 +752,11 @@ public class IvfAutoCalibrationTests extends ESTestCase {
         protected IvfSegmentConfig calibrate(
             FloatVectorValues floatVectorValues,
             VectorSimilarityFunction similarityFunction,
-            int realNumVectors,
+            int totalNumVectors,
             IvfAutoCalibration.CalibrationMode mode
         ) throws IOException {
             calibrateInvocations++;
-            return super.calibrate(floatVectorValues, similarityFunction, realNumVectors, mode);
+            return super.calibrate(floatVectorValues, similarityFunction, totalNumVectors, mode);
         }
     }
 

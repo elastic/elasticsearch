@@ -183,15 +183,6 @@ public abstract class Foldables {
         );
     }
 
-    public static int intValueOf(Expression field, String sourceText, String fieldName) {
-        if (field instanceof Literal literal && literal.value() instanceof Number n) {
-            return n.intValue();
-        }
-        throw new EsqlIllegalArgumentException(
-            Strings.format(null, "[{}] value must be a constant number in [{}], found [{}]", fieldName, sourceText, field)
-        );
-    }
-
     public static double doubleValueOf(Expression field, String sourceText, String fieldName) {
         if (field instanceof Literal literal && literal.value() instanceof Number n) {
             return n.doubleValue();

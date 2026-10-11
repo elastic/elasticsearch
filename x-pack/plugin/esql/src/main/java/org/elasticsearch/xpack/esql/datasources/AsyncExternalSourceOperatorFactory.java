@@ -2402,13 +2402,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 }
                 return opened;
             });
-            pages = applyRowPositionStrategy(reader, pages, projectedColumns);
-            pages = StatsCapturingIterator.wrap(pages, buffer.capturedSourceMetadataSink());
             // Wrap with the deferred-extraction encoder (no-op when not enabled), then with the
             // virtual-column iterator so {@code _file.*} columns flow through the producer pipeline
             // alongside the data columns.
             final CloseableIterator<Page> finalPages;
             try {
+                pages = applyRowPositionStrategy(reader, pages, projectedColumns);
+                pages = StatsCapturingIterator.wrap(pages, buffer.capturedSourceMetadataSink());
                 CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(pages, projectedColumns, driverContext);
                 finalPages = wrapWithVirtualColumns(withEncoder, mergeStandardMetadata(partitionValues), driverContext);
             } catch (Exception e) {
@@ -2545,15 +2545,17 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     }
 
     /**
-     * Failure-only listener used by non-iterative paths ({@link #startSyncWrapperRead},
-     * {@link #consumePagesInBackground}) where {@code removeAsyncAction()} lives in the
-     * drain's {@code runAfter} callback. Do NOT use for the iterative slice-queue or
-     * multi-file paths — those use a single {@code completionListener} instead.
+     * Failure-only listener for {@link #startSyncWrapperRead}: fires when the blocking open or
+     * wrapping phase throws before the drain is reached, so the drain's own {@code runAfter}
+     * never executes. Mirrors the inline listener in {@link #consumePagesInBackground} — both
+     * must call {@code releaseOperator()} or the per-query concurrency budget never deregisters
+     * from the allocator.
      */
-    private static ActionListener<Void> failureListener(AsyncExternalSourceBuffer buffer, DriverContext driverContext) {
+    private ActionListener<Void> failureListener(AsyncExternalSourceBuffer buffer, DriverContext driverContext) {
         return ActionListener.wrap(v -> {}, e -> {
             buffer.onFailure(e);
             driverContext.removeAsyncAction();
+            releaseOperator();
         });
     }
 
@@ -2798,26 +2800,20 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 CompressionDelegatingFormatReader cdr = (CompressionDelegatingFormatReader) reader;
                 SegmentableFormatReader seg = resolveSegmentableReader(reader);
                 DecompressionCodec codec = cdr.codec();
-                InputStream raw = obj.newStream();
-                InputStream decompressed;
+                // Route through the production decorator so every failure path releases both the codec's
+                // native handle (e.g. the PanamaZstdInputStream Arena) and the raw connection without
+                // draining it. DecompressingStorageObject.newStream() wraps raw in UncloseableInputStream
+                // before handing it to the codec, so the decompressor's close() never cascades into a
+                // draining raw.close(). On a parallelRead failure abortStream() closes the decompressor
+                // first (releasing the Arena) then aborts raw through the provider's abort path (S3
+                // ResponseInputStream.abort()), keeping both codecs with and without JDK Cleaner support
+                // on equal footing and matching the abort-chain contract tested in StorageObjectAbortChainTests.
+                DecompressingStorageObject decompressing = new DecompressingStorageObject(obj, codec);
+                InputStream stream = decompressing.newStream();
                 try {
-                    decompressed = codec.decompress(raw);
-                } catch (Exception e) {
-                    try {
-                        obj.abortStream(raw);
-                    } catch (IOException abortEx) {
-                        e.addSuppressed(abortEx);
-                    }
-                    throw e;
-                }
-                try {
-                    // The stream-only codecs reachable here (gzip via GZIPInputStream, zstd via
-                    // ZstdInputStream) follow the JDK FilterInputStream convention: closing the
-                    // wrapper closes the underlying `raw`. New stream-only codecs added to this
-                    // path must preserve that contract.
                     return StreamingParallelParsingCoordinator.parallelRead(
                         seg,
-                        decompressed,
+                        stream,
                         obj,
                         cols,
                         batchSize,
@@ -2836,7 +2832,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     );
                 } catch (Exception e) {
                     try {
-                        obj.abortStream(raw);
+                        decompressing.abortStream(stream);
                     } catch (IOException abortEx) {
                         e.addSuppressed(abortEx);
                     }

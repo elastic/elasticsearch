@@ -58,7 +58,10 @@ public class AnthropicUnifiedChatCompletionRequestTests extends ESTestCase {
         assertThat(requestMap.get("model"), is(MODEL_NAME));
         assertThat(requestMap.get("stream"), is(true));
         assertThat(requestMap.get("max_tokens"), is(maxTokens));
-        assertThat(requestMap.get("messages"), is(List.of(Map.of("content", INPUT, "role", ROLE))));
+        assertThat(
+            requestMap.get("messages"),
+            is(List.of(Map.of("role", ROLE, "content", List.of(Map.of("type", "text", "text", INPUT)))))
+        );
     }
 
     public void testCreateHttpRequestNonStreaming() throws IOException {

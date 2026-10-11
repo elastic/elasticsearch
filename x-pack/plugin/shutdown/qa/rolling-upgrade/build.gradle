@@ -15,10 +15,6 @@ apply plugin: 'elasticsearch.bc-upgrade-test'
 // so a phase that passed must still run when a later phase is retried.
 smartRetry.pruneIndividualTests.set(false)
 
-dependencies {
-  javaRestTestImplementation(testArtifact(project(":qa:rolling-upgrade"), "javaRestTest"))
-}
-
 buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
   tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)

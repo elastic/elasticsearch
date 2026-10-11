@@ -198,6 +198,20 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
      */
     private final boolean sortColumnAnnotationScales;
     /**
+     * Whether the sort column's ESQL type is {@code UNSIGNED_LONG} — i.e. the scan sign-flip-encodes every value it
+     * reads (see {@code PageColumnReader#readLongColumn}, keyed on the ESQL type rather than the physical
+     * annotation). For a physical {@code UINT_64}, a raw footer/page-index bound must go through the identical
+     * {@link ParquetColumnDecoding#encodeUnsignedLong} transform before it is compared against the threshold, which
+     * is published from already-encoded blocks; otherwise any value at or above 2^63 sign-wraps to a domain the
+     * comparison never accounts for. A plain signed {@code INT64} declared as
+     * {@code UNSIGNED_LONG} also sets this flag, but its statistics use signed ordering and therefore cannot be
+     * transformed safely; {@link #unsignedLongStat(long)} declines threshold pruning for that shape. A column
+     * explicitly declared as signed {@code LONG} over a physical UINT64 keeps {@code sortType == LONG}, so this stays
+     * {@code false} for it and the raw pass-through below is unaffected — that declaration's block values are never
+     * sign-flipped either.
+     */
+    private final boolean sortColumnIsUnsignedLong;
+    /**
      * High bits OR-ed into every emitted {@code _rowPosition} value once
      * {@link #setExtractorId(int)} has been called: {@code ((long) extractorId) << LOCAL_POSITION_BITS}.
      * The factory installs the id between {@link #createColumnExtractor(Consumer)} and the first call to
@@ -397,6 +411,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         this.sortColumnAnnotationScales = sortColumnPrimitiveType != null
             && sortColumnPrimitiveType.getLogicalTypeAnnotation() != null
             && ParquetColumnDecoding.integralDecodeScalesRelativeToRawStats(sortColumnPrimitiveType.getLogicalTypeAnnotation());
+        this.sortColumnIsUnsignedLong = sortType == DataType.UNSIGNED_LONG;
         this.sortDecodeRelation = resolveSortDecodeRelation(sortColumnPrimitiveType, sortType, sortInfo);
         this.codecFactory = codecFactory;
         this.counters = counters;
@@ -633,6 +648,12 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     yield null;
                 }
                 long raw = ((Number) value).longValue();
+                // An unsigned_long sort column's blocks are sign-flip-encoded (ESQL's canonical representation).
+                // Transform only UINT_64 stats, whose unsigned ordering is preserved by that encoding; a plain
+                // signed INT64 declared unsigned_long has signed-ordered stats and must decline.
+                if (sortColumnIsUnsignedLong) {
+                    yield unsignedLongStat(raw);
+                }
                 // A plain long sort column has no relation and its raw value is its decoded value. A rescaled temporal
                 // one must be mapped into the decoded domain the threshold bound lives in, or the comparison skips the
                 // wrong groups. A null relation on a temporal column (TIME/DECIMAL/unsigned) declines the skip — safe.
@@ -676,6 +697,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     yield null;
                 }
                 long raw = ordered.getLong();
+                // Same mapping and physical-ordering gate as rawValueFromStats.
+                if (sortColumnIsUnsignedLong) {
+                    yield unsignedLongStat(raw);
+                }
                 // Same mapping as rawValueFromStats: a rescaled temporal column's page bound must reach the decoded
                 // domain the threshold lives in; a plain long is the identity; a temporal column with no exact
                 // relation declines the page skip.
@@ -703,6 +728,16 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 : null;
             default -> null;
         };
+    }
+
+    /**
+     * Maps a raw {@code UINT_64} statistic into the sign-flip-encoded domain used by ESQL blocks and the TopN
+     * threshold. A plain signed {@code INT64} declared as {@code UNSIGNED_LONG} cannot use this mapping: its min/max
+     * were selected under signed ordering, so a range spanning both sign halves would have its endpoints reversed
+     * after the sign flip and could make threshold pruning discard competitive rows.
+     */
+    private Long unsignedLongStat(long raw) {
+        return ParquetColumnDecoding.isUnsignedInt64(sortColumnPrimitiveType) ? ParquetColumnDecoding.encodeUnsignedLong(raw) : null;
     }
 
     private static final long DEEPER_PREFETCH_BYTES = 32_000_000L;

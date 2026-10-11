@@ -289,6 +289,14 @@ public record UnifiedCompletionRequest(
         return reasoning() != null || messages().stream().anyMatch(m -> m.reasoning() != null || m.reasoningDetails() != null);
     }
 
+    /**
+     * Whether the caller asked for reasoning to be omitted from the response. An absent reasoning
+     * configuration, or an absent {@code exclude} flag, means reasoning is included.
+     */
+    public boolean excludeReasoning() {
+        return reasoning() != null && Boolean.TRUE.equals(reasoning().exclude());
+    }
+
     private static ToolChoice parseToolChoice(XContentParser parser) throws IOException {
         var token = parser.currentToken();
         if (token == XContentParser.Token.START_OBJECT) {

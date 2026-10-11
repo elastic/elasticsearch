@@ -11,7 +11,9 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
@@ -149,6 +151,18 @@ public class ReplaceTests extends AbstractScalarFunctionTestCase {
             DataType.KEYWORD,
             equalTo(new BytesRef(result))
         );
+    }
+
+    public void testFoldableNullRegex() {
+        Replace replace = new Replace(
+            Source.EMPTY,
+            field("str", DataType.KEYWORD),
+            new Literal(Source.EMPTY, null, DataType.KEYWORD),
+            new Literal(Source.EMPTY, new BytesRef("replacement"), DataType.KEYWORD)
+        );
+        assertFalse(replace.foldable());
+        ExpressionEvaluator.Factory factory = replace.toEvaluator(toEvaluator());
+        assertNotNull(factory);
     }
 
     @Override

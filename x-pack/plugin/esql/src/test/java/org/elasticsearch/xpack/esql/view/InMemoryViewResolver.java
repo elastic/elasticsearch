@@ -21,7 +21,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 
-import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.mockito.Mockito.mock;
@@ -56,7 +55,7 @@ public class InMemoryViewResolver extends ViewResolver {
     ) {
         var action = new EsqlResolveViewAction(
             mock(TransportService.class),
-            new ActionFilters(Set.of()),
+            ActionFilters.EMPTY,
             indexNameExpressionResolver,
             clusterService,
             projectResolver

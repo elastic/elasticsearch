@@ -189,6 +189,7 @@ public class OpenShiftAiService extends SenderService<OpenShiftAiModel> implemen
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs,
             EMBEDDING_MAX_BATCH_SIZE,
+            getRegexReadLimitFactor(),
             openShiftAiEmbeddingsModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 

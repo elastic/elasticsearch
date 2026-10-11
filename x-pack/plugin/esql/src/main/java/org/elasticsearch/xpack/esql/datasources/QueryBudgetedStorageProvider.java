@@ -65,8 +65,8 @@ class QueryBudgetedStorageProvider implements StorageProvider {
     }
 
     /**
-     * Closes the per-query budget only; the delegate provider is shared (registry-owned) and
-     * intentionally not closed here.
+     * Closes the per-query budget only; the delegate provider is pooled (or registry-owned)
+     * and is returned via a sibling {@code onClose} on the operator factory, not here.
      */
     @Override
     public void close() throws IOException {

@@ -72,7 +72,7 @@ public class RestTermsEnumActionTests extends ESTestCase {
 
         final TransportAction<? extends ActionRequest, ? extends ActionResponse> transportAction = new TransportAction<>(
             TermsEnumAction.NAME,
-            new ActionFilters(Collections.emptySet()),
+            ActionFilters.EMPTY,
             taskManager,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         ) {

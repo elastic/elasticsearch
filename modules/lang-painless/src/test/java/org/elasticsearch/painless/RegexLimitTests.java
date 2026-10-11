@@ -30,7 +30,19 @@ public class RegexLimitTests extends ScriptTestCase {
             // Backtracking means the regular expression will fail with limit factor 1 (don't consider more than each char once)
             setRegexLimitFactor(1);
             CircuitBreakingException cbe = expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
-            assertTrue(cbe.getMessage().contains(regexCircuitMessage));
+            String rawSeq = charSequence.replace("'", "");
+            assertEquals(
+                regexCircuitMessage
+                    + ", pattern: ["
+                    + pattern.replace("/", "")
+                    + "], limit factor: [1"
+                    + "], char limit: ["
+                    + rawSeq.length()
+                    + "], wrapped: ["
+                    + rawSeq
+                    + "], this limit can be changed by the [script.painless.regex.limit-factor] setting",
+                cbe.getMessage()
+            );
         }
     }
 

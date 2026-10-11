@@ -28,6 +28,10 @@ Roles are governed by a set of configurable privileges grouped into these catego
 
 When creating roles, refer to this page for a complete list of available privileges.
 
+:::{note}
+Privileges do not grant a fixed set of operations. Each privilege is defined by the action name patterns it matches, which means it automatically covers any new operations added to {{es}} in future releases that fall within its scope. For example, the `all` cluster privilege covers every cluster action, and `manage` covers all administrative actions — including new ones as they are introduced. The operations described for each privilege below are representative examples, not an exhaustive list.
+:::
+
 ## Cluster privileges [privileges-list-cluster]
 
 `all`

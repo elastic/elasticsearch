@@ -14,10 +14,13 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression.PushedBlockLoaderExpression;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.Collections;
@@ -109,6 +112,31 @@ public class FieldExtractPushdownTests extends ESTestCase {
 
         assertNotNull(pushed);
         assertEquals(new ExtractFlattenedSubfieldConfig(dottedKey), pushed.config());
+    }
+
+    public void testFusedFieldExtractIsExactForTypeChecksButNotPushable() {
+        // When field_extract fuses, PushExpressionsToFieldLoad replaces the call with a FieldAttribute backed by a
+        // FunctionEsField. Consumers that type-check an argument with isStringAndExact (DATE_UNIT_COUNT, DATE_FORMAT,
+        // DATE_PARSE, CIDR_MATCH, ...) must stay resolved after that swap: the fused value is an exact keyword produced
+        // by the block loader. Previously FunctionEsField reported itself as inexact (to block pushdown), which also
+        // failed those type-checks and left the consumer unresolved, tripping plan verification. Exactness for
+        // type-checks is now decoupled from pushdown eligibility.
+        FunctionEsField fused = new FunctionEsField(
+            FLATTENED_ROOT.field(),
+            DataType.KEYWORD,
+            new ExtractFlattenedSubfieldConfig("host.name")
+        );
+        FieldAttribute fa = new FieldAttribute(Source.EMPTY, "host.name", fused);
+
+        assertTrue("a fused field_extract value is an exact keyword for type-checks", fa.getExactInfo().hasExact());
+        assertTrue(
+            "isStringAndExact must accept a fused field_extract argument",
+            TypeResolutions.isStringAndExact(fa, "TEST", TypeResolutions.ParamOrdinal.FIRST).resolved()
+        );
+        assertFalse(
+            "there is no indexed Lucene field behind a FunctionEsField, so it must not be pushable",
+            LucenePushdownPredicates.DEFAULT.isPushableFieldAttribute(fa)
+        );
     }
 
     private static FieldAttribute flattenedField(String name) {

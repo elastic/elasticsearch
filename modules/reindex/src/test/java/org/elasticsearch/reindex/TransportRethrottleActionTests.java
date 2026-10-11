@@ -44,7 +44,6 @@ import org.mockito.ArgumentCaptor;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -455,7 +454,7 @@ public class TransportRethrottleActionTests extends ESTestCase {
         when(transportThreadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(transportService.getTaskManager()).thenReturn(mock(TaskManager.class));
 
-        return new TransportRethrottleAction(mock(ClusterService.class), transportService, new ActionFilters(Set.of()), mockClient);
+        return new TransportRethrottleAction(mock(ClusterService.class), transportService, ActionFilters.EMPTY, mockClient);
     }
 
     private void mockGetTaskResponse(TaskResult result) {

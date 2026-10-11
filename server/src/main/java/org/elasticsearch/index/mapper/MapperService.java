@@ -182,7 +182,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      */
     public static final Setting<Boolean> INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING = Setting.boolSetting(
         "index.mapping.combine_dynamic_updates",
-        false,
+        true,
         Property.Dynamic,
         Property.IndexScope
     );

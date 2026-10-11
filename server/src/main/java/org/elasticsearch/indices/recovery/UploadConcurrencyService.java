@@ -56,6 +56,8 @@ import static org.elasticsearch.core.Strings.format;
  * repositories' own runners allow; the tasks are still counted, which is all it costs, so that the budget is right when the switch is
  * turned on while snapshots run.
  * While it is off nothing else here does anything: no measurements are read and nothing is scheduled.
+ * It only applies on stateless nodes, where snapshots read from the object store; on other nodes they read local disk and the setting
+ * has no effect.
  */
 public class UploadConcurrencyService extends AbstractLifecycleComponent {
 
@@ -107,6 +109,7 @@ public class UploadConcurrencyService extends AbstractLifecycleComponent {
     private final ThreadPool threadPool;
     private final Probes probes;
     private final LongSupplier nanoTimeSupplier;
+    private final boolean stateless;
 
     // The runners that found the budget used up, in the order in which they did, as what to call to make them try again. Guarded by itself.
     private final Set<Runnable> waitingUploadTaskRunners = new LinkedHashSet<>();
@@ -154,14 +157,24 @@ public class UploadConcurrencyService extends AbstractLifecycleComponent {
     private long readErrorsSinceLog;
     private long writeErrorsSinceLog;
 
+    /**
+     * @param stateless whether this is a stateless node, the only kind that adapts its upload concurrency
+     */
     @SuppressWarnings("this-escape")
-    public UploadConcurrencyService(ClusterSettings clusterSettings, ThreadPool threadPool) {
-        this(clusterSettings, threadPool, Probes.forNode(), System::nanoTime);
+    public UploadConcurrencyService(ClusterSettings clusterSettings, ThreadPool threadPool, boolean stateless) {
+        this(clusterSettings, threadPool, stateless, Probes.forNode(), System::nanoTime);
     }
 
     @SuppressWarnings("this-escape")
-    UploadConcurrencyService(ClusterSettings clusterSettings, ThreadPool threadPool, Probes probes, LongSupplier nanoTimeSupplier) {
+    UploadConcurrencyService(
+        ClusterSettings clusterSettings,
+        ThreadPool threadPool,
+        boolean stateless,
+        Probes probes,
+        LongSupplier nanoTimeSupplier
+    ) {
         this.threadPool = threadPool;
+        this.stateless = stateless;
         this.probes = probes;
         this.nanoTimeSupplier = nanoTimeSupplier;
 
@@ -181,7 +194,7 @@ public class UploadConcurrencyService extends AbstractLifecycleComponent {
     private void setAdaptiveUploadConcurrencyEnabled(boolean enabled) {
         // serialized with the tick, which must not be deciding a target while this puts the controller back to the floor
         synchronized (lock) {
-            this.adaptiveUploadConcurrencyEnabled = enabled;
+            this.adaptiveUploadConcurrencyEnabled = stateless && enabled;
             // off: do not leave the adaptive target in place until the next interval. On: start from today's concurrency.
             trackingInterval = false;
             uploadConcurrencyController.reset();
@@ -217,7 +230,7 @@ public class UploadConcurrencyService extends AbstractLifecycleComponent {
 
     /**
      * Whether shard snapshot uploads are limited by the node-wide budget, see {@link #registerUploadTaskRunner}, and run on the
-     * {@link ThreadPool.Names#SNAPSHOT_UPLOAD} pool.
+     * {@link ThreadPool.Names#SNAPSHOT_UPLOAD} pool: on a stateless node, when the setting is on.
      */
     public boolean isAdaptiveUploadConcurrencyEnabled() {
         return adaptiveUploadConcurrencyEnabled;

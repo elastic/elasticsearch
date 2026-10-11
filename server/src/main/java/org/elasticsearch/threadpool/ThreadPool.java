@@ -136,8 +136,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
         public static final String WARMER = "warmer";
         public static final String SNAPSHOT = "snapshot";
         /**
-         * Runs shard snapshot uploads while {@code indices.recovery.adaptive_upload_concurrency.enabled} is set (they run on
-         * {@link #SNAPSHOT} otherwise). Sized for the most uploads a node may run, the node adjusts how many it uses.
+         * Runs shard snapshot uploads on stateless nodes while {@code indices.recovery.adaptive_upload_concurrency.enabled} is set
+         * (they run on {@link #SNAPSHOT} otherwise). Sized for the most uploads a node may run, the node adjusts how many it uses.
          */
         public static final String SNAPSHOT_UPLOAD = "snapshot_upload";
         public static final String SNAPSHOT_META = "snapshot_meta";

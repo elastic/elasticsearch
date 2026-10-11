@@ -10,25 +10,104 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.UploadConcurrencyService;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.repositories.RepositoriesMetrics;
+import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.indices.recovery.UploadConcurrencyService.ADAPTIVE_UPLOAD_CONCURRENCY_ENABLED_SETTING;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * Snapshots and restores with adaptive upload concurrency on: snapshot uploads run on their own thread pool and are counted, and
- * restores are not affected.
+ * restores are not affected. Adaptive upload concurrency only applies on stateless nodes, which these tests do not run on, so
+ * {@link StatelessUploadConcurrencyPlugin} puts the service of a stateless node in the place of the node's own.
  */
 @ESIntegTestCase.ClusterScope(numDataNodes = 0, scope = ESIntegTestCase.Scope.TEST)
 public class SnapshotUploadConcurrencyIT extends AbstractSnapshotIntegTestCase {
 
-    private static Settings adaptiveSettings(boolean enabled) {
-        return Settings.builder().put(ADAPTIVE_UPLOAD_CONCURRENCY_ENABLED_SETTING.getKey(), enabled).build();
+    private static final Setting<Boolean> STATELESS_UPLOAD_CONCURRENCY_SETTING = Setting.boolSetting(
+        "test.stateless_upload_concurrency",
+        false,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * On a node with {@link #STATELESS_UPLOAD_CONCURRENCY_SETTING}, gives the repositories an {@link UploadConcurrencyService} that
+     * treats the node as stateless, as repositories take it from the {@link RecoverySettings} that they get from the node.
+     */
+    public static class StatelessUploadConcurrencyPlugin extends Plugin implements RepositoryPlugin {
+        private final List<UploadConcurrencyService> services = new ArrayList<>();
+
+        @Override
+        public List<Setting<?>> getSettings() {
+            return List.of(STATELESS_UPLOAD_CONCURRENCY_SETTING);
+        }
+
+        @Override
+        public Map<String, Repository.Factory> getRepositories(
+            Environment env,
+            NamedXContentRegistry namedXContentRegistry,
+            ClusterService clusterService,
+            BigArrays bigArrays,
+            RecoverySettings recoverySettings,
+            RepositoriesMetrics repositoriesMetrics,
+            SnapshotMetrics snapshotMetrics
+        ) {
+            if (STATELESS_UPLOAD_CONCURRENCY_SETTING.get(env.settings())) {
+                final var service = new UploadConcurrencyService(clusterService.getClusterSettings(), clusterService.threadPool(), true);
+                service.start();
+                services.add(service);
+                recoverySettings.setUploadConcurrencyService(service);
+            }
+            return Collections.emptyMap();
+        }
+
+        @Override
+        public void close() throws IOException {
+            services.forEach(UploadConcurrencyService::close);
+        }
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        final var plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(StatelessUploadConcurrencyPlugin.class);
+        return plugins;
+    }
+
+    private static Settings nodeSettings(boolean adaptive, boolean stateless) {
+        return Settings.builder()
+            .put(ADAPTIVE_UPLOAD_CONCURRENCY_ENABLED_SETTING.getKey(), adaptive)
+            .put(STATELESS_UPLOAD_CONCURRENCY_SETTING.getKey(), stateless)
+            .build();
+    }
+
+    private List<UploadConcurrencyService> uploadConcurrencyServices() {
+        final List<UploadConcurrencyService> services = new ArrayList<>();
+        for (PluginsService pluginsService : internalCluster().getDataNodeInstances(PluginsService.class)) {
+            pluginsService.filterPlugins(StatelessUploadConcurrencyPlugin.class).forEach(plugin -> services.addAll(plugin.services));
+        }
+        return services;
     }
 
     private void snapshotAndRestore(boolean uploadsOnTheirOwnPool) {
@@ -59,12 +138,12 @@ public class SnapshotUploadConcurrencyIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testSnapshotAndRestoreWithAdaptiveOn() {
-        internalCluster().startNodes(randomIntBetween(1, 3), adaptiveSettings(true));
+        internalCluster().startNodes(randomIntBetween(1, 3), nodeSettings(true, true));
         snapshotAndRestore(true);
     }
 
     public void testFailedUploadsAreCounted() throws Exception {
-        internalCluster().startNodes(randomIntBetween(1, 3), adaptiveSettings(true));
+        internalCluster().startNodes(randomIntBetween(1, 3), nodeSettings(true, true));
         createRepository(
             "test-repo",
             "mock",
@@ -82,7 +161,7 @@ public class SnapshotUploadConcurrencyIT extends AbstractSnapshotIntegTestCase {
 
         long writeErrors = 0;
         long readErrors = 0;
-        for (UploadConcurrencyService service : internalCluster().getDataNodeInstances(UploadConcurrencyService.class)) {
+        for (UploadConcurrencyService service : uploadConcurrencyServices()) {
             writeErrors += service.getUploadWriteErrors();
             readErrors += service.getUploadReadErrors();
         }
@@ -91,7 +170,7 @@ public class SnapshotUploadConcurrencyIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testSwitchingAdaptiveUploadConcurrencyWhileASnapshotRuns() throws Exception {
-        internalCluster().startNodes(randomIntBetween(1, 3), adaptiveSettings(false));
+        internalCluster().startNodes(randomIntBetween(1, 3), nodeSettings(false, true));
         createRepository("test-repo", "mock");
         createIndexWithRandomDocs("test-idx", 50);
         blockAllDataNodes("test-repo");
@@ -106,13 +185,21 @@ public class SnapshotUploadConcurrencyIT extends AbstractSnapshotIntegTestCase {
         assertSuccessful(snapshot);
 
         // every task has given back what it took
-        for (UploadConcurrencyService service : internalCluster().getDataNodeInstances(UploadConcurrencyService.class)) {
+        for (UploadConcurrencyService service : uploadConcurrencyServices()) {
             assertBusy(() -> assertEquals(0, service.getRunningUploadTasks()));
         }
     }
 
     public void testSnapshotAndRestoreWithAdaptiveOff() {
-        internalCluster().startNodes(randomIntBetween(1, 3), adaptiveSettings(false));
+        internalCluster().startNodes(randomIntBetween(1, 3), nodeSettings(false, true));
+        snapshotAndRestore(false);
+    }
+
+    public void testAdaptiveIsIgnoredOnStatefulNodes() {
+        internalCluster().startNodes(randomIntBetween(1, 3), nodeSettings(true, false));
+        for (UploadConcurrencyService service : internalCluster().getDataNodeInstances(UploadConcurrencyService.class)) {
+            assertFalse(service.isAdaptiveUploadConcurrencyEnabled());
+        }
         snapshotAndRestore(false);
     }
 }

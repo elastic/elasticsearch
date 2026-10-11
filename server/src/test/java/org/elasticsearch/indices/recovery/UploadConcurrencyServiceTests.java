@@ -117,13 +117,17 @@ public class UploadConcurrencyServiceTests extends ESTestCase {
         final AtomicLong nanoTime = new AtomicLong(randomLong());
         final UploadConcurrencyService service;
 
-        TestNode(Settings settings, ThreadPool pool) {
+        TestNode(Settings settings, boolean stateless, ThreadPool pool) {
             clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-            service = new UploadConcurrencyService(clusterSettings, pool, probes.probes(), nanoTime::get);
+            service = new UploadConcurrencyService(clusterSettings, pool, stateless, probes.probes(), nanoTime::get);
+        }
+
+        TestNode(Settings settings, ThreadPool pool) {
+            this(settings, true, pool);
         }
 
         TestNode(Settings settings) {
-            this(settings, threadPool);
+            this(settings, true, threadPool);
         }
 
         /** Runs one tick, which is one interval of the controller. */
@@ -161,11 +165,40 @@ public class UploadConcurrencyServiceTests extends ESTestCase {
         assertThat(node.probes.reads.get(), equalTo(reads));
     }
 
+    public void testAdaptiveOnlyAppliesOnStatelessNodes() {
+        final var recordingThreadPool = new RecordingThreadPool(getTestName() + "-recording");
+        try {
+            final TestNode stateful = new TestNode(adaptive(true), false, recordingThreadPool);
+            stateful.service.start();
+            assertFalse(stateful.service.isAdaptiveUploadConcurrencyEnabled());
+            // nothing is scheduled, nothing is read and the budget is not consulted
+            assertThat(recordingThreadPool.scheduled, hasSize(0));
+            for (int i = 0; i < 4; i++) {
+                stateful.tick();
+            }
+            assertThat(stateful.probes.reads.get(), equalTo(0));
+            stateful.apply(adaptive(false));
+            stateful.apply(adaptive(true));
+            assertFalse(stateful.service.isAdaptiveUploadConcurrencyEnabled());
+            assertThat(recordingThreadPool.scheduled, hasSize(0));
+            // the budget is not consulted: more permits than it has are granted
+            final int floor = threadPool.info(ThreadPool.Names.SNAPSHOT).getMax();
+            for (int i = 0; i < floor + 3; i++) {
+                assertNotNull(stateful.service.tryAcquireUploadPermit(() -> {}));
+            }
+
+            final TestNode stateless = new TestNode(adaptive(true), true, recordingThreadPool);
+            assertTrue(stateless.service.isAdaptiveUploadConcurrencyEnabled());
+        } finally {
+            terminate(recordingThreadPool);
+        }
+    }
+
     public void testEachMeasurementIsReadOnceAnInterval() {
         final TestNode node = new TestNode(Settings.EMPTY);
         final AtomicInteger pressureReads = new AtomicInteger();
         final AtomicInteger throttlingReads = new AtomicInteger();
-        final var service = new UploadConcurrencyService(node.clusterSettings, threadPool, new UploadConcurrencyService.Probes(() -> {
+        final var service = new UploadConcurrencyService(node.clusterSettings, threadPool, true, new UploadConcurrencyService.Probes(() -> {
             pressureReads.incrementAndGet();
             return null;
         }, () -> {

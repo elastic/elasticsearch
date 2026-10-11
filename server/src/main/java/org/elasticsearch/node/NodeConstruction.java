@@ -809,7 +809,8 @@ class NodeConstruction {
         final RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
         final UploadConcurrencyService uploadConcurrencyService = new UploadConcurrencyService(
             settingsModule.getClusterSettings(),
-            threadPool
+            threadPool,
+            DiscoveryNode.isStateless(settings)
         );
         recoverySettings.setUploadConcurrencyService(uploadConcurrencyService);
         RepositoriesModule repositoriesModule = new RepositoriesModule(

@@ -501,7 +501,7 @@ final class PreloadedRowGroupMetadata implements Releasable {
         ParquetIoWatermark.AdmitHold hold = null;
         if (singleBatch == false && preWarmRanges.isEmpty() == false) {
             long allowance = singleBatchAllowance(ioWatermark, externalIoThreads);
-            hold = tryAdmitSingleBatch(ioWatermark, span, allowance, true);
+            hold = tryAdmitSingleBatch(ioWatermark, span, allowance, preWarmRanges.isEmpty() == false);
             singleBatch = hold != null;
         }
         logger.debug(
@@ -554,8 +554,8 @@ final class PreloadedRowGroupMetadata implements Releasable {
                 try {
                     hold.drop();
                 } catch (Throwable dropFailure) {
-                    closeFetched(indexFetched);
-                    closeFetched(preWarmFetched);
+                    closeFetched(indexFetched, dropFailure);
+                    closeFetched(preWarmFetched, dropFailure);
                     throw dropFailure;
                 }
             }
@@ -1058,14 +1058,16 @@ final class PreloadedRowGroupMetadata implements Releasable {
         return ioWatermark.tryAdmit(HeapFootprint.byteArrayBytes(span));
     }
 
-    private static void closeFetched(@Nullable CoalescedRangeReader.CoalescedRangeResult result) {
+    private static void closeFetched(@Nullable CoalescedRangeReader.CoalescedRangeResult result, Throwable dropFailure) {
         if (result == null) {
             return;
         }
         try {
             result.release().close();
-        } catch (Throwable ignored) {
-            // Best-effort on the hold-drop failure path.
+        } catch (Throwable e) {
+            if (e != dropFailure) {
+                dropFailure.addSuppressed(e);
+            }
         }
     }
 

@@ -71,7 +71,8 @@ class BulkPrimaryExecutionContext {
     private BulkItemResponse executionResult;
     private int updateRetryCounter;
     private long noopMappingUpdateRetryForMappingVersion;
-    private boolean waitedForMappingUpdate;
+    // whether an operation of the request required a mapping update
+    private boolean hasMappingUpdate;
     private int mappingUpdateLookAheadEnd;
 
     BulkPrimaryExecutionContext(BulkShardRequest request, IndexShard primary) {
@@ -234,7 +235,7 @@ class BulkPrimaryExecutionContext {
         assert assertInvariants(ItemProcessingState.TRANSLATED);
         currentItemState = ItemProcessingState.WAIT_FOR_MAPPING_UPDATE;
         requestToExecute = null;
-        waitedForMappingUpdate = true;
+        hasMappingUpdate = true;
         assert assertInvariants(ItemProcessingState.WAIT_FOR_MAPPING_UPDATE);
     }
 
@@ -246,9 +247,7 @@ class BulkPrimaryExecutionContext {
      * documents ahead of time. An operation that a look-ahead already went through sends its own update if it still needs one.
      */
     public boolean shouldLookAheadForMappingUpdates() {
-        return waitedForMappingUpdate
-            && currentIndex >= mappingUpdateLookAheadEnd
-            && primary.indexSettings().isCombineDynamicMappingUpdates();
+        return hasMappingUpdate && currentIndex >= mappingUpdateLookAheadEnd && primary.indexSettings().isCombineDynamicMappingUpdates();
     }
 
     /**

@@ -16,6 +16,7 @@ import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -233,10 +234,13 @@ public class DynamicMappingUpdateMergerTests extends MapperServiceTestCase {
         }
         assertThat(merger.merged(), sameInstance(first));
 
+        // obj.c is new, so this update is merged
         assertTrue(merger.add(dynamicUpdate(mapperService, """
             {"obj":{"c":1}}""")));
+        // defines nothing that the previous updates don't
         assertTrue(merger.add(dynamicUpdate(mapperService, """
             {"obj":{"c":2},"a":4}""")));
+        assertThat(merger.merged(), not(sameInstance(first)));
         mapperService.merge(MapperService.SINGLE_MAPPING_NAME, merger.merged(), MergeReason.MAPPING_AUTO_UPDATE);
         assertThat(mapperService.fieldType("a"), notNullValue());
         assertThat(mapperService.fieldType("obj.b"), notNullValue());

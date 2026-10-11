@@ -81,7 +81,7 @@ public final class DynamicMappingUpdateMerger {
             definitions = definitions(first);
             collectFieldPaths(definitions, "", fieldPaths);
             runtimeFieldNames.addAll(children(definitions, RUNTIME).keySet());
-            if (fieldPaths.stream().anyMatch(isMappedField)) {
+            if (anyMapped(fieldPaths)) {
                 closed = true;
             }
             MappingBuilder firstBuilder = parse(first);
@@ -116,7 +116,7 @@ public final class DynamicMappingUpdateMerger {
             collectFieldPaths(updateDefinitions, "", updateFieldPaths);
             Set<String> updateRuntimeFieldNames = children(updateDefinitions, RUNTIME).keySet();
             if (identicalWhereOverlapping(definitions, updateDefinitions) == false
-                || updateFieldPaths.stream().anyMatch(isMappedField)
+                || anyMapped(updateFieldPaths)
                 || Collections.disjoint(runtimeFieldNames, updateFieldPaths) == false
                 || Collections.disjoint(fieldPaths, updateRuntimeFieldNames) == false) {
                 closed = true;
@@ -236,6 +236,15 @@ public final class DynamicMappingUpdateMerger {
                 }
             }
         }
+    }
+
+    private boolean anyMapped(Set<String> paths) {
+        for (String path : paths) {
+            if (isMappedField.test(path)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void collectFieldPaths(Map<String, Object> definition, String prefix, Set<String> paths) {

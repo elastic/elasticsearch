@@ -56,7 +56,14 @@ public final class DataSourceCounters {
         counters.inc("datasources.reader.pool.rejected.total", acc.readerPoolRejected());
         counters.inc("datasources.breaker.tripped.total", acc.breakerTripped());
 
-        // ---- config-change counters (kind × op) ----
+        // ---- failure counters by error_type (queries.failures sums to queries.by_outcome.failure) ----
+        for (int i = 0; i < DataSourceUsageAccumulator.ERROR_TYPE_COUNT; i++) {
+            String errorType = DataSourceUsageAccumulator.ERROR_TYPE_NAMES.get(i);
+            counters.inc("datasources.queries.failures.by_error_type." + errorType, acc.queryFailures(i));
+            counters.inc("datasources.discovery.failures.by_error_type." + errorType, acc.discoveryFailures(i));
+        }
+
+        // ---- config-change counters (kind × op, kind × type, and rejected kind × reason) ----
         for (int k = 0; k < DataSourceUsageAccumulator.KIND_COUNT; k++) {
             String kind = DataSourceUsageAccumulator.KIND_NAMES.get(k);
             for (int o = 0; o < DataSourceUsageAccumulator.OP_COUNT; o++) {
@@ -65,12 +72,32 @@ public final class DataSourceCounters {
                     acc.configChanges(k, o)
                 );
             }
+            for (Type type : Type.values()) {
+                counters.inc("datasources.config." + kind + ".changes.by_type." + type.key(), acc.configChanges(k, type));
+            }
+            for (int r = 0; r < DataSourceUsageAccumulator.REJECT_REASON_COUNT; r++) {
+                counters.inc(
+                    "datasources.config." + kind + ".changes.rejected.by_reason." + DataSourceUsageAccumulator.REJECT_REASON_NAMES.get(r),
+                    acc.configRejected(k, r)
+                );
+            }
         }
 
         // ---- per-outcome query counters ----
         for (int i = 0; i < DataSourceUsageAccumulator.OUTCOME_COUNT; i++) {
             counters.inc("datasources.queries.by_outcome." + DataSourceUsageAccumulator.OUTCOME_NAMES.get(i), acc.queries(i));
         }
+
+        // ---- per-component CPU counters (ns) ----
+        // Note: execution, read, and split_discovery are real per-thread CPU time; planning is wall
+        // time. The total therefore mixes the two measurement kinds.
+        long cpuTotal = 0;
+        for (int i = 0; i < DataSourceUsageAccumulator.CPU_COMPONENT_COUNT; i++) {
+            long v = acc.queryCpuNanos(i);
+            counters.inc("datasources.queries.cpu_nanos." + DataSourceUsageAccumulator.CPU_COMPONENT_NAMES.get(i), v);
+            cpuTotal += v;
+        }
+        counters.inc("datasources.queries.cpu_nanos.total", cpuTotal);
 
         // ---- time histograms (no type/format attribute) ----
         List<String> ts = DataSourceUsageAccumulator.TIME_SUFFIXES;

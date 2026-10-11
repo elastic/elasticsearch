@@ -58,6 +58,7 @@ import static org.elasticsearch.repositories.azure.AzureRepository.Repository.CO
 import static org.elasticsearch.repositories.azure.AzureRepository.Repository.COPY_POLL_INTERVAL;
 import static org.elasticsearch.repositories.azure.AzureRepository.Repository.LOCATION_MODE_SETTING;
 import static org.elasticsearch.repositories.azure.AzureRepository.Repository.MAX_SINGLE_PART_UPLOAD_SIZE_SETTING;
+import static org.elasticsearch.repositories.azure.AzureRepository.Repository.MULTIPART_UPLOAD_PART_SIZE_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.ACCOUNT_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.ENDPOINT_SUFFIX_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.KEY_SETTING;
@@ -141,6 +142,32 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
         @Nullable String dataAccessTier,
         @Nullable String metadataAccessTier
     ) {
+        return createBlobContainer(
+            maxRetries,
+            tryTimeout,
+            readTimeout,
+            null,
+            secondaryHost,
+            locationMode,
+            clientName,
+            secureSettings,
+            dataAccessTier,
+            metadataAccessTier
+        );
+    }
+
+    protected BlobContainer createBlobContainer(
+        final int maxRetries,
+        final TimeValue tryTimeout,
+        @Nullable final TimeValue readTimeout,
+        @Nullable final TimeValue writeTimeout,
+        String secondaryHost,
+        final LocationMode locationMode,
+        String clientName,
+        SecureSettings secureSettings,
+        @Nullable String dataAccessTier,
+        @Nullable String metadataAccessTier
+    ) {
         final Settings.Builder clientSettings = Settings.builder();
 
         String endpoint = "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=" + getEndpointForServer(httpServer, ACCOUNT);
@@ -152,6 +179,12 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
         clientSettings.put(TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), tryTimeout);
         if (readTimeout != null) {
             clientSettings.put(AzureStorageSettings.READ_TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), readTimeout);
+        }
+        if (writeTimeout != null) {
+            clientSettings.put(
+                AzureStorageSettings.WRITE_TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
+                writeTimeout
+            );
         }
 
         clientSettings.setSecureSettings(secureSettings);
@@ -180,11 +213,6 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
             }
 
             @Override
-            long getUploadBlockSize() {
-                return ByteSizeUnit.MB.toBytes(1);
-            }
-
-            @Override
             int getMaxReadRetries(ProjectId projectId, String clientName) {
                 return maxRetries;
             }
@@ -198,6 +226,7 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
                 .put(ACCOUNT_SETTING.getKey(), clientName)
                 .put(LOCATION_MODE_SETTING.getKey(), locationMode)
                 .put(MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.MB))
+                .put(MULTIPART_UPLOAD_PART_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.MB))
                 .put(COPY_POLL_INTERVAL.getKey(), TimeValue.timeValueMillis(100))
                 .build()
         );
@@ -277,6 +306,8 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
         @Nullable
         private TimeValue readTimeout;
         @Nullable
+        private TimeValue writeTimeout;
+        @Nullable
         private String secondaryHost;
         private LocationMode locationMode = LocationMode.PRIMARY_ONLY;
         private String clientName = randomIdentifier();
@@ -304,6 +335,11 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
 
         public BlobContainerBuilder withReadTimeout(TimeValue readTimeout) {
             this.readTimeout = readTimeout;
+            return this;
+        }
+
+        public BlobContainerBuilder withWriteTimeout(TimeValue writeTimeout) {
+            this.writeTimeout = writeTimeout;
             return this;
         }
 
@@ -345,6 +381,7 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
                 maxRetries,
                 tryTimeout,
                 readTimeout,
+                writeTimeout,
                 secondaryHost,
                 locationMode,
                 clientName,

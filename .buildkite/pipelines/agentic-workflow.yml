@@ -12,7 +12,9 @@
 #
 # Supported workflows:
 #   test-analysis           — analyse a test-failure issue        (needs ISSUE_URL)
+#   bug-analysis            — analyse a bug issue                 (needs ISSUE_URL)
 #   review-test-analysis    — grade a prior analysis after close  (needs ISSUE_URL)
+#   review-bug-analysis     — grade a prior bug analysis on close (needs ISSUE_URL)
 #   pull-request-fix        — self-heal a failing pull request    (needs PR_URL)
 #   pull-request-creation   — implement a task and open a PR      (needs ISSUE_URL)
 #

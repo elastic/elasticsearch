@@ -20,10 +20,9 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.hamcrest.Matchers.equalTo;
@@ -209,6 +208,35 @@ public class DetermineUnmappedFieldsToKeepOrderingTests extends AnalyzerUnmapped
             """, "language_code", "unmapped.nested", "unmapped_event_duration", "unmapped_message");
     }
 
+    public void testMarkJoinOrderingOmitsSyntheticMark() {
+        String[] discovered = { "language_code", "unmapped.nested", "unmapped_event_duration" };
+        String[] discoveredIncludingMessage = { "language_code", "unmapped.nested", "unmapped_event_duration", "unmapped_message" };
+        assertOrderingMatchesPlanOutput(partialMappingTest(), """
+            FROM partial_mapping_sample_data
+            | WHERE unmapped_message IN (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP unmapped_message)
+                OR message == "nope"
+            | SORT @timestamp
+            """, discovered);
+        assertOrderingMatchesPlanOutput(partialMappingTest(), """
+            FROM partial_mapping_sample_data
+            | WHERE "43" IN (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP unmapped_message)
+                OR message == "nope"
+            | SORT @timestamp
+            """, discoveredIncludingMessage);
+        assertOrderingMatchesPlanOutput(partialMappingTest(), """
+            FROM partial_mapping_sample_data
+            | EVAL x = "43" IN (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP unmapped_message)
+                OR message == "nope"
+            | SORT @timestamp
+            """, discoveredIncludingMessage);
+        assertOrderingMatchesPlanOutput(partialMappingTest(), """
+            FROM partial_mapping_sample_data
+            | INLINE STATS c = COUNT(*) WHERE "43" IN
+                (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP unmapped_message) OR message == "nope"
+            | SORT @timestamp
+            """, discoveredIncludingMessage);
+    }
+
     public void testPartialMappingSubqueryKeepWildcardAfterSortOrderingMatchesOptimizedOutput() {
         assertOrderingMatchesPlanOutput(partialMappingTest(), """
             FROM (FROM partial_mapping_sample_data | WHERE message == "42"),
@@ -228,14 +256,16 @@ public class DetermineUnmappedFieldsToKeepOrderingTests extends AnalyzerUnmapped
             .map(name -> (Attribute) new ReferenceAttribute(Source.EMPTY, null, name, DataType.KEYWORD))
             .toList();
         List<String> ordered = Expressions.names(ordering.order(leaves));
+        List<String> discoveredNames = List.of(discovered);
         for (LogicalPlan plan : List.of(analyzed, optimized)) {
-            Set<String> expected = new HashSet<>();
+            List<String> expected = new ArrayList<>();
             for (String name : Expressions.names(plan.output())) {
-                if (name.equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME) == false) {
+                if (name.equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME)) {
+                    expected.addAll(discoveredNames);
+                } else {
                     expected.add(name);
                 }
             }
-            expected.addAll(List.of(discovered));
             assertThat(
                 Strings.format(
                     "stage=%s ordered=%s expected=%s plan=%s",
@@ -244,7 +274,7 @@ public class DetermineUnmappedFieldsToKeepOrderingTests extends AnalyzerUnmapped
                     expected,
                     plan
                 ),
-                new HashSet<>(ordered),
+                ordered,
                 equalTo(expected)
             );
         }

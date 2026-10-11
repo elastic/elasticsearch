@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.datasources.FileSetFingerprint;
 
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -45,9 +46,37 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
             path,
             meta,
             Map.of(),
-            0L,
+            List.of(),
             List.of()
         );
+    }
+
+    /**
+     * The weight is computed once at construction, because the shared {@code Cache} runs its weigher twice on
+     * every hit that is not already at the LRU head ({@code Cache.promote} -> {@code relinkAtHead} ->
+     * {@code unlink} subtracting it and {@code linkAtHead} adding it back). The failure mode of precomputing is
+     * therefore a STALE weight, so what needs pinning is that the enrichment helper recomputes: a harvest grows
+     * the metadata map by megabytes, and an entry still reporting its pre-harvest weight would let the store hold
+     * far more than its budget while believing it was inside it.
+     * <p>
+     * No single line of the change reverts into that bug, because the helper builds a new entry through the
+     * constructor and there is no path that carries a weight forward. What this gate catches is an
+     * implementation that grows one - verified by injecting a carried weight rather than by reverting a line.
+     */
+    public void testEnrichmentRecomputesTheWeightRatherThanCarryingTheOldOne() {
+        SchemaCacheEntry seeded = entryWithMin("s3://b/f.csv", "a");
+        long seededWeight = seeded.estimatedBytes();
+
+        Map<String, Object> harvested = new LinkedHashMap<>(seeded.safeMetadata());
+        harvested.put("_stats.columns.c.max", "x".repeat(1_000_000));
+        SchemaCacheEntry enriched = seeded.withSafeMetadata(harvested);
+
+        assertThat(
+            "an enriched entry must charge for the metadata it now holds, not for what it held when it was built",
+            enriched.estimatedBytes(),
+            greaterThan(seededWeight + 1_000_000)
+        );
+        assertThat("enrichment must not mutate the entry it was derived from", seeded.estimatedBytes(), equalTo(seededWeight));
     }
 
     public void testSchemaEntryWeightChargesTheSizeOfAStoredColumnExtremum() {
@@ -83,7 +112,7 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
             "s3://b/f.csv",
             meta,
             Map.of(),
-            0L,
+            List.of(),
             List.of()
         );
         SchemaCacheEntry longName = new SchemaCacheEntry(
@@ -95,7 +124,7 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
             "s3://b/f.csv",
             meta,
             Map.of(),
-            0L,
+            List.of(),
             List.of()
         );
         assertThat(longName.estimatedBytes(), greaterThan(shortName.estimatedBytes()));
@@ -111,7 +140,7 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
             "s3://b/f.csv",
             Map.of(),
             Map.of("k", "a"),
-            0L,
+            List.of(),
             List.of()
         );
         SchemaCacheEntry large = new SchemaCacheEntry(
@@ -123,7 +152,7 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
             "s3://b/f.csv",
             Map.of(),
             Map.of("k", "x".repeat(50_000)),
-            0L,
+            List.of(),
             List.of()
         );
         assertThat(large.estimatedBytes(), greaterThan(small.estimatedBytes()));
@@ -149,7 +178,7 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
             "s3://b/f.csv",
             emptyStripes,
             Map.of(),
-            0L,
+            List.of(),
             List.of()
         );
         SchemaCacheEntry striped = new SchemaCacheEntry(
@@ -161,7 +190,7 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
             "s3://b/f.csv",
             withStripes,
             Map.of(),
-            0L,
+            List.of(),
             List.of()
         );
         assertThat(
@@ -185,7 +214,12 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
             for (int i = 0; i < entries; i++) {
                 String min = "a" + i + "-" + "x".repeat(valueChars);
                 String max = "b" + i + "-" + "y".repeat(valueChars);
-                SchemaCacheKey key = SchemaCacheKey.build("s3://bucket/f" + i + ".csv", 1000L, ".csv", Map.of());
+                SchemaCacheKey key = SchemaCacheKey.build(
+                    "s3://bucket/f" + i + ".csv",
+                    1000L,
+                    TestDatasetIdentities.identity(".csv", "", Map.of()),
+                    false
+                );
                 Map<String, Object> meta = new LinkedHashMap<>();
                 meta.put(ExternalStats.MTIME_MILLIS_KEY, 1000L);
                 meta.put("_stats.row_count", 10L);
@@ -202,7 +236,7 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
                         "s3://bucket/f" + i + ".csv",
                         meta,
                         Map.of(),
-                        0L,
+                        List.of(),
                         List.of()
                     )
                 );
@@ -225,7 +259,12 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
     public void testOversizePutInvalidatesExistingSchemaEntry() throws Exception {
         Settings settings = Settings.builder().put("esql.external.cache.size", "2mb").build();
         try (ExternalSourceCacheService cache = new ExternalSourceCacheService(settings)) {
-            SchemaCacheKey key = SchemaCacheKey.build("s3://bucket/grow.csv", 1000L, ".csv", Map.of());
+            SchemaCacheKey key = SchemaCacheKey.build(
+                "s3://bucket/grow.csv",
+                1000L,
+                TestDatasetIdentities.identity(".csv", "", Map.of()),
+                false
+            );
             cache.putSchema(key, entryWithMin("s3://bucket/grow.csv", "a"));
             assertThat(cache.getSchemaIfPresent(key), notNullValue());
             cache.putSchema(key, entryWithMin("s3://bucket/grow.csv", "x".repeat(1_000_000)));
@@ -246,13 +285,12 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
         Settings settings = Settings.builder().put("esql.external.cache.size", "48kb").build();
         try (ExternalSourceCacheService cache = new ExternalSourceCacheService(settings)) {
             long daCeiling = (Long) cache.usageStats().get("dataset_aggregate_max_entry_bytes");
-            SchemaCacheKey key = SchemaCacheKey.forDatasetAggregate(
+            DatasetAggregateKey key = DatasetAggregateKey.of(
                 "file:///tmp/warm-fold/*.ndjson",
                 new FileSetFingerprint(11, 22),
-                "ndjson",
-                Map.of("format", "ndjson")
+                TestDatasetIdentities.identity("ndjson", "", Map.of("format", "ndjson"))
             );
-            cache.putDatasetAggregate(key, 828_090L, "ndjson", "file:///tmp/warm-fold/*.ndjson");
+            cache.putDatasetAggregate(key, 828_090L);
             assertThat(
                 "48kb total budget must still retain the dataset-aggregate row-count entry (ceiling=" + daCeiling + ")",
                 cache.getDatasetAggregate(key),
@@ -284,7 +322,12 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
             for (int i = 0; i < entries; i++) {
                 String min = "a" + i + "-" + "x".repeat(valueChars);
                 String max = "b" + i + "-" + "y".repeat(valueChars);
-                SchemaCacheKey key = SchemaCacheKey.build("s3://bucket/mid" + i + ".csv", 1000L, ".csv", Map.of());
+                SchemaCacheKey key = SchemaCacheKey.build(
+                    "s3://bucket/mid" + i + ".csv",
+                    1000L,
+                    TestDatasetIdentities.identity(".csv", "", Map.of()),
+                    false
+                );
                 Map<String, Object> meta = new LinkedHashMap<>();
                 meta.put(ExternalStats.MTIME_MILLIS_KEY, 1000L);
                 meta.put("_stats.row_count", 10L);
@@ -299,7 +342,7 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
                     "s3://bucket/mid" + i + ".csv",
                     meta,
                     Map.of(),
-                    0L,
+                    List.of(),
                     List.of()
                 );
                 assertThat(entry.estimatedBytes(), lessThanOrEqualTo(maxEntry));
@@ -312,6 +355,114 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
                 greaterThan(0L)
             );
             assertThat(retainedSchemaWeight(cache), lessThanOrEqualTo(schemaBudget));
+        }
+    }
+
+    /**
+     * The eviction count, exactly, rather than "more than none".
+     * <p>
+     * A budget that evicts is not the same as a budget that evicts <em>proportionately</em>. An LRU that discards
+     * more than it needs to make room turns a cache one entry over budget into a cache that keeps re-reading the
+     * siblings it just dropped, and every assertion of the form {@code evictions > 0} is green for both. So the
+     * fixture makes every entry weigh the same — a zero-padded path and constant-length extrema, since the weigher
+     * charges for both — fills the budget exactly, and then adds one.
+     * <p>
+     * One entry over a budget of equal-weight entries costs exactly one of them.
+     */
+    public void testOneEntryOverBudgetEvictsExactlyOneEntry() throws Exception {
+        Settings settings = Settings.builder().put("esql.external.cache.size", "2mb").build();
+        try (ExternalSourceCacheService cache = new ExternalSourceCacheService(settings)) {
+            long schemaBudget = (Long) cache.usageStats().get("schema_budget_bytes");
+            long maxEntry = (Long) cache.usageStats().get("schema_max_entry_bytes");
+
+            int valueChars = 512;
+            while (equalWeightEntry(0, valueChars).estimatedBytes() > maxEntry / 2 && valueChars > 16) {
+                valueChars /= 2;
+            }
+            long perEntry = equalWeightEntry(0, valueChars).estimatedBytes();
+            assertThat("every fixture entry must weigh the same", equalWeightEntry(7, valueChars).estimatedBytes(), equalTo(perEntry));
+
+            int capacity = (int) (schemaBudget / perEntry);
+            assertThat("the budget must hold several entries for this to say anything", capacity, greaterThan(2));
+
+            for (int i = 0; i < capacity; i++) {
+                cache.putSchema(equalWeightKey(i), equalWeightEntry(i, valueChars));
+            }
+            assertThat(
+                "entries that fit the budget exactly must not evict",
+                (Long) cache.usageStats().get("schema_cache.evictions"),
+                equalTo(0L)
+            );
+
+            cache.putSchema(equalWeightKey(capacity), equalWeightEntry(capacity, valueChars));
+            assertThat(
+                "one entry over a budget of equal-weight entries must cost exactly one of them, not a swathe of them",
+                (Long) cache.usageStats().get("schema_cache.evictions"),
+                equalTo(1L)
+            );
+            assertThat(retainedSchemaWeight(cache), lessThanOrEqualTo(schemaBudget));
+        }
+    }
+
+    /** Zero-padded so every path is the same length, because the weigher charges for the path. */
+    private static SchemaCacheKey equalWeightKey(int i) {
+        return SchemaCacheKey.build(
+            String.format(Locale.ROOT, "s3://bucket/eq%06d.csv", i),
+            1000L,
+            TestDatasetIdentities.identity(".csv", "", Map.of()),
+            false
+        );
+    }
+
+    /** Identical in weight for every {@code i}: constant-length path, column name, and extrema. */
+    private static SchemaCacheEntry equalWeightEntry(int i, int valueChars) {
+        String path = String.format(Locale.ROOT, "s3://bucket/eq%06d.csv", i);
+        Map<String, Object> meta = new LinkedHashMap<>();
+        meta.put(ExternalStats.MTIME_MILLIS_KEY, 1000L);
+        meta.put("_stats.row_count", 10L);
+        meta.put("_stats.columns.c.min", "a".repeat(valueChars));
+        meta.put("_stats.columns.c.max", "b".repeat(valueChars));
+        return new SchemaCacheEntry(
+            new String[] { "c" },
+            new DataType[] { DataType.KEYWORD },
+            new Nullability[] { Nullability.TRUE },
+            new boolean[] { false },
+            "csv",
+            path,
+            meta,
+            Map.of(),
+            List.of(),
+            List.of()
+        );
+    }
+
+    /**
+     * {@code weight_bytes} must be the store's real occupancy, because it is the figure the budget is enforced
+     * against and the counts beside it cannot stand in for it - one many-striped file's entry can outweigh
+     * thousands of narrow ones. Pinned against the independent sum over the retained entries, so a stat that
+     * reported a count, a budget or a stale total would disagree with the oracle.
+     */
+    public void testReportedWeightAgreesWithWhatTheStoreActuallyHolds() {
+        Settings settings = Settings.builder().put("esql.external.cache.size", "10mb").build();
+        try (ExternalSourceCacheService cache = new ExternalSourceCacheService(settings)) {
+            assertThat("an empty store holds nothing", cache.usageStats().get("schema_cache.weight_bytes"), equalTo(0L));
+
+            for (int i = 0; i < 4; i++) {
+                SchemaCacheKey key = SchemaCacheKey.build(
+                    "s3://bucket/f" + i + ".csv",
+                    1000L + i,
+                    TestDatasetIdentities.identity("csv", "identity", Map.of()),
+                    false
+                );
+                cache.putSchema(key, entryWithMin("s3://bucket/f" + i + ".csv", "v".repeat(1000 * (i + 1))));
+            }
+
+            assertThat(
+                "the reported weight must equal the sum of the weights of the entries retained",
+                cache.usageStats().get("schema_cache.weight_bytes"),
+                equalTo(retainedSchemaWeight(cache))
+            );
+            assertThat("and it must be non-trivial once four entries are held", retainedSchemaWeight(cache), greaterThan(4000L));
         }
     }
 

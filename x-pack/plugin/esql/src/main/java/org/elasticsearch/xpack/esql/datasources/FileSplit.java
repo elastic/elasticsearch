@@ -44,6 +44,11 @@ public class FileSplit implements ExternalSplit {
 
     static final TransportVersion ESQL_SPLIT_STATS_COMPACT = TransportVersion.fromName("esql_split_stats_compact");
     private static final TransportVersion ESQL_EXTERNAL_SOURCE_READ_SCHEMA = TransportVersion.fromName("esql_external_source_read_schema");
+    /**
+     * Survivor maps no longer store {@code _file.path}, {@code _file.name}, or {@code _file.directory}.
+     * Readers at this version derive them from {@link #path}. Older nodes still read those keys from the map.
+     */
+    static final TransportVersion ESQL_DERIVE_FILE_LOCATION = TransportVersion.fromName("esql_derive_file_location");
 
     /**
      * {@link Collections#unmodifiableMap} wrapper class. Discovery freezes each survivor's partition
@@ -347,7 +352,7 @@ public class FileSplit implements ExternalSplit {
         out.writeVLong(length);
         out.writeOptionalString(format);
         out.writeGenericMap(config);
-        out.writeGenericMap(partitionValues);
+        out.writeGenericMap(partitionValuesToWrite(out.getTransportVersion()));
         if (columnMapping != null) {
             out.writeBoolean(true);
             columnMapping.writeTo(out);
@@ -442,6 +447,19 @@ public class FileSplit implements ExternalSplit {
             return layered.sharedTuple();
         }
         return partitionValues;
+    }
+
+    /**
+     * Current versions write the stored map unchanged. An older node still fills location columns from
+     * the map, so the outbound copy includes {@code _file.path}, {@code _file.name}, and
+     * {@code _file.directory} derived from {@link #path} when they are absent. Keys already present,
+     * including an explicit null, are left as stored.
+     */
+    private Map<String, Object> partitionValuesToWrite(TransportVersion version) {
+        if (version.supports(ESQL_DERIVE_FILE_LOCATION)) {
+            return partitionValues;
+        }
+        return FileMetadataColumns.overlayLocation(partitionValues, path, FileMetadataColumns.LOCATION_NAMES);
     }
 
     @Nullable

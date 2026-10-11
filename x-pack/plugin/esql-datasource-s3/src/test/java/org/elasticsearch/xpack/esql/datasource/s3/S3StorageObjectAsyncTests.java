@@ -91,7 +91,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
         }
     }
 
-    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(NoopCircuitBreaker.INSTANCE);
 
     private static final String BUCKET = "test-bucket";
     private static final String KEY = "data/file.parquet";
@@ -441,7 +441,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
 
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         assertThat(error.get(), instanceOf(IOException.class));
-        assertThat(error.get().getMessage(), containsString("Object not found"));
+        assertThat(error.get().getMessage(), containsString("External data object not found"));
     }
 
     public void testReadBytesAsyncNegativePositionFails() throws Exception {

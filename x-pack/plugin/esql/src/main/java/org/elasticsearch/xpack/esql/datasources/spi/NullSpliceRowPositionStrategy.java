@@ -96,6 +96,11 @@ public final class NullSpliceRowPositionStrategy implements RowPositionStrategy 
         }
 
         @Override
+        public void revokeOvershootOnPark() {
+            inner.revokeOvershootOnPark();
+        }
+
+        @Override
         public Page tryAdvance() {
             Page innerPage = inner.tryAdvance();
             return innerPage != null ? splicePage(innerPage) : null;

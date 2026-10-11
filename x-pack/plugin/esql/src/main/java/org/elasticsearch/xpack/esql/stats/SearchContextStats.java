@@ -29,6 +29,7 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -408,6 +409,24 @@ public class SearchContextStats implements SearchStats {
 
         // unsupported type - default to MV
         return false;
+    }
+
+    @Override
+    public boolean hasValueQueries(FieldAttribute.FieldName name) {
+        for (SearchExecutionContext ctx : contexts) {
+            if (isNestedSubfield(ctx, name.string())) {
+                return false;
+            }
+            MappedFieldType type = ctx.getFieldType(name.string());
+            if (type instanceof TextFamilyFieldType textFamily) {
+                if (textFamily.valueQueries() == null) {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+        return contexts.isEmpty() == false;
     }
 
     @Override

@@ -34,7 +34,7 @@ public final class DataSourceEncryptedDataHandler implements EncryptedDataHandle
 
     @Override
     public boolean hasData(DataSourceMetadata current) {
-        return current != null && current.dataSources().isEmpty() == false;
+        return current != null && current.dataSources().values().stream().anyMatch(ds -> ds.settings().hasSecrets());
     }
 
     /**

@@ -17,12 +17,19 @@ import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.mockito.ArgumentCaptor;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.time.Instant;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -52,9 +59,9 @@ public class S3RequestCountingTests extends ESTestCase {
         );
     }
 
-    private void stubSuffixRangeResponse() {
+    private void stubFirstByteResponse() {
         GetObjectResponse resp = GetObjectResponse.builder()
-            .contentRange("bytes " + (FILE_SIZE - 1) + "-" + (FILE_SIZE - 1) + "/" + FILE_SIZE)
+            .contentRange("bytes 0-0/" + FILE_SIZE)
             .contentLength(1L)
             .lastModified(LAST_MODIFIED)
             .build();
@@ -64,24 +71,28 @@ public class S3RequestCountingTests extends ESTestCase {
     }
 
     /**
-     * After optimization: length() uses suffix-range GET instead of HEAD.
+     * length() is answered by a first-byte range GET, not a HEAD.
      */
-    public void testLengthTriggersOneSuffixRangeGet() throws IOException {
-        stubSuffixRangeResponse();
+    public void testLengthTriggersOneRangeGet() throws IOException {
+        stubFirstByteResponse();
         S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
 
         long length = obj.length();
 
         assertEquals(FILE_SIZE, length);
         verify(mockS3, never()).headObject(any(HeadObjectRequest.class));
-        verify(mockS3, times(1)).getObject(any(GetObjectRequest.class));
+        ArgumentCaptor<GetObjectRequest> sent = ArgumentCaptor.forClass(GetObjectRequest.class);
+        verify(mockS3, times(1)).getObject(sent.capture());
+        // The range is load-bearing: a 403 is surfaced without a second request because this already is the
+        // cheapest read S3 serves, so widening it would quietly remove the fallback the 403 path gave up.
+        assertEquals("bytes=0-0", sent.getValue().range());
     }
 
     /**
      * Calling length() twice should use the cached value (no second request).
      */
     public void testLengthCachesAfterFirstCall() throws IOException {
-        stubSuffixRangeResponse();
+        stubFirstByteResponse();
         S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
 
         obj.length();
@@ -104,10 +115,10 @@ public class S3RequestCountingTests extends ESTestCase {
     }
 
     /**
-     * The fix: using the SAME object for exists() and length() needs only ONE suffix-range GET.
+     * Using the SAME object for exists() and length() needs only ONE range GET.
      */
     public void testSameObjectExistsThenLengthCausesOneRequest() throws IOException {
-        stubSuffixRangeResponse();
+        stubFirstByteResponse();
 
         S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
         assertTrue(obj.exists());
@@ -119,8 +130,9 @@ public class S3RequestCountingTests extends ESTestCase {
     }
 
     /**
-     * newStream(pos, length) increments {@link StorageObjectMetrics} request counters and records
-     * the requested byte count.
+     * newStream(pos, length) increments {@link StorageObjectMetrics} request counters. Close with
+     * leftover at or below {@link TransientTypingInputStream#MAX_TRAILING_DRAIN_BYTES} drains the
+     * remainder and books those received bytes.
      */
     public void testRangeNewStreamIncrementsMetrics() throws IOException {
         long rangeBytes = 1024L;
@@ -133,6 +145,8 @@ public class S3RequestCountingTests extends ESTestCase {
             new ResponseInputStream<>(resp, AbortableInputStream.create(new ByteArrayInputStream(new byte[(int) rangeBytes])))
         );
         S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH, FILE_SIZE);
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        obj.attachMetrics(new ExternalSourceMetrics(registry), "s3");
 
         assertEquals(0L, obj.metrics().requestCount());
         obj.newStream(0, rangeBytes).close();
@@ -140,8 +154,33 @@ public class S3RequestCountingTests extends ESTestCase {
         StorageObjectMetrics metrics = obj.metrics();
         assertEquals(1L, metrics.requestCount());
         assertEquals(rangeBytes, metrics.bytesRead());
+        assertEquals("close-with-no-read must publish drained leftover to APM", rangeBytes, apmBytesReadTotal(registry));
         assertTrue("requestNanos should be > 0", metrics.requestNanos() > 0);
         assertEquals(0L, metrics.retryCount());
+    }
+
+    public void testRangeNewStreamDrainThenAbortCountsReceivedBytes() throws IOException {
+        long rangeBytes = 1024L;
+        int drained = 17;
+        GetObjectResponse resp = GetObjectResponse.builder()
+            .contentRange("bytes 0-" + (rangeBytes - 1) + "/" + FILE_SIZE)
+            .contentLength(rangeBytes)
+            .lastModified(LAST_MODIFIED)
+            .build();
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenReturn(
+            new ResponseInputStream<>(resp, AbortableInputStream.create(new ByteArrayInputStream(new byte[(int) rangeBytes])))
+        );
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH, FILE_SIZE);
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        obj.attachMetrics(new ExternalSourceMetrics(registry), "s3");
+        InputStream stream = obj.newStream(0, rangeBytes);
+        assertEquals(drained, stream.read(new byte[drained]));
+        obj.abortStream(stream);
+
+        StorageObjectMetrics metrics = obj.metrics();
+        assertEquals(1L, metrics.requestCount());
+        assertEquals(drained, metrics.bytesRead());
+        assertEquals("abort skips leftover; APM matches drained bytes", drained, apmBytesReadTotal(registry));
     }
 
     /**
@@ -149,7 +188,7 @@ public class S3RequestCountingTests extends ESTestCase {
      * they're not data reads.
      */
     public void testMetadataProbesDoNotCountAsRequests() throws IOException {
-        stubSuffixRangeResponse();
+        stubFirstByteResponse();
         S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
 
         obj.length();
@@ -165,7 +204,7 @@ public class S3RequestCountingTests extends ESTestCase {
      * metadata is not shared across objects. See GlobExpander change in this PR.
      */
     public void testExistsThenNewObjectCausesTwoRequests() throws IOException {
-        stubSuffixRangeResponse();
+        stubFirstByteResponse();
 
         S3StorageObject existsObj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
         assertTrue(existsObj.exists());
@@ -178,9 +217,9 @@ public class S3RequestCountingTests extends ESTestCase {
     }
 
     /**
-     * When the suffix-range GET fails with a non-403 error, fetchMetadata falls back to HEAD.
+     * When the range GET fails with a non-403 error, probeObject falls back to HEAD.
      */
-    public void testSuffixRangeFailureFallsBackToHead() throws IOException {
+    public void testRangeGetFailureFallsBackToHead() throws IOException {
         when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(
             S3Exception.builder().statusCode(500).message("Internal Server Error").build()
         );
@@ -195,9 +234,34 @@ public class S3RequestCountingTests extends ESTestCase {
     }
 
     /**
-     * When the suffix-range GET returns 404 (NoSuchKeyException), the object is marked as not found.
+     * The HEAD fallback carries its own fallback back to a range GET, for a policy that grants s3:GetObject but
+     * not s3:ListBucket: a range GET that failed for an unrelated reason, then a HEAD refused with 403, is still
+     * answered by retrying the range GET.
      */
-    public void testSuffixRangeNotFoundSetsNotFound() throws IOException {
+    public void testHeadFallbackDeniedFallsBackToRangeGet() throws IOException {
+        GetObjectResponse resp = GetObjectResponse.builder()
+            .contentRange("bytes 0-0/" + FILE_SIZE)
+            .contentLength(1L)
+            .lastModified(LAST_MODIFIED)
+            .build();
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(
+            S3Exception.builder().statusCode(500).message("Internal Server Error").build()
+        ).thenReturn(new ResponseInputStream<>(resp, AbortableInputStream.create(new ByteArrayInputStream(new byte[] { 0 }))));
+        when(mockS3.headObject(any(HeadObjectRequest.class))).thenThrow(
+            S3Exception.builder().statusCode(403).message("Access Denied").build()
+        );
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+
+        assertEquals(FILE_SIZE, obj.length());
+        verify(mockS3, times(2)).getObject(any(GetObjectRequest.class));
+        verify(mockS3, times(1)).headObject(any(HeadObjectRequest.class));
+    }
+
+    /**
+     * When the range GET returns 404 (NoSuchKeyException), the object is marked as not found.
+     */
+    public void testRangeGetNotFoundSetsNotFound() throws IOException {
         when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(NoSuchKeyException.builder().message("Not Found").build());
 
         S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
@@ -206,33 +270,30 @@ public class S3RequestCountingTests extends ESTestCase {
     }
 
     /**
-     * When suffix-range GET returns 403, falls back to bytes=0-0 range GET (not HEAD,
-     * since s3:GetObject covers both GET-range and HEAD — HEAD would also be denied).
+     * A 403 is answered in one request. This request already is the cheapest read, and a HEAD needs the same
+     * s3:GetObject, so a second request would only be refused again.
      */
-    public void testSuffixRange403FallsBackToRangeGet() throws IOException {
-        // First call (suffix range) → 403; second call (bytes=0-0) → succeeds with Content-Range
-        GetObjectResponse rangeResp = GetObjectResponse.builder()
-            .contentRange("bytes 0-0/" + FILE_SIZE)
-            .contentLength(1L)
-            .lastModified(LAST_MODIFIED)
-            .build();
+    public void testDenialCostsOneRequestAndNoHead() {
         when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(
             S3Exception.builder().statusCode(403).message("Access Denied").build()
-        ).thenReturn(new ResponseInputStream<>(rangeResp, AbortableInputStream.create(new ByteArrayInputStream(new byte[] { 0 }))));
+        );
 
         S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
-        long length = obj.length();
+        // Assert the mapped type and condition, not merely that something threw: a 403 mapped to anything else
+        // would still satisfy expectThrows(Exception.class) while telling the caller the wrong thing.
+        ExternalClientException denied = expectThrows(ExternalClientException.class, obj::length);
+        assertEquals(ExternalClientException.Condition.ACCESS_DENIED, denied.condition());
 
-        assertEquals(FILE_SIZE, length);
-        verify(mockS3, times(2)).getObject(any(GetObjectRequest.class));
+        verify(mockS3, times(1)).getObject(any(GetObjectRequest.class));
         verify(mockS3, never()).headObject(any(HeadObjectRequest.class));
     }
 
     /**
-     * When suffix-range GET returns 416 (Range Not Satisfiable), the object is empty (0 bytes).
-     * No second request needed — 416 confirms existence with zero length.
+     * A 416 means the object exists and is empty. One request covers it: the 416 is itself an
+     * answer, and the probe stamps the timestamp as well as the length, so a following lastModified() does not
+     * find it unset and run the whole probe again.
      */
-    public void testSuffixRange416MeansEmptyObject() throws IOException {
+    public void testRangeGet416MeansEmptyObject() throws IOException {
         when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(
             S3Exception.builder().statusCode(416).message("Range Not Satisfiable").build()
         );
@@ -240,12 +301,14 @@ public class S3RequestCountingTests extends ESTestCase {
         S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
         assertTrue(obj.exists());
         assertEquals(0L, obj.length());
+        // The timestamp matters as much as the length: unset, this call returns null for an object that exists.
+        assertEquals(Instant.EPOCH, obj.lastModified());
         verify(mockS3, times(1)).getObject(any(GetObjectRequest.class));
         verify(mockS3, never()).headObject(any(HeadObjectRequest.class));
     }
 
     /**
-     * When suffix-range GET succeeds but Content-Range is absent (unexpected for S3),
+     * When the range GET succeeds but Content-Range is absent (unexpected for S3),
      * falls back to HEAD for the full metadata.
      */
     public void testMissingContentRangeFallsBackToHead() throws IOException {
@@ -266,5 +329,13 @@ public class S3RequestCountingTests extends ESTestCase {
         assertTrue(obj.exists());
         verify(mockS3, times(1)).getObject(any(GetObjectRequest.class));
         verify(mockS3, times(1)).headObject(any(HeadObjectRequest.class));
+    }
+
+    private static long apmBytesReadTotal(RecordingMeterRegistry registry) {
+        return registry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_BYTES_READ_TOTAL)
+            .stream()
+            .mapToLong(Measurement::getLong)
+            .sum();
     }
 }

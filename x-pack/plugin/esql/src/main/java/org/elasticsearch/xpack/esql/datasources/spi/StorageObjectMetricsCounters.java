@@ -24,7 +24,7 @@ import java.util.concurrent.atomic.LongAdder;
  * may concurrently increment from multiple threads and contention on a single AtomicLong
  * would dominate hot paths in object-store reads.
  * <p>
- * In addition to the profile snapshot, the same request/retry events are published to the node
+ * In addition to the profile snapshot, request/retry/bytes events are published to the node
  * {@link ExternalSourceMetrics} once a {@link Sink} is {@link #attach attached} (the operator wiring
  * does this when it opens a storage object). Until then the sink is {@link Sink#NONE} and the publishing
  * path is skipped entirely, so the profile-only behaviour is unchanged and allocation-free.
@@ -44,20 +44,73 @@ public final class StorageObjectMetricsCounters {
         static final Sink NONE = new Sink(ExternalSourceMetrics.NOOP, "unknown");
     }
 
-    // attach() runs on the operator thread that opens the object; addRequest()/addRetry() may fire from
-    // async SDK callback threads, so the sink is published through this single volatile field.
+    // attach() runs on the operator thread that opens the object; addRequest()/addRetry()/addBytes() may
+    // fire from async SDK or producer threads, so the sink is published through this single volatile field.
     private volatile Sink sink = Sink.NONE;
 
     /**
+     * Planning holder captured on the coordinator thread that started the I/O, so native-async
+     * completions (SDK / timer threads) still increment query planning totals after
+     * {@link ExternalPlanningIo#activate} has been restored.
+     */
+    private volatile ExternalPlanningIo planningIo;
+
+    /**
+     * Set by {@link #attach}: this object is on the execution path. Planning totals must not
+     * receive further events, even if a leaked or nested {@link ExternalPlanningIo#activate}
+     * is visible on the current thread.
+     */
+    private volatile boolean executionAttached;
+
+    /**
      * Attaches the node telemetry sink and the storage {@code scheme} dimension, so subsequent
-     * request/retry events are published to {@link ExternalSourceMetrics} as well as the profile
-     * snapshot. Idempotent; safe to call again as the same object is reused across reads.
+     * request/retry/bytes events are published to {@link ExternalSourceMetrics} as well as the
+     * profile snapshot. Idempotent; safe to call again as the same object is reused across reads.
      */
     public void attach(ExternalSourceMetrics metrics, String scheme) {
         this.sink = new Sink(metrics == null ? ExternalSourceMetrics.NOOP : metrics, scheme == null ? "unknown" : scheme);
+        // Execution objects must not keep writing the coordinator planning holder.
+        this.planningIo = null;
+        this.executionAttached = true;
     }
 
-    /** Records one completed request with its duration and the bytes returned. */
+    /** Pins the current planning holder so later async completions still count. */
+    public void bindPlanningIo() {
+        if (executionAttached) {
+            return;
+        }
+        ExternalPlanningIo current = ExternalPlanningIo.current();
+        if (current != null) {
+            this.planningIo = current;
+        }
+    }
+
+    /**
+     * Sticky capture for planning I/O. After {@link #attach}, always {@code null} so a live
+     * ThreadLocal on a shared worker cannot rebind execution bytes into planning totals.
+     */
+    private ExternalPlanningIo planningIo() {
+        if (executionAttached) {
+            return null;
+        }
+        ExternalPlanningIo live = ExternalPlanningIo.current();
+        if (live != null) {
+            this.planningIo = live;
+            return live;
+        }
+        return planningIo;
+    }
+
+    /**
+     * Records one completed request with its duration and, optionally, the bytes returned in the
+     * same event.
+     * <p>
+     * Pass filled-buffer size when this event is the only byte source (native-async
+     * {@code deliverRead}: one GET, one APM request+bytes event). Pass {@code bytes = 0} when
+     * received body bytes are published separately via {@link #addBytes} and
+     * {@link #publishStreamBytes}. Never call this with drained bytes at stream close — that
+     * would double {@code storage.requests.total}.
+     */
     public void addRequest(long durationNanos, long bytes) {
         requestCount.increment();
         if (durationNanos > 0) {
@@ -66,12 +119,55 @@ public final class StorageObjectMetricsCounters {
         if (bytes > 0) {
             bytesRead.add(bytes);
         }
+        ExternalPlanningIo io = planningIo();
+        if (io != null) {
+            io.recordRequest(bytes);
+        }
         // Hot path: skip the publish (and its per-call work) entirely when no sink is attached — the unattached
         // case stays allocation-free. The record method self-guards, so no try/catch is needed here.
         Sink s = sink;
         if (s.metrics() != ExternalSourceMetrics.NOOP) {
             s.metrics().recordRequest(TimeUnit.NANOSECONDS.toMillis(Math.max(0L, durationNanos)), bytes, s.scheme());
         }
+    }
+
+    /**
+     * Adds received bytes to the profile snapshot only. Chunks published from a live stream must
+     * not mint APM requests; {@link #publishStreamBytes} emits the APM bytes event once at close.
+     */
+    public void addBytes(long bytes) {
+        if (bytes <= 0) {
+            return;
+        }
+        bytesRead.add(bytes);
+        ExternalPlanningIo io = planningIo();
+        if (io != null) {
+            io.recordStreamBytes(bytes);
+        }
+    }
+
+    /**
+     * Publishes the stream's total received bytes to the node {@link ExternalSourceMetrics} sink
+     * once (APM {@code storage.bytes_read.total} + usage). Does not increment the profile
+     * {@link LongAdder} — callers already flushed those via {@link #addBytes}. No-op when no
+     * sink is attached or {@code bytes <= 0}.
+     */
+    public void publishStreamBytes(long bytes) {
+        if (bytes <= 0) {
+            return;
+        }
+        Sink s = sink;
+        if (s.metrics() != ExternalSourceMetrics.NOOP) {
+            s.metrics().recordBytes(bytes, s.scheme());
+        }
+    }
+
+    /**
+     * Drain leftover after Metered already published delivered-to-caller. Profile + APM. Not a request.
+     */
+    public void publishDrainedBytes(long leftover) {
+        addBytes(leftover);
+        publishStreamBytes(leftover);
     }
 
     /** Records one automatic retry triggered inside an in-flight request. */

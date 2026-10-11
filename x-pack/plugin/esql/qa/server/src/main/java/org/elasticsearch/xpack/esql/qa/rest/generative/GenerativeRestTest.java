@@ -136,7 +136,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             // to include external (parquet) datasets — the verifier rejects them with a message of the
             // form "[X] function/operator cannot be used after from <pattern>" (explicit index list) or
             // "cannot be used after FROM" (uppercase, when FROM * expands to include parquet indices).
-            "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after (?:FROM|from .+)",
+            "(?:(?:\\[(?:KQL|QSTR|MATCH|MATCH_PHRASE|KNN)] function)|(?:\\[:\\] operator)) cannot be used after (?:FROM|from .+)",
             // https://github.com/elastic/elasticsearch/issues/159358
             // CHANGE_POINT + STATS + INLINE STATS causes the physical plan optimizer to lose the
             // $$field$converted_to$type reference that ExternalSourceResolver introduces when merging
@@ -160,20 +160,20 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "EVAL does not support type \\[(?:counter_long|counter_double|counter_integer)\\] as the return data type.*",
         "INLINE STATS cannot be used after an explicit or implicit LIMIT command",
         // Full-text functions and `:` operator are not allowed after FORK
-        "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after FORK",
+        "(?:(?:\\[(?:KQL|QSTR|MATCH|MATCH_PHRASE|KNN)] function)|(?:\\[:\\] operator)) cannot be used after FORK",
         // A FORK output column filled from a mapped text field cannot be searched: the merge drops the field's
         // mapping analyzer, so the search would silently use the standard analyzer instead
-        "(?:(?:\\[(?:MATCH|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot search column \\[.*\\] after FORK",
+        "(?:(?:\\[(?:MATCH|MATCH_PHRASE)] function)|(?:\\[:\\] operator)) cannot search column \\[.*\\] after FORK",
         // Full-text functions and `:` operator are not allowed after HIGHLIGHT
-        "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after HIGHLIGHT",
+        "(?:(?:\\[(?:KQL|QSTR|MATCH|MATCH_PHRASE|KNN)] function)|(?:\\[:\\] operator)) cannot be used after HIGHLIGHT",
         // Full-text functions and `:` operator are not allowed after LIMIT (can arise when a FORK
         // branch contains a LIMIT and a full-text function appears in the command after the FORK)
-        "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after LIMIT",
+        "(?:(?:\\[(?:KQL|QSTR|MATCH|MATCH_PHRASE|KNN)] function)|(?:\\[:\\] operator)) cannot be used after LIMIT",
         // Optimized SORT + LIMIT is TopN; the verifier reports that as "SORT and LIMIT"
-        "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after SORT and LIMIT",
+        "(?:(?:\\[(?:KQL|QSTR|MATCH|MATCH_PHRASE|KNN)] function)|(?:\\[:\\] operator)) cannot be used after SORT and LIMIT",
         // Full-text functions are not allowed after DEDUP (can arise when a FORK branch contains)
         // a DEDUP and a full-text function appears in the WHERE after the FORK)
-        "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after DEDUP",
+        "(?:(?:\\[(?:KQL|QSTR|MATCH|MATCH_PHRASE|KNN)] function)|(?:\\[:\\] operator)) cannot be used after DEDUP",
         // Full-text functions mixed with lookup-side fields via OR cannot be pushed before LOOKUP JOIN _coordinator:
         "cannot be used in a WHERE clause that references both data-side and lookup-side fields after LOOKUP JOIN _coordinator:",
         "sub-plan execution results too large",  // INLINE STATS limitations
@@ -1124,7 +1124,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     );
 
     private static final Pattern FULL_TEXT_AFTER_WHERE_PATTERN = Pattern.compile(
-        ".*(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after \\(?(?i:WHERE).*",
+        ".*(?:(?:\\[(?:KQL|QSTR|MATCH|MATCH_PHRASE)] function)|(?:\\[:\\] operator)) cannot be used after \\(?(?i:WHERE).*",
         Pattern.DOTALL
     );
 
@@ -1141,7 +1141,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             // Any full-text function/operator after a pipeline-breaking command, LOOKUP JOIN, or a multi-source FROM union.
             // "FROM" is included because UnionAll/Project often keep the FROM source text, so the first-token
             // message is "after FROM" even though KQL/QSTR after a plain FROM is legal.
-            + "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after "
+            + "(?:(?:\\[(?:KQL|QSTR|MATCH|MATCH_PHRASE)] function)|(?:\\[:\\] operator)) cannot be used after "
             + "(?:LIMIT|INLINE|LOOKUP|MV_EXPAND|STATS|SORT|FROM|CHANGE_POINT|DEDUP|LIMIT BY|TOP|"
             + "[^\\n]*,\\s*\\(\\s*FROM\\b|\\(\\s*FROM\\b)"
             + "|"

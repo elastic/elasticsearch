@@ -136,7 +136,9 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
      * What a column records of the terms it holds most, so a merge can work out a vocabulary from its
      * inputs instead of reading their values again. The counts are the survey's, and so are lower bounds.
      *
-     * <p>A dictionary column's summary terms are its dictionary; only the counts are written beside it.
+     * <p>Where a dictionary column's summary selects exactly the terms its dictionary holds, the terms are
+     * not written twice and only the counts are stored beside it. The two selections answer different
+     * quotas, so a dictionary column may equally carry summary terms of its own.
      *
      * @param terms        the summarised terms in term order, or null when they are the dictionary
      * @param countsOffset where the counts, one vlong per term, begin
@@ -144,7 +146,12 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
      * @param numValues    the values a dictionary would have to name, which the counts are a share of, so
      *                     null slots are not among them: a null is named by an ordinal of its own
      */
-    record Summary(ValueStream.Metadata terms, long countsOffset, long countsLength, long numValues) {}
+    record Summary(ValueStream.Metadata terms, long countsOffset, long countsLength, long numValues, BestCoverage bestCoverage) {
+
+        boolean hasTerms() {
+            return countsLength > 0;
+        }
+    }
 
     /**
      * A column that stores its values as they were written.
@@ -402,6 +409,8 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
             out.writeVLong(summary.countsOffset());
             out.writeVLong(summary.countsLength());
             out.writeVLong(summary.numValues());
+            out.writeVLong(summary.bestCoverage().cap());
+            out.writeVLong(summary.bestCoverage().namedValues());
         }
     }
 
@@ -479,7 +488,20 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
             return column;
         }
         final ValueStream.Metadata summaryTerms = in.readByte() == 0 ? null : ValueStream.Metadata.readFrom(in);
-        return column.withSummary(new Summary(summaryTerms, in.readVLong(), in.readVLong(), in.readVLong()));
+        final long countsOffset = in.readVLong();
+        final long countsLength = in.readVLong();
+        final long summaryValues = in.readVLong();
+        final long bestCoverageCap = in.readVLong();
+        final long bestCoverageValues = in.readVLong();
+        return column.withSummary(
+            new Summary(
+                summaryTerms,
+                countsOffset,
+                countsLength,
+                summaryValues,
+                BestCoverage.of(bestCoverageValues, summaryValues, bestCoverageCap)
+            )
+        );
     }
 
     private static void writeTable(DataOutput out, MonotonicWriter.Table table) throws IOException {

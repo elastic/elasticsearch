@@ -41,15 +41,18 @@ import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFieldType;
-import org.elasticsearch.columnar.ColumnarStringMatchQuery;
+import org.elasticsearch.columnar.ColumnarStringAnyOfQuery;
+import org.elasticsearch.columnar.ColumnarStringRangeQuery;
 import org.elasticsearch.columnar.ColumnarStringTermQuery;
 import org.elasticsearch.columnar.ScanBudget;
 import org.elasticsearch.columnar.string.ColumnarStringBinaryDocValues;
 import org.elasticsearch.columnar.string.DictionaryPolicy;
 import org.elasticsearch.columnar.string.DictionaryStringColumnReader;
+import org.elasticsearch.columnar.string.PageBudget;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.columnar.string.StringBlockSink;
 import org.elasticsearch.columnar.string.StringColumnReader;
+import org.elasticsearch.columnar.string.StringColumnSource;
 import org.elasticsearch.columnar.string.SummaryPolicy;
 import org.elasticsearch.index.codec.Elasticsearch96Codec;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
@@ -62,6 +65,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.NavigableSet;
 
 /** The storage shapes a keyword column can take, and how each one answers a grouping pass. */
 public enum StringFormat {
@@ -253,7 +257,7 @@ public enum StringFormat {
     private SummaryPolicy summaryPolicy() {
         return switch (this) {
             case COLUMNAR -> ColumNARDocValuesFormat.DEFAULT_SUMMARY_POLICY;
-            case COLUMNAR_DICTIONARY -> new SummaryPolicy(4 << 20);
+            case COLUMNAR_DICTIONARY -> SummaryPolicy.sized(4 << 20);
             // Nothing is surveyed where no dictionary is allowed, so there is nothing to leave behind either.
             case COLUMNAR_PLAIN -> SummaryPolicy.NONE;
             default -> throw new IllegalStateException("not a columnar format: " + this);
@@ -353,6 +357,19 @@ public enum StringFormat {
          */
         long readPerDocument() throws IOException;
 
+        /**
+         * The length of every value and none of its bytes, the shape of {@code BYTE_LENGTH(field)}. A format
+         * with no way to answer from lengths alone reads the values.
+         */
+        default long byteLengths() throws IOException {
+            return readPerDocument();
+        }
+
+        /** Every value read one document at a time from where the column holds it, with no payload built. */
+        default long readDirect() throws IOException {
+            return readPerDocument();
+        }
+
         /** Documents whose value is {@code term}, the shape of {@code WHERE field == "..."}. */
         long matchTerm(BytesRef term) throws IOException;
 
@@ -379,7 +396,18 @@ public enum StringFormat {
         /** The prefix as a query, the shape of {@code LIKE "x*"}. */
         long queryPrefix(BytesRef prefix) throws IOException;
 
-        /** Documents whose value falls in {@code [lower, upper]}, inclusive. */
+        /**
+         * Documents holding any of {@code terms}. On ColumNAR this uses {@code ColumnarStringAnyOfQuery}: a
+         * sorted column bisects each term to its own run of ranks, a dictionary column bisects the dictionary
+         * once per term, and a plain column compares bytes.
+         */
+        long queryTerms(NavigableSet<BytesRef> terms) throws IOException;
+
+        /**
+         * Documents whose value falls in {@code [lower, upper]}, inclusive. On ColumNAR this uses
+         * {@code ColumnarStringRangeQuery}: sorted columns bisect, dictionary columns bisect to ordinals,
+         * and plain columns compare bytes.
+         */
         long queryRange(BytesRef lower, BytesRef upper) throws IOException;
     }
 
@@ -444,19 +472,17 @@ public enum StringFormat {
         }
 
         @Override
+        public long queryTerms(NavigableSet<BytesRef> terms) throws IOException {
+            return bulkCount(searcher, directoryReader.leaves().get(0), new ColumnarStringAnyOfQuery(FIELD, terms, ScanBudget.UNLIMITED));
+        }
+
+        @Override
         public long queryRange(BytesRef lower, BytesRef upper) throws IOException {
-            final BytesRef low = BytesRef.deepCopyOf(lower);
-            final BytesRef high = BytesRef.deepCopyOf(upper);
-            final String identity = "range=[" + low + "," + high + "]";
-            final Query query = new ColumnarStringMatchQuery(FIELD, value -> {
-                final int cmpLow = value.compareTo(low);
-                if (cmpLow < 0) {
-                    return false;
-                }
-                final int cmpHigh = value.compareTo(high);
-                return cmpHigh <= 0;
-            }, identity, ScanBudget.UNLIMITED);
-            return bulkCount(searcher, directoryReader.leaves().get(0), query);
+            return bulkCount(
+                searcher,
+                directoryReader.leaves().get(0),
+                new ColumnarStringRangeQuery(FIELD, lower, true, upper, true, ScanBudget.UNLIMITED)
+            );
         }
 
         private static long count(DocIdSetIterator matches) throws IOException {
@@ -484,6 +510,33 @@ public enum StringFormat {
                 reader.readBlock(docs, start, Math.min(pageSize, docs.length - start), sink);
             }
             return sink.checksum;
+        }
+
+        @Override
+        public long readDirect() throws IOException {
+            long checksum = 0;
+            final BinaryDocValues values = leaf.getBinaryDocValues(FIELD);
+            final StringColumnSource column = (StringColumnSource) values;
+            for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                final BytesRef value = column.slotAt(0);
+                checksum += value == null ? 0 : value.length;
+            }
+            return checksum;
+        }
+
+        @Override
+        public long byteLengths() throws IOException {
+            long checksum = 0;
+            final int[] counts = new int[pageSize];
+            final int[] lengths = new int[pageSize];
+            for (int start = 0; start < docs.length; start += pageSize) {
+                final int count = Math.min(pageSize, docs.length - start);
+                reader.readByteLengths(docs, start, count, counts, lengths, PageBudget.UNLIMITED);
+                for (int i = 0; i < count; i++) {
+                    checksum += counts[i] == 1 ? lengths[i] : 0;
+                }
+            }
+            return checksum;
         }
 
         @Override
@@ -712,6 +765,21 @@ public enum StringFormat {
         }
 
         @Override
+        public long queryTerms(NavigableSet<BytesRef> terms) throws IOException {
+            if (format == ES819_BINARY) {
+                final BinaryDocValues values = leaf.getBinaryDocValues(FIELD);
+                long found = 0;
+                for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                    if (terms.contains(values.binaryValue())) {
+                        found++;
+                    }
+                }
+                return found;
+            }
+            return bulkCount(searcher, reader.leaves().get(0), SortedDocValuesField.newSlowSetQuery(FIELD, terms));
+        }
+
+        @Override
         public long queryRange(BytesRef lower, BytesRef upper) throws IOException {
             if (format == ES819_BINARY) {
                 final BinaryDocValues values = leaf.getBinaryDocValues(FIELD);
@@ -885,11 +953,22 @@ public enum StringFormat {
             }
         }
 
-        @Override
-        public void appendValues(BytesRef[] values, int count, int[] valueCounts, int docCount) {
-            for (int i = 0; i < count; i++) {
-                checksum += StringFormat.group(groups, values[i]);
+        private final Values streamed = new Values() {
+            @Override
+            public void append(BytesRef value) {
+                checksum += StringFormat.group(groups, value);
             }
+
+            @Override
+            public void finish() {}
+
+            @Override
+            public void close() {}
+        };
+
+        @Override
+        public Values values(int count, int[] valueCounts, int docCount) {
+            return streamed;
         }
     }
 
@@ -903,11 +982,23 @@ public enum StringFormat {
             }
         }
 
-        @Override
-        public void appendValues(BytesRef[] values, int count, int[] valueCounts, int docCount) {
-            for (int i = 0; i < count; i++) {
-                checksum += values[i].length;
+        /** Taken as they are read, as a block loader takes them. */
+        private final Values streamed = new Values() {
+            @Override
+            public void append(BytesRef value) {
+                checksum += value.length;
             }
+
+            @Override
+            public void finish() {}
+
+            @Override
+            public void close() {}
+        };
+
+        @Override
+        public Values values(int count, int[] valueCounts, int docCount) {
+            return streamed;
         }
     }
 
@@ -930,11 +1021,22 @@ public enum StringFormat {
             }
         }
 
-        @Override
-        public void appendValues(BytesRef[] values, int count, int[] valueCounts, int docCount) {
-            for (int i = 0; i < count; i++) {
-                checksum += group(groups, values[i]);
+        private final Values streamed = new Values() {
+            @Override
+            public void append(BytesRef value) {
+                checksum += group(groups, value);
             }
+
+            @Override
+            public void finish() {}
+
+            @Override
+            public void close() {}
+        };
+
+        @Override
+        public Values values(int count, int[] valueCounts, int docCount) {
+            return streamed;
         }
 
         @Override

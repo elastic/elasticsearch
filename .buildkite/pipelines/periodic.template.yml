@@ -212,23 +212,34 @@ steps:
           ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
           BWC_VERSION: "{{matrix.BWC_VERSION}}"
 
-  - label: release-tests
-    command: .buildkite/scripts/release-tests.sh
-    timeout_in_minutes: 360
-    retry:
-      automatic:
-        - exit_status: "-1"
-          limit: 3
-          signal_reason: none
-        - signal_reason: agent_stop
-          limit: 3
-        - exit_status: "1"
-          limit: 1
-    agents:
-      provider: gcp
-      image: family/elasticsearch-ubuntu-2404
-      diskSizeGb: 350
-      machineType: custom-32-98304
+  - group: release-tests
+    steps:
+      - label: "{{matrix.CHECK_TASK}} / release-tests"
+        command: .buildkite/scripts/release-tests.sh --continue {{matrix.CHECK_TASK}}
+        timeout_in_minutes: 360
+        matrix:
+          setup:
+            CHECK_TASK:
+              - checkPart1
+              - checkPart2
+              - checkPart3
+              - checkPart4
+              - checkPart5
+              - checkPart6
+        retry:
+          automatic:
+            - exit_status: "-1"
+              limit: 3
+              signal_reason: none
+            - signal_reason: agent_stop
+              limit: 3
+            - exit_status: "1"
+              limit: 1
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          diskSizeGb: 350
+          machineType: custom-32-98304
 
   - label: single-processor-node-tests
     command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true -Dtests.configure_test_clusters_with_one_processor=true functionalTests

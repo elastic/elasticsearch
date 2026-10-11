@@ -18,6 +18,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -642,6 +643,11 @@ public class QuerySettingsTests extends ESTestCase {
         // top-level alias — there was never a pre-existing top-level body field for it to stay compatible with.
         assertThat(QuerySettings.COLUMN_METADATA.requestBody(), is(true));
         assertThat(QuerySettings.COLUMN_METADATA.aliases().isEmpty(), is(true));
+    }
+
+    public void testExemplarsIsRequestBodyExposedWithoutAlias() {
+        assertThat(QuerySettings.EXEMPLARS.requestBody(), is(true));
+        assertThat(QuerySettings.EXEMPLARS.aliases().isEmpty(), is(true));
     }
 
     public void testResolveColumnMetadataDefault() {
@@ -1377,6 +1383,46 @@ public class QuerySettingsTests extends ESTestCase {
             SNAPSHOT_CTX_WITH_CPS_ENABLED
         );
         assertThat(resolved.get(QuerySettings.UNMAPPED_FIELDS), equalTo(UnmappedResolution.NULLIFY));
+    }
+
+    /**
+     * A limit of 0 on the fields {@code LOAD_ALL} discovers makes it behave like {@code LOAD}, which is settled when the query
+     * settings are resolved, so that every phase of the query sees {@code LOAD}.
+     */
+    public void testLoadAllResolvesToLoadWhenTheLoadAllFieldLimitIsZero() {
+        assumeTrue("requires the LOAD_ALL field limit", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS_SETTING.isEnabled());
+
+        ResolvedSettings resolved = resolveWithLoadAllFieldLimit(clusterSetting(QuerySettings.UNMAPPED_FIELDS, "LOAD_ALL"), 0);
+
+        assertThat(resolved.get(QuerySettings.UNMAPPED_FIELDS), equalTo(UnmappedResolution.LOAD));
+    }
+
+    public void testLoadAllStaysLoadAllWhenTheLoadAllFieldLimitIsPositive() {
+        assumeTrue("requires the LOAD_ALL field limit", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS_SETTING.isEnabled());
+
+        ResolvedSettings resolved = resolveWithLoadAllFieldLimit(
+            clusterSetting(QuerySettings.UNMAPPED_FIELDS, "LOAD_ALL"),
+            between(1, 100_000)
+        );
+
+        assertThat(resolved.get(QuerySettings.UNMAPPED_FIELDS), equalTo(UnmappedResolution.LOAD_ALL));
+    }
+
+    public void testOtherUnmappedFieldsResolutionsAreLeftAloneByAZeroLoadAllFieldLimit() {
+        assumeTrue("requires the LOAD_ALL field limit", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS_SETTING.isEnabled());
+        for (UnmappedResolution resolution : new UnmappedResolution[] {
+            UnmappedResolution.DEFAULT,
+            UnmappedResolution.NULLIFY,
+            UnmappedResolution.LOAD }) {
+            ResolvedSettings resolved = resolveWithLoadAllFieldLimit(clusterSetting(QuerySettings.UNMAPPED_FIELDS, resolution.name()), 0);
+
+            assertThat(resolved.get(QuerySettings.UNMAPPED_FIELDS), equalTo(resolution));
+        }
+    }
+
+    private static ResolvedSettings resolveWithLoadAllFieldLimit(Settings clusterState, int loadAllMaxFields) {
+        // No approximation is in play, so the license is never asked.
+        return QuerySettings.resolve(clusterState, Settings.EMPTY, Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED, null, loadAllMaxFields);
     }
 
     public void testDerivedClusterSettingRejectsMalformedValueAtWriteTime() {

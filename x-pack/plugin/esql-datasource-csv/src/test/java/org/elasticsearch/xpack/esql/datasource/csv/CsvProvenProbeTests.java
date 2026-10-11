@@ -14,7 +14,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -102,8 +104,8 @@ public class CsvProvenProbeTests extends ESTestCase {
     }
 
     public void testExactWalkAcrossBufferBoundary() throws IOException {
-        // A single quoted record with embedded newlines longer than the internal 8 KiB BufferedInputStream buffer:
-        // the walk must read one stream in a single pass without dropping read-ahead across the buffer refill.
+        // A single quoted record with embedded newlines longer than the block the walk reads in: the walk must
+        // read one stream in a single pass without dropping read-ahead across a refill.
         StringBuilder sb = new StringBuilder("id,blob\n1,\"");
         for (int i = 0; i < 4000; i++) {
             sb.append("ab\n");
@@ -111,6 +113,214 @@ public class CsvProvenProbeTests extends ESTestCase {
         sb.append("\"\n2,short\n3,\"c\nd\"\n");
         assertExactWalkMatchesOracle(quoted(), bytes(sb.toString()));
         assertProbeInvariants(quoted(), bytes(sb.toString()));
+    }
+
+    public void testExactWalkLookaheadStraddlesBlockBoundary() throws IOException {
+        // The walk takes its bytes a block at a time, so a two-byte construct has a placement where the first byte is
+        // a block's last and the second is only reachable after a refill. Sliding each one through the offsets around
+        // a boundary puts it there, and the oracle - the same bytes read by a different scanner - says where the
+        // record starts actually are.
+        //
+        // Only the CRLF leg discriminates a lost refill, for reasons worth writing down rather than
+        // rediscovering. The doubled-quote decision is unobservable through any output: closing the field and
+        // reopening it on the next byte leaves the same inQuotes and the same consumed as consuming the pair as a
+        // literal, because fieldHasNonWhitespace is never set while inQuotes, so the reopen always takes. The
+        // escaped byte is taken by an ordinary read, which every fixture longer than a block already exercises.
+        // Both legs stay because they put the same constructs at the same offsets, not because they guard a
+        // refill.
+        for (int pad = CsvRecordSplitter.BLOCK_BYTES - 8; pad <= CsvRecordSplitter.BLOCK_BYTES + 8; pad++) {
+            String filler = "x".repeat(pad);
+            // A CRLF terminator, its \r at offset 2 + pad.
+            assertExactWalkMatchesOracle(quoted(), bytes("h\n" + filler + "\r\nsecond\nthird\n"));
+            // A doubled "" literal inside a quoted field, its first quote at offset 3 + pad.
+            assertExactWalkMatchesOracle(quoted(), bytes("h\n\"" + filler + "\"\"q\"\nsecond\nthird\n"));
+            // An escaped newline, i.e. one that must not end the record, its escape char at offset 2 + pad.
+            assertExactWalkMatchesOracle(both(), bytes("h\n" + filler + "\\\nsecond\nthird\n"));
+        }
+    }
+
+    public void testExactWalkLookaheadAtEndOfStream() throws IOException {
+        // Either lookahead can fall on the last byte of the stream, where the read that settles it finds end of
+        // stream rather than a byte. A bare \r closes a record there; a quote inside a quoted field closes the
+        // field and leaves no record start behind it.
+        assertExactWalkMatchesOracle(quoted(), bytes("h\nfirst\nsecond\r"));
+        assertExactWalkMatchesOracle(quoted(), bytes("h\nfirst\n2,\"unterminated\""));
+    }
+
+    /**
+     * A blob store hands back whatever a socket read happened to deliver, so a bulk read is routinely shorter than
+     * the block asked for and the cursor's limit is wherever that landed. Every other case here reads from an
+     * array, which always fills the request, so none of them exercises a partial fill. The boundaries must not
+     * depend on how the bytes were chopped up on the way in.
+     */
+    public void testExactWalkIsUnaffectedByShortBulkReads() throws IOException {
+        for (CsvFormatOptions options : List.of(quoted(), both())) {
+            byte[] buf = bytes(randomCsv(options));
+            RecordSplitter splitter = splitter(options);
+            long step = offsetStep(buf);
+            for (int chunk : new int[] { 1, 2, 7, 13, 1024 }) {
+                for (long minSkip = 1; minSkip < buf.length; minSkip += step) {
+                    long whole = splitter.findRecordStartAtOrAfter(new ByteArrayInputStream(buf), minSkip, () -> false);
+                    long chopped = splitter.findRecordStartAtOrAfter(cappedReads(buf, chunk, 0), minSkip, () -> false);
+                    assertEquals("boundary moved when bulk reads were capped at " + chunk + ", minSkip=" + minSkip, whole, chopped);
+                }
+            }
+        }
+    }
+
+    /** The probe has the same exposure: its window is counted in bytes consumed, not in reads. */
+    public void testProbeIsUnaffectedByShortBulkReads() throws IOException {
+        byte[] buf = bytes(randomCsv(quoted()));
+        RecordSplitter splitter = splitter(quoted());
+        long step = offsetStep(buf);
+        for (long t = 1; t < buf.length; t += step) {
+            long whole = splitter.findProvenRecordBoundary(new ByteArrayInputStream(buf, (int) t, buf.length - (int) t));
+            long chopped = splitter.findProvenRecordBoundary(cappedReads(buf, 3, (int) t));
+            assertEquals("probe outcome moved when bulk reads were capped, t=" + t, whole, chopped);
+        }
+    }
+
+    /**
+     * A multi-byte code point whose bytes fall either side of a refill. The scanners are byte-oriented so a
+     * continuation byte is ordinary content, but a block boundary landing inside a code point is the shape a
+     * block reader can get wrong, and the existing multi-byte case is far too small to reach one.
+     */
+    public void testMultiByteCodePointStraddlesBlockBoundary() throws IOException {
+        for (int pad = CsvRecordSplitter.BLOCK_BYTES - 6; pad <= CsvRecordSplitter.BLOCK_BYTES + 2; pad++) {
+            assertExactWalkMatchesOracle(quoted(), bytes("h\n" + "x".repeat(pad) + "\u65e5\u672c,tail\nsecond\n"));
+        }
+    }
+
+    /**
+     * How far past the boundary a scan may pull. {@code RecordBoundaryProbe} decides whether to drain or abort a
+     * probe stream on the strength of a scan reading through one block, so a scan that quietly began reading
+     * further would change that arithmetic without touching its code.
+     */
+    public void testWalkPullsAtMostOneBlockPastTheBoundary() throws IOException {
+        // The payload runs to several blocks and minSkip is 1, so the boundary falls in the first few bytes and
+        // the allowance is one block and no more. Asking for a boundary halfway through instead leaves enough
+        // slack that a cursor reading two blocks still fits inside it, and the case stops discriminating.
+        StringBuilder sb = new StringBuilder("id,note\n");
+        while (sb.length() < CsvRecordSplitter.BLOCK_BYTES * 4) {
+            sb.append(sb.length()).append(",value\n");
+        }
+        byte[] buf = bytes(sb.toString());
+        long[] delivered = new long[1];
+        InputStream counted = new FilterInputStream(new ByteArrayInputStream(buf)) {
+            @Override
+            public int read(byte[] b, int off, int len) throws IOException {
+                int n = super.read(b, off, len);
+                if (n > 0) {
+                    delivered[0] += n;
+                }
+                return n;
+            }
+        };
+        long boundary = splitter(quoted()).findRecordStartAtOrAfter(counted, 1L, () -> false);
+        assertTrue("the walk should find a boundary in this payload", boundary > 0);
+        assertTrue("a scan must read at least up to the boundary it returns", delivered[0] >= boundary);
+        assertTrue(
+            "a scan read " + delivered[0] + " bytes for a boundary at " + boundary + ", more than one block past it",
+            delivered[0] <= boundary + CsvRecordSplitter.BLOCK_BYTES
+        );
+    }
+
+    /** The payload from {@code from}, with every bulk read capped so the cursor sees partial fills. */
+    private static InputStream cappedReads(byte[] buf, int chunk, int from) {
+        return new FilterInputStream(new ByteArrayInputStream(buf, from, buf.length - from)) {
+            @Override
+            public int read(byte[] b, int off, int len) throws IOException {
+                return super.read(b, off, Math.min(len, chunk));
+            }
+        };
+    }
+
+    public void testExactWalkEndsOnAZeroLengthRead() throws IOException {
+        // A stream is not allowed to answer a non-empty read with zero bytes. The walk reports one as end of
+        // stream rather than retrying, so a stream that breaks the contract ends the scan where it broke it
+        // instead of spinning on a refill that never advances, and no record start is found past that point.
+        byte[] buf = bytes("h\nfirst\nsecond\nthird\n");
+        InputStream stalling = new InputStream() {
+            private int pos;
+            private int answers;
+
+            @Override
+            public int read() {
+                throw new AssertionError("the walk must not ask for single bytes");
+            }
+
+            @Override
+            public int read(byte[] b, int off, int len) {
+                if (answers++ > 0) {
+                    // A reader that retried on zero would spin here forever and the case would fail by hanging
+                    // rather than by asserting, so refuse after a few turns and fail with something readable.
+                    if (answers > 5) {
+                        throw new AssertionError("the walk retried a zero-length read instead of ending the scan");
+                    }
+                    return 0;
+                }
+                int n = Math.min(len, 4);
+                System.arraycopy(buf, pos, b, off, n);
+                pos += n;
+                return n;
+            }
+        };
+        // minSkip sits past everything the stream will hand over, so the walk has to come back for a second block
+        // and meets the stall there; a smaller one would resolve against the first four bytes and never reach it.
+        assertEquals(-1L, splitter(quoted()).findRecordStartAtOrAfter(stalling, 10L, () -> false));
+    }
+
+    /**
+     * The reported shape, which no other case here covers: quoting on, and not one quote character in the file.
+     * {@link #randomCsv} always mixes quoted fields in when quoting is on, so every other payload lets the probe
+     * converge near most offsets and the exact walk only ever runs over short spans. Here nothing can retire the
+     * in-quote reading, so every probe is AMBIGUOUS and the whole file goes through the walk one span at a time -
+     * and the reconstruction has to still return every record exactly once.
+     */
+    public void testQuoteFreeDataWithQuotingOnReconstructs() throws IOException {
+        for (CsvFormatOptions options : List.of(quoted(), both())) {
+            byte[] buf = bytes(quoteFreeCsv());
+            assertEquals("the payload must contain no quote character", 0, countOf(buf, (byte) '"'));
+            assertEveryProbeIsAmbiguous(options, buf);
+            assertExactWalkMatchesOracle(options, buf);
+            assertSplitReconstruction(options, buf);
+        }
+    }
+
+    /** Guards the premise of {@link #testQuoteFreeDataWithQuotingOnReconstructs}: without it the test proves less. */
+    private void assertEveryProbeIsAmbiguous(CsvFormatOptions options, byte[] buf) throws IOException {
+        RecordSplitter splitter = splitter(options);
+        long step = offsetStep(buf);
+        for (long t = step; t < buf.length; t += step) {
+            long probed = splitter.findProvenRecordBoundary(new ByteArrayInputStream(buf, (int) t, buf.length - (int) t));
+            assertEquals("a quote-free window cannot prove a boundary, at t=" + t, RecordSplitter.AMBIGUOUS, probed);
+        }
+    }
+
+    /**
+     * Taxi-shaped rows with no quote and no escape character in them. Row widths are deliberately uneven so record
+     * boundaries land on every offset modulo the block the walk reads in, rather than tiling it.
+     */
+    private static String quoteFreeCsv() {
+        StringBuilder sb = new StringBuilder("vendor_id,pickup_datetime,passenger_count,trip_distance,fare_amount\n");
+        int row = 0;
+        while (sb.length() < 600 * 1024) {
+            sb.append(row % 3 + 1).append(",2024-06-14 02:31:07,").append(row % 6 + 1).append(',');
+            sb.append(row % 97).append('.').append(row % 100).append(',').append(row % 53).append(".25");
+            sb.append(row % 7 == 0 ? "\r\n" : "\n");
+            row++;
+        }
+        return sb.toString();
+    }
+
+    private static int countOf(byte[] buf, byte b) {
+        int n = 0;
+        for (byte candidate : buf) {
+            if (candidate == b) {
+                n++;
+            }
+        }
+        return n;
     }
 
     public void testOverMaxRecordBytesProbeAmbiguousWalkTooLarge() throws IOException {
@@ -134,6 +344,35 @@ public class CsvProvenProbeTests extends ESTestCase {
         // The exact walk from the file start, asked to skip past the oversized record, reports RECORD_TOO_LARGE.
         long walk = splitter.findRecordStartAtOrAfter(new ByteArrayInputStream(buf), 3L, () -> false);
         assertEquals(RecordSplitter.RECORD_TOO_LARGE, walk);
+    }
+
+    /**
+     * The record cap is charged for every byte the walk consumes, including the ones it takes inside a branch to
+     * settle a lookahead rather than at the top of the loop. Each of the three cases below puts the cap exactly on
+     * such a byte, so a missing check there is the difference between a rejected record and an accepted one.
+     */
+    public void testRecordCapCountsTheSecondByteOfACrLf() throws IOException {
+        // Record two is "abcdefghi\r\n": nine bytes plus the \r reach the cap, and the \n is the byte that breaks it.
+        byte[] buf = bytes("h\nabcdefghi\r\ntail\n");
+        RecordSplitter splitter = new CsvRecordSplitter(quoted(), 10);
+        assertEquals(RecordSplitter.RECORD_TOO_LARGE, splitter.findRecordStartAtOrAfter(new ByteArrayInputStream(buf), 3L, () -> false));
+    }
+
+    public void testRecordCapCountsTheSecondQuoteOfADoubledPair() throws IOException {
+        // The first quote of the doubled pair reaches the cap and the second breaks it, and the stream ends there -
+        // so that byte is the only one that can break it. With any content after it, the next byte trips the cap at
+        // the top of the loop instead and the case stops discriminating.
+        byte[] buf = bytes("h\n\"abcdefg\"\"");
+        RecordSplitter splitter = new CsvRecordSplitter(quoted(), 9);
+        assertEquals(RecordSplitter.RECORD_TOO_LARGE, splitter.findRecordStartAtOrAfter(new ByteArrayInputStream(buf), 3L, () -> false));
+    }
+
+    public void testEscapeAtEndOfStreamConsumesOnlyItself() throws IOException {
+        // A lone escape char at end of stream carries nothing, so it must not be charged for a byte that is not
+        // there. The record is exactly at the cap: charging a phantom byte would reject it instead of reporting EOF.
+        byte[] buf = bytes("h\nabc\\");
+        RecordSplitter splitter = new CsvRecordSplitter(both(), 4);
+        assertEquals(-1L, splitter.findRecordStartAtOrAfter(new ByteArrayInputStream(buf), 3L, () -> false));
     }
 
     public void testExactWalkAbortsOnCancellation() {
@@ -401,22 +640,7 @@ public class CsvProvenProbeTests extends ESTestCase {
 
     /** Comma-delimited, quoting on AND escaping on (the default .csv grammar). */
     private static CsvFormatOptions both() {
-        return new CsvFormatOptions(
-            ',',
-            '"',
-            '\\',
-            "//",
-            null,
-            StandardCharsets.UTF_8,
-            null,
-            CsvFormatOptions.DEFAULT_MAX_FIELD_SIZE,
-            CsvFormatOptions.MultiValueSyntax.NONE,
-            true,
-            CsvFormatOptions.DEFAULT_COLUMN_PREFIX,
-            true,
-            true,
-            false
-        );
+        return CsvTestOptions.csvDefaults();
     }
 
     /** Bracket MVC: non-strided and not proven-capable. */

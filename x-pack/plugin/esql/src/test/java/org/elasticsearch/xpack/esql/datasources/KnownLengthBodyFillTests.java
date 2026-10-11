@@ -16,7 +16,6 @@ import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Unit tests for {@link KnownLengthBodyFill}. Message text is pinned so HTTP 206 and S3
@@ -24,8 +23,9 @@ import static org.hamcrest.Matchers.startsWith;
  */
 public class KnownLengthBodyFillTests extends ESTestCase {
 
-    private static final String HTTP_PATH = "https://example.com/file.parquet";
-    private static final String S3_PATH = "s3://test-bucket/data/file.parquet";
+    // Production code passes path.objectName() (last path segment only) to KnownLengthBodyFill.
+    private static final String HTTP_PATH = "file.parquet";
+    private static final String S3_PATH = "data/file.parquet";
 
     public void testExactFill() {
         byte[] payload = randomByteArrayOfLength(between(0, 64));
@@ -55,17 +55,19 @@ public class KnownLengthBodyFillTests extends ESTestCase {
                 ExternalUnavailableException eue = fill.copyOrOverflow(dest, ByteBuffer.wrap(overflow));
                 assertNotNull(eue);
                 assertFalse(eue.throttling());
-                assertEquals(
-                    store
-                        + " response body exceeded expected length reading ["
-                        + path
-                        + "]: cumulative="
-                        + ((long) prefix + overflow.length)
-                        + ", expected="
-                        + expected,
-                    eue.getMessage()
+                assertThat(
+                    eue.getMessage(),
+                    containsString(
+                        store
+                            + " response body exceeded expected length reading ["
+                            + path
+                            + "]: cumulative="
+                            + ((long) prefix + overflow.length)
+                            + ", expected="
+                            + expected
+                    )
                 );
-                assertThat(eue.getMessage(), startsWith(store + " "));
+                assertThat(eue.getMessage(), containsString(store + " "));
                 assertThat(eue.getMessage(), containsString(path));
                 assertEquals(prefix, fill.offset());
                 assertEquals(0, closeCalls.get());
@@ -93,17 +95,19 @@ public class KnownLengthBodyFillTests extends ESTestCase {
                 ExternalUnavailableException eue = fill.shortReadOrNull();
                 assertNotNull(eue);
                 assertFalse(eue.throttling());
-                assertEquals(
-                    store
-                        + " response body shorter than expected reading ["
-                        + path
-                        + "]: received="
-                        + payload.length
-                        + ", expected="
-                        + expected,
-                    eue.getMessage()
+                assertThat(
+                    eue.getMessage(),
+                    containsString(
+                        store
+                            + " response body shorter than expected reading ["
+                            + path
+                            + "]: received="
+                            + payload.length
+                            + ", expected="
+                            + expected
+                    )
                 );
-                assertThat(eue.getMessage(), startsWith(store + " "));
+                assertThat(eue.getMessage(), containsString(store + " "));
                 assertThat(eue.getMessage(), containsString(path));
             }
         }

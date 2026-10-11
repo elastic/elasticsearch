@@ -786,6 +786,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             } else if (uploadBoundListener == null) {
                 maybeSendNewCommitNotification(
                     commitState,
+                    shardRoutingTable.get(),
                     lastCompoundCommit,
                     batchedCompoundCommitGeneration,
                     maxUploadedBccTermAndGen,
@@ -802,6 +803,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     public void onResponse(Long maxGenerationToUpload) {
                         maybeSendNewCommitNotification(
                             commitState,
+                            shardRoutingTable.get(),
                             lastCompoundCommit,
                             batchedCompoundCommitGeneration,
                             maxUploadedBccTermAndGen,
@@ -823,6 +825,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                             // uploads were never paused. Advertise the commit. Any future bound will include it.
                             maybeSendNewCommitNotification(
                                 commitState,
+                                shardRoutingTable.get(),
                                 lastCompoundCommit,
                                 batchedCompoundCommitGeneration,
                                 maxUploadedBccTermAndGen,
@@ -856,6 +859,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
     private void maybeSendNewCommitNotification(
         ShardCommitState commitState,
+        IndexShardRoutingTable shardRoutingTable,
         StatelessCompoundCommit lastCompoundCommit,
         long batchedCompoundCommitGeneration,
         PrimaryTermAndGeneration maxUploadedBccTermAndGen,
@@ -872,31 +876,36 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         // by (conservatively) waiting for the max seqno to be persisted by the translog replicator. This ensures that any searched
         // data is persisted in the object store, and that the search shards can safely update their global checkpoint to the value
         // of the local checkpoint in the commit.
+        // TODO: the recipients come from the routing captured when the commit was created, so a search shard that recovers
+        // from an older commit after that capture misses this notification until the next one.
+        // See https://github.com/elastic/elasticsearch/issues/150492#issuecomment-5611224118
         addGlobalCheckpointListener(
             commitState.addGlobalCheckpointListenerFunction,
             commitState.triggerTranslogReplicator,
             maxSeqNo,
-            ActionListener.wrap(ignored -> {
-                final Optional<IndexShardRoutingTable> shardRoutingTable = shardRoutingFinder.apply(commitState.shardId);
-                if (shardRoutingTable.isEmpty() || commitState.isInitializingNoSearch()) {
-                    commitState.notifyCommitNotificationSuccessListeners(generation);
-                    return;
-                }
-                commitState.sendNewCommitNotification(
-                    shardRoutingTable.get(),
+            ActionListener.wrap(
+                ignored -> commitState.sendNewCommitNotification(
+                    shardRoutingTable,
                     lastCompoundCommit,
                     batchedCompoundCommitGeneration,
                     maxUploadedBccTermAndGen
-                );
-            }, ex -> {
-                if (ex instanceof IndexShardClosedException) {
-                    // The shard was closed while waiting for the GCP. We can safely ignore this exception.
-                    logger.trace(() -> "shard closed while waiting for GCP to send new commit notification for " + lastCompoundCommit, ex);
-                } else {
-                    assert false : ex;
-                    logger.warn("unexpected exception while waiting for GCP to send new commit notification for " + lastCompoundCommit, ex);
+                ),
+                ex -> {
+                    if (ex instanceof IndexShardClosedException) {
+                        // The shard was closed while waiting for the GCP. We can safely ignore this exception.
+                        logger.trace(
+                            () -> "shard closed while waiting for GCP to send new commit notification for " + lastCompoundCommit,
+                            ex
+                        );
+                    } else {
+                        assert false : ex;
+                        logger.warn(
+                            "unexpected exception while waiting for GCP to send new commit notification for " + lastCompoundCommit,
+                            ex
+                        );
+                    }
                 }
-            })
+            )
         );
     }
 

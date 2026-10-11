@@ -58,6 +58,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.shard.GlobalCheckpointListeners;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -2693,6 +2694,62 @@ public class StatelessCommitServiceTests extends ESTestCase {
             } finally {
                 blockUpload.countDown();
             }
+        }
+    }
+
+    /// While relocating, a search shard may report a commit at or above a paused pending-upload BCC, for instance because the
+    /// relocation target already uploaded its own commit with the same primary term and generation. The source never uploads
+    /// the paused BCC, so it must not consider it available and the registration must be retried instead.
+    public void testRegisterCommitForUnpromotableRecoveryIgnoresPausedPendingUploadBcc() throws Exception {
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm)) {
+            final var shardId = testHarness.shardId;
+            final var commitService = testHarness.commitService;
+            final var stateWithNoSearchShards = clusterStateWithPrimaryAndSearchShards(shardId, 0);
+            final var stateWithSearchShards = clusterStateWithPrimaryAndSearchShards(shardId, 1);
+            final var nodeId = stateWithSearchShards.getRoutingTable()
+                .shardRoutingTable(shardId)
+                .replicaShards()
+                .getFirst()
+                .currentNodeId();
+            commitService.clusterChanged(new ClusterChangedEvent("test", stateWithSearchShards, stateWithNoSearchShards));
+
+            final var initialCommits = testHarness.generateIndexCommits(2);
+            for (var initialCommit : initialCommits) {
+                commitService.onCommitCreation(initialCommit);
+            }
+            final var lastUploadedCommit = initialCommits.getLast();
+            commitService.ensureMaxGenerationToUploadForFlush(shardId, lastUploadedCommit.getGeneration());
+            waitUntilBCCIsUploaded(commitService, shardId, lastUploadedCommit.getGeneration());
+
+            commitService.installUploadBoundListener(shardId, new SubscribableListener<>());
+            final var markedRelocating = new PlainActionFuture<Void>();
+            final var handoffListener = commitService.markRelocating(shardId, lastUploadedCommit.getGeneration(), markedRelocating);
+            markedRelocating.actionGet();
+            assertThat(commitService.getMaxGenerationToUpload(shardId), equalTo(lastUploadedCommit.getGeneration()));
+
+            // A background merge completes after markRelocating and its VBCC is frozen, but its upload stays paused.
+            final var mergedCommit = testHarness.generateIndexCommits(1, true).getFirst();
+            commitService.onCommitCreation(mergedCommit);
+            assertThat(mergedCommit.getGeneration(), greaterThan(lastUploadedCommit.getGeneration()));
+            commitService.ensureMaxGenerationToUploadForFlush(shardId, mergedCommit.getGeneration());
+            assertNull(commitService.getCurrentVirtualBcc(shardId));
+            assertThat(commitService.getMaxPendingOrUploadedGeneration(shardId), equalTo(mergedCommit.getGeneration()));
+
+            // The search shard reports a commit with the same primary term and generation as the paused BCC.
+            safeAwaitFailure(
+                RecoveryCommitTooNewException.class,
+                RegisterCommitResponse.class,
+                listener -> commitService.registerCommitForUnpromotableRecovery(
+                    null,
+                    new PrimaryTermAndGeneration(mergedCommit.getPrimaryTerm(), mergedCommit.getGeneration()),
+                    shardId,
+                    nodeId,
+                    stateWithSearchShards,
+                    listener
+                )
+            );
+
+            handoffListener.onResponse(null);
         }
     }
 

@@ -773,30 +773,27 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 // installUploadBoundListener and markRelocating the bound is not yet pinned: a merge commit created in that
                 // window may end up above the generation markRelocating later pins, and would never be uploaded. Once pinned,
                 // the listener is already complete and this runs immediately.
-                uploadBoundListener.addListener(
-                    ActionListener.wrap(
-                        maxGenerationToUpload -> maybeSendNewCommitNotification(
-                            commitState,
-                            reference,
-                            virtualBcc,
-                            generation,
-                            maxGenerationToUpload
-                        ),
-                        e -> {
-                            if (commitState.isClosed()) {
-                                // The shard closed before markRelocating. Nothing to advertise.
-                                logger.trace(
-                                    () -> format("%s skipping new-commit notification for [%s]: upload bound failed", shardId, generation),
-                                    e
-                                );
-                            } else {
-                                // The relocation source abandoned the handoff before markRelocating, so no bound was pinned and
-                                // uploads were never paused. Advertise the commit. Any future bound will include it.
-                                maybeSendNewCommitNotification(commitState, reference, virtualBcc, generation, Long.MAX_VALUE);
-                            }
+                uploadBoundListener.addListener(new ActionListener<>() {
+                    @Override
+                    public void onResponse(Long maxGenerationToUpload) {
+                        maybeSendNewCommitNotification(commitState, reference, virtualBcc, generation, maxGenerationToUpload);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        if (commitState.isClosed()) {
+                            // The shard closed before markRelocating. Nothing to advertise.
+                            logger.trace(
+                                () -> format("%s skipping new-commit notification for [%s]: upload bound failed", shardId, generation),
+                                e
+                            );
+                        } else {
+                            // The relocation source abandoned the handoff before markRelocating, so no bound was pinned and
+                            // uploads were never paused. Advertise the commit. Any future bound will include it.
+                            maybeSendNewCommitNotification(commitState, reference, virtualBcc, generation, Long.MAX_VALUE);
                         }
-                    )
-                );
+                    }
+                });
             }
 
             if (commitState.shouldUploadVirtualBcc(virtualBcc)) {
@@ -3286,8 +3283,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             // Consider minimum pending generation also available to search, since we are in the process of uploading it and search
             // node may have seen it before we process that the upload succeeded. This is also reasonable, because only timing
             // means it is not yet considered uploaded here.
+            // Paused BCCs are excluded, this node never uploads them. While relocating, a search shard can still report
+            // a commit at or above a paused BCC, e.g. one the relocation target uploaded with the same primary term
+            // and generation. Such a registration falls back to latestUploaded and fails with RecoveryCommitTooNewException,
+            // so the search shard retries.
             Optional<VirtualBatchedCompoundCommit> latestUploading = pendingUploadBccGenerations.values()
                 .stream()
+                .filter(pending -> pauseUpload(pending.commit().getMaxGeneration()) == false)
                 .min(Comparator.comparing(PendingUploadVirtualBatchCompoundCommit::getPrimaryTermAndGeneration))
                 .map(PendingUploadVirtualBatchCompoundCommit::commit);
             var latestUploaded = this.latestUploadedBcc;

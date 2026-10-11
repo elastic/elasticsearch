@@ -760,10 +760,9 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
      * {@link Names#SNAPSHOT_UPLOAD} pool is this big. The upload concurrency controller backs off from it under CPU pressure or upload
      * errors, and {@code indices.recovery.upload_concurrency.max} caps it.
      * <p>
-     * The steps exist because each upload moves roughly 15-30MiB/s, as snapshot files are small and latency-bound, so a node needs
-     * enough parallel uploads to reach its computed background cap, which doubles from 32GiB to 64GiB nodes. In QA on 32GiB nodes, 10
-     * uploads reached only 0.66-0.69 of the cap and 20 reached 0.89-0.93. The target stays at 10 below 8GiB because in QA the 4GiB pods
-     * were CPU-throttled at 10 uploads. The cap setting must stay below the 50 connections the AWS backup client allows.
+     * The steps exist because each upload moves little data per second, as snapshot files are small and latency-bound, so a bigger
+     * node needs more parallel uploads to use its network. The smallest nodes stay at 10 because more uploads would compete with
+     * foreground work for CPU. The cap setting must stay below the connection limit of the object store client.
      *
      * @param totalMemoryBytes total node memory (the container limit when running in a container), or 0 if unknown
      */

@@ -75,13 +75,10 @@ public class UploadConcurrencyService extends AbstractLifecycleComponent {
      * 8GiB of node memory, 20 from 8GiB, 40 from 64GiB, see {@link ThreadPool.Names#SNAPSHOT_UPLOAD}), which is also how far this can be
      * raised at runtime. Never below today's concurrency.
      * <p>
-     * The default is 40 so that it does not clip the largest nodes: each upload moves roughly 15-30MiB/s because snapshot files are
-     * small and latency-bound, so a node needs enough parallel uploads to reach its computed background cap, which doubles from 32GiB
-     * to 64GiB nodes. Smaller nodes stay at the target for their size.
+     * The default is 40 so that it does not clip the largest nodes. Smaller nodes stay at the target for their size.
      * <p>
-     * This must stay below the connection limit of the object store client (50 by default for the client used for backups), keeping a
-     * share of the connections for foreground work: every upload holds a connection while it runs, and uploads waiting for a connection
-     * would only look like a slow object store.
+     * This must stay below the connection limit of the object store client, keeping a share of the connections for foreground work:
+     * every upload holds a connection while it runs, and uploads waiting for a connection would only look like a slow object store.
      */
     public static final Setting<Integer> UPLOAD_CONCURRENCY_MAX_SETTING = Setting.intSetting(
         "indices.recovery.upload_concurrency.max",

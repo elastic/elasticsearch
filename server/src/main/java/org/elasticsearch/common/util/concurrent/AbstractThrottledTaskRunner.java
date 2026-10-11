@@ -53,6 +53,8 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
     // The max number of tasks that this runner will schedule to concurrently run on the executor. May be changed at runtime, see
     // setMaxRunningTasks: a decrease takes effect as running tasks finish, so runningTasks may briefly exceed it.
     private volatile int maxRunningTasks;
+    // The most that maxRunningTasks has ever been, which runningTasks never exceeds. Raised before maxRunningTasks is.
+    private final AtomicInteger highestMaxRunningTasks;
     // As we fork off dequeued tasks to the given executor, technically the following counter represents
     // the number of the concurrent pollAndSpawn calls currently checking the queue for a task to run. This
     // doesn't necessarily correspond to currently running tasks, since a pollAndSpawn could return without
@@ -82,6 +84,7 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
         assert maxRunningTasks > 0;
         this.taskRunnerName = name;
         this.maxRunningTasks = maxRunningTasks;
+        this.highestMaxRunningTasks = new AtomicInteger(maxRunningTasks);
         this.executor = executor;
         this.tasks = taskQueue;
         this.startPermits = startPermits;
@@ -103,6 +106,7 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
         if (maxRunningTasks <= 0) {
             throw new IllegalArgumentException("maxRunningTasks must be positive but was [" + maxRunningTasks + "]");
         }
+        highestMaxRunningTasks.accumulateAndGet(maxRunningTasks, Math::max);
         this.maxRunningTasks = maxRunningTasks;
         // Spawn queued tasks into any new free slots. Harmless after a decrease since there are no free slots then.
         pollAndSpawn();
@@ -241,6 +245,7 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
         // read the volatile once; preUpdateValue may exceed it after setMaxRunningTasks lowered it
         final int maxRunning = maxRunningTasks;
         int preUpdateValue = runningTasks.getAndAccumulate(maxRunning, (v, max) -> v < max ? v + 1 : v);
+        assert preUpdateValue <= highestMaxRunningTasks.get();
         return preUpdateValue < maxRunning;
     }
 

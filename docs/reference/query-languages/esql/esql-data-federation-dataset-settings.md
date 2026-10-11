@@ -380,12 +380,14 @@ $$$csv-schema-sample-size$$$
 `schema_sample_size`
 :   The number of rows sampled to infer the schema.
 
-    - **Default:** `20000`
+    - **Default:** `40000`
     - **Valid values:**
-      - {applies_to}`stack: experimental 9.6+` An integer from `1` through `20000`
+      - {applies_to}`stack: experimental 9.6+` An integer from `1` through `40000`
       - {applies_to}`stack: experimental =9.5` An integer from `1` through `1000`
 
     The sample determines whether sparse or late-appearing fields get a column. To learn how schemas are inferred, refer to [schema inference](esql-data-federation-schema.md).
+
+    {applies_to}`stack: experimental 9.6+` With `union_by_name` or `strict`, the sample is split across the files a query reads. For details, refer to [How the sample is shared across files](esql-data-federation-schema.md#shared-schema-sample).
 
 $$$csv-quote$$$
 
@@ -479,6 +481,16 @@ $$$csv-max-field-size$$$
     - **Default:** 10 MiB (`10485760`)
     - **Valid values:** An integer number of bytes. `0` removes the limit.
 
+$$$csv-schema-max-fields$$$
+
+`schema_max_fields` {applies_to}`stack: experimental 9.6+`
+:   The maximum number of columns a file's schema can have.
+
+    - **Default:** `1000`, or the value of the `esql.external.schema_max_fields` [cluster setting](esql-data-federation-cluster-settings.md)
+    - **Valid values:** An integer from `1` through `100000`
+
+    If the header (or the widest sampled row, when `header_row` is `false`) names more columns, the query fails with an HTTP 400 error before the schema is built. With `dynamic: false`, a declared schema is held to the limit by its number of declared columns, not by the width of the file. With `dynamic: true`, the file's inferred schema is held to the limit as well.
+
 ## NDJSON settings
 
 The following settings apply to NDJSON files.
@@ -494,10 +506,12 @@ $$$ndjson-schema-sample-size$$$
 
     - **Default:** `20000`
     - **Valid values:**
-      - {applies_to}`stack: experimental 9.6+` An integer from `1` through `20000`
+      - {applies_to}`stack: experimental 9.6+` An integer from `1` through `40000`
       - {applies_to}`stack: experimental =9.5` An integer from `1` through `1000`
 
     The sample determines whether sparse or late-appearing fields get a column. To learn how schemas are inferred, refer to [schema inference](esql-data-federation-schema.md).
+
+    {applies_to}`stack: experimental 9.6+` With `union_by_name` or `strict`, the sample is split across the files a query reads. For details, refer to [How the sample is shared across files](esql-data-federation-schema.md#shared-schema-sample).
 
     {applies_to}`stack: experimental 9.6+` NDJSON inference skips malformed lines, including lines that repeat a key in the same object, for example `{"a":1,"a":2}`. A malformed line contributes no columns, even for fields it names before parsing fails, and doesn't count toward `schema_sample_size` or `schema_max_fields`. A column that appears only on malformed lines is absent from the schema. When the file is read, those lines are handled according to the dataset's [`error_mode`](#error-mode).
 
@@ -529,8 +543,18 @@ $$$ndjson-schema-max-fields$$$
     - **Default:** `1000`, or the value of the `esql.external.schema_max_fields` [cluster setting](esql-data-federation-cluster-settings.md)
     - **Valid values:** An integer from `1` through `100000`
 
-    Objects count as fields, as well as leaf fields, and each segment of a dotted key counts as a field. If a file's inferred schema exceeds the limit, the query fails.
+    Objects count as fields, as well as leaf fields, and each segment of a dotted key counts as a field. If a file's inferred schema exceeds the limit, the query fails with an HTTP 400 error. With `dynamic: false`, a declared schema is held to the limit by its number of declared columns, not by the width of the file. With `dynamic: true`, the file's inferred schema is held to the limit as well.
 
 ## Parquet settings
 
-Parquet is self-describing and has no format-specific dataset settings.
+Parquet is self-describing, so it has a single dataset setting.
+
+$$$parquet-schema-max-fields$$$
+
+`schema_max_fields` {applies_to}`stack: experimental 9.6+`
+:   The maximum number of columns a file's schema can have, counting each nested field as a column once groups are flattened.
+
+    - **Default:** `1000`, or the value of the `esql.external.schema_max_fields` [cluster setting](esql-data-federation-cluster-settings.md)
+    - **Valid values:** An integer from `1` through `100000`
+
+    If the file has more columns, the query fails with an HTTP 400 error. With `dynamic: false`, a declared schema is held to the limit by its number of declared columns, not by the width of the file, although a file wider than 100,000 columns can still be refused because the planner reads its footer at that limit to check the declared types. With `dynamic: true`, the file's inferred schema is held to the limit as well.

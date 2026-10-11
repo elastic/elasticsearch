@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -70,7 +71,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongSupplier;
 
 import static org.elasticsearch.xpack.esql.datasource.parquet.OptimizedParquetColumnIterator.ReadinessPhase;
 import static org.hamcrest.Matchers.lessThan;
@@ -478,6 +481,74 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
             assertTrue(storage.successes.get() >= 1);
         }
         assertLedgerClear(watermark);
+    }
+
+    public void testPhase2RetryAfterAllocatedFailureStaysWithinCap() throws Exception {
+        byte[] parquet = twoColumnFile();
+        PhaseSizes group0 = phaseSizes(parquet, 0);
+        AtomicLong peakUsed = new AtomicLong();
+        ParquetIoWatermark watermark = new ParquetIoWatermark(1 << 20);
+        FailAfterAllocateOnceStorage storage = new FailAfterAllocateOnceStorage(
+            parquet,
+            asyncIo,
+            new IOException("injected phase-2 alloc-then-fail"),
+            watermark::used,
+            peakUsed
+        );
+        ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
+        Expression filter = new LessThan(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 4L, DataType.LONG), null);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
+            .withPushedFilter(new ParquetPushedExpressions(List.of(filter)));
+        int rows = 0;
+        try (CloseableIterator<Page> iter = reader.read(storage, FormatReadContext.of(null, 64))) {
+            OptimizedParquetColumnIterator opci = (OptimizedParquetColumnIterator) iter;
+            assertBusy(() -> assertTrue(iter.waitForReady().isDone()), 5, TimeUnit.SECONDS);
+            peakUsed.accumulateAndGet(watermark.used(), Math::max);
+            storage.arm.set(true);
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+            while (System.nanoTime() < deadline) {
+                peakUsed.accumulateAndGet(watermark.used(), Math::max);
+                assertBusy(() -> assertTrue(iter.waitForReady().isDone()), 5, TimeUnit.SECONDS);
+                Page page = iter.tryAdvance();
+                if (page != null) {
+                    rows += page.getPositionCount();
+                    page.releaseBlocks();
+                    continue;
+                }
+                if (opci.readinessPhase() == ReadinessPhase.DONE) {
+                    break;
+                }
+            }
+            assertEquals(1, storage.failures.get());
+            assertTrue(storage.successes.get() >= 1);
+            assertEquals(4, rows);
+            assertThat(
+                "used must stay within cap + one phase-2 range; peak="
+                    + peakUsed.get()
+                    + " cap="
+                    + watermark.limit()
+                    + " R="
+                    + group0.reservation,
+                peakUsed.get(),
+                lessThan(watermark.limit() + group0.reservation + 1)
+            );
+        }
+        assertLedgerClear(watermark);
+        assertEquals(0, blockFactory.breaker().getUsed());
+    }
+
+    public void testPhase2FetchRangesFallsBackWhenFilteredExceedsRemaining() {
+        RowRanges survivors = RowRanges.of(0, 1, 8);
+        assertSame(survivors, OptimizedParquetColumnIterator.phase2FetchRanges(survivors, 100, 100));
+        assertSame(survivors, OptimizedParquetColumnIterator.phase2FetchRanges(survivors, 100, 101));
+        assertNull(OptimizedParquetColumnIterator.phase2FetchRanges(survivors, 101, 100));
+        assertNull(OptimizedParquetColumnIterator.phase2FetchRanges(null, 101, 100));
+        // Humongous full chunk vs many mid-size pages: filtered footprint can exceed the
+        // one-region charge admission used for the merged chunk (4 MiB G1 regions).
+        long fullCharge = HeapFootprint.byteArrayBytes((2L << 20) + 1);
+        long filteredCharge = 5 * HeapFootprint.byteArrayBytes((1L << 20) + 1024);
+        assertTrue(filteredCharge > fullCharge);
+        assertNull(OptimizedParquetColumnIterator.phase2FetchRanges(survivors, filteredCharge, fullCharge));
     }
 
     public void testCloseQueuedTicketReleasesLedger() throws Exception {
@@ -1224,6 +1295,59 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
                 return;
             }
             throw new RuntimeException("injected fillPrefetchQueue failure");
+        }
+    }
+
+    private static final class FailAfterAllocateOnceStorage extends ImmediateAsyncStorage {
+        private final Exception failure;
+        private final AtomicBoolean arm = new AtomicBoolean();
+        private final AtomicBoolean failNext = new AtomicBoolean(true);
+        private final AtomicInteger failures = new AtomicInteger();
+        private final AtomicInteger successes = new AtomicInteger();
+        private final LongSupplier used;
+        private final AtomicLong peakUsed;
+
+        private FailAfterAllocateOnceStorage(
+            byte[] data,
+            ExecutorService asyncIo,
+            Exception failure,
+            LongSupplier used,
+            AtomicLong peakUsed
+        ) {
+            super(data, asyncIo);
+            this.failure = failure;
+            this.used = used;
+            this.peakUsed = peakUsed;
+        }
+
+        @Override
+        public void readBytesAsync(
+            long position,
+            long length,
+            DirectBufferFactory factory,
+            Executor executor,
+            ActionListener<DirectReadBuffer> listener
+        ) {
+            DirectBufferFactory sampling = len -> {
+                DirectReadBuffer allocated = factory.allocate(len);
+                peakUsed.accumulateAndGet(used.getAsLong(), Math::max);
+                return allocated;
+            };
+            if (arm.get() && failNext.compareAndSet(true, false)) {
+                DirectReadBuffer allocated;
+                try {
+                    allocated = sampling.allocate((int) length);
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                    return;
+                }
+                allocated.close();
+                failures.incrementAndGet();
+                super.asyncIo.execute(() -> listener.onFailure(failure));
+                return;
+            }
+            successes.incrementAndGet();
+            super.readBytesAsync(position, length, sampling, executor, listener);
         }
     }
 

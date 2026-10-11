@@ -457,6 +457,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     );
 
     /**
+     * How long a snapshot into this repository should take at most, from start to finish. Index nodes compare it with the bytes still to
+     * be uploaded to work out the upload rate the repository needs. The default is a conservative guess for a backup that runs often.
+     */
+    public static final Setting<TimeValue> COMPLETION_TARGET_SETTING = Setting.positiveTimeSetting(
+        "completion_target",
+        TimeValue.timeValueMinutes(30),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
      * Defines the max size of the ShardBlobsToDelete.shard_delete_results stream as a percentage of available heap memory
      * This is a cluster level setting
      */
@@ -473,10 +484,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     private static final Set<String> DYNAMIC_SETTING_NAMES = Set.of(
         MAX_SNAPSHOT_BYTES_PER_SEC.getKey(),
-        MAX_RESTORE_BYTES_PER_SEC.getKey()
+        MAX_RESTORE_BYTES_PER_SEC.getKey(),
+        COMPLETION_TARGET_SETTING.getKey()
     );
 
     private final boolean readOnly;
+
+    private volatile TimeValue completionTarget;
 
     private final Object lock = new Object();
 
@@ -563,6 +577,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         snapshotRateLimiter = getSnapshotRateLimiter();
         restoreRateLimiter = getRestoreRateLimiter();
         readOnly = metadata.settings().getAsBoolean(READONLY_SETTING_KEY, false);
+        completionTarget = COMPLETION_TARGET_SETTING.get(metadata.settings());
         cacheRepositoryData = CACHE_REPOSITORY_DATA.get(metadata.settings());
         bufferSize = Math.toIntExact(BUFFER_SIZE_SETTING.get(metadata.settings()).getBytes());
         this.namedXContentRegistry = namedXContentRegistry;
@@ -824,6 +839,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         if (updatedSettings.equals(previousSettings) == false) {
             snapshotRateLimiter = getSnapshotRateLimiter();
             restoreRateLimiter = getRestoreRateLimiter();
+            completionTarget = COMPLETION_TARGET_SETTING.get(updatedSettings);
         }
 
         uncleanStart = uncleanStart && metadata.generation() != metadata.pendingGeneration();
@@ -2959,6 +2975,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     @Override
     public boolean isReadOnly() {
         return readOnly;
+    }
+
+    /**
+     * @return the {@link #COMPLETION_TARGET_SETTING} of this repository
+     */
+    public TimeValue getCompletionTarget() {
+        return completionTarget;
     }
 
     /**

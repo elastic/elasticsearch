@@ -16,6 +16,8 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -39,6 +41,7 @@ import org.elasticsearch.ingest.IngestFeatures;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.field.WriteField;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -51,6 +54,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -75,6 +79,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.oneOf;
 
 public class DynamicMappingIT extends ESIntegTestCase {
@@ -751,49 +756,144 @@ public class DynamicMappingIT extends ESIntegTestCase {
     }
 
     /**
-     * Every document of the bulk request adds a metric to a time series index, as the first documents sent to a new backing index
-     * of a metrics data stream do.
+     * Concurrent bulk requests add metrics and dimensions to a time series index, as the first documents sent to a new backing
+     * index of a metrics data stream do. The requests share metrics and dimensions, so their mapping updates overlap.
      */
-    public void testBulkRequestCombinesDynamicMappingUpdatesOfTimeSeriesIndex() throws Exception {
+    public void testBulkRequestsCombineDynamicMappingUpdatesOfTimeSeriesIndex() throws Exception {
         Settings settings = indexSettings(1, 0).put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), true)
             .put(IndexSettings.MODE.getKey(), "time_series")
-            .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("host"))
+            .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("host", "attributes.*"))
             .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2024-01-01T00:00:00Z")
             .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2024-01-02T00:00:00Z")
             .build();
         assertAcked(indicesAdmin().prepareCreate("test").setSettings(settings).setMapping("""
             {
               "dynamic_templates": [
+                { "ip": { "path_match": "attributes.ip_*", "mapping": { "type": "ip" } } },
                 { "counter": { "path_match": "metrics.*_total", "mapping": { "type": "double", "time_series_metric": "counter" } } },
                 { "gauge": { "path_match": "metrics.*", "mapping": { "type": "double", "time_series_metric": "gauge" } } }
               ],
               "properties": {
                 "@timestamp": { "type": "date" },
                 "host": { "type": "keyword", "time_series_dimension": true },
+                "attributes": { "type": "passthrough", "priority": 1, "time_series_dimension": true },
                 "metrics": { "type": "object", "subobjects": false }
               }
             }"""));
         final ClusterService clusterService = internalCluster().clusterService();
         final long previousVersion = clusterService.state().metadata().getProject().index("test").getMappingVersion();
+        int numRequests = between(1, 5);
         int numDocs = between(3, 100);
-        BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        for (int i = 0; i < numDocs; i++) {
-            String metric = "metric." + i + (randomBoolean() ? "_total" : "");
-            bulkRequest.add(
-                new IndexRequest("test").source(
-                    "@timestamp",
-                    "2024-01-01T00:00:" + (i % 60 < 10 ? "0" : "") + (i % 60) + "Z",
-                    "host",
-                    "host-" + i,
-                    "metrics",
-                    Map.of(metric, i)
-                )
+        int numMetrics = between(1, numDocs);
+        int numAttributes = between(1, 10);
+        final AtomicReference<Throwable> error = new AtomicReference<>();
+        startInParallel(numRequests, request -> {
+            try {
+                BulkRequest bulkRequest = new BulkRequest();
+                for (int i = 0; i < numDocs; i++) {
+                    int metric = randomIntBetween(0, numMetrics - 1);
+                    Map<String, Object> attributes = new HashMap<>();
+                    for (int a = 0; a < between(1, 3); a++) {
+                        int attribute = randomIntBetween(0, numAttributes - 1);
+                        switch (attribute % 3) {
+                            case 0 -> attributes.put("keyword_" + attribute, "value-" + i);
+                            case 1 -> attributes.put("ip_" + attribute, "10.0." + request + "." + i);
+                            case 2 -> attributes.put("long_" + attribute, i);
+                            default -> throw new AssertionError();
+                        }
+                    }
+                    bulkRequest.add(
+                        new IndexRequest("test").opType(DocWriteRequest.OpType.CREATE)
+                            .source(
+                                "@timestamp",
+                                "2024-01-01T00:00:" + (i % 60 < 10 ? "0" : "") + (i % 60) + "Z",
+                                "host",
+                                "host-" + request + "-" + i,
+                                "attributes",
+                                attributes,
+                                "metrics",
+                                Map.of("metric." + metric + (metric % 2 == 0 ? "_total" : ""), i)
+                            )
+                    );
+                }
+                BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+                assertFalse(bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
+            } catch (Throwable e) {
+                error.compareAndSet(null, e);
+            }
+        });
+        if (error.get() != null) {
+            throw new AssertionError(error.get());
+        }
+        if (numRequests == 1) {
+            // the update of the first document, then the combined update of all the others
+            assertThat(
+                clusterService.state().metadata().getProject().index("test").getMappingVersion(),
+                lessThanOrEqualTo(2 + previousVersion)
             );
         }
-        BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
-        assertFalse(bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
-        assertThat(clusterService.state().metadata().getProject().index("test").getMappingVersion(), equalTo(2 + previousVersion));
-        assertHitCount(prepareSearch("test"), numDocs);
+        refresh("test");
+        assertHitCount(prepareSearch("test"), numRequests * numDocs);
+
+        Map<String, Object> mappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test")
+            .get()
+            .mappings()
+            .get("test")
+            .sourceAsMap();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
+        @SuppressWarnings("unchecked")
+        Map<String, Map<String, Object>> attributes = (Map<String, Map<String, Object>>) ((Map<String, Object>) properties.get(
+            "attributes"
+        )).get("properties");
+        for (Map.Entry<String, Map<String, Object>> attribute : attributes.entrySet()) {
+            String expectedType = switch (attribute.getKey().substring(0, attribute.getKey().indexOf('_'))) {
+                case "keyword" -> "keyword";
+                case "ip" -> "ip";
+                case "long" -> "long";
+                default -> throw new AssertionError(attribute.getKey());
+            };
+            assertThat(attribute.getKey(), attribute.getValue().get("type"), equalTo(expectedType));
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Map<String, Object>> metrics = (Map<String, Map<String, Object>>) ((Map<String, Object>) properties.get("metrics")).get(
+            "properties"
+        );
+        for (Map.Entry<String, Map<String, Object>> metric : metrics.entrySet()) {
+            assertThat(metric.getKey(), metric.getValue().get("type"), equalTo("double"));
+            assertThat(
+                metric.getKey(),
+                metric.getValue().get("time_series_metric"),
+                equalTo(metric.getKey().endsWith("_total") ? "counter" : "gauge")
+            );
+        }
+        // every attribute and metric of every document is mapped
+        assertResponse(prepareSearch("test").setSize(numRequests * numDocs), response -> {
+            for (SearchHit hit : response.getHits()) {
+                Map<String, Object> source = hit.getSourceAsMap();
+                @SuppressWarnings("unchecked")
+                Map<String, Object> attributeSource = (Map<String, Object>) source.get("attributes");
+                for (String attribute : attributeSource.keySet()) {
+                    assertThat(attributes, hasKey(attribute));
+                }
+                @SuppressWarnings("unchecked")
+                Map<String, Object> metricSource = (Map<String, Object>) source.get("metrics");
+                for (String metric : metricSource.keySet()) {
+                    assertThat(metrics, hasKey(metric));
+                }
+            }
+        });
+        FieldCapabilitiesResponse fieldCaps = client().prepareFieldCaps("test").setFields("attributes.*", "metrics.*").get();
+        for (String attribute : attributes.keySet()) {
+            for (FieldCapabilities caps : fieldCaps.getField("attributes." + attribute).values()) {
+                assertTrue(attribute, caps.isDimension());
+            }
+        }
+        for (String metric : metrics.keySet()) {
+            for (FieldCapabilities caps : fieldCaps.getField("metrics." + metric).values()) {
+                assertThat(metric, caps.getMetricType(), notNullValue());
+            }
+        }
     }
 
     public void testBulkRequestWithDynamicTemplates() throws Exception {

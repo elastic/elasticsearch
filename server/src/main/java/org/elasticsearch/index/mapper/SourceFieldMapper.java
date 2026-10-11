@@ -29,6 +29,7 @@ import org.elasticsearch.escf.EscfColumnBuilder;
 import org.elasticsearch.escf.EscfColumnData;
 import org.elasticsearch.escf.EscfColumnKind;
 import org.elasticsearch.escf.LuceneBinaryColumn;
+import org.elasticsearch.escf.LuceneLongColumn;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -721,18 +722,16 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             context.addColumn(LuceneBinaryColumn.of(blobData, IgnoredSourceFieldMapper.NAME, CustomDocValuesField.TYPE), blobData);
         }
 
-        final byte[] counts = new byte[docCount * 8];
-        for (int d = 0; d < docCount; d++) {
-            ByteUtils.writeLongLE(1, counts, d * 8);
+        // Each doc contributes exactly one blob, so the SeparateCount companion is a constant 1 per row. Build it through
+        // the shared LuceneLongColumn.counts(...) factory (as keyword/ip do) rather than hand-assembling the .counts layout.
+        try (EscfColumnBuilder countsBuilder = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, context.recycler())) {
+            countsBuilder.lockScalar(EscfColumnKind.LONG);
+            for (int d = 0; d < docCount; d++) {
+                countsBuilder.setLong(d, 1);
+            }
+            final EscfColumnData countsData = countsBuilder.finish(docCount);
+            context.addColumn(LuceneLongColumn.counts(countsData, IgnoredSourceFieldMapper.NAME), countsData);
         }
-        context.addColumn(
-            MappedColumns.longColumn(
-                new BytesRef(counts),
-                IgnoredSourceFieldMapper.NAME + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX,
-                MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_TYPE,
-                LongColumn.NumericKind.LONG
-            )
-        );
     }
 
     @Override

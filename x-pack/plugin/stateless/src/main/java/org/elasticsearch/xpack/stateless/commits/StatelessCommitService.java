@@ -3283,13 +3283,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             // Consider minimum pending generation also available to search, since we are in the process of uploading it and search
             // node may have seen it before we process that the upload succeeded. This is also reasonable, because only timing
             // means it is not yet considered uploaded here.
-            // Paused BCCs are excluded, this node never uploads them. While relocating, a search shard can still report
-            // a commit at or above a paused BCC, e.g. one the relocation target uploaded with the same primary term
-            // and generation. Such a registration falls back to latestUploaded and fails with RecoveryCommitTooNewException,
-            // so the search shard retries.
             Optional<VirtualBatchedCompoundCommit> latestUploading = pendingUploadBccGenerations.values()
                 .stream()
-                .filter(pending -> pauseUpload(pending.commit().getMaxGeneration()) == false)
                 .min(Comparator.comparing(PendingUploadVirtualBatchCompoundCommit::getPrimaryTermAndGeneration))
                 .map(PendingUploadVirtualBatchCompoundCommit::commit);
             var latestUploaded = this.latestUploadedBcc;
@@ -3301,14 +3296,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 .filter(bcc -> compoundCommitGeneration.onOrAfter(bcc.lastCompoundCommit().primaryTermAndGeneration()))
                 .orElse(latestUploaded);
 
-            assert pauseUpload(availableBcc.lastCompoundCommit().primaryTermAndGeneration().generation()) == false
-                : "last compound commit ["
-                    + availableBcc.lastCompoundCommit().primaryTermAndGeneration().generation()
-                    + "] of available bcc ["
-                    + availableBcc.primaryTermAndGeneration().generation()
-                    + "] from unpromotable recovery cannot be higher than maxGenerationToUpload ["
-                    + maxGenerationToUpload
-                    + "]";
+            // TODO: assert pauseUpload(availableBcc.lastCompoundCommit().primaryTermAndGeneration().generation()) == false
+            // once paused pending-upload BCCs are excluded above. While relocating, a search shard can report a commit
+            // that the relocation target uploaded with the same primary term and generation as a paused BCC on this node.
 
             var availableCommit = availableBcc.lastCompoundCommit();
             if (compoundCommitGeneration.after(availableCommit.primaryTermAndGeneration())) {

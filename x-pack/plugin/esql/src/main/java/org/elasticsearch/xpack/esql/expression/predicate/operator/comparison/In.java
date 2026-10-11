@@ -614,10 +614,6 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
             queries.add(new TermsQuery(source(), fieldName, terms));
         }
 
-        // After the change above, queries normally holds a single TermsQuery; a second, match-none
-        // query can appear for an out-of-range unsigned_long value. If every list value was
-        // guaranteed-null, queries is empty here; the folder normally rewrites such an IN to a
-        // constant false beforehand, and BoolQuery below throws in that defensive case.
         if (queries.size() == 1) {
             return queries.get(0);
         }

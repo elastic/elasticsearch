@@ -1229,7 +1229,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         parsedFooters.getOrLoadAsync(cacheKey, executor, flight -> {
             byte[] cached = footerBytes.get(cacheKey);
             if (cached != null) {
-                completeFromAvailableTail(object, length, cacheKey, cached, executor, flight);
+                completeFromAvailableTail(object, length, cacheKey, cached, TailSource.FOOTER_CACHE, executor, flight);
                 return;
             }
             prefetchAndParseFooterAsync(object, length, cacheKey, executor, flight);
@@ -1289,6 +1289,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         long length,
         FooterByteCache.Key cacheKey,
         byte[] tailBytes,
+        TailSource tailSource,
         Executor executor,
         ActionListener<ParquetMetadata> listener
     ) {
@@ -1300,14 +1301,14 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         }
         long footerRegion = (long) footerLength + PARQUET_TRAILER_BYTES;
         if (footerRegion <= tailBytes.length) {
-            parseTailOnExecutor(object, length, tailBytes, () -> {}, cacheKey, executor, listener);
+            parseTailOnExecutor(object, length, tailBytes, () -> {}, cacheKey, tailSource, executor, listener);
             return;
         }
         readExactFooterAndParse(object, length, cacheKey, (int) footerRegion, executor, listener);
     }
 
     /**
-     * Same as {@link #completeFromAvailableTail(StorageObject, long, FooterByteCache.Key, byte[], Executor, ActionListener)}
+     * Same as {@link #completeFromAvailableTail(StorageObject, long, FooterByteCache.Key, byte[], TailSource, Executor, ActionListener)}
      * but keeps {@code tail} charged until parse (or closes it before an exact-range GET).
      */
     private void completeFromAvailableTail(
@@ -1335,7 +1336,16 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 if (charged.reusedHeapArray() == false) {
                     tail.close();
                 }
-                parseTailOnExecutor(object, length, charged.bytes(), charged.release(), cacheKey, executor, listener);
+                parseTailOnExecutor(
+                    object,
+                    length,
+                    charged.bytes(),
+                    charged.release(),
+                    cacheKey,
+                    TailSource.STORAGE_READ,
+                    executor,
+                    listener
+                );
                 return;
             }
             transferred = true;
@@ -1397,7 +1407,16 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 if (charged.reusedHeapArray() == false) {
                     footerBuf.close();
                 }
-                parseTailOnExecutor(object, length, charged.bytes(), charged.release(), cacheKey, executor, parsed);
+                parseTailOnExecutor(
+                    object,
+                    length,
+                    charged.bytes(),
+                    charged.release(),
+                    cacheKey,
+                    TailSource.STORAGE_READ,
+                    executor,
+                    parsed
+                );
             } catch (Exception e) {
                 footerBuf.close();
                 transferred = true;
@@ -1450,13 +1469,23 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     /**
+     * Where the tail came from. Only bytes this flight read from storage are stored, so a cache-served tail
+     * cannot be given a fresh write time.
+     */
+    private enum TailSource {
+        STORAGE_READ,
+        FOOTER_CACHE
+    }
+
+    /**
      * Parses the footer directly from the prefetched {@code tailBytes} (a suffix of the file ending at
      * {@code length}) on {@code executor}, completing {@code listener}. Parsing from the byte array is
      * deliberate: it does not depend on the {@link FooterByteCache} surviving between the async read
      * and the parse (a wide concurrent discovery could otherwise evict the tail against the cache's
-     * byte budget and force a blocking re-read on the executor thread). The bytes are additionally
-     * offered to the cache best-effort after a successful parse so a later split-discovery pass can
-     * reuse them, but correctness never depends on that. {@code listener} is the
+     * byte budget and force a blocking re-read on the executor thread). Bytes read from storage are
+     * additionally offered to the cache best-effort after a successful parse so a later split-discovery
+     * pass can reuse them, but correctness never depends on that. Bytes the cache served are not stored
+     * again, so an entry's write time stays the read that produced it. {@code listener} is the
      * {@link ParsedFooterCache#getOrLoadAsync} flight listener: {@code release} uncharges the GET
      * (or the heap copy) after parse, success or failure, and always before that listener is
      * notified so waiters run {@link #buildFooterMetadata} / {@link #rangesFromFooter} after the
@@ -1470,6 +1499,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         byte[] tailBytes,
         Releasable release,
         FooterByteCache.Key cacheKey,
+        TailSource tailSource,
         Executor executor,
         ActionListener<ParquetMetadata> listener
     ) {
@@ -1478,7 +1508,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             executor.execute(() -> {
                 try {
                     ParquetMetadata footer = parseParsedFooterFromTail(object, length, tailBytes);
-                    footerBytes.put(cacheKey, tailBytes);
+                    if (tailSource == TailSource.STORAGE_READ) {
+                        footerBytes.put(cacheKey, tailBytes);
+                    }
                     released.onResponse(footer);
                 } catch (Exception e) {
                     released.onFailure(e);
@@ -2717,6 +2749,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 // the async ColumnChunkPrefetcher rather than the sliding-window stream, so they have
                 // no further reader.
                 adapter.installPreWarmedChunks(null);
+                // Optimized path only. Drop the open-time sliding window before ticket admission.
+                // The iterator reads through ColumnChunkPrefetcher, not the reader stream; the
+                // window would otherwise stay charged to the node byte budget while the driver
+                // waits for tickets (esql-planning#2252). Also runs when there is no record filter:
+                // unfiltered LIMIT sequential OffsetIndex reads can allocate the same window.
+                // Do not call this on the row-based reader: it still reads through the stream.
+                adapter.releaseIdleWindows();
             }
 
             RowRanges[] allRowRanges = null;

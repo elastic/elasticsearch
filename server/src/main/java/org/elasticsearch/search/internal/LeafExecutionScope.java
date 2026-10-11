@@ -27,7 +27,7 @@ public final class LeafExecutionScope {
     private static final ThreadLocal<LeafExecutionScope> CURRENT = new ThreadLocal<>();
 
     private final AtomicLong bytes = new AtomicLong();
-    private volatile PointRangeExecutionAccounting accounting;
+    private volatile LeafExecutionAccounting accounting;
 
     /** Runs {@code build} and takes ownership of the execution memory charged on the calling thread while it runs. */
     public <T, E extends Exception> T capture(CheckedSupplier<T, E> build) throws E {
@@ -46,7 +46,7 @@ public final class LeafExecutionScope {
 
     /** Releases the execution memory this scope owns. The scope can be used again afterwards. */
     public void release() {
-        final PointRangeExecutionAccounting owner = accounting;
+        final LeafExecutionAccounting owner = accounting;
         final long held = bytes.getAndSet(0L);
         accounting = null;
         if (owner != null && held > 0L) {
@@ -59,8 +59,8 @@ public final class LeafExecutionScope {
     }
 
     /** Takes ownership of {@code charged} bytes, unless this scope already owns memory charged to another accounting. */
-    boolean add(PointRangeExecutionAccounting from, long charged) {
-        final PointRangeExecutionAccounting owner = accounting;
+    boolean add(LeafExecutionAccounting from, long charged) {
+        final LeafExecutionAccounting owner = accounting;
         if (owner == null) {
             accounting = from;
         } else if (owner != from) {

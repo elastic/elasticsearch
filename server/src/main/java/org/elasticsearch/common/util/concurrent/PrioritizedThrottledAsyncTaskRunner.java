@@ -11,6 +11,7 @@ package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.InstrumentedThrottledTaskRunner.TimedTask;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
@@ -18,6 +19,7 @@ import java.util.Comparator;
 import java.util.concurrent.Executor;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 import java.util.function.IntSupplier;
 import java.util.function.LongSupplier;
 
@@ -30,12 +32,28 @@ public class PrioritizedThrottledAsyncTaskRunner<T extends ActionListener<Releas
     private final Consumer<T> enqueuer;
     private final IntSupplier runningTasks;
     private final IntSupplier queuedTasks;
+    private final IntSupplier maxRunningTasksGetter;
+    private final IntConsumer maxRunningTasksSetter;
 
     public PrioritizedThrottledAsyncTaskRunner(final String name, final int maxRunningTasks, final Executor executor) {
-        final var runner = new AbstractThrottledTaskRunner<T>(name, maxRunningTasks, executor, new PriorityBlockingQueue<>());
+        this(name, maxRunningTasks, executor, null);
+    }
+
+    /**
+     * @param startPermits a limit shared with other runners, see {@link AbstractThrottledTaskRunner.StartPermits}, or {@code null}
+     */
+    public PrioritizedThrottledAsyncTaskRunner(
+        final String name,
+        final int maxRunningTasks,
+        final Executor executor,
+        @Nullable final AbstractThrottledTaskRunner.StartPermits startPermits
+    ) {
+        final var runner = new AbstractThrottledTaskRunner<T>(name, maxRunningTasks, executor, new PriorityBlockingQueue<>(), startPermits);
         this.enqueuer = runner::enqueueTask;
         this.runningTasks = runner::runningTasks;
         this.queuedTasks = runner::queuedTasks;
+        this.maxRunningTasksGetter = runner::getMaxRunningTasks;
+        this.maxRunningTasksSetter = runner::setMaxRunningTasks;
     }
 
     /**
@@ -59,6 +77,8 @@ public class PrioritizedThrottledAsyncTaskRunner<T extends ActionListener<Releas
         this.enqueuer = runner::enqueueTask;
         this.runningTasks = runner::runningTasks;
         this.queuedTasks = runner::queuedTasks;
+        this.maxRunningTasksGetter = runner::getMaxRunningTasks;
+        this.maxRunningTasksSetter = runner::setMaxRunningTasks;
     }
 
     /**
@@ -70,12 +90,23 @@ public class PrioritizedThrottledAsyncTaskRunner<T extends ActionListener<Releas
         enqueuer.accept(task);
     }
 
-    // Only use for testing
+    public int getMaxRunningTasks() {
+        return maxRunningTasksGetter.getAsInt();
+    }
+
+    /**
+     * Changes the max number of concurrently running tasks, see {@link AbstractThrottledTaskRunner#setMaxRunningTasks}.
+     */
+    public void setMaxRunningTasks(int maxRunningTasks) {
+        maxRunningTasksSetter.accept(maxRunningTasks);
+    }
+
+    // Used by tests and for monitoring
     public int runningTasks() {
         return runningTasks.getAsInt();
     }
 
-    // Only use for testing
+    // Used by tests and for monitoring
     public int queueSize() {
         return queuedTasks.getAsInt();
     }

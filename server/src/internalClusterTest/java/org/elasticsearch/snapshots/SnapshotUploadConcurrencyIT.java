@@ -35,7 +35,7 @@ public class SnapshotUploadConcurrencyIT extends AbstractSnapshotIntegTestCase {
 
         final String key = ADAPTIVE_UPLOAD_CONCURRENCY_ENABLED_SETTING.getKey();
         final var e = expectThrows(IllegalArgumentException.class, () -> updateClusterSettings(Settings.builder().put(key, true)));
-        assertThat(e.getMessage(), containsString("unknown setting [" + key + "]"));
+        assertThat(e.getMessage(), containsString("setting [" + key + "], not recognized"));
 
         createRepository("test-repo", "fs");
         createIndexWithRandomDocs("test-idx", 50);

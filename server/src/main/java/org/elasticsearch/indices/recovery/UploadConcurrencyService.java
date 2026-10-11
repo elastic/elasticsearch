@@ -88,6 +88,8 @@ public class UploadConcurrencyService extends AbstractLifecycleComponent {
         Setting.Property.NodeScope
     );
 
+    private static final String BUDGET_CHANGE_MESSAGE = "changing snapshot upload concurrency from [{}] to [{}] ({}: {})";
+
     /** How often the upload concurrency controller makes a decision. */
     static final TimeValue TICK_INTERVAL = TimeValue.timeValueSeconds(5);
     /** The status line is only logged while uploads ran or were queued in this time. */
@@ -558,13 +560,12 @@ public class UploadConcurrencyService extends AbstractLifecycleComponent {
         final int current = uploadBudget;
         if (current != budget) {
             final UploadConcurrencyController.Decision decision = uploadConcurrencyController.getLastDecision();
-            logger.info(
-                "changing snapshot upload concurrency from [{}] to [{}] ({}: {})",
-                current,
-                budget,
-                decision.action(),
-                decision.reason()
-            );
+            // A raise is one step per interval while ramping up, which is only of interest when looking into it. A cut is not.
+            if (budget > current) {
+                logger.debug(BUDGET_CHANGE_MESSAGE, current, budget, decision.action(), decision.reason());
+            } else {
+                logger.info(BUDGET_CHANGE_MESSAGE, current, budget, decision.action(), decision.reason());
+            }
             uploadBudget = budget;
             if (budget > current) {
                 // runners may have tasks waiting for it

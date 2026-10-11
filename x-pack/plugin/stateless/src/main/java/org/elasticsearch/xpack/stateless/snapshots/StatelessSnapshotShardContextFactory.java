@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
@@ -46,6 +47,8 @@ public class StatelessSnapshotShardContextFactory implements SnapshotShardContex
     private volatile boolean relocationDuringSnapshotEnabled;
     private final BiFunction<ShardId, Long, BlobContainer> shardBlobContainerFunc;
     private final SnapshotsCommitService snapshotsCommitService;
+    @Nullable // unless this is an index node
+    private final SnapshotBacklogTracker snapshotBacklogTracker;
     private final LocalPrimarySnapshotShardContextFactory localPrimaryFactory;
     private final Client client;
 
@@ -56,6 +59,7 @@ public class StatelessSnapshotShardContextFactory implements SnapshotShardContex
     public StatelessSnapshotShardContextFactory(StatelessPlugin stateless) {
         this.shardBlobContainerFunc = stateless.shardBlobContainerFunc();
         this.snapshotsCommitService = stateless.getSnapshotsCommitService();
+        this.snapshotBacklogTracker = stateless.getSnapshotBacklogTracker();
         this.client = stateless.getClient();
         final ClusterSettings clusterSettings = stateless.getClusterService().getClusterSettings();
         clusterSettings.initializeAndWatch(STATELESS_SNAPSHOT_ENABLED_SETTING, this::setStatelessSnapshotEnabledStatus);
@@ -76,6 +80,10 @@ public class StatelessSnapshotShardContextFactory implements SnapshotShardContex
         long snapshotStartTime,
         ActionListener<ShardSnapshotResult> listener
     ) throws IOException {
+        if (snapshotBacklogTracker != null) {
+            // whichever way the shard is read, what it uploads reduces the backlog of the shard
+            snapshotBacklogTracker.registerShardSnapshot(snapshot, shardId, snapshotStatus);
+        }
         final var status = statelessSnapshotEnabledStatus; // read volatile once
         if (status == StatelessSnapshotEnabledStatus.DISABLED) {
             return localPrimaryFactory.asyncCreate(

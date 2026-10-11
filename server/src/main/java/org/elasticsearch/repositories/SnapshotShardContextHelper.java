@@ -202,7 +202,11 @@ public class SnapshotShardContextHelper {
             @Override
             public void onResponse(IndexShardSnapshotStatus.AbortStatus abortStatus) {
                 if (abortStatus == IndexShardSnapshotStatus.AbortStatus.ABORTED) {
-                    assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC, ThreadPool.Names.SNAPSHOT);
+                    assert ThreadPool.assertCurrentThreadPool(
+                        ThreadPool.Names.GENERIC,
+                        ThreadPool.Names.SNAPSHOT,
+                        ThreadPool.Names.SNAPSHOT_UPLOAD
+                    );
                     snapshotIndexCommit.releaseInitialReference();
                 }
             }

@@ -660,3 +660,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.datasource.parquet.ParquetPreWarmReleaseTests
   method: testEarlyCloseReleasesTicket
   issue: https://github.com/elastic/elasticsearch/issues/161642
+- class: org.elasticsearch.xpack.stateless.StatelessCommitServiceIT
+  method: testTrackOldSearchNodesWhenIndexingShardRelocates
+  issue: https://github.com/elastic/elasticsearch/issues/161643

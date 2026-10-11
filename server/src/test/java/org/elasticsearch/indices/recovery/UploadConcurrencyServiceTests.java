@@ -10,6 +10,8 @@
 package org.elasticsearch.indices.recovery;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -727,6 +729,48 @@ public class UploadConcurrencyServiceTests extends ESTestCase {
         registrations.add(registration[0]);
         assertThat(node.service.getUploadConcurrencyCeiling(), equalTo(floor));
         assertThat(runner.getMaxRunningTasks(), equalTo(floor));
+    }
+
+    @TestLogging(value = "org.elasticsearch.indices.recovery.UploadConcurrencyService:INFO", reason = "the level a node runs at")
+    public void testErrorsSinceTheLastStatusAreCountedWhetherOrNotItIsLogged() throws Exception {
+        final TestNode node = new TestNode(adaptive(true));
+        final var runner = newRepositoryRunner(node);
+        final int floor = threadPool.info(ThreadPool.Names.SNAPSHOT).getMax();
+        final var tasks = enqueueBlockingTasks(runner, floor);
+        awaitStarted(tasks);
+        node.tick();
+
+        // errors in intervals of the active window, while the status is not logged as debug is off
+        node.service.onUploadReadError();
+        node.service.onUploadReadError();
+        node.service.onUploadWriteError();
+        node.tick();
+        node.tick();
+
+        // an operator turns debug on: the status says what happened since the last one, which is nothing
+        final var serviceLogger = LogManager.getLogger(UploadConcurrencyService.class);
+        final Level saved = serviceLogger.getLevel();
+        Loggers.setLevel(serviceLogger, Level.DEBUG);
+        try {
+            assertLogged(
+                node,
+                "no errors",
+                Level.DEBUG,
+                "snapshot upload concurrency; *upload errors since last log read [0] upload [0]; *",
+                true
+            );
+            node.service.onUploadReadError();
+            assertLogged(
+                node,
+                "the new error",
+                Level.DEBUG,
+                "snapshot upload concurrency; *upload errors since last log read [1] upload [0]; *",
+                true
+            );
+        } finally {
+            Loggers.setLevel(serviceLogger, saved);
+            releaseAll(tasks);
+        }
     }
 
     public void testUploadConcurrencyMaxSetting() {

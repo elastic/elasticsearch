@@ -468,8 +468,13 @@ public class UploadConcurrencyService extends AbstractLifecycleComponent {
                 }
 
                 updateUploadConcurrency(now);
-                if (logger.isDebugEnabled() && everActive && now - lastActiveNanos <= LOG_ACTIVE_WINDOW_NANOS) {
-                    logStatus();
+                if (everActive && now - lastActiveNanos <= LOG_ACTIVE_WINDOW_NANOS) {
+                    if (logger.isDebugEnabled()) {
+                        logStatus();
+                    }
+                    // counted since the status was last due, whether or not it is logged
+                    readErrorsSinceLog = 0L;
+                    writeErrorsSinceLog = 0L;
                 }
             } catch (Exception e) {
                 logger.warn("snapshot upload concurrency update failed", e);
@@ -587,7 +592,5 @@ public class UploadConcurrencyService extends AbstractLifecycleComponent {
             decision.action(),
             decision.reason()
         );
-        readErrorsSinceLog = 0L;
-        writeErrorsSinceLog = 0L;
     }
 }

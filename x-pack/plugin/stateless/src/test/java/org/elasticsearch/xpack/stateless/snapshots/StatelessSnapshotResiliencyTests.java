@@ -465,7 +465,6 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 when(pluginServices.clusterService()).thenReturn(clusterService());
                 when(pluginServices.indicesService()).thenReturn(indicesService);
                 when(pluginServices.projectResolver()).thenReturn(projectResolver);
-                when(pluginServices.throttlingRecoveryService()).thenReturn(throttlingRecoveryService);
                 testStatelessPlugin = pluginsService.filterPlugins(TestStatelessPlugin.class).findFirst().orElseThrow();
                 testStatelessPlugin.createComponents(pluginServices);
                 actions.putAll(getActions(actionFilters));

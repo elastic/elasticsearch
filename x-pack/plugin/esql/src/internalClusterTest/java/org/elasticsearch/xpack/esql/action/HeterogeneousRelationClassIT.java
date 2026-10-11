@@ -79,15 +79,20 @@ public class HeterogeneousRelationClassIT extends AbstractExternalDataSourceIT {
         assertBothKindsAnswer("FROM " + INDEX + ", " + dataset);
     }
 
-    /** One wildcard reaching both relations is the same union, and every row still answers for its own leaf. */
+    /**
+     * One wildcard reaching both relations is the same union, and every row still answers for its own leaf. A wildcard
+     * reaches a dataset only under {@code wildcards_match_datasets}, which defaults to off, so the opt-in is what makes
+     * this the same union as the explicit list above rather than the index alone.
+     */
     public void testWildcardMatchingBothAnswersPerLeaf() {
-        assertBothKindsAnswer("FROM het_class_*");
+        assertBothKindsAnswer("SET wildcards_match_datasets = true; FROM het_class_*");
     }
 
     /** Grouping on _class separates the branches, which is what a user asks the column for. */
     public void testGroupingOnClassSeparatesTheBranches() {
         List<List<Object>> rows = query(
-            "FROM het_class_* METADATA _class | STATS rows = COUNT(*) BY _class | KEEP _class, rows | SORT _class ASC"
+            "SET wildcards_match_datasets = true;"
+                + " FROM het_class_* METADATA _class | STATS rows = COUNT(*) BY _class | KEEP _class, rows | SORT _class ASC"
         );
         assertThat(rows, equalTo(List.of(List.of("dataset", (long) ROWS), List.of("index", (long) ROWS))));
     }

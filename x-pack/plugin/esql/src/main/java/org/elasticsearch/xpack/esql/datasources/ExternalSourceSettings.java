@@ -438,8 +438,8 @@ public final class ExternalSourceSettings {
      * Fields a format reader may materialise while resolving a file's schema before it refuses the file, counting
      * every object and leaf field the way {@code index.mapping.total_fields.limit} does. A small file can describe a
      * schema far larger than itself, and schema resolution runs on the coordinating node during planning. This is
-     * the node-wide default for schema inference, read by the NDJSON reader today and meant for every format that
-     * infers a schema; a dataset overrides it with its {@code schema_max_fields} key, as an index overrides its
+     * the node-wide default for schema inference, read by the NDJSON, CSV, TSV and Parquet readers (ORC does not
+     * enforce it yet); a dataset overrides it with its {@code schema_max_fields} key, as an index overrides its
      * mapping limit. Readers capture it from the node settings, so a change needs a restart.
      */
     public static final Setting<Integer> SCHEMA_MAX_FIELDS = Setting.intSetting(
@@ -652,6 +652,20 @@ public final class ExternalSourceSettings {
         }
     }
 
+    /**
+     * When true (default), a byte-budget FIFO head that has waited the rescue window without a
+     * grant is admitted over the cap as a plain hold. The rescue is a logged possible-stall
+     * signal (WARN plus {@code es.esql.datasources.admission.rescues.total}), not a substitute
+     * for one ticket per row group. Disable to observe a hang for diagnosis. Dynamic so a
+     * cluster can toggle it without restart.
+     */
+    public static final Setting<Boolean> ADMISSION_RESCUE_ENABLED = Setting.boolSetting(
+        "esql.external.admission.rescue.enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static List<Setting<?>> settings() {
         return List.of(
             MAX_CONCURRENT_REQUESTS,
@@ -664,6 +678,7 @@ public final class ExternalSourceSettings {
             MAX_DECOMPRESSION_RATIO,
             MAX_DECOMPRESSION_RATIO_ZSTD,
             SCHEMA_MAX_FIELDS,
+            ADMISSION_RESCUE_ENABLED,
             WORKLOAD_IDENTITY_ENABLED,
             WORKLOAD_IDENTITY_ENABLED_OLD,
             MANAGED_IDENTITY_ENABLED,

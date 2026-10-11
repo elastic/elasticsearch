@@ -806,15 +806,15 @@ class NodeConstruction {
         PageCacheRecycler pageCacheRecycler = serviceProvider.newPageCacheRecycler(pluginsService, settings);
         BigArrays bigArrays = serviceProvider.newBigArrays(pluginsService, pageCacheRecycler, circuitBreakerService);
 
-        final RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
         // Only stateless nodes adapt their upload concurrency, so that is where it exists. Other nodes snapshot as they always have.
-        final UploadConcurrencyService uploadConcurrencyService;
-        if (DiscoveryNode.isStateless(settings)) {
-            uploadConcurrencyService = new UploadConcurrencyService(settingsModule.getClusterSettings(), threadPool);
-            recoverySettings.setUploadConcurrencyService(uploadConcurrencyService);
-        } else {
-            uploadConcurrencyService = null;
-        }
+        final UploadConcurrencyService uploadConcurrencyService = DiscoveryNode.isStateless(settings)
+            ? new UploadConcurrencyService(settingsModule.getClusterSettings(), threadPool)
+            : null;
+        final RecoverySettings recoverySettings = new RecoverySettings(
+            settings,
+            settingsModule.getClusterSettings(),
+            uploadConcurrencyService
+        );
         RepositoriesModule repositoriesModule = new RepositoriesModule(
             environment,
             pluginsService.filterPlugins(RepositoryPlugin.class).toList(),

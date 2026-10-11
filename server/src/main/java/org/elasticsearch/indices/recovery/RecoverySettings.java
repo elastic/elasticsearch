@@ -13,7 +13,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.store.RateLimiter.SimpleRateLimiter;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -435,11 +434,23 @@ public class RecoverySettings {
     private final ByteSizeValue availableDiskWriteBandwidth;
 
     @Nullable
-    private final SetOnce<UploadConcurrencyService> uploadConcurrencyService = new SetOnce<>();
+    private final UploadConcurrencyService uploadConcurrencyService;
     private volatile ByteSizeValue explicitMaxBytesPerSec = ByteSizeValue.MINUS_ONE;
 
-    @SuppressWarnings("this-escape")
     public RecoverySettings(Settings settings, ClusterSettings clusterSettings) {
+        this(settings, clusterSettings, null);
+    }
+
+    /**
+     * @param uploadConcurrencyService the node's upload concurrency component, or {@code null} on a node that has none
+     */
+    @SuppressWarnings("this-escape")
+    public RecoverySettings(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        @Nullable UploadConcurrencyService uploadConcurrencyService
+    ) {
+        this.uploadConcurrencyService = uploadConcurrencyService;
         this.retryDelayStateSync = INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING.get(settings);
         this.maxConcurrentFileChunks = INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING.get(settings);
         this.maxConcurrentOperations = INDICES_RECOVERY_MAX_CONCURRENT_OPERATIONS_SETTING.get(settings);
@@ -682,19 +693,12 @@ public class RecoverySettings {
     }
 
     /**
-     * The node's upload concurrency component, or {@code null} if there is none: it only exists on stateless nodes, and in tests that
-     * set one. Kept here because every repository already has the {@link RecoverySettings}.
+     * The node's upload concurrency component, or {@code null} if there is none, as it only exists on stateless nodes. Kept here because
+     * every repository already has the {@link RecoverySettings}.
      */
     @Nullable
     public UploadConcurrencyService getUploadConcurrencyService() {
-        return uploadConcurrencyService.get();
-    }
-
-    /**
-     * Sets the node's upload concurrency component, which can only be done once, as it is a part of how the node is built.
-     */
-    public void setUploadConcurrencyService(UploadConcurrencyService uploadConcurrencyService) {
-        this.uploadConcurrencyService.set(uploadConcurrencyService);
+        return uploadConcurrencyService;
     }
 
     public boolean getUseSnapshotsDuringRecovery() {

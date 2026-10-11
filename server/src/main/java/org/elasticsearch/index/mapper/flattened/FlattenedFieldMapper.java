@@ -1896,7 +1896,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
      *         which writes the {@code <root>._keyed._ignored} channel this path does not yet produce
      */
     @Override
-    public void mapColumnGroupBatch(BatchMappingContext ctx, EscfColumn[] columns, String[] relativeKeys) {
+    public void doMapColumnGroupBatch(BatchMappingContext ctx, EscfColumn[] columns, String[] relativeKeys) {
         assert columns.length == relativeKeys.length : columns.length + " columns vs " + relativeKeys.length + " keys";
         final int docCount = ctx.docCount();
         final int columnCount = columns.length;

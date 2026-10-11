@@ -413,7 +413,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
     }
 
     @Override
-    public void mapColumnGroupBatch(BatchMappingContext ctx, EscfColumn[] columns, String[] relativeKeys) {
+    public void doMapColumnGroupBatch(BatchMappingContext ctx, EscfColumn[] columns, String[] relativeKeys) {
         assert columns.length == relativeKeys.length : columns.length + " columns vs " + relativeKeys.length + " keys";
 
         int latIdx = -1;

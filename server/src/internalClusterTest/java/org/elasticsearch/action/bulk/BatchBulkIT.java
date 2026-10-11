@@ -38,6 +38,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
 import org.elasticsearch.index.query.GeoDistanceQueryBuilder;
@@ -234,6 +235,191 @@ public class BatchBulkIT extends ESIntegTestCase {
         // Spot-check a specific doc by id.
         var getResponse = client().get(new org.elasticsearch.action.get.GetRequest(index).id("doc-0")).actionGet();
         assertTrue(getResponse.isExists());
+    }
+
+    /**
+     * {@code columnar_stored} source used to push every batch back onto the sequential path, because the whole-document
+     * {@code _source} blob could only be built from a parsed document. The batch must now be indexed as a batch and the
+     * source rebuilt from the mapped columns must read back from a get.
+     */
+    public void testColumnarStoredSourceBatchMode() throws IOException {
+        String index = "test-columnar-stored-source";
+
+        XContentBuilder mapping = JsonXContent.contentBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.field("dynamic", "strict");
+                mapping.startObject("properties");
+                {
+                    mapping.startObject("host").field("type", "keyword").endObject();
+                    mapping.startObject("service").field("type", "keyword").endObject();
+                    mapping.startObject("count").field("type", "long").endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 2)
+                        .put("index.number_of_replicas", 1)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                        .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+                )
+                .setMapping(mapping)
+        );
+        ensureGreen(index);
+
+        String coordinatingNode = findCoordinatingNode();
+
+        int numDocs = randomIntBetween(20, 100);
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            bulkRequest.add(
+                new IndexRequest(index).id("doc-" + i)
+                    .source(XContentType.JSON, "host", "host-" + (i % 5), "service", "svc-" + (i % 3), "count", i)
+                    .opType(DocWriteRequest.OpType.CREATE)
+            );
+        }
+
+        final Logger batchLogger = LogManager.getLogger(ShardBatchIndexer.class);
+        final Level origLevel = batchLogger.getLevel();
+        Loggers.setLevel(batchLogger, Level.TRACE);
+        try (var mockLog = MockLog.capture(ShardBatchIndexer.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "batch indexed on primary",
+                    ShardBatchIndexer.class.getName(),
+                    Level.TRACE,
+                    "batch indexed * operations on primary shard *"
+                )
+            );
+
+            BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
+            assertNoFailures(bulkResponse);
+            assertThat(bulkResponse.getItems().length, equalTo(numDocs));
+
+            mockLog.assertAllExpectationsMatched();
+        } finally {
+            Loggers.setLevel(batchLogger, origLevel);
+        }
+
+        refresh(index);
+
+        for (int i = 0; i < numDocs; i++) {
+            var getResponse = client().get(new GetRequest(index).id("doc-" + i).realtime(false)).actionGet();
+            assertTrue(getResponse.isExists());
+            assertThat(getResponse.getSourceAsMap(), equalTo(Map.of("host", "host-" + (i % 5), "service", "svc-" + (i % 3), "count", i)));
+        }
+    }
+
+    /**
+     * End-to-end coverage of the {@code columnar_stored} direct source path: a keyword-only mapping (including a multi-valued field)
+     * takes the direct path during batch indexing, and the reconstructed {@code _source} reads back correctly through a get, a search,
+     * and a filtered search.
+     */
+    public void testColumnarStoredSourceDirectPath() throws IOException {
+        String index = "test-columnar-stored-source-direct";
+
+        XContentBuilder mapping = JsonXContent.contentBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.field("dynamic", "strict");
+                mapping.startObject("properties");
+                {
+                    mapping.startObject("host").field("type", "keyword").endObject();
+                    mapping.startObject("region").field("type", "keyword").endObject();
+                    mapping.startObject("tags").field("type", "keyword").endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 2)
+                        .put("index.number_of_replicas", 1)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                        .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+                )
+                .setMapping(mapping)
+        );
+        ensureGreen(index);
+
+        String coordinatingNode = findCoordinatingNode();
+
+        int numDocs = randomIntBetween(20, 100);
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            bulkRequest.add(
+                new IndexRequest(index).id("doc-" + i)
+                    .source(
+                        XContentType.JSON,
+                        "host",
+                        "host-" + (i % 5),
+                        "region",
+                        "region-" + (i % 2),
+                        // A multi-valued keyword exercises the array arm of the direct source writer.
+                        "tags",
+                        List.of("t-" + (i % 3), "t-" + (i % 7))
+                    )
+                    .opType(DocWriteRequest.OpType.CREATE)
+            );
+        }
+
+        BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
+        assertNoFailures(bulkResponse);
+        assertThat(bulkResponse.getItems().length, equalTo(numDocs));
+
+        refresh(index);
+
+        // 1) Get returns the whole reconstructed source, arrays included.
+        for (int i = 0; i < numDocs; i++) {
+            var getResponse = client().get(new GetRequest(index).id("doc-" + i).realtime(false)).actionGet();
+            assertTrue(getResponse.isExists());
+            assertThat(
+                getResponse.getSourceAsMap(),
+                equalTo(Map.of("host", "host-" + (i % 5), "region", "region-" + (i % 2), "tags", List.of("t-" + (i % 3), "t-" + (i % 7))))
+            );
+        }
+
+        // 2) Search returns the same source for every hit.
+        assertResponse(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).setSize(numDocs), searchResponse -> {
+            assertThat(searchResponse.getHits().getHits().length, equalTo(numDocs));
+            for (SearchHit hit : searchResponse.getHits().getHits()) {
+                int i = Integer.parseInt(hit.getId().substring("doc-".length()));
+                assertThat(
+                    hit.getSourceAsMap(),
+                    equalTo(
+                        Map.of("host", "host-" + (i % 5), "region", "region-" + (i % 2), "tags", List.of("t-" + (i % 3), "t-" + (i % 7)))
+                    )
+                );
+            }
+        });
+
+        // 3) A source filter returns only the requested fields out of the reconstructed blob.
+        assertResponse(
+            prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).setSize(numDocs).setFetchSource(new String[] { "host" }, null),
+            searchResponse -> {
+                assertThat(searchResponse.getHits().getHits().length, equalTo(numDocs));
+                for (SearchHit hit : searchResponse.getHits().getHits()) {
+                    int i = Integer.parseInt(hit.getId().substring("doc-".length()));
+                    assertThat(hit.getSourceAsMap(), equalTo(Map.of("host", "host-" + (i % 5))));
+                }
+            }
+        );
     }
 
     public void testKeywordWithMultiField() throws IOException {

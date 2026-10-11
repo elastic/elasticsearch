@@ -323,6 +323,17 @@ public abstract class FieldMapper extends Mapper {
      * @param source the Escf column holding the field's source values for the batch
      */
     public final void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+        mapColumnBatch(ctx, source, true);
+    }
+
+    /**
+     * @param sourceContributor {@code true} for the field resolved at this schema leaf, whose values appear in {@code _source};
+     *                          {@code false} for a multi-field, which only derives extra Lucene columns and never contributes to
+     *                          {@code _source}. Only a source contributor registers a direct {@code columnar_stored} {@code _source}
+     *                          writer or, failing that, marks the batch {@link BatchMappingContext#markDirectSourceUnavailable()
+     *                          unavailable} for the direct path.
+     */
+    private void mapColumnBatch(BatchMappingContext ctx, EscfColumn source, boolean sourceContributor) {
         if (shouldEnforceSingleValueBatch() && source.hasMultiValueDoc()) {
             throw new UnsupportedOperationException(
                 "mapColumnBatch: multi_value=false field [" + fullPath() + "] has more than one value per document"
@@ -333,9 +344,27 @@ public abstract class FieldMapper extends Mapper {
                 "mapColumnBatch: nullability=false field [" + fullPath() + "] has a null or absent value"
             );
         }
-        doMapColumnBatch(ctx, source);
+        final boolean wantDirectSource = sourceContributor && ctx.isSourceColumnarStored() && ctx.directSourceAvailable();
+        if (wantDirectSource && supportsColumnarSource()) {
+            // Build the direct _source writer during the same scan that maps the Lucene columns, instead of re-scanning the source
+            // column afterwards. The mapper registers exactly one CompositeSourceColumn (via ctx.registerSourceColumn) or, for a batch
+            // shape it cannot reproduce exactly, registers nothing; the default-deny below then sends the whole batch to the loader path.
+            ctx.requestSourceColumn();
+            final int registeredBefore = ctx.sourceColumns().size();
+            doMapColumnBatch(ctx, source);
+            ctx.clearSourceColumnRequest();
+            if (ctx.directSourceAvailable() && ctx.sourceColumns().size() == registeredBefore) {
+                ctx.markDirectSourceUnavailable();
+            }
+        } else {
+            doMapColumnBatch(ctx, source);
+            // Default-deny: a source-contributing field whose mapper has no direct path at all sends the whole batch to the loader path.
+            if (wantDirectSource) {
+                ctx.markDirectSourceUnavailable();
+            }
+        }
         for (FieldMapper subMapper : builderParams.multiFields) {
-            subMapper.mapColumnBatch(ctx, source);
+            subMapper.mapColumnBatch(ctx, source, false);
         }
     }
 
@@ -343,6 +372,19 @@ public abstract class FieldMapper extends Mapper {
         throw new UnsupportedOperationException(
             "mapColumnBatch not implemented for mapper [" + typeName() + "] on field [" + fullPath() + "]"
         );
+    }
+
+    /**
+     * Whether this mapper can write its {@code columnar_stored} {@code _source} contribution directly from the values it maps, during the
+     * same {@link #doMapColumnBatch} pass that maps its Lucene columns, instead of {@link SourceFieldMapper} rebuilding the whole document
+     * through the synthetic-source loader. Defaults to {@code false} (default-deny): a mapper that returns {@code true} must, while
+     * {@link BatchMappingContext#shouldBuildSourceColumn()} holds, {@link BatchMappingContext#registerSourceColumn register} a
+     * {@link CompositeSourceColumn} that produces a blob byte-for-byte identical to the loader path for every batch it accepts, and
+     * register nothing for any batch shape it cannot (which falls the whole batch back to the loader). A mapper that leaves this
+     * {@code false} is always correct, only slower.
+     */
+    public boolean supportsColumnarSource() {
+        return false;
     }
 
     /**
@@ -368,7 +410,20 @@ public abstract class FieldMapper extends Mapper {
      * @param relativeKeys {@code relativeKeys[i]} is {@code columns[i]}'s schema path with this field's path and the separating dot
      *                     stripped — for {@code flattened} that is exactly the flattened key
      */
-    public void mapColumnGroupBatch(BatchMappingContext ctx, EscfColumn[] columns, String[] relativeKeys) {
+    public final void mapColumnGroupBatch(BatchMappingContext ctx, EscfColumn[] columns, String[] relativeKeys) {
+        // A group mapper contributes to _source. Until one supports the direct path and registers its own writers, it forces the whole
+        // batch onto the loader path for columnar_stored (default-deny), so its values are never dropped from the blob.
+        if (ctx.isSourceColumnarStored() && supportsColumnarSource() == false) {
+            ctx.markDirectSourceUnavailable();
+        }
+        doMapColumnGroupBatch(ctx, columns, relativeKeys);
+    }
+
+    /**
+     * Maps a column group for a mapper that {@link #resolvesColumnGroup() resolves one}. Override point behind the final
+     * {@link #mapColumnGroupBatch}, which applies the columnar_stored direct-source default-deny before delegating here.
+     */
+    public void doMapColumnGroupBatch(BatchMappingContext ctx, EscfColumn[] columns, String[] relativeKeys) {
         throw new UnsupportedOperationException(
             "mapColumnGroupBatch not implemented for mapper [" + typeName() + "] on field [" + fullPath() + "]"
         );

@@ -132,6 +132,13 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
         for (Batch scenario : scenarios) {
             assertScenario(mapperService, scenario, encoder);
         }
+        final Settings columnarStored = withColumnarStoredSource(indexSettings);
+        if (columnarStored != null) {
+            final MapperService columnarStoredService = createMapperService(columnarStored, mapping);
+            for (Batch scenario : scenarios) {
+                assertScenario(columnarStoredService, scenario, encoder);
+            }
+        }
     }
 
     /**
@@ -148,6 +155,38 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
         for (Batch scenario : scenarios) {
             assertScenario(mapperService, scenario, SourceEncoder.SIMD);
         }
+        final Settings columnarStored = withColumnarStoredSource(indexSettings);
+        if (columnarStored != null) {
+            final MapperService columnarStoredService = createMapperService(indexVersion, columnarStored, mapping);
+            for (Batch scenario : scenarios) {
+                assertScenario(columnarStoredService, scenario, SourceEncoder.SIMD);
+            }
+        }
+    }
+
+    /**
+     * Whether every scenario also runs on an index that uses {@code columnar_stored} source. That mode builds {@code _source} from the
+     * mapped fields, so it turns each mapper's parity test into a check that its fields round-trip through the whole-document blob as
+     * well. Override to {@code false} only for a mapper that cannot take part, and say why.
+     */
+    protected boolean alsoRunWithColumnarStoredSource() {
+        return true;
+    }
+
+    /**
+     * Returns {@code indexSettings} with {@code columnar_stored} source, or {@code null} when the scenarios should not run that way: the
+     * subclass opted out, the index mode does not support the mode, or the test already picks a source mode of its own.
+     */
+    private Settings withColumnarStoredSource(Settings indexSettings) {
+        if (alsoRunWithColumnarStoredSource() == false
+            || IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.exists(indexSettings)
+            || IndexSettings.MODE.get(indexSettings).supportedSourceModes().contains(SourceFieldMapper.Mode.COLUMNAR_STORED) == false) {
+            return null;
+        }
+        return Settings.builder()
+            .put(indexSettings)
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+            .build();
     }
 
     /**
@@ -199,6 +238,78 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                     fm.mapColumnBatch(ctx, escfBatch.column(c));
                 }
             }
+        }
+    }
+
+    /**
+     * Observations about one columnar batch beyond field-set equality, for tests that need to assert <em>how</em> the batch was mapped.
+     *
+     * @param directSourceAvailable whether every source-contributing field registered a direct {@code columnar_stored} {@code _source}
+     *                              writer, so {@link SourceFieldMapper#postColumnarParse} built the blob directly instead of via the loader
+     * @param sourceColumnCount     the number of registered direct source writers
+     */
+    protected record ColumnarBatchOutcome(boolean directSourceAvailable, int sourceColumnCount) {}
+
+    /**
+     * Drives the whole columnar batch — metadata {@code preColumnarParse}, every leaf and group field mapper, then metadata
+     * {@code postColumnarParse} — over {@code sources}, and reports {@link ColumnarBatchOutcome} observations. Lets a test assert that the
+     * {@code columnar_stored} direct source path was actually taken (or deliberately fell back), which field-set equality alone cannot show
+     * because both paths emit identical bytes by design.
+     */
+    protected final ColumnarBatchOutcome runColumnarBatch(MapperService mapperService, String... sources) throws IOException {
+        final int docCount = sources.length;
+        final BytesReference[] sourceBytesArray = new BytesReference[docCount];
+        final IndexRequest[] requests = new IndexRequest[docCount];
+        for (int i = 0; i < docCount; i++) {
+            sourceBytesArray[i] = new BytesArray(sources[i].getBytes(StandardCharsets.UTF_8));
+            requests[i] = new IndexRequest("test-index").id("d" + i).source(sourceBytesArray[i], XContentType.JSON);
+        }
+        final MappingLookup mappingLookup = mapperService.mappingLookup();
+        final IndexSettings indexSettings = mapperService.getIndexSettings();
+        try (
+            BatchMappingContext ctx = new BatchMappingContext(
+                EngineTestCase.initFromRequests(requests),
+                mappingLookup,
+                indexSettings,
+                new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
+            );
+            EscfBatch escfBatch = encode(Arrays.asList(sourceBytesArray), SourceEncoder.SIMD)
+        ) {
+            final MetadataFieldMapper[] allMetadata = mappingLookup.getMapping().getSortedMetadataMappers();
+            final List<MetadataFieldMapper> supportedMappers = Arrays.stream(allMetadata)
+                .filter(m -> m.supportsColumnarParse(indexSettings))
+                .toList();
+            for (MetadataFieldMapper m : supportedMappers) {
+                m.preColumnarParse(ctx);
+            }
+            final SourceSchema schema = escfBatch.schema();
+            final ColumnGroupResolver.Builder groupBuilder = new ColumnGroupResolver.Builder();
+            for (int c = 0; c < schema.leafCount(); c++) {
+                final String path = schema.getFullPath(c);
+                final Mapper mapper = mappingLookup.getMapper(path);
+                if (mapper instanceof FieldMapper fm) {
+                    fm.mapColumnBatch(ctx, escfBatch.column(c));
+                } else if (mapper == null
+                    && ColumnGroupResolver.findColumnGroup(
+                        path,
+                        mappingLookup
+                    ) instanceof ColumnGroupResolver.ColumnGroupLookup.Owned owned) {
+                        groupBuilder.add(owned, c);
+                    }
+            }
+            for (ColumnGroupResolver.ColumnGroupResolution group : groupBuilder.build()) {
+                final int[] leafIndexes = group.leafIndexes();
+                final EscfColumn[] groupColumns = new EscfColumn[leafIndexes.length];
+                for (int i = 0; i < leafIndexes.length; i++) {
+                    groupColumns[i] = escfBatch.column(leafIndexes[i]);
+                }
+                group.mapper().mapColumnGroupBatch(ctx, groupColumns, group.relativeKeys());
+            }
+            final ColumnarBatchOutcome outcome = new ColumnarBatchOutcome(ctx.directSourceAvailable(), ctx.sourceColumns().size());
+            for (MetadataFieldMapper m : supportedMappers) {
+                m.postColumnarParse(ctx);
+            }
+            return outcome;
         }
     }
 

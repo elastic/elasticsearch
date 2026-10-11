@@ -37,7 +37,9 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefArray;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.Counter;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
@@ -1748,6 +1750,69 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     @Override
+    public boolean supportsColumnarSource() {
+        // Direct-write only the single binary doc-values layer that reads values back in original source order (preserving
+        // duplicates and array-nested nulls): the columnar-payload and array-order-inline layouts for multi-valued fields, and any
+        // single-valued binary layout. SORTED_SET is excluded because it sorts and deduplicates, and the offsets-based layout is
+        // excluded because it rebuilds order from a sidecar the writer does not read. Every shape that adds another synthetic-source
+        // layer or needs value rewriting also falls back: stored fields, ignore_above originals, on_failure values, null_value
+        // substitution, normalizers, scripts and copy_to. The layer-count check is the generic allow-list safety net: should a new
+        // layer ever appear here, the field falls back instead of silently diverging.
+        return hasScript() == false
+            && copyTo().copyToFields().isEmpty()
+            && normalizerName == null
+            && fieldType().hasDocValues()
+            && fieldType.stored() == false
+            && fieldType().usesBinaryDocValues()
+            && (fieldType().storesArrayOrderInline() || docValuesParameters().multiValue() == false)
+            && fieldType().ignoreAbove().valuesPotentiallyIgnored() == false
+            && onFailureColumnEnabled() == false
+            && fieldType().nullUtf8Value == null
+            && offsetsFieldName == null
+            && syntheticFieldLoaderLayers().size() == 1;
+    }
+
+    /**
+     * Accumulates this keyword field's direct {@code columnar_stored} {@code _source} writer during the single pass that
+     * {@link #doMapColumnBatch} already makes over the source column, avoiding a second decode. Each accepted (non-null) value is copied
+     * in source order and attributed to its document; a null slot — a JSON null kept inside an array, which the writer cannot reproduce
+     * exactly — {@link #decline() declines} the batch, so {@link #finish} returns {@code null} and {@link FieldMapper#mapColumnBatch}
+     * falls the whole batch back to the loader path.
+     */
+    private static final class DirectSourceColumnBuilder {
+        // On-heap BytesRefArray (Counter-backed), copied immediately on append, so no close/recycling is required.
+        private final BytesRefArray values = new BytesRefArray(Counter.newCounter());
+        private final int[] counts;
+        private boolean declined;
+
+        DirectSourceColumnBuilder(int docCount) {
+            this.counts = new int[docCount];
+        }
+
+        void append(int doc, BytesRef value) {
+            values.append(value);
+            counts[doc]++;
+        }
+
+        void decline() {
+            declined = true;
+        }
+
+        CompositeSourceColumn finish(String leafName, String fullPath, int docCount) {
+            if (declined) {
+                return null;
+            }
+            // Values were appended document by document in increasing doc order, so turn the per-document counts into
+            // compressed-sparse-row offsets over the single values array.
+            final int[] starts = new int[docCount + 1];
+            for (int d = 0; d < docCount; d++) {
+                starts[d + 1] = starts[d] + counts[d];
+            }
+            return new CompositeSourceColumn(leafName, fullPath, new BytesRefSourceColumn(starts, values));
+        }
+    }
+
+    @Override
     protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         final boolean emitTerms = fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored();
         final boolean checkIgnoreAbove = fieldType().ignoreAbove().valuesPotentiallyIgnored();
@@ -1756,6 +1821,12 @@ public final class KeywordFieldMapper extends FieldMapper {
         if (emitTerms == false && emitDvs == false && emitFallback == false) {
             return;
         }
+
+        // When the batch wants a direct columnar_stored _source writer for this field (set by FieldMapper.mapColumnBatch only when
+        // supportsColumnarSource() holds), build it from the same values this scan maps, then register it; registering nothing declines.
+        final DirectSourceColumnBuilder sourceBuilder = ctx.shouldBuildSourceColumn()
+            ? new DirectSourceColumnBuilder(ctx.docCount())
+            : null;
 
         // These paths build a scan cursor that converts all ESCF column kinds to BytesRef strings:
         // longs/doubles via canonical toString, booleans as "true"/"false", strings as-is, arrays
@@ -1768,9 +1839,18 @@ public final class KeywordFieldMapper extends FieldMapper {
         // strings. This is possible as an eventual user option.
 
         if (fieldType().storesArrayOrderInline()) {
-            mapColumnBatchOrdered(ctx, source, emitTerms, emitDvs, emitFallback, checkIgnoreAbove);
+            mapColumnBatchOrdered(ctx, source, emitTerms, emitDvs, emitFallback, checkIgnoreAbove, sourceBuilder);
         } else {
-            mapColumnBatchUnordered(ctx, source, emitTerms, emitDvs, emitFallback, checkIgnoreAbove);
+            mapColumnBatchUnordered(ctx, source, emitTerms, emitDvs, emitFallback, checkIgnoreAbove, sourceBuilder);
+        }
+
+        if (sourceBuilder != null) {
+            final CompositeSourceColumn sourceColumn = sourceBuilder.finish(leafName(), fullPath(), ctx.docCount());
+            // A declined batch (sourceColumn == null, e.g. a null array element) registers nothing; FieldMapper.mapColumnBatch then
+            // marks the batch unavailable and the loader path rebuilds the blob exactly.
+            if (sourceColumn != null) {
+                ctx.registerSourceColumn(sourceColumn);
+            }
         }
     }
 
@@ -1785,7 +1865,8 @@ public final class KeywordFieldMapper extends FieldMapper {
         boolean emitTerms,
         boolean emitDvs,
         boolean emitFallback,
-        boolean checkIgnoreAbove
+        boolean checkIgnoreAbove,
+        DirectSourceColumnBuilder sourceBuilder
     ) {
         final int docCount = ctx.docCount();
 
@@ -1906,6 +1987,11 @@ public final class KeywordFieldMapper extends FieldMapper {
                             docSlotCount++;
                             // hasNonNull stays false: null slots do not produce a binary dv blob.
                         }
+                        // A kept null slot is a shape the direct writer cannot reproduce exactly; decline so the batch uses the loader
+                        // path.
+                        if (sourceBuilder != null) {
+                            sourceBuilder.decline();
+                        }
                         continue;
                     }
                 }
@@ -1948,6 +2034,10 @@ public final class KeywordFieldMapper extends FieldMapper {
                     lastValueLength = binaryValue.length;
                     docSlotCount++;
                     hasNonNull = true;
+                }
+                // Copy the same accepted value, in source order, into the direct _source writer.
+                if (sourceBuilder != null) {
+                    sourceBuilder.append(currentDoc, binaryValue);
                 }
             }
 
@@ -2016,7 +2106,8 @@ public final class KeywordFieldMapper extends FieldMapper {
         boolean emitTerms,
         boolean emitDvs,
         boolean emitFallback,
-        boolean checkIgnoreAbove
+        boolean checkIgnoreAbove,
+        DirectSourceColumnBuilder sourceBuilder
     ) {
         final int docCount = ctx.docCount();
         boolean valuesProduced = false;
@@ -2082,6 +2173,11 @@ public final class KeywordFieldMapper extends FieldMapper {
                         binaryValue = nullValueBytes;  // substitute, fall through to normal processing
                     } else {
                         nullElementSeenThisDoc = true;
+                        // A kept null slot is a shape the direct writer cannot reproduce exactly; decline so the batch uses the loader
+                        // path.
+                        if (sourceBuilder != null) {
+                            sourceBuilder.decline();
+                        }
                         continue;  // null without null_value -> absent (row-path parity)
                     }
                 }
@@ -2131,6 +2227,10 @@ public final class KeywordFieldMapper extends FieldMapper {
 
                 elementsThisDoc++;
                 valuesProduced = true;
+                // Copy the same accepted value into the direct _source writer (single-valued here, so at most one per document).
+                if (sourceBuilder != null) {
+                    sourceBuilder.append(currentDoc, binaryValue);
+                }
                 if (values != null) {
                     values.setString(currentDoc, binaryValue);
                 }

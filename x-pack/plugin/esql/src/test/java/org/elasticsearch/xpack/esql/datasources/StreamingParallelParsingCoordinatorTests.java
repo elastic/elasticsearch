@@ -2420,6 +2420,69 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
+     * Gzip fill clamps to the compressed listing size. A false EOF after an exact-size fill would
+     * drop the decompressed tail of a tiny single-member object. Guards the coordinator fill/EOF
+     * path, not gzip member concat ({@code GzipDecompressionCodecTests}).
+     */
+    public void testTinyGzipClampedFillDoesNotDropTrailingRecords() throws Exception {
+        int requested = 4 * 1024 * 1024;
+        int parallelism = 2;
+        byte[] original = repeatingLines(8 * 1024);
+        int expectedLines = 0;
+        for (byte b : original) {
+            if (b == '\n') {
+                expectedLines++;
+            }
+        }
+        byte[] compressed = gzipBytes(original);
+        assertThat("fixture is the tiny-object clamp case", (long) compressed.length, Matchers.lessThan(64L * 1024));
+        assertThat(
+            "HTTP-like cap must actually short-read the compressed member",
+            (long) compressed.length,
+            Matchers.greaterThan((long) HttpLikeKnownLengthBytesObject.MAX_READ)
+        );
+        StorageObject raw = new HttpLikeKnownLengthBytesObject(compressed, compressed.length);
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(raw, new GzipDecompressionCodec());
+        assertEquals(compressed.length, StreamingParallelParsingCoordinator.streamingFillHint(decompressing));
+        assertThat((long) original.length, Matchers.greaterThan((long) compressed.length));
+        PeakTrackingBreaker breaker = new PeakTrackingBreaker();
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        List<String> lines;
+        try (InputStream stream = decompressing.newStream()) {
+            lines = collectLinesTimed(
+                StreamingParallelParsingCoordinator.parallelRead(
+                    new LineFormatReader(requested),
+                    stream,
+                    decompressing,
+                    List.of("line"),
+                    50,
+                    parallelism,
+                    executor,
+                    ErrorPolicy.STRICT,
+                    null,
+                    0L,
+                    SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                    null,
+                    -1L,
+                    StripeColumnScope.PROJECTED,
+                    StreamingParallelParsingCoordinator.WarningSinks.NONE,
+                    StreamingSegmentatorAdmission.unbounded(),
+                    breaker,
+                    ExternalReadCounters.NOOP,
+                    null
+                ),
+                30,
+                TimeUnit.SECONDS
+            );
+        } finally {
+            executor.shutdownNow();
+        }
+        assertEquals("clamped gzip fill must not drop the decompressed tail", expectedLines, lines.size());
+        assertEquals("line-" + (expectedLines - 1), lines.getLast());
+        assertEquals(0L, breaker.getUsed());
+    }
+
+    /**
      * Unknown object length keeps the format fill size (NDJSON 4 MiB). Regression against clamping
      * every streaming read to the payload that happens to fit in the first chunk.
      */
@@ -4826,6 +4889,34 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             ReadCallCountingStream counting = new ReadCallCountingStream(super.newStream());
             opens.add(counting);
             return counting;
+        }
+    }
+
+    /**
+     * S3/HTTP body: {@code available()} is 0 and bulk {@code read} may short-return. Single-byte
+     * {@code read()} is uncapped so JDK gzip header/trailer byte reads keep leftover math.
+     * {@code MAX_READ = 256} is not a concat lock ({@code n} can exceed 26).
+     */
+    private static final class HttpLikeKnownLengthBytesObject extends KnownLengthBytesObject {
+        static final int MAX_READ = 256;
+
+        HttpLikeKnownLengthBytesObject(byte[] data, long knownLength) {
+            super(data, knownLength);
+        }
+
+        @Override
+        public InputStream newStream() {
+            return new FilterInputStream(super.newStream()) {
+                @Override
+                public int available() {
+                    return 0;
+                }
+
+                @Override
+                public int read(byte[] b, int off, int len) throws IOException {
+                    return super.read(b, off, Math.min(len, MAX_READ));
+                }
+            };
         }
     }
 

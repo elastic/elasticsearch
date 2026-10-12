@@ -27,11 +27,12 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  * A shard where {@code category} is {@code flattened} resolves {@code category.raw} to a keyed sub-field type,
- * but field caps and field extraction treat {@code category.raw} as unmapped there. This happens when another
- * index in the same {@code FROM} maps {@code category.raw} as a {@code keyword} multi-field. A
- * {@link SingleValueQuery} or {@link ExistsQuery} on that name must then behave as on a missing field.
+ * and one where {@code n} is {@code nested} resolves {@code n.x} to its keyword type, but field caps and field
+ * extraction treat both names as missing there. This matters when another index in the same {@code FROM} maps
+ * the name as a regular field. A {@link SingleValueQuery} or {@link ExistsQuery} on that name must then behave
+ * as on a missing field, even though {@code include_in_root} copies {@code n.x} into the root document.
  */
-public class FlattenedSubkeyPushdownTests extends MapperServiceTestCase {
+public class MissingSubfieldPushdownTests extends MapperServiceTestCase {
 
     public void testTermOnDynamicSubkeyMatchesNothing() throws IOException {
         assertThat(count(new SingleValueQuery(new TermQuery(Source.EMPTY, "category.raw", "alpha"), "category.raw", false)), equalTo(0));
@@ -64,20 +65,34 @@ public class FlattenedSubkeyPushdownTests extends MapperServiceTestCase {
         assertThat(count(new ExistsQuery(Source.EMPTY, "kw.raw")), equalTo(2));
     }
 
+    public void testTermOnNestedSubfieldMatchesNothing() throws IOException {
+        assertThat(count(new SingleValueQuery(new TermQuery(Source.EMPTY, "n.x", "alpha"), "n.x", false)), equalTo(0));
+    }
+
+    public void testExistsOnNestedSubfieldMatchesNothing() throws IOException {
+        assertThat(count(new ExistsQuery(Source.EMPTY, "n.x")), equalTo(0));
+    }
+
+    public void testNotExistsOnNestedSubfieldMatchesEverything() throws IOException {
+        assertThat(count(new NotQuery(Source.EMPTY, new ExistsQuery(Source.EMPTY, "n.x"))), equalTo(2));
+    }
+
     private int count(Query query) throws IOException {
         MapperService mapper = createMapperService(mapping(b -> {
             b.startObject("category").field("type", "flattened").endObject();
             b.startObject("kw").field("type", "text");
             b.startObject("fields").startObject("raw").field("type", "keyword").endObject().endObject();
             b.endObject();
+            b.startObject("n").field("type", "nested").field("include_in_root", true);
+            b.startObject("properties").startObject("x").field("type", "keyword").endObject().endObject();
+            b.endObject();
         }));
         int[] count = new int[1];
         withLuceneIndex(mapper, iw -> {
-            iw.addDocument(
-                mapper.documentMapper()
-                    .parse(source(b -> b.startObject("category").field("raw", "alpha").endObject().field("kw", "alpha")))
-                    .rootDoc()
-            );
+            iw.addDocument(mapper.documentMapper().parse(source(b -> {
+                b.startObject("category").field("raw", "alpha").endObject().field("kw", "alpha");
+                b.startArray("n").startObject().field("x", "alpha").endObject().endArray();
+            })).rootDoc());
             iw.addDocument(
                 mapper.documentMapper()
                     .parse(source(b -> b.startObject("category").field("other", "x").endObject().field("kw", "beta")))

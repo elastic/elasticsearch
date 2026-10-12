@@ -13,6 +13,7 @@ import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 
 import java.util.Objects;
 
@@ -33,13 +34,14 @@ public class ExistsQuery extends Query {
     /**
      * The type of {@code field} on this shard, or {@code null} if ES|QL treats the field as missing here.
      * A dotted name under a {@code flattened} root resolves to a keyed sub-field type even though the shard
-     * has no mapping for it. Field caps and field extraction treat that name as unmapped, so pushed-down
-     * queries have to as well: otherwise they reject wildcard/regexp queries or match documents whose
-     * extracted value is {@code null}.
+     * has no mapping for it, and a sub-field of a {@code nested} object resolves to its own type. Field caps
+     * and field extraction treat both as missing, so pushed-down queries have to as well: otherwise they
+     * reject wildcard/regexp queries or match documents whose extracted value is {@code null}, for example
+     * through a nested object's {@code include_in_root} copy.
      */
     public static MappedFieldType mappedFieldType(SearchExecutionContext context, String field) {
         MappedFieldType ft = context.getFieldType(field);
-        if (ft == null || context.isMappedField(field) == false) {
+        if (ft == null || SearchContextStats.isExtractableMappedField(context, field) == false) {
             return null;
         }
         return ft;

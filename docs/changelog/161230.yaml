@@ -2,5 +2,5 @@ area: ES|QL
 issues:
  - 161383
 pr: 161230
-summary: Treat flattened sub-keys as missing in pushed-down predicates
+summary: Treat flattened sub-keys and nested sub-fields as missing in pushed-down predicates
 type: bug

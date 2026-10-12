@@ -370,7 +370,13 @@ public class StorageProviderCache implements Closeable {
 
         @Override
         public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
-            return delegate.listObjects(prefix, recursive);
+            return listObjects(prefix, "", recursive);
+        }
+
+        /** Forwarded, or the name prefix would be dropped here and the delegate would list the whole directory. */
+        @Override
+        public StorageIterator listObjects(StoragePath prefix, String namePrefix, boolean recursive) throws IOException {
+            return delegate.listObjects(prefix, namePrefix, recursive);
         }
 
         @Override

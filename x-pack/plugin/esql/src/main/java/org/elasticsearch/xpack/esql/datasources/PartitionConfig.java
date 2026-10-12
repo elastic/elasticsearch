@@ -65,14 +65,19 @@ public record PartitionConfig(Strategy strategy, @Nullable String pathTemplate) 
     public static final PartitionConfig DEFAULT = new PartitionConfig(Strategy.AUTO, null);
 
     /**
-     * How many keys a listing visits when it only has to answer a schema, which is the number of paths partition
-     * columns are derived from. It sits beside {@code partition_detection} because partition columns are the only
-     * part of a schema it can change: the file a schema is otherwise read from is the first key listed, and a
-     * bounded listing keeps a prefix in listing order, so that file is the same one either way.
+     * How many matching files a listing returns when it only has to answer a schema, which is the number of paths
+     * partition columns are derived from. It sits beside {@code partition_detection} because partition columns are
+     * the only part of a schema it can change: the file a schema is otherwise read from is the first key listed, and
+     * a bounded listing keeps a prefix in listing order, so that file is the same one either way.
+     * <p>
+     * Matching files, not keys visited. The two differ whenever a pattern is selective within the prefix it is
+     * listed under — a wildcard inside a path segment lists the whole parent — and counting keys made this setting
+     * a property of whatever unrelated data shares that prefix rather than of the dataset the query asked about.
+     * The number of keys a listing may visit is {@code max_listed_objects}.
      * <p>
      * Named for sampling in the same sense {@code schema_sample_size} is — a deterministic prefix, the first N,
-     * not a random draw. A dataset whose outermost partition values are not all present within this many keys
-     * surfaces the columns it saw; raise it for such a layout.
+     * not a random draw. A dataset whose outermost partition values are not all present within this many matching
+     * files surfaces the columns it saw; raise it for such a layout.
      */
     public static int sampleSize(@Nullable Map<String, Object> config) {
         Object value = config == null ? null : config.get(CONFIG_PARTITION_SAMPLE_SIZE);

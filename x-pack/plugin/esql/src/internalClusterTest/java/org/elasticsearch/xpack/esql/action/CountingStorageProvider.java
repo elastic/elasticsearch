@@ -96,9 +96,19 @@ public final class CountingStorageProvider implements StorageProvider {
      */
     @Override
     public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
+        return listObjects(prefix, "", recursive);
+    }
+
+    /**
+     * Forwarded to the delegate rather than left to the interface default, which would drop the name prefix and
+     * list the whole directory. A double that took the default would read as healthy — same files, same pass count —
+     * while measuring a narrowing that never happened, so the keys-visited assertions would pin the wrong number.
+     */
+    @Override
+    public StorageIterator listObjects(StoragePath prefix, String namePrefix, boolean recursive) throws IOException {
         LIST_OBJECT_CALLS.incrementAndGet();
         List<StorageEntry> entries = new ArrayList<>();
-        try (StorageIterator inner = delegate.listObjects(toFileScheme(prefix), recursive)) {
+        try (StorageIterator inner = delegate.listObjects(toFileScheme(prefix), namePrefix, recursive)) {
             while (inner.hasNext()) {
                 StorageEntry entry = inner.next();
                 // Hand the key back under the scheme the query asked for, or the glob will not match it.

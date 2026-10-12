@@ -318,8 +318,11 @@ public final class ExternalSourceSettings {
 
     /**
      * How many files split discovery lists on its first attempt when the query's row demand can be covered by a
-     * prefix of the dataset. Default: 1,000 - one page of keys on the object stores this reads, so the attempt costs
-     * one request where listing the dataset costs one per page, and far more files than a small LIMIT needs.
+     * prefix of the dataset. Default: 1,000 - far more files than a small LIMIT needs.
+     * <p>
+     * It counts matching files, not keys the store returns, so the request cost of an attempt is not bounded by it:
+     * a glob selective within the prefix it is listed under drains that whole prefix looking for its matches, one
+     * page per thousand keys. What caps keys is {@code max_listed_objects}.
      * <p>
      * Not a cap and not a correctness setting: how many rows a file holds is only known from its footer, after the
      * listing, so a prefix that turns out to hold too few rows is discarded and the dataset is listed in full. Lower

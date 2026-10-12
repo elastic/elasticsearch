@@ -1048,7 +1048,12 @@ public final class GlobExpander {
         // Set below, once the drain has stopped: true when it stopped at the file-set extent rather than exhausting.
         boolean truncated = false;
         int reserved = 0;
-        try (StorageIterator iterator = provider.listObjects(prefix, recursive)) {
+        // The literal run the pattern requires after the prefix. `patternPrefix` stops at the last separator
+        // because that is the widest thing every provider lists; this is the rest, so a flat-namespace store can
+        // exclude what this loop would otherwise drop. A provider that cannot narrow ignores it, and the filtering
+        // below is unchanged either way.
+        String namePrefix = storagePath.literalNamePrefix();
+        try (StorageIterator iterator = provider.listObjects(prefix, namePrefix, recursive)) {
             // Files the glob selected, not keys the store handed over: a selective glob lists its whole parent, so
             // counting keys made the bound a property of unrelated data sharing the prefix. Keys stay capped by
             // `maxListedObjects`, which is the setting for that.
@@ -1252,7 +1257,10 @@ public final class GlobExpander {
 
         fileOrder.apply(matched);
 
-        PartitionMetadata partitionMetadata = detectPartitions(extents.partitionSampleOf(matched), partitionConfig, listingWarnings::add);
+        // Every path kept, not a sample of them: the drain stops at the bound, so `matched` is already no longer
+        // than it, and ordinal-aligned partition metadata has to cover the listing it hangs off
+        // (PartitionMetadata#coversFileCount) — a narrower sample would describe a listing that cannot be built.
+        PartitionMetadata partitionMetadata = detectPartitions(matched, partitionConfig, listingWarnings::add);
 
         return new GenericFileList(matched, pattern, partitionMetadata, listingWarnings, truncated);
     }

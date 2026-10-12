@@ -24,6 +24,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * How many times a query asks the store to list, and how that number scales.
@@ -102,15 +103,28 @@ public class ExternalListingPassCountIT extends AbstractExternalDataSourceIT {
         CountingStorageProvider.reset();
         query(coordinator, "FROM " + small + " | LIMIT 0").close();
         long smallPasses = CountingStorageProvider.listingPasses();
+        long smallKeys = CountingStorageProvider.keysVisited();
 
         CountingStorageProvider.reset();
         query(coordinator, "FROM " + large + " | LIMIT 0").close();
         long largePasses = CountingStorageProvider.listingPasses();
+        long largeKeys = CountingStorageProvider.keysVisited();
 
         // Both asserted absolutely rather than against each other. Equality alone can hold because both regressed
         // together, which would report a pass for the wrong reason; these say what each number must be.
         assertThat("a glob with no unrelated keys ahead of its matches lists once", smallPasses, equalTo(1L));
         assertThat("listing passes must not scale with how many unrelated keys share the prefix", largePasses, equalTo(1L));
+
+        // Keys as well as passes, because a pass is not what an object store bills. This double has no pages, so one
+        // listObjects over a prefix of any width is one pass here and one request per thousand keys there -- a count
+        // of passes cannot see a drain that walked the whole prefix. These are upper bounds rather than equalities:
+        // what must hold is that the work follows the matching set, and the fixture's padding is what would move it.
+        assertThat("a small glob visits about its own matches", smallKeys, lessThanOrEqualTo((long) MATCHING_FOLDERS * 2));
+        assertThat(
+            "and neither does the key count scale with unrelated folders sharing the prefix",
+            largeKeys,
+            lessThanOrEqualTo((long) MATCHING_FOLDERS * 2)
+        );
     }
 
     /**
@@ -134,15 +148,15 @@ public class ExternalListingPassCountIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * A second query over the same dataset must ask the store nothing.
+     * A bounded query lists for itself every time, and that is the design rather than a missed optimisation.
      * <p>
-     * This is the half of the cost a bound used to forfeit. A bounded listing took the uncached rail outright, so
-     * however complete it was it was recomputed on every execution -- on the ticket's own dataset that is 4082 date
-     * folders re-listed to answer a nine-file schema, every time, which is why the regression never felt like a cold
-     * cost. A bounded listing that drained its whole prefix is complete, and a complete listing is the same artifact
-     * whoever asked for it, so it belongs in the shared cache.
+     * The bounded rail writes to the shared listing cache and never reads it. Reading is the direction no
+     * comparison makes safe: an entry's {@code isTruncated()} means "reached the bound" and not "is a strict
+     * prefix", and an entry wider than this bound carries partition types folded over paths this query would not
+     * have listed — so every serve rule is a proxy with its own boundary, and this suite spent three rounds finding
+     * those boundaries one at a time. Not reading removes the question.
      */
-    public void testASecondQueryListsNothing() throws Exception {
+    public void testABoundedRepeatQueryListsAgain() throws Exception {
         String dataset = registerCountingDataset("pass_warm", PADDING_FOLDERS);
         String coordinator = internalCluster().getNodeNames()[0];
 
@@ -153,13 +167,30 @@ public class ExternalListingPassCountIT extends AbstractExternalDataSourceIT {
             assertThat(columnsOf(response), equalTo(List.of("id:integer", "v:keyword", "date:keyword")));
         }
 
-        // Exactly zero, not "fewer": the listing is either served from the cache or it is not, and the whole point
-        // is that a complete bounded listing is cacheable. One pass here means it was thrown away again.
         assertThat(
-            "a repeat query must be served from the listing cache and ask the store nothing",
+            "a bounded query lists for itself rather than being served an entry computed for a different bound",
             CountingStorageProvider.listingPasses(),
-            equalTo(0L)
+            equalTo(1L)
         );
+    }
+
+    /**
+     * The positive control for the half that does read: an unbounded query is served from the cache and asks the
+     * store nothing. Without this, the assertion above passes equally well if the cache stopped working entirely.
+     * {@code STATS} takes the unbounded rail, because a dataset-wide aggregate folds every file.
+     */
+    public void testAnUnboundedRepeatQueryListsNothing() throws Exception {
+        String dataset = registerCountingDataset("pass_warm_unbounded", PADDING_FOLDERS);
+        String coordinator = internalCluster().getNodeNames()[0];
+
+        query(coordinator, "FROM " + dataset + " | STATS c = COUNT(*)").close();
+
+        CountingStorageProvider.reset();
+        try (EsqlQueryResponse response = query(coordinator, "FROM " + dataset + " | STATS c = COUNT(*)")) {
+            assertThat(getValuesList(response).get(0).get(0), equalTo((long) MATCHING_FOLDERS));
+        }
+
+        assertThat("a repeat unbounded query must be served from the listing cache", CountingStorageProvider.listingPasses(), equalTo(0L));
         assertThat("and visit no keys", CountingStorageProvider.keysVisited(), equalTo(0L));
     }
 

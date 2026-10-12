@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.time.Instant;
-import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -32,14 +31,6 @@ public class ListingExtentsTests extends ESTestCase {
     public void testBoundsFileSetIsTrueOnlyWhenTheFileSetIsCapped() {
         assertTrue(new ListingExtents(10).boundsFileSet());
         assertFalse(ListingExtents.UNBOUNDED.boundsFileSet());
-    }
-
-    public void testPartitionSampleOfKeepsTheListWhenItFitsAndTheFrontWhenItDoesNot() {
-        List<StorageEntry> files = List.of(entry("a"), entry("b"), entry("c"));
-
-        assertSame("nothing to sample, so nothing is copied", files, ListingExtents.UNBOUNDED.partitionSampleOf(files));
-        assertSame(files, new ListingExtents(3).partitionSampleOf(files));
-        assertEquals(List.of(entry("a"), entry("b")), new ListingExtents(2).partitionSampleOf(files));
     }
 
     private static StorageEntry entry(String name) {

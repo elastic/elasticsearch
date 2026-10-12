@@ -87,6 +87,61 @@ public final class LocalStorageProvider implements StorageProvider {
         return new LocalStorageIterator(dirPath, recursive);
     }
 
+    /**
+     * A filesystem has no key prefix to push, so the walk is the same and the name prefix is applied to what it
+     * yields. Overridden rather than left to the default purely so the saving is visible to a caller that counts
+     * entries; the bytes read off the disk are identical.
+     */
+    @Override
+    public StorageIterator listObjects(StoragePath prefix, String namePrefix, boolean recursive) throws IOException {
+        StorageIterator all = listObjects(prefix, recursive);
+        if (namePrefix.isEmpty()) {
+            return all;
+        }
+        String dirPrefix = prefix.toString().endsWith(StoragePath.PATH_SEPARATOR)
+            ? prefix.toString()
+            : prefix + StoragePath.PATH_SEPARATOR;
+        return new NamePrefixFilteringIterator(all, dirPrefix + namePrefix);
+    }
+
+    /** Keeps the entries whose full path begins with {@code keyPrefix}; the delegate decides order and content. */
+    private static final class NamePrefixFilteringIterator implements StorageIterator {
+        private final StorageIterator delegate;
+        private final String keyPrefix;
+        private StorageEntry next;
+
+        NamePrefixFilteringIterator(StorageIterator delegate, String keyPrefix) {
+            this.delegate = delegate;
+            this.keyPrefix = keyPrefix;
+        }
+
+        @Override
+        public boolean hasNext() {
+            while (next == null && delegate.hasNext()) {
+                StorageEntry candidate = delegate.next();
+                if (candidate.path().toString().startsWith(keyPrefix)) {
+                    next = candidate;
+                }
+            }
+            return next != null;
+        }
+
+        @Override
+        public StorageEntry next() {
+            if (hasNext() == false) {
+                throw new NoSuchElementException();
+            }
+            StorageEntry result = next;
+            next = null;
+            return result;
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
+        }
+    }
+
     @Override
     public StorageChildren listChildren(StoragePath prefix, int limit) throws IOException {
         validateFileScheme(prefix);

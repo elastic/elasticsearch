@@ -5011,9 +5011,9 @@ public class GlobExpanderTests extends ESTestCase {
      */
     public void testFanOutDoesNotListAFolderTheGlobCannotMatch() throws Exception {
         // The wildcard sits INSIDE a segment, so patternPrefix cuts above every date folder and the slot list is
-        // built from all of them. A pattern like year=2024/**/*.parquet would not discriminate: its prefix is
-        // already year=2024/, so every child satisfies the globstar and the filter is never asked to exclude
-        // anything - the test would pass with the filter deleted.
+        // built from all of them. A pattern whose own prefix is the matched folder would not discriminate: every
+        // child then satisfies the rest of it and the filter is never asked to exclude anything, so the test would
+        // pass with the filter deleted.
         List<StorageEntry> entries = new ArrayList<>();
         for (int d = 0; d < 1200; d++) {
             entries.add(entry(String.format(Locale.ROOT, "s3://bucket/data/date=2023-%06d/part.parquet", d), 100));

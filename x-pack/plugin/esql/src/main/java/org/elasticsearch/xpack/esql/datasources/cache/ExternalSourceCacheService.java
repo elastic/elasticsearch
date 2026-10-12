@@ -561,22 +561,15 @@ public class ExternalSourceCacheService implements Closeable {
     }
 
     /**
-     * A cached listing of the whole pattern for {@code key}, or {@code null} when the cache holds none.
+     * Whether the cache holds an entry for {@code key}, for the tests that pin what may enter it.
      * <p>
-     * For the caller that cannot use {@link #getOrComputeListingAsync} because its own listing is bounded. A bounded
-     * request may still be <em>served</em> from here, because every entry is a listing of the whole pattern -
-     * {@link #refuseTruncated} holds that on both store paths - which is a superset of the prefix the caller asked
-     * for and therefore a correct answer to it. Whether a superset is the <em>same</em> answer is the caller's
-     * question, not this one's: a listing wider than the bound carries partition types folded over more paths, so
-     * {@code DatasetListingService#boundedListingAsync} declines one.
-     * <p>
-     * No in-flight coalescing, deliberately. A waiter would have to be handed the leader's result, and the key does
-     * not say whether the leader asked for a bound - so a bounded leader could hand a prefix of the dataset to a
-     * query that needs all of it. Two cold bounded queries each list, exactly as they did before this cache was
-     * reachable from a bounded path at all.
+     * Package-private and test-only on purpose. No production caller reads the store this way: the bounded rail
+     * writes to this cache and never reads it, so there is no path on which an entry computed for one query is
+     * handed to another whose bound differs. That is the whole of why the comparisons this class used to need —
+     * is the entry complete, is it narrower than my bound — do not exist.
      */
     @Nullable
-    public FileList getListingIfPresent(ListingCacheKey key) {
+    FileList getListingIfPresent(ListingCacheKey key) {
         return enabled ? listingStore.get(key) : null;
     }
 

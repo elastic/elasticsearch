@@ -212,40 +212,8 @@ public final class DatasetListingService {
     }
 
     /**
-     * A bounded listing, served from the shared cache when it holds a complete one and offered back to it when this
-     * one turns out complete too.
-     * <p>
-     * A bound and the cache used to be mutually exclusive: {@code boundsFileSet()} picked the uncached rail outright,
-     * so a bounded listing was recomputed on every execution however complete it was. That was sound while the bound
-     * counted keys visited, because such a listing was a prefix of the dataset whenever the prefix held more keys
-     * than the bound — which, for a selective glob, was always. Now that it counts matching files, a bounded listing
-     * over a glob with fewer matches than the bound drains its whole prefix and is complete, and a complete listing
-     * is the same artifact whoever asked for it. {@link ExternalSourceCacheService#putListingIfComplete} is what
-     * keeps an incomplete one out.
-     * <p>
-     * An entry is served only when it holds <em>fewer</em> files than the bound, which is a narrower rule than "the
-     * entry is complete" and the difference is not about correctness.
-     * <p>
-     * Strictly fewer, and the equality case is the reason. {@code isTruncated()} is set by {@code kept >= maxFiles},
-     * so it means "reached the bound" rather than "is a strict prefix": a dataset holding exactly the bound's number
-     * of matches lists completely and is still flagged truncated. Serving such a dataset a cached entry of the same
-     * width therefore hands it an <em>un</em>truncated listing where its own listing would have been truncated, and
-     * the flag is read downstream for partition-column nullability, for whether split discovery must list again, and
-     * for what phase two reserves. At equality the two answers differ on all three, so the warm path declines and
-     * lists for itself. The alternative - spending one more {@code hasNext()} page so the flag could mean "is a
-     * prefix" exactly - buys a request on every bounded listing to sharpen one boundary case. A listing carries the partition columns and types
-     * {@code detectPartitions} folded out of the paths it held, so an entry listing more files than this bound was
-     * typed over more paths than this query's own listing would have been. Both answers are defensible — the wider
-     * one is strictly better informed — but they can differ, and then the schema a query reports depends on whether
-     * some unrelated earlier query happened to warm the cache. Declining the wider entry costs a listing in a case
-     * the bound was never helping anyway (the bound only pays off where the matches are few) and buys back an answer
-     * that does not depend on traffic. It also keeps the planning reservation symmetric: this rail reserves what it
-     * was served, so serving a wider listing warm than the bound permits cold would let a query trip the breaker on
-     * a warm node and not on a cold one — the inverse of the rule {@link #cachedListing} reserves by.
-     */
-    /**
-     * Synchronous counterpart of {@link #boundedListingAsync}, with the same serve rule and the same reservation.
-     * For split discovery's first attempt, which lists on the calling thread.
+     * Synchronous counterpart of {@link #boundedListingAsync}. For split discovery's first attempt, which lists on
+     * the calling thread.
      */
     public FileList boundedListing(
         String path,
@@ -260,17 +228,30 @@ public final class DatasetListingService {
         BooleanSupplier cancelled
     ) throws Exception {
         ListingCacheKey listingKey = listingCacheKey(path, storagePath, storageIdentity, secretIdentity, hints, config);
-        FileList cached = cacheService.getListingIfPresent(listingKey);
-        if (cached != null && cached.fileCount() < extents.maxFiles()) {
-            GlobExpander.checkDiscoveredFilesLimit(cached.fileCount(), maxDiscoveredFiles.getAsInt());
-            memory.reserve(cached.fileCount() * FileList.LISTING_BYTES_PER_ENTRY);
-            return cached;
-        }
         FileList listing = expand(path, provider, hints, config, storagePath, extents, memory, cancelled);
         cacheService.putListingIfComplete(listingKey, listing);
         return listing;
     }
 
+    /**
+     * A bounded listing, offered to the shared cache when it turns out to cover the whole pattern.
+     * <p>
+     * It writes and never reads, and that asymmetry is the point rather than an omission. A bound and the cache used
+     * to be mutually exclusive in both directions, so a bounded listing was recomputed on every execution however
+     * complete it was — which, before the bound counted matching files, it almost never was for a selective glob.
+     * Now a listing whose matches fit inside the bound drains its whole prefix, and such a listing is
+     * indistinguishable from an unbounded one of the same inputs, so the next query that needs the whole pattern is
+     * owed it.
+     * <p>
+     * Reading is the direction that cannot be made safe by a comparison, so it is not attempted. An entry carries
+     * the partition columns and types {@code detectPartitions} folded out of the paths it held, and the flag
+     * {@code isTruncated()} means "reached the bound" rather than "is a strict prefix" — so every rule for deciding
+     * whether some entry answers *this* bound's question is a proxy, and each proxy has its own boundary: a width
+     * comparison is wrong at equality, and an entry wider than the bound was typed over paths this query would not
+     * have seen. A bounded query therefore lists for itself, every time, and the question never arises. What that
+     * costs is a listing per execution for a schema-only query over a bounded mode; what it buys is that no
+     * listing's answer depends on which query ran before it.
+     */
     public void boundedListingAsync(
         String path,
         StoragePath storagePath,
@@ -287,20 +268,6 @@ public final class DatasetListingService {
         ActionListener<FileList> listener
     ) {
         ListingCacheKey listingKey = listingCacheKey(path, storagePath, storageIdentity, secretIdentity, hints, config);
-        FileList cached = cacheService.getListingIfPresent(listingKey);
-        if (cached != null && cached.fileCount() < extents.maxFiles()) {
-            try {
-                // Caps are not part of the listing key; see cachedListing. A hit allocated nothing in the walk, so
-                // it reserves what the walk would have, for the reasons cachedListing gives at length.
-                GlobExpander.checkDiscoveredFilesLimit(cached.fileCount(), maxDiscoveredFiles.getAsInt());
-                memory.reserve(cached.fileCount() * FileList.LISTING_BYTES_PER_ENTRY);
-            } catch (Exception e) {
-                listener.onFailure(e);
-                return;
-            }
-            listener.onResponse(cached);
-            return;
-        }
         expandAsync(
             path,
             provider,

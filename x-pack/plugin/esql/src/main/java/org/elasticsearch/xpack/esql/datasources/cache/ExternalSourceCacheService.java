@@ -574,7 +574,7 @@ public class ExternalSourceCacheService implements Closeable {
      * that needs all of it.
      */
     @Nullable
-    public     FileList getListingIfPresent(ListingCacheKey key) {
+    public FileList getListingIfPresent(ListingCacheKey key) {
         return enabled ? listingStore.get(key) : null;
     }
 

@@ -280,10 +280,8 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Once the coordinator's driver has read enough rows for the {@code LIMIT}, the remaining data nodes are skipped. That early
-     * termination is best effort, so data nodes hold back their responses until the coordinator's driver has finished: the next
-     * node is only picked after the coordinator is done. The coordinator holds no shards, so every exchange it opens goes through
-     * the mock transport and is counted.
+     * Holds back data node responses until the coordinator's driver has finished, and checks that {@code LIMIT 1} queries only
+     * one data node.
      */
     public void testCancelUnnecessaryRequests() throws Exception {
         assumeTrue("Requires pragmas", canUseQueryPragmas());

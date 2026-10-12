@@ -718,19 +718,25 @@ public final class AllocationEstimators {
     /** Longest text form of an ip address: IPv6 with an IPv4 suffix and a scope id. */
     private static final long IP_STRING_CHARS = 45;
 
-    /** {@code BytesRefBuilder.toBytesRef()}: a copy of the bytes plus the {@link BytesRef}. */
-    public static long termCopyBytes(long length) {
-        return AllocSizes.addSat(AllocSizes.arrayBytes(length, 1), BYTES_REF_SHELL_BYTES);
+    /** The most UTF-8 bytes one char can take. A four byte code point is two chars. */
+    private static final long MAX_UTF8_BYTES_PER_CHAR = 3;
+
+    /** {@code BytesRefBuilder.toBytesRef()}: a copy of {@code byteLength} bytes plus the {@link BytesRef}. */
+    public static long termCopyBytes(long byteLength) {
+        return AllocSizes.addSat(AllocSizes.arrayBytes(byteLength, 1), BYTES_REF_SHELL_BYTES);
     }
 
-    /** {@code toBytesRef().utf8ToString()}: the byte copy plus a String of at most one char per byte. */
-    public static long termStringBytes(long length) {
-        return AllocSizes.addSat(termCopyBytes(length), newStringBytes(length));
+    /**
+     * {@code toBytesRef().utf8ToString()}, sized from the {@code chars} of the String it made: the byte copy at the most bytes
+     * those chars can take, plus the String at two bytes per char.
+     */
+    public static long termStringBytes(long chars) {
+        return AllocSizes.addSat(termCopyBytes(AllocSizes.mulSat(MAX_UTF8_BYTES_PER_CHAR, chars)), newStringBytes(chars));
     }
 
-    /** A binary read: the byte copy plus the buffer that wraps it. */
-    public static long byteBufferBytes(long length) {
-        return AllocSizes.addSat(termCopyBytes(length), BYTE_BUFFER_SHELL_BYTES);
+    /** A binary read: a copy of {@code byteLength} bytes plus the buffer that wraps it. */
+    public static long byteBufferBytes(long byteLength) {
+        return AllocSizes.addSat(termCopyBytes(byteLength), BYTE_BUFFER_SHELL_BYTES);
     }
 
     /** An {@code ArrayList} of {@code size} elements. */

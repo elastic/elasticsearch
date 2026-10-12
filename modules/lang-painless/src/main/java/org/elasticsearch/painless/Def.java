@@ -853,8 +853,9 @@ public final class Def {
     /**
      * Returns a method handle to do an array load.
      * @param receiverClass Class of the array to load the value from
-     * @param scriptPushed whether the call site passes the script instance after the index. A list whose {@code get(int)} carries
-     *   an {@code @allocates} estimator then charges it before the read; anything else drops the script.
+     * @param scriptPushed whether the call site passes the script instance after the index. A list whose allowlisted
+     *   {@code get(int)} is {@code @script_aware} then gets it, one with an {@code @allocates} estimator is charged before the
+     *   read, and anything else drops it.
      * @return a MethodHandle that accepts the receiver as first argument, the index as second argument.
      *   It returns the loaded value.
      */
@@ -876,19 +877,36 @@ public final class Def {
         if (scriptPushed == false) {
             return load;
         }
-        Method estimator = load == LIST_GET ? painlessLookup.lookupRuntimeAllocationEstimator(receiverClass, "get", 1) : null;
-        if (estimator == null) {
+        if (load != LIST_GET) {
             return MethodHandles.dropArguments(load, 2, PainlessScript.class);
         }
-        // Charge with the script between receiver and index, the shape chargeAllocationBeforeCall expects, then put it last.
-        MethodHandle charged = chargeAllocationBeforeCall(
-            MethodHandles.dropArguments(load, 1, PainlessScript.class),
-            estimator,
-            new Object[0],
-            false
+        return lookupListLoadWithScript(painlessLookup, receiverClass);
+    }
+
+    /**
+     * A list bracket read with the script pushed after the index. A {@code @script_aware} {@code get(int)} on the receiver's
+     * allowlisted class takes the script itself, as a def call to it would; otherwise the plain {@code List.get} runs. An
+     * {@code @allocates} estimator on that {@code get(int)} charges before the read either way.
+     */
+    private static MethodHandle lookupListLoadWithScript(PainlessLookup painlessLookup, Class<?> receiverClass) {
+        PainlessMethod method = painlessLookup.lookupRuntimePainlessMethod(receiverClass, "get", 1);
+        boolean takesScript = method != null && method.annotations().containsKey(ScriptAwareAnnotation.class);
+        // Put the script between receiver and index, the shape chargeAllocationBeforeCall expects, then move it last.
+        MethodHandle handle = takesScript
+            ? swapFirstTwoArguments(method.methodHandle())
+            : MethodHandles.dropArguments(LIST_GET, 1, PainlessScript.class);
+        Method estimator = painlessLookup.lookupRuntimeAllocationEstimator(receiverClass, "get", 1);
+        if (estimator != null) {
+            handle = chargeAllocationBeforeCall(handle, estimator, new Object[0], takesScript);
+        }
+        MethodType type = handle.type();
+        MethodType scriptLast = MethodType.methodType(
+            type.returnType(),
+            type.parameterType(0),
+            type.parameterType(2),
+            PainlessScript.class
         );
-        MethodType type = load.type().appendParameterTypes(PainlessScript.class);
-        return MethodHandles.permuteArguments(charged, type, 0, 2, 1);
+        return MethodHandles.permuteArguments(handle, scriptLast, 0, 2, 1);
     }
 
     private static ClassCastException castException(Class<?> sourceClass, Class<?> targetClass, Boolean implicit) {

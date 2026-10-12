@@ -1657,9 +1657,16 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         irFunctionNode.attachDecoration(new IRDReturnType(returnType));
         irFunctionNode.attachDecoration(new IRDTypeParameters(List.of(int.class)));
         irFunctionNode.attachDecoration(new IRDParameterNames(List.of("size")));
-        irFunctionNode.attachCondition(IRCStatic.class);
+        // Under tracking the array inside is charged, which needs the script: the method takes it as an instance capture.
+        if (scriptScope.getCompilerSettings().isAllocationTrackingEnabled()) {
+            irFunctionNode.attachCondition(IRCInstanceCapture.class);
+            irReferenceNode.attachCondition(IRCInstanceCapture.class);
+        } else {
+            irFunctionNode.attachCondition(IRCStatic.class);
+        }
         irFunctionNode.attachCondition(IRCSynthetic.class);
         irFunctionNode.attachDecoration(new IRDMaxLoopCounter(0));
+        attachAllocationLimit(irFunctionNode, scriptScope);
         irFunctionNode.setBlockNode(irBlockNode);
 
         irClassNode.addFunctionNode(irFunctionNode);
@@ -1943,7 +1950,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                 LoadBraceDefNode irLoadBraceDefNode = new LoadBraceDefNode(location);
                 irLoadBraceDefNode.attachDecoration(new IRDExpressionType(valueType));
                 irLoadBraceDefNode.attachDecoration(new IRDIndexType(indexType));
-                // Push the script when the read may hit a list get(int) with an estimator; the bootstrap charges or drops it.
+                // Push the script when the read may hit a list get(int) that needs it; the bootstrap passes, charges or drops it.
                 if (DefaultSemanticAnalysisPhase.defBraceLoadNeedsScript(scriptScope, indexType)) {
                     irLoadBraceDefNode.attachCondition(IRCScriptAware.class);
                 }

@@ -40,8 +40,8 @@ import java.util.Map;
  */
 public class AllocationEsFieldTests extends AllocationTestCase {
 
-    /** Reading the five-byte term {@code hello}. */
-    private static final long KEYWORD_HELLO_BYTES = 24L + 32L + (32L + 2L * 5L);
+    /** Reading the five-char term {@code hello}, its byte copy sized at three bytes per char. */
+    private static final long KEYWORD_HELLO_BYTES = 32L + 32L + (32L + 2L * 5L);
 
     public void testGeoPointConstructorCharged() {
         assertEquals(32L, allocatedBytes("new GeoPoint(1.0, 2.0); return \"x\";"));
@@ -58,13 +58,20 @@ public class AllocationEsFieldTests extends AllocationTestCase {
         assertEquals(32L, AllocationEstimators.utf8ToStringBytes(null));
     }
 
-    /** A keyword read: the byte copy, the {@link BytesRef}, and the new String. Five bytes is 24 + 32 + (32 + 2 * 5) = 98. */
+    /**
+     * A keyword read: the byte copy, the {@link BytesRef}, and the new String. Only the String is in hand, so the copy is sized
+     * at three bytes per char, the most UTF-8 takes. Five chars is (16 + 15, padded to 32) + 32 + (32 + 2 * 5) = 106.
+     */
     public void testKeywordReadChargedFromTermLength() throws IOException {
         assertEquals(KEYWORD_HELLO_BYTES, AllocationEstimators.termStringBytes(5));
 
         Map<String, Object> params = Map.of("field", keywordField("hello").toScriptDocValues());
         assertEquals(KEYWORD_HELLO_BYTES, allocatedBytes("params.field.value", params));
         assertEquals(KEYWORD_HELLO_BYTES, allocatedBytes("params.field.get(0)", params));
+        assertEquals(KEYWORD_HELLO_BYTES, allocatedBytes("params.field[0]", params));
+        // A two byte char counts the same as any other char.
+        Map<String, Object> accented = Map.of("field", keywordField("h\u00e9llo").toScriptDocValues());
+        assertEquals(KEYWORD_HELLO_BYTES, allocatedBytes("params.field.value", accented));
         // With the static type known the wrapper is called directly rather than through def.
         assertEquals(
             KEYWORD_HELLO_BYTES,
@@ -84,6 +91,7 @@ public class AllocationEsFieldTests extends AllocationTestCase {
     public void testKeywordReadChargedInsideLambda() throws IOException {
         Map<String, Object> params = Map.of("field", keywordField("hello").toScriptDocValues());
         assertTripsLimit("Optional.empty().orElseGet(() -> params.field.value)", "60b", params);
+        assertTripsLimit("Optional.empty().orElseGet(() -> params.field[0])", "60b", params);
         assertTripsLimit(
             "ScriptDocValues.Strings f = (ScriptDocValues.Strings) params.field; Optional.empty().orElseGet(() -> f.value)",
             "60b",
@@ -113,6 +121,7 @@ public class AllocationEsFieldTests extends AllocationTestCase {
 
         assertEquals(AllocationEstimators.termCopyBytes(5), allocatedBytes("params.refs.value", params));
         assertEquals(AllocationEstimators.termCopyBytes(5), allocatedBytes("params.refs.get(0)", params));
+        assertEquals(AllocationEstimators.termCopyBytes(5), allocatedBytes("params.refs[0]", params));
         assertEquals(
             AllocationEstimators.byteBufferBytes(5),
             allocatedBytes("BinaryDocValuesField f = (BinaryDocValuesField) params.field; f.get(null)", params)
@@ -193,7 +202,7 @@ public class AllocationEsFieldTests extends AllocationTestCase {
     }
 
     /** A keyword field with {@code terms} in one document, already on that document. */
-    private static KeywordDocValuesField keywordField(String... terms) throws IOException {
+    static KeywordDocValuesField keywordField(String... terms) throws IOException {
         KeywordDocValuesField field = new KeywordDocValuesField(binaryDocValues(terms), "test");
         field.setNextDocId(0);
         return field;
@@ -286,7 +295,7 @@ public class AllocationEsFieldTests extends AllocationTestCase {
     }
 
     /** A geo point field with one point in one document, already on that document. */
-    private static GeoPointDocValuesField geoPointField(double lat, double lon) throws IOException {
+    static GeoPointDocValuesField geoPointField(double lat, double lon) throws IOException {
         long encoded = new GeoPoint(lat, lon).getEncoded();
         GeoPointDocValuesField field = new GeoPointDocValuesField(new MultiGeoPointValues(longDocValues(encoded)), "test");
         field.setNextDocId(0);

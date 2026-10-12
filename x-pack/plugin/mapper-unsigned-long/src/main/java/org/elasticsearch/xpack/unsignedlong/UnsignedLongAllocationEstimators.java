@@ -45,6 +45,11 @@ public final class UnsignedLongAllocationEstimators {
 
     private static final long REFERENCE_SIZE = 8;
 
+    /** Rounds up to a multiple of 8, the heap's object alignment. */
+    private static long pad8(long bytes) {
+        return (bytes + 7) & ~7L;
+    }
+
     /** {@code UnsignedLongScriptDocValues.get(int)}: the value comes back boxed. */
     public static long boxedLongBytes(UnsignedLongScriptDocValues receiver, int index) {
         return BOXED_LONG_BYTES;
@@ -55,7 +60,7 @@ public final class UnsignedLongAllocationEstimators {
         if (count <= 0) {
             return 0;
         }
-        long array = (ARRAY_HEADER + REFERENCE_SIZE * count + 7) & ~7L;
+        long array = pad8(ARRAY_HEADER + REFERENCE_SIZE * count);
         return ARRAY_LIST_SHELL_BYTES + array + elementBytes * count;
     }
 

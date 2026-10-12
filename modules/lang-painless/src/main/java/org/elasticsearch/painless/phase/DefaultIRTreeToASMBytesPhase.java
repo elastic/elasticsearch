@@ -2105,7 +2105,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         Type indexType = MethodWriter.getType(irLoadBraceDefNode.getDecorationValue(IRDIndexType.class));
 
         if (irLoadBraceDefNode.hasCondition(IRCScriptAware.class)) {
-            // The read may hit a list get(int) with an estimator: pass the script after the index and tell the bootstrap.
+            // The read may hit a list get(int) that needs the script: pass it after the index and tell the bootstrap.
             methodWriter.loadThis();
             Type methodType = Type.getMethodType(returnType, MethodWriter.getType(def.class), indexType, WriterConstants.CLASS_TYPE);
             methodWriter.invokeDefCall("arrayLoad", methodType, DefBootstrap.ARRAY_LOAD, 1);
@@ -2305,9 +2305,13 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
                 defCallRecipe.append(encoding);
                 capturedCount += captureNames.size();
 
+                // The reference boxes a primitive receiver as it captures it, so the call site must name the boxed type.
+                boolean boxFirstCapture = defInterfaceReferenceNode.hasCondition(IRCCaptureBox.class);
                 for (String captureName : captureNames) {
                     Variable captureVariable = writeScope.getVariable(captureName);
-                    typeParameters.add(captureVariable.getType());
+                    Class<?> captureType = captureVariable.getType();
+                    typeParameters.add(boxFirstCapture ? PainlessLookupUtility.typeToBoxedType(captureType) : captureType);
+                    boxFirstCapture = false;
                 }
             }
         }

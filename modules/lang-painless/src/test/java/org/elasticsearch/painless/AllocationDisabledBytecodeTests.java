@@ -278,17 +278,32 @@ public class AllocationDisabledBytecodeTests extends ScriptTestCase {
         assertThat(on, containsString("lats(Ljava/lang/Object;Lorg/elasticsearch/painless/PainlessScript$Script;)Ljava/lang/Object;"));
     }
 
-    public void testDefBracketLoadPassesScriptOnlyWhenTrackingAndNotForStringKeys() {
-        // A def bracket read may hit a list get(int) with an estimator, so it passes the script only when tracking is on. A String
-        // index can only be a map key and never passes it.
+    public void testDefBracketLoadPassesScriptExceptForStringKeys() {
+        // A def bracket read may hit a @script_aware list get(int), so it passes the script even with tracking off, as a def call
+        // to get(int) does. The charge stays on the bootstrap side. A String index can only be a map key and never passes it.
+        String pushed = "arrayLoad(Ljava/lang/Object;ILorg/elasticsearch/painless/PainlessScript$Script;)Ljava/lang/Object;";
         String off = bytecode("def l = params.l; def v = l[0]; return 1;", -1L);
-        assertThat(off, containsString("arrayLoad(Ljava/lang/Object;I)Ljava/lang/Object;"));
+        assertThat(off, containsString(pushed));
+        assertThat(off, not(containsString("$checkAllocBytes")));
         String on = bytecode("def l = params.l; def v = l[0]; return 1;", 1024 * 1024L);
-        assertThat(
-            on,
-            containsString("arrayLoad(Ljava/lang/Object;ILorg/elasticsearch/painless/PainlessScript$Script;)Ljava/lang/Object;")
-        );
+        assertThat(on, containsString(pushed));
+        assertThat(on, not(containsString("AllocationEstimators")));
         String key = bytecode("def m = params; def v = m['k']; return 1;", 1024 * 1024L);
         assertThat(key, containsString("arrayLoad(Ljava/lang/Object;Ljava/lang/String;)Ljava/lang/Object;"));
+    }
+
+    public void testDefStoreInLambdaCapturesScriptOnlyWhenItLoads() {
+        // A def bracket store alone leaves the lambda static. A compound store loads too, and that load may need the script, so
+        // the lambda becomes an instance method with the script in hand.
+        String store = bytecode("def l = params.l; Optional.of(1).map(x -> { l[0] = x; return x; }); return 1;", 1024 * 1024L);
+        assertThat(store, containsString("public static synthetic lambda$"));
+        String compound = bytecode("def l = params.l; Optional.of(1).map(x -> { l[0] += x; return x; }); return 1;", 1024 * 1024L);
+        assertThat(compound, containsString("public synthetic lambda$"));
+        assertThat(compound, not(containsString("public static synthetic lambda$")));
+        // A name with no annotated getter, or a String key, never pushes the script, so those compound stores stay static too.
+        String plainName = bytecode("def m = params; Optional.of(1).map(x -> { m.other += x; return x; }); return 1;", 1024 * 1024L);
+        assertThat(plainName, containsString("public static synthetic lambda$"));
+        String stringKey = bytecode("def m = params; Optional.of(1).map(x -> { m['k'] += x; return x; }); return 1;", 1024 * 1024L);
+        assertThat(stringKey, containsString("public static synthetic lambda$"));
     }
 }

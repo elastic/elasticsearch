@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.session;
+package org.elasticsearch.xpack.esql.plan;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.settings.Settings;
@@ -15,10 +15,6 @@ import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
-import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
-import org.elasticsearch.xpack.esql.plan.QuerySettings;
-import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
-import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 
 import java.util.Map;
 
@@ -36,6 +32,8 @@ public class ApproximationLicenseTests extends ESTestCase {
 
     private static final SettingsValidationContext CTX = new SettingsValidationContext(false, true);
     private static final String KEY = QuerySettingDef.CLUSTER_SETTING_PREFIX + "approximation";
+    private static final Settings OPERATOR_DEFAULT = Settings.builder().put(KEY, "true").build();
+    private static final int LOAD_ALL_MAX_FIELDS = 1000;
 
     private static XPackLicenseState licensed() {
         return new XPackLicenseState(System::currentTimeMillis, new XPackLicenseStatus(License.OperationMode.ENTERPRISE, true, null));
@@ -45,24 +43,27 @@ public class ApproximationLicenseTests extends ESTestCase {
         return new XPackLicenseState(System::currentTimeMillis, new XPackLicenseStatus(License.OperationMode.BASIC, true, null));
     }
 
-    private static ResolvedSettings withOperatorDefault() {
-        return QuerySettings.resolve(Settings.builder().put(KEY, "true").build(), Settings.EMPTY, Map.of(), null, CTX);
+    private static ResolvedSettings resolve(
+        Settings clusterState,
+        Map<QuerySettingDef<?>, Object> requestParams,
+        XPackLicenseState licenseState
+    ) {
+        return QuerySettings.resolve(clusterState, Settings.EMPTY, requestParams, null, CTX, licenseState, LOAD_ALL_MAX_FIELDS);
     }
 
     public void testOperatorDefaultIsDroppedOnAnUnlicensedCluster() {
-        ResolvedSettings resolved = withOperatorDefault();
         assertThat(
-            "precondition: the operator default applied",
-            QuerySettings.APPROXIMATION.get(resolved),
+            "precondition: the operator default applies before the license is considered",
+            QuerySettings.APPROXIMATION.get(QuerySettings.resolve(OPERATOR_DEFAULT, Settings.EMPTY, Map.of(), null, CTX)),
             is(ApproximationSettings.DEFAULT)
         );
 
-        ResolvedSettings settled = EsqlSession.applyApproximationLicense(resolved, new EsqlQueryRequest(), null, unlicensed());
+        ResolvedSettings settled = resolve(OPERATOR_DEFAULT, Map.of(), unlicensed());
         assertThat(QuerySettings.APPROXIMATION.get(settled), is(nullValue()));
     }
 
     public void testOperatorDefaultSurvivesOnALicensedCluster() {
-        ResolvedSettings settled = EsqlSession.applyApproximationLicense(withOperatorDefault(), new EsqlQueryRequest(), null, licensed());
+        ResolvedSettings settled = resolve(OPERATOR_DEFAULT, Map.of(), licensed());
         assertThat(QuerySettings.APPROXIMATION.get(settled), is(ApproximationSettings.DEFAULT));
     }
 
@@ -70,12 +71,8 @@ public class ApproximationLicenseTests extends ESTestCase {
         // Unchanged behaviour: the user asked for a paid feature this cluster does not have, and is told so.
         EsqlQueryRequest request = new EsqlQueryRequest();
         request.set(QuerySettings.APPROXIMATION, ApproximationSettings.DEFAULT);
-        ResolvedSettings resolved = QuerySettings.resolve(Settings.EMPTY, Settings.EMPTY, request.requestSettings(), null, CTX);
 
-        var e = expectThrows(
-            ElasticsearchStatusException.class,
-            () -> EsqlSession.applyApproximationLicense(resolved, request, null, unlicensed())
-        );
+        var e = expectThrows(ElasticsearchStatusException.class, () -> resolve(Settings.EMPTY, request.requestSettings(), unlicensed()));
         assertThat(e.getMessage(), containsString("A valid Enterprise license is required to use ES|QL query approximation"));
     }
 
@@ -83,23 +80,12 @@ public class ApproximationLicenseTests extends ESTestCase {
         // The user is still the one asking, even though an operator value is also present.
         EsqlQueryRequest request = new EsqlQueryRequest();
         request.set(QuerySettings.APPROXIMATION, ApproximationSettings.DEFAULT);
-        ResolvedSettings resolved = QuerySettings.resolve(
-            Settings.builder().put(KEY, "true").build(),
-            Settings.EMPTY,
-            request.requestSettings(),
-            null,
-            CTX
-        );
 
-        expectThrows(
-            ElasticsearchStatusException.class,
-            () -> EsqlSession.applyApproximationLicense(resolved, request, null, unlicensed())
-        );
+        expectThrows(ElasticsearchStatusException.class, () -> resolve(OPERATOR_DEFAULT, request.requestSettings(), unlicensed()));
     }
 
     public void testNothingHappensWhenApproximationIsOff() {
         ResolvedSettings resolved = QuerySettings.resolve(Settings.EMPTY, Settings.EMPTY, Map.of(), null, CTX);
-        ResolvedSettings settled = EsqlSession.applyApproximationLicense(resolved, new EsqlQueryRequest(), null, unlicensed());
-        assertThat(settled, equalTo(resolved));
+        assertThat(resolve(Settings.EMPTY, Map.of(), unlicensed()), equalTo(resolved));
     }
 }

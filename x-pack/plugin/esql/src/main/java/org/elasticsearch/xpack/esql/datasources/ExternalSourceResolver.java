@@ -3449,8 +3449,10 @@ public class ExternalSourceResolver {
         // be identical - so the fallback is what keeps that sharing, and it is the only thing it can share:
         // restrictToReadConfig drops every per-column statistic, and drops the count too unless it was licensed.
         //
-        // The restriction is applied HERE rather than relied on downstream, because only one serve path runs that
-        // gate itself. Second ask only when the first missed, so a warm read still books one lookup.
+        // Applied HERE so this method's own return is already restricted. It is not the only application - the
+        // declared-overlay seam below restricts inferred.sourceMetadata() against its expected read as well - but
+        // relying on that one would make what this returns depend on which downstream path happens to run.
+        // Second ask only when the first missed, so a warm read still books one lookup.
         String ownAddress = readConfigStampOf(entry);
         if (Objects.equals(ownAddress, readConfig)) {
             return null; // the record's address IS this read's; there is no second place to look

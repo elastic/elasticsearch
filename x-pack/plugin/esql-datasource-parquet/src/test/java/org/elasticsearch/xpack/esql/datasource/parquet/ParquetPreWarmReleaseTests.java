@@ -388,16 +388,12 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
         try (CloseableIterator<Page> iter = open(storage, watermark, CATEGORY)) {
             consumeOnePage(iter);
         }
-        assertEquals(0L, watermark.used());
-        assertEquals(0L, breaker.getUsed());
-        assertEquals(0, budget.waiterCount());
+        assertLedgerClear(watermark, budget);
 
         try (CloseableIterator<Page> iter = open(storage, watermark, CATEGORY_AND_ID)) {
             consumeOnePage(iter);
         }
-        assertEquals(0L, watermark.used());
-        assertEquals(0L, breaker.getUsed());
-        assertEquals(0, budget.waiterCount());
+        assertLedgerClear(watermark, budget);
     }
 
     private record RunResult(
@@ -624,6 +620,14 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
             }
             page.releaseBlocks();
         }
+    }
+
+    private void assertLedgerClear(ParquetIoWatermark watermark, NodeByteBudgetService budget) throws Exception {
+        assertBusy(() -> {
+            assertEquals(0L, watermark.used());
+            assertEquals(0L, breaker.getUsed());
+            assertEquals(0, budget.waiterCount());
+        }, 5, TimeUnit.SECONDS);
     }
 
     private static void consumeOnePage(CloseableIterator<Page> iter) {

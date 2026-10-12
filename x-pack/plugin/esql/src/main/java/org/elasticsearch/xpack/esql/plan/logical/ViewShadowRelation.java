@@ -26,36 +26,29 @@ import java.util.Objects;
  * of each resolved view's recursive substitution, inside the per-resolution-level
  * {@link ViewUnionAll}.
  * <p>
- * Lifecycle, with the parts each PR is responsible for:
+ * Lifecycle:
  * <ol>
  *   <li>Emitted during view resolution alongside the strict (recursive) resolution. The shadow
- *       and its strict sibling form the strict/lenient pair for that level.
- *       <em>(landed in the {@code ViewResolver} refactor)</em></li>
+ *       and its strict sibling form the strict/lenient pair for that level.</li>
  *   <li>{@code ViewCompaction.preIndexResolution} reshapes user-written {@code Subquery}/
  *       {@code UnionAll} structures into {@link ViewUnionAll} but leaves shadows in place so
- *       PreAnalyzer can still pair each shadow with its sibling at index-resolution time.
- *       <em>(landed)</em></li>
+ *       PreAnalyzer can still pair each shadow with its sibling at index-resolution time.</li>
  *   <li>{@code PreAnalyzer} collects {@code ViewShadowRelation} patterns into a separate set,
- *       and {@code EsqlSession} issues a lenient field-caps request per batch
- *       ({@code ALLOW_UNAVAILABLE_TARGETS} + project routing scoped to linked projects only —
- *       {@code IndexResolver.FLAT_WORLD_OPTIONS}). Results land in
- *       {@code AnalyzerContext.optionalLinkedResolution}, keyed by the shadow's full
- *       {@link #linkedIndexPattern()} (view name + applicable exclusions).
- *       <em>(deferred to the lenient field-caps PR)</em></li>
+ *       and {@code EsqlSession} issues one field-caps request per pattern, lenient for
+ *       {@link Kind#OPTIONAL} and strict for {@link Kind#REQUIRED}.
+ *       Results land in {@code AnalyzerContext.linkedResolution}, keyed by the shadow's full
+ *       {@link #linkedIndexPattern()} (view name + applicable exclusions).</li>
  *   <li>The {@code ResolveViewShadow} analyzer rule (sibling of {@code ResolveTable}, in the
- *       Initialize batch) consults {@code AnalyzerContext.optionalLinkedResolution} for this shadow's
+ *       Initialize batch) consults {@code AnalyzerContext.linkedResolution} for this shadow's
  *       {@link #linkedIndexPattern()}. If a remote <em>index</em> is found (a valid resolution that
  *       matched at least one index) the shadow is replaced with a corresponding {@code EsRelation};
- *       otherwise (including a valid-but-empty resolution) the shadow is left unresolved.
- *       <em>(this PR — backed by a mocked {@code optionalLinkedResolution} map until the lenient
- *       field-caps PR provides real data)</em></li>
+ *       otherwise (including a valid-but-empty resolution) the shadow is left unresolved.</li>
  *   <li>{@code ViewCompactionPostIndexResolution} runs after {@code ResolveViewShadow}: any
  *       still-unresolved shadow is stripped, then nested {@link ViewUnionAll}s are flattened
- *       and remaining {@code NamedSubquery} wrappers unwrapped. Per Strategy A in
- *       <a href="https://github.com/elastic/esql-planning/issues/543">esql-planning#543</a>,
- *       sibling {@code EsRelation}s stay separate (a {@code UnionAll}/{@link ViewUnionAll}
- *       of {@code EsRelation}s) rather than being merged via a third combined field-caps call.
- *       <em>(landed)</em></li>
+ *       and remaining {@code NamedSubquery} wrappers unwrapped. Sibling {@code EsRelation}s stay
+ *       separate (a {@code UnionAll}/{@link ViewUnionAll} of {@code EsRelation}s) rather than
+ *       being merged via a third combined field-caps call. See
+ *       <a href="https://github.com/elastic/elasticsearch/pull/147804">#147804</a>.</li>
  * </ol>
  */
 public class ViewShadowRelation extends LeafPlan implements Unresolvable {

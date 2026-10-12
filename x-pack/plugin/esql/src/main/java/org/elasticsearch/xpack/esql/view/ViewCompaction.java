@@ -48,17 +48,16 @@ import static org.elasticsearch.common.util.set.Sets.haveNonEmptyIntersection;
  *       the tree are exactly what {@code PreAnalyzer} hands to field-caps and what
  *       {@code ResolveTable} later looks up.</li>
  *   <li>{@link #postIndexResolution(LogicalPlan, boolean)} — runs as an analyzer rule after {@code ResolveTable}.
- *       Strips any {@link ViewShadowRelation} that lenient field-caps did not fold into a sibling
- *       {@code EsRelation} (in Phase A this is all of them, since lenient field-caps is not yet
- *       wired up — see esql-planning#543), then flattens nested {@link ViewUnionAll}s and unwraps
+ *       Strips any {@link ViewShadowRelation} that {@code ResolveViewShadow} did not resolve to an
+ *       {@code EsRelation}, then flattens nested {@link ViewUnionAll}s and unwraps
  *       remaining {@link NamedSubquery} wrappers.</li>
  * </ol>
  * <p>
- * The split is what lets a colleague implement lenient field-caps purely as a Phase B analyzer
- * rule that lives between {@code ResolveTable} and {@link #postIndexResolution}: shadows that match
- * remote indices get rewritten to {@link UnresolvedRelation}/{@code EsRelation}; shadows that
- * fail to match are simply left unresolved and {@link #postIndexResolution} sweeps them away. Ordering
- * details: see <a href="https://github.com/elastic/esql-planning/issues/472">esql-planning#472</a>.
+ * The split is what lets the {@code ResolveViewShadow} analyzer rule run between
+ * {@code ResolveTable} and {@link #postIndexResolution}: shadows that match remote indices
+ * get rewritten to {@code EsRelation}; shadows that fail to match are simply left unresolved and
+ * {@link #postIndexResolution} sweeps them away. Ordering details: see
+ * <a href="https://github.com/elastic/elasticsearch/pull/147804">#147804</a>.
  * <p>
  * Note: a small amount of compaction stays inside {@link ViewResolver#buildPlanFromBranches} —
  * specifically the per-level sibling {@link UnresolvedRelation} merge — to keep the resolved tree
@@ -92,8 +91,8 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
      * Phase 1, runs before {@code PreAnalyzer}. Reshapes user-written {@link Subquery}/
      * {@link UnionAll} structures into {@link ViewUnionAll} for uniform downstream handling.
      * Deliberately does NOT strip {@link ViewShadowRelation} siblings or flatten nested
-     * {@link ViewUnionAll}s — those are deferred to {@link #postIndexResolution} so lenient field-caps
-     * (Phase B) can pair each shadow with its strict resolution at field-caps time.
+     * {@link ViewUnionAll}s — those are deferred to {@link #postIndexResolution} so each shadow stays
+     * next to its view's strict resolution until {@code ResolveViewShadow} has run.
      *
      * Records view-branch membership in {@link ViewUnionAll#viewBranchKeys()} but never collapses a
      * boundary, so it needs no knowledge of the request filter.
@@ -109,7 +108,8 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
      * wrappers. By the time this runs, all reachable {@link UnresolvedRelation}s have been
      * replaced by {@code EsRelation}s, so the {@link UnresolvedRelation}-merge step inside
      * {@link #compactNestedViewUnionAlls} is effectively a no-op — sibling {@code EsRelation}s
-     * stay separate (Strategy A from esql-planning#543).
+     * stay separate, so a remote index found by a shadow is unioned with its local sibling rather
+     * than merged into it.
      *
      * @param preserveViewBoundaries {@code true} when the request carries a DSL filter that must be
      *                               applied at view-output boundaries. This is the <em>only</em> reason

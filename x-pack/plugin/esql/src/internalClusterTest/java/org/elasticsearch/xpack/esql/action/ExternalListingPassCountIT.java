@@ -35,19 +35,25 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * <p>
  * The shape under test is a glob whose wildcard sits <em>inside</em> a path segment — {@code date=2024-01-0*} — which
  * is what a Hive-partitioned dataset queried for a date range looks like. {@code StoragePath.patternPrefix} cuts the
- * prefix at the last {@code /} before the first metacharacter, so the store is asked to list the whole parent and
- * the matching keys are found by filtering. When the parent holds more keys than the listing bound, and they sort
- * ahead of the matches (object listings are lexicographic; date folders are oldest-first; queries ask about recent
- * data), the bounded pass matches nothing — and a bounded pass that matches nothing cannot be distinguished from an
- * empty dataset, so the expander lists again, unbounded.
+ * prefix at the last {@code /} before the first metacharacter, so the prefix the store is asked about is wider than
+ * the set the pattern matches.
  * <p>
- * That second pass is what these tests pin. One query should ask the store to list once.
+ * The defect these tests exist for came from deciding things about the narrow set from the wide one. The bound used
+ * to count keys the store returned: the parent held more keys than the bound and they sorted ahead of the matches
+ * (object listings are lexicographic; date folders are oldest-first; queries ask about recent data), so the bounded
+ * pass matched nothing — and a bounded pass that matches nothing cannot be told apart from an empty dataset, so the
+ * expander listed again, unbounded, on every single execution. The bound now counts matching files.
+ * <p>
+ * So one query should ask the store to list once, a repeat should ask nothing, and neither number should move when
+ * unrelated keys are added under the same prefix.
  */
 public class ExternalListingPassCountIT extends AbstractExternalDataSourceIT {
 
     /**
-     * Padding folders that sort ahead of the matching ones. Above the 1,000-key {@code partition_sample_size}
-     * default, so the first bounded pass is spent entirely on keys the glob cannot match.
+     * Padding folders that sort ahead of the matching ones, and more of them than the 1,000 of the
+     * {@code partition_sample_size} default — which is what made the old key-counting bound stop before reaching a
+     * match. Kept at that size because it is the fixture the defect needs: a bound that counts matches is not spent
+     * on them, and a provider that narrows on the pattern's literal lead is never handed them at all.
      */
     private static final int PADDING_FOLDERS = 1_200;
 
@@ -172,6 +178,9 @@ public class ExternalListingPassCountIT extends AbstractExternalDataSourceIT {
             equalTo(0L)
         );
         assertThat("and visit no keys", CountingStorageProvider.keysVisited(), equalTo(0L));
+        // Both kinds of request, because "nothing" is the claim: the fan-out and the partition walk ask for
+        // children rather than objects, so a listing-pass count alone would let either of them back in unseen.
+        assertThat("and ask for no directory children", CountingStorageProvider.childListings(), equalTo(0L));
     }
 
     /**
@@ -201,11 +210,13 @@ public class ExternalListingPassCountIT extends AbstractExternalDataSourceIT {
      * narrows a listing only under a fully-wildcard segment, so this is the shape where the entry the cache holds
      * is narrower than the pattern it was listed from — here one folder of 1,209.
      * <p>
-     * The repeat is owed that entry: a narrowing the drain applied is part of the listing's address, so only a
-     * query carrying the same filter can reach it. The unfiltered query is not, and must list for itself — served
-     * the filtered entry it would infer a schema, and a partition column's type, from one folder of the dataset.
-     * That is the failure the second assertion exists for, and the entry's width is no defence against it: one
-     * file is far below this query's bound.
+     * An equality on a fully-wildcard segment is spliced into the glob itself, so this query lists
+     * {@code date=2024-01-05/*.csv} and its entry holds that folder's one file. The rewritten pattern is a field of
+     * the listing's address, so the repeat finds the entry and the unfiltered query cannot: it has a different
+     * address and must list for itself. That is the failure the second assertion exists for — served the filtered
+     * entry, it would infer a schema, and a partition column's type, from one folder of 1,209 — and it is the
+     * address that stops it, not the serve rule, whose own test is below. The entry's width is no defence either
+     * way: one file is far below this query's bound.
      */
     public void testAFilteredEntryServesTheSameFilterAndNoOther() throws Exception {
         Path dir = writeFixture(PADDING_FOLDERS);

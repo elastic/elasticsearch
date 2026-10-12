@@ -195,6 +195,7 @@ final class GenericFileList implements FileList {
         return globMatchCount;
     }
 
+    @Override
     public boolean isTruncated() {
         return truncated;
     }

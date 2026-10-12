@@ -921,8 +921,9 @@ public final class GlobExpander {
         // shape falls through to the flat listing below; see PartitionPruningWalk for the fail-closed rules and
         // the trust boundary. There is no brace retry: a guessed spelling drops percent-encoded folders.
         // A bounded listing skips the walk. The walk narrows by descending the partition tree, which costs several
-        // requests; the flat path asks the store for the pattern's literal lead and filters the rest, which is one
-        // request where the lead is selective and a page per thousand keys where it is not.
+        // requests; the flat path asks the store for the pattern's literal lead and filters the rest, which is a
+        // page per thousand keys, or one request where the lead is selective AND the provider narrows on it --
+        // S3 and the local filesystem do; one that takes the SPI default lists the directory as before.
         // A rejected walk (type mismatch, stray file) must re-list the superset. Re-applying the value filter
         // would prune again and undo the rejection.
         boolean suppressValueFilter = false;

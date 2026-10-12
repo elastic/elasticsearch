@@ -5075,6 +5075,56 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
+     * A listing the partition walk withdrew from, and a bounded listing of the same inputs, agree — so the first
+     * may be served to the second.
+     *
+     * <p>The walk descends only the folders a multi-value hint keeps, which here are {@code k=1} and {@code k=2},
+     * where the column reads as a number; across every folder at that level it is text, because of {@code k=abc}.
+     * The walk will not narrow a partition column's type, so it withdraws and the pattern is listed flat with the
+     * value filter suppressed. That listing is the unfiltered superset, and it records a glob-match count, so it
+     * reaches the shared cache and is below any ordinary bound — which is to say nothing stops it being served to
+     * a query running a bound.
+     *
+     * <p>Which is safe only while a bounded query, which never walks and applies the filter in the drain, reaches
+     * the same answer. It does: {@code valueFilterTrusted} refuses the same narrowing for the same reason, and the
+     * filtered-out files go back. Both arms are asserted together, file for file, because the failure this guards
+     * against is the two coming apart — then a bounded query's schema would depend on whether an unbounded one
+     * ran first, which is the defect this whole area exists to prevent.
+     */
+    public void testAWalkRejectedListingAgreesWithABoundedOne() throws Exception {
+        List<StorageEntry> files = List.of(
+            entry("s3://bucket/logs/k=1/a.csv", 10),
+            entry("s3://bucket/logs/k=2/b.csv", 10),
+            entry("s3://bucket/logs/k=abc/c.csv", 10)
+        );
+        var hints = List.of(hint("k", PartitionFilterHintExtractor.Operator.IN, 1, 2));
+
+        FileList withdrawn = GlobExpander.expand("s3://bucket/logs/k=*/*.csv", new TreeStubProvider(files), hints, HIVE_ON, MAX, MAX);
+        FileList bounded = expandSync(
+            "s3://bucket/logs/k=*/*.csv",
+            new TreeStubProvider(files),
+            hints,
+            HIVE_ON,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            10,
+            1,
+            () -> false
+        );
+
+        assertEquals("the withdrawn walk re-lists the superset the filter would have pruned", 3, withdrawn.fileCount());
+        assertEquals("and records what the glob selected, so it can be cached and served", 3, withdrawn.globMatchCount());
+        assertEquals("the bounded listing reaches the same file set", paths(withdrawn), paths(bounded));
+        assertEquals(
+            "and the same count, so serving one for the other changes nothing",
+            withdrawn.globMatchCount(),
+            bounded.globMatchCount()
+        );
+        assertFalse("neither stopped on the bound", bounded.isTruncated());
+    }
+
+    /**
      * The fan-out must not spend a request on a folder the pattern cannot match.
      * <p>
      * One slot is one {@code listObjects}, and the slot list was built from every directory under the pattern

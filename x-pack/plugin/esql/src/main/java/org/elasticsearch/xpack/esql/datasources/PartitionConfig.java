@@ -46,7 +46,11 @@ public record PartitionConfig(Strategy strategy, @Nullable String pathTemplate) 
     public static final String CONFIG_PARTITIONING_HIVE = "hive_partitioning";
     public static final String CONFIG_PARTITION_SAMPLE_SIZE = "partition_sample_size";
 
-    /** The value of {@link #CONFIG_PARTITION_SAMPLE_SIZE} when a dataset sets none: one {@code ListObjectsV2} page on S3. */
+    /**
+     * The value of {@link #CONFIG_PARTITION_SAMPLE_SIZE} when a dataset sets none. It was chosen as one
+     * {@code ListObjectsV2} page on S3, when the number bounded keys returned; it now bounds matching files, so a
+     * dataset of fewer than this many files lists completely however many keys share its prefix.
+     */
     public static final int DEFAULT_PARTITION_SAMPLE_SIZE = 1_000;
     private static final int PARTITION_SAMPLE_SIZE_MAX = 10_000_000;
 

@@ -56,6 +56,14 @@ public final class CountingStorageProvider implements StorageProvider {
     private static final AtomicLong LIST_OBJECT_CALLS = new AtomicLong();
     /** Keys handed out across every pass — the drain's {@code listed} counter, observed from the store side. */
     private static final AtomicLong KEYS_VISITED = new AtomicLong();
+    /**
+     * Delimiter listings issued: one increment per {@code listChildren} call.
+     * <p>
+     * Separate from the listing passes because the prefix fan-out and the partition walk ask for children rather
+     * than objects, so a suite counting only {@code listObjects} is blind to a regression in either — and an
+     * assertion that a warm query asks the store nothing would hold while it asked for every child of the prefix.
+     */
+    private static final AtomicLong LIST_CHILDREN_CALLS = new AtomicLong();
     /** Distinct objects opened at least once. The "files scanned" figure a limit pushdown is judged on. */
     private static final Set<String> PATHS_READ = ConcurrentHashMap.newKeySet();
 
@@ -63,6 +71,7 @@ public final class CountingStorageProvider implements StorageProvider {
 
     public static void reset() {
         LIST_OBJECT_CALLS.set(0);
+        LIST_CHILDREN_CALLS.set(0);
         KEYS_VISITED.set(0);
         PATHS_READ.clear();
     }
@@ -73,6 +82,10 @@ public final class CountingStorageProvider implements StorageProvider {
 
     public static long keysVisited() {
         return KEYS_VISITED.get();
+    }
+
+    public static long childListings() {
+        return LIST_CHILDREN_CALLS.get();
     }
 
     /** The objects a query opened, as paths, so a failure can name the files it should not have touched. */
@@ -140,6 +153,7 @@ public final class CountingStorageProvider implements StorageProvider {
 
     @Override
     public StorageChildren listChildren(StoragePath prefix, int limit) throws IOException {
+        LIST_CHILDREN_CALLS.incrementAndGet();
         StorageChildren children = delegate.listChildren(toFileScheme(prefix), limit);
         if (children == null) {
             return null;

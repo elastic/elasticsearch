@@ -100,9 +100,9 @@ public class UnmappedFieldsNestedComparisonIT extends AbstractEsqlIntegTestCase 
      * <ul>
      * <li>nested: a leaf declared under the nested parent is always null - never loaded, so real nested support can
      *     change what it returns without breaking anyone. An undeclared leaf ({@code unmapped_both}) follows the
-     *     unmapped-field rules like any other.</li>
+     *     unmapped-field rules like any other, except that {@code LOAD_ALL} discovers nothing below a nested parent.</li>
      * <li>nestedNoField: nested parent that declares no subfields at all. Must always equal noField: nothing is
-     *     declared, so it is plain unmapped loading.</li>
+     *     declared, so it is plain unmapped loading, and field caps reports no leaf through which LOAD_ALL could tell it is nested.</li>
      * <li>noField: the same leaf simply not mapped on the special index.</li>
      * <li>flattened: the Verifier rejects loading the sub-key, so cells that would load it error instead.
      *     Exception: {@code LOAD_ALL} + {@code KEEP *} with nothing referencing it - {@code _source} discovery surfaces it.</li>
@@ -126,11 +126,11 @@ public class UnmappedFieldsNestedComparisonIT extends AbstractEsqlIntegTestCase 
             cell("load", "mapped_only_special", "*", ABSENT, ABSENT, NULL, ABSENT, ABSENT),
             cell("load", "mapped_only_special", "x", NULL, LOADED, NULL, LOADED, VERIFIER_ERROR),
 
-            cell("load_all", "unmapped_both", "*", LOADED, LOADED, LOADED, LOADED, LOADED),
+            cell("load_all", "unmapped_both", "*", ABSENT, LOADED, LOADED, LOADED, LOADED),
             cell("load_all", "unmapped_both", "x", LOADED, LOADED, LOADED, LOADED, VERIFIER_ERROR),
             cell("load_all", "mapped_both", "*", NULL, LOADED, NULL, LOADED, VERIFIER_ERROR),
             cell("load_all", "mapped_both", "x", NULL, LOADED, NULL, LOADED, VERIFIER_ERROR),
-            cell("load_all", "mapped_only_special", "*", NULL, LOADED, NULL, LOADED, LOADED),
+            cell("load_all", "mapped_only_special", "*", ABSENT, LOADED, NULL, LOADED, LOADED),
             cell("load_all", "mapped_only_special", "x", NULL, LOADED, NULL, LOADED, VERIFIER_ERROR)
         );
     }

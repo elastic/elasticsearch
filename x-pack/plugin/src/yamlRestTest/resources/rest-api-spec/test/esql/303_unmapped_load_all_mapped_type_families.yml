@@ -13,9 +13,9 @@ setup:
         match_only_text overrides it to text, so ES|QL resolves all three to ordinary supported columns. The types
         with no family alias - binary, the integer/long/ip/float range family (only date_range and double_range are in
         DataType.ES_TO_TYPE), join, sparse_vector, rank_feature(s), percolator, token_count - resolve to
-        UNSUPPORTED instead. nested is a third, different case: IndexResolver sends request.filters("-nested")
-        unconditionally, so a nested field and its leaves never reach field_caps at all - they are absent
-        rather than unsupported.
+        UNSUPPORTED instead. nested is a third, different case: the main field_caps request filters "-nested",
+        so a nested field and its leaves never become columns - they are absent rather than unsupported, and
+        LOAD_ALL discovers nothing below them either.
 
   # One index mapping each name; the family-aliased types and the unsupported ones side by side.
   - do:
@@ -177,8 +177,27 @@ teardown:
   - match: { values.1: [ "unmapped", "1", "9" ] }
 
 ---
-'a mapped nested leaf stays null under LOAD_ALL':
-  # The column still exists: the unmapped index discovers nst.leaf from _source. The nested index returns null.
+'a nested parent hides its leaves from LOAD_ALL discovery':
+  # nst is nested in la_family_mapped, so no index's _source surfaces nst.leaf through a wildcard.
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ method, path, parameters, capabilities ]
+          capabilities: [ optional_fields_load_all_hides_nested ]
+      reason: "LOAD_ALL discovers nothing below a path that an index maps as nested"
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_family_mapped, la_family_unmapped | KEEP id, nst.* | SORT id | LIMIT 5'
+  - length: { columns: 1 }
+  - match: { columns.0.name: id }
+  - match: { values.0: [ "mapped" ] }
+  - match: { values.1: [ "unmapped" ] }
+
+---
+'a named nested leaf still loads where it is unmapped':
+  # Only discovery is affected: naming nst.leaf reads it per index, null where it is nested and from _source where it is unmapped.
   - requires:
       capabilities:
         - method: POST
@@ -189,7 +208,7 @@ teardown:
   - do:
       esql.query:
         body:
-          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_family_mapped, la_family_unmapped | KEEP id, nst.* | SORT id | LIMIT 5'
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_family_mapped, la_family_unmapped | KEEP id, nst.leaf | SORT id | LIMIT 5'
   - length: { columns: 2 }
   - match: { columns.1.name: nst.leaf }
   - match: { columns.1.type: keyword }

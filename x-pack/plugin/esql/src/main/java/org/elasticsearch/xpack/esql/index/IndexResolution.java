@@ -74,6 +74,12 @@ public final class IndexResolution {
         this.failures = failures;
     }
 
+    public IndexResolution withSourceExcludedSubtrees(Set<String> sourceExcludedSubtrees) {
+        return isValid() == false || sourceExcludedSubtrees.isEmpty()
+            ? this
+            : new IndexResolution(index.withSourceExcludedSubtrees(sourceExcludedSubtrees), invalid, resolvedIndices, failures);
+    }
+
     public boolean matches(String indexName) {
         return isValid() && this.index.name().equals(indexName);
     }

@@ -264,6 +264,21 @@ public class UnmappedFieldsBlockLoaderTests extends ESTestCase {
             { "item": [ { "value": 1, "extra": "x" } ] }"""), nullValue());
     }
 
+    /**
+     * A path excluded with everything below it, like one an index maps as nested, is pruned at any depth, even through a literal
+     * dotted key that steps over it: a union's coordinator only filters by what every branch excludes.
+     */
+    public void testExcludedSubtreeIsPrunedAtAnyDepth() throws IOException {
+        Map<String, Object> filtered = load(UnmappedFieldsPattern.excludesSubtrees(Set.of("obj.inner")), """
+            {
+              "obj": { "inner": [ { "u": 1 } ], "inner.v": 2, "innerx": 3, "other": 4 },
+              "obj.inner.w": 5,
+              "obj.inner": { "x": 6 },
+              "top": 7
+            }""");
+        assertMap(filtered, matchesMap().entry("obj", Map.of("innerx", 3, "other", 4)).entry("top", 7));
+    }
+
     private static UnmappedFieldsBlockLoader loader(UnmappedFieldsPattern pattern) {
         return loader(pattern, path -> false);
     }

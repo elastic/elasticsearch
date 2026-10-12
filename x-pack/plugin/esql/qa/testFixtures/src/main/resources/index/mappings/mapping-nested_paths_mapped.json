@@ -1,0 +1,35 @@
+{
+    "dynamic": "false",
+    "properties": {
+        "id": { "type": "keyword" },
+        "@timestamp": { "type": "date" },
+        "items": {
+            "type": "nested",
+            "properties": {
+                "name": { "type": "keyword" },
+                "parts": {
+                    "type": "nested",
+                    "properties": {
+                        "pn": { "type": "keyword" }
+                    }
+                }
+            }
+        },
+        "meta": {
+            "properties": {
+                "events": {
+                    "type": "nested",
+                    "properties": {
+                        "kind": { "type": "keyword" }
+                    }
+                }
+            }
+        },
+        "notes": {
+            "type": "nested",
+            "properties": {
+                "by": { "type": "keyword" }
+            }
+        }
+    }
+}

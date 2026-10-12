@@ -171,7 +171,10 @@ final class UnmappedFieldsBlockLoader implements BlockLoader {
             // Objects are not expanded into columns of their own, but a nully one still says nothing about the field it sits under, so
             // it must neither keep that field's column alive nor show up in what the field renders as.
             if (value instanceof Map<?, ?> map) {
-                map.entrySet().removeIf(entry -> prune(path + "." + entry.getKey(), entry.getValue()) == false);
+                map.entrySet().removeIf(entry -> {
+                    String child = path + "." + entry.getKey();
+                    return pattern.excludesSubtree(child) || prune(child, entry.getValue()) == false;
+                });
                 return map.isEmpty() == false;
             }
             return value != null && mappedNestedSubfield.test(path) == false;

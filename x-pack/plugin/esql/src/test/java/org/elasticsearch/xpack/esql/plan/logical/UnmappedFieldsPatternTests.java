@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.greaterThan;
@@ -35,7 +36,7 @@ public class UnmappedFieldsPatternTests extends AbstractNamedWriteableTestCase<U
 
     @Override
     protected UnmappedFieldsPattern createTestInstance() {
-        return switch (between(0, 4)) {
+        return switch (between(0, 5)) {
             case 0 -> UnmappedFieldsPattern.ALL;
             case 1 -> UnmappedFieldsPattern.NONE;
             case 2 -> UnmappedFieldsPattern.includes(List.of("first*", "given*"))
@@ -43,6 +44,7 @@ public class UnmappedFieldsPatternTests extends AbstractNamedWriteableTestCase<U
                 .withAdditionalExcludes(List.of("secret*", "emp_no"));
             case 3 -> UnmappedFieldsPattern.excludes(List.of(randomAlphaOfLength(4) + "*"));
             case 4 -> randomPattern();
+            case 5 -> UnmappedFieldsPattern.excludesSubtrees(Set.of(randomAlphaOfLength(4), randomAlphaOfLength(5) + ".nested"));
             default -> throw new AssertionError("unreachable");
         };
     }
@@ -147,6 +149,125 @@ public class UnmappedFieldsPatternTests extends AbstractNamedWriteableTestCase<U
         assertFalse(pattern.matches("samples*"));
         assertTrue(pattern.matches("samples.nested"));
         assertTrue(pattern.objectSubfieldsCouldMatch("samples"));
+    }
+
+    public void testExcludesSubtreesDropsEachPathAndEverythingBelowIt() {
+        UnmappedFieldsPattern pattern = UnmappedFieldsPattern.excludesSubtrees(Set.of("nested_punk", "obj.inner"));
+        assertFalse(pattern.matches("nested_punk"));
+        assertFalse(pattern.matches("nested_punk.subfield"));
+        assertFalse(pattern.matches("nested_punk.deep.leaf"));
+        assertFalse(pattern.matches("obj.inner"));
+        assertFalse(pattern.matches("obj.inner.leaf"));
+        assertTrue(pattern.matches("nested_punk_sibling"));
+        assertTrue(pattern.matches("nested_punkx.leaf"));
+        assertTrue(pattern.matches("obj"));
+        assertTrue(pattern.matches("obj.other"));
+        assertTrue(pattern.matches("obj.innerx"));
+    }
+
+    public void testExcludesSubtreesPrunesOnlyTheExcludedObjectAtTheDataNode() {
+        UnmappedFieldsPattern pattern = UnmappedFieldsPattern.excludesSubtrees(Set.of("nested_punk", "obj.inner"));
+        assertFalse(pattern.objectSubfieldsCouldMatch("nested_punk"));
+        assertTrue(pattern.objectSubfieldsCouldMatch("nested_punk_sibling"));
+        assertTrue(pattern.objectSubfieldsCouldMatch("obj"));
+    }
+
+    public void testExcludesSubtreesKeepsOnlyTheOutermostPaths() {
+        UnmappedFieldsPattern outer = UnmappedFieldsPattern.excludesSubtrees(Set.of("a"));
+        assertEquals(outer, UnmappedFieldsPattern.excludesSubtrees(Set.of("a", "a.b", "a.b.c")));
+        assertNotEquals(outer, UnmappedFieldsPattern.excludesSubtrees(Set.of("a", "ab")));
+        assertNotEquals(outer, UnmappedFieldsPattern.excludesSubtrees(Set.of("a", "b.a")));
+    }
+
+    public void testExcludesSubtreesOfNoPathIsAll() {
+        assertSame(UnmappedFieldsPattern.ALL, UnmappedFieldsPattern.excludesSubtrees(Set.of()));
+    }
+
+    public void testExcludesSubtreesTakesGlobCharactersInPathsLiterally() {
+        UnmappedFieldsPattern pattern = UnmappedFieldsPattern.excludesSubtrees(Set.of("we*rd", "back\\slash"));
+        assertFalse(pattern.matches("we*rd.leaf"));
+        assertTrue(pattern.matches("weXrd.leaf"));
+        assertFalse(pattern.matches("back\\slash.leaf"));
+        assertFalse(pattern.objectSubfieldsCouldMatch("we*rd"));
+        assertTrue(pattern.objectSubfieldsCouldMatch("weXrd"));
+        assertFalse(pattern.objectSubfieldsCouldMatch("back\\slash"));
+    }
+
+    public void testExcludedSubtreesSurviveIntersectAndUnionWithTheSameExclusion() {
+        UnmappedFieldsPattern nested = UnmappedFieldsPattern.excludesSubtrees(Set.of("nested_punk"));
+        UnmappedFieldsPattern keep = UnmappedFieldsPattern.includes(List.of("nested_punk.*", "other*")).intersect(nested);
+        assertFalse(keep.matches("nested_punk.subfield"));
+        assertTrue(keep.matches("other_field"));
+        assertFalse(keep.objectSubfieldsCouldMatch("nested_punk"));
+
+        UnmappedFieldsPattern union = keep.union(UnmappedFieldsPattern.ALL.intersect(nested));
+        assertFalse(union.matches("nested_punk.subfield"));
+        assertFalse(union.objectSubfieldsCouldMatch("nested_punk"));
+        assertTrue(UnmappedFieldsPattern.ALL.union(nested).matches("nested_punk.subfield"));
+    }
+
+    public void testExactAndChildGlobExcludeOfTheSameNamePruneItsObject() {
+        UnmappedFieldsPattern childGlob = UnmappedFieldsPattern.excludes(List.of("unmapped.*"));
+        assertTrue(childGlob.objectSubfieldsCouldMatch("unmapped"));
+        assertFalse(childGlob.withAdditionalExcludes(List.of("unmapped")).objectSubfieldsCouldMatch("unmapped"));
+    }
+
+    public void testExcludedSubtreesSurviveSerialization() throws IOException {
+        UnmappedFieldsPattern nested = UnmappedFieldsPattern.excludesSubtrees(Set.of("nested_punk"));
+        UnmappedFieldsPattern copy = copyInstance(nested, TransportVersion.current());
+        assertFalse(copy.objectSubfieldsCouldMatch("nested_punk"));
+        assertFalse(copy.matches("nested_punk.subfield"));
+        assertTrue(copy.excludesSubtree("nested_punk"));
+    }
+
+    public void testExcludesSubtreeHoldsAtAndBelowTheExcludedPathOnly() {
+        UnmappedFieldsPattern pattern = UnmappedFieldsPattern.excludesSubtrees(Set.of("obj.inner"));
+        assertTrue(pattern.excludesSubtree("obj.inner"));
+        assertTrue(pattern.excludesSubtree("obj.inner.leaf"));
+        assertTrue(pattern.excludesSubtree("obj.inner.deep.leaf"));
+        assertFalse(pattern.excludesSubtree("obj"));
+        assertFalse(pattern.excludesSubtree("obj.innerx"));
+        assertFalse(pattern.excludesSubtree("obj.innerx.leaf"));
+        assertFalse(UnmappedFieldsPattern.excludes(List.of("obj.inner.*")).excludesSubtree("obj.inner.leaf"));
+        assertFalse(UnmappedFieldsPattern.ALL.excludesSubtree("obj.inner"));
+    }
+
+    public void testExcludesEverythingOnceAGroupOnlyReachesInsideExcludedSubtrees() {
+        UnmappedFieldsPattern nested = UnmappedFieldsPattern.excludesSubtrees(Set.of("nested_punk"));
+        assertTrue(UnmappedFieldsPattern.NONE.excludesEverything());
+        assertFalse(UnmappedFieldsPattern.ALL.excludesEverything());
+        assertFalse(nested.excludesEverything());
+        assertTrue(
+            UnmappedFieldsPattern.includes(List.of("nested_punk.*", "nested_punk.sub*", "nested_punk"))
+                .intersect(nested)
+                .excludesEverything()
+        );
+        assertTrue(
+            UnmappedFieldsPattern.includes(List.of("other*"))
+                .intersect(UnmappedFieldsPattern.includes(List.of("nested_punk.*")))
+                .intersect(nested)
+                .excludesEverything()
+        );
+        assertFalse(UnmappedFieldsPattern.includes(List.of("nested_punk*")).intersect(nested).excludesEverything());
+        assertFalse(UnmappedFieldsPattern.includes(List.of("nested_punk.*", "other*")).intersect(nested).excludesEverything());
+    }
+
+    public void testAPatternThatExcludesEverythingMatchesNoName() {
+        int excludingEverything = 0;
+        for (int i = 0; i < 500; i++) {
+            String root = randomFrom("a", "a.b");
+            List<String> group = randomList(1, 2, () -> randomFrom("", "a", "a.", "a.b", "a.b.", "b.") + randomGlob(true));
+            UnmappedFieldsPattern pattern = UnmappedFieldsPattern.includes(group)
+                .intersect(UnmappedFieldsPattern.excludesSubtrees(Set.of(root)));
+            if (pattern.excludesEverything()) {
+                excludingEverything++;
+                for (int j = 0; j < 20; j++) {
+                    String name = randomFrom("", root + ".") + randomName();
+                    assertFalse(pattern + " must match nothing, yet matches [" + name + "]", pattern.matches(name));
+                }
+            }
+        }
+        assertThat(excludingEverything, greaterThan(0));
     }
 
     public void testUnionOfRestrictiveKeepAndAllKeepsTheAllSide() {
@@ -269,9 +390,11 @@ public class UnmappedFieldsPatternTests extends AbstractNamedWriteableTestCase<U
                 if (pattern.matches(name)) {
                     matched++;
                     assertTrue(pattern + " must ship [" + name + "]", pattern.objectSubfieldsCouldMatch(name));
+                    assertFalse(pattern + " must not prune [" + name + "]", pattern.excludesSubtree(name));
                     for (int dot = name.indexOf('.'); dot >= 0; dot = name.indexOf('.', dot + 1)) {
                         String key = name.substring(0, dot);
                         assertTrue(pattern + " must ship [" + key + "] for [" + name + "]", pattern.objectSubfieldsCouldMatch(key));
+                        assertFalse(pattern + " must not prune [" + key + "] for [" + name + "]", pattern.excludesSubtree(key));
                     }
                 }
             }
@@ -317,7 +440,9 @@ public class UnmappedFieldsPatternTests extends AbstractNamedWriteableTestCase<U
             ? UnmappedFieldsPattern.ALL
             : UnmappedFieldsPattern.includes(List.of(randomGlob(true), randomGlob(true)))
                 .intersect(UnmappedFieldsPattern.includes(List.of(randomGlob(true))));
-        return includes.intersect(UnmappedFieldsPattern.excludes(List.of(randomGlob(true)))).withAdditionalExcludes(List.of(randomName()));
+        UnmappedFieldsPattern pattern = includes.intersect(UnmappedFieldsPattern.excludes(List.of(randomGlob(true))))
+            .withAdditionalExcludes(List.of(randomName()));
+        return randomBoolean() ? pattern : pattern.intersect(UnmappedFieldsPattern.excludesSubtrees(Set.of(randomName())));
     }
 
     private static String randomGlob(boolean withEscapes) {

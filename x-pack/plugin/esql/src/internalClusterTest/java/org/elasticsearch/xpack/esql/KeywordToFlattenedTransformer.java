@@ -472,7 +472,8 @@ public final class KeywordToFlattenedTransformer {
                 }
             }
             JsonNode nested = fieldObj.path("properties");
-            if (nested.isObject() && isFlattenedField(fieldObj) == false) {
+            // Values are wrapped only under a top-level key holding the full dotted path, so ones in a nested object's array stay bare.
+            if (nested.isObject() && isFlattenedField(fieldObj) == false && "nested".equals(fieldObj.path("type").asText()) == false) {
                 rewriteKeywords((ObjectNode) nested, fullPath, paths, excludedPaths, skipped);
             }
             // Multi-fields under "fields" are intentionally skipped here; if a keyword parent has

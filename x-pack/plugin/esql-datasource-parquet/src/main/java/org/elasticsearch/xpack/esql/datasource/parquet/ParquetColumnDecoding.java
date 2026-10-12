@@ -118,8 +118,9 @@ final class ParquetColumnDecoding {
             return true; // a format parse can fail per value
         }
         if (primitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT32) {
-            // The only INT32 datetime is an inferred DATE (days -> millis), which never nulls; a format arm is
-            // already handled above. So a no-format INT32 keeps its IS NULL pushdown.
+            // Every INT32 datetime decode is total (see DatetimeDecode): a DATE scales days to millis, and a uint32
+            // or TIME(MILLIS) declared `date` reinterprets the widened value as epoch millis. Neither nulls, and a
+            // format arm is already handled above, so a no-format INT32 keeps its IS NULL pushdown.
             return false;
         }
         if (primitiveType.getPrimitiveTypeName() != PrimitiveType.PrimitiveTypeName.INT64) {
@@ -458,6 +459,84 @@ final class ParquetColumnDecoding {
      */
     static long timeNanoMultiplier(LogicalTypeAnnotation.TimeLogicalTypeAnnotation time) {
         return time.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS ? 1_000L : 1L;
+    }
+
+    // ---- Datetime decode classification ----
+
+    /**
+     * Which arm decodes a column into a {@code datetime} block.
+     *
+     * <p>A {@code datetime} column reaches a decode loop either at the file's own type or through a coercion that
+     * {@link DeclaredTypeCoercions#fusedInDecode} folded into the loop, and the second case is why the arm cannot be
+     * read off the physical primitive name: the licensed pair is stated in ESQL types ({@code long -> datetime},
+     * {@code keyword -> datetime}) and several Parquet shapes reach the same pair through different physical types.
+     * An {@code INT32} is a day count only when the file says {@code DATE}; it renders ESQL {@code long} when it
+     * carries {@code UINT_32} or {@code TIME(MILLIS)}. A text column is {@code BINARY} or
+     * {@code FIXED_LEN_BYTE_ARRAY}, both of which render ESQL {@code keyword}.
+     *
+     * <p>Both decode engines classify here, so neither can key the choice on a different thing, and the resulting
+     * value equals what {@link DeclaredTypeCoercions#castBlock} produces over the column's inferred decode — the
+     * invariant the deferred late-materialization route relies on.
+     */
+    enum DatetimeDecode {
+        /** 12-byte {@code INT96}: Julian day plus nanos-of-day. */
+        INT96,
+        /** A text column: parse each value with the column's declared format. */
+        STRING_PARSE,
+        /** {@code INT32} carrying {@code DATE}: the value is a day count. */
+        DATE_DAYS,
+        /** An {@code INT32} rendering ESQL {@code long}: the value is epoch millis. */
+        INT32_EPOCH_MILLIS,
+        /** An {@code INT64}: the annotation's own unit normalization, then epoch millis. */
+        INT64_EPOCH_MILLIS
+    }
+
+    /** Classifies {@code info}'s {@code datetime} decode; see {@link DatetimeDecode}. */
+    static DatetimeDecode datetimeDecodeFor(ColumnInfo info) {
+        if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT96) {
+            return DatetimeDecode.INT96;
+        }
+        DataType fileType = info.fileEsqlType() == null ? info.esqlType() : info.fileEsqlType();
+        if (DataType.isString(fileType)) {
+            return DatetimeDecode.STRING_PARSE;
+        }
+        boolean int32 = info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32;
+        // The physical half of the test is load-bearing, not belt-and-braces: DATE_DAYS reads with the 32-bit
+        // accessor, and DATE is only a legal annotation on an INT32. An illegal DATE on an INT64 stays on the
+        // 64-bit arm rather than being read at the wrong width.
+        if (int32 && info.logicalType() instanceof LogicalTypeAnnotation.DateLogicalTypeAnnotation) {
+            return DatetimeDecode.DATE_DAYS;
+        }
+        return int32 ? DatetimeDecode.INT32_EPOCH_MILLIS : DatetimeDecode.INT64_EPOCH_MILLIS;
+    }
+
+    /**
+     * The value the inferred ESQL {@code long} read of an {@code INT32} column produces, which widens {@code uint32}
+     * rather than sign-extending it. A declared {@code datetime} reinterprets that number as epoch millis, but the
+     * reinterpretation belongs to the caller: on a {@code TIME(MILLIS)} column this returns a millisecond-of-day.
+     *
+     * <p>No bit-width check is needed. Of the INT-annotated shapes, only {@code intType(32, false)} renders
+     * {@code long} from an {@code INT32} -- {@code TIME(MILLIS)} renders it too, which is the case named above, and
+     * carries no {@code IntLogicalTypeAnnotation} to widen. A {@code uint8} or {@code uint16} renders {@code integer},
+     * which is not a fused {@code datetime} pair and never reaches this method -- and would widen identically anyway,
+     * both maxima fitting the positive int range.
+     */
+    static long int32AsInferredLong(int raw, @Nullable LogicalTypeAnnotation logical) {
+        return logical instanceof LogicalTypeAnnotation.IntLogicalTypeAnnotation intLogical && intLogical.isSigned() == false
+            ? Integer.toUnsignedLong(raw)
+            : raw;
+    }
+
+    /**
+     * The value the inferred read of an {@code INT64} column produces: a {@code TIMESTAMP} annotation's unit narrowed
+     * to millis, a {@code TIME} annotation's unit normalized the way the inferred {@code long} read normalizes it,
+     * and a bare {@code INT64} unchanged. As with {@link #int32AsInferredLong}, reinterpreting the result as an epoch
+     * is the caller's step -- on a {@code TIME} column this returns a nanosecond-of-day.
+     */
+    static long int64AsInferredLong(long raw, @Nullable LogicalTypeAnnotation logical) {
+        return logical instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time
+            ? raw * timeNanoMultiplier(time)
+            : convertTimestampToMillis(raw, logical);
     }
 
     // ---- Unsigned integer logical-type checks ----
@@ -1311,16 +1390,31 @@ final class ParquetColumnDecoding {
         @Nullable IntConsumer failedPositionSink,
         NullElementTally tally
     ) {
-        // Declared string->datetime coercion for LIST<string> columns: parse each element via the shared
-        // scalar with the column's declared format (ISO default), mirroring the flat decode paths. A parse
-        // failure follows castBlock's multi-value rule (the element is removed, or the failure propagates when
-        // strict).
-        if (info.parquetType() == PrimitiveType.PrimitiveTypeName.BINARY) {
+        // The element's decode is classified exactly as a flat column's (see DatetimeDecode), so a LIST and a
+        // scalar of the same physical shape read the same way. Keying it on the physical name alone handed every
+        // element that was not a bare INT64 -- a DATE's day count, a uint32, a TIME, an INT96, fixed-width text --
+        // to getLong(), which the column reader does not implement for those types.
+        DatetimeDecode decode = datetimeDecodeFor(info);
+        if (decode == DatetimeDecode.STRING_PARSE) {
+            // Declared string->datetime coercion for LIST<string> columns: parse each element via the shared
+            // scalar with the column's declared format (ISO default), mirroring the flat decode paths. A parse
+            // failure follows castBlock's multi-value rule (the element is removed, or the failure propagates when
+            // strict).
             return readListStringDatetimeColumn(input, info, rows, blockFactory, columnName, warnings, failedPositionSink, tally);
         }
         try (var builder = blockFactory.newLongBlockBuilder(rows)) {
             int maxDef = info.maxDefLevel();
-            Runnable appender = () -> builder.appendLong(convertTimestampToMillis(input.reader().getLong(), info.logicalType()));
+            LogicalTypeAnnotation logical = info.logicalType();
+            Runnable appender = switch (decode) {
+                case DATE_DAYS -> () -> builder.appendLong(dateDaysToMillis(input.reader().getInteger()));
+                case INT32_EPOCH_MILLIS -> () -> builder.appendLong(int32AsInferredLong(input.reader().getInteger(), logical));
+                case INT64_EPOCH_MILLIS -> () -> builder.appendLong(int64AsInferredLong(input.reader().getLong(), logical));
+                case INT96 -> () -> {
+                    byte[] bytes = input.reader().getBinary().getBytes();
+                    builder.appendLong(int96ToEpochMillis(bytes, 0, bytes.length));
+                };
+                case STRING_PARSE -> throw new AssertionError("handled before the loop: " + decode);
+            };
             for (int row = 0; row < rows; row++) {
                 readListRow(input, maxDef, builder, appender, tally);
             }

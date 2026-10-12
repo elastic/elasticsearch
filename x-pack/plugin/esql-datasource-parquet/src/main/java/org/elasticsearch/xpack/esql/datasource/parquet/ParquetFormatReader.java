@@ -4650,16 +4650,15 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             String columnName,
             @Nullable IntConsumer failedPositionSink
         ) {
-            if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT96) {
+            ParquetColumnDecoding.DatetimeDecode decode = ParquetColumnDecoding.datetimeDecodeFor(info);
+            if (decode == ParquetColumnDecoding.DatetimeDecode.INT96) {
                 return readInt96TimestampColumn(cr, info.maxDefLevel(), rows);
             }
-            boolean isDate = info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32;
-            // Declared string->datetime coercion: a BINARY string column whose planner attribute is datetime parses
-            // each value with the column's declared format (ISO default) via the shared scalar. Physical INT64 with no
-            // timestamp annotation lands in the raw getLong() arm below - the epoch-millis reinterpret. A parse
-            // failure follows the read's error policy through the shared onCoercionFailure chokepoint: fail_fast
-            // propagates, anything else nulls the cell + warns — the same per-cell outcome as castBlock.
-            boolean isStringCoercion = info.parquetType() == PrimitiveType.PrimitiveTypeName.BINARY;
+            // Declared string->datetime coercion: a text column whose planner attribute is datetime parses each value
+            // with the column's declared format (ISO default) via the shared scalar. A parse failure follows the read's
+            // error policy through the shared onCoercionFailure chokepoint: fail_fast propagates, anything else nulls
+            // the cell + warns — the same per-cell outcome as castBlock.
+            boolean isStringCoercion = decode == ParquetColumnDecoding.DatetimeDecode.STRING_PARSE;
             boolean skipRow = failedPositionSink != null;
             long[] values = UninitializedArrays.newLongArray(rows);
             BitSet isNull = info.maxDefLevel() > 0 || isStringCoercion ? new BitSet(rows) : null;
@@ -4677,10 +4676,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                         isNull.set(i);
                         noNulls = false;
                     }
-                } else if (isDate) {
-                    values[i] = ParquetColumnDecoding.dateDaysToMillis(cr.getInteger());
                 } else {
-                    values[i] = ParquetColumnDecoding.convertTimestampToMillis(cr.getLong(), info.logicalType());
+                    values[i] = switch (decode) {
+                        case DATE_DAYS -> ParquetColumnDecoding.dateDaysToMillis(cr.getInteger());
+                        case INT32_EPOCH_MILLIS -> ParquetColumnDecoding.int32AsInferredLong(cr.getInteger(), info.logicalType());
+                        case INT64_EPOCH_MILLIS -> ParquetColumnDecoding.int64AsInferredLong(cr.getLong(), info.logicalType());
+                        case INT96, STRING_PARSE -> throw new AssertionError("handled before the loop: " + decode);
+                    };
                 }
                 cr.consume();
             }

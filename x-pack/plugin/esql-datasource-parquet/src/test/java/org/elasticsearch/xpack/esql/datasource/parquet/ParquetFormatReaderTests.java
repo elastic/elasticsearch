@@ -62,6 +62,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -80,6 +81,7 @@ import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -5885,6 +5887,259 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * A declared {@code datetime} over a physical INT32 column that is NOT a {@code DATE} is an epoch-millis
+     * reinterpret, not a day count. {@code uint32} ({@code INT32} + {@code intType(32, false)}) renders as ESQL
+     * {@code LONG}, so declaring {@code date} selects the fused {@code LONG -> DATETIME} arm, whose documented
+     * semantic is "the number IS epoch millis" -- the same answer a bare {@code INT64} gives eagerly and the same
+     * answer {@code castBlock} gives on the deferred route. Keying the day-scaling on the physical type instead of
+     * on the {@code DATE} annotation multiplied this by 86_400_000.
+     */
+    public void testUnsignedInt32DeclaredDatetimeReadsEpochMillis() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .as(LogicalTypeAnnotation.intType(32, false))
+            .named("ts")
+            .named("test_schema");
+        // The second value is above Integer.MAX_VALUE, so the case pins the unsigned widening as well as the
+        // absent day-scaling: reading it with a signed getInteger() lands it before the epoch.
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group low = factory.newGroup();
+            low.add("ts", 1000);
+            Group high = factory.newGroup();
+            high.add("ts", (int) 4_000_000_000L);
+            return List.of(low, high);
+        });
+        assertDeclaredDatetimeReads(parquetData, "ts", 1000L, 4_000_000_000L);
+    }
+
+    /**
+     * The same keying defect on the other INT32 annotation that renders as {@code LONG}: {@code TIME(MILLIS)} is a
+     * raw millisecond-of-day value which the inferred read widens unchanged, so a declared {@code date} reads it as
+     * epoch millis rather than as a day count.
+     */
+    public void testTimeMillisDeclaredDatetimeReadsEpochMillis() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+            .named("ts")
+            .named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.add("ts", 37_230_000); // 10:20:30.000
+            return List.of(g);
+        });
+        assertDeclaredDatetimeReads(parquetData, "ts", 37_230_000L);
+    }
+
+    /**
+     * An INT32 {@code DATE} column keeps the day-count scaling: this is the one INT32 shape whose values ARE days,
+     * and it reaches the same arm by inferring {@code DATETIME} outright. Pinned alongside the two cases above so a
+     * fix that keys on the annotation cannot be written by deleting the scaling.
+     */
+    public void testDateAnnotatedInt32ReadsDaysAsMillis() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .as(LogicalTypeAnnotation.dateType())
+            .named("ts")
+            .named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.add("ts", 19_723); // 2024-01-01
+            return List.of(g);
+        });
+        assertDeclaredDatetimeReads(parquetData, "ts", 19_723L * 86_400_000L);
+    }
+
+    /**
+     * A FIXED_LEN_BYTE_ARRAY column declared {@code date} parses its text, exactly as a BINARY one does. An
+     * un-annotated fixed-width byte array renders as ESQL {@code KEYWORD} just as un-annotated BINARY does (the
+     * {@code STRING} annotation is not legal on the fixed-width type, so this is how a fixed-width text column
+     * arrives), so both select the same fused {@code KEYWORD -> DATETIME} arm; keying the string parse on
+     * {@code BINARY} alone sent this one to the 64-bit integer reader.
+     */
+    public void testFixedLenByteArrayDeclaredDatetimeParsesText() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY)
+            .length(20)
+            .named("ts")
+            .named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.add("ts", Binary.fromString("2024-01-01T00:00:00Z"));
+            return List.of(g);
+        });
+        assertDeclaredDatetimeReads(parquetData, "ts", 1_704_067_200_000L);
+    }
+
+    /**
+     * A LIST column decodes its elements through the same classification as a flat one. {@code LIST<uint32>} declared
+     * {@code date} is an epoch-millis reinterpret of each widened element, not a day count and not a sign-extension.
+     */
+    public void testDeclaredDatetimeOverListOfUnsignedInt32ReadsEpochMillis() throws Exception {
+        MessageType schema = new MessageType(
+            "test_schema",
+            Types.optionalList()
+                .optionalElement(PrimitiveType.PrimitiveTypeName.INT32)
+                .as(LogicalTypeAnnotation.intType(32, false))
+                .named("ts")
+        );
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            Group list = g.addGroup("ts");
+            list.addGroup("list").append("element", 1000);
+            list.addGroup("list").append("element", (int) 4_000_000_000L);
+            return List.of(g);
+        });
+        assertListDatetimeReads(parquetData, "ts", true, 1000L, 4_000_000_000L);
+    }
+
+    /**
+     * The control for the LIST arms, and a defect of its own: a {@code LIST<DATE>} column needs no declaration at all
+     * -- its elements render {@code datetime} from the file -- so its day counts must be scaled to millis exactly as a
+     * flat {@code DATE} column's are. Before this change the list arm had no decode for them at all and threw
+     * {@code UnsupportedOperationException}, which is what reverting the decode makes this test do again.
+     */
+    public void testDatetimeOverListOfDateDaysScalesToMillis() throws Exception {
+        MessageType schema = new MessageType(
+            "test_schema",
+            Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.INT32).as(LogicalTypeAnnotation.dateType()).named("ts")
+        );
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            Group list = g.addGroup("ts");
+            list.addGroup("list").append("element", 19_723); // 2024-01-01
+            list.addGroup("list").append("element", 0);
+            return List.of(g);
+        });
+        assertListDatetimeReads(parquetData, "ts", false, 19_723L * 86_400_000L, 0L);
+    }
+
+    /** {@code LIST<FIXED_LEN_BYTE_ARRAY>} declared {@code date} parses each element's text, as the BINARY list does. */
+    public void testDeclaredDatetimeOverListOfFixedLenByteArrayParsesText() throws Exception {
+        MessageType schema = new MessageType(
+            "test_schema",
+            Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY).length(20).named("ts")
+        );
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            Group list = g.addGroup("ts");
+            list.addGroup("list").append("element", Binary.fromString("2024-01-01T00:00:00Z"));
+            list.addGroup("list").append("element", Binary.fromString("2000-10-10T20:55:36Z"));
+            return List.of(g);
+        });
+        assertListDatetimeReads(parquetData, "ts", true, 1_704_067_200_000L, 971_211_336_000L);
+    }
+
+    /** {@code LIST<INT96>} renders {@code datetime} from the file, so its elements decode like a flat INT96 column's. */
+    public void testDatetimeOverListOfInt96ReadsEpochMillis() throws Exception {
+        MessageType schema = new MessageType(
+            "test_schema",
+            Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.INT96).named("ts")
+        );
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            Group list = g.addGroup("ts");
+            list.addGroup("list").append("element", new NanoTime(2_451_545, 43_200_000_000_000L)); // 2000-01-01T12:00:00Z
+            return List.of(g);
+        });
+        assertListDatetimeReads(parquetData, "ts", false, 946_728_000_000L);
+    }
+
+    /**
+     * Reads a one-row LIST {@code column} as {@code datetime} through both decode engines and asserts the row's
+     * elements are {@code expectedMillis}. {@code declared} selects whether the column's {@code datetime} type comes
+     * from a declaration or from the file itself, which decides whether a coercion runs at all.
+     */
+    private void assertListDatetimeReads(byte[] parquetData, String column, boolean declared, long... expectedMillis) throws Exception {
+        StorageObject storageObject = createStorageObject(parquetData);
+        List<Attribute> asDatetime = List.of(new ReferenceAttribute(Source.EMPTY, column, DataType.DATETIME));
+        for (boolean optimized : List.of(true, false)) {
+            ParquetFormatReader base = new ParquetFormatReader(blockFactory, optimized);
+            ParquetFormatReader r = declared ? (ParquetFormatReader) base.withDeclaredTypeColumns(Set.of(column)) : base;
+            try (
+                CloseableIterator<Page> it = r.readRange(
+                    storageObject,
+                    new RangeReadContext(List.of(column), 10, 0, parquetData.length, asDatetime, ErrorPolicy.STRICT)
+                )
+            ) {
+                LongBlock l = (LongBlock) it.next().getBlock(0);
+                String where = "optimized=" + optimized;
+                assertEquals(where, 1, l.getPositionCount());
+                assertEquals(where + " element count", expectedMillis.length, l.getValueCount(0));
+                int first = l.getFirstValueIndex(0);
+                for (int i = 0; i < expectedMillis.length; i++) {
+                    assertEquals(where + " element " + i, expectedMillis[i], l.getLong(first + i));
+                }
+            }
+        }
+    }
+
+    /**
+     * Reads {@code column} as a declared {@code datetime} through every decode route a query can take -- the
+     * optimized page reader (production), the baseline iterator, and the deferred late-materialization extractor --
+     * and asserts all three produce {@code expectedMillis}. The routes are separate implementations of the same
+     * coercion, so a per-route answer is a wrong answer that depends on the query's plan shape; the extractor is the
+     * one that decodes at the file's own type and coerces through {@code castBlock}, which is the oracle the fused
+     * arms are written against.
+     */
+    private void assertDeclaredDatetimeReads(byte[] parquetData, String column, long... expectedMillis) throws Exception {
+        StorageObject storageObject = createStorageObject(parquetData);
+        List<Attribute> asDatetime = List.of(new ReferenceAttribute(Source.EMPTY, column, DataType.DATETIME));
+        for (boolean optimized : List.of(true, false)) {
+            ParquetFormatReader r = (ParquetFormatReader) new ParquetFormatReader(blockFactory, optimized).withDeclaredTypeColumns(
+                Set.of(column)
+            );
+            try (
+                CloseableIterator<Page> it = r.readRange(
+                    storageObject,
+                    new RangeReadContext(List.of(column), 10, 0, parquetData.length, asDatetime, ErrorPolicy.STRICT)
+                )
+            ) {
+                LongBlock l = (LongBlock) it.next().getBlock(0);
+                assertEquals("optimized=" + optimized, expectedMillis.length, l.getPositionCount());
+                for (int i = 0; i < expectedMillis.length; i++) {
+                    assertEquals("optimized=" + optimized + " position " + i, expectedMillis[i], l.getLong(i));
+                }
+            }
+        }
+        assertDeferredDatetimeReads(parquetData, storageObject, column, expectedMillis);
+    }
+
+    /** The deferred late-materialization route of {@link #assertDeclaredDatetimeReads}: decode at the file's type, coerce. */
+    private void assertDeferredDatetimeReads(byte[] parquetData, StorageObject storageObject, String column, long... expectedMillis)
+        throws Exception {
+        ParquetFormatReader reader = (ParquetFormatReader) new ParquetFormatReader(blockFactory).withDeclaredTypeColumns(Set.of(column));
+        long[] positions = new long[expectedMillis.length];
+        for (int i = 0; i < positions.length; i++) {
+            positions[i] = i;
+        }
+        try (ColumnExtractor extractor = new ParquetColumnExtractor(storageObject, reader, footerOf(storageObject), ErrorPolicy.STRICT)) {
+            Block[] blocks = extractor.extract(new String[] { column }, new DataType[] { DataType.DATETIME }, positions, blockFactory);
+            try {
+                LongBlock l = (LongBlock) blocks[0];
+                assertEquals("deferred", expectedMillis.length, l.getPositionCount());
+                for (int i = 0; i < expectedMillis.length; i++) {
+                    assertEquals("deferred position " + i, expectedMillis[i], l.getLong(i));
+                }
+            } finally {
+                Releasables.close(blocks);
+            }
+        }
+    }
+
+    /** The file's footer, for the extractor routes that take one directly. */
+    private ParquetMetadata footerOf(StorageObject storageObject) throws IOException {
+        try (
+            ParquetFileReader fr = ParquetFileReader.open(
+                new ParquetStorageObjectAdapter(storageObject, footerByteCache, blockFactory.breaker()),
+                PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build()
+            )
+        ) {
+            return fr.getFooter();
+        }
+    }
+
     /** A physical DOUBLE column read as declared {@code double} preserves non-finite IEEE values (NaN/Infinity). */
     public void testDoubleFileNonFiniteValuesPassThroughDeclared() throws Exception {
         MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.DOUBLE).named("d").named("test_schema");
@@ -7133,12 +7388,182 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * Guard: every {@code DeclaredTypeCoercions.fusedInDecode} pair must decode NATIVELY in this
-     * reader — a fused pair is never routed through {@code castBlock}, so a pair wired into only
-     * one reader's decode loops would silent-null (or garbage-decode) in the other. Enumerates
-     * the fused matrix mechanically; a NEW fused pair without a mapping here fails loudly so its
-     * author must wire the native arm (in BOTH readers — the ORC suite carries the twin of this
-     * guard) and extend the mapping.
+     * One physical Parquet shape that renders a given ESQL type, with the value each fused target must produce from it.
+     *
+     * @param expected keyed by the declared target type; a fused target with no entry fails the guard rather than
+     *                 being skipped silently
+     */
+    private record FusedShape(String label, MessageType schema, BiConsumer<Group, String> writer, Map<DataType, Object> expected) {}
+
+    /**
+     * The physical shapes that render {@code from}, for the fused-pair guard below. A {@code from} type is reachable
+     * through more than one Parquet primitive and annotation, which is the axis a single representative shape per type
+     * cannot see.
+     * <p>
+     * This list is hand-written, and nothing derives it from {@code ParquetFormatReader.convertParquetTypeToEsql}: a
+     * NEW {@code from} type with no entry here fails on the {@code default} arm below, but a new physical SHAPE for a
+     * type already listed goes unnoticed. The one shape knowingly left out is {@code FIXED_LEN_BYTE_ARRAY(16)}
+     * annotated {@code UUID}, which also renders KEYWORD. Both engines refuse it as a datetime and warn, so the value
+     * is the same either way, but the warning quotes different text: the optimized engine formats the 16 bytes as a
+     * hex UUID before parsing, the baseline arm parses them as UTF-8. Pinning that here would pin the divergence
+     * rather than the contract.
+     */
+    private static List<FusedShape> fusedShapesFor(DataType from) {
+        String isoText = "2000-10-10T20:55:36Z"; // 20 chars, so the fixed-width shape below holds it exactly
+        long isoMillis = 971211336000L;
+        return switch (from) {
+            case INTEGER -> List.of(
+                new FusedShape(
+                    "INT32",
+                    Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT32).named("x").named("test_schema"),
+                    (g, col) -> g.add(col, 41),
+                    Map.of(DataType.LONG, 41L)
+                ),
+                // An INT32 annotation that is not uint32, DATE, TIME or DECIMAL also renders INTEGER (DECIMAL renders DOUBLE)
+                new FusedShape(
+                    "INT32 INT_16",
+                    Types.buildMessage()
+                        .required(PrimitiveType.PrimitiveTypeName.INT32)
+                        .as(LogicalTypeAnnotation.intType(16, true))
+                        .named("x")
+                        .named("test_schema"),
+                    (g, col) -> g.add(col, 41),
+                    Map.of(DataType.LONG, 41L)
+                )
+            );
+            case LONG -> List.of(
+                new FusedShape(
+                    "INT64",
+                    Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("x").named("test_schema"),
+                    (g, col) -> g.add(col, isoMillis),
+                    Map.of(DataType.DATETIME, isoMillis)
+                ),
+                // uint32 renders LONG because an unsigned 32-bit value can exceed Integer.MAX_VALUE
+                new FusedShape(
+                    "INT32 UINT_32",
+                    Types.buildMessage()
+                        .required(PrimitiveType.PrimitiveTypeName.INT32)
+                        .as(LogicalTypeAnnotation.intType(32, false))
+                        .named("x")
+                        .named("test_schema"),
+                    (g, col) -> g.add(col, 1000),
+                    Map.of(DataType.DATETIME, 1000L)
+                ),
+                // TIME(MILLIS) is a raw millisecond-of-day value the inferred read widens unchanged
+                new FusedShape(
+                    "INT32 TIME(MILLIS)",
+                    Types.buildMessage()
+                        .required(PrimitiveType.PrimitiveTypeName.INT32)
+                        .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+                        .named("x")
+                        .named("test_schema"),
+                    (g, col) -> g.add(col, 37_230_000),
+                    Map.of(DataType.DATETIME, 37_230_000L)
+                ),
+                // TIME(MICROS) renders LONG through the inferred read's own x1000 normalization to nanos-of-day
+                new FusedShape(
+                    "INT64 TIME(MICROS)",
+                    Types.buildMessage()
+                        .required(PrimitiveType.PrimitiveTypeName.INT64)
+                        .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+                        .named("x")
+                        .named("test_schema"),
+                    (g, col) -> g.add(col, 1_000L),
+                    Map.of(DataType.DATETIME, 1_000_000L)
+                ),
+                // TIME(NANOS) is already nanos-of-day, so the inferred read passes it through
+                new FusedShape(
+                    "INT64 TIME(NANOS)",
+                    Types.buildMessage()
+                        .required(PrimitiveType.PrimitiveTypeName.INT64)
+                        .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
+                        .named("x")
+                        .named("test_schema"),
+                    (g, col) -> g.add(col, 1_000L),
+                    Map.of(DataType.DATETIME, 1_000L)
+                ),
+                // A signed 64-bit annotation is the identity on the value, and the shape whose normalizing loop the
+                // optimized engine used to skip
+                new FusedShape(
+                    "INT64 INT_64",
+                    Types.buildMessage()
+                        .required(PrimitiveType.PrimitiveTypeName.INT64)
+                        .as(LogicalTypeAnnotation.intType(64, true))
+                        .named("x")
+                        .named("test_schema"),
+                    (g, col) -> g.add(col, isoMillis),
+                    Map.of(DataType.DATETIME, isoMillis)
+                )
+            );
+            case KEYWORD -> List.of(
+                new FusedShape(
+                    "BINARY STRING",
+                    Types.buildMessage()
+                        .required(PrimitiveType.PrimitiveTypeName.BINARY)
+                        .as(LogicalTypeAnnotation.stringType())
+                        .named("x")
+                        .named("test_schema"),
+                    (g, col) -> g.add(col, isoText),
+                    Map.of(DataType.DATETIME, isoMillis, DataType.KEYWORD, new BytesRef(isoText), DataType.TEXT, new BytesRef(isoText))
+                ),
+                new FusedShape(
+                    "BINARY ENUM",
+                    Types.buildMessage()
+                        .required(PrimitiveType.PrimitiveTypeName.BINARY)
+                        .as(LogicalTypeAnnotation.enumType())
+                        .named("x")
+                        .named("test_schema"),
+                    (g, col) -> g.add(col, isoText),
+                    Map.of(DataType.DATETIME, isoMillis, DataType.KEYWORD, new BytesRef(isoText), DataType.TEXT, new BytesRef(isoText))
+                ),
+                new FusedShape(
+                    "BINARY JSON",
+                    Types.buildMessage()
+                        .required(PrimitiveType.PrimitiveTypeName.BINARY)
+                        .as(LogicalTypeAnnotation.jsonType())
+                        .named("x")
+                        .named("test_schema"),
+                    (g, col) -> g.add(col, isoText),
+                    Map.of(DataType.DATETIME, isoMillis, DataType.KEYWORD, new BytesRef(isoText), DataType.TEXT, new BytesRef(isoText))
+                ),
+                // Legacy writers store text as un-annotated BINARY, which renders KEYWORD just the same
+                new FusedShape(
+                    "BINARY",
+                    Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.BINARY).named("x").named("test_schema"),
+                    (g, col) -> g.add(col, isoText),
+                    Map.of(DataType.DATETIME, isoMillis, DataType.KEYWORD, new BytesRef(isoText), DataType.TEXT, new BytesRef(isoText))
+                ),
+                // STRING cannot annotate the fixed-width type, so fixed-width text arrives un-annotated
+                new FusedShape(
+                    "FIXED_LEN_BYTE_ARRAY",
+                    Types.buildMessage()
+                        .required(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY)
+                        .length(isoText.length())
+                        .named("x")
+                        .named("test_schema"),
+                    (g, col) -> g.add(col, Binary.fromString(isoText)),
+                    Map.of(DataType.DATETIME, isoMillis, DataType.KEYWORD, new BytesRef(isoText), DataType.TEXT, new BytesRef(isoText))
+                )
+            );
+            default -> throw new AssertionError(
+                "fused source type "
+                    + from.typeName()
+                    + " has no physical-shape mapping; wire it into the parquet decode loops and this guard"
+            );
+        };
+    }
+
+    /**
+     * Guard: every {@code DeclaredTypeCoercions.fusedInDecode} pair must decode NATIVELY in this reader -- a fused pair
+     * is never routed through {@code castBlock}, so a pair wired into only one reader's decode loops would silent-null
+     * (or garbage-decode) in the other. It must do so for every PHYSICAL shape that renders the pair's {@code from}
+     * type: the predicate is keyed on ESQL types while the decode arms see Parquet primitives, and nothing else forces
+     * the two keyings to agree. Both decode engines are exercised, since each carries its own copy of the dispatch.
+     *
+     * <p>Enumerates the fused pairs mechanically, from {@code DataType.values()} crossed with itself, so a NEW fused
+     * pair fails loudly until its author wires the native arm (in BOTH readers -- the ORC suite carries the twin of
+     * this guard) and gives it a shape in {@link #fusedShapesFor}. The shapes themselves are enumerated by hand, with
+     * the consequences stated there.
      */
     public void testEveryFusedInDecodePairDecodesNatively() throws Exception {
         for (DataType from : DataType.values()) {
@@ -7149,61 +7574,40 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 if (from == DataType.TEXT) {
                     continue; // no parquet physical type maps to TEXT; the pair is unreachable from a file
                 }
-                MessageType schema;
-                BiConsumer<Group, String> writer;
-                switch (from) {
-                    case INTEGER -> {
-                        schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT32).named("x").named("test_schema");
-                        writer = (g, col) -> g.add(col, 41);
-                    }
-                    case LONG -> {
-                        schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("x").named("test_schema");
-                        writer = (g, col) -> g.add(col, 971211336000L);
-                    }
-                    case KEYWORD -> {
-                        schema = Types.buildMessage()
-                            .required(PrimitiveType.PrimitiveTypeName.BINARY)
-                            .as(LogicalTypeAnnotation.stringType())
-                            .named("x")
-                            .named("test_schema");
-                        writer = (g, col) -> g.add(col, to == DataType.DATETIME ? "2000-10-10T20:55:36Z" : "hello");
-                    }
-                    default -> throw new AssertionError(
-                        "fused pair "
-                            + from.typeName()
-                            + "->"
-                            + to.typeName()
-                            + " has no native-coverage mapping; wire it into the parquet decode loops and this guard"
-                    );
-                }
-                byte[] parquetData = createParquetFile(schema, factory -> {
-                    Group g = factory.newGroup();
-                    writer.accept(g, "x");
-                    return List.of(g);
-                });
-                List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", to));
-                StorageObject storageObject = createStorageObject(parquetData);
-                ParquetFormatReader r = declaredReader("x");
-                try (
-                    CloseableIterator<Page> it = r.readRange(
-                        storageObject,
-                        new RangeReadContext(List.of("x"), 10, 0, parquetData.length, plannerTypes, ErrorPolicy.STRICT)
-                    )
-                ) {
-                    Page page = it.next();
-                    String pair = from.typeName() + "->" + to.typeName();
-                    assertEquals(1, page.getPositionCount());
-                    assertFalse("fused pair " + pair + " must decode natively, not silent-null", page.getBlock(0).isNull(0));
-                    switch (to) {
-                        case LONG -> assertEquals(pair, 41L, ((LongBlock) page.getBlock(0)).getLong(0));
-                        // int64 source reinterprets the raw epoch millis; keyword source ISO-parses to the same instant
-                        case DATETIME -> assertEquals(pair, 971211336000L, ((LongBlock) page.getBlock(0)).getLong(0));
-                        case KEYWORD, TEXT -> assertEquals(
-                            pair,
-                            new BytesRef("hello"),
-                            ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef())
-                        );
-                        default -> throw new AssertionError("fused pair " + pair + " has no expected-value arm in this guard");
+                for (FusedShape shape : fusedShapesFor(from)) {
+                    String pair = from.typeName() + "->" + to.typeName() + " as " + shape.label();
+                    Object expected = shape.expected().get(to);
+                    assertNotNull("fused pair " + pair + " has no expected value in this guard", expected);
+                    byte[] parquetData = createParquetFile(shape.schema(), factory -> {
+                        Group g = factory.newGroup();
+                        shape.writer().accept(g, "x");
+                        return List.of(g);
+                    });
+                    List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", to));
+                    StorageObject storageObject = createStorageObject(parquetData);
+                    for (boolean optimized : List.of(true, false)) {
+                        ParquetFormatReader r = (ParquetFormatReader) new ParquetFormatReader(blockFactory, optimized)
+                            .withDeclaredTypeColumns(Set.of("x"));
+                        try (
+                            CloseableIterator<Page> it = r.readRange(
+                                storageObject,
+                                new RangeReadContext(List.of("x"), 10, 0, parquetData.length, plannerTypes, ErrorPolicy.STRICT)
+                            )
+                        ) {
+                            Page page = it.next();
+                            String where = pair + " (optimized=" + optimized + ")";
+                            assertEquals(where, 1, page.getPositionCount());
+                            assertFalse("fused pair " + where + " must decode natively, not silent-null", page.getBlock(0).isNull(0));
+                            switch (to) {
+                                case LONG, DATETIME -> assertEquals(where, expected, ((LongBlock) page.getBlock(0)).getLong(0));
+                                case KEYWORD, TEXT -> assertEquals(
+                                    where,
+                                    expected,
+                                    ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef())
+                                );
+                                default -> throw new AssertionError("fused pair " + where + " has no expected-value arm in this guard");
+                            }
+                        }
                     }
                 }
             }

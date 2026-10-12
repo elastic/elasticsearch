@@ -1711,10 +1711,11 @@ final class PageColumnReader implements Releasable {
     // --- Datetime ---
 
     private Block readDatetimeBatch(int maxRows, BlockFactory blockFactory) {
-        if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT96) {
+        ParquetColumnDecoding.DatetimeDecode decode = ParquetColumnDecoding.datetimeDecodeFor(info);
+        if (decode == ParquetColumnDecoding.DatetimeDecode.INT96) {
             return readInt96Batch(maxRows, blockFactory);
         }
-        if (info.parquetType() == PrimitiveType.PrimitiveTypeName.BINARY) {
+        if (decode == ParquetColumnDecoding.DatetimeDecode.STRING_PARSE) {
             // Declared string->datetime coercion: decode the column natively as bytes (dictionary and plain paths
             // both reused as-is), then parse each value with the column's declared format (ISO default) via the
             // shared scalar. An unparseable value follows the read's error policy through onCoercionFailure:
@@ -1733,14 +1734,13 @@ final class PageColumnReader implements Releasable {
                 bytes.close();
             }
         }
-        boolean isDate = info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32;
         long[] values = UninitializedArrays.newLongArray(maxRows);
         if (maxDefLevel == 0) {
             int produced = 0;
             int remaining = maxRows;
             while (remaining > 0 && ensurePage()) {
                 int fromPage = Math.min(remaining, availableInPage());
-                readDatetimeValues(values, produced, fromPage, isDate);
+                readDatetimeValues(values, produced, fromPage, decode);
                 advancePosition(fromPage);
                 produced += fromPage;
                 remaining -= fromPage;
@@ -1758,10 +1758,10 @@ final class PageColumnReader implements Releasable {
             int nonNull = defDecoder.readBatch(fromPage, nulls, produced);
             if (nonNull > 0) {
                 if (nonNull == fromPage) {
-                    readDatetimeValues(values, produced, nonNull, isDate);
+                    readDatetimeValues(values, produced, nonNull, decode);
                 } else {
                     long[] packed = UninitializedArrays.newLongArray(nonNull);
-                    readDatetimeValues(packed, 0, nonNull, isDate);
+                    readDatetimeValues(packed, 0, nonNull, decode);
                     scatter(packed, values, nulls, produced, fromPage);
                 }
             }
@@ -1783,21 +1783,31 @@ final class PageColumnReader implements Releasable {
         return blockFactory.newLongArrayBlock(values, produced, null, nulls.toBitSet(), Block.MvOrdering.UNORDERED);
     }
 
-    private void readDatetimeValues(long[] values, int offset, int count, boolean isDate) {
-        if (isDate) {
-            int[] intValues = buffers.ints(count);
-            readIntsDispatch(intValues, 0, count);
-            for (int i = 0; i < count; i++) {
-                values[offset + i] = ParquetColumnDecoding.dateDaysToMillis(intValues[i]);
-            }
-        } else {
-            readLongsDispatch(values, offset, count);
-            LogicalTypeAnnotation logicalType = info.logicalType();
-            if (logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) {
-                for (int i = 0; i < count; i++) {
-                    values[offset + i] = ParquetColumnDecoding.convertTimestampToMillis(values[offset + i], logicalType);
+    private void readDatetimeValues(long[] values, int offset, int count, ParquetColumnDecoding.DatetimeDecode decode) {
+        LogicalTypeAnnotation logicalType = info.logicalType();
+        // Switched rather than tested so a new DatetimeDecode constant breaks this engine's compilation too. Keying
+        // it on "anything that is not INT64" would read a new 64-bit case with the 32-bit accessor and say nothing.
+        switch (decode) {
+            case INT64_EPOCH_MILLIS -> {
+                readLongsDispatch(values, offset, count);
+                // A bare INT64 already holds epoch millis; only an annotated one needs normalizing.
+                if (logicalType != null) {
+                    for (int i = 0; i < count; i++) {
+                        values[offset + i] = ParquetColumnDecoding.int64AsInferredLong(values[offset + i], logicalType);
+                    }
                 }
             }
+            case DATE_DAYS, INT32_EPOCH_MILLIS -> {
+                int[] intValues = buffers.ints(count);
+                readIntsDispatch(intValues, 0, count);
+                boolean dateDays = decode == ParquetColumnDecoding.DatetimeDecode.DATE_DAYS;
+                for (int i = 0; i < count; i++) {
+                    values[offset + i] = dateDays
+                        ? ParquetColumnDecoding.dateDaysToMillis(intValues[i])
+                        : ParquetColumnDecoding.int32AsInferredLong(intValues[i], logicalType);
+                }
+            }
+            case INT96, STRING_PARSE -> throw new AssertionError("handled before the loop: " + decode);
         }
     }
 

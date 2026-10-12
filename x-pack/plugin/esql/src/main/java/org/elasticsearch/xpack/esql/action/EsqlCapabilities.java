@@ -4374,6 +4374,15 @@ public class EsqlCapabilities {
          */
         FIX_DERIVED_EXTERNAL_GROUPING_MULTIVALUE,
 
+        /**
+         * A Parquet column declared {@code date} is read as epoch milliseconds unless the file column itself carries
+         * the {@code DATE} annotation, whose values are day counts. Older nodes scaled every physical {@code INT32}
+         * by 86,400,000 -- so a {@code uint32} or {@code TIME(MILLIS)} column read as an instant hundreds of years
+         * out -- and read a fixed-width byte array's text as a 64-bit integer. Gates the csv-spec cases asserting the
+         * epoch-millis read, which such nodes still fail.
+         */
+        EXTERNAL_PARQUET_DECLARED_DATETIME_IS_EPOCH_MILLIS_UNLESS_DATE,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

@@ -58,8 +58,8 @@ id:long | name:keyword | pay:long
 10003   | "Parto"      | 61805
 ;
 
-// A declaration binds BY NAME even with no `path` on any column, on every format: binding is keyed on schema
-// provenance, not on whether a path was written (esql-planning#1307). The declaration is deliberately NOT in file
+// A declaration binds BY NAME even with no `rename_from` on any column, on every format: binding is keyed on schema
+// provenance, not on whether a rename was written (esql-planning#1307). The declaration is deliberately NOT in file
 // order -- the file leads with birth_date -- so binding by declaration POSITION would serve the wrong column's
 // values. It also pins that declared property order survives into the PUT body, since output order is declared
 // order.
@@ -77,7 +77,7 @@ first_name:keyword | emp_no:long
 "Parto"            | 10003
 ;
 
-// A declared `path` naming a DOTTED physical column, on every format. A dot is an ordinary character in a column
+// A declared `rename_from` naming a DOTTED physical column, on every format. A dot is an ordinary character in a column
 // name: a text header, a columnar footer and a JSON key all carry "languages.long" and "salary_change.keyword"
 // literally, so the declaration binds to each one directly. Neither prefix ("languages", "salary_change") is
 // declared, so the binding cannot lean on a sibling column being present. NDJSON is the discriminating format

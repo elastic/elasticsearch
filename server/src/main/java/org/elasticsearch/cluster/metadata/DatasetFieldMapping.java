@@ -130,8 +130,9 @@ public final class DatasetFieldMapping implements Writeable, ToXContentObject {
     }
 
     public DatasetFieldMapping(StreamInput in) throws IOException {
-        // Reached only under the dataset_declared_schema transport version (the whole DatasetMapping is gated),
-        // which is unreleased — so format ships in that one version with no separate gate.
+        // Reached only under the dataset_declared_schema transport version, which gates the whole DatasetMapping.
+        // The three slots are positional and have not changed since, so neither `format` nor the rename of `path` to
+        // `rename_from` needs a gate of its own: a node on either side reads the same slots in the same order.
         this.type = in.readString();
         this.renameFrom = in.readOptionalString();
         this.format = in.readOptionalString();

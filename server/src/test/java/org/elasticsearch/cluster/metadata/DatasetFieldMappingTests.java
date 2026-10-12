@@ -161,9 +161,10 @@ public class DatasetFieldMappingTests extends AbstractXContentSerializingTestCas
     }
 
     /**
-     * A mapping declared under the old spelling survives the wire unchanged. The stream form is positional and did
-     * not change with the rename, so a node that predates it reads the same three slots in the same order — this is
-     * the assertion behind the claim that the rename needs no transport version.
+     * A mapping declared under the old spelling survives the wire unchanged. This does NOT prove the rename needs no
+     * transport version — {@code copyInstance} serializes at {@link org.elasticsearch.TransportVersion#current()} on
+     * both ends, so it would pass even if a gate were required. That claim rests on the released stream form being
+     * positional and unchanged: three slots, same order, on either side of the rename.
      */
     public void testPathDeclaredMappingRoundTripsOverTheWire() throws IOException {
         DatasetFieldMapping viaOld;

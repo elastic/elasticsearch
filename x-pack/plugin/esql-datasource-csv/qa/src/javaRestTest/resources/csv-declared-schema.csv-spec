@@ -15,7 +15,7 @@
 // capability itself in AbstractExternalSourceSpecTestCase.
 //
 // employees_no_mv.csv has a TYPED, column-aligned header ("birth_date:date     ,emp_no:integer,...", 23
-// columns, 100 rows, emp_no 10001..10100). A declared `path` binds against the NAME HALF of that typed header
+// columns, 100 rows, emp_no 10001..10100). A declared `rename_from` binds against the NAME HALF of that typed header
 // ("emp_no:integer" -> "emp_no"), the same derivation the undeclared read uses, so a declaration names the same
 // physical column. Dataset names encode their options: the same name always carries the same declaration.
 //
@@ -24,7 +24,7 @@
 
 // A declaration and format settings must BOTH survive the split, so this case is discriminating on each
 // axis independently. header_row:false turns the typed header line into data row 0 and synthesizes
-// f0..f22 (column_prefix "f"), so `path: "f1"` names field 1, the emp_no column -- a headerless file's
+// f0..f22 (column_prefix "f"), so `rename_from: "f1"` names field 1, the emp_no column -- a headerless file's
 // column names ARE its positions, so the declaration self-binds without reading any header. Lose the
 // settings and the file is read WITH its header, f1 names nothing, and the column reads null; lose the
 // declaration and there is no `id` column at all.
@@ -35,6 +35,27 @@ required_capability: datasource_file_readers_no_text_type
 dataset: employees_declared_headerless: "{{employees_no_mv}}" WITH {"header_row": false, "column_prefix": "f", "mappings": {"dynamic": "false", "properties": {"id": {"type": "keyword", "rename_from": "f1"}}}}
 
 FROM employees_declared_headerless
+| KEEP id
+| LIMIT 2
+;
+
+id:keyword
+"emp_no:integer"
+"10001"
+;
+
+// The headerless shape declared with `path`, the former spelling of `rename_from`. Both are accepted and mean the
+// same thing, so this case and strictDeclaredSchemaCoexistsWithFormatSettings above must agree row for row. It covers
+// the former spelling on the one binding that is not a name lookup -- a positional `f1` -- which the shared spec's
+// former-spelling case cannot reach, since that one is format-agnostic. Deliberately NOT gated on the rename_from
+// capability: `path` is understood by every version, which is the point of keeping it.
+strictDeclaredSchemaFormerSpellingBindsHeaderlessPosition
+required_capability: dataset_in_from_command
+required_capability: external_csv_header_row_option
+required_capability: datasource_file_readers_no_text_type
+dataset: employees_declared_headerless_former: "{{employees_no_mv}}" WITH {"header_row": false, "column_prefix": "f", "mappings": {"dynamic": "false", "properties": {"id": {"type": "keyword", "path": "f1"}}}}
+
+FROM employees_declared_headerless_former
 | KEEP id
 | LIMIT 2
 ;
@@ -98,7 +119,7 @@ id:long | name:keyword
 10003   | "Parto"
 ;
 
-// A declared path naming a DOTTED physical column. On text and columnar formats a dotted header name is a literal
+// A declared rename naming a DOTTED physical column. On text and columnar formats a dotted header name is a literal
 // column name, so `languages.long` binds to that column directly. This is the case that is deliberately absent
 // from ndjson-declared-schema.csv-spec: there a dotted path becomes nested traversal, because the dotted-prefix
 // conflict check consults only the declaration and never the file.

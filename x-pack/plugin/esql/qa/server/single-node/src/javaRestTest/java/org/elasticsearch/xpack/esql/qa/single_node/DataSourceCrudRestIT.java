@@ -33,6 +33,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * End-to-end REST coverage for the CRUD API against a cluster with {@code esql-datasource-s3}
@@ -547,6 +548,95 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
 
     private static void deleteDataSource(String name) throws IOException {
         Response r = client().performRequest(new Request("DELETE", "/_query/data_source/" + name));
+        assertThat(r.getStatusLine().getStatusCode(), equalTo(200));
+    }
+
+    /**
+     * A dataset registered with the former spelling of the rename key is accepted, and GET returns it under the current
+     * spelling with the same value. The two halves matter separately: a client that still sends {@code path} must not
+     * get a 400, and the definition it reads back must describe the same rename rather than silently losing it.
+     */
+    public void testPutDatasetAcceptsFormerSpellingOfTheRenameKey() throws IOException {
+        final String parent = "former_rename_parent";
+        final String dataset = "former_rename_child";
+        putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
+        putDatasetWithMappings(
+            dataset,
+            parent,
+            "s3://bucket/data/*.parquet",
+            Map.of("dynamic", "false", "properties", Map.of("id", Map.of("type", "long", "path", "emp_no")))
+        );
+
+        assertThat("the former spelling reads back as the current one", renameKeyOf(getDataset(dataset), "id"), equalTo("emp_no"));
+
+        deleteDataset(dataset);
+        deleteDataSource(parent);
+    }
+
+    /** The current spelling round-trips identically, so the assertion above is about the spelling and not about GET. */
+    public void testPutDatasetRoundTripsTheRenameKey() throws IOException {
+        final String parent = "rename_from_parent";
+        final String dataset = "rename_from_child";
+        putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
+        putDatasetWithMappings(
+            dataset,
+            parent,
+            "s3://bucket/data/*.parquet",
+            Map.of("dynamic", "false", "properties", Map.of("id", Map.of("type", "long", "rename_from", "emp_no")))
+        );
+
+        assertThat(renameKeyOf(getDataset(dataset), "id"), equalTo("emp_no"));
+
+        deleteDataset(dataset);
+        deleteDataSource(parent);
+    }
+
+    /**
+     * Both spellings in one column is a contradiction with no defined winner, so registration is refused rather than
+     * one of them being picked.
+     */
+    public void testPutDatasetRejectsBothSpellingsOfTheRenameKeyInOneColumn() throws IOException {
+        final String parent = "both_rename_parent";
+        putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
+        ResponseException ex = expectThrows(
+            ResponseException.class,
+            () -> putDatasetWithMappings(
+                "both_rename_child",
+                parent,
+                "s3://bucket/data/*.parquet",
+                Map.of("dynamic", "false", "properties", Map.of("id", Map.of("type", "long", "path", "a", "rename_from", "b")))
+            )
+        );
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("not both"));
+        deleteDataSource(parent);
+    }
+
+    /** The declared rename of one column, as the GET response reports it. */
+    private static String renameKeyOf(Map<String, Object> getResponse, String column) {
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> hits = (List<Map<String, Object>>) getResponse.get("datasets");
+        assertThat(hits, hasSize(1));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> mappings = (Map<String, Object>) hits.get(0).get("mappings");
+        assertThat("the declaration survives registration", mappings, hasKey("properties"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> field = (Map<String, Object>) properties.get(column);
+        assertThat("column [" + column + "] is declared", field, not(nullValue()));
+        assertThat("the current spelling is what GET reports", field, not(hasKey("path")));
+        return (String) field.get("rename_from");
+    }
+
+    private static void putDatasetWithMappings(String name, String dataSource, String resource, Map<String, Object> mappings)
+        throws IOException {
+        Request req = new Request("PUT", "/_query/dataset/" + name);
+        try (XContentBuilder b = jsonBuilder()) {
+            b.startObject().field("data_source", dataSource).field("resource", resource).field("mappings", mappings).endObject();
+            req.setJsonEntity(Strings.toString(b));
+        }
+        Response r = client().performRequest(req);
         assertThat(r.getStatusLine().getStatusCode(), equalTo(200));
     }
 

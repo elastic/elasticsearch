@@ -461,9 +461,8 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
         );
         FormatReadContext ctx = FormatReadContext.of(null, 1024);
         // Tiny cap: the first empty-queue admit is the node-wide overshoot. The sliding window is
-        // not charged until a read, so this must not be sized around a reserved window. Look-ahead
-        // fill must not block; 0ms budget so the second first-group PER_GET charges immediately.
-        // Look-ahead still tryAdmit-refuses.
+        // not charged until a read, so this must not be sized around a reserved window. The second
+        // iterator waits on an admission ticket; look-ahead must refuse without blocking.
         ParquetIoWatermark watermark = new ParquetIoWatermark(1);
         try (
             CloseableIterator<Page> first = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
@@ -473,7 +472,10 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
         ) {
             OptimizedParquetColumnIterator opi1 = (OptimizedParquetColumnIterator) first;
             OptimizedParquetColumnIterator opi2 = (OptimizedParquetColumnIterator) second;
-            assertTrue("first iterator must queue the current group", opi1.pendingPrefetchCount() >= 1);
+            // Construction can return before an admission ticket grants; drive the consumer to
+            // readiness before checking the retained overshoot rather than inspecting its queue.
+            assertTrue("first iterator must read the current group", first.hasNext());
+            assertNotNull("first iterator must retain the node-wide overshoot owner", watermark.overshootOwner());
             int firstQueued = opi1.pendingPrefetchCount();
             int secondQueued = opi2.pendingPrefetchCount();
             growPrefetchDepth(opi1, 3);
@@ -485,15 +487,20 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
             assertEquals("look-ahead must not queue extra groups over the cap", firstQueued, opi1.pendingPrefetchCount());
             assertEquals(secondQueued, opi2.pendingPrefetchCount());
             assertEquals(32_000_000L, OptimizedParquetColumnIterator.MAX_QUEUED_PREFETCH_BYTES);
+            first.next().releaseBlocks();
         }
         assertEquals("closing both iterators must release watermark bytes", 0, watermark.used());
+        assertNull("closing both iterators must release the overshoot owner", watermark.overshootOwner());
         try (
             CloseableIterator<Page> next = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
                 .read(new CountingStorageObject(parquetData, asyncIoExecutor), ctx)
         ) {
-            OptimizedParquetColumnIterator opi = (OptimizedParquetColumnIterator) next;
-            assertEquals("release on close allows the next iterator", 1, opi.pendingPrefetchCount());
+            assertTrue("release on close allows the next iterator to read", next.hasNext());
+            assertNotNull("third iterator must take the vacant overshoot owner", watermark.overshootOwner());
+            next.next().releaseBlocks();
         }
+        assertEquals("closing the third iterator must release watermark bytes", 0, watermark.used());
+        assertNull("closing the third iterator must release the overshoot owner", watermark.overshootOwner());
     }
 
     /**

@@ -310,6 +310,8 @@ public class LocalExecutionPlanner {
     private final Executor parallelWorkerExecutor;
     private final int esqlWorkerPoolSize;
     private final MatcherWatchdog grokMatcherWatchdog;
+    /** The oldest transport version in this node's cluster, which decides how external text files bind; see FileSourceFactory. */
+    private final TransportVersion minTransportVersion;
 
     public LocalExecutionPlanner(
         String sessionId,
@@ -333,7 +335,8 @@ public class LocalExecutionPlanner {
         @Nullable RemoteFetchService remoteFetchService,
         @Nullable Executor parallelWorkerExecutor,
         int esqlWorkerPoolSize,
-        MatcherWatchdog grokMatcherWatchdog
+        MatcherWatchdog grokMatcherWatchdog,
+        TransportVersion minTransportVersion
     ) {
 
         this.sessionId = sessionId;
@@ -361,6 +364,7 @@ public class LocalExecutionPlanner {
         // by every GROK matcher this planner builds — MatcherWatchdog.Default is a stateless, immutable
         // wrapper around a single timeout value.
         this.grokMatcherWatchdog = grokMatcherWatchdog;
+        this.minTransportVersion = minTransportVersion;
     }
 
     /**
@@ -2397,6 +2401,7 @@ public class LocalExecutionPlanner {
             .maxRecordBytes(Math.toIntExact(context.queryPragmas().maxRecordSize().getBytes()))
             .parallelism(instanceCount)
             .deferredExtraction(externalSource.deferredExtraction())
+            .minTransportVersion(minTransportVersion)
             .build();
 
         SourceOperator.SourceOperatorFactory factory = operatorFactoryRegistry.factory(operatorContext);

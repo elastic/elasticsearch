@@ -170,6 +170,28 @@ public interface FileList {
      * on the way into the store — {@code ExternalSourceCacheService#refuseTruncated} — so a new call site asking for
      * a bound inherits it rather than having to establish it. A correctness invariant, not an optimisation.
      */
+    /** {@link #globMatchCount()} where the number is not known, because no bounded drain produced this listing. */
+    int UNKNOWN_GLOB_MATCH_COUNT = -1;
+
+    /**
+     * How many files the glob selected, before anything narrowed the result further — or
+     * {@link #UNKNOWN_GLOB_MATCH_COUNT} where no drain produced one.
+     * <p>
+     * This is the number a listing bound is measured against, and it is not {@link #fileCount()}. The drain counts
+     * a file here when the glob matches its path, and then several things can drop it before it reaches the
+     * result: a partition-value filter, a closed-range or non-integral-equality hint, and a {@code _file.*}
+     * metadata hint. So a listing can report two files and still have stopped on a bound of three.
+     * <p>
+     * It exists because a reader cannot otherwise tell whether a listing stopped early. Asking
+     * {@code fileCount() < bound} compares a post-narrowing count against a pre-narrowing budget, which coincide
+     * only when nothing narrowed — and every rule written to detect "nothing narrowed" from the side has been a
+     * proxy that missed a case. A consumer that needs to know whether its own listing would have completed
+     * compares this.
+     */
+    default int globMatchCount() {
+        return UNKNOWN_GLOB_MATCH_COUNT;
+    }
+
     default boolean isTruncated() {
         return false;
     }

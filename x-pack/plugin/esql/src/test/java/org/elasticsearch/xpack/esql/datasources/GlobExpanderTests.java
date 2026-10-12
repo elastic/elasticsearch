@@ -5000,31 +5000,78 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * {@code partitionValueFilterActive} is what decides whether a cached entry's file count can be compared to a
-     * bound, so it must answer for the same reason the drain does.
+     * A bounded listing records the number of files the glob selected, not the number it returned.
      * <p>
-     * A filter is only active where the drain would apply one: the first partition segment has to be exactly
-     * {@code key=*} (or a globstar must lead), and there has to be a pruning hint. A partially-literal segment
-     * such as {@code date=2024-01-0*} is not walkable, so no filter narrows the listing and the count the drain
-     * produces is the count the bound was measured against. Pinning both answers, because a predicate that always
-     * said yes would cost the cache on every bounded query and one that always said no would reopen the hole.
+     * Those differ whenever something narrows the result after the drain has counted toward its bound — a
+     * partition-value filter, a closed-range narrowing, or a {@code _file.*} metadata hint. The gap is what a
+     * cache reader needs: it decides whether a query running this bound would have completed or stopped short,
+     * and {@code fileCount()} cannot answer because it is measured on the far side of the narrowing. Every rule
+     * written to detect "nothing narrowed" from the outside missed one of the three, which is why the number is
+     * carried rather than inferred.
+     * <p>
+     * Here a {@code _file.size} hint drops two of the four files the glob matched, with a bound of three. The
+     * returned count is two, below the bound; the count that stopped the drain is three, at it.
      */
-    public void testPartitionValueFilterIsActiveOnlyWhereTheDrainAppliesOne() {
-        var hint = List.of(hint("date", PartitionFilterHintExtractor.Operator.EQUALS, "2024-01-05"));
+    public void testABoundedListingRecordsWhatTheGlobSelectedNotWhatItReturned() throws Exception {
+        List<StorageEntry> entries = List.of(
+            entry("s3://bucket/data/m=1/part.csv", 100),
+            entry("s3://bucket/data/m=2/part.csv", 1),
+            entry("s3://bucket/data/m=3/part.csv", 1),
+            entry("s3://bucket/data/m=abc/part.csv", 100)
+        );
+        TreeStubProvider provider = new TreeStubProvider(entries);
+        var sizeHint = new PartitionFilterHintExtractor.PartitionFilterHint(
+            "_file.size",
+            PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL,
+            List.of(100L)
+        );
 
-        assertTrue(
-            "a fully wildcarded partition segment with a pruning hint is filtered",
-            GlobExpander.partitionValueFilterActive("s3://b/data/date=*/*.csv", hint, HIVE_ON)
+        FileList bounded = expandSync(
+            "s3://bucket/data/m=*/part.csv",
+            provider,
+            List.of(sizeHint),
+            HIVE_ON,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            3,
+            1,
+            () -> false
         );
-        assertFalse(
-            "a partially literal segment is not walkable, so nothing narrows the listing past the glob",
-            GlobExpander.partitionValueFilterActive("s3://b/data/date=2024-01-0*/*.csv", hint, HIVE_ON)
+
+        // The gap is the point, and it is what no consumer can recover from the result alone: the drain stopped on
+        // its bound of three glob matches, and the hint then dropped some of those, so the count that comes out is
+        // strictly smaller than the count that stopped it. A reader comparing fileCount() to the bound would read
+        // this listing as having completed.
+        assertEquals("the bound is what stopped the drain", 3, bounded.globMatchCount());
+        assertTrue("so the listing is a prefix of the pattern", bounded.isTruncated());
+        assertThat(
+            "and the returned count is strictly smaller, which is why it cannot stand in for the bound",
+            bounded.fileCount(),
+            lessThan(bounded.globMatchCount())
         );
-        assertFalse("no hint, no filter", GlobExpander.partitionValueFilterActive("s3://b/data/date=*/*.csv", null, HIVE_ON));
-        assertFalse(
-            "a non-pattern path lists one object and filters nothing",
-            GlobExpander.partitionValueFilterActive("s3://b/data/part-0000.csv", hint, HIVE_ON)
+    }
+
+    /** An unbounded listing drains its pattern, so its recorded count is every file the glob selected. */
+    public void testAnUnboundedListingRecordsEveryGlobMatch() throws Exception {
+        TreeStubProvider provider = new TreeStubProvider(List.of(entry("s3://bucket/data/a.csv", 10), entry("s3://bucket/data/b.csv", 10)));
+
+        FileList all = expandSync(
+            "s3://bucket/data/*.csv",
+            provider,
+            null,
+            HIVE_ON,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            1,
+            () -> false
         );
+
+        assertEquals(2, all.fileCount());
+        assertEquals(2, all.globMatchCount());
+        assertFalse(all.isTruncated());
     }
 
     /**

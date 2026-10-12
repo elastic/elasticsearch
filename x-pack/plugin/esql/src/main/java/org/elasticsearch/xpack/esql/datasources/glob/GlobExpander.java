@@ -1262,7 +1262,10 @@ public final class GlobExpander {
         // (PartitionMetadata#coversFileCount) — a narrower sample would describe a listing that cannot be built.
         PartitionMetadata partitionMetadata = detectPartitions(matched, partitionConfig, listingWarnings::add);
 
-        return new GenericFileList(matched, pattern, partitionMetadata, listingWarnings, truncated);
+        // globKeptCount, not matched.size(): the count the bound was measured against, before the value filter, the
+        // closed-range narrowing and the _file.* hints above dropped entries from the result. A reader deciding
+        // whether its own bounded listing would have completed needs that number and cannot recover it from here.
+        return new GenericFileList(matched, pattern, partitionMetadata, listingWarnings, truncated, false, globKeptCount);
     }
 
     private static FileList emptyListing(String pattern, @Nullable String exclusionNotice, boolean truncated) {
@@ -2846,27 +2849,6 @@ public final class GlobExpander {
      * sound reading. The exclusion settings resolve from
      * {@code config} via {@link ExclusionConfig#fromConfig}. File order resolves via {@link FileOrderConfig#forListing}.
      */
-    /**
-     * Whether a partition-value filter narrows this listing beyond what the glob itself selects.
-     * <p>
-     * It decides whether a listing's own file count is the number the bound was measured against. The drain counts
-     * a file toward the bound when the glob matches its path, and a value filter drops some of those afterwards -
-     * so with one active the count that comes out is smaller than the count that stopped the drain, and a reader
-     * comparing it to a bound is comparing two different things. Without one they are the same number.
-     */
-    public static boolean partitionValueFilterActive(
-        String path,
-        @Nullable List<PartitionFilterHint> hints,
-        @Nullable Map<String, Object> config
-    ) {
-        StoragePath storagePath = StoragePath.of(path);
-        if (storagePath.isPattern() == false) {
-            return false;
-        }
-        PartitionConfig partitionConfig = PartitionConfig.fromConfig(config);
-        return PartitionValueFilter.forGlob(storagePath.globPart(), hints, partitionConfig) != PartitionValueFilter.NONE;
-    }
-
     public static String listingCacheDiscriminator(
         String path,
         @Nullable List<PartitionFilterHint> hints,

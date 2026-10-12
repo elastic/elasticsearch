@@ -30,6 +30,7 @@ final class GenericFileList implements FileList {
     private final FileSetFingerprint fileSetFingerprint;
     private final List<String> listingWarnings;
     private final boolean truncated;
+    private final int globMatchCount;
     private final boolean inferenceAnchor;
     private final long estimatedBytes;
 
@@ -78,6 +79,23 @@ final class GenericFileList implements FileList {
         boolean truncated,
         boolean inferenceAnchor
     ) {
+        this(files, originalPattern, partitionMetadata, listingWarnings, truncated, inferenceAnchor, UNKNOWN_GLOB_MATCH_COUNT);
+    }
+
+    /**
+     * @param globMatchCount how many files the glob selected before anything narrowed the result further, which is
+     *                       the number a listing bound is measured against. {@link #UNKNOWN_GLOB_MATCH_COUNT} where
+     *                       no drain produced it. See {@link FileList#globMatchCount()}.
+     */
+    GenericFileList(
+        List<StorageEntry> files,
+        String originalPattern,
+        @Nullable PartitionMetadata partitionMetadata,
+        List<String> listingWarnings,
+        boolean truncated,
+        boolean inferenceAnchor,
+        int globMatchCount
+    ) {
         if (files == null) {
             throw new IllegalArgumentException("files cannot be null");
         }
@@ -86,6 +104,7 @@ final class GenericFileList implements FileList {
         assert partitionMetadata == null || partitionMetadata.coversFileCount(files.size())
             : "partition metadata covers [" + partitionMetadata.fileCount() + "] files but the listing has [" + files.size() + "]";
         this.files = files;
+        this.globMatchCount = globMatchCount;
         this.originalPattern = originalPattern;
         // A truncated listing publishes its partition columns but not its per-file values, for the same reason the
         // fingerprint below is withheld: PartitionMetadata#nullablePartitionColumns reads those values as evidence
@@ -172,6 +191,10 @@ final class GenericFileList implements FileList {
     }
 
     @Override
+    public int globMatchCount() {
+        return globMatchCount;
+    }
+
     public boolean isTruncated() {
         return truncated;
     }

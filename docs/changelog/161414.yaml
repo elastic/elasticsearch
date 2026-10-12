@@ -1,0 +1,6 @@
+area: Snapshot/Restore
+issues:
+ - 161313
+pr: 161414
+summary: Retry batch-delete items in GCS
+type: enhancement

@@ -47,7 +47,6 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 public abstract class LuceneOperator extends SourceOperator {
     private static final Logger logger = LogManager.getLogger(LuceneOperator.class);
@@ -77,7 +76,7 @@ public abstract class LuceneOperator extends SourceOperator {
     private final LuceneSliceQueue sliceQueue;
 
     private final Set<Query> processedQueries = new HashSet<>();
-    private final Set<String> processedShards = new HashSet<>();
+    private final Set<String> processedShards = new TreeSet<>();
 
     private LuceneSlice currentSlice;
     private int sliceIndex;
@@ -308,8 +307,8 @@ public abstract class LuceneOperator extends SourceOperator {
         private static final TransportVersion ESQL_REPORT_SHARD_PARTITIONING = TransportVersion.fromName("esql_report_shard_partitioning");
 
         private final int processedSlices;
-        private final Set<String> processedQueries;
-        private final Set<String> processedShards;
+        private final List<String> processedQueries;
+        private final List<String> processedShards;
         private final long processingNanos;
         private final int totalSlices;
         private final int pagesEmitted;
@@ -322,9 +321,9 @@ public abstract class LuceneOperator extends SourceOperator {
 
         private Status(LuceneOperator operator) {
             processedSlices = operator.processedSlices;
-            processedQueries = operator.processedQueries.stream().map(Query::toString).collect(Collectors.toCollection(TreeSet::new));
+            processedQueries = operator.processedQueries.stream().map(Query::toString).sorted().toList();
             processingNanos = operator.processingNanos;
-            processedShards = new TreeSet<>(operator.processedShards);
+            processedShards = List.copyOf(operator.processedShards);
             sliceIndex = operator.sliceIndex;
             totalSlices = operator.sliceQueue.totalSlices();
             LuceneSlice slice = operator.currentSlice;
@@ -349,8 +348,8 @@ public abstract class LuceneOperator extends SourceOperator {
 
         Status(
             int processedSlices,
-            Set<String> processedQueries,
-            Set<String> processedShards,
+            List<String> processedQueries,
+            List<String> processedShards,
             long processingNanos,
             int sliceIndex,
             int totalSlices,
@@ -378,11 +377,11 @@ public abstract class LuceneOperator extends SourceOperator {
         Status(StreamInput in) throws IOException {
             processedSlices = in.readVInt();
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-                processedQueries = in.readCollectionAsSet(StreamInput::readString);
-                processedShards = in.readCollectionAsSet(StreamInput::readString);
+                processedQueries = in.readCollectionAsImmutableList(StreamInput::readString);
+                processedShards = in.readCollectionAsImmutableList(StreamInput::readString);
             } else {
-                processedQueries = Collections.emptySet();
-                processedShards = Collections.emptySet();
+                processedQueries = Collections.emptyList();
+                processedShards = Collections.emptyList();
             }
             processingNanos = in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readVLong() : 0;
             sliceIndex = in.readVInt();
@@ -434,11 +433,11 @@ public abstract class LuceneOperator extends SourceOperator {
             return processedSlices;
         }
 
-        public Set<String> processedQueries() {
+        public List<String> processedQueries() {
             return processedQueries;
         }
 
-        public Set<String> processedShards() {
+        public List<String> processedShards() {
             return processedShards;
         }
 

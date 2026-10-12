@@ -74,6 +74,8 @@ class TopHitsAggregator extends MetricsAggregator {
     private final List<ProfileResult> fetchProfiles;
     // this must be mutable so it can be closed/replaced on each call to getLeafCollector
     private LongObjectPagedHashMap<LeafCollector> leafCollectors;
+    private final SearchExecutionContext forkedSearchExecutionContext;
+    private final InnerHitsContext forkedInnerHitsContext;
 
     TopHitsAggregator(
         SubSearchContext subSearchContext,
@@ -87,6 +89,15 @@ class TopHitsAggregator extends MetricsAggregator {
         this.subSearchContext = subSearchContext;
         this.topDocsCollectors = new LongObjectPagedHashMap<>(1, bigArrays);
         this.fetchProfiles = context.profiling() ? new ArrayList<>() : null;
+        // Fork the search execution context, because the fetch phase does not support concurrent execution yet. One fork per
+        // aggregator is enough: each slice gets its own aggregator and its buckets are fetched sequentially. Forking per bucket
+        // instead pinned a SearchExecutionContext, and the stored fields its lookup provider had loaded, for every bucket until
+        // the query context closed.
+        this.forkedSearchExecutionContext = new SearchExecutionContext(subSearchContext.getSearchExecutionContext());
+        // InnerHitSubContext is not thread-safe, so we fork it as well to support concurrent execution
+        this.forkedInnerHitsContext = new InnerHitsContext(
+            getForkedInnerHits(subSearchContext.innerHits().getInnerHits(), forkedSearchExecutionContext)
+        );
     }
 
     @Override
@@ -195,7 +206,7 @@ class TopHitsAggregator extends MetricsAggregator {
         for (int i = 0; i < topDocs.scoreDocs.length; i++) {
             docIdsToLoad[i] = topDocs.scoreDocs[i].doc;
         }
-        FetchSearchResult fetchResult = runFetchPhase(subSearchContext, docIdsToLoad, this::addRequestCircuitBreakerBytes);
+        FetchSearchResult fetchResult = runFetchPhase(docIdsToLoad, this::addRequestCircuitBreakerBytes);
         if (fetchProfiles != null) {
             fetchProfiles.add(fetchResult.profileResult());
         }
@@ -219,23 +230,17 @@ class TopHitsAggregator extends MetricsAggregator {
         );
     }
 
-    private static FetchSearchResult runFetchPhase(SubSearchContext subSearchContext, int[] docIdsToLoad, IntConsumer memoryChecker) {
-        // Fork the search execution context for each slice, because the fetch phase does not support concurrent execution yet.
-        SearchExecutionContext searchExecutionContext = new SearchExecutionContext(subSearchContext.getSearchExecutionContext());
-        // InnerHitSubContext is not thread-safe, so we fork it as well to support concurrent execution
-        InnerHitsContext innerHitsContext = new InnerHitsContext(
-            getForkedInnerHits(subSearchContext.innerHits().getInnerHits(), searchExecutionContext)
-        );
-
+    private FetchSearchResult runFetchPhase(int[] docIdsToLoad, IntConsumer memoryChecker) {
+        // Stays per bucket: it owns the FetchSearchResult the bucket's hits are published through.
         SubSearchContext fetchSubSearchContext = new SubSearchContext(subSearchContext) {
             @Override
             public SearchExecutionContext getSearchExecutionContext() {
-                return searchExecutionContext;
+                return forkedSearchExecutionContext;
             }
 
             @Override
             public InnerHitsContext innerHits() {
-                return innerHitsContext;
+                return forkedInnerHitsContext;
             }
         };
 
@@ -277,14 +282,16 @@ class TopHitsAggregator extends MetricsAggregator {
     @Override
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         super.collectDebugInfo(add);
-        List<Map<String, Object>> debug = new ArrayList<>();
-        for (ProfileResult result : fetchProfiles) {
-            Map<String, Object> resultDebug = new HashMap<>();
-            resultDebug.put("time", result.getTime());
-            resultDebug.put("breakdown", result.getTimeBreakdown());
-            debug.add(resultDebug);
+        if (fetchProfiles != null) {
+            List<Map<String, Object>> debug = new ArrayList<>();
+            for (ProfileResult result : fetchProfiles) {
+                Map<String, Object> resultDebug = new HashMap<>();
+                resultDebug.put("time", result.getTime());
+                resultDebug.put("breakdown", result.getTimeBreakdown());
+                debug.add(resultDebug);
+            }
+            add.accept("fetch_profile", debug);
         }
-        add.accept("fetch_profile", debug);
     }
 
     @Override

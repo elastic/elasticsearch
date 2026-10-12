@@ -90,11 +90,13 @@ find "$WORKSPACE" -type f -path "*/build/distributions/*" -exec chmod a+r {} \;
 find "$WORKSPACE" -type d -path "*/build/distributions" -exec chmod a+w {} \;
 
 # Publish the exploded maven aggregation tree to snapshots.elastic.co /
-# artifacts.elastic.co. The maven tree is published directly from the workspace;
-# GCS publication of all other artifacts is handled by the dra-prep plugin below.
+# 
+
+.elastic.co ourselves, ahead of the release-manager cutover tracked
+# in https://github.com/elastic/elasticsearch-team/issues/4297.
 echo --- Publishing maven aggregation to S3
 DRA_WORKFLOW="$WORKFLOW" \
-  .buildkite/scripts/dra-maven-snapshots-publish.sh
+  .buildkite/scripts/dra-maven-publish.sh
 
 echo --- Consolidating distribution artifacts for DRA staging
 mkdir -p artifacts

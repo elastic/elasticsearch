@@ -266,23 +266,21 @@ public final class DatasetListingService {
     }
 
     /**
-     * A bounded listing, offered to the shared cache when it turns out to cover the whole pattern.
+     * A bounded listing, read from and offered to the shared cache.
      * <p>
-     * It writes and never reads, and that asymmetry is the point rather than an omission. A bound and the cache used
-     * to be mutually exclusive in both directions, so a bounded listing was recomputed on every execution however
-     * complete it was — which, before the bound counted matching files, it almost never was for a selective glob.
-     * Now a listing whose matches fit inside the bound drains its whole prefix, and such a listing is
+     * A bound and the cache used to be mutually exclusive, so a bounded listing was recomputed on every execution
+     * however complete it was — which, before the bound counted matching files, it almost never was for a selective
+     * glob. Now a listing whose matches fit inside the bound drains its whole prefix, and such a listing is
      * indistinguishable from an unbounded one of the same inputs, so the next query that needs the whole pattern is
-     * owed it.
+     * owed it, and this one is owed whatever the cache already holds.
      * <p>
-     * Reading is the direction that cannot be made safe by a comparison, so it is not attempted. An entry carries
-     * the partition columns and types {@code detectPartitions} folded out of the paths it held, and the flag
-     * {@code isTruncated()} means "reached the bound" rather than "is a strict prefix" — so every rule for deciding
-     * whether some entry answers *this* bound's question is a proxy, and each proxy has its own boundary: a width
-     * comparison is wrong at equality, and an entry wider than the bound was typed over paths this query would not
-     * have seen. A bounded query therefore lists for itself, every time, and the question never arises. What that
-     * costs is a listing per execution for a schema-only query over a bounded mode; what it buys is that no
-     * listing's answer depends on which query ran before it.
+     * Reading needs one question answered: would this query's own listing have completed, or stopped on its bound?
+     * If it would have stopped, the entry reports the whole pattern where this query reports a prefix, with
+     * partition types folded over more paths — and then the schema a query returns depends on what ran before it.
+     * {@link #servesThisBound} answers it from the entry's own {@code globMatchCount()}, the number that stops a
+     * drain, because every rule that tried to infer it from the far side of the narrowing missed a case: a width
+     * comparison on {@code fileCount()} is blind to the partition-value filter, the closed-range narrowing and the
+     * {@code _file.*} hints, each of which drops entries the bound had already counted.
      */
     public void boundedListingAsync(
         String path,

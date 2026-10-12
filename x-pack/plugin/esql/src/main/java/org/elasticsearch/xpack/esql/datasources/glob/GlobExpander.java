@@ -529,8 +529,8 @@ public final class GlobExpander {
      * <p>Two things narrow a listing, and neither is allowed to decide that a dataset is empty. The glob rewrite
      * ({@link #effectivePattern}/{@link #rewriteSegment}) spells a hint value with {@link String#valueOf}, so
      * {@code WHERE month == 6} narrows the glob to {@code month=6} while the Hive convention writes a zero-padded
-     * {@code month=06}. The listing bound keeps only the first keys the provider reports, so a prefix holding
-     * nothing but litter or another format matches nothing while the dataset is full of files. Both report empty
+     * {@code month=06}. And a bound stops the drain once it has its matching files, so a prefix holding nothing
+     * but litter or another format matches nothing while the dataset is full of files. Both report empty
      * for a dataset that has data, which is silent zero rows rather than a slow query.
      *
      * <p>So emptiness after a rewrite is decided by listing the original glob once more, with the bound dropped and
@@ -920,7 +920,8 @@ public final class GlobExpander {
         // shape falls through to the flat listing below; see PartitionPruningWalk for the fail-closed rules and
         // the trust boundary. There is no brace retry: a guessed spelling drops percent-encoded folders.
         // A bounded listing skips the walk. The walk narrows by descending the partition tree, which costs several
-        // requests; the flat path under a bound costs one page and is what the bound was asked for.
+        // requests; the flat path asks the store for the pattern's literal lead and filters the rest, which is one
+        // request where the lead is selective and a page per thousand keys where it is not.
         // A rejected walk (type mismatch, stray file) must re-list the superset. Re-applying the value filter
         // would prune again and undo the rejection.
         boolean suppressValueFilter = false;

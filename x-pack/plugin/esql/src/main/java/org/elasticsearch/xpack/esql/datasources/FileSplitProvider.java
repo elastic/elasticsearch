@@ -527,8 +527,8 @@ public class FileSplitProvider implements SplitProvider {
      * already and is returned unchanged. An inference-anchor listing is a schema stash, not a scan set, so this
      * swaps in empty rather than listing again. A prefix — {@code first_file_wins}, whose schema needed one file —
      * is not complete, so this lists the dataset with the query's own filters. Continuing from the prefix rather
-     * than listing again is the obvious refinement and is not done yet: the page the schema read is listed twice,
-     * one request against the full listing's many.
+     * than listing again is the obvious refinement and is not done yet, though the shared listing cache now
+     * absorbs the repeat whenever the schema's listing covered the whole pattern.
      */
     private SplitDiscoveryContext overTheQuerysFileSet(SplitDiscoveryContext handed, ListingExtents extents) throws Exception {
         DatasetDiscovery discovery = DatasetDiscovery.shared(handed.fileList());

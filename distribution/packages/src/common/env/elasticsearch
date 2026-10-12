@@ -18,5 +18,8 @@ ES_PATH_CONF=@path.conf@
 # Additional Java OPTS
 #ES_JAVA_OPTS=
 
+# Run the server and the command line tools in FIPS 140 mode (see the FIPS 140 section in elasticsearch.yml)
+#ES_FIPS_MODE=true
+
 # Configure restart on package upgrade (true, every other setting will lead to not restarting)
 #RESTART_ON_UPGRADE=true

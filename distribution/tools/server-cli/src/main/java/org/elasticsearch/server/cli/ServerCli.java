@@ -52,6 +52,13 @@ import java.util.Map;
  */
 class ServerCli extends EnvironmentAwareCommand {
 
+    /**
+     * Set by {@code bin/elasticsearch-env} when {@code ES_FIPS_MODE=true}. The Bouncy Castle FIPS provider ships in {@code lib/fips}
+     * rather than {@code lib} so that a node that is not in FIPS mode never resolves or instantiates it; the server module path is
+     * extended with that directory only when this property is set.
+     */
+    static final String FIPS_ENABLED_SYSPROP = "es.fips.enabled";
+
     private final OptionSpecBuilder versionOption;
     private final OptionSpecBuilder daemonizeOption;
     private final OptionSpec<Path> pidfileOption;
@@ -272,9 +279,13 @@ class ServerCli extends EnvironmentAwareCommand {
 
     protected static List<String> getJvmArgs(ProcessInfo processInfo) {
         Path esHome = processInfo.workingDir();
+        String modulePath = esHome.resolve("lib").toString();
+        if (Boolean.parseBoolean(processInfo.sysprops().get(FIPS_ENABLED_SYSPROP))) {
+            modulePath += System.getProperty("path.separator") + esHome.resolve("lib").resolve("fips");
+        }
         return List.of(
             "--module-path",
-            esHome.resolve("lib").toString(),
+            modulePath,
             "--add-modules=jdk.net",
             "--add-modules=jdk.management.agent",
             "--add-modules=ALL-MODULE-PATH",

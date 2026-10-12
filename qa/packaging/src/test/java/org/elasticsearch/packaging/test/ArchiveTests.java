@@ -59,6 +59,10 @@ public class ArchiveTests extends PackagingTestCase {
         installation = installArchive(sh, distribution());
         verifyArchiveInstallation(installation, distribution());
         setFileSuperuser("test_superuser", "test_superuser_password");
+        if (distribution.isFipsActivated()) {
+            // FIPS mode replaces the JDK's java.security and auto-configuration writes BCFKS, so the PKCS#12 MAC tweak does not apply
+            return;
+        }
         // See https://bugs.openjdk.java.net/browse/JDK-8267701. In short, when generating PKCS#12 keystores in JDK 12 and later
         // the MAC algorithm used for integrity protection is incompatible with any previous JDK version. This affects us as we generate
         // PKCS12 keystores on startup ( with the bundled JDK ) but we also need to run certain tests with a JDK other than the bundled

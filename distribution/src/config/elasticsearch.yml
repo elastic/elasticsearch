@@ -80,3 +80,16 @@
 # Allow wildcard deletion of indices:
 #
 #action.destructive_requires_name: false
+#
+# ---------------------------------- FIPS 140 ----------------------------------
+#
+# The Linux distributions ship the Bouncy Castle FIPS provider in lib/fips. To run
+# this node in FIPS 140 mode, set ES_FIPS_MODE=true in the environment of the
+# server and of the command line tools (for packages, in /etc/sysconfig/elasticsearch
+# or /etc/default/elasticsearch) and enable the settings below. FIPS mode requires
+# a Platinum, Enterprise or Trial license; a self-generated Basic license fails the
+# FIPS license check when the node restarts.
+#
+#xpack.security.fips_mode.enabled: true
+#xpack.security.fips_mode.required_providers: [BCFIPS, BCJSSE]
+#xpack.license.self_generated.type: trial

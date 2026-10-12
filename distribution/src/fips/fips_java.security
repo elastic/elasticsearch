@@ -1,0 +1,80 @@
+# FIPS 140 java.security replacement for the FIPS archive and RPM.
+#
+# Loaded with -Djava.security.properties== so it replaces the bundled JDK's
+# java.security rather than overlaying it. The properties below are the
+# uncommented settings from the bundled Linux JDK's java.security, with the
+# provider list, default keystore type, key-manager factory, and entropy
+# source changed for Bouncy Castle FIPS. Refresh this file when that JDK's
+# java.security changes.
+#
+# The FIPS test suites keep using build-tools-internal's fips_java.security.
+# Those suites run on older JDKs than the one bundled in these packages.
+
+security.provider.1=org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider C:HYBRID;ENABLE{All};
+security.provider.2=org.bouncycastle.jsse.provider.BouncyCastleJsseProvider fips:BCFIPS
+security.provider.3=SUN
+security.provider.4=SunJGSS
+securerandom.source=file:/dev/urandom
+securerandom.strongAlgorithms=NativePRNGBlocking:SUN,DRBG:SUN
+securerandom.drbg.config=
+login.configuration.provider=sun.security.provider.ConfigFile
+policy.expandProperties=true
+policy.allowSystemProperty=true
+keystore.type=BCFKS
+keystore.type.compat=true
+security.overridePropertiesFile=true
+ssl.KeyManagerFactory.algorithm=PKIX
+ssl.TrustManagerFactory.algorithm=PKIX
+networkaddress.cache.negative.ttl=10
+krb5.kdc.bad.policy = tryLast
+sun.security.krb5.disableReferrals=false
+sun.security.krb5.maxReferrals=5
+jdk.certpath.disabledAlgorithms=MD2, MD5, SHA1 jdkCA & usage TLSServer, \
+    RSA keySize < 1024, DSA keySize < 1024, EC keySize < 224, \
+    SHA1 usage SignedJAR & denyAfter 2019-01-01
+jdk.security.legacyAlgorithms=SHA1, \
+    RSA keySize < 2048, DSA keySize < 2048, \
+    DES, DESede, MD5, RC2, ARCFOUR
+jdk.jar.disabledAlgorithms=MD2, MD5, RSA keySize < 1024, \
+      DSA keySize < 1024, SHA1 denyAfter 2019-01-01
+http.auth.digest.disabledAlgorithms = MD5, SHA-1
+jdk.tls.disabledAlgorithms=SSLv3, TLSv1, TLSv1.1, DTLSv1.0, RC4, DES, \
+    MD5withRSA, DH keySize < 1024, EC keySize < 224, 3DES_EDE_CBC, anon, NULL, \
+    ECDH, TLS_RSA_*, rsa_pkcs1_sha1 usage HandshakeSignature, \
+    ecdsa_sha1 usage HandshakeSignature, dsa_sha1 usage HandshakeSignature
+jdk.tls.legacyAlgorithms=NULL, anon, RC4, DES, 3DES_EDE_CBC
+jdk.tls.keyLimits=AES/GCM/NoPadding KeyUpdate 2^37, \
+                  ChaCha20-Poly1305 KeyUpdate 2^37
+jdk.quic.tls.keyLimits=AES/GCM/NoPadding 2^23, \
+                       ChaCha20-Poly1305 2^23
+crypto.policy=unlimited
+jdk.xml.dsig.secureValidationPolicy=\
+    disallowAlg http://www.w3.org/TR/1999/REC-xslt-19991116,\
+    disallowAlg http://www.w3.org/2001/04/xmldsig-more#rsa-md5,\
+    disallowAlg http://www.w3.org/2001/04/xmldsig-more#hmac-md5,\
+    disallowAlg http://www.w3.org/2001/04/xmldsig-more#md5,\
+    disallowAlg http://www.w3.org/2000/09/xmldsig#sha1,\
+    disallowAlg http://www.w3.org/2000/09/xmldsig#dsa-sha1,\
+    disallowAlg http://www.w3.org/2000/09/xmldsig#rsa-sha1,\
+    disallowAlg http://www.w3.org/2007/05/xmldsig-more#sha1-rsa-MGF1,\
+    disallowAlg http://www.w3.org/2001/04/xmldsig-more#ecdsa-sha1,\
+    disallowAlg http://www.w3.org/TR/1999/REC-xpath-19991116,\
+    maxTransforms 5,\
+    maxReferences 30,\
+    disallowReferenceUriSchemes file http https,\
+    minKeySize RSA 1024,\
+    minKeySize DSA 1024,\
+    minKeySize EC 224,\
+    noDuplicateIds,\
+    noRetrievalMethodLoops
+jceks.key.serialFilter = java.base/java.lang.Enum;java.base/java.security.KeyRep;\
+  java.base/java.security.KeyRep$Type;java.base/javax.crypto.spec.SecretKeySpec;!*
+jdk.includeInExceptions=hostInfoExclSocket
+jdk.sasl.disabledMechanisms=
+jdk.security.caDistrustPolicies=SYMANTEC_TLS,ENTRUST_TLS,CAMERFIRMA_TLS,\
+    CHUNGHWA_TLS
+jdk.io.permissionsUseCanonicalPath=false
+jdk.tls.alpnCharset=ISO_8859_1
+jdk.epkcs8.defaultAlgorithm=PBEWithHmacSHA256AndAES_128
+com.sun.security.allowedAIALocations=
+com.sun.security.crl.maxSize = 20971520

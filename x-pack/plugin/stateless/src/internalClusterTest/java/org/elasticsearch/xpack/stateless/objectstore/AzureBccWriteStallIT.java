@@ -30,9 +30,9 @@ import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitCleaner;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -218,7 +218,7 @@ public class AzureBccWriteStallIT extends AbstractStatelessPluginIntegTestCase {
             var path = exchange.getRequestURI().getPath();
             if (stall != null
                 && "PUT".equals(exchange.getRequestMethod())
-                && path.contains(StatelessCompoundCommit.PREFIX)
+                && path.contains(BatchedCompoundCommit.PREFIX)
                 && stall.stalled().compareAndSet(false, true)) {
                 logger.info("--> holding BCC PUT [{}] without reading its body", path);
                 stall.received().countDown();

@@ -40,6 +40,8 @@ import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomP
  * the upload stream blocks both pool threads at the end of every burst, so that concurrent refill requests can race. Before the fix,
  * that race caused the upload to emit one 64KB buffer twice and skip the next, with the total length still matching. Every stored blob
  * is compared byte-by-byte with the source to catch silent corruption.
+ * <p>
+ * Fixed by #159805 and #160072.
  */
 @SuppressForbidden(reason = "use a http server")
 public class AzureBlobStoreConcurrentRefillCorruptionTests extends AbstractAzureServerTestCase {
@@ -67,7 +69,7 @@ public class AzureBlobStoreConcurrentRefillCorruptionTests extends AbstractAzure
         return new ScalingExecutorBuilder(AzureRepositoryPlugin.REPOSITORY_THREAD_POOL_NAME, 0, 2, TimeValue.timeValueSeconds(30L), false);
     }
 
-    public void testConcurrentRefillsCorruptSinglePartUpload() throws Exception {
+    public void testConcurrentRefillsDoNotCorruptSinglePartUpload() throws Exception {
         final var handler = new AzureHttpHandler(ACCOUNT, CONTAINER, null, MockAzureBlobStore.LeaseExpiryPredicate.NEVER_EXPIRE);
         httpServer.createContext("/", handler);
         final BlobContainer blobContainer = builder().withMaxRetries(2).withTryTimeout(TimeValue.timeValueSeconds(30)).build();

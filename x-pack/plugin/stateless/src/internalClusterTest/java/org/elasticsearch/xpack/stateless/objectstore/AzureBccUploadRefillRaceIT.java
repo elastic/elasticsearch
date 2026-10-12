@@ -16,20 +16,27 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpPrincipal;
 
+import org.apache.lucene.store.Directory;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.MergePolicyConfig;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.azure.AzureRepositoryPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
+import org.elasticsearch.xpack.stateless.TestUtils;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -41,27 +48,27 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.UnaryOperator;
-import java.util.zip.CRC32;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 /**
  * Regression test for the buffer dup+drop corruption in BCC uploads. Flushes an index repeatedly while a background thread holds all
  * {@code repository_azure} threads together and releases them at once, so concurrent refill requests can race. Before the fix, that
- * race caused an upload to emit one 64KB buffer twice and skip the next, or send a body of the wrong length. Every BCC blob stored
- * by the mock server is scanned for duplicate 64KB chunks, and aborted uploads fail the test.
+ * race caused an upload to emit one 64KB buffer twice and skip the next, or send a body of the wrong length. The bytes of every BCC
+ * are captured before upload and compared with the blob stored by the mock server, and aborted uploads fail the test.
+ * <p>
+ * Fixed by #159805 and #160072.
  */
 @SuppressForbidden(reason = "uses HttpServer to emulate Azure storage")
 public class AzureBccUploadRefillRaceIT extends AbstractStatelessPluginIntegTestCase {
@@ -69,8 +76,6 @@ public class AzureBccUploadRefillRaceIT extends AbstractStatelessPluginIntegTest
     private static final String ACCOUNT = "account";
     private static final String CONTAINER = "container";
 
-    // AzureBlobStore.DEFAULT_UPLOAD_BUFFERS_SIZE
-    private static final int BUFFER_SIZE = 64 * 1024;
     // build.gradle sets maxPrefetchSize=8, so refill requests arrive every 4 buffers instead of 64, increasing pressure on the race
     private static final int ROUNDS = 30;
     private static final int ROUNDS_PER_INDEX = 5;
@@ -83,6 +88,8 @@ public class AzureBccUploadRefillRaceIT extends AbstractStatelessPluginIntegTest
     private static TestObjectStoreServer testServer;
     private static AzureHttpHandler azureHandler;
     private static final AtomicInteger bccUploadsInFlight = new AtomicInteger();
+    /** The bytes each node intended to upload per BCC, keyed by blob path relative to the base path. */
+    private static final Map<String, byte[]> intendedBccs = new ConcurrentHashMap<>();
     /** BCC uploads the client aborted because the body was shorter than Content-Length declared. */
     private static final AtomicInteger abortedBccUploads = new AtomicInteger();
 
@@ -103,7 +110,7 @@ public class AzureBccUploadRefillRaceIT extends AbstractStatelessPluginIntegTest
         testServer.start();
         final HttpHandler bccUploadWatchingHandler = exchange -> {
             final boolean bccUpload = "PUT".equals(exchange.getRequestMethod())
-                && exchange.getRequestURI().getPath().contains(StatelessCompoundCommit.PREFIX);
+                && exchange.getRequestURI().getPath().contains(BatchedCompoundCommit.PREFIX);
             if (bccUpload == false) {
                 azureHandler.handle(exchange);
                 return;
@@ -144,6 +151,8 @@ public class AzureBccUploadRefillRaceIT extends AbstractStatelessPluginIntegTest
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
+        plugins.remove(TestUtils.StatelessPluginWithTrialLicense.class);
+        plugins.add(TestStatelessPlugin.class);
         plugins.add(AzureRepositoryPlugin.class);
         return plugins;
     }
@@ -169,7 +178,7 @@ public class AzureBccUploadRefillRaceIT extends AbstractStatelessPluginIntegTest
             .setSecureSettings(secureSettings);
     }
 
-    public void testConcurrentRefillsCorruptUploadedBcc() throws Exception {
+    public void testConcurrentRefillsDoNotCorruptUploadedBcc() throws Exception {
         final String indexNode = startMasterAndIndexNode();
         String indexName = randomIndexName();
         createIndex(indexName, noMergesIndexSettings());
@@ -178,13 +187,13 @@ public class AzureBccUploadRefillRaceIT extends AbstractStatelessPluginIntegTest
         final PoolSqueezer squeezer = new PoolSqueezer(threadPool);
         squeezer.start();
         try {
-            final Set<String> scanned = new HashSet<>();
             int blobsScanned = 0;
             for (int round = 0; round < ROUNDS; round++) {
                 if (round > 0 && round % ROUNDS_PER_INDEX == 0) {
                     // the mock store keeps every live BCC in the test JVM's heap
                     final String indexUUID = resolveIndex(indexName).getUUID();
                     assertAcked(indicesAdmin().prepareDelete(indexName));
+                    intendedBccs.keySet().removeIf(key -> key.startsWith("indices/" + indexUUID + "/"));
                     final MockAzureBlobStore blobStore = azureHandler.getMockBlobStore();
                     for (String path : blobStore.listBlobs(basePath + "/indices/" + indexUUID + "/", null).keySet()) {
                         try {
@@ -211,17 +220,25 @@ public class AzureBccUploadRefillRaceIT extends AbstractStatelessPluginIntegTest
                             + (round + 1)
                             + " flushes, "
                             + blobsScanned
-                            + " BCC blobs scanned, "
+                            + " BCC blobs compared, "
                             + squeezer.squeezes.get()
                             + " pool squeezes"
                     );
                 }
                 for (Map.Entry<String, BytesReference> blob : azureHandler.blobs().entrySet()) {
-                    if (blob.getKey().contains(StatelessCompoundCommit.PREFIX) == false || scanned.add(blob.getKey()) == false) {
+                    if (blob.getKey().contains(BatchedCompoundCommit.PREFIX) == false) {
                         continue;
                     }
+                    final var intended = intendedBccs.entrySet()
+                        .stream()
+                        .filter(entry -> blob.getKey().endsWith("/" + entry.getKey()))
+                        .findFirst();
+                    if (intended.isEmpty()) {
+                        continue;
+                    }
+                    intendedBccs.remove(intended.get().getKey());
                     blobsScanned++;
-                    final String corruption = describeDuplicateChunks(blob.getKey(), blob.getValue());
+                    final String corruption = describeMismatch(blob.getKey(), intended.get().getValue(), blob.getValue());
                     if (corruption != null) {
                         fail(
                             corruption
@@ -229,18 +246,23 @@ public class AzureBccUploadRefillRaceIT extends AbstractStatelessPluginIntegTest
                                 + (round + 1)
                                 + " flushes, "
                                 + blobsScanned
-                                + " BCC blobs scanned, "
+                                + " BCC blobs compared, "
                                 + squeezer.squeezes.get()
                                 + " pool squeezes"
                         );
                     }
                 }
                 if ((round + 1) % 10 == 0) {
-                    logger.info("--> {} flushes, {} BCC blobs scanned, {} pool squeezes", round + 1, blobsScanned, squeezer.squeezes.get());
+                    logger.info(
+                        "--> {} flushes, {} BCC blobs compared, {} pool squeezes",
+                        round + 1,
+                        blobsScanned,
+                        squeezer.squeezes.get()
+                    );
                 }
             }
             logger.info(
-                "--> no corruption after {} flushes, {} BCC blobs scanned, {} pool squeezes",
+                "--> no corruption after {} flushes, {} BCC blobs compared, {} pool squeezes",
                 ROUNDS,
                 blobsScanned,
                 squeezer.squeezes.get()
@@ -255,51 +277,63 @@ public class AzureBccUploadRefillRaceIT extends AbstractStatelessPluginIntegTest
         return indexSettings(SHARDS, 0).put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING.getKey(), "1mb").build();
     }
 
-    /** Finds 64KB-aligned chunks that appear twice in a BCC blob, ignoring all-zero padding, or {@code null} if there are none. */
-    private static String describeDuplicateChunks(String blobName, BytesReference blob) throws IOException {
-        final Map<Long, Integer> firstChunkByCrc = new HashMap<>();
-        final byte[] bytes = new byte[BUFFER_SIZE];
-        StringBuilder description = null;
-        try (StreamInput in = blob.streamInput()) {
-            for (int chunk = 0; (chunk + 1) * BUFFER_SIZE <= blob.length(); chunk++) {
-                in.readBytes(bytes, 0, BUFFER_SIZE);
-                if (allZero(bytes)) {
-                    continue;
-                }
-                final CRC32 crc = new CRC32();
-                crc.update(bytes, 0, BUFFER_SIZE);
-                final Integer earlier = firstChunkByCrc.putIfAbsent(crc.getValue(), chunk);
-                if (earlier != null
-                    && blob.slice(earlier * BUFFER_SIZE, BUFFER_SIZE).equals(blob.slice(chunk * BUFFER_SIZE, BUFFER_SIZE))) {
-                    if (description == null) {
-                        description = new StringBuilder(blobName).append(" (")
-                            .append(blob.length())
-                            .append(" bytes) holds a 64KB upload buffer twice:");
-                    }
-                    description.append("\n  chunk ")
-                        .append(chunk)
-                        .append(" [")
-                        .append(chunk * BUFFER_SIZE)
-                        .append(", ")
-                        .append((chunk + 1) * BUFFER_SIZE)
-                        .append(") == chunk ")
-                        .append(earlier)
-                        .append(" (")
-                        .append(chunk - earlier)
-                        .append(" chunks earlier)");
-                }
-            }
+    /** Compares a stored BCC blob with the bytes the node intended to upload, or returns {@code null} if they match. */
+    private static String describeMismatch(String blobPath, byte[] intended, BytesReference stored) {
+        final byte[] actual = BytesReference.toBytes(stored);
+        final int mismatch = Arrays.mismatch(intended, actual);
+        if (mismatch == -1) {
+            return null;
         }
-        return description == null ? null : description.toString();
+        return blobPath
+            + " differs from the intended upload: intended "
+            + intended.length
+            + " bytes, stored "
+            + actual.length
+            + " bytes, first difference at offset "
+            + mismatch;
     }
 
-    private static boolean allZero(byte[] b) {
-        for (byte value : b) {
-            if (value != 0) {
-                return false;
-            }
+    private static String intendedBccKey(ShardId shardId, long primaryTerm, String blobName) {
+        return "indices/" + shardId.getIndex().getUUID() + "/" + shardId.id() + "/" + primaryTerm + "/" + blobName;
+    }
+
+    /** Records the bytes of every BCC the node is about to upload, so that they can be compared with what the object store received. */
+    public static class TestStatelessPlugin extends TestUtils.StatelessPluginWithTrialLicense {
+
+        public TestStatelessPlugin(Settings settings) {
+            super(settings);
         }
-        return true;
+
+        @Override
+        protected ObjectStoreService createObjectStoreService(
+            Settings settings,
+            RepositoriesService repositoriesService,
+            ThreadPool threadPool,
+            ClusterService clusterService,
+            ProjectResolver projectResolver
+        ) {
+            return new ObjectStoreService(settings, repositoriesService, threadPool, clusterService, projectResolver) {
+                @Override
+                public void uploadBatchedCompoundCommitFile(
+                    long primaryTerm,
+                    Directory directory,
+                    long enqueuedAtNanos,
+                    VirtualBatchedCompoundCommit pendingCommit,
+                    ActionListener<BccUploadObjectStoreTiming> listener
+                ) {
+                    try (var in = pendingCommit.getFrozenInputStreamForUpload()) {
+                        intendedBccs.put(
+                            intendedBccKey(pendingCommit.getShardId(), primaryTerm, pendingCommit.getBlobName()),
+                            in.readAllBytes()
+                        );
+                    } catch (IOException e) {
+                        listener.onFailure(e);
+                        return;
+                    }
+                    super.uploadBatchedCompoundCommitFile(primaryTerm, directory, enqueuedAtNanos, pendingCommit, listener);
+                }
+            };
+        }
     }
 
     @SuppressForbidden(reason = "uses HttpServer to emulate Azure storage")

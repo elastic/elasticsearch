@@ -27,7 +27,7 @@ import java.time.Instant;
  * without a permit. Parking a metadata request behind the permits that long-lived streams hold starved the threads
  * the resolve runs on.
  */
-class ConcurrencyLimitedStorageProvider extends ForwardingStorageProvider {
+class ConcurrencyLimitedStorageProvider extends DelegatingStorageProvider {
 
     private final StorageProvider delegate;
     private final ConcurrencyLimiter limiter;

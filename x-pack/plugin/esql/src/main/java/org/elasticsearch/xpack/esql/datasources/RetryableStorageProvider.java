@@ -29,7 +29,7 @@ import java.util.function.Function;
  * scope, is known there. The two-arg constructor binds a single fixed policy for every path (used by tests and
  * any caller that does not need per-scope backoff).
  */
-class RetryableStorageProvider extends ForwardingStorageProvider {
+class RetryableStorageProvider extends DelegatingStorageProvider {
 
     private final StorageProvider delegate;
     private final RetryScheduler retryScheduler;

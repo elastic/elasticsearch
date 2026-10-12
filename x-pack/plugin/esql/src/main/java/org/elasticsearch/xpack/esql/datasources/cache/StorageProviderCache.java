@@ -13,7 +13,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.xpack.esql.datasources.ForwardingStorageProvider;
+import org.elasticsearch.xpack.esql.datasources.DelegatingStorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
@@ -333,7 +333,7 @@ public class StorageProviderCache implements Closeable {
     /**
      * Per-borrow wrapper. {@link #close()} returns the lease; the inner client stays pooled.
      */
-    private final class PooledStorageProvider extends ForwardingStorageProvider {
+    private final class PooledStorageProvider extends DelegatingStorageProvider {
         private final StorageProvider delegate;
         private final Releasable lease;
 

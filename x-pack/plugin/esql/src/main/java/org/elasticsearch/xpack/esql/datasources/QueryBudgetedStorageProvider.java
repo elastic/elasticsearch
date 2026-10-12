@@ -23,7 +23,7 @@ import java.time.Instant;
  * Closing this provider closes the underlying budget, which deregisters from the
  * {@link ConcurrencyBudgetAllocator} and triggers rebalancing of remaining active queries.
  */
-class QueryBudgetedStorageProvider extends ForwardingStorageProvider {
+class QueryBudgetedStorageProvider extends DelegatingStorageProvider {
 
     private final StorageProvider delegate;
     private final QueryConcurrencyBudget budget;

@@ -31,14 +31,14 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * What {@link ForwardingStorageProvider} has to keep true for the five decorators that extend it.
+ * What {@link DelegatingStorageProvider} has to keep true for the five decorators that extend it.
  * <p>
  * A method on {@link StorageProvider} with a {@code default} resolves through {@code this}, so a wrapper that does
  * not declare it does not inherit the delegate's override — it silently takes the delegate's own handle path instead,
  * and the override never runs. Nothing in the language reports that: the call compiles and the suites pass. The base
  * exists so there is one place to get it right, and these tests are what hold it there.
  */
-public class ForwardingStorageProviderTests extends ESTestCase {
+public class DelegatingStorageProviderTests extends ESTestCase {
 
     /**
      * The default is what every provider but S3 uses, so it is the majority path through this method.
@@ -70,7 +70,7 @@ public class ForwardingStorageProviderTests extends ESTestCase {
      */
     public void testTheBaseForwardsEveryCallToTheDelegate() throws Exception {
         RecordingProvider delegate = new RecordingProvider();
-        StorageProvider forwarding = new ForwardingStorageProvider() {
+        StorageProvider forwarding = new DelegatingStorageProvider() {
             @Override
             protected StorageProvider delegate() {
                 return delegate;
@@ -120,8 +120,8 @@ public class ForwardingStorageProviderTests extends ESTestCase {
     public void testTheBaseDeclaresEveryMethodOnTheInterface() throws Exception {
         List<String> inherited = new ArrayList<>();
         for (Method method : StorageProvider.class.getMethods()) {
-            Method onBase = ForwardingStorageProvider.class.getMethod(method.getName(), method.getParameterTypes());
-            if (onBase.getDeclaringClass() != ForwardingStorageProvider.class) {
+            Method onBase = DelegatingStorageProvider.class.getMethod(method.getName(), method.getParameterTypes());
+            if (onBase.getDeclaringClass() != DelegatingStorageProvider.class) {
                 inherited.add(method.getName() + Arrays.toString(method.getParameterTypes()));
             }
         }
@@ -136,7 +136,7 @@ public class ForwardingStorageProviderTests extends ESTestCase {
     public void testCloseIsAbstractRatherThanForwarded() throws Exception {
         assertTrue(
             "close() must stay abstract on the base",
-            Modifier.isAbstract(ForwardingStorageProvider.class.getMethod("close").getModifiers())
+            Modifier.isAbstract(DelegatingStorageProvider.class.getMethod("close").getModifiers())
         );
     }
 
@@ -226,7 +226,7 @@ public class ForwardingStorageProviderTests extends ESTestCase {
             )
         );
         // The pooled lease is the one that cannot be constructed directly: it is private to the cache.
-        decorators.put("PooledStorageProvider", ForwardingStorageProviderTests::pooled);
+        decorators.put("PooledStorageProvider", DelegatingStorageProviderTests::pooled);
 
         for (var decorator : decorators.entrySet()) {
             String name = decorator.getKey();

@@ -36,7 +36,6 @@ import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader.QueryTarge
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
 import org.elasticsearch.index.codec.vectors.diskbbq.PostingMetadata;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
-import org.elasticsearch.index.codec.vectors.diskbbq.PrefetchingCentroidIterator;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.diskbbq.SegmentCalibrationParameters;
 import org.elasticsearch.index.codec.vectors.diskbbq.SlicedBlockRange;
@@ -90,12 +89,6 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         return new ESNextDiskBBQVectorsReader(this, genericReaders);
     }
 
-    CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice) throws IOException {
-        // TODO we may want to prefetch more than one postings list, however, we will likely want to place a limit
-        // so we don't bother prefetching many lists we won't end up scoring
-        return new PrefetchingCentroidIterator(centroidIterator, postingListSlice);
-    }
-
     @Override
     protected int getNumberOfVectors(NextFieldEntry entry, KnnVectorValues values, IndexInput centroidSlice, ESAcceptDocs esAcceptDocs)
         throws IOException {
@@ -138,7 +131,6 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         int numCentroids,
         IndexInput centroids,
         QueryTarget queryTarget,
-        IndexInput postingListSlice,
         AcceptDocs acceptDocs,
         float approximateCost,
         KnnVectorValues values,
@@ -174,7 +166,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
                 fieldEntry.byteCentroids()
             ).getIterator();
         };
-        return getPostingListPrefetchIterator(iterator, postingListSlice);
+        return iterator;
     }
 
     @Override

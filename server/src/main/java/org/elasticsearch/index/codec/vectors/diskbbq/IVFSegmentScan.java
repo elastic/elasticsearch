@@ -44,6 +44,7 @@ public final class IVFSegmentScan {
     }
 
     private final boolean shared;
+    private final int parts;
     private Plan plan;
     private boolean empty;
     private boolean wholeClaimed;
@@ -55,18 +56,29 @@ public final class IVFSegmentScan {
     private long inFlightSize;
     private float expectedScored;
 
-    /** A scan shared by the parts of one segment's search; parts must use collectors of the same size. */
-    public IVFSegmentScan() {
-        this(true);
+    /**
+     * A scan shared by {@code parts} searches of one segment (sizing how far ahead posting lists are prefetched); parts must
+     * use collectors of the same size.
+     */
+    public IVFSegmentScan(int parts) {
+        this(true, parts);
     }
 
-    private IVFSegmentScan(boolean shared) {
+    private IVFSegmentScan(boolean shared, int parts) {
+        if (parts < 1) {
+            throw new IllegalArgumentException("parts must be at least 1, got: " + parts);
+        }
         this.shared = shared;
+        this.parts = parts;
     }
 
     /** A scan used by a single search on its own; it reads "collector full" from the collector itself. */
     static IVFSegmentScan single() {
-        return new IVFSegmentScan(false);
+        return new IVFSegmentScan(false, 1);
+    }
+
+    int parts() {
+        return parts;
     }
 
     /** Builds the plan with {@code planner} unless already open. Returns false if the segment has nothing to search. */

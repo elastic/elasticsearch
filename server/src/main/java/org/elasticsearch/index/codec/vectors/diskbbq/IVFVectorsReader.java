@@ -193,7 +193,6 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         int numCentroids,
         IndexInput centroids,
         QueryTarget queryTarget,
-        IndexInput postingListSlice,
         AcceptDocs acceptDocs,
         float approximateCost,
         KnnVectorValues values,
@@ -445,13 +444,11 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         if (values == null) {
             return;
         }
-        IVFSegmentScan scan = sharedScan(knnCollector);
-        if (scan == null) {
-            scan = IVFSegmentScan.single();
-        }
+        final IVFSegmentScan shared = sharedScan(knnCollector);
+        final IVFSegmentScan scan = shared != null ? shared : IVFSegmentScan.single();
         // the plan gets its own vector values: parts of a shared scan visit postings while the plan's iterator runs
         if (scan.openIfNeeded(
-            () -> planScan(fieldInfo, entry, queryTarget, knnCollector, acceptDocs, esAcceptDocs, vectorValues(fieldInfo))
+            () -> planScan(fieldInfo, entry, queryTarget, knnCollector, acceptDocs, esAcceptDocs, vectorValues(fieldInfo), scan.parts())
         ) == false) {
             return; // no vectors in this segment / slice
         }
@@ -509,7 +506,8 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         KnnCollector knnCollector,
         AcceptDocs acceptDocs,
         ESAcceptDocs esAcceptDocs,
-        KnnVectorValues values
+        KnnVectorValues values,
+        int prefetchDepth
     ) throws IOException {
         final IndexInput centroids = entry.centroidSlice(ivfCentroids);
         final int numVectors = getNumberOfVectors(entry, values, centroids, esAcceptDocs);
@@ -535,17 +533,19 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         if (visitRatio == dynamicVisitRatio) {
             visitRatio = segmentVisitRatio(numCands, k, numVectors);
         }
-        CentroidIterator postings = getCentroidIterator(
+        CentroidIterator centroidOrder = getCentroidIterator(
             fieldInfo,
             entry.numCentroids,
             centroids,
             queryTarget,
-            entry.postingListSlice(ivfClusters),
             acceptDocs,
             approximateCost,
             values,
             visitRatio
         );
+        // prefetch one posting list ahead per part searching the segment, so each part's next list is on its way
+        // TODO we may want to prefetch more, with a limit so we don't prefetch many lists we won't end up scoring
+        CentroidIterator postings = new PrefetchingCentroidIterator(centroidOrder, entry.postingListSlice(ivfClusters), prefetchDepth);
         return new IVFSegmentScan.Plan(
             postings,
             maxVectorsToVisit(entry, visitRatio, numVectors),

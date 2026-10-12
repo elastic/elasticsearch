@@ -34,7 +34,6 @@ import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader.QueryTarget;
 import org.elasticsearch.index.codec.vectors.diskbbq.PostingMetadata;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
-import org.elasticsearch.index.codec.vectors.diskbbq.PrefetchingCentroidIterator;
 import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
@@ -83,12 +82,6 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
         return new ES940DiskBBQVectorsReader(this, genericReaders);
     }
 
-    CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice) throws IOException {
-        // TODO we may want to prefetch more than one postings list, however, we will likely want to place a limit
-        // so we don't bother prefetching many lists we won't end up scoring
-        return new PrefetchingCentroidIterator(centroidIterator, postingListSlice);
-    }
-
     private void ensureCompatibleEncoding(IndexInput metaInput, ES940DiskBBQVectorsFormat.QuantEncoding quantEncoding)
         throws CorruptIndexException {
         if (versionMeta < ES940DiskBBQVectorsFormat.VERSION_PACKED_INT2
@@ -127,7 +120,6 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
         int numCentroids,
         IndexInput centroids,
         QueryTarget queryTarget,
-        IndexInput postingListSlice,
         AcceptDocs acceptDocs,
         float approximateCost,
         KnnVectorValues values,
@@ -207,7 +199,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
                 bulkSize
             );
         }
-        return getPostingListPrefetchIterator(centroidIterator, postingListSlice);
+        return centroidIterator;
     }
 
     @Override

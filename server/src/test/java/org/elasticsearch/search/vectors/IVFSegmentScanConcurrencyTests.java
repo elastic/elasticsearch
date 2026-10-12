@@ -127,7 +127,7 @@ public class IVFSegmentScanConcurrencyTests extends ESTestCase {
         int parts,
         int failingPart
     ) throws Exception {
-        IVFSegmentScan scan = new IVFSegmentScan();
+        IVFSegmentScan scan = new IVFSegmentScan(parts);
         List<MaxScoreTopKnnCollector> collectors = new ArrayList<>();
         List<Future<?>> futures = new ArrayList<>();
         for (int p = 0; p < parts; p++) {

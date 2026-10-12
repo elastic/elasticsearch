@@ -74,8 +74,18 @@ final class IVFScoringManager {
             work[i] = leaves[i].work;
             splittable[i] = leaves[i].splittable;
         }
+        int[][] slices = slices(work, splittable, MAX_WORK_PER_SLICE, MAX_PARTS_PER_LEAF, MAX_LEAVES_PER_SLICE);
+        int[] parts = new int[leaves.length];
+        for (int[] slice : slices) {
+            for (int leaf : slice) {
+                parts[leaf]++;
+            }
+        }
+        for (int i = 0; i < leaves.length; i++) {
+            leaves[i].scan = new IVFSegmentScan(Math.max(1, parts[i]));
+        }
         List<Callable<Void>> tasks = new ArrayList<>();
-        for (int[] slice : slices(work, splittable, MAX_WORK_PER_SLICE, MAX_PARTS_PER_LEAF, MAX_LEAVES_PER_SLICE)) {
+        for (int[] slice : slices) {
             tasks.add(() -> {
                 for (int leaf : slice) {
                     search(leaves[leaf]);
@@ -168,7 +178,7 @@ final class IVFScoringManager {
         private final LeafSearch search;
         private final long work;
         private final boolean splittable;
-        private final IVFSegmentScan scan = new IVFSegmentScan();
+        private IVFSegmentScan scan; // set before the leaf's parts run, once the parts are known
         private final List<AbstractMaxScoreKnnCollector> parts = new ArrayList<>();
         private LeafInput input;
         private boolean prepared;

@@ -851,7 +851,7 @@ CASE:
         - method: POST
           path: /_query
           parameters: [method, path, parameters, capabilities]
-          capabilities: [case_mv]
+          capabilities: [case_mv, fn_case_standard_multivalue_message]
       reason: "CASE support for multivalue conditions introduced in 8.16.0"
 
   - do:
@@ -883,8 +883,8 @@ CASE:
 
   - do:
       warnings_regex:
-        - ".+evaluation of \\[f?\\] failed, treating result as false. Only first 20 failures recorded."
-        - ".+java.lang.IllegalArgumentException: CASE expects a single-valued boolean"
+        - ".+evaluation of \\[CASE\\(f::BOOLEAN, .+\\)\\] failed, treating result as false. Only first 20 failures recorded."
+        - ".+java.lang.IllegalArgumentException: single-value function encountered multi-value"
       esql.query:
         body:
           query: 'FROM b* | EVAL c = CASE(f::BOOLEAN, "a", "b") | SORT a ASC | LIMIT 10'

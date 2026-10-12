@@ -96,13 +96,14 @@ M              |10
 
 caseOnMv
 required_capability: case_mv
+required_capability: fn_case_standard_multivalue_message
 
 FROM employees
 | WHERE emp_no == 10010
 | EVAL foo = CASE(still_hired, "still", is_rehired, "rehired", "not")
 | KEEP still_hired, is_rehired, foo;
-warning:Line 3:41: evaluation of [is_rehired] failed, treating result as false. Only first 20 failures recorded.
-warning:Line 3:41: java.lang.IllegalArgumentException: CASE expects a single-valued boolean
+warning:Line 3:14: evaluation of [CASE(still_hired, \"still\", is_rehired, \"rehired\", \"not\")] failed, treating result as false. Only first 20 failures recorded.
+warning:Line 3:14: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 still_hired:boolean |     is_rehired:boolean     | foo:keyword
               false | [false, false, true, true] | not
@@ -110,10 +111,11 @@ still_hired:boolean |     is_rehired:boolean     | foo:keyword
 
 caseOnConstantMvFalseTrue
 required_capability: case_mv
+required_capability: fn_case_standard_multivalue_message
 
 ROW foo = CASE([false, true], "a", "b");
-warning:Line 1:16: evaluation of [[false, true]] failed, treating result as false. Only first 20 failures recorded.
-warning:Line 1:16: java.lang.IllegalArgumentException: CASE expects a single-valued boolean
+warning:Line 1:11: evaluation of [CASE([false, true], \"a\", \"b\")] failed, treating result as false. Only first 20 failures recorded.
+warning:Line 1:11: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 foo:keyword
 b
@@ -121,10 +123,11 @@ b
 
 caseOnConstantMvTrueTrue
 required_capability: case_mv
+required_capability: fn_case_standard_multivalue_message
 
 ROW foo = CASE([true, true], "a", "b");
-warning:Line 1:16: evaluation of [[true, true]] failed, treating result as false. Only first 20 failures recorded.
-warning:Line 1:16: java.lang.IllegalArgumentException: CASE expects a single-valued boolean
+warning:Line 1:11: evaluation of [CASE([true, true], \"a\", \"b\")] failed, treating result as false. Only first 20 failures recorded.
+warning:Line 1:11: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 foo:keyword
 b
@@ -132,10 +135,11 @@ b
 
 caseOnMvSliceMv
 required_capability: case_mv
+required_capability: fn_case_standard_multivalue_message
 
 ROW foo = [true, false, false] | EVAL foo = CASE(MV_SLICE(foo, 0, 1), "a", "b");
-warning:Line 1:50: evaluation of [MV_SLICE(foo, 0, 1)] failed, treating result as false. Only first 20 failures recorded.
-warning:Line 1:50: java.lang.IllegalArgumentException: CASE expects a single-valued boolean
+warning:Line 1:45: evaluation of [CASE(MV_SLICE(foo, 0, 1), \"a\", \"b\")] failed, treating result as false. Only first 20 failures recorded.
+warning:Line 1:45: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 foo:keyword
 b
@@ -152,10 +156,11 @@ a
 
 caseOnConvertMvSliceMv
 required_capability: case_mv
+required_capability: fn_case_standard_multivalue_message
 
 ROW foo = ["true", "false", "false"] | EVAL foo = CASE(MV_SLICE(foo::BOOLEAN, 0, 1), "a", "b");
-warning:Line 1:56: evaluation of [MV_SLICE(foo::BOOLEAN, 0, 1)] failed, treating result as false. Only first 20 failures recorded.
-warning:Line 1:56: java.lang.IllegalArgumentException: CASE expects a single-valued boolean
+warning:Line 1:51: evaluation of [CASE(MV_SLICE(foo::BOOLEAN, 0, 1), \"a\", \"b\")] failed, treating result as false. Only first 20 failures recorded.
+warning:Line 1:51: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 foo:keyword
 b
@@ -168,6 +173,47 @@ ROW foo = ["true", "false", "false"] | EVAL foo = CASE(MV_SLICE(foo::BOOLEAN, 0)
 
 foo:keyword
 a
+;
+
+// A one value list is single valued, so it picks the same branch a plain true does, and
+// raises no multivalue warning. All values are constant here, so the CASE is folded.
+caseOnConstantSingleValueList
+required_capability: fn_case_single_value_list_condition
+
+ROW from_list = CASE([true], "a", "b"), from_boolean = CASE(true, "a", "b"), from_false_list = CASE([false], "a", "b");
+
+from_list:keyword | from_boolean:keyword | from_false_list:keyword
+a                 | a                    | b
+;
+
+// Same, but the values are fields, so the CASE is not foldable and the condition is
+// dropped by partiallyFold rather than fold.
+caseOnFieldsWithSingleValueListCondition
+required_capability: fn_case_single_value_list_condition
+
+FROM employees
+| WHERE emp_no == 10010
+| EVAL from_list = CASE([true], first_name, last_name), from_boolean = CASE(true, first_name, last_name)
+| KEEP first_name, last_name, from_list, from_boolean;
+
+first_name:keyword | last_name:keyword | from_list:keyword | from_boolean:keyword
+Duangkaew          | Piveteau          | Duangkaew         | Duangkaew
+;
+
+// A multivalued condition is false. The CASE is not foldable here, so the condition is
+// dropped by partiallyFold, which has to raise the same warning the evaluator would.
+caseOnFieldsWithMultivalueListCondition
+required_capability: fn_case_partial_fold_multivalue_warning
+
+FROM employees
+| WHERE emp_no == 10010
+| EVAL result = CASE([true, false], first_name, last_name)
+| KEEP first_name, last_name, result;
+warning:Line 3:17: evaluation of [CASE([true, false], first_name, last_name)] failed, treating result as false. Only first 20 failures recorded.
+warning:Line 3:17: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+first_name:keyword | last_name:keyword | result:keyword
+Duangkaew          | Piveteau          | Piveteau
 ;
 
 docsCaseSuccessRate

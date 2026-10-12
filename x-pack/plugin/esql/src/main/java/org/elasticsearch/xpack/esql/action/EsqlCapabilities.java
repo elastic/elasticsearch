@@ -168,6 +168,26 @@ public class EsqlCapabilities {
         CASE_MV,
 
         /**
+         * {@code CASE} treats a one value list condition as single valued, so it picks a branch like a plain boolean.
+         */
+        FN_CASE_SINGLE_VALUE_LIST_CONDITION,
+
+        /**
+         * {@code CASE} warns about a multivalued condition even when it is only partially folded.
+         */
+        FN_CASE_PARTIAL_FOLD_MULTIVALUE_WARNING,
+
+        /**
+         * {@code CASE} reports a multivalued condition with the same message the other functions use.
+         */
+        FN_CASE_STANDARD_MULTIVALUE_MESSAGE,
+
+        /**
+         * {@code CASE} multivalue condition warnings name the function rather than the condition.
+         */
+        FN_CASE_MULTIVALUE_WARNING_NAMES_FUNCTION,
+
+        /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
          */
         ST_CENTROID_AGG_OPTIMIZED,
@@ -1212,6 +1232,12 @@ public class EsqlCapabilities {
          * of failing the whole query.
          */
         GROK_TYPED_CONVERSION_WARNINGS,
+
+        /**
+         * {@code SORT _score ASC} pushed down to Lucene sorts ascending. Before this fix the pushed-down sort was always
+         * descending, so with a {@code LIMIT} smaller than the number of matches Lucene kept the highest-scoring documents.
+         */
+        FIX_SCORE_SORT_ASC_PUSHDOWN,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

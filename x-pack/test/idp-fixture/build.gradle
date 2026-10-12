@@ -6,7 +6,7 @@ dockerFixtures {
   idp {
     dockerContext = file("src/main/resources/idp")
     version = "1.2"
-    baseImages = ["openjdk:11.0.16-jre"]
+    baseImages = ["eclipse-temurin:11.0.16_8-jre"]
   }
   httpproxy {
     dockerContext = file("src/main/resources/nginx")

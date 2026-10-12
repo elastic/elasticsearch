@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
@@ -758,7 +757,8 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertEquals(query, request.query());
         assertFalse(request.keepOnCompletion());
         assertEquals(TimeValue.timeValueSeconds(1), request.waitForCompletionTimeout());
-        assertEquals(TimeValue.timeValueDays(5), request.keepAlive());
+        // null means "use the async_search.default_keep_alive cluster setting"
+        assertNull(request.keepAlive());
     }
 
     public void testSettingsBlockTimeZoneAndProjectRouting() throws IOException {
@@ -1416,6 +1416,6 @@ public class EsqlQueryRequestTests extends ESTestCase {
     }
 
     private BlockFactory blockFactory() {
-        return BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker(CircuitBreaker.REQUEST)).build();
+        return BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 }

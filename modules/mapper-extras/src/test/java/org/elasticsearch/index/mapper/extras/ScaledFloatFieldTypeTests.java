@@ -187,11 +187,17 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
         double scalingFactor = 0.1 + randomDouble() * 100;
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
-        Document doc = new Document();
-        doc.add(new SortedNumericDocValuesField("scaled_float1", 10));
-        doc.add(new SortedNumericDocValuesField("scaled_float2", 5));
-        doc.add(new SortedNumericDocValuesField("scaled_float2", 12));
-        w.addDocument(doc);
+        Document doc0 = new Document();
+        doc0.add(new SortedNumericDocValuesField("scaled_float1", 10));
+        doc0.add(new SortedNumericDocValuesField("scaled_float2", 5));
+        doc0.add(new SortedNumericDocValuesField("scaled_float2", 12));
+        w.addDocument(doc0);
+        // a second doc with a different singleton value, and no value for the multi-valued field
+        Document doc1 = new Document();
+        doc1.add(new SortedNumericDocValuesField("scaled_float1", 20));
+        w.addDocument(doc1);
+        // a third doc with no value for either field
+        w.addDocument(new Document());
         try (DirectoryReader reader = DirectoryReader.open(w)) {
             // single-valued
             ScaledFloatFieldMapper.ScaledFloatFieldType f1 = new ScaledFloatFieldMapper.ScaledFloatFieldType(
@@ -206,6 +212,10 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
             assertTrue(values.advanceExact(0));
             assertEquals(1, values.docValueCount());
             assertEquals(10 / f1.getScalingFactor(), values.nextValue(), 10e-5);
+            assertTrue(values.advanceExact(1));
+            assertEquals(1, values.docValueCount());
+            assertEquals(20 / f1.getScalingFactor(), values.nextValue(), 10e-5);
+            assertFalse(values.advanceExact(2));
 
             // multi-valued
             ScaledFloatFieldMapper.ScaledFloatFieldType f2 = new ScaledFloatFieldMapper.ScaledFloatFieldType(
@@ -219,6 +229,8 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
             assertEquals(2, values.docValueCount());
             assertEquals(5 / f2.getScalingFactor(), values.nextValue(), 10e-5);
             assertEquals(12 / f2.getScalingFactor(), values.nextValue(), 10e-5);
+            assertFalse(values.advanceExact(1));
+            assertFalse(values.advanceExact(2));
         }
         IOUtils.close(w, dir);
     }

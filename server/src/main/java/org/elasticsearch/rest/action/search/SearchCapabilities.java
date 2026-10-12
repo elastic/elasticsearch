@@ -75,6 +75,9 @@ public final class SearchCapabilities {
     /** Query types that keyed {@code flattened} subfields do not support are rejected with a 400 instead of a 500. */
     private static final String KEYED_FLATTENED_UNSUPPORTED_QUERIES_BAD_REQUEST = "keyed_flattened_unsupported_queries_bad_request";
 
+    /** A text field that indexes no positions answers positional queries from the values it keeps. */
+    private static final String POSITIONAL_QUERIES_ON_TEXT_WITHOUT_POSITIONS = "positional_queries_on_text_without_positions";
+
     public static final Set<String> CAPABILITIES;
     static {
         HashSet<String> capabilities = new HashSet<>();
@@ -113,6 +116,7 @@ public final class SearchCapabilities {
         capabilities.add(AGGREGATE_METRIC_DOUBLE_DEFAULTS_TO_AVERAGE);
         capabilities.add(KNN_RETRIEVER_OPTIONAL_NUM_CANDIDATES);
         capabilities.add(KEYED_FLATTENED_UNSUPPORTED_QUERIES_BAD_REQUEST);
+        capabilities.add(POSITIONAL_QUERIES_ON_TEXT_WITHOUT_POSITIONS);
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

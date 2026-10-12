@@ -173,6 +173,23 @@ public class ColumnarStringMatchQueryTests extends ESTestCase {
     }
 
     /**
+     * A single-valued field, whose blobs are each document's value rather than a payload, so the overlay tests the blob
+     * itself. A dictionary with escapes, the empty string, and documents without the field.
+     */
+    public void testSingleValuedColumn() throws IOException {
+        final String[] terms = { "alpha", "bravo", "charlie", "" };
+        final List<List<String>> docs = new ArrayList<>();
+        for (int d = 0; d < between(400, 1200); d++) {
+            docs.add(switch (d % 25) {
+                case 3 -> List.of("escaped-" + d);
+                case 7, 19 -> null;
+                default -> List.of(terms[d % terms.length]);
+            });
+        }
+        assertShapes(docs, true);
+    }
+
+    /**
      * The budget the search layer keeps for reading a column. It is consulted when the scorer's iterator is asked
      * for rather than when the supplier is built, since everything that allocates happens behind it and a supplier
      * Lucene decides not to use should cost nothing.
@@ -202,8 +219,13 @@ public class ColumnarStringMatchQueryTests extends ESTestCase {
      * column, and again with the column hidden so the query has to read a document at a time.
      */
     private void assertShapes(List<List<String>> docs) throws IOException {
+        assertShapes(docs, false);
+    }
+
+    /** As {@link #assertShapes(List)}, written single-valued when {@code singleValued}: each document holds one value or none. */
+    private void assertShapes(List<List<String>> docs, boolean singleValued) throws IOException {
         try (Directory dir = newDirectory()) {
-            index(dir, docs);
+            index(dir, docs, singleValued);
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 // The two searchers have to be reading the field two different ways, or the comparison below holds
                 // for the wrong reason: one of them answering everything a document at a time and agreeing with
@@ -231,14 +253,19 @@ public class ColumnarStringMatchQueryTests extends ESTestCase {
     }
 
     private static void index(Directory dir, List<List<String>> docs) throws IOException {
+        index(dir, docs, false);
+    }
+
+    private static void index(Directory dir, List<List<String>> docs, boolean singleValued) throws IOException {
         final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(ColumnarFieldType.STRING))
             .setMergePolicy(new LogDocMergePolicy());
-        final FieldType type = columnarBinaryFieldType();
+        final FieldType type = singleValued ? ColumnarTestUtils.singleValuedBinaryFieldType() : columnarBinaryFieldType();
         try (IndexWriter writer = new IndexWriter(dir, iwc)) {
             for (List<String> slots : docs) {
                 final Document doc = new Document();
                 if (slots != null) {
-                    doc.add(new Field(FIELD, payload(slots), type));
+                    assert singleValued == false || slots.size() == 1 : "a single-valued document holds one value";
+                    doc.add(new Field(FIELD, singleValued ? new BytesRef(slots.get(0)) : payload(slots), type));
                 }
                 writer.addDocument(doc);
             }

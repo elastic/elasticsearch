@@ -45,7 +45,8 @@ public class MetricValidator {
         "size",
         "utilization",
         "histogram",
-        "time"
+        "time",
+        "duration"
     );
 
     /**
@@ -105,7 +106,7 @@ public class MetricValidator {
          *
          * See https://opentelemetry.io/docs/specs/semconv/registry/attributes
          */
-        static final Set<String> OTEL_ATTRIBUTES = Set.of(MetricAttributes.ERROR_TYPE);
+        static final Set<String> OTEL_ATTRIBUTES = Set.of(MetricAttributes.ERROR_TYPE, "http.response.status_code");
 
         /**
          * Routing attribute consumed by apm-server to direct a datapoint to a specific data stream

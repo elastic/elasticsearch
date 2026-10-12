@@ -69,6 +69,11 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
+import org.elasticsearch.search.aggregations.bucket.filter.InternalFilters;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -77,6 +82,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -1394,6 +1400,182 @@ public class ApiKeyServiceTests extends ESTestCase {
         apiKeyService.crossClusterApiKeyUsageStats(future);
         final ElasticsearchException e = expectThrows(ElasticsearchException.class, future::actionGet);
         assertThat(e, sameInstance(expectedException));
+    }
+
+    public void testRestApiKeyUsageStatsAreEmptyWhenServiceNotEnabled() {
+        final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), false).build();
+        final ApiKeyService service = createApiKeyService(settings);
+        final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
+        service.restApiKeyUsageStats(future);
+        assertThat(future.actionGet(), anEmptyMap());
+    }
+
+    public void testRestApiKeyUsageStatsAreZerosWhenIndexDoesNotExist() {
+        securityIndex = SecurityMocks.mockSecurityIndexManager(".security", false, false);
+        final ApiKeyService apiKeyService = createApiKeyService();
+
+        final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
+        apiKeyService.restApiKeyUsageStats(future);
+        assertThat(future.actionGet(), equalTo(Map.of("active", 0L, "invalidated", 0L, "expired", 0L)));
+    }
+
+    public void testRestApiKeyUsageFailsWhenIndexNotAvailable() {
+        securityIndex = SecurityMocks.mockSecurityIndexManager(".security", true, false);
+        final ElasticsearchException expectedException = new ElasticsearchException("not available");
+        when(securityIndex.forCurrentProject().getUnavailableReason(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(
+            expectedException
+        );
+        final ApiKeyService apiKeyService = createApiKeyService();
+
+        final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
+        apiKeyService.restApiKeyUsageStats(future);
+        final ElasticsearchException e = expectThrows(ElasticsearchException.class, future::actionGet);
+        assertThat(e, sameInstance(expectedException));
+    }
+
+    /**
+     * Covers the search that backs the REST API key counts: that the bucket doc counts are reported under the expected names, that the
+     * query selects REST keys only, and that no key document is fetched to produce the counts.
+     */
+    public void testRestApiKeyUsageStats() {
+        when(clock.instant()).thenReturn(Instant.now());
+        when(client.threadPool()).thenReturn(threadPool);
+        when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(new SearchRequestBuilder(client));
+
+        final long activeKeys = randomLongBetween(0, 100);
+        final long invalidatedKeys = randomLongBetween(0, 100);
+        final long expiredKeys = randomLongBetween(0, 100);
+
+        final AtomicReference<SearchRequest> searchRequest = new AtomicReference<>();
+        doAnswer(invocationOnMock -> {
+            searchRequest.set(invocationOnMock.getArgument(1));
+            final ActionListener<SearchResponse> listener = invocationOnMock.getArgument(2);
+            ActionListener.respondAndRelease(
+                listener,
+                SearchResponseUtils.response()
+                    .shards(1, 1, 0)
+                    .tookInMillis(1L)
+                    .aggregations(
+                        InternalAggregations.from(
+                            List.of(
+                                new InternalFilters(
+                                    "rest_api_key_counts",
+                                    List.of(
+                                        new InternalFilters.InternalBucket("active", activeKeys, InternalAggregations.EMPTY),
+                                        new InternalFilters.InternalBucket("invalidated", invalidatedKeys, InternalAggregations.EMPTY),
+                                        new InternalFilters.InternalBucket("expired", expiredKeys, InternalAggregations.EMPTY)
+                                    ),
+                                    true,
+                                    true,
+                                    null
+                                )
+                            )
+                        )
+                    )
+                    .build()
+            );
+            return null;
+        }).when(client).execute(eq(TransportSearchAction.TYPE), any(SearchRequest.class), anyActionListener());
+
+        final ApiKeyService apiKeyService = createApiKeyService();
+        final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
+        apiKeyService.restApiKeyUsageStats(future);
+
+        assertThat(future.actionGet(), equalTo(Map.of("active", activeKeys, "invalidated", invalidatedKeys, "expired", expiredKeys)));
+
+        final SearchSourceBuilder source = searchRequest.get().source();
+        // REST keys are those explicitly typed `rest`, plus keys written before the `type` field existed, which carry no type at all
+        assertThat(
+            source.query(),
+            is(
+                QueryBuilders.boolQuery()
+                    .filter(QueryBuilders.termQuery("doc_type", "api_key"))
+                    .filter(
+                        QueryBuilders.boolQuery()
+                            .should(QueryBuilders.termQuery("type", ApiKey.Type.REST.value()))
+                            .should(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("type")))
+                            .minimumShouldMatch(1)
+                    )
+            )
+        );
+        // the counts must come from the aggregation alone, since a cluster can hold far more REST keys than can be read back
+        assertThat(source.size(), equalTo(0));
+
+        // the bucket names declared by the aggregation are the names the response is read back by, so they have to agree. The builder
+        // sorts keyed filters by key, so assert on the set of names rather than on their order.
+        final FiltersAggregationBuilder countsAgg = (FiltersAggregationBuilder) source.aggregations()
+            .getAggregatorFactories()
+            .iterator()
+            .next();
+        assertThat(countsAgg.filters().stream().map(KeyedFilter::key).toList(), containsInAnyOrder("active", "invalidated", "expired"));
+    }
+
+    /**
+     * A search that reduced no shard result comes back successful but carries no aggregations. No counts can be derived in that case, so
+     * none are reported: zeros would claim the cluster holds no API keys, which is not something the response says.
+     */
+    public void testRestApiKeyUsageStatsAreEmptyWhenResponseHasNoAggregations() {
+        when(clock.instant()).thenReturn(Instant.now());
+        when(client.threadPool()).thenReturn(threadPool);
+        when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(new SearchRequestBuilder(client));
+        doAnswer(invocationOnMock -> {
+            final ActionListener<SearchResponse> listener = invocationOnMock.getArgument(2);
+            ActionListener.respondAndRelease(listener, SearchResponseUtils.response().shards(0, 0, 0).tookInMillis(1L).build());
+            return null;
+        }).when(client).execute(eq(TransportSearchAction.TYPE), any(SearchRequest.class), anyActionListener());
+
+        final ApiKeyService apiKeyService = createApiKeyService();
+        final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
+        apiKeyService.restApiKeyUsageStats(future);
+
+        assertThat(future.actionGet(), anEmptyMap());
+    }
+
+    /**
+     * The filters aggregation returns a bucket for every filter it declares, so a missing bucket can only mean the aggregation and the
+     * code reading it back disagree on bucket names. Partial counts would misrepresent the cluster, so none are reported, and the
+     * missing buckets are logged to tell which names disagree.
+     */
+    @TestLogging(value = "org.elasticsearch.xpack.security.authc.ApiKeyService:DEBUG", reason = "missing buckets are logged at DEBUG")
+    public void testRestApiKeyUsageStatsAreEmptyWhenResponseLacksABucket() {
+        when(clock.instant()).thenReturn(Instant.now());
+        when(client.threadPool()).thenReturn(threadPool);
+        when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(new SearchRequestBuilder(client));
+        final List<String> bucketKeys = List.of("active", "invalidated", "expired");
+        final List<String> presentKeys = randomSubsetOf(randomIntBetween(0, 2), bucketKeys);
+        final List<String> missingKeys = bucketKeys.stream().filter(key -> presentKeys.contains(key) == false).toList();
+        final List<InternalFilters.InternalBucket> buckets = presentKeys.stream()
+            .map(key -> new InternalFilters.InternalBucket(key, randomLongBetween(0, 100), InternalAggregations.EMPTY))
+            .toList();
+        doAnswer(invocationOnMock -> {
+            final ActionListener<SearchResponse> listener = invocationOnMock.getArgument(2);
+            ActionListener.respondAndRelease(
+                listener,
+                SearchResponseUtils.response()
+                    .shards(1, 1, 0)
+                    .tookInMillis(1L)
+                    .aggregations(InternalAggregations.from(List.of(new InternalFilters("rest_api_key_counts", buckets, true, true, null))))
+                    .build()
+            );
+            return null;
+        }).when(client).execute(eq(TransportSearchAction.TYPE), any(SearchRequest.class), anyActionListener());
+
+        final ApiKeyService apiKeyService = createApiKeyService();
+        final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
+        MockLog.assertThatLogger(
+            () -> apiKeyService.restApiKeyUsageStats(future),
+            ApiKeyService.class,
+            new MockLog.SeenEventExpectation(
+                "missing buckets",
+                ApiKeyService.class.getName(),
+                Level.DEBUG,
+                "buckets "
+                    + missingKeys
+                    + " missing from the [rest_api_key_counts] aggregation in the search response for REST API key usage"
+            )
+        );
+
+        assertThat(future.actionGet(), anEmptyMap());
     }
 
     private Map<String, Object> mockKeyDocument(
@@ -2842,11 +3024,63 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         final Authentication authentication = AuthenticationTestHelper.builder().build();
         final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, null);
-        ApiKeyService service = createApiKeyService(Settings.EMPTY);
+        // Use a slow hasher (PBKDF2) so that computeHashForApiKey forks to the crypto thread pool
+        final Settings settings = Settings.builder().put(ApiKeyService.STORED_HASH_ALGO_SETTING.getKey(), "pbkdf2").build();
+        ApiKeyService service = createApiKeyService(settings);
         final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
         service.createApiKey(authentication, createApiKeyRequest, Set.of(), future);
         final EsRejectedExecutionException e = expectThrows(EsRejectedExecutionException.class, future::actionGet);
         assertThat(e, is(rejectedExecutionException));
+    }
+
+    public void testFastHashVerificationDoesNotUseCryptoThreadPool() throws Exception {
+        doTestHashVerificationThreadPoolUsage(Hasher.SSHA256, false);
+    }
+
+    public void testSlowHashVerificationUsesCryptoThreadPool() throws Exception {
+        doTestHashVerificationThreadPoolUsage(randomFrom(Hasher.PBKDF2_1000, Hasher.BCRYPT4), true);
+    }
+
+    private void doTestHashVerificationThreadPoolUsage(Hasher hasher, boolean expectCryptoThreadPoolUsed) throws Exception {
+        final String apiKey = randomAlphaOfLength(16);
+        final char[] hash = hasher.hash(new SecureString(apiKey.toCharArray()));
+        Map<String, Object> sourceMap = buildApiKeySourceDoc(hash);
+        final ApiKey.Type type = parseTypeFromSourceMap(sourceMap);
+        final ApiKeyCredentials creds = getApiKeyCredentials(randomAlphaOfLength(12), apiKey, type);
+        mockSourceDocument(creds.getId(), sourceMap);
+
+        final ExecutorService mockExecutorService = mock(ExecutorService.class);
+        when(threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME)).thenReturn(mockExecutorService);
+        doAnswer(invocationOnMock -> {
+            ((Runnable) invocationOnMock.getArguments()[0]).run();
+            return null;
+        }).when(mockExecutorService).execute(any(Runnable.class));
+
+        ApiKeyService service = createApiKeyService(Settings.EMPTY);
+        final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
+        service.tryAuthenticate(threadPool.getThreadContext(), creds, future);
+
+        final AuthenticationResult<User> authenticationResult = future.get();
+        assertEquals(AuthenticationResult.Status.SUCCESS, authenticationResult.getStatus());
+
+        verify(mockExecutorService, expectCryptoThreadPoolUsed ? times(1) : never()).execute(any(Runnable.class));
+    }
+
+    public void testIsUsingFastHashAlgorithm() {
+        for (String algorithmName : Hasher.getAvailableAlgoStoredSecureTokenHash()) {
+            Hasher hasher = Hasher.resolve(algorithmName);
+            boolean isFastHashAlgorithm = ApiKeyService.isUsingFastHashAlgorithm(hasher);
+
+            if (algorithmName.startsWith("pbkdf2") || algorithmName.startsWith("bcrypt")) {
+                assertFalse("Algorithm " + algorithmName + " should be classified as expensive", isFastHashAlgorithm);
+
+            } else if (algorithmName.equalsIgnoreCase("ssha256")) {
+                assertTrue("Algorithm " + algorithmName + " expected to be classified as fast", isFastHashAlgorithm);
+
+            } else {
+                fail("Algorithm " + algorithmName + " must explicitly be classified as fast or expensive");
+            }
+        }
     }
 
     public void testCreationSucceedsIfAuthenticationIsCloudApiKey() {

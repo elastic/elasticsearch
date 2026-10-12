@@ -78,6 +78,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
@@ -103,6 +104,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -776,21 +778,28 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         final boolean allowPartialSearchResults = original.allowPartialSearchResults() != null
             ? original.allowPartialSearchResults()
             : searchService.defaultAllowPartialSearchResults();
-        Rewriteable.rewriteAndFetch(
-            original,
-            searchService.getRewriteContext(
-                timeProvider::absoluteStartMillis,
-                clusterState.getMinTransportVersion(),
-                original.getLocalClusterAlias(),
-                resolvedIndices,
-                original.pointInTimeBuilder(),
-                shouldMinimizeRoundtrips(original),
-                isExplain,
-                isProfile,
-                allowPartialSearchResults
-            ),
+        final QueryRewriteContext rewriteContext = searchService.getRewriteContext(
+            timeProvider::absoluteStartMillis,
+            clusterState.getMinTransportVersion(),
+            original.getLocalClusterAlias(),
+            resolvedIndices,
+            original.pointInTimeBuilder(),
+            shouldMinimizeRoundtrips(original),
+            isExplain,
+            isProfile,
+            allowPartialSearchResults
+        );
+        rewriteContext.setParentTask(new TaskId(clusterService.localNode().getId(), task.getId()));
+        // fail as soon as the search is cancelled, without waiting for the async actions of the rewrite to complete
+        final SubscribableListener<SearchRequest> rewriteResult = new SubscribableListener<>();
+        task.addListener(() -> rewriteResult.onFailure(new TaskCancelledException(task.getReasonCancelled())));
+        Rewriteable.rewriteAndFetch(original, rewriteContext, rewriteResult);
+        // subscribe after the rewrite so that a rewrite that completes synchronously continues on this thread without forking,
+        // and in the thread context of the search since the cancellation may complete the rewrite from another context
+        rewriteResult.addListener(
+            rewriteListener,
             threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
-            rewriteListener
+            threadPool.getThreadContext()
         );
     }
 

@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
@@ -39,6 +40,7 @@ import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -96,6 +98,8 @@ public class QueryRewriteContext {
     @Nullable
     private Boolean hasAnyLocalInferenceFields;
     private final boolean allowPartialSearchResults;
+    @Nullable
+    private TaskId parentTaskId;
 
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
@@ -471,6 +475,14 @@ public class QueryRewriteContext {
     }
 
     /**
+     * Sets the task that owns this rewrite. Requests sent by the registered async actions become child tasks of it,
+     * so cancelling the owning task (for instance when the client of a search disconnects) also cancels them.
+     */
+    public void setParentTask(TaskId parentTaskId) {
+        this.parentTaskId = parentTaskId;
+    }
+
+    /**
      * Registers an async action that must be executed before the next rewrite round in order to make progress.
      * This should be used if a rewriteable needs to fetch some external resources in order to be executed ie. a document
      * from an index.
@@ -513,17 +525,18 @@ public class QueryRewriteContext {
                 }
             };
 
+            final Client actionClient = parentTaskId == null ? client : new ParentTaskAssigningClient(client, parentTaskId);
             // make a copy to prevent concurrent modification exception
             List<BiConsumer<Client, ActionListener<?>>> biConsumers = new ArrayList<>(asyncActions);
             asyncActions.clear();
             for (BiConsumer<Client, ActionListener<?>> action : biConsumers) {
-                action.accept(client, internalListener);
+                action.accept(actionClient, internalListener);
             }
 
             var copyUniqueAsyncActions = new HashMap<>(uniqueAsyncActions);
             uniqueAsyncActions.clear();
             for (var entry : copyUniqueAsyncActions.keySet()) {
-                entry.execute(client, internalListener, copyUniqueAsyncActions.get(entry));
+                entry.execute(actionClient, internalListener, copyUniqueAsyncActions.get(entry));
             }
         }
     }

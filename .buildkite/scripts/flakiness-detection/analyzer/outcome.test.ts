@@ -113,3 +113,28 @@ describe("deriveOutcome", () => {
     });
   });
 });
+
+describe("deriveOutcome: onlyIf-skipped tasks", () => {
+  const base = { rc: 0, durationSec: 10, realFailures: 0, totalCases: 0, timeoutThresholdSec: 1680 };
+
+  test("zero tests with every requested task SKIPPED is not_applicable, not hang", () => {
+    // Verified against Gradle 9: an `onlyIf { false }` task (bwc_tests_enabled, distro arch check) and a
+    // NO-SOURCE task both surface as SKIPPED, run zero tests and exit 0.
+    expect(deriveOutcome({ ...base, taskSkipped: true })).toEqual({ outcome: "not_applicable", timedOut: false });
+  });
+
+  test("zero tests without the skipped signal stays a hang", () => {
+    expect(deriveOutcome({ ...base, taskSkipped: false })).toEqual({ outcome: "hang", timedOut: false });
+    expect(deriveOutcome(base)).toEqual({ outcome: "hang", timedOut: false });
+  });
+
+  test("the signal never overrides tests that actually ran", () => {
+    expect(deriveOutcome({ ...base, totalCases: 12, taskSkipped: true }).outcome).toBe("clean_pass");
+    expect(deriveOutcome({ ...base, totalCases: 12, realFailures: 1, taskSkipped: true }).outcome).toBe("flaky_detected");
+  });
+
+  test("the signal never masks a timeout or a non-zero exit", () => {
+    expect(deriveOutcome({ ...base, rc: 124, taskSkipped: true }).outcome).toBe("timeout");
+    expect(deriveOutcome({ ...base, rc: 1, taskSkipped: true }).outcome).toBe("infra_fail");
+  });
+});

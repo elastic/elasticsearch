@@ -92,9 +92,21 @@ public final class ColumnarStringMatchQuery extends Query {
                         }
 
                         // An overlay rather than the column, as an updated field is: the values are read one
-                        // document at a time and tested. The surface carries a document's slots as one payload, so
-                        // each is tested in turn and any of them accepted accepts the document, which is what the
-                        // column answers too.
+                        // document at a time and tested. For a plain (single-valued) field the blob is the raw
+                        // value bytes; for a payload field the blob carries slot count + framed values.
+                        if (ColumNARDocValuesFormat.isSingleValued(info)) {
+                            return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(values) {
+                                @Override
+                                public boolean matches() throws IOException {
+                                    return matcher.test(values.binaryValue());
+                                }
+
+                                @Override
+                                public float matchCost() {
+                                    return 100f;
+                                }
+                            });
+                        }
                         final StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
                         return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(values) {
                             @Override

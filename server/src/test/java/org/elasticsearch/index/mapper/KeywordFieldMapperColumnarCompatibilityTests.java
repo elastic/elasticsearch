@@ -13,6 +13,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -21,6 +22,7 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Parity tests for {@link KeywordFieldMapper#mapColumnBatch} against the row path.
@@ -52,6 +54,17 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
                     message + ": field [" + FIELD + "] expected docValuesType=" + dvType + " but columnar path did not produce it",
                     actual.stream().anyMatch(a -> a.name().equals(FIELD) && a.fieldType().docValuesType() == dvType)
                 );
+                // FieldType#equals ignores attributes, but the codec reads this one to decide how the blob is framed.
+                final String singleValued = singleValuedAttribute(fd);
+                assertTrue(
+                    message + ": field [" + FIELD + "] expected " + ColumNARDocValuesFormat.SINGLE_VALUED_ATTRIBUTE + "=" + singleValued,
+                    actual.stream()
+                        .anyMatch(
+                            a -> a.name().equals(FIELD)
+                                && a.fieldType().docValuesType() == dvType
+                                && Objects.equals(singleValued, singleValuedAttribute(a))
+                        )
+                );
             }
         }
         final boolean isTsdb = expected.stream().anyMatch(fd -> fd.name().equals("_tsid"));
@@ -60,6 +73,11 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
             actual = actual.stream().filter(fd -> fd.name().equals("_id") == false).toList();
         }
         super.assertFieldSetsEqual(expected, actual, message);
+    }
+
+    private static String singleValuedAttribute(FieldDescriptor fd) {
+        final var attributes = fd.fieldType().getAttributes();
+        return attributes == null ? null : attributes.get(ColumNARDocValuesFormat.SINGLE_VALUED_ATTRIBUTE);
     }
 
     private static Settings columnarSettings() {

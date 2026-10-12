@@ -1266,7 +1266,7 @@ public class SearchEngine extends Engine {
     }
 
     @Override
-    public List<Segment> segments(boolean includeVectorFormatsInfo) {
+    public List<Segment> segments(boolean includeVectorFormatsInfo, boolean includeAutoCalibration) {
         // TODO : include vector formats, when required
         return segments();
     }

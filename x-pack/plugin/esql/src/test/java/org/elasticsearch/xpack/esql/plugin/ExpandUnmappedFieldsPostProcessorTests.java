@@ -8,6 +8,13 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -18,6 +25,7 @@ import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -34,6 +42,8 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.MapMatcher.matchesMap;
@@ -41,6 +51,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -606,6 +617,60 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
         // No manual release here: the point is that expand must have released the input pages on its failure path.
         assertThat("expand leaked the input pages on failure", bf.breaker().getUsed(), equalTo(0L));
+    }
+
+    /**
+     * Pins {@code EsqlSession}'s LOAD_ALL dispatch contract: the expansion is handed to the {@code esql_worker} pool wrapped in
+     * {@link ActionRunnable#wrapReleasing}, so the buffered result pages are released if that pool rejects the task (e.g. the node is
+     * shutting down or the worker queue is saturated). Here a one-thread, zero-queue worker is saturated so the dispatch is rejected;
+     * the test asserts the pages are freed (breaker back to zero) and the listener observes the rejection rather than a leak. The generic
+     * {@code wrapReleasing}-on-rejection behaviour is covered by {@code ActionRunnableTests#testWrapReleasingRejected}; this adds the
+     * esql-specific guarantee that the released resource is the result pages.
+     */
+    public void testDispatchReleasesPagesWhenWorkerRejects() throws Exception {
+        BlockFactory bf = blockFactory();
+        List<Page> pages = List.of(
+            page(bf, List.of(row(1, jsonObject("{'pet':'Rex'}")))),
+            page(bf, List.of(row(2, jsonObject("{'city':'Berlin'}"))))
+        );
+        assertThat("pages should reserve breaker memory before dispatch", bf.breaker().getUsed(), greaterThan(0L));
+
+        var executor = EsExecutors.newFixed(
+            EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME,
+            1,
+            0,
+            Thread::new,
+            new ThreadContext(Settings.EMPTY),
+            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+        );
+        try {
+            // Occupy the single worker thread so the next submission has nowhere to queue and is rejected.
+            var barrier = new CyclicBarrier(2);
+            executor.execute(() -> safeAwait(barrier));
+
+            var rejection = new PlainActionFuture<Void>();
+            executor.execute(ActionRunnable.wrapReleasing(new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void unused) {
+                    fail("expansion must not run once the worker has rejected the task");
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    assertThat(e, instanceOf(EsRejectedExecutionException.class));
+                    rejection.onResponse(null);
+                }
+            },
+                () -> Releasables.closeExpectNoException(pages),
+                ll -> fail("expansion body must not run once the worker has rejected the task")
+            ));
+
+            safeGet(rejection);
+            assertThat("rejected dispatch must release the result pages", bf.breaker().getUsed(), equalTo(0L));
+            safeAwait(barrier);
+        } finally {
+            ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
+        }
     }
 
     public void testCancellationDuringExpansionThrowsAndReleasesPages() {

@@ -118,9 +118,43 @@ public final class ColumnarStringTermQuery extends Query {
                         }
 
                         // An overlay rather than the column, as an updated field is: the values are read one
-                        // document at a time and compared. The surface carries a document's slots as one payload,
-                        // so each is decoded and tested in turn and any of them matching matches the document,
-                        // which is what the column answers too.
+                        // document at a time and compared. For a plain (single-valued) field the blob is the
+                        // raw value bytes; for a payload field the blob carries slot count + framed values.
+                        if (ColumNARDocValuesFormat.isSingleValued(info)) {
+                            return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(values) {
+                                private final BytesRef prefix = new BytesRef();
+
+                                @Override
+                                public boolean matches() throws IOException {
+                                    final BytesRef candidate = values.binaryValue();
+                                    return switch (where) {
+                                        case WHOLE -> candidate.bytesEquals(term);
+                                        case START -> {
+                                            if (candidate.length < term.length) {
+                                                yield false;
+                                            }
+                                            prefix.bytes = candidate.bytes;
+                                            prefix.offset = candidate.offset;
+                                            prefix.length = term.length;
+                                            yield prefix.bytesEquals(term);
+                                        }
+                                        case ANYWHERE -> ESVectorUtil.contains(
+                                            candidate.bytes,
+                                            candidate.offset,
+                                            candidate.length,
+                                            term.bytes,
+                                            term.offset,
+                                            term.length
+                                        );
+                                    };
+                                }
+
+                                @Override
+                                public float matchCost() {
+                                    return 10f;
+                                }
+                            });
+                        }
                         final BytesRef value = new BytesRef();
                         final StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
                         return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(values) {

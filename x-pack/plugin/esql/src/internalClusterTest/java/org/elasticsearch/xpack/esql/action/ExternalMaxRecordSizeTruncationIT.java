@@ -18,6 +18,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -84,7 +85,7 @@ public class ExternalMaxRecordSizeTruncationIT extends AbstractExternalDataSourc
 
     @Override
     protected Collection<Class<? extends Plugin>> formatPlugins() {
-        return List.of(CsvDataSourcePlugin.class, GzipDataSourcePlugin.class);
+        return List.of(CsvDataSourcePlugin.class, GzipDataSourcePlugin.class, NdJsonDataSourcePlugin.class);
     }
 
     /**
@@ -184,6 +185,37 @@ public class ExternalMaxRecordSizeTruncationIT extends AbstractExternalDataSourc
             assertTrue("a truncated lenient read must flip the response is_partial flag", partial.get());
         } finally {
             Files.deleteIfExists(file);
+        }
+    }
+
+    public void testCrDelimitedRecordsBelowTheCapAreAccepted() throws Exception {
+        assumeTrue("external_max_record_size / external_parsing_parallelism pragmas are snapshot-only", Build.current().isSnapshot());
+        String payload = randomAlphaOfLength(128 * 1024);
+        QueryPragmas pragmas = pragmas(2, "256kb");
+        for (Map.Entry<String, String> terminator : Map.of("lf", "\n", "cr", "\r", "crlf", "\r\n").entrySet()) {
+            StringBuilder content = new StringBuilder();
+            for (int i = 0; i < 3; i++) {
+                content.append("{\"id\":").append(i).append(",\"name\":\"").append(payload).append("\"}").append(terminator.getValue());
+            }
+            for (String mode : List.of("fail_fast", "skip_row")) {
+                String label = terminator.getKey() + "_" + mode;
+                Path file = writeGzipped(createTempDir().resolve(label + ".ndjson.gz"), content.toString());
+                try {
+                    String dataset = registerDataset(label, StoragePath.fileUri(file), Map.of("segment_size", "64kb", "error_mode", mode));
+                    EsqlQueryRequest request = syncEsqlQueryRequest("FROM " + dataset + " | STATS c = COUNT(*)").pragmas(pragmas)
+                        .allowPartialResults(false)
+                        .profile(true);
+                    try (EsqlQueryResponse response = run(request, TimeValue.timeValueMinutes(2))) {
+                        List<List<Object>> rows = getValuesList(response);
+                        assertThat(rows.size(), equalTo(1));
+                        assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(3L));
+                        assertThat(response.documentsFound(), greaterThan(0L));
+                        assertFalse(response.isPartial());
+                    }
+                } finally {
+                    Files.deleteIfExists(file);
+                }
+            }
         }
     }
 

@@ -124,21 +124,30 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
                 context,
                 (binary, counts) -> new MultiValuedBinaryWithSeparateCounts(warnings, counts, binary)
             );
+            // The blob is the document's one value, with no count to consult.
+            case PLAIN -> {
+                TrackingBinaryDocValues binary = TrackingBinaryDocValues.get(breaker, context, fieldName);
+                yield binary == null ? ConstantNull.COLUMN_READER : new SingleValuedBinary(binary);
+            }
         };
     }
 
     /**
      * Resolves the binary column and its {@code .counts} companion, which both companion-carrying framings need, and
-     * hands them to {@code reader}.
+     * hands them to {@code reader}. A field with no counts column is single-valued, so its blob is a bare value.
      */
     private ColumnAtATimeReader withCounts(
         CircuitBreaker breaker,
         LeafReaderContext context,
         BiFunction<TrackingBinaryDocValues, TrackingNumericDocValues, ColumnAtATimeReader> reader
     ) throws IOException {
-        BinaryAndCounts bc = BinaryAndCounts.get(breaker, context, fieldName, false);
+        BinaryAndCounts bc = BinaryAndCounts.get(breaker, context, fieldName, true);
         if (bc == null) {
             return ConstantNull.COLUMN_READER;
+        }
+        if (bc.counts() == null) {
+            // No counts column: the field is single-valued, so its blob is a bare value.
+            return new SingleValuedBinary(bc.binary());
         }
         return reader.apply(bc.binary(), bc.counts());
     }
@@ -592,6 +601,45 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
         @Override
         public void close() {
             ordinals.close();
+        }
+    }
+
+    /** Binary doc values holding each document's one value as its own bytes, as a {@code multi_value: false} field does. */
+    private static class SingleValuedBinary extends BlockDocValuesReader {
+        private final TrackingBinaryDocValues values;
+
+        SingleValuedBinary(TrackingBinaryDocValues values) {
+            super(null);
+            this.values = values;
+        }
+
+        @Override
+        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+            try (IntBuilder builder = factory.ints(docs.count() - offset)) {
+                for (int i = offset; i < docs.count(); i++) {
+                    if (values.docValues().advanceExact(docs.get(i))) {
+                        builder.appendInt(codePointCountProvider.applyAsInt(values.docValues().binaryValue()));
+                    } else {
+                        builder.appendNull();
+                    }
+                }
+                return builder.build();
+            }
+        }
+
+        @Override
+        public int docId() {
+            return values.docValues().docID();
+        }
+
+        @Override
+        public void close() {
+            values.close();
+        }
+
+        @Override
+        public String toString() {
+            return "Utf8CodePointsFromOrds.SingleValuedBinary";
         }
     }
 

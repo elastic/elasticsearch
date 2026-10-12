@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.startsWith;
 public class SchemaAdaptingIteratorTests extends ESTestCase {
 
     private final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("test"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     public void testIdentityPassThrough() {

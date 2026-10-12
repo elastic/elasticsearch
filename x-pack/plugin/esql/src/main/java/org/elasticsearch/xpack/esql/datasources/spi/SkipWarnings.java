@@ -58,10 +58,10 @@ public class SkipWarnings {
 
     /**
      * Formats the standard absent-declared-column informational warning for {@code columnName}.
-     * Used when a declared column is entirely absent from a source file (Parquet, ORC, CSV).
-     * SchemaAdaptingIterator, ParquetFormatReader, OrcFormatReader, and CsvFormatReader use this
-     * method so that InformationalWarningBudget's exact-string deduplication stays reliable across
-     * formats.
+     * Used when a declared column is entirely absent from a source file (Parquet, ORC, CSV, NDJSON).
+     * SchemaAdaptingIterator, ParquetFormatReader, OrcFormatReader, CsvFormatReader, NdJsonPageDecoder
+     * and, for a column a complete schema lacks, ExternalSourceResolver use this method so that
+     * InformationalWarningBudget's exact-string deduplication stays reliable across formats.
      */
     public static String absentDeclaredColumnMessage(String columnName) {
         return "declared column [" + columnName + "] is not present in some source files and reads null there";
@@ -81,6 +81,14 @@ public class SkipWarnings {
     private static final String OVERFLOW_MESSAGE = "... further warnings suppressed (more than " + MAX_ADDED_WARNINGS + " recorded)";
 
     /**
+     * The outcome phrase for values dropped from a multi-valued cell whose other values are kept. Readers end their
+     * multi-value summary with it, so a client can tell a cell that lost values from one that held fewer.
+     */
+    public static final String REMOVED_FROM_MULTI_VALUE_OUTCOME = "removing them from their multi-valued cells";
+
+    private static final String DEFAULT_MULTI_VALUE_SUMMARY = "Some values cannot be read; " + REMOVED_FROM_MULTI_VALUE_OUTCOME;
+
+    /**
      * Shared sink used when the current {@link ErrorPolicy} never triggers skip/null-fill behavior
      * (e.g. {@link ErrorPolicy#isStrict()}). All {@link #add(String)} calls are silently dropped.
      */
@@ -93,9 +101,14 @@ public class SkipWarnings {
         // every reader in the JVM, and from several threads at once.
         @Override
         public void addOnce(String detail) {}
+
+        @Override
+        public void addRemovedFromMultiValue(String detail) {}
     };
 
     private final String summary;
+    /** Summary for {@link #addRemovedFromMultiValue}; emitted once, before the first such detail. */
+    private final String multiValueSummary;
     /**
      * Where emitted messages go. {@code null} preserves the direct-to-{@link HeaderWarning} write, which only reaches
      * the client from the request thread; read paths never are, so they always supply a sink.
@@ -105,6 +118,7 @@ public class SkipWarnings {
     // Mutable state: not thread-safe, one instance per reader iterator/decoder.
     private int added;
     private boolean summaryEmitted;
+    private boolean multiValueSummaryEmitted;
     private boolean overflowEmitted;
     /** Details already emitted through {@link #addOnce(String)}; {@code null} until that method is first used. */
     @Nullable
@@ -122,7 +136,17 @@ public class SkipWarnings {
      *             plan-time callers on the request thread, and for tests.
      */
     public SkipWarnings(String summary, @Nullable Consumer<String> sink) {
+        this(summary, null, sink);
+    }
+
+    /**
+     * @param multiValueSummary the summary emitted before the first {@link #addRemovedFromMultiValue} detail, or
+     *                          {@code null} for a generic one; it should end with
+     *                          {@link #REMOVED_FROM_MULTI_VALUE_OUTCOME}
+     */
+    public SkipWarnings(String summary, @Nullable String multiValueSummary, @Nullable Consumer<String> sink) {
         this.summary = summary;
+        this.multiValueSummary = multiValueSummary != null ? multiValueSummary : DEFAULT_MULTI_VALUE_SUMMARY;
         this.sink = sink;
     }
 
@@ -139,7 +163,15 @@ public class SkipWarnings {
      * of directly through {@link HeaderWarning}. See {@link #SkipWarnings(String, Consumer)}.
      */
     public static SkipWarnings of(ErrorPolicy policy, String summary, @Nullable Consumer<String> sink) {
-        return policy.isStrict() ? NOOP : new SkipWarnings(summary, sink);
+        return of(policy, summary, null, sink);
+    }
+
+    /**
+     * Like {@link #of(ErrorPolicy, String, Consumer)}, with the summary for {@link #addRemovedFromMultiValue}. See
+     * {@link #SkipWarnings(String, String, Consumer)}.
+     */
+    public static SkipWarnings of(ErrorPolicy policy, String summary, @Nullable String multiValueSummary, @Nullable Consumer<String> sink) {
+        return policy.isStrict() ? NOOP : new SkipWarnings(summary, multiValueSummary, sink);
     }
 
     /**
@@ -155,6 +187,22 @@ public class SkipWarnings {
             emit(summary);
             summaryEmitted = true;
         }
+        addDetail(detail);
+    }
+
+    /**
+     * Records a value removed from a multi-valued cell whose readable values are kept (a cell nulls only when none
+     * survives). Emits the multi-value summary once, then the detail under the same cap as {@link #add(String)}.
+     */
+    public void addRemovedFromMultiValue(String detail) {
+        if (multiValueSummaryEmitted == false) {
+            emit(multiValueSummary);
+            multiValueSummaryEmitted = true;
+        }
+        addDetail(detail);
+    }
+
+    private void addDetail(String detail) {
         if (added < MAX_ADDED_WARNINGS) {
             emit(detail);
             added++;

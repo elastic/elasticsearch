@@ -58,7 +58,8 @@ public class RestSubmitAsyncSearchActionTests extends RestActionTestCase {
             SubmitAsyncSearchRequest submitRequest = (SubmitAsyncSearchRequest) request;
             assertThat(submitRequest.getWaitForCompletionTimeout(), equalTo(TimeValue.timeValueSeconds(1)));
             assertThat(submitRequest.isKeepOnCompletion(), equalTo(false));
-            assertThat(submitRequest.getKeepAlive(), equalTo(TimeValue.timeValueDays(5)));
+            // no keep_alive in the request → null means "use the cluster default"
+            assertNull(submitRequest.getKeepAlive());
             // check parameters we implicitly set in the SubmitAsyncSearchRequest ctor
             assertThat(submitRequest.getSearchRequest().isCcsMinimizeRoundtrips(), equalTo(false));
             assertThat(submitRequest.getSearchRequest().getBatchedReduceSize(), equalTo(5));

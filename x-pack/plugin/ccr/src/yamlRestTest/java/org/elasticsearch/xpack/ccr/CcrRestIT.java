@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ccr;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.settings.SecureString;
@@ -36,7 +37,7 @@ public class CcrRestIT extends ESClientYamlSuiteTestCase {
         .jvmArg("-da:org.elasticsearch.xpack.ccr.index.engine.FollowingEngineAssertions")
         .build();
 
-    public CcrRestIT(final ClientYamlTestCandidate testCandidate) {
+    public CcrRestIT(@Name("yaml") final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

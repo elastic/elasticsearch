@@ -112,10 +112,16 @@ public class LogsDBColumnarUsageTransportAction extends XPackUsageFeatureTranspo
                 continue;
             }
             dataStreamsCount++;
-            if (projectMetadata.isIndexManagedByILM(writeIndexMetadata)) {
-                dataStreamsManagedByIlm++;
-            } else if (dataStream.isIndexManagedByDataStreamLifecycle(writeIndex, projectMetadata::index)) {
-                dataStreamsManagedByDlm++;
+            switch (DataStream.lifecycleManagedBy(
+                writeIndexMetadata.getLifecyclePolicyName(),
+                dataStream.getDataLifecycleForIndex(writeIndex),
+                writeIndexMetadata.getSettings(),
+                writeIndexMetadata.getIndexMode()
+            )) {
+                case DLM -> dataStreamsManagedByDlm++;
+                case ILM -> dataStreamsManagedByIlm++;
+                default -> {
+                }
             }
         }
         return new IndexModeStats(

@@ -23,6 +23,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOSupplier;
 import org.apache.lucene.util.IOUtils;
@@ -33,6 +34,7 @@ import org.elasticsearch.columnar.numeric.NumericColumnWriter;
 import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.numeric.NumericPipelineSelector;
 import org.elasticsearch.columnar.numeric.SkipIndexCodec;
+import org.elasticsearch.columnar.string.BestCoverage;
 import org.elasticsearch.columnar.string.ColumnarStringBinaryDocValues;
 import org.elasticsearch.columnar.string.DictionaryPolicy;
 import org.elasticsearch.columnar.string.DictionaryStringColumnReader;
@@ -42,6 +44,7 @@ import org.elasticsearch.columnar.string.StringColumnOptionsSelector;
 import org.elasticsearch.columnar.string.StringColumnReader;
 import org.elasticsearch.columnar.string.StringColumnValues;
 import org.elasticsearch.columnar.string.StringColumnWriter;
+import org.elasticsearch.columnar.string.SummaryMerger;
 import org.elasticsearch.columnar.string.SummaryPolicy;
 import org.elasticsearch.columnar.string.Vocabulary;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
@@ -50,9 +53,7 @@ import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.TreeSet;
 
 /**
@@ -141,11 +142,16 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
                 type,
                 () -> ColumnarNumericBinaryDocValues.decodePayloads(valuesProducer.getBinary(field))
             );
-            case STRING -> writeStringColumn(
-                field,
-                type,
-                () -> ColumnarStringBinaryDocValues.decodePayloads(valuesProducer.getBinary(field))
-            );
+            case STRING -> {
+                final boolean singleValued = ColumNARDocValuesFormat.isSingleValued(field);
+                writeStringColumn(
+                    field,
+                    type,
+                    singleValued
+                        ? () -> ColumnarStringBinaryDocValues.decodeRawValues(valuesProducer.getBinary(field))
+                        : () -> ColumnarStringBinaryDocValues.decodePayloads(valuesProducer.getBinary(field))
+                );
+            }
         }
     }
 
@@ -163,7 +169,8 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             case STRING -> {
                 final StringColumnOptions options = stringSelector.select(field.name, type);
                 final Vocabulary.Terms vocabulary = mergedVocabulary(field, mergeState, options.dictionary(), options.summary()).terms();
-                writeStringColumn(field, type, () -> stringMergeCursor(field, mergeState, vocabulary), vocabulary);
+                final boolean singleValued = ColumNARDocValuesFormat.isSingleValued(field);
+                writeStringColumn(field, type, () -> stringMergeCursor(field, mergeState, vocabulary, singleValued), vocabulary);
             }
         }
     }
@@ -256,11 +263,6 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         }
     }
 
-    /**
-     * The string counterpart of {@link #numericMergeCursor}: reads each source segment's values off disk via
-     * {@link ColumnarStringBinaryDocValues#directValues}, in merged doc order. A fresh cursor is built per
-     * pass — the count, the iterator, then the values.
-     */
     /** Where a merged column's terms came from, and what they were. */
     record MergedVocabulary(Source source, Vocabulary.Terms terms) {
         /** The ways of knowing a merged column's terms, in the order they are tried. */
@@ -269,15 +271,25 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             DICTIONARY_UNION,
             /** Summed from what the segments recorded surveying, when their dictionaries do not cover it. */
             COMBINED_SUMMARIES,
-            /** Neither was available, so the merged values are surveyed as a flush surveys them. */
+            /** No dictionary kept, either because the segments' records rule one out or because they cannot
+             * show one, which at equal caps is as much as the values would show. */
+            SUMMARY_REFUSAL,
+            /** The records cannot speak: a deletion, a segment without one, or a cap tighter than the
+             * dictionary's. The merged values are surveyed as a flush surveys them. */
             SURVEY
         }
     }
 
+    private static final MergedVocabulary SURVEYED = new MergedVocabulary(MergedVocabulary.Source.SURVEY, null);
+
     /**
-     * The terms to write the merged column against, and which of the three ways of knowing them was taken.
-     * The result is the same either way; which one runs is what a merge costs, so it is a value here rather
-     * than a shape of the control flow.
+     * How a merged column's vocabulary is settled, without reading a value where that is possible.
+     *
+     * <p>Tried in order: the union of the segments' own dictionaries, which names every value between them;
+     * what the segments summarised, whose summed counts can prove a dictionary worth keeping and whose best
+     * coverage can prove none is, and which decides the layout either way while it was allowed the
+     * dictionary's bytes; and the values, where deletions, a missing summary or a tighter cap leave the
+     * records unable to speak.
      */
     MergedVocabulary mergedVocabulary(
         FieldInfo field,
@@ -285,32 +297,53 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         DictionaryPolicy dictionaryPolicy,
         SummaryPolicy summaryPolicy
     ) throws IOException {
-        final Vocabulary.Terms union = unionOfDictionaries(field, mergeState, dictionaryPolicy);
-        if (union != null) {
-            return new MergedVocabulary(MergedVocabulary.Source.DICTIONARY_UNION, union);
+        if (dictionaryPolicy.enabled() == false) {
+            return SURVEYED;
         }
-        // No union to take, but the segments may have recorded what they surveyed.
-        final Vocabulary.Terms summaries = combinedSummaries(field, mergeState, dictionaryPolicy, summaryPolicy);
-        if (summaries != null) {
-            return new MergedVocabulary(MergedVocabulary.Source.COMBINED_SUMMARIES, summaries);
+        final List<StringColumnReader> inputColumns = inputColumns(field, mergeState);
+        if (inputColumns == null) {
+            return SURVEYED;
         }
-        return new MergedVocabulary(MergedVocabulary.Source.SURVEY, null);
+        return vocabularyFrom(inputColumns, hasDeletions(mergeState), dictionaryPolicy, summaryPolicy);
     }
 
     /**
-     * The union of the segments' dictionaries, or null when it cannot stand for the merged column: a
-     * segment without a dictionary, or one that let values escape, holds values the union would not name.
-     * It is bounded by the same policy as a surveyed vocabulary, and abandoned once it exceeds it.
+     * The same decision over columns already opened, so which way it went can be established without a merge
+     * in flight.
+     *
+     * @param inputColumns the columns the merge reads, each one this codec wrote
+     * @param hasDeletions whether any input still carries deleted documents
      */
-    private Vocabulary.Terms unionOfDictionaries(FieldInfo field, MergeState mergeState, DictionaryPolicy dictionaryPolicy)
-        throws IOException {
-        if (dictionaryPolicy.enabled() == false) {
-            return null;
+    static MergedVocabulary vocabularyFrom(
+        List<StringColumnReader> inputColumns,
+        boolean hasDeletions,
+        DictionaryPolicy dictionaryPolicy,
+        SummaryPolicy summaryPolicy
+    ) throws IOException {
+        final Vocabulary.Terms union = unionOfDictionaries(inputColumns, dictionaryPolicy);
+        if (union != null) {
+            return new MergedVocabulary(MergedVocabulary.Source.DICTIONARY_UNION, union);
         }
-        final TreeSet<BytesRef> union = new TreeSet<>();
-        long unionBytes = 0;
-        long columnBytes = 0;
-        final BytesRef term = new BytesRef();
+        // NOTE: asked before the summaries are opened. A deleted value is still counted in what its segment
+        // summarised, so nothing read here could be used, and reading it would allocate every term only to
+        // throw the lot away.
+        if (hasDeletions) {
+            return SURVEYED;
+        }
+        final SummaryMerger.Decision decision = readSummaries(inputColumns, dictionaryPolicy, summaryPolicy).decide(true);
+        return switch (decision.outcome()) {
+            case DICTIONARY -> new MergedVocabulary(MergedVocabulary.Source.COMBINED_SUMMARIES, decision.vocabulary());
+            case NO_DICTIONARY -> new MergedVocabulary(MergedVocabulary.Source.SUMMARY_REFUSAL, decision.vocabulary());
+            case UNDECIDED -> SURVEYED;
+        };
+    }
+
+    /**
+     * The columns the inputs hold for {@code field}, skipping segments the field never appeared in, or null
+     * where any input is not a column this codec wrote and so describes nothing a merge can reuse.
+     */
+    private static List<StringColumnReader> inputColumns(FieldInfo field, MergeState mergeState) throws IOException {
+        final List<StringColumnReader> columns = new ArrayList<>(mergeState.docValuesProducers.length);
         for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
             final DocValuesProducer producer = mergeState.docValuesProducers[i];
             if (producer == null) {
@@ -325,14 +358,36 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
                 return null;
             }
             final StringColumnReader reader = ((ColumnarStringBinaryDocValues) binary).reader();
-            if (reader.numValues() == 0) {
-                // A segment the field never appeared in has nothing to contribute and nothing to disagree
-                // with; it must not decide the shape of the merged column.
-                continue;
+            // A segment the field never appeared in has nothing to contribute and nothing to disagree with;
+            // it must not decide the shape of the merged column.
+            if (reader.numValues() > 0) {
+                columns.add(reader);
             }
+        }
+        return columns;
+    }
+
+    /**
+     * The union of the segments' dictionaries, or null when it cannot stand for the merged column: a
+     * segment without a dictionary, or one that let values escape, holds values the union would not name.
+     * It is bounded by the same policy as a surveyed vocabulary, and abandoned once it exceeds it.
+     */
+    private static Vocabulary.Terms unionOfDictionaries(List<StringColumnReader> inputColumns, DictionaryPolicy dictionaryPolicy)
+        throws IOException {
+        // NOTE: asked of every input before the first term is copied. One input without a dictionary, or
+        // with values that escaped it, holds values the union would not name, and finding that out on the
+        // last input means having allocated every earlier input's terms for nothing.
+        for (StringColumnReader reader : inputColumns) {
             if ((reader instanceof DictionaryStringColumnReader) == false || reader.escapeCount() > 0) {
                 return null;
             }
+        }
+        final TreeSet<BytesRef> union = new TreeSet<>();
+        long unionBytes = 0;
+        long columnBytes = 0;
+        long numValues = 0;
+        final BytesRef term = new BytesRef();
+        for (StringColumnReader reader : inputColumns) {
             final DictionaryStringColumnReader dictionary = (DictionaryStringColumnReader) reader;
             for (int t = 0; t < dictionary.dictionarySize(); t++) {
                 dictionary.termAt(StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL + t, term);
@@ -344,6 +399,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
                 }
             }
             columnBytes += reader.valueBytes();
+            numValues += reader.numValues();
         }
         if (union.isEmpty()) {
             return null;
@@ -351,87 +407,53 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         // How often each term is used is not recorded in a dictionary column, so the union carries no
         // counts. It does not need them: it names every value, and a merge of these segments always
         // prefers it to a survey.
-        return Vocabulary.known(new ArrayList<>(union), columnBytes, 1.0, null);
+        return Vocabulary.known(
+            new ArrayList<>(union),
+            columnBytes,
+            1.0,
+            numValues,
+            BestCoverage.of(numValues, numValues, dictionaryPolicy.maxBytes()),
+            null
+        );
     }
 
-    /**
-     * A vocabulary combined from the segments' summaries. Counts are summed and trimmed to the policy's
-     * bound as a survey trims, so a term the merged column holds often enough survives; the coverage is an
-     * under-estimate because each summed count was.
-     */
-    private Vocabulary.Terms combinedSummaries(
-        FieldInfo field,
-        MergeState mergeState,
+    private static boolean hasDeletions(MergeState mergeState) {
+        for (Bits liveDocs : mergeState.liveDocs) {
+            if (liveDocs != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static SummaryMerger readSummaries(
+        List<StringColumnReader> inputColumns,
         DictionaryPolicy dictionaryPolicy,
         SummaryPolicy summaryPolicy
     ) throws IOException {
-        if (dictionaryPolicy.enabled() == false) {
-            return null;
+        final SummaryMerger merger = new SummaryMerger(dictionaryPolicy, summaryPolicy);
+        if (merger.needsSummaries() == false) {
+            return merger;
         }
-        final Map<BytesRef, Long> combined = new HashMap<>();
-        // Bounded as it goes, so the map grows with what one segment's dictionary can describe rather than
-        // with the number of segments merged. A term the merged column holds often enough is in every
-        // summary that saw it, so it outlives the terms trimmed here.
-        final long combinedBound = 4L * dictionaryPolicy.maxBytes();
-        long combinedBytes = 0;
-        long numValues = 0;
-        long columnBytes = 0;
-        for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
-            final DocValuesProducer producer = mergeState.docValuesProducers[i];
-            if (producer == null) {
-                continue;
-            }
-            final FieldInfo readerField = mergeState.fieldInfos[i].fieldInfo(field.name);
-            if (readerField == null || readerField.getDocValuesType() != DocValuesType.BINARY) {
-                continue;
-            }
-            final BinaryDocValues binary = producer.getBinary(readerField);
-            if ((binary instanceof ColumnarStringBinaryDocValues) == false) {
-                return null;
-            }
-            final StringColumnReader reader = ((ColumnarStringBinaryDocValues) binary).reader();
-            if (reader.numValues() == 0) {
-                continue;
-            }
+        // NOTE: one input short of a summary settles the merge on its own, so it is looked for on every
+        // input before any of their terms are read.
+        for (StringColumnReader reader : inputColumns) {
             if (reader.hasSummary() == false) {
-                return null;
-            }
-            final List<BytesRef> terms = new ArrayList<>();
-            final List<Long> counts = new ArrayList<>();
-            reader.readSummary(terms, counts);
-            for (int t = 0; t < terms.size(); t++) {
-                if (combined.merge(terms.get(t), counts.get(t), Long::sum).equals(counts.get(t))) {
-                    combinedBytes += terms.get(t).length;
-                }
-            }
-            numValues += reader.summaryValues();
-            columnBytes += reader.valueBytes();
-            if (combinedBytes > combinedBound) {
-                combinedBytes = trimToBound(combined, combinedBound);
+                merger.addWithoutSummary();
+                return merger;
             }
         }
-        if (combined.isEmpty() || numValues == 0) {
-            return null;
+        final List<BytesRef> terms = new ArrayList<>();
+        final List<Long> counts = new ArrayList<>();
+        for (StringColumnReader reader : inputColumns) {
+            terms.clear();
+            counts.clear();
+            if (reader.hasSummaryTerms()) {
+                reader.readSummary(terms, counts);
+            }
+            merger.add(reader.summaryValues(), reader.valueBytes(), reader.bestCoverage(), terms, counts);
         }
-        // Worth a dictionary or not is left to the gate a surveyed vocabulary passes; either way the merged
-        // column keeps a summary, selected by its own quota rather than by the dictionary's.
-        return Vocabulary.combined(combined, columnBytes, numValues, dictionaryPolicy, summaryPolicy);
-    }
-
-    /** Drops the least frequent terms until the terms held fit {@code bound}, and returns what they weigh. */
-    private static long trimToBound(Map<BytesRef, Long> combined, long bound) {
-        final List<Map.Entry<BytesRef, Long>> ranked = new ArrayList<>(combined.entrySet());
-        ranked.sort(Map.Entry.<BytesRef, Long>comparingByValue().reversed().thenComparing(Map.Entry::getKey));
-        long bytes = 0;
-        int kept = 0;
-        while (kept < ranked.size() && bytes + ranked.get(kept).getKey().length <= bound) {
-            bytes += ranked.get(kept).getKey().length;
-            kept++;
-        }
-        for (int i = kept; i < ranked.size(); i++) {
-            combined.remove(ranked.get(i).getKey());
-        }
-        return bytes;
+        return merger;
     }
 
     /**
@@ -474,8 +496,17 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         return map;
     }
 
-    private static StringColumnValues stringMergeCursor(FieldInfo field, MergeState mergeState, Vocabulary.Terms vocabulary)
-        throws IOException {
+    /**
+     * The string counterpart of {@link #numericMergeCursor}: reads each source segment's values off disk via
+     * {@link ColumnarStringBinaryDocValues#directValues}, in merged doc order. A fresh cursor is built per
+     * pass - the count, the iterator, then the values.
+     */
+    private static StringColumnValues stringMergeCursor(
+        FieldInfo field,
+        MergeState mergeState,
+        Vocabulary.Terms vocabulary,
+        boolean singleValued
+    ) throws IOException {
         List<ColumnMergeSub<StringColumnValues>> subs = new ArrayList<>();
         long cost = 0;
         // What the counting pass would work out, summed from what the segments recorded. Held only while
@@ -487,6 +518,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         int minLength = -1;
         int maxLength = -1;
         boolean recorded = true;
+        boolean oneSlotADocument = true;
         for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
             DocValuesProducer producer = mergeState.docValuesProducers[i];
             if (producer == null) {
@@ -513,6 +545,8 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
                 final StringColumnReader reader = columnar.reader();
                 numDocsWithField += reader.numDocsWithField();
                 numValues += reader.numValues();
+                // A column keeping an addressing table has a document out of step with its slots somewhere.
+                oneSlotADocument &= reader.hasValueAddresses() == false;
                 numNullSlots += reader.numNullSlots();
                 if (reader.minLength() >= 0) {
                     minLength = minLength < 0 ? reader.minLength() : Math.min(minLength, reader.minLength());
@@ -522,7 +556,9 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
                 // what this merge takes from it.
                 recorded &= mergeState.liveDocs[i] == null;
             } else {
-                values = ColumnarStringBinaryDocValues.decodePayloads(binary);
+                values = singleValued
+                    ? ColumnarStringBinaryDocValues.decodeRawValues(binary)
+                    : ColumnarStringBinaryDocValues.decodePayloads(binary);
                 recorded = false;
             }
             cost += values.cost();
@@ -532,7 +568,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         DocIDMerger<ColumnMergeSub<StringColumnValues>> merger = DocIDMerger.of(subs, mergeState.needsIndexSort);
         long finalCost = cost;
         StringColumnValues.Totals totals = recorded
-            ? new StringColumnValues.Totals(numDocsWithField, numValues, numNullSlots, minLength, maxLength)
+            ? new StringColumnValues.Totals(numDocsWithField, numValues, numNullSlots, minLength, maxLength, oneSlotADocument)
             : null;
         return new StringColumnValues() {
             private ColumnMergeSub<StringColumnValues> current;
@@ -651,9 +687,11 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             long numNullSlots = 0;
             int minLength = -1;
             int maxLength = -1;
+            boolean oneSlotADocument = true;
             for (int doc = counter.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = counter.nextDoc()) {
                 numDocsWithField++;
                 final int count = counter.valueCount();
+                oneSlotADocument &= count == 1;
                 numValues += count;
                 numNullSlots += counter.nullCount();
                 // A cursor over one of our own plain columns answers a length without resolving the value;
@@ -667,7 +705,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
                     }
                 }
             }
-            totals = new StringColumnValues.Totals(numDocsWithField, numValues, numNullSlots, minLength, maxLength);
+            totals = new StringColumnValues.Totals(numDocsWithField, numValues, numNullSlots, minLength, maxLength, oneSlotADocument);
         }
 
         final StringColumnOptions options = stringSelector.select(field.name, type);

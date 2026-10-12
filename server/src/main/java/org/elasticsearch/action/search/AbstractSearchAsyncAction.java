@@ -123,6 +123,7 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
 
     // protected for tests
     protected final SubscribableListener<Void> doneFuture = new SubscribableListener<>();
+    private final AtomicBoolean coordinatorTripRaised = new AtomicBoolean();
     private final Supplier<DiscoveryNodes> discoveryNodes;
     private final LongAdder phaseResultBytesRead = new LongAdder();
     private final LongAdder phaseRequestBytesWritten = new LongAdder();
@@ -828,6 +829,27 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
      */
     public void onPhaseFailure(String phase, String msg, Throwable cause) {
         raisePhaseFailure(new SearchPhaseExecutionException(phase, msg, cause, buildShardFailures()));
+    }
+
+    /**
+     * Fails the whole search because this node could not hold what a shard sent back. A shard failure would instead
+     * answer with hits missing at ranks the caller cannot see.
+     * <p>
+     * Only the first caller raises: shards in flight when one trips are likely to trip too, and
+     * {@link #raisePhaseFailure} is not idempotent.
+     */
+    void failOnCoordinatorTrip(String phase, Exception cause) {
+        if (coordinatorTripRaised.compareAndSet(false, true)) {
+            onPhaseFailure(phase, "", cause);
+        }
+    }
+
+    /**
+     * Whether a coordinator trip has already failed this search, in which case a phase must not advance: the
+     * results it would work on have been released.
+     */
+    boolean failedOnCoordinatorTrip() {
+        return coordinatorTripRaised.get();
     }
 
     /**

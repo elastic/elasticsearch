@@ -19,17 +19,17 @@ libs/simdvec/
 │   │   └── amd64/          #     x64 kernels (AVX2 baseline, AVX-512 in *_2.cpp)
 │   ├── src/vec/headers/    #     Shared and platform-specific headers
 │   ├── Makefile            #     Cross-compilation build (all platforms)
-│   └── Dockerfile.cross-toolchain
+│   └── publish_vec_binaries.sh #  Builds in the toolchain image and publishes to Artifactory
 └── build.gradle            # Gradle build config (multi-release JAR, JDK 21 coverage)
 ```
 
 ### Related code in other modules
 
-- **`libs/native`** — Low-level Panama FFI bindings
-  - `VectorLibrary.java` — interface declaring native function signatures
-  - `JdkVectorLibrary.java` — Panama implementation, loads `libvec`
-  - `VectorSimilarityFunctions.java` — public facade
-  - FFI-level tests for vector scoring functions
+- **`libs/foreign-library`** — the FFM binding framework. `SimdVecLibrary` (in this module) declares
+  libvec's functions with its annotations, and the build generates the implementation.
+- **`libs/native/libraries`** — collects the built (or published) libvec alongside the other native
+  libraries, for tests and the distribution.
+- **`libs/native-toolchain`** — the cross-compilation toolchain image used to build libvec.
 
 ## Native code tiers
 
@@ -68,15 +68,13 @@ The native kernels cover single-pair and bulk scoring for:
 ## Building the native library
 
 The native library is built via the `Makefile` in `native/`. For
-cross-compilation of all three platform binaries (darwin-aarch64,
-linux-aarch64, linux-x64), use the shared Docker-based toolchain image
-(`es-native-cross-toolchain`, also used by `libs/simdjson`):
+cross-compilation of all four platform binaries (darwin-aarch64,
+linux-aarch64, linux-x64, windows-x64), use the shared Docker-based toolchain image
+(`es-native-cross-toolchain`, see [`libs/native-toolchain`](../native-toolchain/README.md)):
 
 ```bash
-# Build the cross-compilation toolchain image
-./build_cross_toolchain_image.sh
-
 # Build and publish binaries
+cd native
 ./publish_vec_binaries.sh
 ```
 

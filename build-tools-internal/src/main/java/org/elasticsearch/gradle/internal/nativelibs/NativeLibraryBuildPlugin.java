@@ -39,6 +39,9 @@ public class NativeLibraryBuildPlugin implements Plugin<Project> {
     /** Task running the native build. */
     public static final String BUILD_TASK = "buildNativeLibrary";
 
+    /** Environment variable that, when set, replaces the toolchain image. */
+    public static final String TOOLCHAIN_IMAGE_OVERRIDE = "NATIVE_TOOLCHAIN_IMAGE";
+
     @Override
     public void apply(Project project) {
         NativeLibraryBuildExtension extension = project.getExtensions().create(EXTENSION, NativeLibraryBuildExtension.class);
@@ -56,7 +59,7 @@ public class NativeLibraryBuildPlugin implements Plugin<Project> {
             task.getNativeDir().set(extension.getSourceDir());
             task.getOutputDir().set(outputDir);
             task.getMode().set(mode);
-            task.getToolchainImage().set(extension.getToolchainImage());
+            task.getToolchainImage().set(providers.environmentVariable(TOOLCHAIN_IMAGE_OVERRIDE).orElse(extension.getToolchainImage()));
             task.getDockerCommand().set(extension.getDockerCommand());
             task.getHostCommand().set(outputDir.map(extension::hostCommandFor));
             task.getCollect().set(extension.getCollect());

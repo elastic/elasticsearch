@@ -66,8 +66,7 @@ public class RestCatRecoveryActionTests extends ESTestCase {
                 ShardRoutingState.INITIALIZING,
                 recoverySource
             );
-            final RecoveryState state = new RecoveryState(shardRouting, targetNode, sourceNode);
-            state.setLocalRetries(randomIntBetween(0, 10));
+            final RecoveryState state = new RecoveryState(shardRouting, targetNode, sourceNode, randomIntBetween(0, 10));
 
             // Walk the state machine to a randomly chosen target stage.
             final RecoveryState.Stage targetStage = randomFrom(RecoveryState.Stage.values());

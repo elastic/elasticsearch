@@ -157,6 +157,44 @@ public class ExternalSourceResolutionWarningsIT extends AbstractExternalDataSour
         assertThat("cached listing", warningsOf(query), hasItem(containsString(notice)));
     }
 
+    // docs example 9
+    public void testUnmatchedPartitionSpecBindWarnsOnColdAndCachedListing() throws Exception {
+        Path dir = createTempDir().resolve("spec_unmatched");
+        Path part = dir.resolve("yyy=2024");
+        Files.createDirectories(part);
+        Files.writeString(part.resolve("a.csv"), "id:integer,ts:datetime\n1,2024-06-15T00:00:00.000Z\n", StandardCharsets.UTF_8);
+        String glob = StoragePath.fileUri(dir) + "/*" + "*/*.csv";
+        String dataset = registerDataset(
+            "spec_unmatched",
+            glob,
+            Map.of("partition_detection", "hive", "partition_spec", "year(ts)", "schema_resolution", "first_file_wins")
+        );
+        String query = "FROM " + dataset + " | KEEP id";
+
+        String notice = "names key [year] which was not detected";
+        assertThat("cold listing", warningsOf(query), hasItem(containsString(notice)));
+        assertThat("cached listing", warningsOf(query), hasItem(containsString(notice)));
+    }
+
+    // docs example 10
+    public void testWrongUnitPartitionSpecWarnsOnColdAndCachedListing() throws Exception {
+        Path dir = createTempDir().resolve("spec_wrong_unit");
+        Path part = dir.resolve("year=2024");
+        Files.createDirectories(part);
+        Files.writeString(part.resolve("a.csv"), "id:integer,start:long\n1,1710000000\n", StandardCharsets.UTF_8);
+        String glob = StoragePath.fileUri(dir) + "/*" + "*/*.csv";
+        String dataset = registerDataset(
+            "spec_wrong_unit",
+            glob,
+            Map.of("partition_detection", "hive", "partition_spec", "year(start)", "schema_resolution", "first_file_wins")
+        );
+        String query = "FROM " + dataset + " | WHERE start > 1710000000 | KEEP id";
+
+        String notice = "the unit is likely wrong";
+        assertThat("cold listing", warningsOf(query), hasItem(containsString(notice)));
+        assertThat("cached listing", warningsOf(query), hasItem(containsString(notice)));
+    }
+
     public void testKeywordWideningWarningReachesClient() throws Exception {
         Path dir = createTempDir().resolve("keyword_widening");
         Files.createDirectories(dir);

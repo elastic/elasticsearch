@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 160132
+summary: Fix sorted search failures on empty shard results
+type: bug

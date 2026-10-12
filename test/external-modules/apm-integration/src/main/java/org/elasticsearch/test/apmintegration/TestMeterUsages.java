@@ -13,13 +13,11 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.telemetry.metric.DoubleCounter;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
-import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.LongHistogram;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.List;
-import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class TestMeterUsages {
@@ -36,10 +34,10 @@ public class TestMeterUsages {
     private final LongHistogram longHistogram;
     private final LongHistogram longHistogramCustomBoundaries;
     private final DoubleHistogram doubleHistogramCustomBoundaries;
-    private final AtomicReference<DoubleWithAttributes> doubleWithAttributes = new AtomicReference<>();
-    private final AtomicReference<LongWithAttributes> longWithAttributes = new AtomicReference<>();
-    private final AtomicReference<DoubleWithAttributes> asyncDoubleWithAttributes = new AtomicReference<>();
-    private final AtomicReference<LongWithAttributes> asyncLongWithAttributes = new AtomicReference<>();
+    private final AtomicReference<Double> doubleAsyncGaugeValue = new AtomicReference<>(0.0);
+    private final AtomicLong longAsyncGaugeValue = new AtomicLong();
+    private final AtomicReference<Double> doubleAsyncCounterValue = new AtomicReference<>(0.0);
+    private final AtomicLong longAsyncCounterValue = new AtomicLong();
 
     public TestMeterUsages(MeterRegistry meterRegistry) {
         this.doubleCounter = meterRegistry.registerDoubleCounter("es.test.long_counter.total", "test", "unit");
@@ -58,25 +56,25 @@ public class TestMeterUsages {
             "unit",
             CUSTOM_BOUNDARIES.stream().map(Long::doubleValue).toList()
         );
-        meterRegistry.registerDoubleAsyncGauge("es.test.double_gauge.current", "test", "unit", () -> {
-            var value = doubleWithAttributes.get();
+        meterRegistry.registerDoubleAsyncGauge("es.test.double_gauge.current", "test", "unit", measurement -> {
+            var value = doubleAsyncGaugeValue.get();
             logger.trace("[es.test.double_gauge.current] callback with value [{}]", value);
-            return value;
+            measurement.record(value);
         });
-        meterRegistry.registerLongAsyncGauge("es.test.long_gauge.current", "test", "unit", () -> {
-            var value = longWithAttributes.get();
+        meterRegistry.registerLongAsyncGauge("es.test.long_gauge.current", "test", "unit", measurement -> {
+            var value = longAsyncGaugeValue.get();
             logger.trace("[es.test.long_gauge.current] callback with value [{}]", value);
-            return value;
+            measurement.record(value);
         });
-        meterRegistry.registerLongAsyncCounter("es.test.async_long_counter.total", "test", "unit", () -> {
-            var value = asyncLongWithAttributes.get();
+        meterRegistry.registerLongAsyncCounter("es.test.async_long_counter.total", "test", "unit", measurement -> {
+            var value = longAsyncCounterValue.get();
             logger.trace("[es.test.async_long_counter.total] callback with value [{}]", value);
-            return value;
+            measurement.record(value);
         });
-        meterRegistry.registerDoubleAsyncCounter("es.test.async_double_counter.total", "test", "unit", () -> {
-            var value = asyncDoubleWithAttributes.get();
+        meterRegistry.registerDoubleAsyncCounter("es.test.async_double_counter.total", "test", "unit", measurement -> {
+            var value = doubleAsyncCounterValue.get();
             logger.trace("[es.test.async_double_counter.total] callback with value [{}]", value);
-            return value;
+            measurement.record(value);
         });
     }
 
@@ -101,9 +99,9 @@ public class TestMeterUsages {
 
         // triggers gauges and async counters
         logger.trace("setting async counters");
-        doubleWithAttributes.set(new DoubleWithAttributes(1.0, Map.of()));
-        longWithAttributes.set(new LongWithAttributes(1, Map.of()));
-        asyncDoubleWithAttributes.updateAndGet(prev -> new DoubleWithAttributes(prev == null ? 1.0 : prev.value() + 1.0, Map.of()));
-        asyncLongWithAttributes.updateAndGet(prev -> new LongWithAttributes(prev == null ? 1 : prev.value() + 1, Map.of()));
+        doubleAsyncGaugeValue.set(1.0);
+        longAsyncGaugeValue.set(1);
+        doubleAsyncCounterValue.updateAndGet(prev -> prev + 1.0);
+        longAsyncCounterValue.incrementAndGet();
     }
 }

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorProducer;
@@ -73,7 +74,7 @@ import static org.mockito.Mockito.when;
 public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends ESTestCase {
 
     private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("none"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     public void testDeferredExtractionRegistersExtractorPerFileAndEncodesRowPosition() throws Exception {
@@ -1190,7 +1191,7 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
         public void close() {}
     }
 
-    private static final class StubStorageObject implements StorageObject {
+    private static final class StubStorageObject extends AbstractTestStorageObject {
         private final StoragePath path;
 
         StubStorageObject(StoragePath path) {

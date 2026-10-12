@@ -37,6 +37,7 @@ import org.apache.lucene.util.Version;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.diskbbq.calibrate.CalibrationUtils;
+import org.elasticsearch.index.codec.vectors.diskbbq.es95.ES950DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextRescoreOversampleTestFixture;
 import org.elasticsearch.test.ESTestCase;
 
@@ -49,6 +50,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
+import static org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibrationOsqParams.DEFAULT_K;
+import static org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibrationOsqParams.DEFAULT_TARGET_RECALL;
+import static org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibrationOsqParams.UNCAPPED_MAX_DOC_BITS;
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextRescoreOversampleTestFixture.CALIBRATION_CANDIDATE_ENCODINGS;
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextRescoreOversampleTestFixture.CALIBRATION_RERANK_OVERSAMPLES;
 import static org.hamcrest.Matchers.equalTo;
@@ -420,6 +424,44 @@ public class IvfAutoCalibrationTests extends ESTestCase {
         }
     }
 
+    public void testSelectFromMergeStateRecalibratesWhenEncodingExceedsMaxDocBits() throws IOException {
+        FieldInfo fieldInfo = vectorFieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
+
+        // both segments agree on a 2-bit encoding
+        StubCalibrationKnnVectorsReader segA = new StubCalibrationKnnVectorsReader(QuantEncoding.TWO_BIT_4BIT_QUERY, 2f, false, 50);
+        StubCalibrationKnnVectorsReader segB = new StubCalibrationKnnVectorsReader(QuantEncoding.TWO_BIT_4BIT_QUERY, 2f, false, 50);
+        try (Directory dir = newDirectory()) {
+            MergeState mergeState = mergeState(
+                dir,
+                new KnnVectorsReader[] { segA, segB },
+                new Bits[] { liveDocs(50), liveDocs(50) },
+                backgroundSegmentInfo(dir)
+            );
+
+            // a ceiling equal to the encoding's doc bits still reuses the agreed encoding
+            IvfAutoCalibration atCeiling = new IvfAutoCalibration(
+                VPC,
+                ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                DEFAULT_TARGET_RECALL,
+                DEFAULT_K,
+                2
+            );
+            IvfSegmentConfig reused = atCeiling.selectFromMergeState(fieldInfo, mergeState);
+            assertThat(reused, notNullValue());
+            assertThat(reused.osqEncoding(), is(QuantEncoding.TWO_BIT_4BIT_QUERY));
+
+            // a ceiling below the encoding's doc bits must recalibrate rather than reuse
+            IvfAutoCalibration belowCeiling = new IvfAutoCalibration(
+                VPC,
+                ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                DEFAULT_TARGET_RECALL,
+                DEFAULT_K,
+                1
+            );
+            assertThat(belowCeiling.selectFromMergeState(fieldInfo, mergeState), nullValue());
+        }
+    }
+
     public void testSelectFromMergeStateUsesPreconditionMajorityVote() throws IOException {
         FieldInfo fieldInfo = vectorFieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
         StubCalibrationKnnVectorsReader precondTrue = new StubCalibrationKnnVectorsReader(QuantEncoding.ONE_BIT_4BIT_QUERY, 2f, true, 60);
@@ -458,6 +500,95 @@ public class IvfAutoCalibrationTests extends ESTestCase {
             assertThat(config.osqEncoding(), notNullValue());
             assertThat(selector.calibrateInvocations, equalTo(1));
             assertTrue(Float.isFinite(config.rescoreOversample()));
+        }
+    }
+
+    public void testCalibrateRespectsMaxDocBits() throws IOException {
+        // an unreachable target recall forces the sweep to return the highest-recall encoding allowed by maxDocBits
+        double unreachableRecall = 1.01;
+        FieldInfo fieldInfo = vectorFieldInfo("f");
+        FloatVectorValues vectors = AutoCalibrationVectorFixtures.clusteredHeapVectors(
+            IvfAutoCalibration.MIN_VECTORS_FOR_CALIBRATION,
+            DIM,
+            16,
+            42L
+        );
+
+        for (int maxDocBits : new int[] { 7, 4, 2, 1 }) {
+            for (boolean forceMerge : new boolean[] { false, true }) {
+                TrackingSelector selector = new TrackingSelector(
+                    VPC,
+                    ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                    unreachableRecall,
+                    DEFAULT_K,
+                    maxDocBits
+                );
+                try (Directory dir = newDirectory()) {
+                    SegmentInfo segmentInfo = forceMerge ? forceMergeSegmentInfo(dir) : backgroundSegmentInfo(dir);
+                    MergeState mergeState = mergeStateWithVectors(dir, fieldInfo, vectors, segmentInfo);
+
+                    IvfSegmentConfig config = selector.resolve(fieldInfo, mergeState, CODEC_DEFAULT);
+
+                    String msg = "maxDocBits=" + maxDocBits + ", forceMerge=" + forceMerge;
+                    assertThat(msg, selector.calibrateInvocations, equalTo(1));
+                    assertThat(msg, config.osqEncoding().bits(), equalTo((byte) maxDocBits));
+                }
+            }
+        }
+    }
+
+    public void testMaxDocBitsAtSelectedEncodingPreservesCalibration() throws IOException {
+        FieldInfo fieldInfo = vectorFieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
+        FloatVectorValues vectors = AutoCalibrationVectorFixtures.clusteredHeapVectors(
+            IvfAutoCalibration.MIN_VECTORS_FOR_CALIBRATION,
+            DIM,
+            16,
+            42L
+        );
+
+        // these targets select a 1-bit (4-bit query), 2-bit and 4-bit encoding respectively on this corpus
+        for (double targetRecall : new double[] { 0.2, 0.5, 0.9 }) {
+            IvfAutoCalibration uncapped = new IvfAutoCalibration(
+                VPC,
+                ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                targetRecall,
+                DEFAULT_K,
+                UNCAPPED_MAX_DOC_BITS
+            );
+            IvfSegmentConfig expected = uncapped.calibrate(vectors, VectorSimilarityFunction.EUCLIDEAN);
+
+            int ceiling = expected.osqEncoding().bits();
+            String msg = "targetRecall=" + targetRecall + ", maxDocBits=" + ceiling;
+            TrackingSelector capped = new TrackingSelector(
+                VPC,
+                ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                targetRecall,
+                DEFAULT_K,
+                ceiling
+            );
+
+            // a background merge whose input already carries this calibration reuses it rather than recalibrating
+            int numVectors = IvfAutoCalibration.MIN_VECTORS_FOR_CALIBRATION;
+            StubCalibrationKnnVectorsReader calibratedSegment = new StubCalibrationKnnVectorsReader(
+                expected.osqEncoding(),
+                expected.rescoreOversample(),
+                expected.usePrecondition(),
+                numVectors
+            );
+            try (Directory dir = newDirectory()) {
+                MergeState mergeState = mergeState(
+                    dir,
+                    new KnnVectorsReader[] { calibratedSegment },
+                    new Bits[] { liveDocs(numVectors) },
+                    backgroundSegmentInfo(dir)
+                );
+                IvfSegmentConfig resolved = capped.resolve(fieldInfo, mergeState, CODEC_DEFAULT);
+                assertThat(msg, capped.calibrateInvocations, equalTo(0));
+                assertThat(msg, resolved, equalTo(expected));
+            }
+
+            // recalibrating with the max doc bits capped to what is currently used should produce the same calibration results
+            assertThat(msg, capped.calibrate(vectors, VectorSimilarityFunction.EUCLIDEAN), equalTo(expected));
         }
     }
 
@@ -600,7 +731,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
         }
     }
 
-    public void testBackgroundMergeWithEncodingDisagreementCompletesSuccessfully() throws IOException, InterruptedException {
+    public void testBackgroundMergeWithEncodingDisagreementCompletesSuccessfully() throws IOException {
         Random rnd = random();
         int vectorsPerSegment = IvfAutoCalibration.MIN_VECTORS_FOR_CALIBRATION / 2 + 100;
         IvfAutoCalibration calibration = new IvfAutoCalibration(VPC);
@@ -623,6 +754,20 @@ public class IvfAutoCalibrationTests extends ESTestCase {
                 assertTrue(CALIBRATION_CANDIDATE_ENCODINGS.contains(persisted.osqEncoding()));
                 // Must not inherit flush-injected oversample (2f from the first flush segment).
                 assertThat(persisted.rescoreOversample(), not(equalTo(2f)));
+            }
+        }
+    }
+
+    public void testFromProfile() {
+        for (IvfAutoCalibrationProfile profile : IvfAutoCalibrationProfile.values()) {
+            if (profile == IvfAutoCalibrationProfile.DISABLED) {
+                assertThrows(IllegalStateException.class, () -> IvfAutoCalibration.fromProfile(VPC, profile));
+            } else {
+                IvfAutoCalibrationOsqParams params = profile.osqParams();
+                IvfAutoCalibration calibration = IvfAutoCalibration.fromProfile(VPC, profile);
+                assertThat(profile.toString(), calibration.targetRecall(), equalTo(params.targetRecall()));
+                assertThat(profile.toString(), calibration.k(), equalTo(params.k()));
+                assertThat(profile.toString(), calibration.maxDocBits(), equalTo(params.maxDocBits()));
             }
         }
     }
@@ -754,6 +899,10 @@ public class IvfAutoCalibrationTests extends ESTestCase {
             super(vectorsPerCluster);
         }
 
+        TrackingSelector(int vectorsPerCluster, int blockDimension, double targetRecall, int k, int maxDocBits) {
+            super(vectorsPerCluster, blockDimension, targetRecall, k, maxDocBits);
+        }
+
         @Override
         protected IvfSegmentConfig calibrate(
             FloatVectorValues floatVectorValues,
@@ -880,28 +1029,28 @@ public class IvfAutoCalibrationTests extends ESTestCase {
     }
 
     /**
-     * Verifies that {@code COST_ORDERED_SWEEPS} sorts entries so that costs are monotonically
+     * Verifies that {@code buildCostOrderedSweeps} sorts entries so that costs are monotonically
      * non-decreasing, doc-bit levels are monotonically non-decreasing (tier separation, no
      * higher-dbits entry can precede a lower-dbits entry), rerank depths are non-decreasing within
      * each tier, and the {@code DOC_BITS_WEIGHT} constant satisfies the mathematical guarantee that
      * tiers never interleave regardless of which rerank depth is chosen.
      */
     public void testCostOrderedSweepsOrdering() {
-        double[][] entries = IvfAutoCalibration.costOrderedSweepEntries();
+        List<IvfAutoCalibration.CalibrationSweep> sweeps = IvfAutoCalibration.buildCostOrderedSweeps(UNCAPPED_MAX_DOC_BITS);
         double docBitsWeight = IvfAutoCalibration.docBitsWeight();
         double rerankCostWeight = IvfAutoCalibration.rerankCostWeight();
 
-        assertEquals("5 candidate encodings x 6 rerank depths", 30, entries.length);
+        assertEquals("5 candidate encodings x 6 rerank depths", 30, sweeps.size());
 
         double prevCost = Double.NEGATIVE_INFINITY;
         int prevDbits = 0;
         double prevRerankDepth = Double.NEGATIVE_INFINITY;
         int prevQbits = 0;
 
-        for (double[] entry : entries) {
-            int dbits = (int) entry[0];
-            int qbits = (int) entry[1];
-            double rerankDepth = entry[2];
+        for (IvfAutoCalibration.CalibrationSweep sweep : sweeps) {
+            int dbits = sweep.candidate().dbits();
+            int qbits = sweep.candidate().qbits();
+            double rerankDepth = sweep.rerankDepth();
             double cost = docBitsWeight * dbits + rerankCostWeight * rerankDepth;
 
             assertTrue("costs must be non-decreasing: got " + cost + " after " + prevCost, cost >= prevCost);

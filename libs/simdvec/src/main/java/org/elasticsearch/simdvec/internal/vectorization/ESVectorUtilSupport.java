@@ -155,6 +155,14 @@ public interface ESVectorUtilSupport {
 
     int indexOf(byte[] bytes, int offset, int length, byte marker);
 
+    /**
+     * See {@link org.elasticsearch.simdvec.ESVectorUtil#indexOfLineTerminatorLeadByte}. Specialized
+     * (rather than a general "index of any of N marker bytes" method) so implementations backed by
+     * fixed marker constants (e.g. SIMD broadcasts) can be built once rather than reconstructed on
+     * every call.
+     */
+    int indexOfLineTerminatorLeadByte(byte[] bytes, int offset, int length);
+
     int codePointCount(BytesRef bytesRef);
 
     boolean contains(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength);

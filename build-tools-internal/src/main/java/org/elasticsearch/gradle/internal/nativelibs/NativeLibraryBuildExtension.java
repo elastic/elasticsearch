@@ -29,7 +29,10 @@ public abstract class NativeLibraryBuildExtension {
     /** Ant-style patterns, relative to {@link #getSourceDir()}, selecting the build's inputs. */
     public abstract ListProperty<String> getSources();
 
-    /** Container image used to build every platform. */
+    /**
+     * Container image used to build every platform. The {@value NativeLibraryBuildPlugin#TOOLCHAIN_IMAGE_OVERRIDE}
+     * environment variable, when set, takes precedence.
+     */
     public abstract Property<String> getToolchainImage();
 
     /** Command run inside the container, building all platforms. */
@@ -47,8 +50,8 @@ public abstract class NativeLibraryBuildExtension {
 
     /**
      * Environment variable selecting how the library is obtained: {@code docker} or {@code host} to
-     * build it, anything else (or unset) to leave it to the published artifact. Named per library so
-     * one native change does not force every native library to rebuild.
+     * build it, unset or {@code artifactory} to use the published artifact. Any other value fails the
+     * build. Named per library so one native change does not force every native library to rebuild.
      */
     public abstract Property<String> getModeEnvironmentVariable();
 

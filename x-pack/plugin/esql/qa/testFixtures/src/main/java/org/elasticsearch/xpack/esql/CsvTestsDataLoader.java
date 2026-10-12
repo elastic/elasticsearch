@@ -376,6 +376,7 @@ public class CsvTestsDataLoader {
                 )
             ),
         new TestDataset("books").withSetting("books-settings.json"),
+        new TestDataset("books_english", "mapping-books_english.json", "books.csv").withSetting("books-settings.json"),
         new TestDataset("text_state_mapped"),
         new TestDataset("text_state_unmapped", "mapping-text_state_mapped.json", "text_state_unmapped.csv").withTypeMapping(
             removeFields("txt")
@@ -533,7 +534,9 @@ public class CsvTestsDataLoader {
         new ViewConfig(
             "employees_stats_where_in_subquery_view",
             List.of(WHERE_IN_SUBQUERY_WITH_VIEW, EsqlCapabilities.Cap.STATS_WHERE_IN_SUBQUERY)
-        )
+        ),
+        new ViewConfig("view_with_fork", List.of(EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND_WITH_VIEW_FORK_DATASET)),
+        new ViewConfig("view_with_unionall", List.of(EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND_WITH_VIEW_FORK_DATASET))
     ).collect(toMap(ViewConfig::name, Function.identity()));
 
     /**

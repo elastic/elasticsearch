@@ -13,7 +13,10 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheTestAccess;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
@@ -110,6 +113,53 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
         }
         String dataset = registerDataset("multifile_ndjson", globUri(dir, "*.ndjson"), Map.of());
         assertWarmAggregatesShortCircuit(dataset, total);
+    }
+
+    /**
+     * The warm assertions above cannot see a record losing its measurements, and that blindness has hidden a
+     * real defect: a warm {@code COUNT(*)} over many files reports zero documents whether every per-file
+     * record carried its harvested count or none of them did, because the dataset aggregate answers the count
+     * either way. A contribution refused for some files and accepted for others leaves those files cold
+     * forever while every value assertion here still passes.
+     * <p>
+     * Two signals close it. Every per-file record must carry a row count after the cold scan — a partial
+     * enrichment shows up as a count below the file count. And the warm query must not increment the
+     * dataset-aggregate fallback, which is what tells the two cases apart: unchanged means the per-file
+     * records answered, incremented means the fallback did.
+     */
+    public void testEveryPerFileRecordIsEnrichedAndTheWarmAnswerIsNotTheFallback() throws Exception {
+        Path dir = createTempDir();
+        long total = 0;
+        for (int f = 0; f < FILE_COUNT; f++) {
+            total += writeCsvFile(dir.resolve("part-" + f + ".csv"), total);
+        }
+        String dataset = registerDataset("multifile_enrichment_csv", globUri(dir, "*.csv"), Map.of());
+        ExternalSourceCacheService cacheService = internalCluster().getInstance(PlanExecutor.class, internalCluster().getMasterName())
+            .cacheService();
+
+        String countQuery = "FROM " + dataset + " | STATS c = COUNT(*)";
+        try (var response = run(syncEsqlQueryRequest(countQuery).profile(true), TimeValue.timeValueMinutes(5))) {
+            assertSingleLong(response, total);
+        }
+
+        String marker = dir.getFileName().toString();
+        assertThat(
+            "every file the cold scan read must carry a harvested row count; fewer means a contribution was "
+                + "refused for some files and those files never warm",
+            ExternalSourceCacheTestAccess.enrichedPerFileEntries(cacheService, marker),
+            equalTo(FILE_COUNT)
+        );
+
+        long fallbacksBefore = ExternalSourceCacheTestAccess.datasetAggregateFallbacks(cacheService);
+        try (var response = run(syncEsqlQueryRequest(countQuery).profile(true), TimeValue.timeValueMinutes(5))) {
+            assertSingleLong(response, total);
+            assertThat("the warm count must not scan", response.documentsFound(), equalTo(0L));
+        }
+        assertThat(
+            "the warm count must come from the per-file records, not from the dataset-aggregate fallback",
+            ExternalSourceCacheTestAccess.datasetAggregateFallbacks(cacheService),
+            equalTo(fallbacksBefore)
+        );
     }
 
     /**

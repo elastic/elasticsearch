@@ -34,7 +34,7 @@ import java.util.Set;
  * while the standard names route through {@link MetadataAttribute#ATTRIBUTES_MAP}.
  * <p>
  * Every standard name a dataset answers at the reader is a per-file constant; see
- * {@link #PER_FILE_CONSTANT_NAMES}, and every one of them holds a {@code null} value: a file has no
+ * {@link #PER_FILE_CONSTANT_NAMES}. All but {@code _score} hold a {@code null} value: a file has no
  * document identity, no document version and no stored source, and a dataset is not an index, so
  * the honest answer is SQL NULL rather than a value the engine invented.
  * {@code _name} is the name that does answer for a dataset; it and {@code _class} are the two standard
@@ -58,9 +58,9 @@ public final class ExternalMetadataColumns {
 
     /**
      * Names of standard metadata columns that are materialised by the producer-side
-     * constant-block path. Every one of them is SQL {@code NULL}: a file carries no document
+     * constant-block path. All but {@code _score} are SQL {@code NULL}: a file carries no document
      * identity, no document version and no stored source, and a dataset is not an index, so each
-     * column binds and every row is NULL.
+     * of those columns binds and every row is NULL.
      */
     public static final Set<String> PER_FILE_CONSTANT_NAMES;
 
@@ -144,9 +144,8 @@ public final class ExternalMetadataColumns {
     /**
      * Build the per-file constant values for the standard metadata names listed in
      * {@link #PER_FILE_CONSTANT_NAMES}. The map is suitable for merging into a partition-value map
-     * consumed by {@link VirtualColumnIterator}. Every value is {@code null}: none of these names is
-     * addressable on external data (no document identity, no per-row {@code _ignored} list, no
-     * ranking, etc.).
+     * consumed by {@link VirtualColumnIterator}. Every value is {@code null} except {@code _score},
+     * which is {@code 0.0}.
      * <p>
      * Nothing here is derived from the file, and nothing is derived from the dataset either: the
      * values are the same for every dataset. The result is meant to overlay onto the
@@ -168,10 +167,12 @@ public final class ExternalMetadataColumns {
             // per-row _ignored list, index mode, tsid or stored size either. _index is on this arm for
             // the same reason: it names an index, and a dataset is not one. The name that does answer
             // for a dataset is _name, which MaterializeRelationClassAndName folds in the plan, so it
-            // never reaches a reader. _score is on this arm because no scorer is wired over an external
-            // relation, so nothing populates it: the column binds and answers NULL. Every one of these is
-            // SQL NULL rather than a value composed here.
-            case INDEX, ID, VERSION, SOURCE, SCORE, IGNORED, INDEX_MODE, TSID, SIZE, DataTierFieldMapper.NAME, SLICE -> null;
+            // never reaches a reader. Every one of these is SQL NULL rather than a value composed here.
+            case INDEX, ID, VERSION, SOURCE, IGNORED, INDEX_MODE, TSID, SIZE, DataTierFieldMapper.NAME, SLICE -> null;
+            // A runtime MATCH/MATCH_PHRASE's ScoreOperator adds its per-row score onto this base, the
+            // same way it adds onto a real index's unfiltered-scan score; seeding NULL here would make
+            // that addition crash instead of ranking real rows.
+            case SCORE -> 0.0d;
             default -> throw new AssertionError("Unhandled per-file constant name: " + name);
         };
     }

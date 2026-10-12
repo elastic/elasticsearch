@@ -2,7 +2,7 @@
 navigation_title: "Views"
 applies_to:
   serverless: preview
-  stack: preview 9.4.0
+  stack: preview 9.4, ga 9.6+
 products:
   - id: elasticsearch
 ---

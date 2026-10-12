@@ -485,7 +485,7 @@ public final class ExternalSourceAggregatePushdown {
                 if (stats == null) {
                     // Same grain as resolveEffectiveStats: listing metadata that covers more files
                     // than this assignment must not answer INITIAL COUNT on a data node (#161409).
-                    if (SplitStats.refuseListingFallback(splits.getFirst(), sourceMetadata, 1)) {
+                    if (SplitStats.refuseListingFallback(splits.getFirst(), sourceMetadata)) {
                         return null;
                     }
                     stats = SplitStats.sourceMetadataStatsIfComplete(sourceMetadata);

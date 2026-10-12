@@ -670,6 +670,37 @@ public class ExternalSourceAggregatePushdownTests extends ESTestCase {
         as(applyRule(agg), AggregateExec.class);
     }
 
+    public void testInitialCountDoesNotFoldListingMetadataForHeadRangeSlice() {
+        // FileSplitProvider stamps the first byte-range at offset 0. STATS_FILE_COUNT == 1 used to
+        // let that head slice fold the whole-file listing COUNT; the tail scanned and FINAL summed.
+        Map<String, Object> listing = statsMetadata(1000L, null, null);
+        listing.put(SourceStatisticsSerializer.STATS_FILE_COUNT, 1L);
+        FileSplit head = new FileSplit(
+            "parquet",
+            StoragePath.of("file:///ranged.parquet"),
+            0,
+            50,
+            "parquet",
+            Map.of("_range_split", "true"),
+            Map.of(),
+            null,
+            null
+        );
+        ExternalSourceExec ext = new ExternalSourceExec(
+            Source.EMPTY,
+            "file:///ranged.parquet",
+            "parquet",
+            defaultAttrs(),
+            Map.of(),
+            listing,
+            null,
+            null
+        ).withSplits(List.of(head));
+        var agg = aggregateExec(AggregatorMode.INITIAL, ext, countStarAlias());
+
+        as(applyRule(agg), AggregateExec.class);
+    }
+
     public void testPushedWithMultipleSplitsInInitialMode() {
         ExternalSourceExec ext = externalSourceWithSplits(Map.of(), statsMetadata(100L, null, null), statsMetadata(200L, null, null));
         var agg = aggregateExec(AggregatorMode.INITIAL, ext, countStarAlias());

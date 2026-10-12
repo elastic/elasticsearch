@@ -837,10 +837,12 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
      * a set of splits. Uses {@link ExternalSplit#splitStats()} on each split, which handles both
      * {@link FileSplit} and {@link CoalescedSplit} transparently without flattening. Empty splits
      * (skip-discovery) read {@code sourceMetadata}. A present split without typed stats falls back
-     * to that map only when {@code STATS_FILE_COUNT} equals this assignment and the split is a
-     * whole-file range ({@code offset == 0}). Missing file-count, a larger listing, or a byte-range
-     * split safe-miss so INITIAL fold cannot emit the full COUNT on every data node. Multi-split
-     * queries return a {@link MergedSplitStats}, or {@code null} if any split lacks stats.
+     * to that map only when {@code STATS_FILE_COUNT} equals the number of whole files this
+     * assignment covers ({@link FileSplitProvider#isFirstInFile} and
+     * {@link FileSplitProvider#isLastInFile} on every leaf). Missing file-count, a larger listing,
+     * or a partial file (head/mid/tail range, including offset 0) safe-miss so INITIAL fold cannot
+     * emit the full COUNT on every data node. Multi-split queries return a {@link MergedSplitStats},
+     * or {@code null} if any split lacks stats.
      */
     @Nullable
     public static org.elasticsearch.xpack.esql.datasources.spi.SplitStats resolveEffectiveStats(
@@ -855,7 +857,7 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
             if (perSplit != null) {
                 return perSplit;
             }
-            if (refuseListingFallback(splits.getFirst(), sourceMetadata, 1)) {
+            if (refuseListingFallback(splits.getFirst(), sourceMetadata)) {
                 return null;
             }
             return sourceMetadataStatsIfComplete(sourceMetadata);
@@ -888,11 +890,14 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
 
     /**
      * True when listing {@code sourceMetadata} must not answer this node's assigned split.
-     * Missing {@code STATS_FILE_COUNT} fail-closes. A byte-range {@link FileSplit}
-     * ({@code offset > 0}) is never the whole file the listing counted.
+     * Missing {@code STATS_FILE_COUNT} fail-closes. A split that is not the whole file — including
+     * the head byte-range at {@code offset == 0} — is never the listing the coordinator counted.
+     * {@link CoalescedSplit} refuses unless every leaf is a whole file and {@code STATS_FILE_COUNT}
+     * equals that leaf count.
      */
-    public static boolean refuseListingFallback(ExternalSplit split, Map<String, Object> sourceMetadata, int assignedSplitCount) {
-        if (split instanceof FileSplit fileSplit && fileSplit.offset() > 0) {
+    public static boolean refuseListingFallback(ExternalSplit split, Map<String, Object> sourceMetadata) {
+        int assignedFiles = wholeFileLeafCount(split);
+        if (assignedFiles <= 0) {
             return true;
         }
         if (sourceMetadata == null) {
@@ -902,7 +907,31 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
         if (fileCount instanceof Number == false) {
             return true;
         }
-        return ((Number) fileCount).longValue() > assignedSplitCount;
+        return ((Number) fileCount).longValue() != assignedFiles;
+    }
+
+    /**
+     * Whole files covered by {@code split}, or {@code 0} when any leaf is a partial range.
+     * Delegates to {@link FileSplitProvider#isFirstInFile} and {@link FileSplitProvider#isLastInFile}
+     * so position keys and the legacy unstamped whole-file shape stay in one place.
+     * Unknown split types fail closed.
+     */
+    static int wholeFileLeafCount(ExternalSplit split) {
+        if (split instanceof FileSplit fileSplit) {
+            return FileSplitProvider.isFirstInFile(fileSplit) && FileSplitProvider.isLastInFile(fileSplit) ? 1 : 0;
+        }
+        if (split instanceof CoalescedSplit coalesced) {
+            int total = 0;
+            for (ExternalSplit child : coalesced.children()) {
+                int n = wholeFileLeafCount(child);
+                if (n <= 0) {
+                    return 0;
+                }
+                total += n;
+            }
+            return total;
+        }
+        return 0;
     }
 
     @Override

@@ -318,6 +318,35 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
         as(applyRule(agg), LocalSourceExec.class);
     }
 
+    public void testNotPushedForHeadRangeSliceWithListingFileCountOne() {
+        Map<String, Object> listing = statsMetadata(1000L, null, null, null);
+        listing.put(SourceStatisticsSerializer.STATS_FILE_COUNT, 1L);
+        FileSplit head = new FileSplit(
+            "parquet",
+            StoragePath.of("file:///ranged.parquet"),
+            0,
+            50,
+            "parquet",
+            Map.of("_range_split", "true"),
+            Map.of(),
+            null,
+            null
+        );
+        ExternalSourceExec ext = new ExternalSourceExec(
+            Source.EMPTY,
+            "file:///ranged.parquet",
+            "parquet",
+            defaultAttrs(),
+            Map.of(),
+            listing,
+            null,
+            null
+        ).withSplits(List.of(head));
+        var agg = aggregateExec(ext, countStarAlias());
+
+        as(applyRule(agg), AggregateExec.class);
+    }
+
     public void testMinWithoutStatsNotPushed() {
         var agg = aggregateExec(externalSource(statsMetadata(100L, null, null, null)), alias("m", new Min(Source.EMPTY, AGE)));
 

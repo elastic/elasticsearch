@@ -17,8 +17,10 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
-import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortingArrayOrderBinaryDocValues;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.CollapseType;
@@ -239,15 +241,18 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
      * needs a document's bytes.
      */
     @Nullable
-    private static CheckedFunction<LeafReader, SortableBinaryDocValues, IOException> binaryValues(
+    private static CheckedFunction<LeafReader, SortedBinaryDocValues, IOException> binaryValues(
         MappedFieldType fieldType,
         IndexVersion indexVersion
     ) {
-        if (fieldType instanceof KeywordFieldType keywordFieldType) {
-            BinaryDocValuesFormat binaryFormat = keywordFieldType.binaryFormat();
-            if (binaryFormat != null) {
-                return reader -> SortableBinaryDocValues.forFormat(reader, fieldType.name(), indexVersion, binaryFormat);
+        if (fieldType instanceof KeywordFieldType keywordFieldType && keywordFieldType.usesBinaryDocValues()) {
+            String fieldName = fieldType.name();
+            if (keywordFieldType.usesArrayOrderBinaryDocValues()) {
+                return reader -> SortingArrayOrderBinaryDocValues.from(reader, fieldName);
             }
+            return reader -> indexVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES)
+                ? MultiValuedSortedBinaryDocValues.from(reader, fieldName)
+                : MultiValuedSortedBinaryDocValues.fromMultiValued(reader, fieldName);
         }
         return null;
     }

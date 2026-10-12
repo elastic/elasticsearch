@@ -24,7 +24,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.AbstractNumericDocValues;
-import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
@@ -143,11 +143,11 @@ abstract class GroupingDocValuesSelector<T> extends GroupSelector<T> {
      * binary blob.
      */
     static class Keyword extends GroupingDocValuesSelector<BytesRef> {
-        private final CheckedFunction<LeafReader, SortableBinaryDocValues, IOException> binaryValues;
+        private final CheckedFunction<LeafReader, SortedBinaryDocValues, IOException> binaryValues;
         private GroupValues values;
         private boolean hasValue;
 
-        Keyword(MappedFieldType fieldType, @Nullable CheckedFunction<LeafReader, SortableBinaryDocValues, IOException> binaryValues) {
+        Keyword(MappedFieldType fieldType, @Nullable CheckedFunction<LeafReader, SortedBinaryDocValues, IOException> binaryValues) {
             super(fieldType.name());
             this.binaryValues = binaryValues;
         }
@@ -244,7 +244,7 @@ abstract class GroupingDocValuesSelector<T> extends GroupSelector<T> {
 
         // TODO: group on the page ordinals ColumNAR can hand over, rather than on each document's bytes.
         // https://github.com/elastic/elasticsearch/issues/160993
-        private static GroupValues binaryValues(SortableBinaryDocValues binary) {
+        private static GroupValues binaryValues(SortedBinaryDocValues binary) {
             return new GroupValues() {
                 private BytesRef value;
 

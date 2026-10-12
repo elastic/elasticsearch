@@ -13,7 +13,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Sort;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.CollapseType;
 import org.elasticsearch.lucene.grouping.SinglePassGroupingCollector;
@@ -26,12 +26,12 @@ import java.io.IOException;
 public class CollapseContext {
     private final String fieldName;
     private final MappedFieldType fieldType;
-    private final CheckedFunction<LeafReader, SortableBinaryDocValues, IOException> binaryValues;
+    private final CheckedFunction<LeafReader, SortedBinaryDocValues, IOException> binaryValues;
 
     public CollapseContext(
         String fieldName,
         MappedFieldType fieldType,
-        @Nullable CheckedFunction<LeafReader, SortableBinaryDocValues, IOException> binaryValues
+        @Nullable CheckedFunction<LeafReader, SortedBinaryDocValues, IOException> binaryValues
     ) {
         this.fieldName = fieldName;
         this.fieldType = fieldType;

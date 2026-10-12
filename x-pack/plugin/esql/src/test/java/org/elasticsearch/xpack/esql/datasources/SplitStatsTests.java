@@ -724,6 +724,65 @@ public class SplitStatsTests extends ESTestCase {
         assertNull("Should return null when any split lacks stats", result);
     }
 
+    public void testResolveEffectiveStatsSingleSplitWithoutStatsDoesNotUseListingMetadata() {
+        FileSplit splitWithoutStats = new FileSplit(
+            "parquet",
+            StoragePath.of("file:///nostat.parquet"),
+            0,
+            100,
+            "parquet",
+            Map.of(),
+            Map.of(),
+            null,
+            null
+        );
+        Map<String, Object> listing = new HashMap<>();
+        listing.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
+        listing.put(SourceStatisticsSerializer.STATS_FILE_COUNT, 2L);
+
+        var result = SplitStats.resolveEffectiveStats(List.of(splitWithoutStats), listing);
+        assertNull("Assigned split without stats must not fold the listing COUNT", result);
+    }
+
+    public void testResolveEffectiveStatsSingleSplitWithoutFileCountDoesNotUseListingMetadata() {
+        FileSplit splitWithoutStats = new FileSplit(
+            "parquet",
+            StoragePath.of("file:///nostat.parquet"),
+            0,
+            100,
+            "parquet",
+            Map.of(),
+            Map.of(),
+            null,
+            null
+        );
+        Map<String, Object> listing = new HashMap<>();
+        listing.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
+
+        var result = SplitStats.resolveEffectiveStats(List.of(splitWithoutStats), listing);
+        assertNull("Missing STATS_FILE_COUNT must not fold listing COUNT onto an assigned split", result);
+    }
+
+    public void testResolveEffectiveStatsRangeSplitDoesNotUseListingMetadata() {
+        FileSplit rangeSplit = new FileSplit(
+            "parquet",
+            StoragePath.of("file:///ranged.parquet"),
+            50,
+            50,
+            "parquet",
+            Map.of(),
+            Map.of(),
+            null,
+            null
+        );
+        Map<String, Object> listing = new HashMap<>();
+        listing.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 1000L);
+        listing.put(SourceStatisticsSerializer.STATS_FILE_COUNT, 1L);
+
+        var result = SplitStats.resolveEffectiveStats(List.of(rangeSplit), listing);
+        assertNull("A byte-range split must not fold the whole-file listing COUNT", result);
+    }
+
     // --- mergedMin / mergedMax unit tests ---
 
     public void testMergedMinNullHandling() {

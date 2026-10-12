@@ -658,6 +658,18 @@ public class ExternalSourceAggregatePushdownTests extends ESTestCase {
         assertEquals(600L, as(local.supplier().get().getBlock(0), LongBlock.class).getLong(0));
     }
 
+    public void testInitialCountDoesNotFoldListingMetadataForOneAssignedSplit() {
+        // Round-robin hands each data node one survivor. Relation sourceMetadata still holds the
+        // listing COUNT of both files. Folding that map in INITIAL mode made two nodes each emit 2
+        // and the coordinator sum to 4 (#161409).
+        Map<String, Object> listing = statsMetadata(2L, null, null);
+        listing.put(SourceStatisticsSerializer.STATS_FILE_COUNT, 2L);
+        ExternalSourceExec ext = externalSourceWithSplits(listing, (Map<String, Object>) null);
+        var agg = aggregateExec(AggregatorMode.INITIAL, ext, countStarAlias());
+
+        as(applyRule(agg), AggregateExec.class);
+    }
+
     public void testPushedWithMultipleSplitsInInitialMode() {
         ExternalSourceExec ext = externalSourceWithSplits(Map.of(), statsMetadata(100L, null, null), statsMetadata(200L, null, null));
         var agg = aggregateExec(AggregatorMode.INITIAL, ext, countStarAlias());

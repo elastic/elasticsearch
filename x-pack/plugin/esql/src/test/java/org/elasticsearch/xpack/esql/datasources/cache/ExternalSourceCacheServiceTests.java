@@ -341,7 +341,11 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
             FileList complete = testCompactFileList();
             service.putListingIfComplete(key, complete);
-            assertSame("a bounded listing that drained its prefix is the dataset, and is cacheable", complete, service.getListingIfPresent(key));
+            assertSame(
+                "a bounded listing that drained its prefix is the dataset, and is cacheable",
+                complete,
+                service.getListingIfPresent(key)
+            );
         }
     }
 

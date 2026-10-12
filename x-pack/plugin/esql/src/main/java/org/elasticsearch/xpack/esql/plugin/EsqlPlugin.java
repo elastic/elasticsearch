@@ -164,6 +164,7 @@ import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.GetViewAction;
+import org.elasticsearch.xpack.esql.view.MlAnomaliesView;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.elasticsearch.xpack.esql.view.RestDeleteViewAction;
 import org.elasticsearch.xpack.esql.view.RestGetViewAction;
@@ -626,7 +627,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 c.onQueryCompleted(metrics);
             }
         };
-
+        ViewService viewService = new ViewService(services.clusterService(), parser);
         DataSourceService dataSourceService = new DataSourceService(
             services.clusterService(),
             crudValidators,
@@ -675,7 +676,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 services.client(),
                 services.crossProjectModeDecider()
             ),
-            new ViewService(services.clusterService(), parser),
+            viewService,
+            new MlAnomaliesView(viewService),
             new FederationLicense(this::getLicenseState),
             dataSourceService,
             new DatasetService(services.clusterService(), crudValidators, dataSourceModule.externalSourceMetrics()),

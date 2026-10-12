@@ -2615,10 +2615,10 @@ public class ExternalSourceResolver {
                 // immediately is a pre-existing main bug tracked separately (GA issue); this guard only
                 // keeps the dataset aggregate from memoizing it.
                 if (rowCount instanceof Number n && listingPathsAreDistinct(listing)) {
-                    // Addressed by the reads it answers for, which is the fold's own: licensed as
-                    // read-independent, it answers for every read; otherwise for the one the cross-file merge
-                    // agreed on. Stored without that, this count answered for whoever asked next - including a
-                    // read these files were never read under.
+                    // Addressed by the definition version, which folds everything about the dataset and its
+                    // source that decides how the bytes become rows. The stored value is a bare count: it carries
+                    // no read of its own, so the address has to be what keeps it away from a definition it does
+                    // not describe.
                     cacheService.putDatasetAggregate(datasetKey, n.longValue());
                 }
             }
@@ -2627,8 +2627,8 @@ public class ExternalSourceResolver {
         cacheService.recordStatsAggregateIncomplete();
         if (prefetch.prefetched() != null) {
             // Needed (per-file merge incomplete) AND present: the fallback actually served. What it serves now
-            // carries the read it was folded under, so a read this count does not describe has it stripped by
-            // the same gate the per-file tier uses rather than being handed it unlabelled.
+            // was addressed by the definition version, so a count minted under a different definition is not
+            // reachable from here at all rather than being handed over unlabelled.
             cacheService.recordDatasetAggregateHit();
             return prefetch.prefetched();
         }
@@ -2843,9 +2843,9 @@ public class ExternalSourceResolver {
             schemaInterner,
             privateLists,
             // Every file is read at its own schema on this rail, overlaid by any non-strict declaration - which
-            // holds for strict and for a union whose files agree. A union_by_name file the reconciliation pinned to
-            // another type is read at a schema other than its own; that is #2201's and stays cold. With no
-            // declaration the record's own stamp IS that read and this is null, as before.
+            // holds for strict and for a union whose files agree. A union_by_name file that the reconciliation
+            // pinned to another type is read at a schema other than its own, and still warms nothing; that case is
+            // out of scope here. With no declaration the record's own stamp IS that read and this is null.
             overlaidBoundReadOf(declaredMapping, datasetFormat),
             metadataListener
         );

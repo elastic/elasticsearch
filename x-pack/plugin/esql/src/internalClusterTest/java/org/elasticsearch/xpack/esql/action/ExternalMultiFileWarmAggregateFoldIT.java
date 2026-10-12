@@ -430,8 +430,8 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
      * The geometry this arm exists for, asserted rather than assumed. A read that quietly stops splitting still
      * short-circuits warm - a whole-file measurement is authoritative - so without this the arm stays green while
      * guarding nothing, which is what happens if parse parallelism resolves to 1 or a segment floor moves. The
-     * sibling {@code ExternalMultiChunkPerStripeWarmFoldIT} asserts the same property the same way, behind the
-     * same processor-count assumption.
+     * sibling {@code ExternalMultiChunkPerStripeWarmFoldIT#assertMultiChunkPerStripeGeometry} holds the same
+     * {@code PARTIAL_CHUNK_KEY} property behind the same processor-count assumption.
      */
     private static void assertEveryFileArrivedAsStripeFragments(EsqlQueryResponse response) {
         assertThat("the query must run with profile(true) to read the scan's contributions", response.profile(), notNullValue());

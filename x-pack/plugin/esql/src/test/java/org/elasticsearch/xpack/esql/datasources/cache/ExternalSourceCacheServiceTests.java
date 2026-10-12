@@ -4058,27 +4058,16 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     }
 
     /**
-     * A stripe delta from a FOREIGN read is committed at its OWN address and NEVER NORMALISED, because there is no
-     * record whose types are the right ones to normalise it against.
+     * A stripe delta from a FOREIGN read is committed at its own address and uncoerced. The per-stripe coercion
+     * targets the schema record's resolved types, which is sound only when the delta's read IS that record's -
+     * so the gate belongs on the coercion, not on the storage. Refusing the delta outright keeps the reads apart
+     * too, and costs the measurement: a retyping declaration never matches the record's stamp, so a segmented
+     * read of such a dataset filed nothing at any address.
      * <p>
-     * Refusing it outright keeps them apart too, and costs the measurement: a retyping declaration resolves to a
-     * read whose stamp never equals the record's, so a segmented read of such a dataset files nothing at any
-     * address. The hazard to stop is the COERCION, not the storage - and its
-     * whole-file sibling has stored a foreign read as harvested all along.
-     * <p>
-     * The per-stripe coercion targets the schema record's resolved types, and that is sound only when the
-     * delta's read IS that record's read, which {@code deltaIsTheRecordsOwnRead} decides. Coercing a foreign
-     * read's extrema would push them through a resolution belonging to neither: this read did not produce those
-     * types, and the record that did is not this one.
-     * <p>
-     * It is asserted at the FOREIGN address, which is the part the sibling cases cannot see: they read through
-     * the record's own stamp, so a delta misfiled under another read is invisible to them. That is why
-     * mutating this gate to a no-op left every test in the suite green.
-     * <p>
-     * Inject the defect by coercing unconditionally in {@code applyStripeDelta} - dropping the
-     * {@code deltaIsTheRecordsOwnRead} branch around {@code coerceColumnStatsToResolvedTypes}: the foreign read's
-     * exact extremum is then rounded through a DOUBLE resolution this read never asked for, and the assertion on
-     * the stored value fails while the addresses still look right.
+     * Asserted at the FOREIGN address, which is what the sibling cases cannot see - they read through the
+     * record's own stamp, so a delta misfiled under another read is invisible to them, and mutating this gate to
+     * a no-op left the whole suite green. Coercing unconditionally reddens it: the extremum is rounded through a
+     * double resolution this read never asked for while the addresses still look right.
      */
     public void testAForeignReadsStripeDeltaIsCommittedUncoercedAtItsOwnAddress() throws Exception {
         long mtime = 1000L;

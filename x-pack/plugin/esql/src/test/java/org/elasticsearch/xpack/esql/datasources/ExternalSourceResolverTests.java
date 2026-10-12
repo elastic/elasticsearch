@@ -11356,14 +11356,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * The two addressing derivations, pinned directly rather than only through an integration arm.
-     * {@code ffwBoundRead} answers for the whole first-file-wins listing; {@code overlaidBoundReadOf} answers per
-     * record. Each must name the OVERLAID read, and naming the pre-overlay one is the defect.
-     * <p>
-     * The expectation is hand-built from the schema the reader will bind, so the test cannot pass by both sides
-     * being the same wrong expression.
-     */
-    /**
      * {@code datasetFormat} wins over the record's own source type, and this is the case where the two DISAGREE -
      * without it the argument is asserted only where they happen to agree, which proves nothing.
      * <p>
@@ -11402,6 +11394,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
     }
 
+    /**
+     * The two addressing derivations, pinned directly rather than only through an integration arm.
+     * {@code ffwBoundRead} answers for the whole first-file-wins listing; {@code overlaidBoundReadOf} answers per
+     * record. Each must name the OVERLAID read, and naming the pre-overlay one is the defect.
+     * <p>
+     * The expectation is hand-built from the schema the reader will bind, so the test cannot pass by both sides
+     * being the same wrong expression.
+     */
     public void testTheBoundReadHandedToAStatisticsLookupIsTheOverlaidRead() {
         List<Attribute> inferred = List.of(attr("id", DataType.INTEGER), attr("order_id", DataType.INTEGER));
         List<Attribute> overlaid = List.of(attr("id", DataType.INTEGER), attr("order_id", DataType.KEYWORD));

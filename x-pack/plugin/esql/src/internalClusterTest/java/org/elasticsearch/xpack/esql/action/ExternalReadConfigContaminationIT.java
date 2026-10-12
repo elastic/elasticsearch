@@ -237,11 +237,6 @@ public class ExternalReadConfigContaminationIT extends AbstractExternalDataSourc
     }
 
     /**
-     * A TYPED header, so {@code age} is bound as an integer by declaration rather than inferred from a sample. The
-     * uncoercible value therefore fails to coerce whenever the column is projected, which a plain header would
-     * never produce — inference would see the value and widen the column to text instead.
-     */
-    /**
      * The SINGLE-FILE case of the same cost, where no dataset-level fold exists to be blamed for it. A dataset tier
      * needs at least two files, so this isolates the per-file half: a retyping read asks only its own overlaid
      * address, and the licensed row count the reconcile files at the record's OWN address is no longer read by it.
@@ -275,6 +270,11 @@ public class ExternalReadConfigContaminationIT extends AbstractExternalDataSourc
         return StoragePath.fileUri(file);
     }
 
+    /**
+     * A TYPED header, so {@code age} is bound as an integer by declaration rather than inferred from a sample. The
+     * uncoercible value therefore fails to coerce whenever the column is projected, which a plain header would
+     * never produce — inference would see the value and widen the column to text instead.
+     */
     private String writeTypedDropFixture() throws Exception {
         StringBuilder sb = new StringBuilder("name:keyword,age:integer\n");
         for (int i = 0; i < ROWS; i++) {

@@ -99,16 +99,15 @@ public final class DefinitionVersion {
      * <p>
      * Keyed by the IDENTITY of the two definitions, not by their contents. {@code Dataset.equals} deep-compares
      * the mapping, which is the work this exists to avoid; and identity is the right question, because
-     * {@code DatasetMetadata} is a diffable custom - an unchanged one survives a publish by reference, and any
-     * edit replaces every {@code Dataset} in the project. An identity HASH collision lands two keys in one bucket
-     * and then fails {@code equals}, so it costs a recomputation rather than a wrong answer.
+     * {@code DatasetMetadata} is a diffable custom - an unchanged {@code Dataset} keeps its reference across a
+     * publish, and an edited one is a new instance. An identity HASH collision lands two keys in one bucket and
+     * then fails {@code equals}, so it costs a recomputation rather than a wrong answer.
      * <p>
      * The premise is that a {@code Dataset} does not change under its own reference. It holds final fields, but
      * its constructor wraps the caller's settings map rather than copying it, so a caller that retained and
      * mutated that map would be served a pre-mutation version for as long as the entry lives. Neither production
-     * construction site retains it. The TTL bounds how long such a mistake could persist, and is also why this
-     * cache has one at all: every sibling cache in this package expires its entries, and a definition's version
-     * is cheap enough to re-derive that holding cluster-state objects indefinitely buys nothing.
+     * construction site retains it. The TTL bounds how long such a mistake could persist, and a definition's
+     * version is cheap enough to re-derive that holding cluster-state objects indefinitely buys nothing.
      * <p>
      * Bounded by ENTRY COUNT ({@code Cache}'s default weigher is one per entry), not by bytes: a wide declared
      * mapping is retained in full, and nothing charges it to a breaker. Exceeding the bound costs recomputation.
@@ -203,13 +202,12 @@ public final class DefinitionVersion {
      * both about correctness, not brevity.
      * <p>
      * JSON quoting delimits every user-controlled string by construction, so no setting key and no declared column
-     * name can forge a field boundary - the failure that a hand-rolled token stream needs length prefixes, block
-     * counts and a test per forgery to hold off, and that two reviews found holes in anyway.
+     * name can forge a field boundary. A hand-rolled token stream needs length prefixes and block counts to hold
+     * that off, and a test per forgery to know whether it did.
      * <p>
      * And a declared column is written by {@link DatasetFieldMapping#toXContent}, so a field added to it is folded
-     * here automatically. The hand-rolled version named {@code type}, {@code path} and {@code format} one at a
-     * time, which meant a new one was silently left out - an edit that would have gone on serving the previous
-     * definition's measurements.
+     * here automatically rather than needing an edit here. A field left unfolded is one an edit cannot move the
+     * version with, which would go on serving the previous definition's measurements.
      * <p>
      * Canonical means every map is sorted: a parsed definition's iteration order is not part of its identity, and
      * two equal definitions that hashed differently would never warm.

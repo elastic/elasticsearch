@@ -166,9 +166,6 @@ tests:
 - class: org.elasticsearch.xpack.eql.qa.ccs_rolling_upgrade.EqlCcsRollingUpgradeIT
   method: testSequences
   issue: https://github.com/elastic/elasticsearch/issues/150762
-- class: org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContextTests
-  method: testNullClusterUuidDoesNotNpe
-  issue: https://github.com/elastic/elasticsearch/issues/150887
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testUnhollowOnUpdates
   issue: https://github.com/elastic/elasticsearch/issues/151100
@@ -413,9 +410,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.FromDatasetIT
   method: testAbsentDeclaredColumnEmitsResponseWarning
   issue: https://github.com/elastic/elasticsearch/issues/160158
-- class: org.elasticsearch.xpack.esql.action.ExternalCsvHivePartitionedIT
-  method: testHivePartitionShadowWarningReachesClient
-  issue: https://github.com/elastic/elasticsearch/issues/160177
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {yaml=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old outlier_detection job}
   issue: https://github.com/elastic/elasticsearch/issues/157942
@@ -467,25 +461,20 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
   method: "test {yaml=/36_columnar_sorting/field collapse on columnar keyword field}"
   issue: https://github.com/elastic/elasticsearch/issues/158753
-- class: org.elasticsearch.upgrades.BasicLicenseUpgradeIT
-  method: testNewClusterHasActiveNonExpiringBasic
-  issue: https://github.com/elastic/elasticsearch/issues/161320
-- class: org.elasticsearch.upgrades.BasicLicenseUpgradeIT
-  method: testOldAndMixedClusterHaveActiveBasic
-  issue: https://github.com/elastic/elasticsearch/issues/161321
 - class: org.elasticsearch.xpack.stateless.engine.translog.StatelessTranslogIT
   method: testTranslogIsolatedNodeOnlyStressRecoveryTest
   issue: https://github.com/elastic/elasticsearch/issues/161325
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/161399
-- class: org.elasticsearch.xpack.esql.CsvFlattenedKeywordIT
-  method: test {csv-spec:scoring.testMatchAndQueryStringFunctionsWithScore}
-  issue: https://github.com/elastic/elasticsearch/issues/153614
 - class: org.elasticsearch.xpack.migrate.action.ReindexDatastreamIndexTransportActionIT
   issue: https://github.com/elastic/elasticsearch/issues/161483
-- class: org.elasticsearch.xpack.esql.action.EsqlActionTaskIT
-  method: testTaskContentsForTopNQueryWithNoReduction
-  issue: https://github.com/elastic/elasticsearch/issues/161486
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardDisruptionIT
   method: testReshardWithDisruption
   issue: https://github.com/elastic/elasticsearch/issues/161494
+- class: org.elasticsearch.test.apmintegration.OTelMetricsBufferSurvivesRestartIT
+  method: testPreExistingBufferFilesDrainAfterRestart
+  issue: https://github.com/elastic/elasticsearch/issues/161602
+- class: org.elasticsearch.integration.FieldLevelSecurityTests
+  method: testPercolatorConstantKeywordQueryDependsOnIndexingUsersFls
+  issue: https://github.com/elastic/elasticsearch/issues/161396
+- class: org.elasticsearch.search.vectors.RescoreKnnVectorQueryTests
+  method: testRescoreDocs
+  issue: https://github.com/elastic/elasticsearch/issues/161638

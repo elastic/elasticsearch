@@ -13,6 +13,7 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -290,22 +291,42 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     /**
      * Perform the actual lookup, returning the full {@link LookupResponse}.
      * Callers can access pages via {@link LookupResponse#takePages()} and must call {@link LookupResponse#decRef()} when done.
-     * This method determines the target node internally via shard routing.
+     * This method determines the target node internally via shard routing. If the chosen copy no longer
+     * holds the shard (for example, it was relocated away before this node applied the new cluster state),
+     * the lookup moves on to the next copy.
      */
     public final void lookupAsync(R request, CancellableTask parentTask, ActionListener<LookupResponse> outListener) {
         ShardIterator shardIt = getShardIterator(request, outListener);
         if (shardIt == null) {
             return;
         }
+        T transportRequest = transportRequest(request, shardIt.shardId());
+        lookupOnNextShardCopy(parentTask, shardIt, transportRequest, null, outListener);
+    }
+
+    private void lookupOnNextShardCopy(
+        CancellableTask parentTask,
+        ShardIterator shardIt,
+        T transportRequest,
+        @Nullable Exception lastFailure,
+        ActionListener<LookupResponse> outListener
+    ) {
         ShardRouting shardRouting = shardIt.nextOrNull();
         if (shardRouting == null) {
-            outListener.onFailure(new UnavailableShardsException(shardIt.shardId(), "target index is not available"));
+            outListener.onFailure(
+                lastFailure != null ? lastFailure : new UnavailableShardsException(shardIt.shardId(), "target index is not available")
+            );
             return;
         }
         DiscoveryNode targetNode = clusterService.state().nodes().get(shardRouting.currentNodeId());
-        // TODO: handle retry and avoid forking for the local lookup
-        T transportRequest = transportRequest(request, shardIt.shardId());
-        sendChildRequest(parentTask, outListener, targetNode, transportRequest);
+        // TODO: avoid forking for the local lookup
+        sendChildRequest(parentTask, outListener.delegateResponse((l, e) -> {
+            if (TransportActions.isShardNotAvailableException(e) && parentTask.isCancelled() == false) {
+                lookupOnNextShardCopy(parentTask, shardIt, transportRequest, e, l);
+            } else {
+                l.onFailure(e);
+            }
+        }), targetNode, transportRequest);
     }
 
     /**

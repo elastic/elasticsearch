@@ -23,6 +23,7 @@ import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.injection.guice.Inject;
@@ -66,6 +67,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
@@ -461,6 +463,37 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
             String query = "FROM listen* | " + enrichSongCommand();
             Exception error = expectThrows(Exception.class, () -> run(query).close());
             assertThat(ExceptionsHelper.status(error), equalTo(RestStatus.TOO_MANY_REQUESTS));
+        } finally {
+            for (var ts : internalCluster().getInstances(TransportService.class)) {
+                ((MockTransportService) ts).clearAllRules();
+            }
+        }
+    }
+
+    /**
+     * A lookup can reach a copy of the enrich index that was just relocated away, before the coordinating node
+     * applies the cluster state that removes it. The lookup must move on to another copy instead of failing.
+     */
+    public void testLookupRetriesAnotherCopyWhenShardIsNotAvailable() {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        ensureGreen();
+        AtomicBoolean failedOnce = new AtomicBoolean();
+        for (var ts : internalCluster().getInstances(TransportService.class)) {
+            ((MockTransportService) ts).addRequestHandlingBehavior(EnrichLookupService.LOOKUP_ACTION_NAME, (h, r, channel, t) -> {
+                if (failedOnce.compareAndSet(false, true)) {
+                    channel.sendResponse(new RemoteTransportException("test", new IndexNotFoundException(".enrich-songs")));
+                } else {
+                    h.messageReceived(r, channel, t);
+                }
+            });
+        }
+        try {
+            // ROW runs on the coordinator only, so no data-node retry on another copy of a source index can hide a failed lookup.
+            String query = "ROW song_id = \"s1\" | " + enrichSongCommand() + " | KEEP title, artist";
+            try (var resp = client().execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query)).actionGet(30, TimeUnit.SECONDS)) {
+                assertThat(EsqlTestUtils.getValuesList(resp), equalTo(List.of(List.of("Hotel California", "Eagles"))));
+            }
+            assertTrue("the first lookup should have been failed", failedOnce.get());
         } finally {
             for (var ts : internalCluster().getInstances(TransportService.class)) {
                 ((MockTransportService) ts).clearAllRules();

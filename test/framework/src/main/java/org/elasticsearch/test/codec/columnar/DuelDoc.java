@@ -15,12 +15,12 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * One document in a keyword duel corpus. {@code docId} is a stable, retrievable ordinal used as the sort
- * tiebreak and as the identity compared across indices. {@code values} carries the keyword field content:
+ * One document in a duel corpus. {@code docId} is a stable, retrievable ordinal used as the sort
+ * tiebreak and as the identity compared across indices. {@code values} carries the content written to every duel field:
  * {@code null} means the field is absent, an empty list means an empty array, and a non-empty list may
  * itself contain {@code null} elements to represent inline nulls that Elasticsearch drops from doc values.
  */
-public record KeywordDoc(long docId, @Nullable List<String> values) {
+public record DuelDoc(long docId, @Nullable List<String> values) {
 
     public String id() {
         return "d" + docId;

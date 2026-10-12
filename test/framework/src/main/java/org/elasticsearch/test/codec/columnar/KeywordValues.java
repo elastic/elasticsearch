@@ -18,7 +18,7 @@ import static org.elasticsearch.test.ESTestCase.randomUnicodeOfCodepointLengthBe
 
 /**
  * Generates individual keyword literals for a duel corpus. This class owns value content only; document
- * shapes (single, multi, sparse, nulls, and so on) are the responsibility of {@link KeywordScenario}. All
+ * shapes (single, multi, sparse, nulls, and so on) are the responsibility of {@link DuelScenario}. All
  * randomness flows through {@link org.elasticsearch.test.ESTestCase} so values reproduce from a test seed.
  */
 public final class KeywordValues {

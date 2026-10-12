@@ -141,7 +141,7 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
             // data streams included, as the PIT includes them
             indices = Set.of(indexNameExpressionResolver.concreteIndexNames(project, request.indicesOptions(), true, request.indices()));
             if (indices.isEmpty()) {
-                throw new IllegalArgumentException("[" + RestKnnEvalAction.ENDPOINT + "] found no indices to evaluate");
+                throw new IllegalArgumentException("[" + RestKnnEvalAction.ENDPOINT + "] found no matching indices to evaluate");
             }
             rejectDisabledIndices(project, indices);
         } catch (Exception e) {

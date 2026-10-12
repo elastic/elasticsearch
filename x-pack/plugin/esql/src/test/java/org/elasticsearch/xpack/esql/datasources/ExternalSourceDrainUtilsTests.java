@@ -182,6 +182,75 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
         buffer.finish(true);
     }
 
+    /**
+     * Regression for elastic/esql-planning#2271: a drain parked on {@link CloseableIterator#waitForReady()}
+     * (iterator waiting on a byte ticket or an in-flight GET that nothing on the cancel path completes)
+     * must be woken by {@code buffer.finish(true)} and complete without the readiness ever firing, so
+     * {@code removeAsyncAction()} does not wait on the object store. The signal is never completed here.
+     */
+    public void testBufferFinishWakesDrainParkedOnWaitForReady() throws Exception {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
+        SubscribableListener<Void> neverReady = new SubscribableListener<>();
+        AtomicInteger parkedReturns = new AtomicInteger();
+        AtomicInteger tryAdvanceCalls = new AtomicInteger();
+        AtomicBoolean hasNextCalled = new AtomicBoolean();
+        AtomicInteger closeCount = new AtomicInteger();
+        CloseableIterator<Page> parked = new CloseableIterator<>() {
+            @Override
+            public SubscribableListener<Void> waitForReady() {
+                parkedReturns.incrementAndGet();
+                return neverReady;
+            }
+
+            @Override
+            public Page tryAdvance() {
+                tryAdvanceCalls.incrementAndGet();
+                return null;
+            }
+
+            @Override
+            public boolean hasNext() {
+                hasNextCalled.set(true);
+                return false;
+            }
+
+            @Override
+            public Page next() {
+                throw new NoSuchElementException();
+            }
+
+            @Override
+            public void close() {
+                closeCount.incrementAndGet();
+            }
+        };
+
+        CountDownLatch done = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        AtomicBoolean succeeded = new AtomicBoolean();
+        ExternalSourceDrainUtils.drainPagesAsync(parked, buffer, exec, buffer::readCancelled, ActionListener.wrap(v -> {
+            succeeded.set(true);
+            done.countDown();
+        }, e -> {
+            error.set(e);
+            done.countDown();
+        }));
+
+        assertBusy(() -> assertTrue("drain must actually be parked on waitForReady", parkedReturns.get() > 0), 5, TimeUnit.SECONDS);
+        assertFalse("nothing should complete while the iterator is not ready", done.await(200, TimeUnit.MILLISECONDS));
+        int advancesBeforeCancel = tryAdvanceCalls.get();
+
+        buffer.finish(true);
+
+        assertTrue("finish(true) must wake the parked drain without the iterator becoming ready", done.await(10, TimeUnit.SECONDS));
+        assertNull(error.get());
+        assertTrue("a cancel wake completes the drain, it does not fail it", succeeded.get());
+        assertFalse("the readiness signal is owned by the iterator and must stay untouched", neverReady.isDone());
+        assertEquals("the woken drain exits on noMoreInputs before pulling again", advancesBeforeCancel, tryAdvanceCalls.get());
+        assertFalse(hasNextCalled.get());
+        assertEquals("the drain does not own the iterator", 0, closeCount.get());
+    }
+
     public void testDrainPagesAsyncRevokesOvershootWhenBufferIsFull() throws Exception {
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1);
         Page first = createTestPage(1, 10);

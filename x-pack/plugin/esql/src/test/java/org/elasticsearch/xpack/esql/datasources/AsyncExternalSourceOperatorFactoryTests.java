@@ -99,6 +99,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 import java.util.zip.GZIPOutputStream;
@@ -4139,6 +4140,147 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
     }
 
+    /**
+     * Regression for elastic/esql-planning#2271. A producer parked on the iterator's
+     * {@link CloseableIterator#waitForReady()} -- readiness only the iterator completes (a byte-budget
+     * ticket, an in-flight GET) -- must be woken by the operator's {@code close()} (task cancel / async
+     * DELETE) so {@code removeAsyncAction()} fires without the iterator ever becoming ready. The
+     * reader's readiness is never completed here, not even by its own {@code close()}, which is what
+     * distinguishes this from {@link ParkingReader}: the only thing that can end the park is the buffer.
+     */
+    public void testCloseWakesProducerParkedOnWaitForReady() throws Exception {
+        NeverReadyReader reader = new NeverReadyReader(0);
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(
+            List.of(new FileSplit("test", StoragePath.of("s3://bucket/stuck.parquet"), 0, 100, "parquet", Map.of(), Map.of()))
+        );
+        DriverContext driverContext = mock(DriverContext.class);
+        when(driverContext.blockFactory()).thenReturn(TEST_BLOCK_FACTORY);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        CountDownLatch asyncActionRemoved = new CountDownLatch(1);
+        doAnswer(inv -> {
+            asyncActionRemoved.countDown();
+            return null;
+        }).when(driverContext).removeAsyncAction();
+
+        ExecutorService ioExec = Executors.newSingleThreadExecutor(EsExecutors.daemonThreadFactory("test", "stuck-io"));
+        ExecutorService producerExec = Executors.newSingleThreadExecutor(EsExecutors.daemonThreadFactory("test", "stuck-producer"));
+        try {
+            AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+                new StubMultiFileStorageProvider(),
+                reader,
+                StoragePath.of("s3://bucket/stuck.parquet"),
+                List.of(
+                    new FieldAttribute(
+                        Source.EMPTY,
+                        "value",
+                        new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+                    )
+                ),
+                100,
+                10,
+                ioExec
+            ).sliceQueue(sliceQueue).producerExecutor(producerExec).build();
+
+            SourceOperator operator = factory.get(driverContext);
+            assertBusy(() -> assertTrue("producer must be parked on waitForReady", reader.parkedReturns.get() > 0), 5, TimeUnit.SECONDS);
+            assertFalse("nothing completes while the iterator is not ready", asyncActionRemoved.await(200, TimeUnit.MILLISECONDS));
+            int advancesBeforeClose = reader.tryAdvanceCalls.get();
+
+            operator.close();
+
+            assertTrue(
+                "close must wake the parked producer without the iterator becoming ready",
+                asyncActionRemoved.await(10, TimeUnit.SECONDS)
+            );
+            assertFalse("the readiness signal belongs to the iterator and stays untouched", reader.ready.isDone());
+            assertEquals("the woken producer closes its iterator exactly once, before completing", 1, reader.closeCount.get());
+            assertEquals(
+                "the woken producer exits on noMoreInputs before pulling again",
+                advancesBeforeClose,
+                reader.tryAdvanceCalls.get()
+            );
+            assertNull("a cancel wake is not a producer failure", ((AsyncExternalSourceOperator.Status) operator.status()).failure());
+        } finally {
+            ioExec.shutdownNow();
+            producerExec.shutdownNow();
+            assertTrue(ioExec.awaitTermination(5, TimeUnit.SECONDS));
+            assertTrue(producerExec.awaitTermination(5, TimeUnit.SECONDS));
+        }
+    }
+
+    /**
+     * Async STOP on a producer parked on {@code waitForReady()}: the stop hook's {@code finish(false)}
+     * wakes the park immediately (it does not wait for the iterator's I/O to settle), reports a live
+     * cut, keeps the page already in the buffer reachable, and the producer completes successfully.
+     */
+    public void testStopHookWakesParkedProducerAndKeepsBufferedPage() throws Exception {
+        NeverReadyReader reader = new NeverReadyReader(1);
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(
+            List.of(new FileSplit("test", StoragePath.of("s3://bucket/stop.parquet"), 0, 100, "parquet", Map.of(), Map.of()))
+        );
+        DriverContext driverContext = mock(DriverContext.class);
+        when(driverContext.blockFactory()).thenReturn(TEST_BLOCK_FACTORY);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        CountDownLatch asyncActionRemoved = new CountDownLatch(1);
+        doAnswer(inv -> {
+            asyncActionRemoved.countDown();
+            return null;
+        }).when(driverContext).removeAsyncAction();
+        AtomicReference<BooleanSupplier> stopHook = new AtomicReference<>();
+        doAnswer(inv -> {
+            stopHook.set(inv.getArgument(0));
+            return null;
+        }).when(driverContext).addStopHook(any());
+
+        ExecutorService ioExec = Executors.newSingleThreadExecutor(EsExecutors.daemonThreadFactory("test", "stop-io"));
+        ExecutorService producerExec = Executors.newSingleThreadExecutor(EsExecutors.daemonThreadFactory("test", "stop-producer"));
+        try {
+            AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+                new StubMultiFileStorageProvider(),
+                reader,
+                StoragePath.of("s3://bucket/stop.parquet"),
+                List.of(
+                    new FieldAttribute(
+                        Source.EMPTY,
+                        "value",
+                        new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+                    )
+                ),
+                100,
+                10,
+                ioExec
+            ).sliceQueue(sliceQueue).producerExecutor(producerExec).build();
+
+            SourceOperator operator = factory.get(driverContext);
+            assertNotNull("the operator must register its stop hook", stopHook.get());
+            assertBusy(
+                () -> assertTrue("producer must have parked after the first page", reader.parkedReturns.get() > 0),
+                5,
+                TimeUnit.SECONDS
+            );
+            assertFalse(asyncActionRemoved.await(200, TimeUnit.MILLISECONDS));
+
+            assertTrue("STOP must report a live cut of a running producer", stopHook.get().getAsBoolean());
+            assertTrue(
+                "STOP must wake the parked producer without the iterator becoming ready",
+                asyncActionRemoved.await(10, TimeUnit.SECONDS)
+            );
+            assertFalse(reader.ready.isDone());
+            assertEquals(1, reader.closeCount.get());
+
+            int rows = drainRemaining(operator);
+            assertEquals("the single-row page queued before STOP must still reach the driver", 1, rows);
+            assertTrue(operator.isFinished());
+            assertNull(((AsyncExternalSourceOperator.Status) operator.status()).failure());
+            operator.close();
+        } finally {
+            ioExec.shutdownNow();
+            producerExec.shutdownNow();
+            assertTrue(ioExec.awaitTermination(5, TimeUnit.SECONDS));
+            assertTrue(producerExec.awaitTermination(5, TimeUnit.SECONDS));
+        }
+    }
+
     public void testOccupyPagesSlotFailsLoudOnReplacedIterator() {
         AtomicInteger closed = new AtomicInteger();
         CloseableIterator<Page> previous = new CloseableIterator<>() {
@@ -5995,6 +6137,92 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         @Override
         public String formatName() {
             return "parking";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".parquet");
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    /**
+     * Iterator that emits {@code pagesBeforePark} pages and then parks the producer on a readiness
+     * signal that <em>nothing</em> completes -- not the test, not {@code close()}. This models an
+     * iterator stuck on a byte-budget ticket or an in-flight object-store GET during cancel: the only
+     * thing that can end the park is the buffer's finish/failure wake (elastic/esql-planning#2271).
+     */
+    private static final class NeverReadyReader implements NoConfigFormatReader {
+        final SubscribableListener<Void> ready = new SubscribableListener<>();
+        final AtomicInteger parkedReturns = new AtomicInteger();
+        final AtomicInteger tryAdvanceCalls = new AtomicInteger();
+        final AtomicInteger closeCount = new AtomicInteger();
+        private final int pagesBeforePark;
+
+        private NeverReadyReader(int pagesBeforePark) {
+            this.pagesBeforePark = pagesBeforePark;
+        }
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return null;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            return new CloseableIterator<>() {
+                private int emitted;
+
+                @Override
+                public SubscribableListener<Void> waitForReady() {
+                    if (emitted < pagesBeforePark) {
+                        return SubscribableListener.newSucceeded(null);
+                    }
+                    parkedReturns.incrementAndGet();
+                    return ready;
+                }
+
+                @Override
+                public Page tryAdvance() {
+                    tryAdvanceCalls.incrementAndGet();
+                    if (emitted >= pagesBeforePark) {
+                        return null;
+                    }
+                    emitted++;
+                    return createTestPage();
+                }
+
+                @Override
+                public boolean hasNext() {
+                    throw new AssertionError("AESOF drain must not call hasNext");
+                }
+
+                @Override
+                public Page next() {
+                    Page page = tryAdvance();
+                    if (page == null) {
+                        throw new NoSuchElementException();
+                    }
+                    return page;
+                }
+
+                @Override
+                public void close() {
+                    closeCount.incrementAndGet();
+                }
+            };
+        }
+
+        @Override
+        public String formatName() {
+            return "never-ready";
         }
 
         @Override

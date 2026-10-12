@@ -41,6 +41,8 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceBuffer;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceDrainUtils;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
@@ -596,6 +598,54 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
             iter.close();
         } finally {
             allowRead.countDown();
+        }
+        assertLedgerClear(watermark);
+    }
+
+    /**
+     * Regression for elastic/esql-planning#2271 against a real Parquet iterator. The producer drain
+     * parks on {@code waitForReady()} while the row-group GET is in flight; a cancel
+     * ({@code buffer.finish(true)}) must complete the drain <em>before</em> the GET returns -- the
+     * readiness signal belongs to the iterator and nothing on the cancel path completes it -- and the
+     * byte ledger must still clear once the iterator is closed and the GET lands.
+     */
+    public void testBufferFinishWakesDrainParkedOnGroupIo() throws Exception {
+        byte[] parquet = smallFile();
+        CountDownLatch allowRead = new CountDownLatch(1);
+        GatedAsyncStorage storage = new GatedAsyncStorage(parquet, asyncIo, allowRead);
+        ParquetIoWatermark watermark = new ParquetIoWatermark(1 << 20);
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1 << 20);
+        ExecutorService drainExec = Executors.newSingleThreadExecutor(EsExecutors.daemonThreadFactory("test", "opci-drain"));
+        try (CloseableIterator<Page> iter = open(storage, watermark)) {
+            OptimizedParquetColumnIterator opci = (OptimizedParquetColumnIterator) iter;
+            assertBusy(() -> assertEquals(ReadinessPhase.GROUP_IO_PENDING, opci.readinessPhase()), 5, TimeUnit.SECONDS);
+
+            CountDownLatch drained = new CountDownLatch(1);
+            AtomicReference<Exception> error = new AtomicReference<>();
+            ExternalSourceDrainUtils.drainPagesAsync(
+                iter,
+                buffer,
+                drainExec,
+                buffer::readCancelled,
+                ActionListener.wrap(v -> drained.countDown(), e -> {
+                    error.set(e);
+                    drained.countDown();
+                })
+            );
+            assertFalse("drain must stay parked while the group GET is in flight", drained.await(200, TimeUnit.MILLISECONDS));
+            assertEquals(ReadinessPhase.GROUP_IO_PENDING, opci.readinessPhase());
+
+            buffer.finish(true);
+
+            assertTrue("finish(true) must wake the drain while the GET is still in flight", drained.await(10, TimeUnit.SECONDS));
+            assertNull(error.get());
+            assertEquals("the wake must not depend on the object store answering", 1, allowRead.getCount());
+            assertEquals("a cancelled drain delivers nothing", 0, buffer.size());
+        } finally {
+            // The iterator is closed by try-with-resources while the GET is still gated; only then
+            // let the GET land so the ledger release after close is what gets asserted.
+            allowRead.countDown();
+            terminate(drainExec);
         }
         assertLedgerClear(watermark);
     }

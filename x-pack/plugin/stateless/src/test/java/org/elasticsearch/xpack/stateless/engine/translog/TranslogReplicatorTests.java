@@ -793,7 +793,7 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         translogReplicator.sync(shardId, location, future);
-        future.actionGet(TimeValue.timeValueSeconds(30L));
+        safeGet(future);
 
         assertThat(
             meterRegistry.getRecorder()

@@ -289,7 +289,14 @@ public class FakeStatelessNode implements Closeable {
             transportService.acceptIncomingRequests();
             localCloseables.add(transportService::stop);
 
-            objectStoreService = new ObjectStoreService(nodeSettings, repoService, threadPool, clusterService, projectResolver);
+            objectStoreService = new ObjectStoreService(
+                nodeSettings,
+                repoService,
+                threadPool,
+                clusterService,
+                projectResolver,
+                meterRegistry != null ? meterRegistry : MeterRegistry.NOOP
+            );
             if (projectResolver.supportsMultipleProjects()) {
                 clusterService.addStateApplier(objectStoreService);
             }

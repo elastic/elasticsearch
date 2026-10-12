@@ -67,6 +67,8 @@ import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.telemetry.metric.LongHistogram;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
@@ -353,6 +355,32 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         Setting.Property.NodeScope
     );
 
+    public static final String TRANSLOG_UPLOAD_DURATION_HISTOGRAM = "es.stateless.translog.upload.duration.histogram";
+    public static final String TRANSLOG_UPLOAD_SIZE_HISTOGRAM = "es.stateless.translog.upload.size.histogram";
+
+    // 1 to 1_000_000 milliseconds (= ~16 min)
+    public static final List<Long> TRANSLOG_UPLOAD_DURATION_BUCKET_BOUNDARIES = List.of(
+        1L,
+        5L,
+        10L,
+        25L,
+        50L,
+        100L,
+        250L,
+        500L,
+        1_000L,
+        2_500L,
+        5_000L,
+        10_000L,
+        30_000L,
+        60_000L,
+        120_000L,
+        300_000L,
+        600_000L,
+        900_000L,
+        1_000_000L
+    );
+
     /**
      * Multipart upload threshold for the stateless object store. When set, this value is injected into the native multipart threshold
      * setting for the configured backend ({@code buffer_size} for S3, {@code multipart_upload_chunk_size} for GCS,
@@ -402,12 +430,26 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
 
     private final long slowTranslogUploadLogThresholdMillis;
 
+    private final LongHistogram translogUploadDurationHistogram;
+    private final LongHistogram translogUploadSizeHistogram;
+
     public ObjectStoreService(
         Settings settings,
         RepositoriesService repositoriesService,
         ThreadPool threadPool,
         ClusterService clusterService,
         ProjectResolver projectResolver
+    ) {
+        this(settings, repositoriesService, threadPool, clusterService, projectResolver, MeterRegistry.NOOP);
+    }
+
+    public ObjectStoreService(
+        Settings settings,
+        RepositoriesService repositoriesService,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        ProjectResolver projectResolver,
+        MeterRegistry meterRegistry
     ) {
         this.settings = settings;
         this.repositoriesService = repositoriesService;
@@ -433,6 +475,21 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         this.concurrentMultipartUploads = OBJECT_STORE_CONCURRENT_MULTIPART_UPLOADS.get(settings);
         this.cacheSearchRecoveryBcc = CACHE_SEARCH_RECOVERY_BCC_ENABLED_SETTING.get(settings);
         this.slowTranslogUploadLogThresholdMillis = OBJECT_STORE_SLOW_TRANSLOG_UPLOAD_LOG_THRESHOLD_SETTING.get(settings).getMillis();
+
+        // see `TranslogReplicator.TRANSLOG_UPLOAD_TOTAL_DURATION_HISTOGRAM` metric that captures the total duration including
+        // potential translog-upload retries
+        this.translogUploadDurationHistogram = meterRegistry.registerLongHistogram(
+            TRANSLOG_UPLOAD_DURATION_HISTOGRAM,
+            "time for the translog file to be uploaded (only for a successful upload)",
+            "milliseconds",
+            TRANSLOG_UPLOAD_DURATION_BUCKET_BOUNDARIES
+        );
+        this.translogUploadSizeHistogram = meterRegistry.registerLongHistogram(
+            TRANSLOG_UPLOAD_SIZE_HISTOGRAM,
+            // in kilobytes so that the default bucket boundaries can go up to ~128 MB (see HistogramBuckets.APM_DEFAULT_LONGS)
+            "size in kilobytes of a the translog uploaded to the object store",
+            "kilobytes"
+        );
     }
 
     @Override
@@ -1538,6 +1595,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             var before = threadPool.relativeTimeInMillis();
             blobContainer.writeBlob(OperationPurpose.TRANSLOG, fileName, reference, false);
             var uploadDuration = threadPool.relativeTimeInMillis() - before;
+            translogUploadDurationHistogram.record(uploadDuration);
+            translogUploadSizeHistogram.record(ByteSizeUnit.BYTES.toKB(reference.length()));
 
             final Supplier<String> logMessage = () -> format(
                 "translog file %s of size [%d] bytes uploaded in [%d] ms",

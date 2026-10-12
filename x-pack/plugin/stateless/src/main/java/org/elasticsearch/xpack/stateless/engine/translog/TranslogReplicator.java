@@ -56,7 +56,6 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Set;
@@ -77,29 +76,6 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
     public static final String TRANSLOG_UPLOAD_ATTEMPTS_HISTOGRAM = "es.stateless.translog.upload.attempts.histogram";
     public static final String TRANSLOG_UPLOAD_TOTAL_DURATION_HISTOGRAM = "es.stateless.translog.upload.total_duration.histogram";
-
-    // 1 to 1_000_000 milliseconds (= ~16 min)
-    private static final List<Long> TRANSLOG_UPLOAD_DURATION_BUCKET_BOUNDARIES = List.of(
-        1L,
-        5L,
-        10L,
-        25L,
-        50L,
-        100L,
-        250L,
-        500L,
-        1_000L,
-        2_500L,
-        5_000L,
-        10_000L,
-        30_000L,
-        60_000L,
-        120_000L,
-        300_000L,
-        600_000L,
-        900_000L,
-        1_000_000L
-    );
 
     public static final Setting<TimeValue> FLUSH_RETRY_INITIAL_DELAY_SETTING = Setting.timeSetting(
         "stateless.translog.flush.retry.initial_delay",
@@ -215,7 +191,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             TRANSLOG_UPLOAD_TOTAL_DURATION_HISTOGRAM,
             "total time (includes time spent on failed attempts) until the translog is uploaded to the object store",
             "milliseconds",
-            TRANSLOG_UPLOAD_DURATION_BUCKET_BOUNDARIES
+            ObjectStoreService.TRANSLOG_UPLOAD_DURATION_BUCKET_BOUNDARIES
         );
     }
 

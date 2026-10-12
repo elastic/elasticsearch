@@ -166,7 +166,7 @@ public final class SourceStatisticsSerializer {
      * they have to agree, because each moves the page away from the point where a failing row is dropped. Two of
      * them are plan-time and one is execution-time, so a second copy shows up as a plan the factory cannot honour.
      */
-    public static boolean conversionMayNarrow(Map<String, Object> sourceMetadata, DeclaredReadSpec declaredReadSpec) {
+    public static boolean conversionMayNarrowOrIsUnstamped(Map<String, Object> sourceMetadata) {
         return conversionNarrowingStamped(sourceMetadata) == false || conversionMayNarrow(sourceMetadata);
     }
 

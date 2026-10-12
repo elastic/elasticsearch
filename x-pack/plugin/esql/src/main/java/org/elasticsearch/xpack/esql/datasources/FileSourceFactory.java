@@ -669,7 +669,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 // fail at all from the resolution-time stamp the plan carries. Reading that stamp rather than the
                 // schema map is what makes the answer the same on a data node, where the map can be empty.
                 boolean dropsRowsOnCoercionFailure = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW
-                    && SourceStatisticsSerializer.conversionMayNarrow(context.sourceMetadata(), context.declaredReadSpec());
+                    && SourceStatisticsSerializer.conversionMayNarrowOrIsUnstamped(context.sourceMetadata());
 
                 List<Expression> pushedExpressions = context.pushedExpressions();
                 // Note: this only controls the per-file re-mint in AsyncExternalSourceOperatorFactory#readerForFile

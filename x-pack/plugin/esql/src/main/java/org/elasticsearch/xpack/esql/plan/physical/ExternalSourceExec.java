@@ -504,16 +504,13 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
      * {@link #sourceMetadata()}. The coordinator is the only node that has seen the files, so this is how the fact
      * reaches a data node.
      * <p>
-     * A plan with no stamp came from a coordinator that predates it, and is answered the way that coordinator
-     * decided it: any declared column type meant a value could fail. That reproduces the old PLAN, not the old
-     * outcome - this node's readers convert per value now, so in that window an inferred narrowing column under
-     * {@code skip_row} can keep a row with a nulled cell where the old node returned the column as all-null.
-     * Neither is what {@code skip_row} asks for, and the window closes when the coordinator upgrades. Reading an
-     * absent stamp as "cannot fail" would be worse still: it would push a filter over a DECLARED narrowing column,
-     * which the old coordinator withheld.
+     * A plan with no stamp came from a coordinator that predates it and is read conservatively: a value may fail,
+     * so the filter is withheld and extraction is not deferred. That costs speed for the length of a rolling
+     * upgrade and nothing else. It deliberately does not instead ask whether the dataset declared any column
+     * types, which would answer a read from how the schema was authored - the defect esql-planning#2076 removes.
      */
     public boolean conversionMayNarrow() {
-        return SourceStatisticsSerializer.conversionMayNarrow(sourceMetadata, declaredReadSpec());
+        return SourceStatisticsSerializer.conversionMayNarrowOrIsUnstamped(sourceMetadata);
     }
 
     /**

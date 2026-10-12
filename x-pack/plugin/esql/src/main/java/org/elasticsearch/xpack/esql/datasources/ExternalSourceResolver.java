@@ -1596,13 +1596,7 @@ public class ExternalSourceResolver {
                 Set<String> declaredTypeColumns = physicalDeclaredTypeColumnsOf(declaredMapping);
                 // Prefetch the dataset-level aggregate BEFORE the per-file stats gather — see
                 // applyDatasetAggregate for why post-gather reads self-defeat under cache pressure.
-                DatasetAggregatePrefetch datasetPrefetch = prefetchDatasetAggregate(
-                    listing,
-                    config,
-                    cacheable,
-                    storageIdentity,
-                    secretIdentity
-                );
+                DatasetAggregatePrefetch datasetPrefetch = prefetchDatasetAggregate(listing, config, cacheable);
                 // Under skip_row a narrow-read parse failure drops the whole row, so the unread files' counts are
                 // stripped at commit (dropRowCount) and the dataset-aggregate promise can never be fulfilled -
                 // every warm COUNT(*) would re-scan, which is worse than the reads the stop saves. The predicate
@@ -2624,16 +2618,16 @@ public class ExternalSourceResolver {
                 // immediately is a pre-existing main bug tracked separately (GA issue); this guard only
                 // keeps the dataset aggregate from memoizing it.
                 if (rowCount instanceof Number n && listingPathsAreDistinct(listing)) {
-                    // The address separates DEFINITIONS: it folds everything about the dataset and its source
-                    // that decides how bytes become rows. It does NOT separate reads, and this write-through is
-                    // not licence-gated - RunningFileStatsFold.finish returns its merged fold whether or not
-                    // every file licensed the crossing, so an unlicensed one is stored here too.
+                    // This write-through is NOT licence-gated: RunningFileStatsFold.finish returns its merged
+                    // fold whether or not every file licensed the crossing, so a lenient read's fold is stored
+                    // here too - and that fold may be a SURVIVOR count rather than the file's physical record
+                    // count, because the CSV reader drops a structurally malformed row under null_field as well
+                    // as skip_row (warmsRowCountSafely spells this out).
                     //
-                    // What makes that safe is the error policy rather than the licence. skip_row is the only one
-                    // that drops rows, and it strips row_count as stale (SourceStatisticsSerializer's
-                    // dropRowCount), so no aggregate survives to be stored. null_field keeps every row and
-                    // fail_fast aborts instead of dropping any, so for both the count IS the file's physical
-                    // record count - the same number whichever of the two read it.
+                    // What keeps that safe is the ADDRESS, not the error policy. DefinitionVersion.ofDataset
+                    // folds every setting of the dataset and its source, error_mode included, so a survivor
+                    // count is reachable only from the definition whose read produced it. Anything that widens
+                    // this address has to re-answer that, which is why the reason is recorded here.
                     cacheService.putDatasetAggregate(datasetKey, n.longValue());
                 }
             }

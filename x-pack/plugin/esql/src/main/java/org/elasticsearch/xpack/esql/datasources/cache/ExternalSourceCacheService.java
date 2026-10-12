@@ -1462,15 +1462,6 @@ public class ExternalSourceCacheService implements Closeable {
         DataType[] columnTypes,
         boolean dropUnrepresentable
     ) {
-        return coerceColumnStats(statsMap, columnNames, columnTypes, dropUnrepresentable);
-    }
-
-    private static Map<String, Object> coerceColumnStats(
-        Map<String, Object> statsMap,
-        String[] columnNames,
-        DataType[] columnTypes,
-        boolean dropUnrepresentable
-    ) {
         if (statsMap == null || statsMap.isEmpty() || columnNames == null || columnTypes == null) {
             return statsMap;
         }

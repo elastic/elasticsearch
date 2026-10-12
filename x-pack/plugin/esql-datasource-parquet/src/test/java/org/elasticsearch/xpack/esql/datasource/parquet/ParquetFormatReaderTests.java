@@ -2361,14 +2361,17 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * A declared dataset names the columns it reads, so a file wider than the cap is not refused, the same as for the
-     * text formats. The flattened schema is bounded by the breaker instead
-     * ({@link #testFlattenedSchemaIsChargedAndReleased}).
+     * The width cap bounds a declared read too. It used to be lifted for one, so the same wide file was refused when
+     * its types were inferred and read when they were declared - one file, two outcomes, decided by how the dataset
+     * was written down rather than by anything about the file (esql-planning#2076). Raising the cap is the way to
+     * read a wide file, and it works the same either way.
      */
-    public void testDeclaredProvenanceLiftsTheWidthCap() throws Exception {
+    public void testTheWidthCapBoundsADeclaredReadToo() throws Exception {
         byte[] data = wideOptionalLongFile(6);
         FormatReader declared = new ParquetFormatReader(blockFactory).withSchemaMaxFields(5).withDeclaredProvenanceBinding(true);
-        assertEquals(6, declared.metadata(createStorageObject(data)).schema().size());
+        expectThrows(Exception.class, () -> declared.metadata(createStorageObject(data)));
+        FormatReader raised = new ParquetFormatReader(blockFactory).withSchemaMaxFields(6);
+        assertEquals(6, raised.metadata(createStorageObject(data)).schema().size());
     }
 
     /**

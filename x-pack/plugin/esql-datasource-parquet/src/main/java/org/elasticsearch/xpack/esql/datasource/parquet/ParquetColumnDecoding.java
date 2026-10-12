@@ -1090,8 +1090,10 @@ final class ParquetColumnDecoding {
             case INTEGER -> readListIntColumn(input, maxDef, rows, blockFactory, tally);
             case LONG -> {
                 if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32) {
-                    // TIME_MILLIS: physical INT32 widened to long (raw ms value, no unit conversion)
-                    yield readListInt32AsLongColumn(input, maxDef, rows, blockFactory, tally);
+                    // Two INT32 annotations render ESQL long: TIME(MILLIS), whose raw millisecond value widens
+                    // unchanged, and uint32, whose values above 2^31 must widen UNSIGNED. The scalar arms take that
+                    // distinction as a parameter, so this one does too.
+                    yield readListInt32AsLongColumn(input, maxDef, rows, blockFactory, tally, info.logicalType());
                 }
                 long multiplier = info.logicalType() instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time
                     ? timeNanoMultiplier(time)
@@ -1210,15 +1212,24 @@ final class ParquetColumnDecoding {
         }
     }
 
+    /**
+     * Reads a LIST whose {@code INT32} elements render ESQL {@code long}, widening each element the way the scalar
+     * read of the same annotation widens it: {@code uint32} unsigned, everything else sign-extended. The annotation
+     * is the whole input to that choice, which is why it is a parameter rather than read from the primitive.
+     */
     private static Block readListInt32AsLongColumn(
         ListColumnReader input,
         int maxDef,
         int rows,
         BlockFactory blockFactory,
-        NullElementTally tally
+        NullElementTally tally,
+        @Nullable LogicalTypeAnnotation logical
     ) {
+        boolean unsigned = logical instanceof LogicalTypeAnnotation.IntLogicalTypeAnnotation intLogical && intLogical.isSigned() == false;
         try (var builder = blockFactory.newLongBlockBuilder(rows)) {
-            Runnable appender = () -> builder.appendLong(input.reader().getInteger());
+            Runnable appender = unsigned
+                ? () -> builder.appendLong(Integer.toUnsignedLong(input.reader().getInteger()))
+                : () -> builder.appendLong(input.reader().getInteger());
             for (int row = 0; row < rows; row++) {
                 readListRow(input, maxDef, builder, appender, tally);
             }

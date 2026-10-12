@@ -324,3 +324,21 @@ id:long | region:keyword
 1       | "zoo"
 ;
 
+
+// Every element of a LIST<uint32> widens unsigned, exactly as a scalar uint32 column's values do -- the reason the
+// type renders ESQL long at all is that an unsigned 32-bit value can exceed Integer.MAX_VALUE. No declaration is
+// involved: the element type comes from the file, which is why the two elements above 2^31 have to arrive positive
+// for an ordinary `WHERE ids > 0` to keep the row.
+listOfUnsignedInt32WidensElements
+required_capability: dataset_in_from_command
+required_capability: external_parquet_list_uint32_widens_unsigned
+dataset: list_uint32: "{{list_uint32}}"
+
+FROM list_uint32
+| SORT id
+;
+
+id:integer | ids:long
+1          | [1, 2147483648, 4000000000]
+2          | 7
+;

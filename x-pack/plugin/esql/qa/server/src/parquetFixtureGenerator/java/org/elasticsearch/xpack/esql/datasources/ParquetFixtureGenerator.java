@@ -327,6 +327,12 @@ public final class ParquetFixtureGenerator {
             case "double", "scaled_float" -> Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.DOUBLE).named(col.name());
             case "float", "half_float" -> Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.FLOAT).named(col.name());
             case "boolean" -> Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.BOOLEAN).named(col.name());
+            // uint32 elements are physical INT32 carrying the unsigned annotation, exactly as the scalar type is:
+            // ESQL widens them to LONG because an unsigned 32-bit value can exceed Integer.MAX_VALUE.
+            case "uint32" -> Types.optionalList()
+                .optionalElement(PrimitiveType.PrimitiveTypeName.INT32)
+                .as(LogicalTypeAnnotation.intType(32, false))
+                .named(col.name());
             case "date" -> Types.optionalList()
                 .optionalElement(PrimitiveType.PrimitiveTypeName.INT64)
                 .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
@@ -397,6 +403,9 @@ public final class ParquetFixtureGenerator {
     private static void appendListElement(Group listElement, String type, Object elem) {
         switch (type) {
             case "integer", "short", "byte" -> listElement.append("element", ((Number) elem).intValue());
+            // The fixture parser reads a uint32 cell as a Long; intValue() keeps the low 32 bits, which is the
+            // unsigned value's INT32 bit pattern -- what the annotation says to store.
+            case "uint32" -> listElement.append("element", ((Number) elem).intValue());
             case "long" -> listElement.append("element", ((Number) elem).longValue());
             case "double", "scaled_float", "float", "half_float" -> listElement.append("element", ((Number) elem).doubleValue());
             case "boolean" -> listElement.append("element", Boolean.TRUE.equals(elem));

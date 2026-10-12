@@ -51,7 +51,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.NodeRoles.nonRemoteClusterClientNode;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -304,11 +303,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
             new DatafeedTimingStats(jobBuilder.getId())
         );
 
-        datafeedJobBuilder.build(
-            newDatafeedTask("datafeed1"),
-            datafeedContext,
-            ActionListener.wrap(builtJob::set, failure::set)
-        );
+        datafeedJobBuilder.build(newDatafeedTask("datafeed1"), datafeedContext, ActionListener.wrap(builtJob::set, failure::set));
 
         assertThat(failure.get(), nullValue());
         assertThat(builtJob.get(), not(nullValue()));

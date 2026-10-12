@@ -392,7 +392,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     public final void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
         if (hasIvfStructure(field)) {
             doSearch(field, new QueryTarget.FloatQuery(target), knnCollector, acceptDocs);
-        } else {
+        } else if (searchesWholeSegment(knnCollector)) {
             getReaderForField(field).search(field, target, knnCollector, acceptDocs);
         }
     }
@@ -401,7 +401,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     public final void search(String field, byte[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
         if (hasIvfStructure(field)) {
             doSearch(field, new QueryTarget.ByteQuery(target), knnCollector, acceptDocs);
-        } else {
+        } else if (searchesWholeSegment(knnCollector)) {
             // No IVF structure — byte fields on legacy codecs (which skip byte IVF indexing) fall
             // through here. Inline brute-force matches main's behavior and is required for CheckIndex
             // compatibility (delegating to getReaderForField().search() fails CheckIndex validation).
@@ -441,17 +441,18 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             esAcceptDocs = null;
         }
 
-        final KnnVectorValues values;
-        if (fieldInfo.getVectorEncoding().equals(VectorEncoding.BYTE)) {
-            values = getByteVectorValues(field);
-        } else {
-            values = getFloatVectorValues(field);
-        }
+        final KnnVectorValues values = vectorValues(fieldInfo);
         if (values == null) {
             return;
         }
-        IVFSegmentScan scan = new IVFSegmentScan();
-        if (scan.openIfNeeded(() -> planScan(fieldInfo, entry, queryTarget, knnCollector, acceptDocs, esAcceptDocs, values)) == false) {
+        IVFSegmentScan scan = sharedScan(knnCollector);
+        if (scan == null) {
+            scan = IVFSegmentScan.single();
+        }
+        // the plan gets its own vector values: parts of a shared scan visit postings while the plan's iterator runs
+        if (scan.openIfNeeded(
+            () -> planScan(fieldInfo, entry, queryTarget, knnCollector, acceptDocs, esAcceptDocs, vectorValues(fieldInfo))
+        ) == false) {
             return; // no vectors in this segment / slice
         }
         PostingVisitor visitor = getPostingVisitor(
@@ -463,12 +464,38 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             entry.centroidSlice(ivfCentroids),
             esAcceptDocs
         );
-        while (scan.claim(visitor, knnCollector)) {
-            scan.complete(visitor.visit(knnCollector));
+        int size;
+        while ((size = scan.claim(visitor, knnCollector)) >= 0) {
+            int scoredDocs = 0;
+            try {
+                scoredDocs = visitor.visit(knnCollector);
+            } catch (Throwable t) {
+                scan.fail();
+                throw t;
+            } finally {
+                scan.complete(size, scoredDocs);
+            }
             if (knnCollector.getSearchStrategy() != null) {
                 knnCollector.getSearchStrategy().nextVectorsBlock();
             }
         }
+    }
+
+    private KnnVectorValues vectorValues(FieldInfo fieldInfo) throws IOException {
+        return fieldInfo.getVectorEncoding().equals(VectorEncoding.BYTE)
+            ? getByteVectorValues(fieldInfo.name)
+            : getFloatVectorValues(fieldInfo.name);
+    }
+
+    /** The scan this search shares with other parts of the same segment's search, or null if it searches alone. */
+    private static IVFSegmentScan sharedScan(KnnCollector knnCollector) {
+        return knnCollector.getSearchStrategy() instanceof IVFKnnSearchStrategy ivfStrategy ? ivfStrategy.getSegmentScan() : null;
+    }
+
+    /** A segment without postings is searched whole, so of several parts sharing a scan only one may search it. */
+    private static boolean searchesWholeSegment(KnnCollector knnCollector) {
+        IVFSegmentScan scan = sharedScan(knnCollector);
+        return scan == null || scan.claimWhole();
     }
 
     /**

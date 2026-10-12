@@ -10,6 +10,7 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.index.codec.vectors.diskbbq.IVFSegmentScan;
 
 import java.util.Objects;
 import java.util.concurrent.atomic.LongAccumulator;
@@ -20,12 +21,22 @@ public class IVFKnnSearchStrategy extends KnnSearchStrategy {
     private final int k;
     private final SetOnce<AbstractMaxScoreKnnCollector> collector = new SetOnce<>();
     private final LongAccumulator accumulator;
+    private final IVFSegmentScan segmentScan;
 
     public IVFKnnSearchStrategy(float visitRatio, int numCands, int k, LongAccumulator accumulator) {
+        this(visitRatio, numCands, k, accumulator, null);
+    }
+
+    /**
+     * @param segmentScan shared by the parts of one segment's search that run on different threads, or null when the
+     *                    segment is searched by a single call
+     */
+    public IVFKnnSearchStrategy(float visitRatio, int numCands, int k, LongAccumulator accumulator, IVFSegmentScan segmentScan) {
         this.visitRatio = visitRatio;
         this.numCands = numCands;
         this.k = k;
         this.accumulator = accumulator;
+        this.segmentScan = segmentScan;
     }
 
     void setCollector(AbstractMaxScoreKnnCollector collector) {
@@ -45,6 +56,10 @@ public class IVFKnnSearchStrategy extends KnnSearchStrategy {
 
     public int getK() {
         return k;
+    }
+
+    public IVFSegmentScan getSegmentScan() {
+        return segmentScan;
     }
 
     @Override

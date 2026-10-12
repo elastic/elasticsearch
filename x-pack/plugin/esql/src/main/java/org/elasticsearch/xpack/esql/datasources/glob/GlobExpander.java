@@ -219,16 +219,15 @@ public final class GlobExpander {
     }
 
     /**
-     * As above, stopping once {@code extents.maxFiles()} matching files have been found rather than draining the glob.
+     * As below, for a caller with no query behind the listing: nothing is waiting on it, so nothing cancels it.
      * <p>
-     * The bound truncates where {@code maxListedObjects} fails: reaching it is the expected outcome, not an error.
-     * The result is a prefix of the matching files in listing order, flagged {@link FileList#isTruncated()}, and it
-     * is left uncompacted, because neither compacted encoding carries the truncation flag — see
-     * {@link FileListCompactor#compact}, which refuses a truncated list for that reason. Only a schema discovery
-     * resolution may pass a bound; {@code Integer.MAX_VALUE} is the unbounded path every reading query takes,
-     * byte for byte as before.
+     * Stops once {@code extents.maxFiles()} matching files have been found rather than draining the glob. Reaching
+     * the bound is the expected outcome, not an error, where {@code maxListedObjects} is a failure: the result is a
+     * prefix of the matching files in listing order, flagged {@link FileList#isTruncated()}, and left uncompacted,
+     * because neither compacted encoding carries the truncation flag — see {@link FileListCompactor#compact}, which
+     * refuses a truncated list for that reason. Resolution and split discovery both pass bounds, and
+     * {@code Integer.MAX_VALUE} is the unbounded path, byte for byte as before.
      */
-    /** As below, for a caller with no query behind the listing: nothing is waiting on it, so nothing cancels it. */
     public static FileList expandAndCompact(
         String path,
         StorageProvider provider,
@@ -1595,7 +1594,7 @@ public final class GlobExpander {
         ) != PartitionValueFilter.NONE;
         try {
             if (valueFilterActive == false && recursive) {
-                slots = buildSlots(provider, prefix, PartitionPruningWalk.MAX_DIRECTORY_LISTINGS, sharedListedCount);
+                slots = buildSlots(provider, prefix, matcher, PartitionPruningWalk.MAX_DIRECTORY_LISTINGS, sharedListedCount);
             }
         } catch (IOException e) {
             logger.debug(() -> "Prefix fan-out for [" + pattern + "] could not build slots; falling back to flat listing", e);
@@ -1666,11 +1665,27 @@ public final class GlobExpander {
      * <p>Returns {@code null} when the provider does not support {@code listChildren} (it returned null),
      * when the budget is exhausted, or when the root has only files (no directories). The caller falls back
      * to the flat drain in all these cases.
+     *
+     * <p>A directory the pattern cannot match is not given a slot, and that is what keeps the fan-out's cost a
+     * property of the glob rather than of the prefix it happens to sit under. One slot is one {@code listObjects},
+     * so enumerating every child of the pattern prefix means a selective glob pays a request per sibling it can
+     * never match: {@code patternPrefix} cuts at the last {@code /} before the first metacharacter, so
+     * {@code date=2024-01-0*} roots at the parent of every date partition the dataset has ever had. Nine matching
+     * folders under four thousand cost four thousand requests to answer, where the flat drain this fan-out is meant
+     * to beat would have paged the same keys in a fraction of that. Skipping them is sound rather than an
+     * approximation — {@code couldContainMatch} excludes a directory only when the pattern excludes it at its own
+     * depth, and then no key beneath it is addressable by the pattern at any depth.
      */
     @Nullable
-    private static List<Slot> buildSlots(StorageProvider provider, StoragePath root, int budget, AtomicInteger listedCount)
-        throws IOException {
+    private static List<Slot> buildSlots(
+        StorageProvider provider,
+        StoragePath root,
+        GlobMatcher matcher,
+        int budget,
+        AtomicInteger listedCount
+    ) throws IOException {
         List<Slot> prefixFileSlots = new ArrayList<>();
+        String rootPrefixStr = root.toString();
         StoragePath current = root;
         int remaining = budget;
         while (remaining > 0) {
@@ -1683,7 +1698,7 @@ public final class GlobExpander {
             // Only objects count toward the cap: a folder is a prefix, which the flat listing never sees as a key.
             listedCount.addAndGet(children.files().size());
             List<StorageEntry> files = children.files();
-            List<StoragePath> dirs = children.directories();
+            List<StoragePath> dirs = matchableDirectories(children.directories(), rootPrefixStr, matcher);
 
             if (dirs.isEmpty()) {
                 // No subdirectories: files here are the entire listing at this prefix.
@@ -1721,6 +1736,45 @@ public final class GlobExpander {
         }
         // Budget exhausted
         return null;
+    }
+
+    /**
+     * The subset of {@code dirs} the pattern could match something under, each tested at its own depth below
+     * {@code rootPrefix}. Returns {@code dirs} itself when none was excluded, so the common case of a glob that
+     * matches its whole prefix allocates nothing.
+     */
+    private static List<StoragePath> matchableDirectories(List<StoragePath> dirs, String rootPrefixStr, GlobMatcher matcher) {
+        List<StoragePath> matchable = null;
+        for (int i = 0; i < dirs.size(); i++) {
+            StoragePath dir = dirs.get(i);
+            if (couldContainMatch(dir, rootPrefixStr, matcher)) {
+                if (matchable != null) {
+                    matchable.add(dir);
+                }
+            } else if (matchable == null) {
+                matchable = new ArrayList<>(dirs.subList(0, i));
+            }
+        }
+        return matchable == null ? dirs : matchable;
+    }
+
+    /**
+     * Whether {@code dir} is worth a slot. Keeps it whenever its path does not sit under the listing prefix, which
+     * is the same case the flat drain handles defensively: without the prefix there is no depth to test the pattern
+     * at, and skipping on a path nobody could relativise would drop files rather than requests.
+     */
+    private static boolean couldContainMatch(StoragePath dir, String rootPrefixStr, GlobMatcher matcher) {
+        String dirPath = dir.toString();
+        if (dirPath.startsWith(rootPrefixStr) == false) {
+            return true;
+        }
+        String relative = dirPath.substring(rootPrefixStr.length());
+        // listChildren reports a directory as a prefix, so a trailing separator is part of the key and would
+        // otherwise split into a trailing empty segment that no pattern segment matches.
+        if (relative.endsWith("/")) {
+            relative = relative.substring(0, relative.length() - 1);
+        }
+        return relative.isEmpty() || matcher.couldContainMatch(relative);
     }
 
     /**

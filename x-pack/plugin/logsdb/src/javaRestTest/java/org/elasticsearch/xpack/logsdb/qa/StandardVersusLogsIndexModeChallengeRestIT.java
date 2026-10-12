@@ -196,7 +196,11 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
 
         indexDocuments(documents);
 
-        final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.termQuery("method", "put"))
+        // "method" is drawn randomly per document, so query for a value that is actually present to guarantee at least one hit.
+        final XContentBuilder document = randomFrom(documents);
+        final Object method = XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(document), true).get("method");
+
+        final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.termQuery("method", method))
             .size(numberOfDocuments);
 
         final MatchResult matchResult = Matcher.matchSource()

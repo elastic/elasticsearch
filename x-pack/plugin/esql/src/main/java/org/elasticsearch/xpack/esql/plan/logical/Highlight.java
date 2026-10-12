@@ -94,6 +94,8 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
      */
     private final List<Attribute> generatedFields;
 
+    private List<Attribute> lazyOutput;
+
     public Highlight(
         Source source,
         LogicalPlan child,
@@ -189,7 +191,10 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
 
     @Override
     public List<Attribute> output() {
-        return mergeOutputAttributes(generatedFields, child().output());
+        if (lazyOutput == null) {
+            lazyOutput = mergeOutputAttributes(generatedFields, child().output());
+        }
+        return lazyOutput;
     }
 
     @Override

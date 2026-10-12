@@ -69,6 +69,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
@@ -1415,12 +1416,46 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * access method.
      */
     private boolean isIndexManagedByDataStreamLifecycle(IndexMetadata indexMetadata) {
+        Settings settings = indexMetadata.getSettings();
         var lifecycle = getDataLifecycleForIndex(indexMetadata.getIndex());
-        if (indexMetadata.getLifecyclePolicyName() != null && lifecycle != null && lifecycle.enabled()) {
+        return lifecycleManagedBy(indexMetadata.getLifecyclePolicyName(), lifecycle, settings) == LifecycleManagedBy.DLM;
+    }
+
+    /**
+     * Resolves which lifecycle feature is managing the resources given the provided arguments.
+     * @param ilmPolicy the ILM policy name that is configured or null
+     * @param dataStreamLifecycle the lifecycle configuration or null
+     * @param preferIlmSupplier a supplier of the prefer_ilm value
+     * @return the enum denoting which feature is managing this resource.
+     */
+    public static LifecycleManagedBy lifecycleManagedBy(
+        String ilmPolicy,
+        DataStreamLifecycle dataStreamLifecycle,
+        BooleanSupplier preferIlmSupplier
+    ) {
+        boolean lifecycleEnabled = dataStreamLifecycle != null && dataStreamLifecycle.enabled();
+        if (ilmPolicy != null && lifecycleEnabled) {
             // when both ILM and data stream lifecycle are configured, choose depending on the configured preference for this backing index
-            return PREFER_ILM_SETTING.get(indexMetadata.getSettings()) == false;
+            return preferIlmSupplier.getAsBoolean() ? LifecycleManagedBy.ILM : LifecycleManagedBy.DLM;
         }
-        return lifecycle != null && lifecycle.enabled();
+        if (lifecycleEnabled) {
+            return LifecycleManagedBy.DLM;
+        }
+        if (ilmPolicy != null) {
+            return LifecycleManagedBy.ILM;
+        }
+        return LifecycleManagedBy.UNMANAGED;
+    }
+
+    /**
+     * Resolves which lifecycle feature is managing the resources given the provided arguments.
+     * @param ilmPolicy the ILM policy name that is configured or null
+     * @param dataStreamLifecycle the lifecycle configuration or null
+     * @param settings the settings in case we need to retrieve the prefer_ilm value
+     * @return the enum denoting which feature is managing this resource.
+     */
+    public static LifecycleManagedBy lifecycleManagedBy(String ilmPolicy, DataStreamLifecycle dataStreamLifecycle, Settings settings) {
+        return lifecycleManagedBy(ilmPolicy, dataStreamLifecycle, () -> PREFER_ILM_SETTING.get(settings));
     }
 
     /**
@@ -2253,6 +2288,12 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         BACKING_INDICES,
         FAILURE_INDICES,
         ALL
+    }
+
+    public enum LifecycleManagedBy {
+        ILM,
+        DLM,
+        UNMANAGED
     }
 
 }

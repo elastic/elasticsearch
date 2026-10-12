@@ -745,49 +745,41 @@ public class S3StorageProvider implements StorageProvider {
 
     @Override
     public StorageEntry objectMetadata(StoragePath path) throws IOException {
-        return objectFor(path).headObjectMetadata();
+        Target t = resolve(path);
+        return new S3StorageObject(t.sync, t.async, asyncReadRetryStrategy, storageIdentity, t.bucket, t.key, path).headObjectMetadata();
     }
 
     @Override
     public StorageObject newObject(StoragePath path) {
-        return objectFor(path);
-    }
-
-    /**
-     * What both single-path entry points need before they can talk to the store: the scheme checked, the path split
-     * into bucket and key, and the clients for that bucket resolved, which may differ from the configured pair when
-     * the bucket lives in another region.
-     */
-    private S3StorageObject objectFor(StoragePath path) {
-        validateS3Scheme(path);
-        String bucket = path.host();
-        String key = extractKey(path);
-        DiscoveredClients dc = resolveClientsForBucket(bucket);
-        S3Client sync = dc != null ? dc.sync() : s3Client;
-        S3AsyncClient async = dc != null ? dc.async() : s3AsyncClient;
-        return new S3StorageObject(sync, async, asyncReadRetryStrategy, storageIdentity, bucket, key, path);
+        Target t = resolve(path);
+        return new S3StorageObject(t.sync, t.async, asyncReadRetryStrategy, storageIdentity, t.bucket, t.key, path);
     }
 
     @Override
     public StorageObject newObject(StoragePath path, long length) {
-        validateS3Scheme(path);
-        String bucket = path.host();
-        String key = extractKey(path);
-        DiscoveredClients dc = resolveClientsForBucket(bucket);
-        S3Client sync = dc != null ? dc.sync() : s3Client;
-        S3AsyncClient async = dc != null ? dc.async() : s3AsyncClient;
-        return new S3StorageObject(sync, async, asyncReadRetryStrategy, storageIdentity, bucket, key, path, length);
+        Target t = resolve(path);
+        return new S3StorageObject(t.sync, t.async, asyncReadRetryStrategy, storageIdentity, t.bucket, t.key, path, length);
     }
 
     @Override
     public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
+        Target t = resolve(path);
+        return new S3StorageObject(t.sync, t.async, asyncReadRetryStrategy, storageIdentity, t.bucket, t.key, path, length, lastModified);
+    }
+
+    /** The bucket, the key and the clients that serve them, which the four single-path entry points all need. */
+    private record Target(S3Client sync, S3AsyncClient async, String bucket, String key) {}
+
+    /**
+     * Checks the scheme, splits the path, and resolves the clients for that bucket — which may differ from the
+     * configured pair when the bucket lives in another region.
+     */
+    private Target resolve(StoragePath path) {
         validateS3Scheme(path);
         String bucket = path.host();
         String key = extractKey(path);
         DiscoveredClients dc = resolveClientsForBucket(bucket);
-        S3Client sync = dc != null ? dc.sync() : s3Client;
-        S3AsyncClient async = dc != null ? dc.async() : s3AsyncClient;
-        return new S3StorageObject(sync, async, asyncReadRetryStrategy, storageIdentity, bucket, key, path, length, lastModified);
+        return new Target(dc != null ? dc.sync() : s3Client, dc != null ? dc.async() : s3AsyncClient, bucket, key);
     }
 
     @Override

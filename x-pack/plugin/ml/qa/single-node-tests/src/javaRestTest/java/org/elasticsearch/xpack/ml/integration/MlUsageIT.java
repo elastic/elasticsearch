@@ -8,7 +8,10 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.Map;
@@ -17,6 +20,18 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 // Test the phone home/telemetry data
 public class MlUsageIT extends ESRestTestCase {
+
+    @ClassRule
+    public static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .setting("xpack.security.enabled", "false")
+        .setting("xpack.license.self_generated.type", "trial")
+        .build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     @SuppressWarnings("unchecked")
     public void testMLUsage() throws IOException {

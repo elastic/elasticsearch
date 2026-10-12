@@ -1505,22 +1505,24 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
 
         /**
          * Sets the number of consecutive extraction failures after which the datafeed stops itself. A value of
-         * {@code -1} disables the behaviour (indefinite retries). Any other non-positive value is rejected. A
-         * {@code null} value clears the setting so the default, which is proportional to the datafeed frequency,
-         * applies.
+         * {@code -1} resets the setting to its default, mirroring {@link #setMaxEmptySearches(int)}, so a user can
+         * clear a previously configured value through the {@code _update} API (which cannot send {@code null}). Any
+         * other non-positive value is rejected. When unset the default, which is proportional to the datafeed
+         * frequency, applies.
          */
         public Builder setMaxConsecutiveExtractionFailures(Integer maxConsecutiveExtractionFailures) {
-            if (maxConsecutiveExtractionFailures != null
-                && maxConsecutiveExtractionFailures != -1
-                && maxConsecutiveExtractionFailures <= 0) {
+            if (maxConsecutiveExtractionFailures != null && maxConsecutiveExtractionFailures == -1) {
+                this.maxConsecutiveExtractionFailures = null;
+            } else if (maxConsecutiveExtractionFailures != null && maxConsecutiveExtractionFailures <= 0) {
                 String msg = getMessage(
                     DATAFEED_CONFIG_INVALID_OPTION_VALUE,
                     DatafeedConfig.MAX_CONSECUTIVE_EXTRACTION_FAILURES.getPreferredName(),
                     maxConsecutiveExtractionFailures
                 );
                 throw ExceptionsHelper.badRequestException(msg);
+            } else {
+                this.maxConsecutiveExtractionFailures = maxConsecutiveExtractionFailures;
             }
-            this.maxConsecutiveExtractionFailures = maxConsecutiveExtractionFailures;
             return this;
         }
 

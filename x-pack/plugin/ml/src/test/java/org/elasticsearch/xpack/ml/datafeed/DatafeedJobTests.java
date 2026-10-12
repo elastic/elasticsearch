@@ -1277,7 +1277,8 @@ public class DatafeedJobTests extends ESTestCase {
             equalTo(42L)
         );
 
-        // -1 disables the behaviour and is preserved, so shouldStopAfterConsecutiveExtractionFailures stays false.
+        // -1 is no longer a user-facing option (the config builder maps it to the default), but a legacy -1 arriving over the
+        // wire from an older node is returned verbatim; DatafeedRunner treats any non-positive threshold as "never stop".
         assertThat(
             createDatafeedJobWithExtractionFailureThreshold(frequencyMs, -1).effectiveMaxConsecutiveExtractionFailures(),
             equalTo(-1L)

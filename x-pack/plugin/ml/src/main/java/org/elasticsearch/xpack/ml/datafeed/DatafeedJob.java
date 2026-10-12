@@ -180,8 +180,10 @@ class DatafeedJob {
     /**
      * Resolves the effective threshold of consecutive extraction failures after which the datafeed stops itself.
      * When the datafeed config leaves this unset, the default is roughly one day's worth of searches (at least one),
-     * so a persistently broken datafeed surfaces within a day rather than retrying indefinitely. A configured value
-     * is used verbatim; {@code -1} disables the behaviour so the datafeed retries indefinitely.
+     * so a persistently broken datafeed surfaces within a day rather than retrying indefinitely. A configured
+     * positive value is used verbatim. The config builder maps {@code -1} to the default (null), so a built config
+     * never holds a non-positive threshold; {@link DatafeedRunner} additionally treats any non-positive threshold as
+     * "never stop", which keeps us safe against a legacy {@code -1} arriving over the wire from an older node.
      */
     public long effectiveMaxConsecutiveExtractionFailures() {
         if (maxConsecutiveExtractionFailures != null) {

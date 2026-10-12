@@ -668,7 +668,8 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
                 || Objects.equals(maxEmptySearches, datafeed.getMaxEmptySearches())
                 || (maxEmptySearches == -1 && datafeed.getMaxEmptySearches() == null))
             && (maxConsecutiveExtractionFailures == null
-                || Objects.equals(maxConsecutiveExtractionFailures, datafeed.getMaxConsecutiveExtractionFailures()))
+                || Objects.equals(maxConsecutiveExtractionFailures, datafeed.getMaxConsecutiveExtractionFailures())
+                || (maxConsecutiveExtractionFailures == -1 && datafeed.getMaxConsecutiveExtractionFailures() == null))
             && (indicesOptions == null || Objects.equals(indicesOptions, datafeed.getIndicesOptions()))
             && (runtimeMappings == null || Objects.equals(runtimeMappings, datafeed.getRuntimeMappings()))
             && (projectRouting == null || Objects.equals(projectRouting, datafeed.getProjectRouting()));

@@ -104,4 +104,15 @@ public record OperatorStatus(String operator, @Nullable Operator.Status status) 
         }
         return status.readNanos();
     }
+
+    /**
+     * CPU time the format reader spent on the producer thread (no IO wait), in nanoseconds.
+     * Populated by external-source operators; others return {@code 0}.
+     */
+    public long readCpuNanos() {
+        if (status == null) {
+            return 0;
+        }
+        return status.readCpuNanos();
+    }
 }

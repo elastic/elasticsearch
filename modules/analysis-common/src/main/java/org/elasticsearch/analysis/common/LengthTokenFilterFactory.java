@@ -21,6 +21,7 @@ public class LengthTokenFilterFactory extends AbstractTokenFilterFactory {
     private final int min;
     private final int max;
 
+    private final Object sharingKey;
     // ancient unsupported option
     private static final String ENABLE_POS_INC_KEY = "enable_position_increments";
 
@@ -31,10 +32,18 @@ public class LengthTokenFilterFactory extends AbstractTokenFilterFactory {
         if (settings.get(ENABLE_POS_INC_KEY) != null) {
             throw new IllegalArgumentException(ENABLE_POS_INC_KEY + " is not supported anymore. Please fix your analysis chain");
         }
+        this.sharingKey = new Key(min, max);
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
         return new LengthFilter(tokenStream, min, max);
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(int min, int max) {}
 }

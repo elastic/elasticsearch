@@ -147,6 +147,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     private final Settings settings;
     private final SetOnce<TransformServices> transformServices = new SetOnce<>();
     private final SetOnce<TransformConfigAutoMigration> transformConfigAutoMigration = new SetOnce<>();
+    private final SetOnce<TransformMeterRegistry> transformMeterRegistry = new SetOnce<>();
     private final SetOnce<TransformAuditor> transformAuditor = new SetOnce<>();
     private final TransformExtension transformExtension = new DefaultTransformExtension();
 
@@ -383,9 +384,9 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         );
 
         var meterRegistry = services.telemetryProvider().getMeterRegistry();
-        var transformMeterRegistry = TransformMeterRegistry.create(meterRegistry);
+        this.transformMeterRegistry.set(TransformMeterRegistry.create(meterRegistry));
         transformConfigAutoMigration.set(
-            new TransformConfigAutoMigration(configManager, auditor, transformMeterRegistry, services.threadPool())
+            new TransformConfigAutoMigration(configManager, auditor, transformMeterRegistry.get(), services.threadPool())
         );
 
         var components = new ArrayList<>(
@@ -421,6 +422,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         // the transform services should have been created
         assert transformServices.get() != null;
         assert transformConfigAutoMigration.get() != null;
+        assert transformMeterRegistry.get() != null;
 
         return List.of(
             new TransformPersistentTasksExecutor(
@@ -431,7 +433,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
                 settingsModule.getSettings(),
                 getTransformExtension(),
                 expressionResolver,
-                transformConfigAutoMigration.get()
+                transformConfigAutoMigration.get(),
+                transformMeterRegistry.get()
             )
         );
     }

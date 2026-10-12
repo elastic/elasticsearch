@@ -38,6 +38,30 @@ public class SharedMinCompetitiveTests extends ComputeTestCase {
         }
     }
 
+    /**
+     * Publishes a LONG competitive bound for {@code SORT field DESC NULLS LAST}. Used by
+     * {@link org.elasticsearch.compute.lucene.query.LuceneSourceOperatorTests}.
+     */
+    public static void offerLongDesc(BlockFactory blockFactory, SharedMinCompetitive.Supplier supplier, long value) {
+        SharedMinCompetitive minCompetitive = supplier.get();
+        TopNOperator.SortOrder sortOrder = new TopNOperator.SortOrder(0, false, false);
+        try (
+            Block block = blockFactory.newConstantLongBlockWith(value, 1);
+            BreakingBytesRefBuilder b = new BreakingBytesRefBuilder(blockFactory.breaker(), "work");
+        ) {
+            KeyExtractor extractor = KeyExtractor.extractorFor(
+                ElementType.LONG,
+                TopNEncoder.DEFAULT_SORTABLE,
+                sortOrder.asc(),
+                sortOrder.nul(),
+                sortOrder.nonNul(),
+                block
+            );
+            extractor.writeKey(b, 0);
+            assertTrue(minCompetitive.offer(b.bytesRefView()));
+        }
+    }
+
     public void testOneOffer() {
         long v = randomLong();
         try (SharedMinCompetitive minCompetitive = longMinCompetitive()) {

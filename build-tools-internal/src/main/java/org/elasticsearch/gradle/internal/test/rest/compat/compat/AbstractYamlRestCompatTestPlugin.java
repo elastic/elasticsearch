@@ -13,7 +13,7 @@ import org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.test.rest.CopyRestApiTask;
 import org.elasticsearch.gradle.internal.test.rest.CopyRestTestsTask;
-import org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPlugin;
+import org.elasticsearch.gradle.internal.test.rest.InternalYamlRestTestPlugin;
 import org.elasticsearch.gradle.internal.test.rest.RestResourcesExtension;
 import org.elasticsearch.gradle.internal.test.rest.RestResourcesPlugin;
 import org.elasticsearch.gradle.test.YamlRestTestPlugin;
@@ -257,7 +257,7 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
             );
 
             // run compatibility tests after "normal" tests
-            testTask.mustRunAfter(project.getTasks().named(LegacyYamlRestTestPlugin.SOURCE_SET_NAME));
+            testTask.mustRunAfter(project.getTasks().named(InternalYamlRestTestPlugin.SOURCE_SET_NAME));
             onlyIfBwcEnabled(testTask, extraProperties);
         });
 

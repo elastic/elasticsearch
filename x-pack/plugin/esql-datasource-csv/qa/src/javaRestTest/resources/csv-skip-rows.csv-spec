@@ -1,0 +1,33 @@
+// CSV skip_rows: drop a fixed number of leading content records (prose preamble) before header_row.
+// Blank and comment-prefix lines do not count toward N. See CsvFormatReader javadoc.
+//
+// Authored as FROM <dataset>: the harness registers the dataset on every storage backend.
+
+skipRowsProsePreambleThenHeader
+required_capability: dataset_in_from_command
+required_capability: external_csv_skip_rows_option
+required_capability: datasource_file_readers_no_text_type
+dataset: sessions_skip2: "{{skip_rows_sessions}}" WITH {"skip_rows": 2, "header_row": true}
+
+FROM sessions_skip2
+| SORT state
+;
+
+state:keyword | ip:keyword | user_agent:keyword
+CA            | "10.0.0.1" | "Mozilla"
+NY            | "10.0.0.2" | "Safari"
+;
+
+skipRowsZeroEqualsTodayOnEmployees
+required_capability: dataset_in_from_command
+required_capability: external_csv_skip_rows_option
+required_capability: datasource_file_readers_no_text_type
+dataset: employees_skip0: "{{employees_no_mv}}" WITH {"skip_rows": 0}
+
+FROM employees_skip0
+| WHERE emp_no == 10001
+| KEEP emp_no, first_name, last_name;
+
+emp_no:integer | first_name:keyword | last_name:keyword
+10001          | "Georgi"           | "Facello"
+;

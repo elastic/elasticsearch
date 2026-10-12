@@ -1,0 +1,37 @@
+// PromQL binary operators over a labels.* passthrough index (prom-metrics-name).
+//
+// Two aggregates with the same grouping keys fuse into one aggregate over a shared frame. Under a passthrough mapping the
+// analyzer binds the declared output label (`pod`) to the bare attribute while the plan carries the concrete field
+// (`labels.pod`), so the command projection must find the grouping column by its canonical name. The fuse used to rename
+// grouping columns along with the value aggregates, which broke that lookup with "missing references [pod]".
+
+// sum by (K) / sum by (K) over a passthrough label: the grouping column keeps its name through the fused aggregate.
+fused_binary_op_keeps_passthrough_grouping_label
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: fix_promql_fused_binary_op_labels
+PROMQL index=prom-metrics-name step=1h result=(sum by (pod) (metrics.requests{pod=~"pod[AB]"}) / sum by (pod) (metrics.requests{pod=~"pod[AB]"}))
+| KEEP result, pod
+| SORT pod;
+
+result:double | pod:keyword
+1.0           | podA
+1.0           | podB
+;
+
+
+// Two grouping keys, arithmetic on the fused frame: both passthrough labels survive as output columns.
+fused_binary_op_keeps_two_passthrough_grouping_labels
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: fix_promql_fused_binary_op_labels
+PROMQL index=prom-metrics-name step=1h result=(sum by (pod, zone) (metrics.requests{pod=~"pod[AB]"}) - sum by (pod, zone) (metrics.requests{pod=~"pod[AB]"}) / 2)
+| KEEP result, pod, zone
+| SORT pod;
+
+result:double | pod:keyword | zone:keyword
+5.0           | podA        | eu
+10.0          | podB        | us
+;

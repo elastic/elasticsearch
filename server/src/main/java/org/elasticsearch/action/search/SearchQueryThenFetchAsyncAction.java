@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
@@ -111,6 +112,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         Map<String, Float> concreteIndexBoosts,
         Executor executor,
         SearchPhaseResults<SearchPhaseResult> resultConsumer,
+        CircuitBreaker circuitBreaker,
         SearchRequest request,
         ActionListener<SearchResponse> listener,
         List<SearchShardIterator> shardsIts,
@@ -143,6 +145,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             clusterState,
             task,
             resultConsumer,
+            circuitBreaker,
             request.getMaxConcurrentShardRequests(),
             clusters,
             searchResponseMetrics,
@@ -370,7 +373,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             this.totalShards = totalShards;
             this.absoluteStartMillis = absoluteStartMillis;
             this.localClusterAlias = localClusterAlias;
-            this.enableShardResultsSkipRequest = ShardSearchRequest.SHARD_RESULTS_SKIP_SHARD_SEARCH_REQUEST_FEATURE_FLAG.isEnabled();
+            // Coordinators always rebuild the ShardSearchRequest, so data nodes omit it from shard results.
+            this.enableShardResultsSkipRequest = true;
         }
 
         private NodeQueryRequest(StreamInput in) throws IOException {
@@ -497,7 +501,14 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
     ) {
         final PointInTimeBuilder pointInTimeBuilder = request.pointInTimeBuilder();
         if (pointInTimeBuilder != null) {
-            return request.pointInTimeBuilder().getSearchContextId(namedWriteableRegistry).contains(contextId);
+            try {
+                return request.pointInTimeBuilder().getSearchContextId(namedWriteableRegistry).contains(contextId);
+            } catch (IllegalArgumentException e) {
+                // Can occur when the PIT was encoded by a coordinator running a newer version than this data node.
+                // Since the PIT cannot be decoded, membership cannot be determined, so return true as the
+                // conservative fallback.
+                return true;
+            }
         } else {
             return false;
         }
@@ -595,7 +606,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                         if (results instanceof QueryPhaseResultConsumer queryPhaseResultConsumer) {
                             Exception reductionFailure = response.getReductionFailure();
                             if (reductionFailure != null) {
-                                queryPhaseResultConsumer.failure.compareAndSet(null, reductionFailure);
+                                queryPhaseResultConsumer.setFailure(reductionFailure);
                             } else {
                                 queryPhaseResultConsumer.addBatchedPartialResult(response.topDocsStats, response.mergeResult);
                             }
@@ -661,7 +672,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                             // Remote failure that wasn't due to networking or cancellation means that the data node was unable to reduce
                             // its local results. Failure to reduce always fails the phase without exception so we fail the phase here.
                             if (results instanceof QueryPhaseResultConsumer queryPhaseResultConsumer) {
-                                queryPhaseResultConsumer.failure.compareAndSet(null, cause);
+                                queryPhaseResultConsumer.setFailure(cause);
                             }
                             onPhaseFailure(getName(), "", cause);
                         }
@@ -962,7 +973,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             out.setTransportVersion(channel.getVersion());
             boolean success = false;
             try (queryPhaseResultConsumer) {
-                Exception reductionFailure = queryPhaseResultConsumer.failure.get();
+                Exception reductionFailure = queryPhaseResultConsumer.getFailure();
                 if (reductionFailure == null) {
                     writeSuccessfulResponse(out);
                 } else {
@@ -1056,7 +1067,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             RecyclerBytesStreamOutput out = null;
             boolean success = false;
             try (queryPhaseResultConsumer) {
-                var failure = queryPhaseResultConsumer.failure.get();
+                var failure = queryPhaseResultConsumer.getFailure();
                 if (failure != null) {
                     throw failure;
                 }

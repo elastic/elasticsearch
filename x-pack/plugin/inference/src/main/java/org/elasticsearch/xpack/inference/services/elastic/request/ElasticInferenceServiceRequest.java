@@ -23,6 +23,9 @@ import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationA
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER;
+import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER;
+import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER;
 import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
 import static org.elasticsearch.xpack.inference.InferencePlugin.X_ELASTIC_ES_VERSION;
 
@@ -59,27 +62,27 @@ public abstract class ElasticInferenceServiceRequest implements OutboundRequest 
         HttpRequestBase request = createHttpRequestBase();
         // TODO: consider moving tracing here, too
 
-        var productOrigin = metadata.context().productOrigin();
-        var productUseCase = metadata.context().productUseCase();
-        var esVersion = metadata.esVersion();
-
-        if (Strings.isNullOrEmpty(productOrigin) == false) {
-            request.setHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, productOrigin);
-        }
-
-        if (Strings.isNullOrEmpty(productUseCase) == false) {
-            request.addHeader(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, productUseCase);
-        }
-
-        if (Strings.isNullOrEmpty(esVersion) == false) {
-            request.addHeader(X_ELASTIC_ES_VERSION, esVersion);
-        }
+        var context = metadata.context();
+        // addHeader, not setHeader: createHttpRequestBase may already have set one of these. Sparse and dense embeddings
+        // preset the input type on X-elastic-product-use-case, and the caller value is meant to be appended.
+        addHeaderIfPresent(request, Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, context.productOrigin());
+        addHeaderIfPresent(request, X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, context.productUseCase());
+        addHeaderIfPresent(request, X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER, context.productSolution());
+        addHeaderIfPresent(request, X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER, context.productFeature());
+        addHeaderIfPresent(request, X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER, context.interactionId());
+        addHeaderIfPresent(request, X_ELASTIC_ES_VERSION, metadata.esVersion());
 
         addRegionPolicyHeaders(request, preferences);
 
         request = authApplier.apply(request);
 
         listener.onResponse(new HttpRequest(request, getInferenceEntityId()));
+    }
+
+    private static void addHeaderIfPresent(HttpRequestBase request, String header, @Nullable String value) {
+        if (Strings.isNullOrEmpty(value) == false) {
+            request.addHeader(header, value);
+        }
     }
 
     private static void addRegionPolicyHeaders(HttpRequestBase request, @Nullable InferencePreferences preferences) {
@@ -102,7 +105,6 @@ public abstract class ElasticInferenceServiceRequest implements OutboundRequest 
     protected abstract HttpRequestBase createHttpRequestBase();
 
     public static ElasticInferenceServiceRequestMetadata extractRequestMetadataFromThreadContext(ThreadContext context) {
-        var inferenceProductContext = InferenceProductContext.create(context);
-        return new ElasticInferenceServiceRequestMetadata(inferenceProductContext, Version.CURRENT.toString());
+        return new ElasticInferenceServiceRequestMetadata(InferenceProductContext.create(context), Version.CURRENT.toString());
     }
 }

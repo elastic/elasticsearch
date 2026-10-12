@@ -97,4 +97,62 @@ public class NamedPipeHelperTests extends ESTestCase {
 
         assertTrue(Files.deleteIfExists(tempFile));
     }
+
+    public void testGetChildIpcDirectoryPrefixGivenValidChildId() {
+        Environment env = TestEnvironment.newEnvironment(
+            Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build()
+        );
+
+        String prefix = NAMED_PIPE_HELPER.getChildIpcDirectoryPrefix(env, "valid-child-id_1");
+
+        assertTrue(prefix, prefix.contains("valid-child-id_1"));
+    }
+
+    public void testGetChildIpcDirectoryPrefixGivenNullChildId() {
+        Environment env = TestEnvironment.newEnvironment(
+            Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build()
+        );
+
+        expectThrows(IllegalArgumentException.class, () -> NAMED_PIPE_HELPER.getChildIpcDirectoryPrefix(env, null));
+    }
+
+    public void testGetChildIpcDirectoryPrefixGivenEmptyChildId() {
+        Environment env = TestEnvironment.newEnvironment(
+            Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build()
+        );
+
+        expectThrows(IllegalArgumentException.class, () -> NAMED_PIPE_HELPER.getChildIpcDirectoryPrefix(env, ""));
+    }
+
+    public void testGetChildIpcDirectoryPrefixGivenDot() {
+        Environment env = TestEnvironment.newEnvironment(
+            Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build()
+        );
+
+        expectThrows(IllegalArgumentException.class, () -> NAMED_PIPE_HELPER.getChildIpcDirectoryPrefix(env, "."));
+    }
+
+    public void testGetChildIpcDirectoryPrefixGivenDotDot() {
+        Environment env = TestEnvironment.newEnvironment(
+            Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build()
+        );
+
+        expectThrows(IllegalArgumentException.class, () -> NAMED_PIPE_HELPER.getChildIpcDirectoryPrefix(env, ".."));
+    }
+
+    public void testGetChildIpcDirectoryPrefixGivenPathSeparator() {
+        Environment env = TestEnvironment.newEnvironment(
+            Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build()
+        );
+
+        expectThrows(IllegalArgumentException.class, () -> NAMED_PIPE_HELPER.getChildIpcDirectoryPrefix(env, "foo/bar"));
+    }
+
+    public void testGetChildIpcDirectoryPrefixGivenNulCharacter() {
+        Environment env = TestEnvironment.newEnvironment(
+            Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build()
+        );
+
+        expectThrows(IllegalArgumentException.class, () -> NAMED_PIPE_HELPER.getChildIpcDirectoryPrefix(env, "foo\u0000bar"));
+    }
 }

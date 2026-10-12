@@ -10,7 +10,9 @@
 package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BitUtil;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.Text;
 
 import java.io.IOException;
 
@@ -141,6 +143,17 @@ public class CountingStreamOutput extends StreamOutput {
     public void writeGenericString(String value) {
         position += 1;
         writeString(value);
+    }
+
+    @Override
+    public void writeText(Text text) {
+        position += Integer.BYTES;
+        if (text.hasBytes()) {
+            position += text.bytes().length();
+        } else {
+            final String str = text.string();
+            position += UnicodeUtil.calcUTF16toUTF8Length(str, 0, str.length());
+        }
     }
 
     @Override

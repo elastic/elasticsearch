@@ -12,6 +12,7 @@ package org.elasticsearch.lucene.queries;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 
 import java.util.Objects;
 
@@ -43,7 +44,7 @@ public final class ScanningBinaryDocValuesRegexpQuery extends AbstractBinaryDocV
         int syntaxFlags,
         int matchFlags,
         int maxDeterminizedStates,
-        boolean arrayOrderInlineNull,
+        BinaryDocValuesFormat binaryFormat,
         @Nullable CircuitBreaker circuitBreaker
     ) {
         super(
@@ -56,7 +57,7 @@ public final class ScanningBinaryDocValuesRegexpQuery extends AbstractBinaryDocV
                 maxDeterminizedStates,
                 circuitBreaker
             ),
-            arrayOrderInlineNull
+            binaryFormat
         );
         this.pattern = Objects.requireNonNull(pattern);
         this.syntaxFlags = syntaxFlags;
@@ -90,11 +91,12 @@ public final class ScanningBinaryDocValuesRegexpQuery extends AbstractBinaryDocV
             && Objects.equals(pattern, that.pattern)
             && syntaxFlags == that.syntaxFlags
             && matchFlags == that.matchFlags
-            && maxDeterminizedStates == that.maxDeterminizedStates;
+            && maxDeterminizedStates == that.maxDeterminizedStates
+            && binaryFormat == that.binaryFormat;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), fieldName, pattern, syntaxFlags, matchFlags, maxDeterminizedStates);
+        return Objects.hash(classHash(), fieldName, pattern, syntaxFlags, matchFlags, maxDeterminizedStates, binaryFormat);
     }
 }

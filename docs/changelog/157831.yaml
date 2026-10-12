@@ -1,0 +1,5 @@
+area: Authorization
+issues: []
+pr: 157831
+summary: Grant threat intel indicator aliases to `viewer`, `editor`, and `kibana_system`
+type: enhancement

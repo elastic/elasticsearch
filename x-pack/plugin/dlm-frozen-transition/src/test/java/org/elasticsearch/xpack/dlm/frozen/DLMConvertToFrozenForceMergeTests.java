@@ -151,7 +151,7 @@ public class DLMConvertToFrozenForceMergeTests extends ESTestCase {
 
         createProjectState();
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             new OriginSettingClient(createMockClient(), DataStreamLifecycle.DATA_STREAM_LIFECYCLE_ORIGIN),
             clusterService,
@@ -175,7 +175,7 @@ public class DLMConvertToFrozenForceMergeTests extends ESTestCase {
 
         createProjectState();
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             createMockClient(),
             clusterService,
@@ -199,7 +199,7 @@ public class DLMConvertToFrozenForceMergeTests extends ESTestCase {
 
         createProjectState();
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             createMockClient(),
             clusterService,
@@ -226,7 +226,7 @@ public class DLMConvertToFrozenForceMergeTests extends ESTestCase {
 
         createProjectState();
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             createMockClient(),
             clusterService,
@@ -245,7 +245,7 @@ public class DLMConvertToFrozenForceMergeTests extends ESTestCase {
 
         createProjectState();
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             createMockClient(),
             clusterService,
@@ -264,7 +264,7 @@ public class DLMConvertToFrozenForceMergeTests extends ESTestCase {
 
         createProjectState();
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             createMockClient(),
             clusterService,
@@ -284,7 +284,7 @@ public class DLMConvertToFrozenForceMergeTests extends ESTestCase {
 
         createProjectState();
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             createMockClient(),
             clusterService,
@@ -300,7 +300,7 @@ public class DLMConvertToFrozenForceMergeTests extends ESTestCase {
         createProjectState();
 
         DLMConvertToFrozen converter = new DLMConvertToFrozenSnapshotTests.TestDLMConvertToFrozenWithTimeout(
-            indexName,
+            index,
             projectId,
             createMockClient(),
             clusterService,

@@ -26,7 +26,6 @@ public class OrcReaderCountersTests extends ESTestCase {
         assertEquals(0L, snap.columnsProjected());
         assertEquals(0L, snap.columnsTotal());
         assertEquals(0L, snap.rowsEmitted());
-        assertEquals(0L, snap.readNanos());
         assertEquals(0L, snap.footerCacheHits());
         assertEquals(0L, snap.footerCacheMisses());
     }
@@ -49,7 +48,6 @@ public class OrcReaderCountersTests extends ESTestCase {
         counters.addPredicateColumns(List.of("level", "host"));
         counters.setColumnCounts(3, 12);
         counters.addRowsEmitted(2_500);
-        counters.addReadNanos(987_654_321L);
 
         var snap = counters.snapshot();
         assertEquals(8L, snap.stripesTotal());
@@ -57,7 +55,6 @@ public class OrcReaderCountersTests extends ESTestCase {
         assertEquals(3L, snap.columnsProjected());
         assertEquals(12L, snap.columnsTotal());
         assertEquals(2_500L, snap.rowsEmitted());
-        assertEquals(987_654_321L, snap.readNanos());
         // predicate_columns is sorted — alphabetical order regardless of insertion order.
         List<String> predicates = snap.predicateColumns();
         assertEquals(List.of("host", "level"), predicates.stream().toList());
@@ -68,11 +65,9 @@ public class OrcReaderCountersTests extends ESTestCase {
         counters.addStripesTotal(0);
         counters.addStripesTotal(-3);
         counters.addRowsEmitted(0);
-        counters.addReadNanos(-5);
         var snap = counters.snapshot();
         assertEquals(0L, snap.stripesTotal());
         assertEquals(0L, snap.rowsEmitted());
-        assertEquals(0L, snap.readNanos());
     }
 
     public void testNullAndEmptyPredicateColumnsTolerated() {
@@ -107,7 +102,6 @@ public class OrcReaderCountersTests extends ESTestCase {
                     for (int i = 0; i < iterationsPerThread; i++) {
                         counters.addStripesTotal(2);
                         counters.addRowsEmitted(100);
-                        counters.addReadNanos(75);
                     }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
@@ -123,11 +117,9 @@ public class OrcReaderCountersTests extends ESTestCase {
 
         long expectedStripes = (long) threads * iterationsPerThread * 2;
         long expectedRows = (long) threads * iterationsPerThread * 100;
-        long expectedNanos = (long) threads * iterationsPerThread * 75;
         var snap = counters.snapshot();
         assertEquals(expectedStripes, snap.stripesTotal());
         assertEquals(expectedRows, snap.rowsEmitted());
-        assertEquals(expectedNanos, snap.readNanos());
     }
 
     public void testSnapshotIsImmutable() {

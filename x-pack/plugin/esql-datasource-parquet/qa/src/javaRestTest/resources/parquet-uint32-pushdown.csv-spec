@@ -5,8 +5,8 @@
 // 4000000000) and a u16:uint16 control column (10, 50, 150, 200, 300) that was never affected
 // (uint16 always fits ESQL INTEGER, no widening).
 //
-// Authored as FROM <dataset>: on dataset-capable backends (S3) ParquetFormatSpecIT registers the
-// dataset and runs the FROM query verbatim; other backends rebuild the equivalent EXTERNAL query.
+// Authored as FROM <dataset>: ParquetFormatSpecIT registers the dataset and runs the FROM query
+// verbatim on every storage backend.
 
 uint32GreaterThanPushesDown
 required_capability: external_command

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.nio.file.Path;
@@ -33,7 +34,7 @@ public class LocalFileAccess {
      * Shared between the coordinator-side check ({@link FileSourceFactory}) and the data-node-side check
      * ({@link StorageProviderRegistry}) so both paths report the same message.
      */
-    public static final String LOCAL_DISK_DISABLED_MESSAGE = "local filesystem access via file:// is disabled; "
+    public static final String LOCAL_DISK_DISABLED_MESSAGE = "local filesystem access via the [file] scheme is disabled; "
         + "set the [esql.external.local_allowed_paths] node setting to one or more allowed root paths to enable it";
 
     /**
@@ -95,13 +96,21 @@ public class LocalFileAccess {
      *   <li>If enabled: resolves the path against the allowed roots via
      *       {@link PathUtils#get(Path[], String)} (lexical normalize + {@code startsWith} — same as
      *       {@code FsRepository} / {@code Environment.resolveRepoDir}). A {@code null} result means the path falls
-     *       outside every allowed root (including {@code ..}-escapes); throws with the location appended to
-     *       {@link #PATH_OUTSIDE_ALLOWLIST_PREFIX}.</li>
+     *       outside every allowed root (including {@code ..}-escapes); throws with the object name appended to
+     *       {@link #PATH_OUTSIDE_ALLOWLIST_PREFIX}. Only the object name: query users may not know the location.</li>
      * </ul>
      *
      * @throws IllegalArgumentException if the path is rejected
      */
     public void check(StoragePath path) {
+        // A comma-separated multi-file listing (e.g. file:///a.csv,file:///b.csv) is not one filesystem path: parsing
+        // the whole string as a single Path fails on filesystems that reject when a separator carries an embedded segment,
+        // e.g. ':' on Windows.
+        var segments = GlobExpander.commaSegments(path.toString());
+        if (segments.size() > 1) {
+            segments.stream().map(StoragePath::of).forEach(this::check);
+            return;
+        }
         if ("file".equalsIgnoreCase(path.scheme()) == false) {
             return;
         }
@@ -115,7 +124,7 @@ public class LocalFileAccess {
         String localPath = path.isPattern() ? path.patternPrefix().localPath() : path.localPath();
         Path resolved = PathUtils.get(allowedRoots, localPath);
         if (resolved == null) {
-            throw new IllegalArgumentException(PATH_OUTSIDE_ALLOWLIST_PREFIX + path);
+            throw new IllegalArgumentException(PATH_OUTSIDE_ALLOWLIST_PREFIX + path.objectName());
         }
     }
 

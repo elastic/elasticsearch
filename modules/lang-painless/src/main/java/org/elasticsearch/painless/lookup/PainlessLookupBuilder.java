@@ -236,7 +236,7 @@ public final class PainlessLookupBuilder {
      * instance methods; the underlying Java static signature for augmented ones). Any mismatch throws at allowlist-load time:
      * a mistyped estimator must fail loudly rather than silently disable the pre-check.
      */
-    private static Method resolveAllocationEstimator(
+    private Method resolveAllocationEstimator(
         ClassLoader classLoader,
         Map<Class<?>, Object> annotations,
         MethodType methodType,
@@ -290,6 +290,18 @@ public final class PainlessLookupBuilder {
                     + AllocatesAnnotation.NAME
                     + "] on "
                     + targetDescription.get()
+            );
+        }
+
+        // add the estimator class so painless has access to it
+        Class<?> existingEstimatorClass = javaClassNamesToClasses.get(estimatorClass.getName());
+
+        if (existingEstimatorClass == null) {
+            javaClassNamesToClasses.put(estimatorClass.getName().intern(), estimatorClass);
+        } else if (existingEstimatorClass != estimatorClass) {
+            throw lookupException(
+                "class [%s] cannot represent multiple java classes with the same name from different class loaders",
+                typeToCanonicalTypeName(estimatorClass)
             );
         }
 

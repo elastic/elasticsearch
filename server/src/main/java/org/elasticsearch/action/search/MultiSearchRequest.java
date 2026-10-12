@@ -313,7 +313,6 @@ public class MultiSearchRequest extends UntypedActionRequest implements Composit
                                 throw new IllegalArgumentException(ROUTING_AND_SLICE_COMBINATION_ERROR);
                             }
                             searchRequest.routing(nodeStringValue(value, null));
-                            searchRequest.searchSlice(null);
                             routingProvided = true;
                         } else if (SliceIndexing.PARAM_NAME.equals(entry.getKey())) {
                             if (routingProvided || topLevelHasRouting) {
@@ -388,13 +387,9 @@ public class MultiSearchRequest extends UntypedActionRequest implements Composit
     }
 
     private static void applySearchRoutingOrSlice(SearchRequest searchRequest, @Nullable SliceIndexing.ParsedRouting parsedRouting) {
-        if (parsedRouting == null) {
-            return;
+        if (parsedRouting != null) {
+            searchRequest.routing(parsedRouting.routing()).setRoutingFromSlice(parsedRouting.fromSlice());
         }
-        searchRequest.routing(parsedRouting.routing());
-        searchRequest.searchSlice(
-            parsedRouting.fromSlice() ? (parsedRouting.routing() == null ? SliceIndexing.SLICE_ALL : parsedRouting.routing()) : null
-        );
     }
 
     private static SliceIndexing.ParsedRouting parseSearchRoutingOrSlice(String sliceValue) {

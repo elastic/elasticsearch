@@ -17,7 +17,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
-import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
 import org.elasticsearch.xpack.esql.datasources.cache.ColumnStatsAccumulator;
@@ -28,6 +27,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.StripeStatsHarvester;
 import org.elasticsearch.xpack.esql.datasources.cache.TextFormatStats;
 import org.elasticsearch.xpack.esql.datasources.spi.BufferingPageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
@@ -89,6 +89,13 @@ final class NdJsonPageIterator extends BufferingPageIterator {
     private final long pinnedMtimeMillis;
     /** Computes the cache fingerprint from the FULL file schema at close time — must match {@code metadata()}'s input. */
     private final Function<List<Attribute>, String> fingerprinter;
+    /** Identity of how THIS file is read; stamped beside the config fingerprint. Empty when unknown. */
+    private final String readConfig;
+    /**
+     * Whether this read's error policy makes its row count independent of the resolved read configuration (FAIL_FAST only). Derived at
+     * construction because the policy itself is consumed while opening the stream and is not retained.
+     */
+    private final boolean rowCountReadConfigIndependent;
     /** Full file schema as passed by the planner. Non-null on the wholeFileRead path; used for fingerprint at close. */
     private final List<Attribute> fingerprintSchema;
     private final String sourceLocation;
@@ -206,8 +213,9 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         StorageObject cacheableObject,
         long pinnedMtimeMillis,
         Function<List<Attribute>, String> fingerprinter,
+        String readConfig,
         boolean chunkMode,
-        NdJsonReaderCounters counters,
+        @Nullable NdJsonReaderCounters counters,
         long splitStartByte,
         int maxRecordBytes,
         DateFormatter datetimeFormatter,
@@ -219,12 +227,15 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         @Nullable Consumer<String> warningSink
     ) throws IOException {
         Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
-        Check.isTrue(counters != null, "counters must not be null");
         this.cacheableObject = cacheableObject;
         this.pinnedMtimeMillis = pinnedMtimeMillis;
         this.fingerprinter = fingerprinter;
+        this.readConfig = readConfig == null ? "" : readConfig;
+        this.rowCountReadConfigIndependent = errorPolicy.isStrict();
         this.fingerprintSchema = resolvedAttributes;
         this.sourceLocation = object.path().toString();
+        // sourceLocation keys stats, so it stays verbatim; user-facing messages name only the object.
+        String messageLocation = object.path().objectName();
         this.chunkMode = chunkMode;
         this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
         // Per-stripe stats capture is for the chunk-parallel paths (recordAligned); a whole-file read
@@ -252,7 +263,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         // mutually exclusive. The fold-in is kept as a correctness invariant for any future overlap.
         this.statsStripeBaseOffset = statsBaseOffset + skipped;
         if (trimLastPartialLine) {
-            inputStream = trimLastPartialLine(inputStream, errorPolicy, sourceLocation, recordSplitter, warningSink);
+            inputStream = trimLastPartialLine(inputStream, errorPolicy, messageLocation, recordSplitter, warningSink);
         }
         this.rowLimit = rowLimit;
         // ALL scope harvests min/max/null for EVERY file column, not just the projected ones. The output
@@ -304,7 +315,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
                 batchSize,
                 blockFactory,
                 errorPolicy,
-                this.sourceLocation,
+                messageLocation,
                 counters,
                 declaredDateFormats,
                 warningSink
@@ -326,7 +337,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
                 batchSize,
                 blockFactory,
                 errorPolicy,
-                this.sourceLocation,
+                messageLocation,
                 counters,
                 declaredDateFormats,
                 warningSink
@@ -335,6 +346,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         // _rowPosition / _file.record_ref substrate: file-global per-record start offset.
         this.pageDecoder.setRecordOffsetBase(recordOffsetBase);
         this.pageDecoder.setMaxRecordBytes(maxRecordBytes);
+        this.pageDecoder.setReportAbsentDeclaredColumns(statsFileFinal);
         if (this.statsStripeSize > 0) {
             // Tell the decoder to record each record's own file-global start offset into a per-page array,
             // so the iterator can attribute the page's rows to canonical stripes by the byte-range cover
@@ -394,9 +406,9 @@ final class NdJsonPageIterator extends BufferingPageIterator {
                 // already emitted the client-facing partial-results warning.
                 if (pageDecoder.truncated()) {
                     logger.warn(
-                        "NDJSON read of [{}] truncated at byte [{}]: a record exceeded external_max_record_size; results are partial",
-                        sourceLocation,
-                        pageDecoder.truncatedAtByte()
+                        "Record at byte [{}] in [{}] exceeds the record limit; results are partial",
+                        pageDecoder.truncatedAtByte(),
+                        sourceLocation
                     );
                 } else {
                     naturallyExhausted = true;
@@ -662,19 +674,25 @@ final class NdJsonPageIterator extends BufferingPageIterator {
     protected void closeInternal() throws IOException {
         // Close the decoder even if a stats publish throws — the publish is best-effort caching, the close is not.
         try {
-            // Cache on clean whole-file drain. Runs before closing the decoder so its errorCount is still readable.
-            // A DROPPED line (NDJSON drops the whole line on any parse error) does NOT make the cached stats
-            // wrong: which lines survive is a deterministic function of the file bytes and the error policy
-            // (pinned by the cache fingerprint -- error_mode/max_errors are format-affecting), so every statistic
-            // (row count AND extrema) over the survivors equals what re-running this query computes. So commit
-            // normally. NONE scope suppresses all publishing. A scan cut short mid-way (LIMIT, cancellation, a
-            // chunk exceeding its error budget) leaves naturallyExhausted false or an uncovered stripe, so it
-            // safe-misses rather than serving; the coordinator's whole-file poison covers the non-clean-close case.
+            // Cache on clean whole-file drain. Runs before closing the decoder so its drop flags are still
+            // readable. Which lines survive is a function of the file bytes, the error policy (pinned by the
+            // cache fingerprint), the resolved read configuration (stamped beside it -- a declared type or date
+            // pattern decides which values coerce), and the PROJECTION, since only projected columns are decoded.
+            // The first three are in the identity, so a dropped line does not make these stats wrong for this
+            // read. The fourth cannot be -- it is per-query -- so a drop DECIDED BY the projection (a projected
+            // column's coercion or shape failure under skip_row, or a lazily-validated constraint -- see
+            // projectionDependentDrop) suppresses the whole publish, exactly as the CSV twin does: no identity
+            // downstream can separate this scan's N-1 from a COUNT(*) scan's N. Whole-line drops (malformed or
+            // truncated JSON) are projection-independent and commit. NONE scope
+            // suppresses all publishing. A scan cut short mid-way (LIMIT, cancellation, a chunk exceeding its error
+            // budget) leaves naturallyExhausted false or an uncovered stripe, so it safe-misses rather than
+            // serving; the coordinator's whole-file poison covers the non-clean-close case.
             if (cacheableObject != null
                 && naturallyExhausted
                 && pinnedMtimeMillis >= 0
                 && fingerprinter != null
                 && pageDecoder.capDropped() == false
+                && pageDecoder.projectionDependentDrop() == false
                 && statsColumnScope != StripeColumnScope.NONE) {
                 // Fingerprint must use the FULL file schema for parity with NdJsonFormatReader.metadata().
                 // Prefer the planner-provided schema (resolvedAttributes), fall back to the decoder's
@@ -696,6 +714,8 @@ final class NdJsonPageIterator extends BufferingPageIterator {
                                 chunkBytes,
                                 pinnedMtimeMillis,
                                 fingerprinter.apply(fullSchema),
+                                readConfig,
+                                rowCountReadConfigIndependent,
                                 fullSchema
                             );
                         }
@@ -728,6 +748,13 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         Map<String, Object> base = new HashMap<>();
         base.put(ExternalStats.MTIME_MILLIS_KEY, pinnedMtimeMillis);
         base.put(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint);
+        if (readConfig.isEmpty() == false) {
+            base.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, readConfig);
+        }
+        // See CsvFormatReader: only FAIL_FAST makes a committed row count read-config-independent.
+        if (rowCountReadConfigIndependent) {
+            base.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+        }
         if (chunkMode) {
             base.put(ExternalStats.PARTIAL_CHUNK_KEY, Boolean.TRUE);
         }

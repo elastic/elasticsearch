@@ -133,6 +133,9 @@ public final class CompilerSettings {
     /** Per-context limit in bytes from {@link #MAX_ALLOCATION_BYTES}; {@code -1} disables tracking, bytecode emitted only when positive. */
     private long maxAllocationBytes = MAX_ALLOCATION_BYTES_DISABLED.getBytes();
 
+    /** Record each execution's allocation total. Enables the counter on its own, with no limit enforced. */
+    private boolean allocationMetricsEnabled = false;
+
     /**
      * Returns the value for the cumulative total number of statements that can be made in all loops
      * in a script before an exception is thrown.  This attempts to prevent infinite loops.  Note if
@@ -225,9 +228,19 @@ public final class CompilerSettings {
         this.maxAllocationBytes = maxAllocationBytes;
     }
 
-    /** Whether allocation tracking is enabled, i.e. the limit is positive. */
+    /** Whether the counter is emitted at all: enforcing a limit or recording metrics, either one alone. */
     public boolean isAllocationTrackingEnabled() {
-        return maxAllocationBytes > 0L;
+        return maxAllocationBytes > 0L || allocationMetricsEnabled;
+    }
+
+    /** @see #allocationMetricsEnabled */
+    public boolean isAllocationMetricsEnabled() {
+        return allocationMetricsEnabled;
+    }
+
+    /** @see #allocationMetricsEnabled */
+    public void setAllocationMetricsEnabled(boolean allocationMetricsEnabled) {
+        this.allocationMetricsEnabled = allocationMetricsEnabled;
     }
 
     /**

@@ -27,7 +27,6 @@ import org.elasticsearch.index.shard.ShardFieldStats;
 import org.elasticsearch.index.store.FieldInfoCachingDirectory;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.io.IOException;
@@ -36,6 +35,7 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.getTotalUserIndices;
@@ -93,7 +93,7 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
                     "es.indices." + name + ".total",
                     "total number of " + name + " indices",
                     "unit",
-                    () -> new LongWithAttributes(cache.getOrRefresh().get(indexMode).numIndices)
+                    () -> cache.getOrRefresh().get(indexMode).numIndices
                 )
             );
             metrics.add(
@@ -101,7 +101,7 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
                     "es.indices." + name + ".docs.total",
                     "total documents of " + name + " indices",
                     "unit",
-                    () -> new LongWithAttributes(cache.getOrRefresh().get(indexMode).numDocs)
+                    () -> cache.getOrRefresh().get(indexMode).numDocs
                 )
             );
             metrics.add(
@@ -109,7 +109,7 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
                     "es.indices." + name + ".size",
                     "total size in bytes of " + name + " indices",
                     "bytes",
-                    () -> new LongWithAttributes(cache.getOrRefresh().get(indexMode).numBytes)
+                    () -> cache.getOrRefresh().get(indexMode).numBytes
                 )
             );
             // query (count, took, failures) - use gauges as shards can be removed
@@ -205,7 +205,7 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
                     + ", which ideally approaches "
                     + MAPPING_FIELDS_CURRENT_METRIC_NAME,
                 "unit",
-                () -> new LongWithAttributes(getCachedFieldInfoCount(cache.indicesService))
+                () -> getCachedFieldInfoCount(cache.indicesService)
             )
         );
         metrics.add(
@@ -213,7 +213,7 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
                 FIELD_INFOS_CURRENT_METRIC_NAME,
                 "Raw count of FieldInfo instances summed across every segment of every shard on this node, before " + "deduplication",
                 "unit",
-                () -> new LongWithAttributes(getTotalLuceneFieldCount(cache.indicesService))
+                () -> getTotalLuceneFieldCount(cache.indicesService)
             )
         );
         metrics.add(
@@ -221,31 +221,29 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
                 MAPPING_FIELDS_CURRENT_METRIC_NAME,
                 "Total fields defined in the index mappings of all shards on this node",
                 "unit",
-                () -> new LongWithAttributes(getTotalMappingFieldCount(cache.indicesService))
+                () -> getTotalMappingFieldCount(cache.indicesService)
             )
         );
-        metrics.add(registry.registerLongAsyncGauge(USER_INDEX_TOTAL_METRIC_NAME, "Total number of user indices", "index", () -> {
+        metrics.add(registry.registerLongAsyncGauge(USER_INDEX_TOTAL_METRIC_NAME, "Total number of user indices", "index", measurement -> {
             if (clusterService.lifecycleState() != STARTED) {
-                return null;
+                return;
             }
             final var clusterState = clusterService.state();
             if (clusterState.clusterRecovered() == false || clusterState.nodes().isLocalNodeElectedMaster() == false) {
-                return null;
+                return;
             }
-            return new LongWithAttributes(
-                getTotalUserIndices(systemIndices, clusterState.getMetadata().projects().values().iterator().next())
-            );
+            measurement.record(getTotalUserIndices(systemIndices, clusterState.getMetadata().projects().values().iterator().next()));
         }));
         assert metrics.size() == totalMetrics : "total number of metrics has changed";
         return metrics;
     }
 
-    static Supplier<LongWithAttributes> diffGauge(Supplier<Long> currentValue) {
+    static LongSupplier diffGauge(Supplier<Long> currentValue) {
         final AtomicLong counter = new AtomicLong();
         return () -> {
             var curr = currentValue.get();
             long prev = counter.getAndUpdate(v -> Math.max(curr, v));
-            return new LongWithAttributes(Math.max(0, curr - prev));
+            return Math.max(0, curr - prev);
         };
     }
 

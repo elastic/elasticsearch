@@ -1758,8 +1758,8 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             relation,
             List.of(),
             List.of(
-                new Alias(EMPTY, "r", new Rate(EMPTY, fieldAttr, Literal.TRUE, AggregateFunction.NO_WINDOW, timestampAttr, null)),
-                new Alias(EMPTY, "i", new Increase(EMPTY, fieldAttr, Literal.TRUE, AggregateFunction.NO_WINDOW, timestampAttr, null))
+                new Alias(EMPTY, "r", new Rate(EMPTY, fieldAttr, timestampAttr, Literal.TRUE, AggregateFunction.NO_WINDOW, null)),
+                new Alias(EMPTY, "i", new Increase(EMPTY, fieldAttr, timestampAttr, Literal.TRUE, AggregateFunction.NO_WINDOW, null))
             ),
             null,
             timestampAttr,

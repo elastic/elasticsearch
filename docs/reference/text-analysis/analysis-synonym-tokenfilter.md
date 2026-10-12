@@ -10,9 +10,9 @@ mapped_pages:
 The `synonym` token filter allows to easily handle [synonyms](docs-content://solutions/search/full-text/search-with-synonyms.md) during the analysis process.
 
 
-## Define synonyms sets [analysis-synonym-define-synonyms]
+## Define synonym sets [analysis-synonym-define-synonyms]
 
-Synonyms in a synonyms set are defined using **synonym rules**. Each synonym rule contains words that are synonyms.
+Synonyms in a synonym set are defined using **synonym rules**. Each synonym rule contains words that are synonyms.
 
 You can use two formats to define synonym rules: Solr and WordNet.
 
@@ -39,10 +39,10 @@ This format uses two different definitions:
 
 ### WordNet format [_wordnet_format]
 
-[WordNet](https://wordnet.princeton.edu/) defines synonyms sets spanning multiple lines. Each line contains the following information:
+[WordNet](https://wordnet.princeton.edu/) defines synonym sets spanning multiple lines. Each line contains the following information:
 
-* Synonyms set numeric identifier
-* Ordinal of the synonym in the synonyms set
+* Synonym set numeric identifier
+* Ordinal of the synonym in the synonym set
 * Synonym word
 * Word type identifier: Noun (n), verb (v), adjective (a) or adverb (b).
 * Depth of the word in the synonym net
@@ -56,9 +56,9 @@ s(100000002,3,'approach',v,1,0).""";
 ```
 
 
-## Configure synonyms sets [analysis-synonym-configure-sets]
+## Configure synonym sets [analysis-synonym-configure-sets]
 
-Synonyms can be configured using the [synonyms API](docs-content://solutions/search/full-text/search-with-synonyms.md#synonyms-store-synonyms-api), a [synonyms file](docs-content://solutions/search/full-text/search-with-synonyms.md#synonyms-store-synonyms-file), or directly [inlined](docs-content://solutions/search/full-text/search-with-synonyms.md#synonyms-store-synonyms-inline) in the token filter configuration. See [store your synonyms set](docs-content://solutions/search/full-text/search-with-synonyms.md#synonyms-store-synonyms) for more details on each option.
+Synonyms can be configured using the [{{kib}} UI](docs-content://solutions/search/full-text/search-with-synonyms.md#synonyms-store-synonyms), the [synonyms API](docs-content://solutions/search/full-text/search-with-synonyms.md#synonyms-store-synonyms-api), a [synonyms file](docs-content://solutions/search/full-text/search-with-synonyms.md#synonyms-store-synonyms-file), or directly [inlined](docs-content://solutions/search/full-text/search-with-synonyms.md#synonyms-store-synonyms-inline) in the token filter configuration. See [create synonym sets and rules](docs-content://solutions/search/full-text/search-with-synonyms.md#synonyms-store-synonyms) for more details on each option.
 
 Use `synonyms_set` configuration option to provide one or more synonym sets created through the [Synonyms Management APIs](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-synonyms):
 
@@ -92,7 +92,7 @@ Synonym sets are limited to 100,000 rules per set by default. This limit is conf
 ::::
 
 ::::{warning}
-Synonyms sets must exist before they can be added to indices. If an index is created referencing a nonexistent synonyms set, the index will remain in a partially created and inoperable state. The only way to recover from this scenario is to ensure the synonyms set exists then either delete and re-create the index, or close and re-open the index.
+Synonym sets must exist before they can be added to indices. If an index is created referencing a nonexistent synonym set, the index remains in a partially created and inoperable state. The only way to recover from this scenario is to ensure the synonym set exists then either delete and re-create the index, or close and re-open the index.
 
 ::::
 
@@ -166,7 +166,7 @@ The `tokenizer` parameter controls the tokenizers that will be used to tokenize 
 
 ## Configure analyzers with synonym token filters [analysis-synonym-analizers-configure]
 
-To apply synonyms, you will need to include a synonym token filters into an analyzer:
+To apply synonyms, include a synonym token filter in an analyzer:
 
 ```JSON
       "analyzer": {
@@ -254,7 +254,7 @@ When building the synonyms map, {{es}} checks available heap memory using a circ
 
 The threshold is configurable using the [`indices.breaker.total.limit` parent circuit breaker setting](/reference/elasticsearch/configuration-reference/circuit-breaker-settings.md#parent-circuit-breaker). {applies_to}`serverless: unavailable`
 
-When the circuit breaker trips, the behavior is determined by the `lenient` parameter:
+When the circuit breaker trips, the behavior is determined by the `lenient` parameter. The `lenient` parameter defaults to the value of the `updateable` setting. When `updateable` is `true`, `lenient` also defaults to `true`.
 
-* If `lenient` is `true`, an empty synonyms map is used and the event is logged in the {{es}} logs.
+* If `lenient` is `true`, an empty synonym map is used and the event is logged in the {{es}} logs.
 * If `lenient` is `false`, the affected index enters a red state.

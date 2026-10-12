@@ -14,7 +14,6 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.client.internal.support.AbstractClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -43,7 +42,7 @@ public class NodeClient extends AbstractClient {
 
     /**
      * The id of the local {@link DiscoveryNode}. Useful for generating task ids from tasks returned by
-     * {@link #executeLocally(ActionType, ActionRequest, ActionListener)}.
+     * {@link #executeAndReturnTask(ActionType, ActionRequest, ActionListener)}.
      */
     private Supplier<String> localNodeId;
     private Transport.Connection localConnection;
@@ -82,9 +81,9 @@ public class NodeClient extends AbstractClient {
     ) {
         // Discard the task because the Client interface doesn't use it.
         try {
-            executeLocally(action, request, listener);
+            executeAndReturnTask(action, request, listener);
         } catch (TaskCancelledException | IllegalArgumentException | IllegalStateException e) {
-            // #executeLocally returns the task and throws TaskCancelledException if it fails to register the task because the parent
+            // #executeAndReturnTask returns the task and throws TaskCancelledException if it fails to register the task because the parent
             // task has been cancelled, IllegalStateException if the client was not in a state to execute the request because it was not
             // yet properly initialized or IllegalArgumentException if header validation fails we forward them to listener since this API
             // does not concern itself with the specifics of the task handling
@@ -93,13 +92,18 @@ public class NodeClient extends AbstractClient {
     }
 
     /**
-     * Execute an {@link ActionType} locally, returning that {@link Task} used to track it, and linking an {@link ActionListener}.
-     * Prefer this method if you don't need access to the task when listening for the response. This is the method used to
-     * implement the {@link Client} interface.
+     * Execute an {@link ActionType}, returning the {@link Task} used to track it.
+     * <p>
+     * For use only when the caller needs that task immediately (for example to report a task id or cancel it) and will correctly handle
+     * an exception being thrown if the task cannot be created (e.g. its parent task is already canceled) rather than being passed to the
+     * listener.
+     * <p>
+     * In all other cases, use {@link #execute(ActionType, ActionRequest, ActionListener)}, which discards the task and delivers any thrown
+     * exception to the listener instead.
      *
-     * @throws TaskCancelledException if the request's parent task has been cancelled already
+     * @throws TaskCancelledException if the request's parent task has been canceled already
      */
-    public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(
+    public <Request extends ActionRequest, Response extends ActionResponse> Task executeAndReturnTask(
         ActionType<Response> action,
         Request request,
         ActionListener<Response> listener
@@ -115,7 +119,7 @@ public class NodeClient extends AbstractClient {
 
     /**
      * The id of the local {@link DiscoveryNode}. Useful for generating task ids from tasks returned by
-     * {@link #executeLocally(ActionType, ActionRequest, ActionListener)}.
+     * {@link #executeAndReturnTask(ActionType, ActionRequest, ActionListener)}.
      */
     public String getLocalNodeId() {
         return localNodeId.get();

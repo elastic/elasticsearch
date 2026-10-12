@@ -13,7 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import java.io.IOException;
 import java.util.Map;
 
-public class MissingEsField extends EsField {
+public class MissingEsField extends EsField implements UnmappedEsField {
 
     private static final TransportVersion ESQL_MISSING_ES_FIELD = TransportVersion.fromName("esql_missing_es_field");
 

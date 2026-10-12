@@ -283,6 +283,17 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
+    public GetResult getForUpdate(
+        Get get,
+        MappingLookup mappingLookup,
+        DocumentParser documentParser,
+        Function<Searcher, Searcher> searcherWrapper
+    ) {
+        assert false : "this should not be called";
+        throw new UnsupportedOperationException("updates are not supported on a read-only engine");
+    }
+
+    @Override
     protected ReferenceManager<ElasticsearchDirectoryReader> getReferenceManager(SearcherScope scope) {
         return readerManager;
     }
@@ -430,8 +441,8 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public List<Segment> segments(boolean includeVectorFormatsInfo) {
-        return Arrays.asList(getSegmentInfo(lastCommittedSegmentInfos, includeVectorFormatsInfo));
+    public List<Segment> segments(boolean includeVectorFormatsInfo, boolean includeAutoCalibration) {
+        return Arrays.asList(getSegmentInfo(lastCommittedSegmentInfos, includeVectorFormatsInfo, includeAutoCalibration));
     }
 
     @Override

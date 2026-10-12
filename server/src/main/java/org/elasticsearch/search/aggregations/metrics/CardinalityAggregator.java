@@ -28,7 +28,7 @@ import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -131,7 +131,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             }
         }
         stringHashingCollectorsUsed++;
-        final SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
+        final SortableBinaryDocValues values = valuesSource.bytesValues(ctx);
         final BinaryDocValues singleton = FieldData.unwrapSingleton(values);
         if (singleton != null) {
             return new DirectSingleValuesCollector(counts, MurmurHash3SingleValues.hash(singleton));
@@ -392,7 +392,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         /**
          * Return a {@link MurmurHash3MultiValues} instance that computes hashes on the fly for each binary value.
          */
-        public static MurmurHash3MultiValues hash(SortedBinaryDocValues values) {
+        public static MurmurHash3MultiValues hash(SortableBinaryDocValues values) {
             return new Bytes(values);
         }
 
@@ -448,9 +448,9 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
             private final MurmurHash3.Hash128 hash = new MurmurHash3.Hash128();
 
-            private final SortedBinaryDocValues values;
+            private final SortableBinaryDocValues values;
 
-            Bytes(SortedBinaryDocValues values) {
+            Bytes(SortableBinaryDocValues values) {
                 this.values = values;
             }
 

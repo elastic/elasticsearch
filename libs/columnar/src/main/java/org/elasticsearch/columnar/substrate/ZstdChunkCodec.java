@@ -10,12 +10,11 @@
 package org.elasticsearch.columnar.substrate;
 
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.lucene.store.IndexInputUtils;
-import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.Zstd;
+import org.elasticsearch.zstd.Zstd;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -37,7 +36,7 @@ final class ZstdChunkCodec {
 
     private static final int LEVEL = 1;
 
-    private static final Zstd ZSTD = NativeAccess.instance().getZstd();
+    private static final Zstd ZSTD = Zstd.instance();
 
     private ZstdChunkCodec() {}
 
@@ -46,7 +45,7 @@ final class ZstdChunkCodec {
         private byte[] scratch = new byte[0];
 
         @Override
-        public int write(byte[] src, int length, IndexOutput out) throws IOException {
+        public int write(byte[] src, int length, DataOutput out) throws IOException {
             final int bound = ZSTD.compressBound(length);
             scratch = ArrayUtil.growNoCopy(scratch, bound);
             final int compressed = ZSTD.compress(scratch, 0, scratch.length, src, 0, length, LEVEL);

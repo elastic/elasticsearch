@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 159512
+summary: "[Native] Score eight BBQ vectors per SVE bulk batch"
+type: enhancement

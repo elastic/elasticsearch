@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
@@ -27,6 +28,10 @@ import static org.hamcrest.Matchers.is;
  * mapping setup but load fires PotentiallyUnmappedKeyword and succeeds while nullify dies with a left-side error.
  */
 public class AnalyzerUnmappedKeepJoinTests extends AnalyzerUnmappedTestBase {
+
+    public AnalyzerUnmappedKeepJoinTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     // -------------------------------------------------------------------------
     // load mode

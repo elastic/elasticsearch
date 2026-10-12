@@ -51,7 +51,6 @@ import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.common.time.DateUtils.MAX_MILLIS_BEFORE_9999;
-import static org.elasticsearch.search.SearchService.PIT_RELOCATION_FEATURE_FLAG;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
@@ -103,7 +102,6 @@ public class PointInTimeRelocationTimestampIT extends AbstractStatelessPluginInt
     /// right before PIT opens — this is the ground truth against which the wire payload is
     /// compared, which is precise regardless of how many BCCs exist or what timestamps they carry.
     public void testPitRelocationTransfersTimestamps() throws Exception {
-        assumeTrue("Requires pit relocation feature flag", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
         final var indexNode = startMasterAndIndexNode();
         final var searchNodeA = startSearchNode();
         final var searchNodeB = startSearchNode();
@@ -231,7 +229,6 @@ public class PointInTimeRelocationTimestampIT extends AbstractStatelessPluginInt
     ///     mismatch for `_0_1.liv` (BCC_B in SearchDirectory vs BCC_C in CC_C) and stamps
     ///     the wire payload entry with CC_C's timestamp range `[tsC, tsC]`.
     public void testPitRelocationTransfersTimestampForGenerationalFileWithChangedBlobLocation() {
-        assumeTrue("Requires pit relocation feature flag", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
         final var indexNode = startMasterAndIndexNode();
         final var searchNodeA = startSearchNode();
         final var searchNodeB = startSearchNode();

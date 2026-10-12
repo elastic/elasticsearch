@@ -42,7 +42,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.optimizer;
 public abstract class ApproximationTestCase extends ESTestCase {
 
     private static final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("none"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     private static final TestOptimizer optimizer = optimizer().addDefaultIndex().addTestLookup().addK8s();
@@ -71,7 +71,7 @@ public abstract class ApproximationTestCase extends ESTestCase {
 
     static Result newCountResult(long count) {
         LongBlock block = blockFactory.newConstantLongBlockWith(count, 1);
-        return new Result(null, List.of(new Page(block)), null, null, null, null);
+        return new Result(null, List.of(new Page(block)), null, null, null, null, null);
     }
 
     /**
@@ -85,7 +85,7 @@ public abstract class ApproximationTestCase extends ESTestCase {
             IntBlock forkBlock = blockFactory.newConstantIntBlockWith(i, 1);
             pages.add(new Page(countBlock, forkBlock));
         }
-        return new Result(null, pages, null, null, null, null);
+        return new Result(null, pages, null, null, null, null, null);
     }
 
     static Predicate<? super Aggregate> withAggs(Class<?>... aggs) {

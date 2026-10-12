@@ -43,7 +43,8 @@ public class MMR extends UnaryPlan
         TelemetryAware,
         ExecutesOn.Coordinator,
         PostAnalysisVerificationAware,
-        PostOptimizationPlanVerificationAware {
+        PostOptimizationPlanVerificationAware,
+        DocPreserving {
 
     public static final String LAMBDA_OPTION_NAME = "lambda";
     public static final float DEFAULT_LAMBDA = 0.5f;
@@ -91,7 +92,7 @@ public class MMR extends UnaryPlan
 
     @Override
     public boolean expressionsResolved() {
-        return diversifyField.resolved();
+        return diversifyField.resolved() && (queryVector == null || queryVector.resolved());
     }
 
     @Override
@@ -137,7 +138,7 @@ public class MMR extends UnaryPlan
             failures.add(fail(this, "MMR diversify field must be a dense vector field"));
         }
 
-        if (queryVector != null && queryVector.dataType() != DENSE_VECTOR) {
+        if (queryVector != null && queryVector.resolved() && queryVector.dataType() != DENSE_VECTOR) {
             failures.add(
                 fail(
                     this,

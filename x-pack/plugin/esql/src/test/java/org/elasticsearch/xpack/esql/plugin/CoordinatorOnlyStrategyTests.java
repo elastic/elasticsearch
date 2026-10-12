@@ -26,6 +26,8 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_HOT_NODE_ROLE;
+import static org.elasticsearch.cluster.node.DiscoveryNodeRole.INDEX_ROLE;
+import static org.elasticsearch.cluster.node.DiscoveryNodeRole.SEARCH_ROLE;
 
 public class CoordinatorOnlyStrategyTests extends ESTestCase {
 
@@ -47,6 +49,32 @@ public class CoordinatorOnlyStrategyTests extends ESTestCase {
         ExternalDistributionContext context = new ExternalDistributionContext(createPlan(), List.of(), createNodes(3), QueryPragmas.EMPTY);
 
         ExternalDistributionPlan plan = CoordinatorOnlyStrategy.INSTANCE.planDistribution(context);
+
+        assertFalse(plan.distributed());
+    }
+
+    public void testAlwaysReturnsLocalOnIndexSearchTopology() {
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(DiscoveryNodeUtils.builder("index-1").roles(Set.of(INDEX_ROLE)).build())
+            .add(DiscoveryNodeUtils.builder("search-1").roles(Set.of(SEARCH_ROLE)).build())
+            .build();
+
+        ExternalDistributionPlan plan = CoordinatorOnlyStrategy.INSTANCE.planDistribution(
+            new ExternalDistributionContext(createPlan(), createSplits(8), nodes, QueryPragmas.EMPTY)
+        );
+
+        assertFalse(plan.distributed());
+        assertTrue(plan.nodeAssignments().isEmpty());
+    }
+
+    public void testAlwaysReturnsLocalOnIndexOnlyTopology() {
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(DiscoveryNodeUtils.builder("index-1").roles(Set.of(INDEX_ROLE)).build())
+            .build();
+
+        ExternalDistributionPlan plan = CoordinatorOnlyStrategy.INSTANCE.planDistribution(
+            new ExternalDistributionContext(createPlan(), createSplits(8), nodes, QueryPragmas.EMPTY)
+        );
 
         assertFalse(plan.distributed());
     }

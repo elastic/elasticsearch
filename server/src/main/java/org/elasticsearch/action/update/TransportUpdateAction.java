@@ -30,6 +30,7 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.TransportActions;
+import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
@@ -47,7 +48,6 @@ import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
@@ -273,7 +273,7 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
                     threadPool::absoluteTimeInMillis,
                     // Exclude inference fields to ensure embeddings are recomputed.
                     FetchSourceContext.FETCH_ALL_SOURCE_EXCLUDE_INFERENCE_FIELDS,
-                    SplitShardCountSummary.UNSET
+                    request.getSplitShardCountSummary()
                 ),
                 indexService.getMetadata(),
                 mappingLookup
@@ -616,6 +616,7 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
             }
 
             request.shardId = shardIt.shardId();
+            request.setSplitShardCountSummary(projectState.metadata(), request.concreteIndex());
             DiscoveryNode node = projectState.cluster().nodes().get(shard.currentNodeId());
             transportService.sendRequest(
                 node,
@@ -630,6 +631,10 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
                         if (cause instanceof ConnectTransportException
                             || cause instanceof NodeClosedException
                             || TransportActions.isShardNotAvailableException(exp)) {
+                            retry((Exception) cause);
+                        } else if (cause instanceof StaleRequestException) {
+                            // concurrent resharding has caused the document to move shards, so discard cached route and retry
+                            request.shardId = null;
                             retry((Exception) cause);
                         } else {
                             listener.onFailure(exp);

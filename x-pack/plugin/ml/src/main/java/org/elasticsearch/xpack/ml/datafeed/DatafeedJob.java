@@ -416,6 +416,16 @@ class DatafeedJob {
                     // Instead, it is preferable to retry the given interval next time an extraction
                     // is triggered.
 
+                    // Update CCS stats with any cluster states the extractor observed before failing.
+                    // This keeps skipped_clusters accurate in the running datafeed stats API even when
+                    // every search round fails due to remote clusters being unavailable. Use the full
+                    // updateCrossClusterSearchStats() path so that any confirmed scope change is also
+                    // audited and annotated rather than silently dropped.
+                    List<LinkedClusterState> partialStates = dataExtractor.getLinkedClusterStates();
+                    if (partialStates.isEmpty() == false) {
+                        updateCrossClusterSearchStats(partialStates);
+                    }
+
                     // For aggregated datafeeds it is possible for our users to use fields without doc values.
                     // In that case, it is really useful to display an error message explaining exactly that.
                     // Unfortunately, there are no great ways to identify the issue but search for 'doc values'
@@ -656,18 +666,7 @@ class DatafeedJob {
     private void persistScopeChangeAnnotation(CrossClusterSearchStats.ScopeChangeResult scopeChangeResult, String message) {
         Date changeTime = Date.from(scopeChangeResult.changeTimestamp());
         Date now = new Date(currentTimeSupplier.get());
-        Annotation annotation = new Annotation.Builder().setAnnotation(message)
-            .setCreateTime(now)
-            .setCreateUsername(InternalUsers.XPACK_USER.principal())
-            .setTimestamp(changeTime)
-            .setEndTimestamp(changeTime)
-            .setJobId(jobId)
-            .setModifiedTime(now)
-            .setModifiedUsername(InternalUsers.XPACK_USER.principal())
-            .setType(Annotation.Type.ANNOTATION)
-            .setEvent(Annotation.Event.SEARCH_SCOPE_CHANGED)
-            .build();
-        annotationPersister.persistAnnotation(null, annotation);
+        annotationPersister.persistAnnotation(null, Annotation.searchScopeChanged(jobId, message, changeTime, now));
     }
 
     /**

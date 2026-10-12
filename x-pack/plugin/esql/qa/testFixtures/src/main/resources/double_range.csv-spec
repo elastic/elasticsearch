@@ -15,6 +15,58 @@ height_range:double_range | description:keyword
 2.0..5.0                  | Very Tall
 ;
 
+statsByDoubleRange
+required_capability: double_range_tech_preview
+required_capability: group_by_double_range
+
+FROM heights
+| STATS count = COUNT(*) BY height_range
+| SORT count, RANGE_MIN(height_range)
+;
+
+count:long | height_range:double_range
+1          | 0.0..1.5
+1          | 1.5..1.6
+1          | 1.6..1.8
+1          | 1.8..2.0
+1          | 2.0..5.0
+;
+
+statsByMultivaluedDoubleRange
+required_capability: double_range_tech_preview
+required_capability: group_by_double_range
+
+FROM heights
+| STATS ranges = VALUES(height_range)
+| STATS count = COUNT(*) BY ranges
+| SORT RANGE_MIN(ranges)
+;
+
+count:long | ranges:double_range
+1          | 0.0..1.5
+1          | 1.5..1.6
+1          | 1.6..1.8
+1          | 1.8..2.0
+1          | 2.0..5.0
+;
+
+limitByDoubleRange
+required_capability: double_range_tech_preview
+required_capability: group_by_double_range
+
+FROM heights
+| LIMIT 1 BY height_range
+| SORT description
+;
+
+description:keyword | height_range:double_range
+Medium Height       | 1.6..1.8
+Short               | 1.5..1.6
+Tall                | 1.8..2.0
+Very Short          | 0.0..1.5
+Very Tall           | 2.0..5.0
+;
+
 toRange
 required_capability: double_range_tech_preview
 

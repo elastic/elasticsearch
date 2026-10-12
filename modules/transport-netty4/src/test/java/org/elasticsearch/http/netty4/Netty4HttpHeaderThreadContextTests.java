@@ -19,7 +19,6 @@ import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpVersion;
-import io.netty.handler.flow.FlowControlHandler;
 
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -53,7 +52,7 @@ public class Netty4HttpHeaderThreadContextTests extends ESTestCase {
 
     @Before
     public void initChannel() throws Exception {
-        channel = new EmbeddedChannel(new FlowControlHandler());
+        channel = new EmbeddedChannel();
         channel.config().setAutoRead(false);
         threadPool = new TestThreadPool(TEST_MOCK_TRANSPORT_THREAD_PREFIX);
     }

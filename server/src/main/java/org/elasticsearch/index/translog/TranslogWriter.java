@@ -29,6 +29,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.engine.TranslogOperationAsserter;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
@@ -41,7 +42,6 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
@@ -239,28 +239,28 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
      * @throws IOException if writing to the translog resulted in an I/O exception
      */
     public Translog.Location add(final Translog.Serialized operation, final long seqNo) throws IOException {
-        return addRecord(operation, new long[] { seqNo }, null);
+        return addRecord(operation, seqNo, 1, null);
     }
 
     /**
-     * Add a serialized {@link Translog.IndexBatch} record.
+     * Add a serialized {@link IndexOperationBatch.TranslogRecord} record.
      */
-    public Translog.Location addBatch(final Translog.Serialized operation, final Translog.IndexBatch batch) throws IOException {
-        final List<Translog.IndexBatch.Op> ops = batch.ops();
-        // TODO: Pass startSeqNo and operationCount as args. That will fully remove the need for the long[]
-        // since single operations and batches are always continuous ranges.
-        final long[] seqNos = new long[ops.size()];
-        for (int i = 0; i < ops.size(); i++) {
-            seqNos[i] = ops.get(i).seqNo();
-        }
-        return addRecord(operation, seqNos, batch);
-    }
-
-    /**
-     * Shared implementation for {@link #add} and {@link #addBatch}: {@link Translog.IndexBatch} is null for single operation
-     */
-    private Translog.Location addRecord(final Translog.Serialized operation, final long[] seqNos, @Nullable final Translog.IndexBatch batch)
+    public Translog.Location addBatch(final Translog.Serialized operation, final IndexOperationBatch.TranslogRecord batch)
         throws IOException {
+        return addRecord(operation, batch.startSeqNo(), batch.operationCount(), batch);
+    }
+
+    /**
+     * Shared implementation for {@link #add} and {@link #addBatch}: {@link IndexOperationBatch.TranslogRecord} is null for a
+     * single operation. The record's operations occupy the contiguous seqNo range
+     * {@code [startSeqNo, startSeqNo + operationCount)}.
+     */
+    private Translog.Location addRecord(
+        final Translog.Serialized operation,
+        final long startSeqNo,
+        final int operationCount,
+        @Nullable final IndexOperationBatch.TranslogRecord batch
+    ) throws IOException {
         long bufferedBytesBeforeAdd = this.bufferedBytes;
         if (bufferedBytesBeforeAdd >= forceWriteThreshold) {
             writeBufferedOps(Long.MAX_VALUE, bufferedBytesBeforeAdd >= forceWriteThreshold * 4);
@@ -280,18 +280,20 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             assert minSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
             assert maxSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
 
-            for (long seqNo : seqNos) {
-                minSeqNo = SequenceNumbers.min(minSeqNo, seqNo);
-                maxSeqNo = SequenceNumbers.max(maxSeqNo, seqNo);
-                nonFsyncedSequenceNumbers.add(seqNo);
+            final long endSeqNo = startSeqNo + operationCount - 1;
+            minSeqNo = SequenceNumbers.min(minSeqNo, startSeqNo);
+            maxSeqNo = SequenceNumbers.max(maxSeqNo, endSeqNo);
+            // iterate by count: an inclusive bound would wrap when endSeqNo is Long.MAX_VALUE and never terminate
+            for (int k = 0; k < operationCount; k++) {
+                nonFsyncedSequenceNumbers.add(startSeqNo + k);
             }
 
-            operationCounter += seqNos.length;
+            operationCounter += operationCount;
 
-            assert batch == null ? assertNoSeqNumberConflict(seqNos[0], operation) : assertNoSeqNumberConflict(batch);
+            assert batch == null ? assertNoSeqNumberConflict(startSeqNo, operation) : assertNoSeqNumberConflict(batch);
 
             location = new Translog.Location(generation, offset, operation.length());
-            operationListener.recordAdded(operation, seqNos, location);
+            operationListener.recordAdded(operation, startSeqNo, endSeqNo, location);
             bufferedBytes = buffer.size();
         }
 
@@ -300,10 +302,10 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     /**
      * Batch variant of assertNoSeqNumberConflict
-     * Explode decodes the batch into one operation per entry and the assertion is then forwarded to the
+     * Explode decodes the batch into one operation per replayable row and the assertion is then forwarded to the
      * single operation variant.
      */
-    private synchronized boolean assertNoSeqNumberConflict(Translog.IndexBatch batch) throws IOException {
+    private synchronized boolean assertNoSeqNumberConflict(IndexOperationBatch.TranslogRecord batch) throws IOException {
         for (Translog.Operation op : batch.explode()) {
             final Translog.Serialized operation;
             try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(bigArrays.bytesRefRecycler())) {

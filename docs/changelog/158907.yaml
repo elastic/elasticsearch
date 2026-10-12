@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 158907
+summary: Support partitioning with `PackedValuesBlockHash`
+type: enhancement

@@ -8,13 +8,11 @@
 package org.elasticsearch.xpack.stateless.memory;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.EstimatedHeapUsageCollector;
-import org.elasticsearch.cluster.NodeHeapEstimates;
-import org.elasticsearch.cluster.ShardHeapUsageEstimates;
+import org.elasticsearch.cluster.EstimatedHeapUsageStats;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
-
-import java.util.Map;
 
 /**
  * {@link EstimatedHeapUsageCollector} SPI implementation that reads heap usage estimates already computed by
@@ -24,8 +22,7 @@ import java.util.Map;
  * <p>
  * This class exists only because {@code server} cannot depend on the {@code stateless} plugin: {@link EstimatedHeapUsageCollector} is
  * the interface server-side code defines so it can ask "what's the estimated heap usage" without knowing stateless exists, and this is
- * the plugin-side implementation registered for it via SPI (see {@code module-info.java} and {@code META-INF/services}). Both of its
- * methods are one-line forwards to an already-computed value; there is no logic here to simplify away.
+ * the plugin-side implementation registered for it via SPI (see {@code module-info.java} and {@code META-INF/services}).
  */
 public class StatelessHeapUsageReader implements EstimatedHeapUsageCollector {
 
@@ -40,14 +37,10 @@ public class StatelessHeapUsageReader implements EstimatedHeapUsageCollector {
     }
 
     @Override
-    public void collectClusterHeapUsage(ActionListener<Map<String, NodeHeapEstimates>> listener) {
+    public void collectEstimatedHeapUsage(ActionListener<EstimatedHeapUsageStats> listener) {
         StatelessMemoryMetricsService memoryMetricsService = plugin.getStatelessMemoryMetricsService();
         ClusterService clusterService = plugin.getClusterService();
-        ActionListener.completeWith(listener, () -> memoryMetricsService.getPerNodeMemoryMetrics(clusterService.state()));
-    }
-
-    @Override
-    public void collectShardHeapUsage(ActionListener<ShardHeapUsageEstimates> listener) {
-        ActionListener.completeWith(listener, () -> plugin.getStatelessMemoryMetricsService().getShardHeapUsageEstimates());
+        ClusterState clusterState = clusterService.state();
+        ActionListener.completeWith(listener, () -> memoryMetricsService.getEstimatedHeapUsageStats(clusterState));
     }
 }

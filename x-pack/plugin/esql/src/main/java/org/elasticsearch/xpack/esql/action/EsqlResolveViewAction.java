@@ -90,6 +90,7 @@ public class EsqlResolveViewAction extends TransportLocalProjectMetadataAction<
             .build();
 
         private final IndicesOptions indicesOptions;
+        private final boolean cpsEnabled;
         private String[] indices = new String[0];
         @Nullable
         private String projectRouting;
@@ -99,6 +100,7 @@ public class EsqlResolveViewAction extends TransportLocalProjectMetadataAction<
 
         public Request(TimeValue masterTimeout, boolean cpsEnabled) {
             super(masterTimeout);
+            this.cpsEnabled = cpsEnabled;
             this.indicesOptions = cpsEnabled ? CPS_VIEW_INDICES_OPTIONS : VIEW_INDICES_OPTIONS;
         }
 
@@ -130,7 +132,7 @@ public class EsqlResolveViewAction extends TransportLocalProjectMetadataAction<
 
         @Override
         public boolean allowsRemoteIndices() {
-            return true;
+            return cpsEnabled;
         }
 
         public void setProjectRouting(@Nullable String projectRouting) {

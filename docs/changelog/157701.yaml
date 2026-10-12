@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 157645
+pr: 157701
+summary: Return empty nested source when path resolves to no objects
+type: bug

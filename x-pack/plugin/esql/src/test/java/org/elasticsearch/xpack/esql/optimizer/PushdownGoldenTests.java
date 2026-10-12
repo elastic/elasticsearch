@@ -314,6 +314,99 @@ public class PushdownGoldenTests extends UnmappedGoldenTestCase {
         runGoldenTest(query, STAGES);
     }
 
+    /**
+     * mv_greater Lucene pushdown strategies: YES (exact drop filter), YES+inclusive, YES+NOT,
+     * YES keyword (exact byte-encoded), YES keyword+NOT, RECHECK double, RECHECK+NOT, text NO.
+     */
+    public void testMvGreaterPushdown() {
+        runGoldenTest("""
+                FROM employees
+                | KEEP salary
+                | WHERE mv_greater(salary, 25000)
+            """, STAGES, "yes");
+        runGoldenTest("""
+                FROM employees
+                | KEEP salary
+                | WHERE mv_greater(salary, 25000, {"include_bound": true})
+            """, STAGES, "yes_inclusive");
+        runGoldenTest("""
+                FROM employees
+                | KEEP salary
+                | WHERE NOT mv_greater(salary, 25000)
+            """, STAGES, "yes_not");
+        runGoldenTest("""
+                FROM all_types
+                | KEEP keyword
+                | WHERE mv_greater(keyword, "m")
+            """, STAGES, "yes_keyword");
+        runGoldenTest("""
+                FROM all_types
+                | KEEP keyword
+                | WHERE NOT mv_greater(keyword, "m")
+            """, STAGES, "yes_keyword_not");
+        runGoldenTest("""
+                FROM all_types
+                | KEEP double
+                | WHERE mv_greater(double, 1.0)
+            """, STAGES, "recheck");
+        runGoldenTest("""
+                FROM all_types
+                | KEEP double
+                | WHERE NOT mv_greater(double, 1.0)
+            """, STAGES, "recheck_not");
+        runGoldenTest("""
+                FROM all_types
+                | KEEP text
+                | WHERE mv_greater(text, "a")
+            """, STAGES, "text_no");
+    }
+
+    /**
+     * mv_less Lucene pushdown strategies: same matrix as {@link #testMvGreaterPushdown}.
+     */
+    public void testMvLessPushdown() {
+        runGoldenTest("""
+                FROM employees
+                | KEEP salary
+                | WHERE mv_less(salary, 30000)
+            """, STAGES, "yes");
+        runGoldenTest("""
+                FROM employees
+                | KEEP salary
+                | WHERE mv_less(salary, 30000, {"include_bound": true})
+            """, STAGES, "yes_inclusive");
+        runGoldenTest("""
+                FROM employees
+                | KEEP salary
+                | WHERE NOT mv_less(salary, 30000)
+            """, STAGES, "yes_not");
+        runGoldenTest("""
+                FROM all_types
+                | KEEP keyword
+                | WHERE mv_less(keyword, "m")
+            """, STAGES, "yes_keyword");
+        runGoldenTest("""
+                FROM all_types
+                | KEEP keyword
+                | WHERE NOT mv_less(keyword, "m")
+            """, STAGES, "yes_keyword_not");
+        runGoldenTest("""
+                FROM all_types
+                | KEEP double
+                | WHERE mv_less(double, 1.0)
+            """, STAGES, "recheck");
+        runGoldenTest("""
+                FROM all_types
+                | KEEP double
+                | WHERE NOT mv_less(double, 1.0)
+            """, STAGES, "recheck_not");
+        runGoldenTest("""
+                FROM all_types
+                | KEEP text
+                | WHERE mv_less(text, "a")
+            """, STAGES, "text_no");
+    }
+
     /** Registers {@code golden_salaries} as an external dataset so {@code FROM golden_salaries} becomes an external relation. */
     private static ProjectMetadata salariesDatasetMetadata() {
         DataSource dataSource = new DataSource("golden_ds", "test", null, Map.of());

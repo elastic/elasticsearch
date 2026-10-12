@@ -446,7 +446,7 @@ public class EndpointClusterStateTests extends AbstractBWCSerializationTestCase<
         var heuristics = EndpointMetadataTests.randomHeuristics();
         var internal = EndpointMetadataTests.randomInternal();
         var display = EndpointMetadataTests.randomDisplay();
-        var original = new EndpointMetadata(heuristics, internal, display, List.of(), false);
+        var original = new EndpointMetadata(EndpointMetadata.ModelIdentity.EMPTY_INSTANCE, heuristics, internal, display, List.of(), false);
 
         var out = new BytesStreamOutput();
         out.setTransportVersion(EndpointMetadata.INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED);
@@ -472,7 +472,7 @@ public class EndpointClusterStateTests extends AbstractBWCSerializationTestCase<
         var internal = EndpointMetadataTests.randomInternal();
         var display = EndpointMetadataTests.randomDisplay();
         var regions = EndpointMetadataTests.randomRegions();
-        var original = new EndpointMetadata(heuristics, internal, display, regions, true);
+        var original = new EndpointMetadata(EndpointMetadata.ModelIdentity.EMPTY_INSTANCE, heuristics, internal, display, regions, true);
 
         var out = new BytesStreamOutput();
         out.setTransportVersion(EndpointMetadata.REGIONS_ADDED);

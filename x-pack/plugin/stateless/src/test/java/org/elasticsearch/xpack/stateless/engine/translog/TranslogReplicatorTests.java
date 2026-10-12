@@ -37,6 +37,7 @@ import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
@@ -263,7 +264,11 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         Translog.Operation[] singles = generateRandomOperations(2);
         Translog.Serialized[] serializedSingles = serializeOperations(singles);
-        Translog.IndexBatch batch = buildBatch(List.of(Map.of("k", "v0"), Map.of("k", "v1"), Map.of("k", "v2")), 2L, primaryTerm);
+        IndexOperationBatch.TranslogRecord batch = buildBatch(
+            List.of(Map.of("k", "v0"), Map.of("k", "v1"), Map.of("k", "v2")),
+            2L,
+            primaryTerm
+        );
         Translog.Serialized serializedBatch = serializeBatch(batch);
 
         long currentLocation = 0;
@@ -272,7 +277,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.add(shardId, serializedSingles[1], 1, new Translog.Location(0, currentLocation, serializedSingles[1].length()));
         currentLocation += serializedSingles[1].length();
         Translog.Location finalLocation = new Translog.Location(0, currentLocation, serializedBatch.length());
-        translogReplicator.addRecord(shardId, serializedBatch, new long[] { 2, 3, 4 }, finalLocation);
+        translogReplicator.addRecord(shardId, serializedBatch, 2, 4, finalLocation);
 
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         translogReplicator.sync(shardId, finalLocation, future);
@@ -318,15 +323,13 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         int docCount = randomIntBetween(2, 5);
         List<Map<String, Object>> docs = new ArrayList<>(docCount);
-        long[] seqNos = new long[docCount];
         for (int i = 0; i < docCount; i++) {
             docs.add(Map.of("k", "v" + i));
-            seqNos[i] = i;
         }
-        Translog.IndexBatch batch = buildBatch(docs, 0L, primaryTerm);
+        IndexOperationBatch.TranslogRecord batch = buildBatch(docs, 0L, primaryTerm);
         Translog.Serialized serializedBatch = serializeBatch(batch);
         Translog.Location location = new Translog.Location(0, 0, serializedBatch.length());
-        translogReplicator.addRecord(shardId, serializedBatch, seqNos, location);
+        translogReplicator.addRecord(shardId, serializedBatch, batch.startSeqNo(), batch.maxSeqNo(), location);
 
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         translogReplicator.sync(shardId, location, future);
@@ -337,7 +340,8 @@ public class TranslogReplicatorTests extends ESTestCase {
         assertTranslogContains(objectStoreService.getTranslogBlobContainer(), shardId, exploded.toArray(new Translog.Operation[0]));
     }
 
-    private static Translog.IndexBatch buildBatch(List<Map<String, Object>> docs, long firstSeqNo, long primaryTerm) throws IOException {
+    private static IndexOperationBatch.TranslogRecord buildBatch(List<Map<String, Object>> docs, long firstSeqNo, long primaryTerm)
+        throws IOException {
         List<BytesReference> sources = new ArrayList<>(docs.size());
         for (Map<String, Object> doc : docs) {
             try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
@@ -349,14 +353,34 @@ public class TranslogReplicatorTests extends ESTestCase {
         try (EscfBatch escf = EscfEncoder.encode(sources, XContentType.JSON)) {
             batchData = new BytesArray(escf.data().toBytesRef(), true);
         }
-        List<Translog.IndexBatch.Op> ops = new ArrayList<>(docs.size());
-        for (int i = 0; i < docs.size(); i++) {
-            ops.add(new Translog.IndexBatch.IndexOp(1L, firstSeqNo + i, -1L, i, XContentType.JSON, Uid.encodeId("doc-" + i), null));
+        final int docCount = docs.size();
+        final long[] versions = new long[docCount];
+        final long[] timestamps = new long[docCount];
+        final XContentType[] types = new XContentType[docCount];
+        final BytesRef[] uids = new BytesRef[docCount];
+        for (int i = 0; i < docCount; i++) {
+            versions[i] = 1L;
+            timestamps[i] = -1L;
+            types[i] = XContentType.JSON;
+            uids[i] = Uid.encodeId("doc-" + i);
         }
-        return new Translog.IndexBatch(batchData, primaryTerm, ops);
+        // all rows indexed: no sparse no-op/preflight row arrays
+        return new IndexOperationBatch.TranslogRecord(
+            primaryTerm,
+            docCount,
+            firstSeqNo,
+            versions,
+            timestamps,
+            types,
+            uids,
+            null,
+            null,
+            null,
+            batchData
+        );
     }
 
-    private static Translog.Serialized serializeBatch(Translog.IndexBatch batch) throws IOException {
+    private static Translog.Serialized serializeBatch(IndexOperationBatch.TranslogRecord batch) throws IOException {
         try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
             Translog.writeBatchHeaderWithSize(out, batch);
             return Translog.Serialized.create(out.bytes(), batch.batchData(), new CRC32());

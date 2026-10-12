@@ -168,8 +168,6 @@ public class LinearScoreEvalOperator extends CompleteInputCollectorOperator {
 
                 var weight = config.weights().get(discriminator) == null ? 1.0 : config.weights().get(discriminator);
 
-                initialScoreBlock.doesHaveMultivaluedFields();
-
                 Object scoreValue = BlockUtils.toJavaObject(initialScoreBlock, i);
                 if (scoreValue == null) {
                     warnings().registerException(new IllegalArgumentException("score column has null values; assigning null scores"));

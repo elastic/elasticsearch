@@ -10,6 +10,7 @@
 package org.elasticsearch.action.admin.indices.mapping.put;
 
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -28,7 +29,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
@@ -46,6 +46,8 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see AcknowledgedResponse
  */
 public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> implements IndicesRequest.Replaceable {
+
+    public static final TransportVersion MAPPINGS_AS_BYTESREFERENCE = TransportVersion.fromName("mappings_as_bytesreference");
 
     private static final Set<String> RESERVED_FIELDS = Set.of(
         "_uid",
@@ -79,7 +81,8 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         )
         .build();
 
-    private String source;
+    private BytesReference source;
+    private XContentType xContentType;
     private String origin = "";
 
     private Index concreteIndex;
@@ -90,7 +93,13 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         super(in);
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        source = in.readString();
+        if (in.getTransportVersion().supports(MAPPINGS_AS_BYTESREFERENCE)) {
+            source = in.readBytesReference();
+            xContentType = in.readEnum(XContentType.class);
+        } else {
+            source = new BytesArray(in.readString());
+            xContentType = XContentType.JSON;
+        }
         concreteIndex = in.readOptionalWriteable(Index::new);
         origin = in.readOptionalString();
         writeIndexOnly = in.readBoolean();
@@ -114,7 +123,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         ActionRequestValidationException validationException = null;
         if (source == null) {
             validationException = addValidationError("mapping source is missing", validationException);
-        } else if (source.isEmpty()) {
+        } else if (source.length() == 0) {
             validationException = addValidationError("mapping source is empty", validationException);
         }
         if (concreteIndex != null && CollectionUtils.isEmpty(indices) == false) {
@@ -180,8 +189,15 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     /**
      * The mapping source definition.
      */
-    public String source() {
+    public BytesReference source() {
         return source;
+    }
+
+    /**
+     * The XContent type of the mapping source.
+     */
+    public XContentType xContentType() {
+        return xContentType;
     }
 
     /**
@@ -277,7 +293,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(mappingSource);
-            return source(BytesReference.bytes(builder), builder.contentType());
+            return source(BytesReference.bytes(builder), XContentType.JSON);
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + mappingSource + "]", e);
         }
@@ -286,21 +302,17 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     /**
      * The mapping source definition.
      */
-    public PutMappingRequest source(String mappingSource, XContentType xContentType) {
-        return source(new BytesArray(mappingSource), xContentType);
+    public PutMappingRequest source(String mappingSource) {
+        return source(new BytesArray(mappingSource), XContentType.JSON);
     }
 
     /**
      * The mapping source definition.
      */
     public PutMappingRequest source(BytesReference mappingSource, XContentType xContentType) {
-        Objects.requireNonNull(xContentType);
-        try {
-            this.source = XContentHelper.convertToJson(mappingSource, false, false, xContentType);
-            return this;
-        } catch (IOException e) {
-            throw new UncheckedIOException("failed to convert source to json", e);
-        }
+        this.source = mappingSource;
+        this.xContentType = xContentType;
+        return this;
     }
 
     public PutMappingRequest writeIndexOnly(boolean writeIndexOnly) {
@@ -313,11 +325,36 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     }
 
     @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o instanceof PutMappingRequest other) {
+            return writeIndexOnly == other.writeIndexOnly
+                && Arrays.equals(indices, other.indices)
+                && indicesOptions.equals(other.indicesOptions)
+                && Objects.equals(source, other.source)
+                && xContentType == other.xContentType
+                && Objects.equals(origin, other.origin)
+                && Objects.equals(concreteIndex, other.concreteIndex);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(Arrays.hashCode(indices), indicesOptions, source, xContentType, origin, concreteIndex, writeIndexOnly);
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArrayNullable(indices);
         indicesOptions.writeIndicesOptions(out);
-        out.writeString(source);
+        if (out.getTransportVersion().supports(MAPPINGS_AS_BYTESREFERENCE)) {
+            out.writeBytesReference(source);
+            XContentHelper.writeTo(out, xContentType);
+        } else {
+            out.writeString(XContentHelper.convertToJson(source, false, xContentType));
+        }
         out.writeOptionalWriteable(concreteIndex);
         out.writeOptionalString(origin);
         out.writeBoolean(writeIndexOnly);

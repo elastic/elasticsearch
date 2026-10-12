@@ -12,9 +12,8 @@
  * the shared binary substrate, served at the {@code BINARY} surface through
  * {@link org.elasticsearch.columnar.string.ColumnarStringBinaryDocValues}.
  *
- * <p>A column records the {@link org.elasticsearch.columnar.string.StringColumnLayout} it was written with.
- * Only {@code PLAIN} exists today — each value's bytes stored directly — and which layout a segment used is
- * codec-internal, so a later ordinal layout arrives as a new id without changing the read surface. See
- * {@code docs/PLAN.md} for how that layout is meant to be decided.
+ * <p>A column records the {@link org.elasticsearch.columnar.string.StringColumnLayout} it was written with:
+ * {@code PLAIN} stores each value's bytes directly, {@code DICTIONARY} an ordinal per value into the terms
+ * the column repeats. Which one a segment used is codec-internal, so it does not change the read surface.
  */
 package org.elasticsearch.columnar.string;

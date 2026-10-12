@@ -299,6 +299,43 @@ public class BoundsCheckGeneratedClassBehaviorTests extends ProcessorTestCase {
     }
 
     /**
+     * Proves the emitted {@code Objects.checkFromIndexSize(offset, size, segment.byteSize())} call
+     * really does throw when {@code offset + size} exceeds the segment, and really does let a
+     * correctly-sized call through to the native function. Both {@code offsetParam} and
+     * {@code sizeParam} reference the same {@code long n} parameter so the method arity stays
+     * {@code (a, b, n)}, matching libc {@code memcmp}'s signature on every platform (POSIX
+     * {@code pread} is unavailable via Windows CRT default lookup).
+     */
+    public void testSlicedSegmentCheckThrowsWhenSliceExceedsSegment() throws Throwable {
+        LoadedLibrary lib = loadLibrary("test.MemCmpLib", """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.SlicedSegment;
+            @LibrarySpecification
+            public interface MemCmpLib {
+                @Function("memcmp")
+                int memcmp(
+                    @SlicedSegment(offsetParam = "n", sizeParam = "n") MemorySegment a,
+                    MemorySegment b,
+                    long n);
+            }
+            """);
+
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment a = arena.allocate(10);
+            MemorySegment b = arena.allocate(10);
+            lib.expectThrows(IndexOutOfBoundsException.class, "memcmp", a, b, 9L);
+            lib.expectThrows(IndexOutOfBoundsException.class, "memcmp", a, b, 6L);
+
+            a = fill(arena.allocate(10));
+            b = fill(arena.allocate(10));
+            assertEquals(0, (int) lib.call("memcmp", a, b, 4L));
+        }
+    }
+
+    /**
      * A negative element count must be rejected. Rounding the bit count up to whole bytes with
      * {@code (bits + 7) / 8} would truncate a small negative product toward zero -- for
      * {@code count = -1, elementBits = 8}, {@code (-8 + 7) / 8 == 0} -- and the check would pass a

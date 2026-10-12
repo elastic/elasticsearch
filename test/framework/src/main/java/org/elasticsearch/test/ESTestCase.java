@@ -70,6 +70,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.TemplateDecoratorRule;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.common.TestUUIDSourceRule;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -481,6 +482,9 @@ public abstract class ESTestCase extends LuceneTestCase {
     // -----------------------------------------------------------------
 
     @Rule
+    public final TestRule uuidSource = new TestUUIDSourceRule();
+
+    @Rule
     public RuleChain failureAndSuccessEvents = RuleChain.outerRule(new TestRuleAdapter() {
         @Override
         protected void afterIfSuccessful() throws Throwable {
@@ -552,6 +556,9 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @ClassRule
     public static final TestRule TEMPLATE_DECORATOR_RULE = TemplateDecoratorRule.initDefault();
+
+    @ClassRule
+    public static final TestRule SUITE_UUID_SOURCE = new TestUUIDSourceRule();
 
     // setup mock filesystems for this test run. we change PathUtils
     // so that all accesses are plumbed thru any mock wrappers
@@ -1362,6 +1369,37 @@ public abstract class ESTestCase extends LuceneTestCase {
         Random random = random();
         for (int i = 0; i < length; i++) {
             sb.append(ALPHANUMERIC_CHARACTERS.charAt(random.nextInt(ALPHANUMERIC_CHARACTERS.length())));
+        }
+
+        return sb.toString();
+    }
+
+    /**
+     * Generate a random string containing only digit characters ({@code 0-9}), never starting
+     * with a redundant leading zero (e.g. never {@code "007"}), so the result reads as a normal
+     * base-10 integer with exactly {@code length} significant digits.
+     * @param length the length of the string to generate
+     * @return the generated string
+     */
+    public static String randomNumericOfLength(int length) {
+        return randomNumericOfLength(length, false);
+    }
+
+    /**
+     * Generate a random string containing only digit characters ({@code 0-9}).
+     * @param length the length of the string to generate
+     * @param allowLeadingZero if {@code false}, the first digit is chosen from {@code 1-9}
+     *                         instead of {@code 0-9} (so {@code length == 1} never produces
+     *                         {@code "0"})
+     * @return the generated string
+     */
+    public static String randomNumericOfLength(int length, boolean allowLeadingZero) {
+        StringBuilder sb = new StringBuilder();
+        Random random = random();
+        String firstDigitCandidates = allowLeadingZero ? DIGIT_CHARACTERS : DIGIT_CHARACTERS.substring(1);
+        for (int i = 0; i < length; i++) {
+            String candidates = (i == 0) ? firstDigitCandidates : DIGIT_CHARACTERS;
+            sb.append(candidates.charAt(random.nextInt(candidates.length())));
         }
 
         return sb.toString();

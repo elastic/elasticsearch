@@ -25,6 +25,11 @@ import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.escf.EscfColumnBuilder;
+import org.elasticsearch.escf.EscfColumnData;
+import org.elasticsearch.escf.EscfColumnKind;
+import org.elasticsearch.escf.LuceneBinaryColumn;
+import org.elasticsearch.escf.LuceneLongColumn;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -436,7 +441,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void preParse(DocumentParserContext context) throws IOException {
-        SourceToParse.Source sourceObject = context.sourceToParse().source();
+        DocumentSource sourceObject = context.sourceToParse().source();
         XContentType contentType = sourceObject.xContentType();
         final boolean recoverySourceEnabled = context.indexSettings().isRecoverySourceEnabled();
         final boolean syntheticRecovery = recoverySourceEnabled && context.indexSettings().isRecoverySourceSyntheticEnabled();
@@ -455,9 +460,12 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
 
         final var originalSource = sourceObject.originalBytes();
-        final var storedSource = stored() ? removeSyntheticVectorFields(context.mappingLookup(), originalSource, contentType) : null;
-        final var adaptedStoredSource = applyFilters(context.mappingLookup(), storedSource, contentType, false);
         final boolean useColumnarSource = mode == Mode.COLUMNAR_STORED;
+        // columnar_stored builds _source in postParse and always uses synthetic recovery, so neither value is read in that mode.
+        final var storedSource = stored() && useColumnarSource == false
+            ? removeSyntheticVectorFields(context.mappingLookup(), originalSource, contentType)
+            : null;
+        final var adaptedStoredSource = applyFilters(context.mappingLookup(), storedSource, contentType, false);
 
         if (adaptedStoredSource != null && useColumnarSource == false) {
             final BytesRef ref = adaptedStoredSource.toBytesRef();
@@ -477,7 +485,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             // This size is used by LuceneSyntheticSourceChangesSnapshot to manage memory usage
             // when loading batches of synthetic sources during recovery.
             context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_SIZE_NAME, originalSource.length()));
-        } else if (stored() == false || adaptedStoredSource != storedSource) {
+        } else if (stored() == false || useColumnarSource || adaptedStoredSource != storedSource) {
             // If the source is missing (due to synthetic source, columnar_stored, or disabled mode)
             // or has been altered (via source filtering), store a reduced recovery source.
             // This includes the original source with synthetic vector fields removed for operation-based recovery.
@@ -492,26 +500,43 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         if (mode != Mode.COLUMNAR_STORED) {
             return;
         }
+        final BytesRef encodedValue = encodeColumnarSource(
+            context.mappingLookup(),
+            context.luceneDocumentsInShardIndexOrder(),
+            context.doc()
+        );
+        // Remove per-field fallback entries collected during parsing — their contents are
+        // subsumed by the whole-document entry written below, and binary doc values only allow
+        // one field instance per document. Entries kept here (e.g. .offsets, _ignored) are
+        // still used after indexing by block loaders or queries.
+        context.doc().getFields().removeIf(f -> isRedundantInColumnarStoredSource(f.name()));
+        IgnoredSourceFieldMapper.ignoredSourceFormat(context.indexSettings())
+            .writeIgnoredFields(
+                List.of(new IgnoredSourceFieldMapper.NameValue(NAME, 0, encodedValue, context.doc())),
+                context.indexSettings().getIndexVersionCreated(),
+                false
+            );
+    }
+
+    /**
+     * Rebuilds the {@code _source} of one {@code columnar_stored} document from its Lucene fields and returns it in the encoding the
+     * whole-document {@code _ignored_source} entry stores. Both the row path ({@link #postParse}) and the columnar batch path
+     * ({@link #postColumnarParse}) build the entry's value here, so that they cannot drift apart.
+     *
+     * @param allDocs the root document plus its nested children in shard-index order; just {@code [doc]} without nested fields
+     */
+    private BytesRef encodeColumnarSource(MappingLookup mappingLookup, List<LuceneDocument> allDocs, LuceneDocument doc)
+        throws IOException {
         try (var builder = XContentFactory.jsonBuilder()) {
-            columnarSourceWriter.write(context, builder);
-            BytesRef encodedValue = XContentDataHelper.encodeXContentBuilder(builder);
-            // Remove per-field fallback entries collected during parsing — their contents are
-            // subsumed by the whole-document entry written below, and binary doc values only allow
-            // one field instance per document. Entries kept here (e.g. .offsets, _ignored) are
-            // still used after indexing by block loaders or queries.
-            context.doc().getFields().removeIf(f -> isRedundantInColumnarStoredSource(f.name()));
-            IgnoredSourceFieldMapper.ignoredSourceFormat(context.indexSettings())
-                .writeIgnoredFields(
-                    List.of(new IgnoredSourceFieldMapper.NameValue(NAME, 0, encodedValue, context.doc())),
-                    context.indexSettings().getIndexVersionCreated(),
-                    false
-                );
+            columnarSourceWriter.write(mappingLookup, allDocs, doc, builder);
+            return XContentDataHelper.encodeXContentBuilder(builder);
         }
     }
 
     /**
      * Returns {@code true} for Lucene fields that exist only to support per-field synthetic-source reconstruction and are therefore
-     * redundant once {@link #postParse} has materialized the whole-document source blob into {@code _ignored_source}.
+     * redundant once {@link #postParse}, or {@link #postColumnarParse} on the batch path, has materialized the whole-document source blob
+     * into {@code _ignored_source}.
      *
      * <p>The following are removed:</p>
      * <ul>
@@ -617,15 +642,26 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         // TODO: Need to implement support for additional scenarios
         // Columnar batch mapping only ports the cheap branch of preParse: no stored _source to
         // materialize, and either recovery source is disabled or only a size estimate is needed
-        // (synthetic recovery). Stored source, COLUMNAR_STORED (stored() == true for that mode
-        // too), and non-synthetic recovery source all require the full row path.
+        // (synthetic recovery). Stored source and non-synthetic recovery source require the full row path.
         final boolean recoverySourceEnabled = indexSettings.isRecoverySourceEnabled();
         final boolean syntheticRecovery = recoverySourceEnabled && indexSettings.isRecoverySourceSyntheticEnabled();
-        return stored() == false && (recoverySourceEnabled == false || syntheticRecovery);
+        if (recoverySourceEnabled && syntheticRecovery == false) {
+            return false;
+        }
+        if (mode == Mode.COLUMNAR_STORED) {
+            // The whole-document blob is written by postColumnarParse as an _ignored_source doc values column, which
+            // can only be produced for the doc-values format of _ignored_source; the stored-field formats need the row path.
+            // The counts below are written in the SeparateCount layout, so the index has to use that one as well.
+            return IgnoredSourceFieldMapper.ignoredSourceFormat(
+                indexSettings
+            ) == IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE
+                && MultiValuedBinaryDocValuesField.useSeparateCount(indexSettings.getIndexVersionCreated());
+        }
+        return stored() == false;
     }
 
     @Override
@@ -638,10 +674,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
         final int docCount = context.docCount();
         final byte[] sizes = new byte[docCount * 8];
-        final XContentType[] contentTypes = context.contentTypes();
-        final BytesReference[] sources = context.sources();
         for (int d = 0; d < docCount; d++) {
-            ByteUtils.writeLongLE(SourceToParse.Source.fromBytes(sources[d], contentTypes[d]).estimatedSizeInBytes(), sizes, d * 8);
+            ByteUtils.writeLongLE(context.sourceSizeInBytes(d), sizes, d * 8);
         }
         context.addColumn(
             MappedColumns.longColumn(
@@ -651,6 +685,53 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 LongColumn.NumericKind.LONG
             )
         );
+    }
+
+    /**
+     * Columnar counterpart of {@link #postParse}. For {@code columnar_stored} the batch path has no per-document
+     * {@link LuceneDocument} to rebuild {@code _source} from, so each row is reassembled from the columns the other mappers attached
+     * and fed through the same {@link ColumnarSourceWriter} the row path uses; the resulting blob is then attached as the
+     * {@code _ignored_source} doc values column (plus its {@code .counts} companion), exactly the field the row path adds to the document.
+     */
+    @Override
+    public void postColumnarParse(BatchMappingContext context) throws IOException {
+        if (mode != Mode.COLUMNAR_STORED) {
+            return;
+        }
+        final int docCount = context.docCount();
+        final EscfColumnBuilder blobs = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, context.recycler());
+        blobs.lockScalar(EscfColumnKind.BINARY);
+        try (blobs) {
+            final MappedColumns.RowCursor rows = context.rowCursor();
+            for (int d = 0; d < docCount; d++) {
+                rows.advance();
+                // The cursor's field list is only valid until the next advance(), which is fine: the blob is built before then.
+                final LuceneDocument doc = new LuceneDocument(rows.fields());
+                final BytesRef encodedValue = encodeColumnarSource(context.mappingLookup(), List.of(doc), doc);
+                blobs.setBinary(
+                    d,
+                    IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.encode(
+                        new IgnoredSourceFieldMapper.NameValue(NAME, 0, encodedValue, doc)
+                    )
+                );
+            }
+            // Same pruning as postParse: the blob subsumes the per-field fallback columns, and the leftover _ignored_source columns
+            // would otherwise collide with the blob's.
+            context.removeColumnsIf(SourceFieldMapper::isRedundantInColumnarStoredSource);
+            final EscfColumnData blobData = blobs.finish(docCount);
+            context.addColumn(LuceneBinaryColumn.of(blobData, IgnoredSourceFieldMapper.NAME, CustomDocValuesField.TYPE), blobData);
+        }
+
+        // Each doc contributes exactly one blob, so the SeparateCount companion is a constant 1 per row. Build it through
+        // the shared LuceneLongColumn.counts(...) factory (as keyword/ip do) rather than hand-assembling the .counts layout.
+        try (EscfColumnBuilder countsBuilder = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, context.recycler())) {
+            countsBuilder.lockScalar(EscfColumnKind.LONG);
+            for (int d = 0; d < docCount; d++) {
+                countsBuilder.setLong(d, 1);
+            }
+            final EscfColumnData countsData = countsBuilder.finish(docCount);
+            context.addColumn(LuceneLongColumn.counts(countsData, IgnoredSourceFieldMapper.NAME), countsData);
+        }
     }
 
     @Override

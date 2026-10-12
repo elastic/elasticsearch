@@ -92,6 +92,13 @@ public class SyntheticVectorFieldsRecoveryTests extends EngineTestCase {
             builder.field("similarity", "l2_norm");
             builder.endObject();
 
+            // held in binary doc values rather than the vector index, and patched back into _source from there
+            builder.startObject("emb_dv");
+            builder.field("type", "dense_vector");
+            builder.field("dims", 10);
+            builder.field("index", false);
+            builder.endObject();
+
             builder.startObject("nested");
             builder.field("type", "nested");
             builder.startObject("properties");
@@ -99,6 +106,11 @@ public class SyntheticVectorFieldsRecoveryTests extends EngineTestCase {
             builder.field("type", "dense_vector");
             builder.field("dims", 10);
             builder.field("similarity", "l2_norm");
+            builder.endObject();
+            builder.startObject("emb_dv");
+            builder.field("type", "dense_vector");
+            builder.field("dims", 10);
+            builder.field("index", false);
             builder.endObject();
             builder.endObject();
             builder.endObject();
@@ -230,6 +242,10 @@ public class SyntheticVectorFieldsRecoveryTests extends EngineTestCase {
             builder.field("emb", randomVector());
         }
 
+        if (usually()) {
+            builder.field("emb_dv", randomVector());
+        }
+
         if (randomBoolean()) {
             int numNested = randomIntBetween(0, 6);
             builder.startArray("nested");
@@ -240,6 +256,9 @@ public class SyntheticVectorFieldsRecoveryTests extends EngineTestCase {
                 }
                 if (randomBoolean()) {
                     builder.field("emb", randomVector());
+                }
+                if (randomBoolean()) {
+                    builder.field("emb_dv", randomVector());
                 }
                 builder.endObject();
             }

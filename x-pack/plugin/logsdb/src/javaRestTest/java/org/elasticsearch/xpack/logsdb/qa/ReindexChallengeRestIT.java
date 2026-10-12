@@ -46,7 +46,7 @@ public abstract class ReindexChallengeRestIT extends StandardVersusLogsIndexMode
             {
                 "source": {
                     "index": "%s",
-                    "size": 50
+                    "size": 20
                 },
                 "dest": {
                   "index": "%s",
@@ -54,7 +54,7 @@ public abstract class ReindexChallengeRestIT extends StandardVersusLogsIndexMode
                 }
             }
             """, getBaselineDataStreamName(), getContenderDataStreamName()));
-        var response = client.performRequest(reindexRequest);
+        var response = performRequestLogged(reindexRequest, "reindex baseline into contender");
         assertOK(response);
 
         var body = entityAsMap(response);

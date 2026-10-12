@@ -131,7 +131,9 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
                     condition.await();
                 }
             } catch (InterruptedException e) {
-                cancelSubscription();
+                updateDoneState(new DoneState(true, e, false));
+                cancel();
+                Thread.currentThread().interrupt();
                 throw new RuntimeException(e);
             } finally {
                 lock.unlock();

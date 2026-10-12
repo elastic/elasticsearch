@@ -59,11 +59,7 @@ public final class PromqlDocsSupport {
         + DOCS_ROOT
         + "/promql-limitations.md#promql-limitations-unsupported-constructs)";
 
-    private static final String OR_CAVEAT = "{{es}} evaluates `or` only at the top level of an expression, and a "
-        + "top-level `or` chain supports at most 8 operands. A nested `or`, or a chain of more than 8 operands, "
-        + "returns a client error (4xx). See "
-        + UNSUPPORTED_CONSTRUCTS_LINK
-        + ".";
+    private static final String OR_CAVEAT = "For the restrictions on `or` in {{es}}, see " + UNSUPPORTED_CONSTRUCTS_LINK + ".";
 
     static final List<OperatorDefinition> OPERATOR_DEFS = List.of(
         // Arithmetic binary operators
@@ -358,7 +354,7 @@ public final class PromqlDocsSupport {
             .map(p -> new ParamDef(p.name(), mapDataType(p.type()), p.optional(), p.description()))
             .toList();
 
-        List<SignatureDef> signatures = List.of(new SignatureDef(params, false, mapDataType(def.functionType().outputType)));
+        List<SignatureDef> signatures = List.of(new SignatureDef(params, def.variadic(), mapDataType(def.functionType().outputType)));
 
         genKibanaDefinition(
             "definition/functions",
@@ -600,7 +596,8 @@ public final class PromqlDocsSupport {
             case VALUE_TRANSFORMATION -> FunctionDocCategory.MATH;
             case TIME_EXTRACTION -> FunctionDocCategory.DATE_TIME;
             case VECTOR_CONVERSION, SCALAR_CONVERSION -> FunctionDocCategory.CONVERSION;
-            case SCALAR, METADATA_MANIPULATION -> throw new IllegalStateException(
+            case METADATA_MANIPULATION -> FunctionDocCategory.METADATA;
+            case SCALAR -> throw new IllegalStateException(
                 "PromQL function ["
                     + def.name()
                     + "] has FunctionType ["
@@ -978,7 +975,8 @@ public final class PromqlDocsSupport {
         HISTOGRAM("histogram"),
         MATH("math"),
         DATE_TIME("date-time"),
-        CONVERSION("conversion");
+        CONVERSION("conversion"),
+        METADATA("metadata");
 
         final String slug;
 

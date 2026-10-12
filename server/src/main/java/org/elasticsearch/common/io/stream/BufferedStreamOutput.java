@@ -11,15 +11,21 @@ package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.xcontent.Text;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.Objects;
 
+import static org.elasticsearch.common.io.stream.StreamOutputHelper.MAX_CHAR_BYTES;
+import static org.elasticsearch.common.io.stream.StreamOutputHelper.MAX_CODE_POINT_BYTES;
+import static org.elasticsearch.common.io.stream.StreamOutputHelper.putCharUtf8;
 import static org.elasticsearch.common.io.stream.StreamOutputHelper.putMultiByteVInt;
 import static org.elasticsearch.common.io.stream.StreamOutputHelper.putVInt;
+import static org.elasticsearch.common.io.stream.StreamOutputHelper.writeCharUtf8;
 
 /**
  * Adapts a raw {@link OutputStream} into a rich {@link StreamOutput} for use with {@link Writeable} instances, using a buffer.
@@ -220,7 +226,6 @@ public class BufferedStreamOutput extends StreamOutput {
     private static final int MAX_VINT_BYTES = 5;
     private static final int MAX_VLONG_BYTES = 9;
     private static final int MAX_ZLONG_BYTES = 10;
-    private static final int MAX_CHAR_BYTES = 3;
 
     @Override
     public void writeVInt(int i) throws IOException {
@@ -364,6 +369,7 @@ public class BufferedStreamOutput extends StreamOutput {
         final int charCount = str.length();
         int position = this.position;
         if (MAX_VINT_BYTES + charCount * MAX_CHAR_BYTES <= endPosition - position) {
+            final var buffer = this.buffer;
             position = putVInt(buffer, charCount, position);
             for (int i = 0; i < charCount; i++) {
                 position = putCharUtf8(buffer, str.charAt(i), position);
@@ -382,6 +388,7 @@ public class BufferedStreamOutput extends StreamOutput {
             final int charCount = str.length();
             int position = this.position;
             if (1 + MAX_VINT_BYTES + charCount * MAX_CHAR_BYTES <= endPosition - position) {
+                final var buffer = this.buffer;
                 buffer[position++] = (byte) 1;
                 position = putVInt(buffer, charCount, position);
                 for (int i = 0; i < charCount; i++) {
@@ -400,6 +407,7 @@ public class BufferedStreamOutput extends StreamOutput {
         final int charCount = str.length();
         int position = this.position;
         if (1 + MAX_VINT_BYTES + charCount * MAX_CHAR_BYTES <= endPosition - position) {
+            final var buffer = this.buffer;
             buffer[position++] = (byte) 0;
             position = putVInt(buffer, charCount, position);
             for (int i = 0; i < charCount; i++) {
@@ -424,36 +432,61 @@ public class BufferedStreamOutput extends StreamOutput {
             }
             this.position = position;
             while (capacity() < MAX_CHAR_BYTES && i < charCount) {
-                writeCharUtf8(str.charAt(i++));
+                writeCharUtf8(this, str.charAt(i++));
             }
             position = this.position;
         }
     }
 
-    private static int putCharUtf8(byte[] buffer, int c, int position) {
-        if (c <= 0x7F) {
-            buffer[position++] = ((byte) c);
-        } else if (c > 0x07FF) {
-            buffer[position++] = ((byte) (0xE0 | c >> 12 & 0x0F));
-            buffer[position++] = ((byte) (0x80 | c >> 6 & 0x3F));
-            buffer[position++] = ((byte) (0x80 | c >> 0 & 0x3F));
-        } else {
-            buffer[position++] = ((byte) (0xC0 | c >> 6 & 0x1F));
-            buffer[position++] = ((byte) (0x80 | c >> 0 & 0x3F));
+    @Override
+    public void writeText(Text text) throws IOException {
+        if (text.hasBytes()) {
+            super.writeText(text);
+            return;
         }
-        return position;
+        final String str = text.string();
+        final int byteLength = UnicodeUtil.calcUTF16toUTF8Length(str, 0, str.length());
+        final int position = this.position;
+        if (Integer.BYTES + byteLength <= endPosition - position) {
+            ByteUtils.writeIntBE(byteLength, buffer, position);
+            final int end = UnicodeUtil.UTF16toUTF8(str, 0, str.length(), buffer, position + Integer.BYTES);
+            assert end == position + Integer.BYTES + byteLength : end + " vs " + position + " plus " + byteLength;
+            this.position = end;
+        } else {
+            writeTextWithBoundsChecks(str, byteLength);
+        }
     }
 
-    private void writeCharUtf8(int c) throws IOException {
-        if (c <= 0x7F) {
-            writeByte((byte) c);
-        } else if (c > 0x07FF) {
-            writeByte((byte) (0xE0 | c >> 12 & 0x0F));
-            writeByte((byte) (0x80 | c >> 6 & 0x3F));
-            writeByte((byte) (0x80 | c >> 0 & 0x3F));
-        } else {
-            writeByte((byte) (0xC0 | c >> 6 & 0x1F));
-            writeByte((byte) (0x80 | c >> 0 & 0x3F));
+    // slower (cold) path extracted to its own method to allow fast & hot path to be inlined
+    private void writeTextWithBoundsChecks(String str, int byteLength) throws IOException {
+        writeInt(byteLength);
+        final long startPosition = position();
+        // a code point that straddles the end of the buffer is encoded here first and then written across the boundary one byte at a time
+        final byte[] straddlingCodePoint = new byte[MAX_CODE_POINT_BYTES];
+        final int charCount = str.length();
+        int i = 0;
+        while (i < charCount) {
+            final int position = this.position;
+            // no char needs more than MAX_CHAR_BYTES, including the pair of chars making up a supplementary code point
+            int chunkChars = Math.min((endPosition - position) / MAX_CHAR_BYTES, charCount - i);
+            if (0 < chunkChars && i + chunkChars < charCount && Character.isHighSurrogate(str.charAt(i + chunkChars - 1))) {
+                // leave the whole surrogate pair for the next step, otherwise each half would be encoded as the replacement character
+                chunkChars -= 1;
+            }
+            if (0 < chunkChars) {
+                this.position = UnicodeUtil.UTF16toUTF8(str, i, chunkChars, buffer, position);
+                i += chunkChars;
+            } else {
+                // too little of the buffer left to fit another char, so this code point straddles the boundary
+                final int chars = Character.charCount(str.codePointAt(i));
+                final int length = UnicodeUtil.UTF16toUTF8(str, i, chars, straddlingCodePoint, 0);
+                for (int b = 0; b < length; b++) {
+                    // one byte at a time, so that the buffer is always handed to the delegate whole
+                    writeByte(straddlingCodePoint[b]);
+                }
+                i += chars;
+            }
         }
+        assert position() - startPosition == byteLength : position() - startPosition + " bytes written but expected " + byteLength;
     }
 }

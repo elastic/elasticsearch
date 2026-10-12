@@ -485,7 +485,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(failure.get(), instanceOf(IllegalArgumentException.class));
         assertThat(failure.get().getMessage(), containsString("source_time_field [bucket]"));
         assertThat(failure.get().getMessage(), containsString("type [keyword]"));
-        assertThat(failure.get().getMessage(), containsString("for datafeed [datafeed-1]"));
+        assertThat(failure.get().getMessage(), containsString("ES|QL datafeed [datafeed-1] source_time_field"));
         assertThat(failure.get().getMessage(), containsString("STATS, BUCKET, or EVAL"));
     }
 
@@ -744,19 +744,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> EsqlDatafeedQueryValidator.validateEmittedTimeValueInSourceWindow("job-1", TIME_FIELD, null, 100L, 200L)
         );
-        assertThat(
-            e.getMessage(),
-            equalTo(
-                Messages.getMessage(
-                    Messages.DATAFEED_ESQL_EMITTED_TIME_VALIDATION_FAILED_WITH_TIME_PROBLEM_NULL,
-                    "job-1",
-                    TIME_FIELD,
-                    100L,
-                    200L,
-                    null
-                )
-            )
-        );
+        assertThat(e.getMessage(), equalTo(Messages.EsqlEmittedTimeProblem.NULL.format("job-1", TIME_FIELD, 100L, 200L, null)));
     }
 
     public void testCheckRequiredColumnsGivenAllPresentSucceeds() {
@@ -789,7 +777,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> EsqlDatafeedQueryValidator.checkRequiredColumns(columns, TIME_FIELD, null, "esql-datafeed")
         );
-        assertThat(e.getMessage(), containsString("for datafeed [esql-datafeed]"));
+        assertThat(e.getMessage(), containsString("ES|QL datafeed [esql-datafeed] query"));
         assertThat(e.getMessage(), containsString("data_description.time_field [" + TIME_FIELD + "]"));
     }
 

@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages.EsqlEmittedTimeProblem;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.time.DateTimeException;
@@ -270,15 +271,14 @@ public class EsqlDatafeedQueryValidator {
         // KEEP probe returns the one requested column or fails before a response (validateSourceTimeField onFailure).
         String outputType = columns.isEmpty() ? null : columns.get(0).outputType();
         if (EsqlDatafeedColumnValues.isDateColumnType(outputType) == false) {
-            String message = datafeedId == null
-                ? Messages.getMessage(Messages.DATAFEED_ESQL_SOURCE_TIME_FIELD_NOT_DATE_WITHOUT_DATAFEED_ID, sourceTimeField, outputType)
-                : Messages.getMessage(
-                    Messages.DATAFEED_ESQL_SOURCE_TIME_FIELD_NOT_DATE_WITH_DATAFEED_ID,
+            throw new IllegalArgumentException(
+                Messages.getMessage(
+                    Messages.DATAFEED_ESQL_SOURCE_TIME_FIELD_NOT_DATE,
+                    Messages.esqlDatafeedSubject(datafeedId),
                     sourceTimeField,
-                    outputType,
-                    datafeedId
-                );
-            throw new IllegalArgumentException(message);
+                    outputType
+                )
+            );
         }
     }
 
@@ -288,14 +288,12 @@ public class EsqlDatafeedQueryValidator {
         Throwable cause
     ) {
         String causeMessage = cause == null ? Messages.getMessage(Messages.DATAFEED_ESQL_PROBE_UNKNOWN_ERROR) : cause.getMessage();
-        String message = datafeedId == null
-            ? Messages.getMessage(Messages.DATAFEED_ESQL_SOURCE_TIME_FIELD_UNRESOLVED_WITHOUT_DATAFEED_ID, sourceTimeField, causeMessage)
-            : Messages.getMessage(
-                Messages.DATAFEED_ESQL_SOURCE_TIME_FIELD_UNRESOLVED_WITH_DATAFEED_ID,
-                sourceTimeField,
-                causeMessage,
-                datafeedId
-            );
+        String message = Messages.getMessage(
+            Messages.DATAFEED_ESQL_SOURCE_TIME_FIELD_UNRESOLVED,
+            Messages.esqlDatafeedSubject(datafeedId),
+            sourceTimeField,
+            causeMessage
+        );
         return new IllegalArgumentException(message, cause);
     }
 
@@ -304,7 +302,7 @@ public class EsqlDatafeedQueryValidator {
      */
     static void warnForConflictingOuterClauses(@Nullable String datafeedId, String esqlQuery, String timeField) {
         EsqlQueryClauseScanner.ScanResult scan = EsqlQueryClauseScanner.scan(esqlQuery, timeField);
-        String queryContext = esqlQueryWarningContext(datafeedId);
+        String queryContext = Messages.esqlDatafeedSubject(datafeedId);
         if (scan.hasOuterTimeWhere()) {
             HeaderWarning.addWarning(Messages.getMessage(Messages.DATAFEED_ESQL_OUTER_TIME_WHERE_WARNING, queryContext, timeField));
         }
@@ -391,80 +389,35 @@ public class EsqlDatafeedQueryValidator {
         long sourceWindowStart,
         long sourceWindowEnd
     ) {
+        var context = new EmittedTimeContext(jobId, emittedTimeField, sourceWindowStart, sourceWindowEnd);
         if (rawValue == null) {
-            throw emittedTimeValidationException(
-                Messages.DATAFEED_ESQL_EMITTED_TIME_VALIDATION_FAILED_WITH_TIME_PROBLEM_NULL,
-                jobId,
-                emittedTimeField,
-                sourceWindowStart,
-                sourceWindowEnd,
-                null,
-                null
-            );
+            throw context.failure(EsqlEmittedTimeProblem.NULL, null, null);
         }
         if (rawValue instanceof List<?>) {
-            throw emittedTimeValidationException(
-                Messages.DATAFEED_ESQL_EMITTED_TIME_VALIDATION_FAILED_WITH_TIME_PROBLEM_MULTI_VALUED,
-                jobId,
-                emittedTimeField,
-                sourceWindowStart,
-                sourceWindowEnd,
-                null,
-                null
-            );
+            throw context.failure(EsqlEmittedTimeProblem.MULTI_VALUED, null, null);
         }
         final long emittedTimeMillis;
         try {
             emittedTimeMillis = EsqlDatafeedColumnValues.toEpochMillis(rawValue, emittedTimeIsDate);
         } catch (IllegalArgumentException | DateTimeException e) {
-            throw emittedTimeValidationException(
-                Messages.DATAFEED_ESQL_EMITTED_TIME_VALIDATION_FAILED_WITH_TIME_PROBLEM_UNSUPPORTED_TYPE,
-                jobId,
-                emittedTimeField,
-                sourceWindowStart,
-                sourceWindowEnd,
-                null,
-                e
-            );
+            throw context.failure(EsqlEmittedTimeProblem.UNSUPPORTED_TYPE, null, e);
         }
         if (emittedTimeMillis < sourceWindowStart) {
-            throw emittedTimeValidationException(
-                Messages.DATAFEED_ESQL_EMITTED_TIME_VALIDATION_FAILED_WITH_TIME_PROBLEM_BEFORE_WINDOW,
-                jobId,
-                emittedTimeField,
-                sourceWindowStart,
-                sourceWindowEnd,
-                emittedTimeMillis,
-                null
-            );
+            throw context.failure(EsqlEmittedTimeProblem.BEFORE_WINDOW, emittedTimeMillis, null);
         }
         if (emittedTimeMillis >= sourceWindowEnd) {
-            throw emittedTimeValidationException(
-                Messages.DATAFEED_ESQL_EMITTED_TIME_VALIDATION_FAILED_WITH_TIME_PROBLEM_AT_OR_AFTER_WINDOW_END,
-                jobId,
-                emittedTimeField,
-                sourceWindowStart,
-                sourceWindowEnd,
-                emittedTimeMillis,
-                null
-            );
+            throw context.failure(EsqlEmittedTimeProblem.AT_OR_AFTER_WINDOW_END, emittedTimeMillis, null);
         }
         return emittedTimeMillis;
     }
 
-    private static IllegalArgumentException emittedTimeValidationException(
-        String pattern,
-        String jobId,
-        String emittedTimeField,
-        long sourceWindowStart,
-        long sourceWindowEnd,
-        @Nullable Long offendingValue,
-        @Nullable Throwable cause
-    ) {
-        return new IllegalArgumentException(
-            Messages.getMessage(pattern, jobId, emittedTimeField, sourceWindowStart, sourceWindowEnd, offendingValue),
-            cause
-        );
+    private record EmittedTimeContext(String jobId, String emittedTimeField, long sourceWindowStart, long sourceWindowEnd) {
+        IllegalArgumentException failure(EsqlEmittedTimeProblem problem, @Nullable Long offendingValue, @Nullable Throwable cause) {
+            return new IllegalArgumentException(
+                problem.format(jobId, emittedTimeField, sourceWindowStart, sourceWindowEnd, offendingValue),
+                cause
+            );
+        }
     }
 
     private static int indexOfColumn(List<? extends ColumnInfo> columns, String columnName) {
@@ -488,15 +441,7 @@ public class EsqlDatafeedQueryValidator {
     }
 
     private static String missingTimeColumnMessage(String timeField, @Nullable String datafeedId) {
-        return datafeedId == null
-            ? Messages.getMessage(Messages.DATAFEED_ESQL_MISSING_TIME_COLUMN_WITHOUT_DATAFEED_ID, timeField)
-            : Messages.getMessage(Messages.DATAFEED_ESQL_MISSING_TIME_COLUMN_WITH_DATAFEED_ID, timeField, "", datafeedId);
-    }
-
-    static String esqlQueryWarningContext(@Nullable String datafeedId) {
-        return datafeedId == null
-            ? Messages.getMessage(Messages.DATAFEED_ESQL_WARNING_QUERY_CONTEXT_NO_ID)
-            : Messages.getMessage(Messages.DATAFEED_ESQL_WARNING_QUERY_CONTEXT_WITH_ID, datafeedId);
+        return Messages.getMessage(Messages.DATAFEED_ESQL_MISSING_TIME_COLUMN, Messages.esqlDatafeedSubject(datafeedId), timeField);
     }
 
     static void checkRequiredColumns(
@@ -517,7 +462,6 @@ public class EsqlDatafeedQueryValidator {
             }
         }
         if (foundTimeField == false || foundSummaryCountField == false) {
-            // datafeedId may be null during PUT-time validation.
             if (foundTimeField == false && foundSummaryCountField == false) {
                 throw new IllegalArgumentException(
                     missingTimeColumnMessage(timeField, datafeedId)

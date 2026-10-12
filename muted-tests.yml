@@ -236,6 +236,9 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.cluster.OnlineQuantileEstimatorTests
   method: testQuantileUniform
   issue: https://github.com/elastic/elasticsearch/issues/161654
+- class: org.elasticsearch.xpack.ml.integration.RevertModelSnapshotIT
+  method: testRevertModelSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/147383
 
 # Examples:
 #

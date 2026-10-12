@@ -735,7 +735,6 @@ public class TransportFetchSearchShardInformationActionTests extends ESTestCase 
         assertTrue(response.shardHasMoved());
         assertTrue(response.volumesCollected());
         assertThat(response.respondingNodeId(), equalTo("source"));
-        assertThat(response.shutdownSignalTimestamp(), equalTo(generation));
         assertTrue(response.volumes().isEmpty());
     }
 
@@ -754,8 +753,7 @@ public class TransportFetchSearchShardInformationActionTests extends ESTestCase 
         var request = new TransportFetchSearchShardInformationAction.Request("source", shardId, true, requestedTimestamp);
         PlainActionFuture<TransportFetchSearchShardInformationAction.Response> first = new PlainActionFuture<>();
         volumesAction.shardOperation(request, first);
-        var firstResponse = first.actionGet();
-        assertThat(firstResponse.shutdownSignalTimestamp(), equalTo(requestedTimestamp));
+        first.actionGet();
         PlainActionFuture<TransportFetchSearchShardInformationAction.Response> second = new PlainActionFuture<>();
         volumesAction.shardOperation(request, second);
         second.actionGet();
@@ -765,7 +763,7 @@ public class TransportFetchSearchShardInformationActionTests extends ESTestCase 
         var later = new TransportFetchSearchShardInformationAction.Request("source", shardId, true, laterTimestamp);
         PlainActionFuture<TransportFetchSearchShardInformationAction.Response> third = new PlainActionFuture<>();
         volumesAction.shardOperation(later, third);
-        assertThat(third.actionGet().shutdownSignalTimestamp(), equalTo(laterTimestamp));
+        third.actionGet();
         assertThat(walks.get(), equalTo(2));
     }
 

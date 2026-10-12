@@ -87,7 +87,7 @@ public class SearchShardInformationIndexListener implements IndexEventListener {
             String relocatingNodeId = indexShard.routingEntry().relocatingNodeId();
 
             final var state = clusterService.state();
-            final boolean relocatingFromNodeMarkedForRemoval = isRelocatingFromNodeMarkedForRemoval(indexShard.routingEntry(), state);
+            final boolean relocatingFromNodeMarkedForRemoval = isRelocatingFromNodeMarkedForRemoval(relocatingNodeId, state);
             final long claimedShutdownSignalTimestamp = relocatingFromNodeMarkedForRemoval
                 ? state.metadata().nodeShutdowns().get(relocatingNodeId).getStartedAtMillis()
                 : 0L;
@@ -104,10 +104,11 @@ public class SearchShardInformationIndexListener implements IndexEventListener {
 
             ActionListener<TransportFetchSearchShardInformationAction.Response> fetchListener = ActionListener.wrap(response -> {
                 if (shouldFetchSourceNodeShardWarmVolumes && response.volumesCollected()) {
+                    assert relocatingNodeId.equals(response.respondingNodeId()) : "Warm volumes should only be collected from the source";
                     shardWarmVolumes.completeFetch(
                         clusterService.state(),
                         response.respondingNodeId(),
-                        response.shutdownSignalTimestamp(),
+                        claimedShutdownSignalTimestamp,
                         response.volumes()
                     );
                 }
@@ -164,8 +165,7 @@ public class SearchShardInformationIndexListener implements IndexEventListener {
     /**
      * True when {@code routing} is a relocation whose source is marked for removal.
      */
-    static boolean isRelocatingFromNodeMarkedForRemoval(ShardRouting routing, ClusterState state) {
-        String sourceId = routing.relocatingNodeId();
+    static boolean isRelocatingFromNodeMarkedForRemoval(String sourceId, ClusterState state) {
         return sourceId != null && state.metadata().nodeShutdowns().isNodeMarkedForRemoval(sourceId);
     }
 }

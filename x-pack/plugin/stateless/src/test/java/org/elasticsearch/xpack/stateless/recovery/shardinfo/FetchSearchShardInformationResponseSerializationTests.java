@@ -34,7 +34,7 @@ public class FetchSearchShardInformationResponseSerializationTests extends Abstr
         if (randomBoolean()) {
             return new Response(randomLong());
         }
-        return new Response(randomLong(), randomIdentifier(), randomNonNegativeLong(), randomVolumes());
+        return new Response(randomLong(), randomIdentifier(), randomVolumes());
     }
 
     @Override
@@ -42,41 +42,27 @@ public class FetchSearchShardInformationResponseSerializationTests extends Abstr
         if (instance.volumesCollected() == false) {
             return switch (randomIntBetween(0, 1)) {
                 case 0 -> new Response(randomValueOtherThan(instance.getLastSearcherAcquiredTime(), () -> randomLong()));
-                case 1 -> new Response(
-                    instance.getLastSearcherAcquiredTime(),
-                    randomIdentifier(),
-                    randomNonNegativeLong(),
-                    randomVolumes()
-                );
+                case 1 -> new Response(instance.getLastSearcherAcquiredTime(), randomIdentifier(), randomVolumes());
                 default -> throw new AssertionError("unreachable");
             };
         }
-        return switch (randomIntBetween(0, 4)) {
+        return switch (randomIntBetween(0, 3)) {
             case 0 -> new Response(
                 randomValueOtherThan(instance.getLastSearcherAcquiredTime(), () -> randomLong()),
                 instance.respondingNodeId(),
-                instance.shutdownSignalTimestamp(),
                 instance.volumes()
             );
             case 1 -> new Response(
                 instance.getLastSearcherAcquiredTime(),
                 randomValueOtherThan(instance.respondingNodeId(), () -> randomIdentifier()),
-                instance.shutdownSignalTimestamp(),
                 instance.volumes()
             );
             case 2 -> new Response(
                 instance.getLastSearcherAcquiredTime(),
                 instance.respondingNodeId(),
-                randomValueOtherThan(instance.shutdownSignalTimestamp(), () -> randomNonNegativeLong()),
-                instance.volumes()
-            );
-            case 3 -> new Response(
-                instance.getLastSearcherAcquiredTime(),
-                instance.respondingNodeId(),
-                instance.shutdownSignalTimestamp(),
                 randomValueOtherThan(instance.volumes(), FetchSearchShardInformationResponseSerializationTests::randomVolumes)
             );
-            case 4 -> new Response(instance.getLastSearcherAcquiredTime());
+            case 3 -> new Response(instance.getLastSearcherAcquiredTime());
             default -> throw new AssertionError("unreachable");
         };
     }
@@ -85,7 +71,7 @@ public class FetchSearchShardInformationResponseSerializationTests extends Abstr
         final TransportVersion version = TransportVersionUtils.randomVersionNotSupporting(FETCH_SHARD_WARM_VOLUMES);
         final Response original = randomBoolean()
             ? new Response(randomLong())
-            : new Response(randomLong(), randomIdentifier(), randomNonNegativeLong(), randomVolumes());
+            : new Response(randomLong(), randomIdentifier(), randomVolumes());
         final Response copy = copyWriteable(original, getNamedWriteableRegistry(), instanceReader(), version);
         assertThat(copy, equalTo(new Response(original.getLastSearcherAcquiredTime())));
     }

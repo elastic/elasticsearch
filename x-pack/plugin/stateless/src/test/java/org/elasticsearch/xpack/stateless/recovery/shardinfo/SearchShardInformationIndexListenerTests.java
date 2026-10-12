@@ -431,17 +431,9 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
             .metadata(Metadata.builder(drain.metadata()).removeCustom(NodesShutdownMetadata.TYPE))
             .build();
 
-        ShardRouting relocating = TestShardRouting.shardRoutingBuilder(shardId, "target", false, INITIALIZING)
-            .withRelocatingNodeId("source")
-            .withRole(ShardRouting.Role.SEARCH_ONLY)
-            .build();
-        ShardRouting replicaInit = TestShardRouting.shardRoutingBuilder(shardId, "target", false, INITIALIZING)
-            .withRole(ShardRouting.Role.SEARCH_ONLY)
-            .build();
-
-        assertTrue(SearchShardInformationIndexListener.isRelocatingFromNodeMarkedForRemoval(relocating, drain));
-        assertFalse(SearchShardInformationIndexListener.isRelocatingFromNodeMarkedForRemoval(replicaInit, drain));
-        assertFalse(SearchShardInformationIndexListener.isRelocatingFromNodeMarkedForRemoval(relocating, rebalance));
+        assertTrue(SearchShardInformationIndexListener.isRelocatingFromNodeMarkedForRemoval("source", drain));
+        assertFalse(SearchShardInformationIndexListener.isRelocatingFromNodeMarkedForRemoval(null, drain));
+        assertFalse(SearchShardInformationIndexListener.isRelocatingFromNodeMarkedForRemoval("source", rebalance));
         // This test never calls beforeIndexShardRecovery, which is what counts the latch down.
         // @After still requires the latch to be zero.
         latch.countDown();
@@ -463,7 +455,7 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
         assertThat(execution.request().shutdownSignalTimestamp(), equalTo(generation));
         execution.listener()
             .onResponse(
-                new TransportFetchSearchShardInformationAction.Response(SHARD_HAS_MOVED, "source", generation, Map.of(shardId, 11L))
+                new TransportFetchSearchShardInformationAction.Response(SHARD_HAS_MOVED, "source", Map.of(shardId, 11L))
             );
 
         assertThat(volumes.get(state, "source").volumes(), equalTo(Map.of(shardId, 11L)));

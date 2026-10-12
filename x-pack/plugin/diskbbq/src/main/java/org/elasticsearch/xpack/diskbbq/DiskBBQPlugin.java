@@ -72,7 +72,8 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                 DenseVectorFieldMapper.VectorSimilarity similarity,
                 DenseVectorFieldMapper.ElementType elementType,
                 ExecutorService mergingExecutorService,
-                int maxMergingWorkers
+                int maxMergingWorkers,
+                ExecutorService quantizerExecutorService
             ) {
                 if (options instanceof DenseVectorFieldMapper.BBQIVFIndexOptions diskbbq) {
                     if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.DISK_BBQ_LICENSE_ENFORCEMENT)
@@ -106,6 +107,7 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                                 onDiskRescore,
                                 mergingExecutorService,
                                 maxMergingWorkers,
+                                quantizerExecutorService,
                                 flatIndexThreshold,
                                 sliceField,
                                 IvfFlushConfigSource.empty(),
@@ -114,7 +116,7 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                             );
                         }
                         IvfMergeConfigResolver mergeConfigResolver = diskbbq.autoCalibrate()
-                            ? IvfAutoCalibration.mergeConfigResolver(clusterSize)
+                            ? IvfAutoCalibration.mergeConfigResolver(clusterSize, diskbbq.autoCalibrationProfile())
                             : IvfMergeConfigResolver.useCodecDefault();
                         return new ESNextDiskBBQVectorsFormat(
                             QuantEncoding.fromBits((byte) diskbbq.getBits()),
@@ -134,7 +136,7 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                         );
                     } else if (indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_ES950_AUTO_CALIBRATE)) {
                         IvfMergeConfigResolver mergeConfigResolver = diskbbq.autoCalibrate()
-                            ? IvfAutoCalibration.mergeConfigResolver(clusterSize)
+                            ? IvfAutoCalibration.mergeConfigResolver(clusterSize, diskbbq.autoCalibrationProfile())
                             : IvfMergeConfigResolver.useCodecDefault();
                         return new ES950DiskBBQVectorsFormat(
                             QuantEncoding.fromBits((byte) diskbbq.getBits()),

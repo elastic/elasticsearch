@@ -106,6 +106,70 @@ public class GzipDecompressionCodecTests extends ESTestCase {
         }
     }
 
+    /**
+     * HTTP/S3 bodies report {@code available() == 0}. The 32-byte cap keeps leftover inflater bytes
+     * {@code n <= 26} so a gated JDK would skip the next-member probe without the wrapper.
+     */
+    public void testConcatenatedMembersSurviveHttpAvailableZero() throws IOException {
+        byte[] first = gzip("first-member\n".getBytes(StandardCharsets.UTF_8));
+        byte[] second = gzip("second-member\n".getBytes(StandardCharsets.UTF_8));
+        byte[] concatenated = new byte[first.length + second.length];
+        System.arraycopy(first, 0, concatenated, 0, first.length);
+        System.arraycopy(second, 0, concatenated, first.length, second.length);
+        GzipDecompressionCodec codec = new GzipDecompressionCodec();
+        try (InputStream decompressed = codec.decompress(httpAvailableZero(concatenated))) {
+            assertEquals("first-member\nsecond-member\n", new String(decompressed.readAllBytes(), StandardCharsets.UTF_8));
+        }
+    }
+
+    public void testProbeIoExceptionIsNotSilentEof() throws IOException {
+        byte[] first = gzip("first-member\n".getBytes(StandardCharsets.UTF_8));
+        InputStream raw = new FilterInputStream(new ByteArrayInputStream(first)) {
+            @Override
+            public int available() {
+                return 0;
+            }
+
+            @Override
+            public int read() throws IOException {
+                int b = super.read();
+                if (b < 0) {
+                    throw new IOException("s3-reset");
+                }
+                return b;
+            }
+
+            @Override
+            public int read(byte[] b, int off, int len) throws IOException {
+                int n = super.read(b, off, len);
+                if (n < 0) {
+                    throw new IOException("s3-reset");
+                }
+                return n;
+            }
+        };
+        GzipDecompressionCodec codec = new GzipDecompressionCodec();
+        try (InputStream decompressed = codec.decompress(raw)) {
+            IOException e = expectThrows(IOException.class, decompressed::readAllBytes);
+            assertEquals("s3-reset", e.getMessage());
+        }
+    }
+
+    /** Bulk reads capped at 32 bytes so leftover inflater {@code n} stays {@code <= 26}. */
+    private static InputStream httpAvailableZero(byte[] bytes) {
+        return new FilterInputStream(new ByteArrayInputStream(bytes)) {
+            @Override
+            public int available() {
+                return 0;
+            }
+
+            @Override
+            public int read(byte[] b, int off, int len) throws IOException {
+                return super.read(b, off, Math.min(len, 32));
+            }
+        };
+    }
+
     private static byte[] gzip(byte[] input) throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try (GZIPOutputStream gzipOut = new GZIPOutputStream(baos)) {

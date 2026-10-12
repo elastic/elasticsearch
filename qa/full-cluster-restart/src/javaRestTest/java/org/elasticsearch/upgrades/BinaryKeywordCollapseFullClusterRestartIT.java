@@ -24,13 +24,13 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A strict-columnar keyword field writes its doc values as a binary blob whose framing is decided by the index
- * version and settings in force when the mapping was created, and then persisted. An upgraded node has to read back
- * the framing the old version chose, so collapse is exercised here against an index this cluster did not write.
+ * A high cardinality keyword field writes its doc values as a binary blob, and which framing the blob uses depends on
+ * the version that wrote the segment. An upgraded node has to read back the framing the old version chose, so collapse
+ * is exercised here against an index this cluster did not write.
  */
-public class ColumnarCollapseFullClusterRestartIT extends ParameterizedFullClusterRestartTestCase {
+public class BinaryKeywordCollapseFullClusterRestartIT extends ParameterizedFullClusterRestartTestCase {
 
-    private static final String INDEX = "test-columnar-collapse";
+    private static final String INDEX = "test-binary-keyword-collapse";
 
     @ClassRule
     public static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
@@ -41,7 +41,7 @@ public class ColumnarCollapseFullClusterRestartIT extends ParameterizedFullClust
         .setting("xpack.ml.enabled", "false")
         .build();
 
-    public ColumnarCollapseFullClusterRestartIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
+    public BinaryKeywordCollapseFullClusterRestartIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
         super(upgradeStatus);
     }
 
@@ -50,23 +50,22 @@ public class ColumnarCollapseFullClusterRestartIT extends ParameterizedFullClust
         return cluster;
     }
 
-    public void testCollapseOnColumnarKeyword() throws IOException {
+    public void testCollapseOnBinaryKeyword() throws IOException {
         if (isRunningAgainstOldCluster()) {
-            if (clusterHasCapability("PUT", "/{index}", List.of(), List.of("columnar_index_modes")).orElse(false) == false) {
+            if (clusterHasFeature("mapper.keyword.store_high_cardinality_in_binary_doc_values") == false) {
                 return;
             }
             Request create = new Request("PUT", "/" + INDEX);
             create.setJsonEntity("""
                 {
                   "settings": {
-                    "index.mode": "columnar",
                     "index.number_of_shards": 1,
                     "index.number_of_replicas": 0
                   },
                   "mappings": {
                     "properties": {
                       "@timestamp": { "type": "date" },
-                      "host.name": { "type": "keyword" }
+                      "host.name": { "type": "keyword", "doc_values": { "cardinality": "high" } }
                     }
                   }
                 }""");
@@ -86,7 +85,7 @@ public class ColumnarCollapseFullClusterRestartIT extends ParameterizedFullClust
             assertOK(bulkResponse);
             assertThat(entityAsMap(bulkResponse).get("errors"), Matchers.is(false));
         } else {
-            assumeTrue("the old cluster did not support columnar index modes", indexExists(INDEX));
+            assumeTrue("the old cluster did not store high cardinality keywords in binary doc values", indexExists(INDEX));
             Request search = new Request("POST", "/" + INDEX + "/_search");
             search.setJsonEntity("""
                 {

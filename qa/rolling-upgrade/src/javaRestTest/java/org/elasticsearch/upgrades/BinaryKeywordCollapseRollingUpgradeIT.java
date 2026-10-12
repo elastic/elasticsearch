@@ -24,45 +24,37 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A strict-columnar keyword field writes its doc values as a binary blob whose framing the mapping settles when the
- * index is created. Every phase adds documents, so the final collapse reads documents written during each of them. Only
- * the fully upgraded cluster asserts, since nodes still on the old version reject collapse.
+ * A high cardinality keyword field writes its doc values as a binary blob whose framing depends on the version that
+ * wrote the segment. Every phase adds documents, so the final collapse reads documents written during each of them.
+ * Only the fully upgraded cluster asserts, since nodes still on the old version reject collapse.
  */
-public class ColumnarCollapseRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
+public class BinaryKeywordCollapseRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
 
-    private static final String INDEX = "test-columnar-collapse";
+    private static final String INDEX = "test-binary-keyword-collapse";
     private static final String OLD_TIMESTAMP = "2024-01-01T00:00:00Z";
     private static final String OLD_DATE = "2024-01-01T00:00:00";
 
-    public ColumnarCollapseRollingUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
+    public BinaryKeywordCollapseRollingUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
     }
 
-    public void testCollapseOnColumnarKeyword() throws Exception {
+    public void testCollapseOnBinaryKeyword() throws Exception {
         if (isOldCluster()) {
-            if (clusterHasCapability("PUT", "/{index}", List.of(), List.of("columnar_index_modes")).orElse(false) == false) {
+            if (clusterHasFeature("mapper.keyword.store_high_cardinality_in_binary_doc_values") == false) {
                 return;
             }
-            createIndex(
-                INDEX,
-                Settings.builder()
-                    .put("index.mode", "columnar")
-                    .put("index.number_of_shards", 1)
-                    .put("index.number_of_replicas", 0)
-                    .build(),
-                """
-                    {
-                        "properties": {
-                            "@timestamp": { "type": "date" },
-                            "host.name": { "type": "keyword" }
-                        }
+            createIndex(INDEX, Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build(), """
+                {
+                    "properties": {
+                        "@timestamp": { "type": "date" },
+                        "host.name": { "type": "keyword", "doc_values": { "cardinality": "high" } }
                     }
-                    """
-            );
+                }
+                """);
         }
 
         if (indexExists(INDEX) == false) {
-            assumeTrue("the old cluster did not support columnar index modes", isOldCluster());
+            assumeTrue("the old cluster did not store high cardinality keywords in binary doc values", isOldCluster());
             return;
         }
 

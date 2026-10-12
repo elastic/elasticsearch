@@ -41,7 +41,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
@@ -122,7 +122,7 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
     public static SinglePassGroupingCollector<?> createKeyword(
         String groupField,
         MappedFieldType groupFieldType,
-        @Nullable CheckedFunction<LeafReader, SortableBinaryDocValues, IOException> binaryValues,
+        @Nullable CheckedFunction<LeafReader, SortedBinaryDocValues, IOException> binaryValues,
         Sort groupSort,
         int topN,
         @Nullable FieldDoc after

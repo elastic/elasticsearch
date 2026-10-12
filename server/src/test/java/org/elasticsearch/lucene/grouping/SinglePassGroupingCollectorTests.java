@@ -42,16 +42,16 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.search.CheckHits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
-import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
+import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
+import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MockFieldMapper;
+import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -465,13 +465,13 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
         dir.close();
     }
 
-    public void testCollapseColumnarPayloadKeyword() throws Exception {
+    public void testCollapseIntegratedCountsKeyword() throws Exception {
         final Directory dir = newDirectory();
         final RandomIndexWriter w = new RandomIndexWriter(random(), dir);
         final String[] groups = { "a", "b", "a", "c" };
         for (int i = 0; i < groups.length; i++) {
             final Document doc = new Document();
-            doc.add(new Field("group", columnarPayload(groups[i]), binaryDocValuesType()));
+            doc.add(new Field("group", integratedCounts(groups[i]), binaryDocValuesType()));
             doc.add(new SortedNumericDocValuesField("sort", i));
             w.addDocument(doc);
         }
@@ -484,7 +484,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
         final SinglePassGroupingCollector<?> collapsingCollector = SinglePassGroupingCollector.createKeyword(
             "group",
             fieldType,
-            leaf -> SortableBinaryDocValues.forFormat(leaf, "group", IndexVersion.current(), BinaryDocValuesFormat.COLUMNAR_PAYLOAD),
+            leaf -> MultiValuedSortedBinaryDocValues.from(leaf, "group"),
             sort,
             10,
             null
@@ -500,11 +500,11 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
         dir.close();
     }
 
-    public void testCollapseColumnarPayloadKeywordRejectsMultipleValues() throws Exception {
+    public void testCollapseIntegratedCountsKeywordRejectsMultipleValues() throws Exception {
         final Directory dir = newDirectory();
         final RandomIndexWriter w = new RandomIndexWriter(random(), dir);
         final Document doc = new Document();
-        doc.add(new Field("group", columnarPayload("a", "b"), binaryDocValuesType()));
+        doc.add(new Field("group", integratedCounts("a", "b"), binaryDocValuesType()));
         doc.add(new SortedNumericDocValuesField("sort", 0));
         w.addDocument(doc);
         final IndexReader reader = w.getReader();
@@ -516,7 +516,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
         final SinglePassGroupingCollector<?> collapsingCollector = SinglePassGroupingCollector.createKeyword(
             "group",
             fieldType,
-            leaf -> SortableBinaryDocValues.forFormat(leaf, "group", IndexVersion.current(), BinaryDocValuesFormat.COLUMNAR_PAYLOAD),
+            leaf -> MultiValuedSortedBinaryDocValues.from(leaf, "group"),
             sort,
             10,
             null
@@ -531,13 +531,14 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
         dir.close();
     }
 
-    public void testCollapsePlainBinaryKeyword() throws Exception {
+    public void testCollapseSeparateCountsKeyword() throws Exception {
         final Directory dir = newDirectory();
         final RandomIndexWriter w = new RandomIndexWriter(random(), dir);
         final String[] groups = { "a", "b", "a", "c" };
         for (int i = 0; i < groups.length; i++) {
             final Document doc = new Document();
             doc.add(new Field("group", new BytesRef(groups[i]), binaryDocValuesType()));
+            doc.add(new NumericDocValuesField("group" + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX, 1));
             doc.add(new SortedNumericDocValuesField("sort", i));
             w.addDocument(doc);
         }
@@ -550,7 +551,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
         final SinglePassGroupingCollector<?> collapsingCollector = SinglePassGroupingCollector.createKeyword(
             "group",
             fieldType,
-            leaf -> SortableBinaryDocValues.forFormat(leaf, "group", IndexVersion.current(), BinaryDocValuesFormat.PLAIN),
+            leaf -> MultiValuedSortedBinaryDocValues.from(leaf, "group"),
             sort,
             10,
             null
@@ -566,12 +567,12 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
         dir.close();
     }
 
-    public void testCollapseColumnarPayloadKeywordWithLeafMissingTheField() throws Exception {
+    public void testCollapseBinaryKeywordWithLeafMissingTheField() throws Exception {
         final Directory dir = newDirectory();
         final IndexWriter w = new IndexWriter(dir, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE));
 
         Document doc = new Document();
-        doc.add(new Field("group", columnarPayload("host-a"), binaryDocValuesType()));
+        doc.add(new Field("group", integratedCounts("host-a"), binaryDocValuesType()));
         doc.add(new SortedNumericDocValuesField("sort", 0));
         w.addDocument(doc);
         w.commit();
@@ -582,7 +583,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
         w.commit();
 
         doc = new Document();
-        doc.add(new Field("group", columnarPayload("host-b"), binaryDocValuesType()));
+        doc.add(new Field("group", integratedCounts("host-b"), binaryDocValuesType()));
         doc.add(new SortedNumericDocValuesField("sort", 2));
         w.addDocument(doc);
         w.commit();
@@ -598,7 +599,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
         final SinglePassGroupingCollector<?> collapsingCollector = SinglePassGroupingCollector.createKeyword(
             "group",
             fieldType,
-            leaf -> SortableBinaryDocValues.forFormat(leaf, "group", IndexVersion.current(), BinaryDocValuesFormat.COLUMNAR_PAYLOAD),
+            leaf -> MultiValuedSortedBinaryDocValues.from(leaf, "group"),
             sort,
             10,
             null
@@ -618,7 +619,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
         final Directory dir = newDirectory();
         final RandomIndexWriter w = new RandomIndexWriter(random(), dir);
         final Document doc = new Document();
-        doc.add(new Field("group", columnarPayload("host-a"), binaryDocValuesType()));
+        doc.add(new Field("group", integratedCounts("host-a"), binaryDocValuesType()));
         doc.add(new SortedNumericDocValuesField("sort", 0));
         w.addDocument(doc);
         final IndexReader reader = w.getReader();
@@ -747,12 +748,15 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
         }
     }
 
-    private static BytesRef columnarPayload(String... slots) {
-        final List<BytesRef> refs = new ArrayList<>(slots.length);
-        for (String slot : slots) {
-            refs.add(slot == null ? null : new BytesRef(slot));
+    private static BytesRef integratedCounts(String... values) {
+        final BinaryFieldMapper.CustomBinaryDocValuesField field = new BinaryFieldMapper.CustomBinaryDocValuesField(
+            "group",
+            values[0].getBytes(StandardCharsets.UTF_8)
+        );
+        for (int i = 1; i < values.length; i++) {
+            field.add(values[i].getBytes(StandardCharsets.UTF_8));
         }
-        return BytesRef.deepCopyOf(new StringBinaryPayload.Builder().encode(refs));
+        return BytesRef.deepCopyOf(field.binaryValue());
     }
 
     private static FieldType binaryDocValuesType() {

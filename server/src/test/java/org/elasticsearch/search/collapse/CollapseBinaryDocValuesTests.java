@@ -20,8 +20,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -30,7 +28,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.grouping.SinglePassGroupingCollector;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -41,12 +38,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Collapse driven through {@link CollapseBuilder#build(SearchExecutionContext)}, so the decoder is the one the mapping
- * selects rather than one the test names.
- *
- * <p>These fixtures are {@code SEPARATE_COUNT}, which stores a lone value raw, so a single-valued document decodes the
- * same through a plain decoder and only the multi-value rejection fails a wrong binding. An integrated-count blob keeps
- * its framing even for a lone value, which is why the pre-gate cases also discriminate.
+ * Collapse driven through {@link CollapseBuilder#build(SearchExecutionContext)}, so the decoder is the one a binary
+ * keyword mapping binds rather than one the test names. The fixtures are written the way the keyword mapper writes
+ * them, with a separate counts companion field.
  */
 public class CollapseBinaryDocValuesTests extends ESTestCase {
 
@@ -55,7 +49,7 @@ public class CollapseBinaryDocValuesTests extends ESTestCase {
 
     public void testGroupsRepeatedValuesAcrossDocuments() throws IOException {
         List<List<String>> docs = List.of(Arrays.asList("host-a"), Arrays.asList("host-b"), Arrays.asList("host-a"));
-        TopFieldGroups groups = collapse(docs, IndexVersion.current());
+        TopFieldGroups groups = collapse(docs);
 
         assertEquals(2, groups.groupValues.length);
         assertEquals(new BytesRef("host-a"), groups.groupValues[0]);
@@ -64,7 +58,7 @@ public class CollapseBinaryDocValuesTests extends ESTestCase {
 
     public void testRejectsTwoNonNullValues() throws IOException {
         List<List<String>> docs = List.of(Arrays.asList("host-a", "host-b"));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> collapse(docs, IndexVersion.current()));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> collapse(docs));
         assertEquals("failed to extract doc:0, the grouping field must be single valued", e.getMessage());
     }
 
@@ -75,7 +69,7 @@ public class CollapseBinaryDocValuesTests extends ESTestCase {
             Collections.emptyList(),
             Arrays.asList((String) null)
         );
-        TopFieldGroups groups = collapse(docs, IndexVersion.current());
+        TopFieldGroups groups = collapse(docs);
 
         assertEquals(3, groups.groupValues.length);
         assertEquals(new BytesRef(""), groups.groupValues[0]);
@@ -83,36 +77,17 @@ public class CollapseBinaryDocValuesTests extends ESTestCase {
         assertNull(groups.groupValues[2]);
     }
 
-    public void testReadsIntegratedCountsWhenTheIndexPredatesTheCountsCompanion() throws IOException {
-        IndexVersion oldVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES);
-        List<List<String>> docs = List.of(Arrays.asList("host-a"), Arrays.asList("host-b"), Arrays.asList("host-a"));
-        TopFieldGroups groups = collapse(docs, oldVersion);
-
-        assertEquals(2, groups.groupValues.length);
-        assertEquals(new BytesRef("host-a"), groups.groupValues[0]);
-        assertEquals(new BytesRef("host-b"), groups.groupValues[1]);
-    }
-
-    public void testRejectsTwoNonNullValuesWhenTheIndexPredatesTheCountsCompanion() throws IOException {
-        IndexVersion oldVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES);
-        List<List<String>> docs = List.of(Arrays.asList("host-a", "host-b"));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> collapse(docs, oldVersion));
-        assertEquals("failed to extract doc:0, the grouping field must be single valued", e.getMessage());
-    }
-
-    private static TopFieldGroups collapse(List<List<String>> valuesPerDoc, IndexVersion indexVersion) throws IOException {
+    private static TopFieldGroups collapse(List<List<String>> valuesPerDoc) throws IOException {
         try (Directory dir = newDirectory()) {
             try (RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
                 for (int i = 0; i < valuesPerDoc.size(); i++) {
                     LuceneDocument doc = new LuceneDocument();
                     for (String value : valuesPerDoc.get(i)) {
                         if (value != null) {
-                            MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
+                            MultiValuedBinaryDocValuesField.SeparateCount.addToSeparateCountMultiBinaryFieldInDoc(
                                 doc,
                                 FIELD,
-                                new BytesRef(value),
-                                MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED,
-                                indexVersion
+                                new BytesRef(value)
                             );
                         }
                     }
@@ -122,7 +97,7 @@ public class CollapseBinaryDocValuesTests extends ESTestCase {
             }
             try (IndexReader reader = DirectoryReader.open(dir)) {
                 IndexSearcher searcher = newSearcher(reader);
-                SinglePassGroupingCollector<?> collector = collapseContext(indexVersion).createTopDocs(
+                SinglePassGroupingCollector<?> collector = collapseContext().createTopDocs(
                     new Sort(new SortedNumericSortField(SORT_FIELD, SortField.Type.LONG)),
                     10,
                     null
@@ -133,11 +108,10 @@ public class CollapseBinaryDocValuesTests extends ESTestCase {
         }
     }
 
-    private static CollapseContext collapseContext(IndexVersion indexVersion) {
+    private static CollapseContext collapseContext() {
         MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(FIELD, true, true, true, Collections.emptyMap());
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
         when(searchExecutionContext.getFieldType(FIELD)).thenReturn(fieldType);
-        when(searchExecutionContext.indexVersionCreated()).thenReturn(indexVersion);
         return new CollapseBuilder(FIELD).build(searchExecutionContext);
     }
 }

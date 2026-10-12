@@ -1,6 +1,5 @@
 pr: 160941
-summary: Support field collapse on keyword fields with binary doc values, as used
-  by columnar index modes
+summary: Support field collapse on keyword fields with high cardinality doc values
 area: Search
 type: bug
 issues:

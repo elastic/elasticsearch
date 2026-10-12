@@ -16,9 +16,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
-import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
+import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.CollapseType;
@@ -230,24 +229,18 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
             );
         }
 
-        return new CollapseContext(field, fieldType, binaryValues(fieldType, searchExecutionContext.indexVersionCreated()));
+        return new CollapseContext(field, fieldType, binaryValues(fieldType));
     }
 
     /**
-     * Binds the decoder for a field's binary doc values to the framing its mapping chose, or returns {@code null} for a
-     * field that writes no binary blob. Deciding this here keeps the framing out of the grouping collector, which only
-     * needs a document's bytes.
+     * Binds the decoder for a field's binary doc values, or returns {@code null} for a field that writes no binary
+     * blob. Deciding this here keeps the framing out of the grouping collector, which only needs a document's bytes.
      */
     @Nullable
-    private static CheckedFunction<LeafReader, SortableBinaryDocValues, IOException> binaryValues(
-        MappedFieldType fieldType,
-        IndexVersion indexVersion
-    ) {
-        if (fieldType instanceof KeywordFieldType keywordFieldType) {
-            BinaryDocValuesFormat binaryFormat = keywordFieldType.binaryFormat();
-            if (binaryFormat != null) {
-                return reader -> SortableBinaryDocValues.forFormat(reader, fieldType.name(), indexVersion, binaryFormat);
-            }
+    private static CheckedFunction<LeafReader, SortedBinaryDocValues, IOException> binaryValues(MappedFieldType fieldType) {
+        if (fieldType instanceof KeywordFieldType keywordFieldType && keywordFieldType.usesBinaryDocValues()) {
+            String fieldName = fieldType.name();
+            return leafReader -> MultiValuedSortedBinaryDocValues.from(leafReader, fieldName);
         }
         return null;
     }

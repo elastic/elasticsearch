@@ -919,7 +919,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
                         scores
                     );
                 }
-                if (knnCollector.minCompetitiveSimilarity() < maxScore) {
+                if (knnCollector.minCompetitiveSimilarity() <= maxScore) {
                     collectBulk(knnCollector, scores, BULK_SIZE, docsToBulkScore, maxScore);
                 }
                 scoredDocs += docsToBulkScore;
@@ -963,7 +963,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
                             tailSize
                         );
                     }
-                    if (knnCollector.minCompetitiveSimilarity() < maxScore) {
+                    if (knnCollector.minCompetitiveSimilarity() <= maxScore) {
                         collectBulk(knnCollector, scores, tailSize, docsToBulkScore, maxScore);
                     }
                     scoredDocs += docsToBulkScore;

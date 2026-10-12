@@ -274,20 +274,30 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         boolean usePrecondition
     ) throws IOException {
         TopDocs results = getLeafResults(ctx, filterWeight, knnCollectorManager, visitRatio, usePrecondition);
-        IntObjectHashMap<ScoreDoc> dedupByDoc = new IntObjectHashMap<>(results.scoreDocs.length * 4 / 3);
+        return keepBestCopies(results, ctx.docBase);
+    }
+
+    /**
+     * Shifts a leaf's hits to global doc ids and keeps one hit per doc. SOAR can collect a doc twice (once per posting it
+     * belongs to); keeping its best copy makes the result independent of the order the copies were collected in.
+     */
+    static TopDocs keepBestCopies(TopDocs results, int docBase) {
+        IntObjectHashMap<ScoreDoc> bestByDoc = new IntObjectHashMap<>(results.scoreDocs.length * 4 / 3);
         for (ScoreDoc scoreDoc : results.scoreDocs) {
-            int globalDoc = scoreDoc.doc + ctx.docBase;
-            if (dedupByDoc.containsKey(globalDoc) == false) {
-                scoreDoc.doc = globalDoc;
-                dedupByDoc.put(globalDoc, scoreDoc);
+            int globalDoc = scoreDoc.doc + docBase;
+            ScoreDoc kept = bestByDoc.get(globalDoc);
+            if (kept == null) {
+                bestByDoc.put(globalDoc, new ScoreDoc(globalDoc, scoreDoc.score));
+            } else if (scoreDoc.score > kept.score) {
+                kept.score = scoreDoc.score;
             }
         }
-        ScoreDoc[] deduplicatedScoreDocs = new ScoreDoc[dedupByDoc.size()];
+        ScoreDoc[] best = new ScoreDoc[bestByDoc.size()];
         int index = 0;
-        for (IntObjectHashMap.IntObjectCursor<ScoreDoc> deduplicated : dedupByDoc) {
-            deduplicatedScoreDocs[index++] = deduplicated.value;
+        for (IntObjectHashMap.IntObjectCursor<ScoreDoc> cursor : bestByDoc) {
+            best[index++] = cursor.value;
         }
-        return new TopDocs(results.totalHits, deduplicatedScoreDocs);
+        return new TopDocs(results.totalHits, best);
     }
 
     abstract TopDocs getLeafResults(

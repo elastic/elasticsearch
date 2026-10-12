@@ -473,10 +473,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         }
 
         if (visitRatio == dynamicVisitRatio) {
-            visitRatio = Math.min(
-                computeDynamicVisitRatio(numCands, k) * computeSmallSegmentBoost(k, numVectors),
-                computeSegmentSizeCap(numVectors)
-            );
+            visitRatio = segmentVisitRatio(numCands, k, numVectors);
         }
         long maxVectorVisited = maxVectorsToVisit(entry, visitRatio, numVectors);
         IndexInput postListSlice = entry.postingListSlice(ivfClusters);
@@ -539,6 +536,22 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
      * budget where the centroid iterator's own bound governs how many postings are drained).
      */
     protected long maxVectorsToVisit(E entry, float visitRatio, int numVectors) {
+        return visitBudget(visitRatio, numVectors);
+    }
+
+    /**
+     * The dynamic visit ratio of a segment with {@code numVectors} vectors. Public so that query-side work estimates
+     * (e.g. how to split a query across threads) agree with how far the search loop actually scans.
+     */
+    public static float segmentVisitRatio(int numCands, int k, int numVectors) {
+        return Math.min(computeDynamicVisitRatio(numCands, k) * computeSmallSegmentBoost(k, numVectors), computeSegmentSizeCap(numVectors));
+    }
+
+    /**
+     * The number of posting entries a search visits in a segment: twice the visit ratio, because SOAR places a vector in
+     * up to two postings.
+     */
+    public static long visitBudget(float visitRatio, int numVectors) {
         return (long) (2.0 * visitRatio * numVectors);
     }
 

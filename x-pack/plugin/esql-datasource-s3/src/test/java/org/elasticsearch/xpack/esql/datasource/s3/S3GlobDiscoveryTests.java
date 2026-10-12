@@ -64,6 +64,46 @@ public class S3GlobDiscoveryTests extends ESTestCase {
         }
     }
 
+    /**
+     * The name-prefix overload narrows at the store, which is the only place this saving is real: S3 indexes on
+     * the key prefix, so a key the prefix excludes never crosses the wire. The two-argument form returns every
+     * object under the directory and leaves the caller to filter, so the pair below is the before and after.
+     */
+    public void testS3NamePrefixNarrowsTheListingAtTheStore() throws IOException {
+        StoragePath prefix = StoragePath.of("s3://" + BUCKET + "/" + DISCOVER_PREFIX + "/flat");
+
+        List<String> all = collectAll(provider.listObjects(prefix, false)).stream().map(e -> e.path().objectName()).sorted().toList();
+        assertEquals("the unnarrowed listing is the baseline", List.of("a.bin", "b.bin", "c.txt"), all);
+
+        List<String> narrowed = collectAll(provider.listObjects(prefix, "a", false)).stream()
+            .map(e -> e.path().objectName())
+            .sorted()
+            .toList();
+        assertEquals("only the key the prefix selects comes back", List.of("a.bin"), narrowed);
+    }
+
+    /** An empty name prefix must behave exactly as the two-argument form, which delegates to it. */
+    public void testS3EmptyNamePrefixReturnsEverything() throws IOException {
+        StoragePath prefix = StoragePath.of("s3://" + BUCKET + "/" + DISCOVER_PREFIX + "/flat");
+
+        List<String> withEmpty = collectAll(provider.listObjects(prefix, "", false)).stream()
+            .map(e -> e.path().objectName())
+            .sorted()
+            .toList();
+        assertEquals(List.of("a.bin", "b.bin", "c.txt"), withEmpty);
+    }
+
+    /**
+     * A name prefix that matches nothing returns nothing rather than everything. The failure this guards is the
+     * one that cost a round earlier: a narrowing implemented so that the comparison never matched returned an
+     * empty listing, which nothing downstream can tell from an empty dataset.
+     */
+    public void testS3NamePrefixMatchingNothingReturnsNothing() throws IOException {
+        StoragePath prefix = StoragePath.of("s3://" + BUCKET + "/" + DISCOVER_PREFIX + "/flat");
+
+        assertEquals(List.of(), collectAll(provider.listObjects(prefix, "zzz-no-such-key", false)));
+    }
+
     public void testS3FlatListing() throws IOException {
         StoragePath prefix = StoragePath.of("s3://" + BUCKET + "/" + DISCOVER_PREFIX + "/flat");
         List<StorageEntry> entries = collectAll(provider.listObjects(prefix, false));

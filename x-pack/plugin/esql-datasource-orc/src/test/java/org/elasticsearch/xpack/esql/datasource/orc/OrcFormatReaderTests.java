@@ -938,6 +938,74 @@ public class OrcFormatReaderTests extends ESTestCase {
      * It used to be withheld for any column the dataset declared a type for, even one read at its own type where no
      * conversion happens at all, which cost the pruning for nothing (esql-planning#2076).
      */
+    /**
+     * A whole-file {@code read()} reads the columns AS the schema the plan carries, not at the file's own types.
+     * Nothing pinned that: reverting it left every ORC test green while the per-file can-null set silently
+     * degenerated to the declared date formats, because every column then compared equal to itself.
+     */
+    public void testWholeFileReadHonoursThePlansSchema() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct().addField("n", TypeDescription.createLong());
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 2;
+            LongColumnVector n = (LongColumnVector) batch.cols[0];
+            n.vector[0] = 7L;
+            n.vector[1] = 42L;
+        });
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+        FormatReadContext context = FormatReadContext.builder()
+            .batchSize(1024)
+            .readSchema(List.of(new ReferenceAttribute(Source.EMPTY, "n", DataType.INTEGER)))
+            .errorPolicy(ErrorPolicy.STRICT)
+            .build();
+        try (CloseableIterator<Page> it = reader.read(createStorageObject(orcData), context)) {
+            Page page = it.next();
+            assertEquals(2, page.getPositionCount());
+            IntBlock values = page.getBlock(0);
+            assertEquals("the bigint is narrowed to the plan's integer, not returned as a long", 7, values.getInt(0));
+            assertEquals(42, values.getInt(1));
+            page.releaseBlocks();
+        }
+    }
+
+    /**
+     * {@code IS NULL} pushes to stripe statistics, which describe the STORED values. A column read at a narrower
+     * type is converted per value and an out-of-range value becomes a null the statistics never saw, so the
+     * pushdown has to be withheld - and the same file read at its own type pushes. This is the arm that protects a
+     * column nobody declared, which is what esql-planning#2076 made reachable.
+     */
+    public void testIsNullPushdownWithheldOverANarrowingReadSchema() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct().addField("n", TypeDescription.createLong());
+        // Values that all fit: the decision is made on the TYPE PAIR, not on what the file happens to hold, and a
+        // file with an out-of-range value would fail the read before the pushdown could be observed at all.
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 2;
+            LongColumnVector n = (LongColumnVector) batch.cols[0];
+            n.vector[0] = 7L;
+            n.vector[1] = 42L;
+        });
+        OrcPushedExpressions isNullOverN = new OrcPushedExpressions(
+            List.of(new IsNull(Source.EMPTY, new ReferenceAttribute(Source.EMPTY, "n", DataType.LONG)))
+        );
+
+        OrcReaderStatus narrowed = drainWithPushedExpressions(
+            orcData,
+            new OrcFormatReader(blockFactory),
+            isNullOverN,
+            List.of(new ReferenceAttribute(Source.EMPTY, "n", DataType.INTEGER))
+        );
+        assertFalse("a bigint read as a 32-bit integer can null a stored value", narrowed.predicatePushdownUsed());
+        assertThat(narrowed.predicateColumns(), empty());
+
+        OrcReaderStatus ownType = drainWithPushedExpressions(
+            orcData,
+            new OrcFormatReader(blockFactory),
+            isNullOverN,
+            List.of(new ReferenceAttribute(Source.EMPTY, "n", DataType.LONG))
+        );
+        assertTrue("read at its own type, nothing can null a stored value", ownType.predicatePushdownUsed());
+        assertThat(ownType.predicateColumns(), contains("n"));
+    }
+
     public void testIsNullPushdownWithheldOnlyWhereDecodeCanNull() throws Exception {
         TypeDescription schema = TypeDescription.createStruct()
             .addField("ts", TypeDescription.createLong())
@@ -970,9 +1038,27 @@ public class OrcFormatReaderTests extends ESTestCase {
     /** Installs {@code pushed} on {@code base}, drains the file with fresh counters and returns their snapshot. */
     private OrcReaderStatus drainWithPushedExpressions(byte[] orcData, OrcFormatReader base, OrcPushedExpressions pushed)
         throws IOException {
+        return drainWithPushedExpressions(orcData, base, pushed, null);
+    }
+
+    /**
+     * Drains a whole-file {@code read()} with the given pushed expressions, optionally reading the columns AS
+     * {@code readSchema} rather than at the file's own types - which is what makes the type arm of
+     * {@code conversionCanNull} reachable, and what the production dispatch does when the plan carries a schema.
+     */
+    private OrcReaderStatus drainWithPushedExpressions(
+        byte[] orcData,
+        OrcFormatReader base,
+        OrcPushedExpressions pushed,
+        List<Attribute> readSchema
+    ) throws IOException {
         OrcFormatReader reader = (OrcFormatReader) base.withPushedFilter(pushed);
         OrcReaderCounters counters = (OrcReaderCounters) reader.newReadCounters();
-        FormatReadContext context = FormatReadContext.builder().batchSize(1024).readCounters(counters).build();
+        FormatReadContext.Builder builder = FormatReadContext.builder().batchSize(1024).readCounters(counters);
+        if (readSchema != null) {
+            builder.readSchema(readSchema);
+        }
+        FormatReadContext context = builder.build();
         try (CloseableIterator<Page> iterator = reader.read(createStorageObject(orcData), context)) {
             while (iterator.hasNext()) {
                 iterator.next().releaseBlocks();

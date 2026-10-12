@@ -389,9 +389,15 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertNotNull(resolved);
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = resolved.schemaMap();
         assertThat("every listed file is keyed", schemaMap.size(), equalTo(fileCount));
-        SchemaReconciliation.FileSchemaInfo shared = schemaMap.values().iterator().next();
+        // The anchor carries the column types its footer check read, so it is its own record; every file after it
+        // was never opened and shares one instance, which is what keeps a wide glob from costing a record per file.
+        SchemaReconciliation.FileSchemaInfo shared = schemaMap.get(StoragePath.of("s3://bucket/data/file1.parquet"));
+        assertNotNull("the second file is keyed", shared);
         for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> e : schemaMap.entrySet()) {
-            assertSame("one declared schema backs every key, not one record per file", shared, e.getValue());
+            if (e.getKey().equals(StoragePath.of("s3://bucket/data/file0.parquet"))) {
+                continue;
+            }
+            assertSame("one declared schema backs every unopened file, not one record per file", shared, e.getValue());
         }
     }
 
@@ -1500,7 +1506,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * included, even though the anchor's footer WAS read at resolution for the coercibility check and then discarded.
      * Recording it is what would let the anchor keep its statistics, and is its own change.
      */
-    public void testStrictDeclaredMultiFileRecordsNoPerFileInferredTypes() throws Exception {
+    public void testStrictDeclaredMultiFileRecordsOnlyTheAnchorsTypes() throws Exception {
         String anchorPath = "s3://bucket/data/a.parquet";
         String driftPath = "s3://bucket/data/b.parquet";
         Map<String, List<Attribute>> schemasByPath = new HashMap<>();
@@ -1532,9 +1538,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals(2, schemaMap.size());
         SchemaReconciliation.FileSchemaInfo anchorInfo = schemaMap.get(StoragePath.of(anchorPath));
         SchemaReconciliation.FileSchemaInfo driftInfo = schemaMap.get(StoragePath.of(driftPath));
-        assertSame("one declared record backs both files", anchorInfo, driftInfo);
-        assertNull("the strict rail records no per-file footer types", driftInfo.inferredTypes());
+        // The anchor's footer was read for the coercibility check, so its own types are kept rather than discarded;
+        // the drifting file was never opened, so nothing is recorded for it. That difference is what lets the
+        // may-narrow question and the statistics be answered from what was read instead of from the declaration.
+        assertNotSame("the anchor is its own record now", anchorInfo, driftInfo);
+        assertEquals("the anchor keeps the types its footer check read", Map.of("x", DataType.INTEGER), anchorInfo.inferredTypes());
+        assertNull("the unopened file records none", driftInfo.inferredTypes());
         assertNull("the strict rail harvests no statistics", driftInfo.statistics());
+        assertNull(anchorInfo.statistics());
         assertEquals(
             "the read schema is the declaration, not the file's",
             DataType.LONG,
@@ -4828,9 +4839,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             assertTrue(
                 provenance + ": an unexamined file of a pinned read may hold anything",
                 SourceStatisticsSerializer.conversionMayNarrow(
-                    ExternalSourceResolver.stampConversionMayNarrow(unread, configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS))
-                        .metadata()
-                        .sourceMetadata()
+                    ExternalSourceResolver.stampConversionMayNarrow(unread).metadata().sourceMetadata()
                 )
             );
         }
@@ -4841,21 +4850,35 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * named single file's own schema IS its types, so nothing is being converted and the stamp stays off. Reading
      * the absent snapshot as "unknown" here withheld filter pushdown from the commonest read there is.
      */
-    public void testConversionMayNarrowStampIsOffForAnExplicitSingleFile() {
-        ExternalSchema ownSchema = new ExternalSchema(List.of(attr("x", DataType.LONG)));
-        StoragePath path = StoragePath.of("s3://bucket/part-a.parquet");
-        ExternalSourceResolution.ResolvedSource single = new ExternalSourceResolution.ResolvedSource(
-            createStubMetadata(path.toString(), ownSchema.attributes()),
-            GlobExpander.fileListOf(List.of(new StorageEntry(path, 100, Instant.EPOCH)), path.toString()),
-            Map.of(path, new SchemaReconciliation.FileSchemaInfo(ownSchema, null, null)),
-            DeclaredReadSpec.NONE
+    /**
+     * Driven through the resolver, because what makes this answerable is the PRODUCER: the single-file path records
+     * the column types it just read out of the file, so the stamp is computed by comparing them with the types being
+     * read. It used to hand over nothing, which left the question answerable only by asking how the schema had been
+     * authored - the read this change exists to remove.
+     */
+    public void testASingleInferredFileRecordsItsOwnTypesAndStampsNoNarrowing() throws Exception {
+        String filePath = "s3://bucket/data/only.parquet";
+        Map<String, List<Attribute>> schemasByPath = Map.of(filePath, List.of(attr("x", DataType.LONG)));
+        Map<String, List<StorageEntry>> listingsByPrefix = Map.of(
+            StoragePath.of(filePath).patternPrefix().toString(),
+            List.of(entry(filePath, 100))
+        );
+        ExternalSourceResolver resolver = createResolver(schemasByPath, listingsByPrefix);
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(filePath), Map.of(filePath, new HashMap<>()), null, Map.of(), null, future);
+        ExternalSourceResolution.ResolvedSource resolved = future.actionGet().resolvedSource(filePath);
+
+        assertNotNull(resolved);
+        SchemaReconciliation.FileSchemaInfo info = resolved.schemaMap().get(StoragePath.of(filePath));
+        assertNotNull(info);
+        assertEquals(
+            "the schema was read out of this very file, so its types are recorded as the file's own",
+            Map.of("x", DataType.LONG),
+            info.inferredTypes()
         );
         assertFalse(
-            SourceStatisticsSerializer.conversionMayNarrow(
-                ExternalSourceResolver.stampConversionMayNarrow(single, configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS))
-                    .metadata()
-                    .sourceMetadata()
-            )
+            "nothing is being converted, so no value can fail",
+            SourceStatisticsSerializer.conversionMayNarrow(resolved.metadata().sourceMetadata())
         );
     }
 
@@ -4876,9 +4899,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertTrue(
             "physical x is a long read as a 32-bit integer, which narrows",
             SourceStatisticsSerializer.conversionMayNarrow(
-                ExternalSourceResolver.stampConversionMayNarrow(renamed, configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS))
-                    .metadata()
-                    .sourceMetadata()
+                ExternalSourceResolver.stampConversionMayNarrow(renamed).metadata().sourceMetadata()
             )
         );
     }
@@ -4893,9 +4914,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
         assertTrue(
             SourceStatisticsSerializer.conversionMayNarrow(
-                ExternalSourceResolver.stampConversionMayNarrow(nothingSeen, configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS))
-                    .metadata()
-                    .sourceMetadata()
+                ExternalSourceResolver.stampConversionMayNarrow(nothingSeen).metadata().sourceMetadata()
             )
         );
     }
@@ -4921,9 +4940,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
         assertTrue(
             SourceStatisticsSerializer.conversionMayNarrow(
-                ExternalSourceResolver.stampConversionMayNarrow(mixed, configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS))
-                    .metadata()
-                    .sourceMetadata()
+                ExternalSourceResolver.stampConversionMayNarrow(mixed).metadata().sourceMetadata()
             )
         );
     }
@@ -4938,23 +4955,21 @@ public class ExternalSourceResolverTests extends ESTestCase {
             Map.of(path, new SchemaReconciliation.FileSchemaInfo(readAsLong, null, null, Map.of("x", DataType.INTEGER))),
             DeclaredReadSpec.NONE
         );
-        ExternalSourceResolution.ResolvedSource stamped = ExternalSourceResolver.stampConversionMayNarrow(
-            clean,
-            configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS)
-        );
+        ExternalSourceResolution.ResolvedSource stamped = ExternalSourceResolver.stampConversionMayNarrow(clean);
         Map<String, Object> metadata = stamped.metadata().sourceMetadata();
         assertTrue("the stamp is always present", SourceStatisticsSerializer.conversionNarrowingStamped(metadata));
         assertFalse("and says no", SourceStatisticsSerializer.conversionMayNarrow(metadata));
     }
 
     /**
-     * A plan carrying no stamp came from a coordinator that predates it. The read must then be answered the way that
-     * coordinator's own data nodes answered - any declared column type meant a value could fail - so a rolling
-     * upgrade cannot start pushing filters they withheld.
+     * A plan carrying no stamp came from a coordinator that predates it, and is read conservatively: a value may
+     * fail, so the filter is withheld. It deliberately does NOT fall back to asking whether the dataset declared
+     * any column types - that question is schema provenance under another name, and answering a read with it is
+     * what esql-planning#2076 removes. Both arms below answer the same way for that reason.
      */
-    public void testAnUnstampedPlanFallsBackToThePreStampAnswer() {
+    public void testAnUnstampedPlanIsReadConservatively() {
         List<Attribute> schema = List.of(attr("x", DataType.LONG));
-        ExternalSourceExec declared = new ExternalSourceExec(
+        ExternalSourceExec unstamped = new ExternalSourceExec(
             Source.EMPTY,
             "s3://bucket/*.parquet",
             "parquet",
@@ -4964,10 +4979,118 @@ public class ExternalSourceResolverTests extends ESTestCase {
             null,
             null
         ).withDeclaredReadSpec(DeclaredReadSpec.of(Map.of(), Map.of(), Set.of("x"), SchemaProvenance.DECLARED));
-        assertTrue("a declared column was the pre-stamp answer for 'a value can fail'", declared.conversionMayNarrow());
+        assertTrue("no stamp means a value may fail", unstamped.conversionMayNarrow());
+        assertTrue(
+            "and the declared column set does not change that",
+            unstamped.withDeclaredReadSpec(DeclaredReadSpec.NONE).conversionMayNarrow()
+        );
+    }
 
-        ExternalSourceExec inferred = declared.withDeclaredReadSpec(DeclaredReadSpec.NONE);
-        assertFalse("and no declared column was the pre-stamp answer for 'it cannot'", inferred.conversionMayNarrow());
+    /**
+     * Driven through the real resolver, because the defect was the ORDER of two calls in {@code resolveNextPath}:
+     * the stamp reads the read spec's renames and provenance, and every producer hands the source over without a
+     * spec attached. Stamping first therefore saw neither, and a path-renamed narrowing column came out as "cannot
+     * fail" - the filter is then pushed into a reader that cannot drop rows, and an overflowing row comes back with
+     * the column nulled instead of dropped. A test that calls the stamp helper itself cannot catch that, whichever
+     * orderings it asserts.
+     */
+    public void testAPathRenamedNarrowingColumnIsStampedThroughTheResolver() throws Exception {
+        String filePath = "s3://bucket/data/a.parquet";
+        Map<String, List<Attribute>> schemasByPath = Map.of(filePath, List.of(attr("x", DataType.LONG)));
+        Map<String, List<StorageEntry>> listingsByPrefix = Map.of(
+            StoragePath.of(DECLARED_GLOB).patternPrefix().toString(),
+            List.of(entry(filePath, 100))
+        );
+        ExternalSourceResolver resolver = createResolver(schemasByPath, listingsByPrefix);
+        // Logical `amt` is an integer, moved from physical `x`, which the file holds as a long: a narrowing the
+        // stamp can only see once the rename is in hand.
+        DatasetMapping mapping = new DatasetMapping(
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, Map.of("amt", new DatasetFieldMapping("integer", "x")))
+        );
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(
+            List.of(DECLARED_GLOB),
+            Map.of(DECLARED_GLOB, new HashMap<>()),
+            null,
+            Map.of(DECLARED_GLOB, mapping),
+            null,
+            future
+        );
+        ExternalSourceResolution.ResolvedSource resolved = future.actionGet().resolvedSource(DECLARED_GLOB);
+
+        assertNotNull(resolved);
+        assertEquals("the rename reached the spec", Map.of("amt", "x"), resolved.declaredReadSpec().renames());
+        assertTrue(
+            "physical x is a long read as a 32-bit integer, which narrows",
+            SourceStatisticsSerializer.conversionMayNarrow(resolved.metadata().sourceMetadata())
+        );
+    }
+
+    /**
+     * A strict declared read keeps one record with no per-file type snapshot, so nothing has established what the
+     * files hold. The declaration is the schema someone asked for, not what is there, so the stamp must say a value
+     * can fail. Comparing the declared type against itself called every such read safe.
+     */
+    public void testADeclaredReadWithNoCapturedTypesMayNarrow() {
+        ExternalSchema declared = new ExternalSchema(List.of(attr("n", DataType.INTEGER)));
+        StoragePath path = StoragePath.of("s3://bucket/part-a.parquet");
+        for (String pattern : List.of("s3://bucket/part-a.parquet", "s3://bucket/*.parquet")) {
+            ExternalSourceResolution.ResolvedSource strict = new ExternalSourceResolution.ResolvedSource(
+                createStubMetadata(pattern, declared.attributes()),
+                GlobExpander.fileListOf(List.of(new StorageEntry(path, 100, Instant.EPOCH)), pattern),
+                Map.of(path, new SchemaReconciliation.FileSchemaInfo(declared, null, null)),
+                DeclaredReadSpec.of(Map.of(), Map.of(), Set.of("n"), SchemaProvenance.DECLARED)
+            );
+            assertTrue(
+                pattern + ": a declaration says nothing about what the file holds",
+                SourceStatisticsSerializer.conversionMayNarrow(
+                    ExternalSourceResolver.stampConversionMayNarrow(strict).metadata().sourceMetadata()
+                )
+            );
+        }
+    }
+
+    /** The stamp wrapper must not drop the rest of the metadata interface, now that every resolve passes through it. */
+    public void testTheStampPreservesTheRestOfTheMetadata() {
+        ExternalSchema schema = new ExternalSchema(List.of(attr("x", DataType.LONG)));
+        StoragePath path = StoragePath.of("s3://bucket/part-a.parquet");
+        List<String> warnings = List.of("a warning the resolve produced");
+        ExternalSourceMetadata rich = new ExternalSourceMetadata() {
+            @Override
+            public String location() {
+                return path.toString();
+            }
+
+            @Override
+            public List<Attribute> schema() {
+                return schema.attributes();
+            }
+
+            @Override
+            public String sourceType() {
+                return "parquet";
+            }
+
+            @Override
+            public List<String> warnings() {
+                return warnings;
+            }
+
+            @Override
+            public Optional<List<String>> partitionColumns() {
+                return Optional.of(List.of("region"));
+            }
+        };
+        ExternalSourceResolution.ResolvedSource source = new ExternalSourceResolution.ResolvedSource(
+            rich,
+            GlobExpander.fileListOf(List.of(new StorageEntry(path, 100, Instant.EPOCH)), path.toString()),
+            Map.of(path, new SchemaReconciliation.FileSchemaInfo(schema, null, null, Map.of("x", DataType.LONG)))
+        );
+        ExternalSourceMetadata stamped = ExternalSourceResolver.stampConversionMayNarrow(source).metadata();
+
+        assertTrue(SourceStatisticsSerializer.conversionNarrowingStamped(stamped.sourceMetadata()));
+        assertEquals("warnings must survive the stamp", warnings, stamped.warnings());
+        assertEquals("so must the partition columns", Optional.of(List.of("region")), stamped.partitionColumns());
     }
 
     /** Stamps one file read as {@code readSchema} whose own types are {@code nativeTypes}, and reads the stamp back. */
@@ -4980,9 +5103,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             DeclaredReadSpec.NONE
         );
         return SourceStatisticsSerializer.conversionMayNarrow(
-            ExternalSourceResolver.stampConversionMayNarrow(source, configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS))
-                .metadata()
-                .sourceMetadata()
+            ExternalSourceResolver.stampConversionMayNarrow(source).metadata().sourceMetadata()
         );
     }
 

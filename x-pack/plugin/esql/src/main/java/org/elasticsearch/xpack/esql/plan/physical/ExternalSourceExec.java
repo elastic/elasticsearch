@@ -504,15 +504,16 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
      * {@link #sourceMetadata()}. The coordinator is the only node that has seen the files, so this is how the fact
      * reaches a data node.
      * <p>
-     * A plan with no stamp came from a coordinator that predates it, and is answered the way that coordinator's own
-     * data nodes answered: any declared column type meant a value could fail. Reading absent as "cannot fail"
-     * instead would push a filter they withheld, which during a rolling upgrade is a row kept with a nulled cell.
+     * A plan with no stamp came from a coordinator that predates it, and is answered the way that coordinator
+     * decided it: any declared column type meant a value could fail. That reproduces the old PLAN, not the old
+     * outcome - this node's readers convert per value now, so in that window an inferred narrowing column under
+     * {@code skip_row} can keep a row with a nulled cell where the old node returned the column as all-null.
+     * Neither is what {@code skip_row} asks for, and the window closes when the coordinator upgrades. Reading an
+     * absent stamp as "cannot fail" would be worse still: it would push a filter over a DECLARED narrowing column,
+     * which the old coordinator withheld.
      */
     public boolean conversionMayNarrow() {
-        if (SourceStatisticsSerializer.conversionNarrowingStamped(sourceMetadata)) {
-            return SourceStatisticsSerializer.conversionMayNarrow(sourceMetadata);
-        }
-        return declaredReadSpec().declaredTypeColumns().isEmpty() == false;
+        return SourceStatisticsSerializer.conversionMayNarrow(sourceMetadata, declaredReadSpec());
     }
 
     /**

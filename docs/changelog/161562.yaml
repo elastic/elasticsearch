@@ -19,6 +19,5 @@ breaking:
     Queries over external datasets whose files disagree with the query's column types, or whose
     files drift from the first file under first-file-wins schema resolution, may now fail where
     they returned nulls and a warning. Setting the dataset's error mode to `null_field` keeps the
-    previous null-filling behaviour. Reachable on a release build by a non-Windows deployment that
-    enables ES|QL federation, which is off by default there.
+    previous null-filling behaviour. Affects deployments where ES|QL federation is enabled.
   notable: false

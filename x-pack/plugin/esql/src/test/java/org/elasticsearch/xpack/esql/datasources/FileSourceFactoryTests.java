@@ -221,6 +221,38 @@ public class FileSourceFactoryTests extends ESTestCase {
     }
 
     /**
+     * The factory answers an UNSTAMPED plan - one from a coordinator that predates the stamp - from the declared
+     * column set, which is what that coordinator decided. It shares one helper with the two planner rules, so this
+     * also covers their copy; before they shared it, the factory held the only inline copy of the fallback and
+     * nothing exercised it.
+     */
+    public void testAnUnstampedPlanIsReadConservatively() {
+        FileSourceFactory factory = newFileSourceFactory(new ExtractorAwareStubFormatReader("test-parquet", ".parquet"));
+        DeclaredReadSpec declared = DeclaredReadSpec.of(Map.of(), Map.of(), Set.of("x"));
+
+        // No stamp means a value may fail, so skip_row withholds deferred extraction - and the declared column set
+        // does not enter into it, because answering a read from declaredness is the defect being removed.
+        assertFalse("no stamp, skip_row", deferredExtractionUnstamped(factory, "skip_row", declared));
+        assertFalse("and the declared set changes nothing", deferredExtractionUnstamped(factory, "skip_row", DeclaredReadSpec.NONE));
+        assertTrue("a mode that keeps every row is unaffected", deferredExtractionUnstamped(factory, "null_field", declared));
+    }
+
+    /** The same cell as {@link #deferredExtraction}, but with NO stamp in {@code sourceMetadata} at all. */
+    private static boolean deferredExtractionUnstamped(FileSourceFactory factory, String errorMode, DeclaredReadSpec spec) {
+        SourceOperatorContext context = SourceOperatorContext.builder()
+            .path(StoragePath.of("s3://bucket/data.parquet"))
+            .attributes(List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG)))
+            .executor(EsExecutors.DIRECT_EXECUTOR_SERVICE)
+            .config(Map.of(ErrorPolicy.CONFIG_ERROR_MODE, errorMode))
+            .sourceMetadata(Map.of())
+            .deferredExtraction(true)
+            .declaredReadSpec(spec)
+            .build();
+        AsyncExternalSourceOperatorFactory built = (AsyncExternalSourceOperatorFactory) factory.operatorFactory().create(context);
+        return built.deferredExtractionEnabled();
+    }
+
+    /**
      * Builds the operator factory for one ({@code error_mode}, read spec, may-narrow) cell and returns its
      * deferred-extraction decision. The last argument is stamped into {@code sourceMetadata} the way resolution
      * stamps it.

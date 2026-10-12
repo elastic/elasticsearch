@@ -80,8 +80,11 @@ public final class SourceStatisticsSerializer {
      * Written on every resolve, {@code true} or {@code false}, so that ABSENT means something different: a
      * coordinator that predates the key, which said nothing. Absent must not be read as "cannot fail" - the
      * predicate this replaced answered YES for a declared read, so a new data node taking absent as no would push
-     * a filter the old coordinator's own data nodes withheld, during a rolling upgrade. Readers use
-     * {@link #conversionNarrowingStamped} to tell the two apart. Like {@link #PARTITION_COLUMNS_KEY}, deliberately
+     * a filter the old coordinator withheld, during a rolling upgrade. Readers use
+     * {@link #conversionNarrowingStamped} to tell the two apart, which reproduces the old plan rather than the old
+     * outcome: see {@code ExternalSourceExec#conversionMayNarrow} for what that window looks like.
+     * <p>
+     * Like {@link #PARTITION_COLUMNS_KEY}, deliberately
      * not under the {@code _stats.} prefix, so the statistics merges preserve it. Value: {@code Boolean}.
      */
     public static final String CONVERSION_MAY_NARROW_KEY = "_read.conversion_may_narrow";
@@ -146,6 +149,25 @@ public final class SourceStatisticsSerializer {
      */
     public static boolean conversionNarrowingStamped(Map<String, Object> sourceMetadata) {
         return sourceMetadata != null && sourceMetadata.containsKey(CONVERSION_MAY_NARROW_KEY);
+    }
+
+    /**
+     * Whether reading this source may convert a value and fail. A plan carrying no answer - one minted by a
+     * coordinator that predates the stamp - is assumed to be able to fail, which withholds the filter pushdown and
+     * the deferred extraction for the length of a rolling upgrade and costs nothing but speed.
+     * <p>
+     * It deliberately does NOT fall back to asking whether the dataset declared any column types. That question
+     * would reproduce the old plan exactly, and it is schema provenance wearing another name: a signal whose value
+     * is decided by how the schema was produced, consulted while reading. Reintroducing it here would undo the
+     * point of esql-planning#2076 for every plan in the upgrade window.
+     * <p>
+     * The one implementation of the question. Three decisions turn on it for a single read - whether the filter
+     * reaches the reader, whether field extraction is deferred, and whether the operator factory enables it - and
+     * they have to agree, because each moves the page away from the point where a failing row is dropped. Two of
+     * them are plan-time and one is execution-time, so a second copy shows up as a plan the factory cannot honour.
+     */
+    public static boolean conversionMayNarrow(Map<String, Object> sourceMetadata, DeclaredReadSpec declaredReadSpec) {
+        return conversionNarrowingStamped(sourceMetadata) == false || conversionMayNarrow(sourceMetadata);
     }
 
     /**

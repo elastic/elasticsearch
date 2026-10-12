@@ -668,11 +668,8 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 // the error mode against the reader's default via ErrorPolicy.forReader, and whether a value can
                 // fail at all from the resolution-time stamp the plan carries. Reading that stamp rather than the
                 // schema map is what makes the answer the same on a data node, where the map can be empty.
-                boolean mayNarrow = SourceStatisticsSerializer.conversionNarrowingStamped(context.sourceMetadata())
-                    ? SourceStatisticsSerializer.conversionMayNarrow(context.sourceMetadata())
-                    // A plan with no stamp predates it; answer as its own coordinator's data nodes did.
-                    : context.declaredReadSpec().declaredTypeColumns().isEmpty() == false;
-                boolean dropsRowsOnCoercionFailure = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW && mayNarrow;
+                boolean dropsRowsOnCoercionFailure = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW
+                    && SourceStatisticsSerializer.conversionMayNarrow(context.sourceMetadata(), context.declaredReadSpec());
 
                 List<Expression> pushedExpressions = context.pushedExpressions();
                 // Note: this only controls the per-file re-mint in AsyncExternalSourceOperatorFactory#readerForFile
@@ -711,9 +708,10 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 // projection is NOT a valid signal on its own — InjectRowPositionForRecordRef also
                 // injects it for plain _file.record_ref composition, where enabling deferred mode would create a
                 // SourceExtractors registry no extract operator ever closes.
-                // Additionally, deferred extraction is disabled when skip_row is active with declared-type
-                // coercion columns: the extractor runs after the page shape is fixed and cannot drop rows
-                // that fail coercion; the columnar iterator must do the filtering at emit time instead.
+                // Additionally, deferred extraction is disabled when skip_row is active over files whose values the
+                // scan may have to convert: the extractor runs after the page shape is fixed and cannot drop rows
+                // that fail, so the columnar iterator must do the filtering at emit time instead. Keyed on the
+                // resolution-time stamp, not on whether any column was declared (esql-planning#2076).
                 boolean deferredExtraction = format instanceof ColumnExtractorAware
                     && context.deferredExtraction()
                     && dropsRowsOnCoercionFailure == false;

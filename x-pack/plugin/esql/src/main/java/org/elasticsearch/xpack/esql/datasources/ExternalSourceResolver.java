@@ -838,7 +838,9 @@ public class ExternalSourceResolver {
                 finalSource = resolvedSource;
                 effectiveReadSpec = declaredReadSpec;
             }
-            resolved.put(path, stampConversionMayNarrow(finalSource, config).withDeclaredReadSpec(effectiveReadSpec));
+            // The spec goes on FIRST: the stamp reads its renames and its provenance, and every producer of
+            // finalSource builds a ResolvedSource without one, so stamping first saw neither.
+            resolved.put(path, stampConversionMayNarrow(finalSource.withDeclaredReadSpec(effectiveReadSpec)));
             LOGGER.debug("Successfully resolved external source: {}", path);
             // Dispatch to the executor rather than calling directly: on a cache-hit the callback fires
             // synchronously, so a direct recursive call would stack one frame per path and overflow the
@@ -1327,7 +1329,9 @@ public class ExternalSourceResolver {
                 storagePath,
                 physicalSchema,
                 dataOnlySchema,
-                fileStats
+                fileStats,
+                // physicalSchema is what was read out of this very file.
+                true
             );
             listener.onResponse(new ExternalSourceResolution.ResolvedSource(extMetadata, singletonList, schemaMap));
         } finally {
@@ -1340,7 +1344,7 @@ public class ExternalSourceResolver {
         @Nullable List<Attribute> schema,
         @Nullable SourceStatistics statistics
     ) {
-        return singleEntrySchemaMap(path, schema, schema, statistics);
+        return singleEntrySchemaMap(path, schema, schema, statistics, true);
     }
 
     /**
@@ -1352,7 +1356,8 @@ public class ExternalSourceResolver {
         StoragePath path,
         @Nullable List<Attribute> physicalSchema,
         @Nullable List<Attribute> dataOnlySchema,
-        @Nullable SourceStatistics statistics
+        @Nullable SourceStatistics statistics,
+        boolean physicalSchemaIsTheFilesOwnTypes
     ) {
         if (physicalSchema == null || physicalSchema.isEmpty()) {
             return Map.of();
@@ -1360,7 +1365,11 @@ public class ExternalSourceResolver {
         ColumnMapping mapping = dataOnlySchema == null || dataOnlySchema.size() == physicalSchema.size()
             ? new ColumnMapping(identityMapping(physicalSchema.size()), null)
             : SchemaReconciliation.computeMapping(dataOnlySchema, physicalSchema);
-        return Map.of(path, new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(physicalSchema), mapping, statistics));
+        // Record the types when the schema handed in was read OUT of this file, so later decisions need not work
+        // that out from how the schema was authored. The caller knows it as a fact about the argument it is
+        // passing: an inferred read hands over what it found, a declared one hands over what was asked for.
+        Map<String, DataType> fileOwnTypes = physicalSchemaIsTheFilesOwnTypes ? attributesToTypeMap(physicalSchema) : null;
+        return Map.of(path, new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(physicalSchema), mapping, statistics, fileOwnTypes));
     }
 
     private void resolveMultiFileSource(
@@ -1720,13 +1729,10 @@ public class ExternalSourceResolver {
      * Written on every resolve, true or false, so a data node can tell "this coordinator says no" from "this
      * coordinator never said" - the second is a pre-stamp plan and is answered the pre-stamp way.
      */
-    static ExternalSourceResolution.ResolvedSource stampConversionMayNarrow(
-        ExternalSourceResolution.ResolvedSource source,
-        @Nullable Map<String, Object> config
-    ) {
+    static ExternalSourceResolution.ResolvedSource stampConversionMayNarrow(ExternalSourceResolution.ResolvedSource source) {
         Map<String, Object> current = source.metadata().sourceMetadata();
         Map<String, Object> stamped = current == null ? new HashMap<>() : new HashMap<>(current);
-        stamped.put(SourceStatisticsSerializer.CONVERSION_MAY_NARROW_KEY, conversionMayNarrow(source, config));
+        stamped.put(SourceStatisticsSerializer.CONVERSION_MAY_NARROW_KEY, conversionMayNarrow(source));
         return new ExternalSourceResolution.ResolvedSource(
             replaceSourceMetadata(source.metadata(), Map.copyOf(stamped)),
             source.fileList(),
@@ -1735,23 +1741,20 @@ public class ExternalSourceResolver {
         );
     }
 
-    private static boolean conversionMayNarrow(ExternalSourceResolution.ResolvedSource source, @Nullable Map<String, Object> config) {
+    private static boolean conversionMayNarrow(ExternalSourceResolution.ResolvedSource source) {
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = source.schemaMap();
         if (schemaMap == null || schemaMap.isEmpty()) {
             // Nothing was examined, so nothing rules out a value that fails to convert.
             return true;
         }
-        // When the schema is pinned from one file, a file with no type snapshot was never examined and may hold
-        // anything. When it is not, each file's own schema IS its types, so a missing snapshot says nothing is
-        // being converted - the same reading applyNonStrictOverlay takes of the same two cases.
-        boolean schemaPinnedFromAnchorFile = isSchemaPinnedFromAnchorFile(
-            source.fileList() == null ? null : source.fileList().originalPattern(),
-            config
-        );
-        Map<String, String> renames = source.declaredReadSpec() == null ? Map.of() : source.declaredReadSpec().renames();
+        DeclaredReadSpec spec = source.declaredReadSpec() == null ? DeclaredReadSpec.NONE : source.declaredReadSpec();
+        Map<String, String> renames = spec.renames();
         for (SchemaReconciliation.FileSchemaInfo info : schemaMap.values()) {
+            // No snapshot means nobody recorded what this file holds, so it may hold anything. Every producer now
+            // records them when it read them, so this asks the record rather than working it out from how the
+            // schema was authored (esql-planning#2076).
             Map<String, DataType> nativeTypes = info.inferredTypes();
-            if (nativeTypes == null && schemaPinnedFromAnchorFile) {
+            if (nativeTypes == null) {
                 return true;
             }
             for (Attribute attr : info.fileSchema().attributes()) {
@@ -1760,7 +1763,7 @@ public class ExternalSourceResolver {
                 // the same translation normalizeSplitStats and fileBackedPhysicalColumns perform. Reading the
                 // logical name out of the physical map silently found nothing and called the column safe.
                 String physical = PhysicalNames.translate(attr.name(), renames);
-                DataType nativeType = nativeTypes == null ? attr.dataType() : nativeTypes.get(physical);
+                DataType nativeType = nativeTypes.get(physical);
                 if (nativeType != null && DeclaredTypeCoercions.readsLossless(nativeType, attr.dataType()) == false) {
                     return true;
                 }
@@ -1769,7 +1772,14 @@ public class ExternalSourceResolver {
         return false;
     }
 
-    /** Returns a wrapper that delegates to {@code base} but replaces {@code sourceMetadata()} with {@code replacement}. */
+    /**
+     * Returns a wrapper that delegates to {@code base} but replaces {@code sourceMetadata()} with
+     * {@code replacement}. Every other member of the interface is forwarded, including the ones whose default
+     * implementations would otherwise answer empty: a wrapper that forwarded only the members its first caller
+     * happened to need silently dropped this source's statistics, warnings, widened columns and partition columns.
+     * That mattered little while three first-file-wins call sites used it and matters generally now that the
+     * may-narrow stamp passes every resolve through here.
+     */
     private static ExternalSourceMetadata replaceSourceMetadata(ExternalSourceMetadata base, Map<String, Object> replacement) {
         return new ExternalSourceMetadata() {
             @Override
@@ -1796,6 +1806,29 @@ public class ExternalSourceResolver {
             public Map<String, Object> config() {
                 return base.config();
             }
+
+            @Override
+            public Optional<SourceStatistics> statistics() {
+                return base.statistics();
+            }
+
+            @Override
+            public List<String> warnings() {
+                return base.warnings();
+            }
+
+            @Override
+            public List<WidenedColumn> widenedColumns() {
+                return base.widenedColumns();
+            }
+
+            @Override
+            public Optional<List<String>> partitionColumns() {
+                return base.partitionColumns();
+            }
+
+            // sampleBytes() and sampleRows() read sourceMetadata(), which is the replacement, so they follow it
+            // rather than base - the same values, since the stamp only adds a key.
         };
     }
 
@@ -4905,7 +4938,14 @@ public class ExternalSourceResolver {
         // Strict declares the whole schema, so no per-file footer statistics were harvested. Partition
         // attributes are extra on the coordinator schema, not in the mapping — identity over declared width,
         // same as resolveStrictMultiFile.
-        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(storagePath, logicalSchema, null);
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(
+            storagePath,
+            logicalSchema,
+            logicalSchema,
+            null,
+            // The declaration, not what the file holds: strict never reads this file's own column types.
+            false
+        );
         return new ExternalSourceResolution.ResolvedSource(extMetadata, singletonList, schemaMap);
     }
 
@@ -5225,8 +5265,8 @@ public class ExternalSourceResolver {
             // throws, never alters the schema, and every query that reads rows still runs it. The footer read is
             // async: this may be running on a listing thread, which must not block on a read that pool also serves.
             final PartitionMetadata finalPartitionMetadata = partitionMetadata;
-            ActionListener<Void> footerChecked = ActionListener.wrap(
-                ignored -> finishStrictMultiFile(
+            ActionListener<Map<String, DataType>> footerChecked = ActionListener.wrap(
+                anchorTypes -> finishStrictMultiFile(
                     listing,
                     path,
                     config,
@@ -5234,11 +5274,13 @@ public class ExternalSourceResolver {
                     sourceType,
                     logicalSchema,
                     finalPartitionMetadata,
+                    anchorTypes,
                     listener
                 ),
                 listener::onFailure
             );
             if (demand.isSchemaDiscovery()) {
+                // Nothing is read for a schema-discovery resolve, so no file's own types are known.
                 footerChecked.onResponse(null);
             } else {
                 rejectStrictColumnarUncoercibleTypesAsync(
@@ -5267,6 +5309,7 @@ public class ExternalSourceResolver {
         String sourceType,
         List<Attribute> logicalSchema,
         @Nullable PartitionMetadata partitionMetadata,
+        @Nullable Map<String, DataType> anchorTypes,
         ActionListener<ExternalSourceResolution.ResolvedSource> listener
     ) {
         try {
@@ -5292,15 +5335,23 @@ public class ExternalSourceResolver {
             if (logicalSchema == null || logicalSchema.isEmpty()) {
                 schemaMap = Map.of();
             } else {
-                // Strict reads only the anchor's footer for the coercibility check, so no file has harvested statistics.
-                SchemaReconciliation.FileSchemaInfo declaredInfo = new SchemaReconciliation.FileSchemaInfo(
-                    new ExternalSchema(logicalSchema),
-                    new ColumnMapping(identityMapping(logicalSchema.size()), null),
+                // Strict reads only the anchor's footer for the coercibility check, so no file has harvested
+                // statistics. The anchor's own column types ARE known from that read, and only the anchor's: every
+                // later file is unexamined. So the anchor gets its own record carrying them and the rest share one
+                // without, which is the difference the may-narrow question and the statistics both turn on.
+                ExternalSchema declaredSchema = new ExternalSchema(logicalSchema);
+                ColumnMapping identity = new ColumnMapping(identityMapping(logicalSchema.size()), null);
+                SchemaReconciliation.FileSchemaInfo unexaminedInfo = new SchemaReconciliation.FileSchemaInfo(
+                    declaredSchema,
+                    identity,
                     null
                 );
+                SchemaReconciliation.FileSchemaInfo anchorInfo = anchorTypes == null
+                    ? unexaminedInfo
+                    : new SchemaReconciliation.FileSchemaInfo(declaredSchema, identity, null, Map.copyOf(anchorTypes));
                 schemaMap = Maps.newHashMapWithExpectedSize(listing.fileCount());
                 for (int i = 0; i < listing.fileCount(); i++) {
-                    schemaMap.put(listing.path(i), declaredInfo);
+                    schemaMap.put(listing.path(i), i == 0 ? anchorInfo : unexaminedInfo);
                 }
             }
             listener.onResponse(new ExternalSourceResolution.ResolvedSource(extMetadata, listing, schemaMap));
@@ -5421,7 +5472,7 @@ public class ExternalSourceResolver {
         ListingHint anchorHint,
         Map<String, Object> config,
         DatasetMapping declaredMapping,
-        ActionListener<Void> listener
+        ActionListener<Map<String, DataType>> listener
     ) {
         if (sourceType == null || FILE_TYPED_FORMATS.contains(sourceType) == false || declaredMapping.mappings() == null) {
             listener.onResponse(null);
@@ -5429,7 +5480,10 @@ public class ExternalSourceResolver {
         }
         ActionListener<SourceMetadata> checked = ActionListener.wrap(metadata -> {
             rejectUncoercibleFileTypedRetypes(metadata.schema(), sourceType, declaredMapping);
-            listener.onResponse(null);
+            // Hand the anchor's OWN types back rather than discarding them. This read already happened for the
+            // coercibility check; keeping it is what lets the anchor's statistics survive and what stops the
+            // may-narrow question having to be answered from the declaration (esql-planning#2076).
+            listener.onResponse(attributesToTypeMap(metadata.schema()));
         }, listener::onFailure);
         Map<String, Object> probeConfig = declaredProbeConfig(sourceType, config);
         if (isCacheable(provider)) {

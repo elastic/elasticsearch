@@ -341,7 +341,7 @@ public class GetDataStreamsResponseTests extends ESTestCase {
                     indexSettingsValues,
                     false,
                     null,
-                    IndexMode.TIME_SERIES.getName(),
+                    IndexMode.TIME_SERIES,
                     true
                 )
             );
@@ -375,7 +375,7 @@ public class GetDataStreamsResponseTests extends ESTestCase {
                     indexSettingsValues,
                     false,
                     null,
-                    IndexMode.TIME_SERIES.getName(),
+                    IndexMode.TIME_SERIES,
                     false
                 )
             );
@@ -409,7 +409,7 @@ public class GetDataStreamsResponseTests extends ESTestCase {
                     indexSettingsValues,
                     templatePreferIlm,
                     null,
-                    IndexMode.TIME_SERIES.getName(),
+                    IndexMode.TIME_SERIES,
                     true
                 )
             );
@@ -448,7 +448,7 @@ public class GetDataStreamsResponseTests extends ESTestCase {
                     indexSettingsValues,
                     false,
                     null,
-                    IndexMode.TIME_SERIES.getName(),
+                    IndexMode.TIME_SERIES,
                     randomBoolean()
                 )
             );

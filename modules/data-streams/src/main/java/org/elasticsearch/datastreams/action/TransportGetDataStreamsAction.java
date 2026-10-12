@@ -398,8 +398,7 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                     backingIndicesSettingsValues,
                     indexTemplatePreferIlmValue,
                     maxTimestamps == null ? null : maxTimestamps.get(dataStream.getName()),
-                    // Default to standard mode if not specified; should we set this to "unset" or "unspecified" instead?
-                    indexMode == null ? IndexMode.STANDARD.getName() : indexMode.getName(),
+                    indexMode,
                     minimumLifecycleEnabled
                 )
             );

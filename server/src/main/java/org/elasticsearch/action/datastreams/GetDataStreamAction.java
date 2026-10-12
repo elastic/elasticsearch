@@ -31,6 +31,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -258,8 +259,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             private final boolean templatePreferIlmValue;
             @Nullable
             private final Long maximumTimestamp;
-            @Nullable
-            private final String indexMode;
+            private final IndexMode templateIndexMode;
             // This flag indicated if this data stream has the minimum lifecycle enabled.
             private final boolean minimumLifecycleEnabled;
 
@@ -273,7 +273,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 Map<Index, IndexProperties> indexSettingsValues,
                 boolean templatePreferIlmValue,
                 @Nullable Long maximumTimestamp,
-                @Nullable String indexMode,
+                @Nullable IndexMode templateIndexMode,
                 boolean minimumLifecycleEnabled
             ) {
                 this.dataStream = dataStream;
@@ -285,7 +285,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 this.indexSettingsValues = indexSettingsValues;
                 this.templatePreferIlmValue = templatePreferIlmValue;
                 this.maximumTimestamp = maximumTimestamp;
-                this.indexMode = indexMode;
+                // Default to standard mode if not specified; should we set this to "unset" or "unspecified" instead?
+                this.templateIndexMode = templateIndexMode == null ? IndexMode.STANDARD : templateIndexMode;
                 this.minimumLifecycleEnabled = dataStream.isMinimumLifecycleApplicable(minimumLifecycleEnabled);
             }
 
@@ -329,9 +330,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 return maximumTimestamp;
             }
 
-            @Nullable
             public String getIndexModeName() {
-                return indexMode;
+                return templateIndexMode.getName();
             }
 
             /**
@@ -351,7 +351,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 out.writeBoolean(templatePreferIlmValue);
                 out.writeOptionalVLong(maximumTimestamp);
                 if (out.getTransportVersion().supports(INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM)) {
-                    out.writeOptionalString(indexMode);
+                    out.writeOptionalString(templateIndexMode.getName());
                 }
             }
 
@@ -407,9 +407,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 if (this.maximumTimestamp != null) {
                     builder.field(MAXIMUM_TIMESTAMP.getPreferredName(), this.maximumTimestamp);
                 }
-                if (this.indexMode != null) {
-                    builder.field(INDEX_MODE.getPreferredName(), indexMode);
-                }
+                builder.field(INDEX_MODE.getPreferredName(), templateIndexMode.getName());
                 addAutoShardingEvent(builder, params, dataStream.getAutoShardingEvent());
                 if (timeSeries != null) {
                     builder.startObject(TIME_SERIES.getPreferredName());
@@ -506,7 +504,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                         ilmPolicyName,
                         dataStream.getEffectiveDataLifecycle(minimumLifecycleEnabled),
                         () -> templatePreferIlmValue,
-                        dataStream.getIndexMode()
+                        templateIndexMode
                     )
                 );
             }
@@ -529,7 +527,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     && Objects.equals(timeSeries, that.timeSeries)
                     && Objects.equals(indexSettingsValues, that.indexSettingsValues)
                     && Objects.equals(maximumTimestamp, that.maximumTimestamp)
-                    && Objects.equals(indexMode, that.indexMode)
+                    && Objects.equals(templateIndexMode, that.templateIndexMode)
                     && minimumLifecycleEnabled == that.minimumLifecycleEnabled;
             }
 
@@ -545,7 +543,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     indexSettingsValues,
                     templatePreferIlmValue,
                     maximumTimestamp,
-                    indexMode,
+                    templateIndexMode,
                     minimumLifecycleEnabled
                 );
             }

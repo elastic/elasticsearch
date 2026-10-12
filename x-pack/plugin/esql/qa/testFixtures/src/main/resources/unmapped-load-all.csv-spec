@@ -5752,6 +5752,73 @@ m2         | null               | null              | "{""id"":""m2"",""@timesta
 u1         | [d, e]             | 4                 | "{""id"":""u1"",""@timestamp"":""2024-01-02T00:00:00.000Z"",""items"":[{""name"":""d"",""qty"":""4"",""parts"":[{""pn"":""p4""}]},{""name"":""e""}],""items_info"":{""total"":""2""},""meta"":{""owner"":""cy"",""events"":[{""kind"":""close"",""note"":""n4""}]},""tag"":""z""}"
 ;
 
+##################################################################
+# Flattened paths: LOAD_ALL discovers nothing below them         #
+##################################################################
+
+flattenedPathsHideTheirSubtrees
+required_capability: optional_fields_load_all_hides_flattened
+required_capability: flattened_datatype
+required_capability: flattened_datatype_sorted_keys
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM flattened_paths_mapped METADATA _source
+| SORT id
+;
+
+@timestamp:datetime | attributes:flattened | id:keyword | meta.labels:flattened | notes:flattened | _source:_source | attributes_info.total:keyword | meta.owner:keyword | tag:keyword
+2024-01-01T00:00:00.000Z | "{""env"":""prod"",""host"":""a""}" | f1 | "{""team"":""red""}" | "{""text"":""hi""}" | "{""id"":""f1"",""@timestamp"":""2024-01-01T00:00:00.000Z"",""attributes"":{""host"":""a"",""env"":""prod""},""meta"":{""labels"":{""team"":""red""},""owner"":""ann""},""notes"":{""text"":""hi""},""attributes_info"":{""total"":""2""},""tag"":""x""}" | 2 | ann | x
+2024-01-01T01:00:00.000Z | "{""host"":""c""}" | f2 | "{""team"":""blue""}" | null | "{""id"":""f2"",""@timestamp"":""2024-01-01T01:00:00.000Z"",""attributes"":{""host"":""c""},""meta"":{""owner"":""bo"",""labels"":{""team"":""blue""}},""attributes_info"":{""total"":""1""},""tag"":""y""}" | 1 | bo | y
+;
+
+flattenedPathsControlUnmappedSubtreesAreDiscovered
+required_capability: optional_fields_load_all_hides_flattened
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM flattened_paths_unmapped
+;
+
+@timestamp:datetime | id:keyword | attributes.env:keyword | attributes.host:keyword | attributes_info.total:keyword | meta.labels.team:keyword | meta.owner:keyword | tag:keyword
+2024-01-02T00:00:00.000Z | u1 | dev | d | 2 | green | cy | z
+;
+
+flattenedPathsHideTheirSubtreesInEveryIndexOfTheFrom
+required_capability: optional_fields_load_all_hides_flattened
+required_capability: flattened_datatype
+required_capability: flattened_datatype_sorted_keys
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM flattened_paths_mapped, flattened_paths_unmapped METADATA _source
+| SORT id
+;
+warning:Field [attributes] of type [flattened] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+warning:Field [meta.labels] of type [flattened] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+warning:Field [notes] of type [flattened] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+
+@timestamp:datetime | attributes:flattened | id:keyword | meta.labels:flattened | notes:flattened | _source:_source | attributes_info.total:keyword | meta.owner:keyword | tag:keyword
+2024-01-01T00:00:00.000Z | "{""env"":""prod"",""host"":""a""}" | f1 | "{""team"":""red""}" | "{""text"":""hi""}" | "{""id"":""f1"",""@timestamp"":""2024-01-01T00:00:00.000Z"",""attributes"":{""host"":""a"",""env"":""prod""},""meta"":{""labels"":{""team"":""red""},""owner"":""ann""},""notes"":{""text"":""hi""},""attributes_info"":{""total"":""2""},""tag"":""x""}" | 2 | ann | x
+2024-01-01T01:00:00.000Z | "{""host"":""c""}" | f2 | "{""team"":""blue""}" | null | "{""id"":""f2"",""@timestamp"":""2024-01-01T01:00:00.000Z"",""attributes"":{""host"":""c""},""meta"":{""owner"":""bo"",""labels"":{""team"":""blue""}},""attributes_info"":{""total"":""1""},""tag"":""y""}" | 1 | bo | y
+2024-01-02T00:00:00.000Z | null | u1 | null | null | "{""id"":""u1"",""@timestamp"":""2024-01-02T00:00:00.000Z"",""attributes"":{""host"":""d"",""env"":""dev""},""meta"":{""labels"":{""team"":""green""},""owner"":""cy""},""attributes_info"":{""total"":""2""},""tag"":""z""}" | 2 | cy | z
+;
+
+flattenedPathsKeepOfAFlattenedRootLoadsItButNotItsSubkeys
+required_capability: optional_fields_load_all_hides_flattened
+required_capability: flattened_datatype
+required_capability: flattened_datatype_sorted_keys
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM flattened_paths_mapped, flattened_paths_unmapped METADATA _source
+| KEEP id, attributes, _source
+| SORT id
+;
+warning:Field [attributes] of type [flattened] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+
+id:keyword | attributes:flattened | _source:_source
+f1 | "{""env"":""prod"",""host"":""a""}" | "{""id"":""f1"",""@timestamp"":""2024-01-01T00:00:00.000Z"",""attributes"":{""host"":""a"",""env"":""prod""},""meta"":{""labels"":{""team"":""red""},""owner"":""ann""},""notes"":{""text"":""hi""},""attributes_info"":{""total"":""2""},""tag"":""x""}"
+f2 | "{""host"":""c""}" | "{""id"":""f2"",""@timestamp"":""2024-01-01T01:00:00.000Z"",""attributes"":{""host"":""c""},""meta"":{""owner"":""bo"",""labels"":{""team"":""blue""}},""attributes_info"":{""total"":""1""},""tag"":""y""}"
+u1 | null | "{""id"":""u1"",""@timestamp"":""2024-01-02T00:00:00.000Z"",""attributes"":{""host"":""d"",""env"":""dev""},""meta"":{""labels"":{""team"":""green""},""owner"":""cy""},""attributes_info"":{""total"":""2""},""tag"":""z""}"
+;
+
 ####################################################################
 # DROP x.* next to a column x: the whole x subtree is excluded     #
 ####################################################################

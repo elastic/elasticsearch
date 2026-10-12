@@ -25,6 +25,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.logging.LogManager;
@@ -175,7 +176,7 @@ public class IndexResolver {
      * <p>
      * The overall minimum version is updated using the field caps response and is passed on to the listener.
      * <p>
-     * With {@code resolveNestedPaths}, a second field caps request runs alongside to fill {@link EsIndex#nestedPaths()}.
+     * With {@code resolveSourceExcludedSubtrees}, a second field caps request runs alongside to fill {@link EsIndex#sourceExcludedSubtrees()}.
      */
     public void resolveMainIndicesVersioned(
         String indexPattern,
@@ -188,13 +189,15 @@ public class IndexResolver {
         boolean hasTimeSeriesAggregation,
         boolean needsAnalyzerGroups,
         boolean trackUnmappedFieldIndices,
-        boolean resolveNestedPaths,
+        boolean resolveSourceExcludedSubtrees,
         IndicesExpressionGrouper indicesExpressionGrouper,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         doResolveIndices(
             createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, requestFilter, includeAllDimensions, false),
-            resolveNestedPaths ? createNestedPathsRequest(DEFAULT_OPTIONS, indexPattern, null, requestFilter, false) : null,
+            resolveSourceExcludedSubtrees
+                ? createSourceExcludedSubtreesRequest(DEFAULT_OPTIONS, indexPattern, null, requestFilter, false)
+                : null,
             indexPattern,
             true, /* allow empty index resolution when resolving main pattern */
             minimumVersion,
@@ -236,14 +239,16 @@ public class IndexResolver {
         boolean hasTimeSeriesAggregation,
         boolean needsAnalyzerGroups,
         boolean trackUnmappedFieldIndices,
-        boolean resolveNestedPaths,
+        boolean resolveSourceExcludedSubtrees,
         @Nullable Consumer<TargetProjects> routingInfoCapture,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         IndicesOptions options = lenient ? FLAT_LENIENT_OPTIONS : FLAT_STRICT_OPTIONS;
         doResolveIndices(
             createResolveFieldRequest(options, indexPattern, projectRouting, fieldNames, requestFilter, includeAllDimensions, true),
-            resolveNestedPaths ? createNestedPathsRequest(options, indexPattern, projectRouting, requestFilter, true) : null,
+            resolveSourceExcludedSubtrees
+                ? createSourceExcludedSubtreesRequest(options, indexPattern, projectRouting, requestFilter, true)
+                : null,
             indexPattern,
             true, /* flat index expression could resolve to empty */
             minimumVersion,
@@ -266,7 +271,7 @@ public class IndexResolver {
 
     private void doResolveIndices(
         EsqlResolveFieldsRequest request,
-        @Nullable EsqlResolveFieldsRequest nestedPathsRequest,
+        @Nullable EsqlResolveFieldsRequest sourceExcludedSubtreesRequest,
         String indexPattern,
         boolean allowEmpty,
         TransportVersion minimumVersion,
@@ -279,9 +284,9 @@ public class IndexResolver {
         OriginalIndexExtractor originalIndexExtractor,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
-        SubscribableListener<Set<String>> nestedPaths = nestedPathsRequest == null
+        SubscribableListener<Set<String>> sourceExcludedSubtrees = sourceExcludedSubtreesRequest == null
             ? null
-            : SubscribableListener.newForked(l -> fetchNestedPaths(nestedPathsRequest, l));
+            : SubscribableListener.newForked(l -> fetchSourceExcludedSubtrees(sourceExcludedSubtreesRequest, l));
         client.execute(EsqlResolveFieldsAction.TYPE, request, listener.delegateFailureAndWrap((l, response) -> {
             if (routingInfoCapture != null) {
                 TargetProjects tp = request.getResolvedTargetProjects();
@@ -317,30 +322,31 @@ public class IndexResolver {
 
             IndexResolution resolution = mergedMappings(indexPattern, allowEmpty, info, trackUnmappedFieldIndices, originalIndexExtractor);
             TransportVersion minTransportVersion = info.minTransportVersion();
-            if (nestedPaths == null) {
+            if (sourceExcludedSubtrees == null) {
                 l.onResponse(new Versioned<>(resolution, minTransportVersion));
                 return;
             }
 
             // TODO: an index created, filtered out, remapped or failing in between can be missing or stale in the nested paths response,
             // whose failures are ignored, so its unseen nested paths hide nothing. Ask again for those, or have one request return both.
-            nestedPaths.addListener(
-                l.<Set<String>>map(paths -> new Versioned<>(resolution.withNestedPaths(paths), minTransportVersion))
+            sourceExcludedSubtrees.addListener(
+                l.<Set<String>>map(paths -> new Versioned<>(resolution.withSourceExcludedSubtrees(paths), minTransportVersion))
                     .delegateResponse((ll, e) -> ll.onFailure(unlessRemoteUnavailable(e)))
             );
         }));
     }
 
     /**
-     * A nested paths request failing as a whole on an unavailable node or remote cluster fails the query, rather than looking like
-     * every remote being unavailable, which {@link EsqlCCSUtils} answers with an empty result, dropping the rows that did answer.
+     * A source-excluded-subtrees request failing as a whole on an unavailable node or remote cluster fails the query, rather than
+     * looking like every remote being unavailable, which {@link EsqlCCSUtils} answers with an empty result, dropping the rows that did
+     * answer.
      */
     private static Exception unlessRemoteUnavailable(Exception e) {
         if (ExceptionsHelper.isRemoteUnavailableException(e) == false) {
             return e;
         }
         var failure = new ElasticsearchStatusException(
-            "cannot tell which fields are mapped as [nested] while a node or remote cluster is unavailable",
+            "cannot tell which fields are mapped as [nested] or [flattened] while a node or remote cluster is unavailable",
             RestStatus.SERVICE_UNAVAILABLE
         );
         // Suppressed rather than the cause, which is where the check for an unavailable remote looks.
@@ -348,16 +354,20 @@ public class IndexResolver {
         return failure;
     }
 
-    private void fetchNestedPaths(EsqlResolveFieldsRequest request, ActionListener<Set<String>> listener) {
-        client.execute(EsqlResolveFieldsAction.TYPE, request, listener.map(response -> nestedPaths(response.caps())));
+    private void fetchSourceExcludedSubtrees(EsqlResolveFieldsRequest request, ActionListener<Set<String>> listener) {
+        client.execute(EsqlResolveFieldsAction.TYPE, request, listener.map(response -> sourceExcludedSubtrees(response.caps())));
     }
 
     /**
-     * The paths that some index maps as {@code nested}. Field caps reports an object only through a leaf it returns below it, so this
-     * misses a nested object without any, like one that declares no leaf or whose leaves field level security hides, or the {@code chunks}
-     * of a legacy {@code semantic_text} field.
+     * The roots whose whole {@code _source} subtree LOAD_ALL must not expand: the paths some index maps as {@code nested} or
+     * {@code flattened}. A nested object is unsupported, and a flattened field's dotted keys are its own contents, not unmapped leaves;
+     * either way their subtree must stay out of unmapped expansion.
+     * <p>
+     * Field caps reports a {@code nested} object only through a leaf it returns below it, so a nested object with no leaf - one that
+     * declares none, whose leaves field level security hides, or the {@code chunks} of a legacy {@code semantic_text} field - is missed.
+     * A {@code flattened} field is itself a leaf field cap, so it is reported directly and does not have that gap.
      */
-    static Set<String> nestedPaths(FieldCapabilitiesResponse response) {
+    static Set<String> sourceExcludedSubtrees(FieldCapabilitiesResponse response) {
         Set<String> paths = new HashSet<>();
         // Field caps shares one map among the indices of a response with an identical mapping hash, so each is only read once
         Set<Map<String, IndexFieldCapabilities>> read = Collections.newSetFromMap(new IdentityHashMap<>());
@@ -366,7 +376,8 @@ public class IndexResolver {
                 continue;
             }
             for (IndexFieldCapabilities fieldCaps : indexResponse.get().values()) {
-                if (NestedObjectMapper.CONTENT_TYPE.equals(fieldCaps.type())) {
+                if (NestedObjectMapper.CONTENT_TYPE.equals(fieldCaps.type())
+                    || FlattenedFieldMapper.CONTENT_TYPE.equals(fieldCaps.type())) {
                     paths.add(fieldCaps.name());
                 }
             }
@@ -375,11 +386,12 @@ public class IndexResolver {
     }
 
     /**
-     * The request behind {@link EsIndex#nestedPaths()}: the main request's indices and options, but keeping the fields under a
-     * {@code nested} object that {@link #createResolveFieldRequest} drops. It asks for every field, see {@link #nestedPaths}, since the
-     * query's own field names need not match any leaf a nested object declares.
+     * The request behind {@link EsIndex#sourceExcludedSubtrees()}: the main request's indices and options, but keeping the fields under
+     * a {@code nested} object that {@link #createResolveFieldRequest} drops. It asks for every field, see
+     * {@link #sourceExcludedSubtrees}, since the query's own field names need not match any leaf a nested object declares, nor the name
+     * of a flattened field whose dotted keys live only in {@code _source}.
      */
-    static EsqlResolveFieldsRequest createNestedPathsRequest(
+    static EsqlResolveFieldsRequest createSourceExcludedSubtreesRequest(
         IndicesOptions options,
         String index,
         @Nullable String projectRouting,

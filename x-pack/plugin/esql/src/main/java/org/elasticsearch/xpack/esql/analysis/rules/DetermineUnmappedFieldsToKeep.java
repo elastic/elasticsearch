@@ -98,10 +98,10 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
             return plan;
         }
         UnmappedFieldsPattern pattern = computeUnmappedFieldsToKeep(plan);
-        Function<EsRelation, UnmappedFieldsPattern> nestedExcludes = nestedExcludes(context);
+        Function<EsRelation, UnmappedFieldsPattern> subtreeExcludes = subtreeExcludes(context);
         LogicalPlan result;
         if (plan.noneMatch(p -> p instanceof MergePlan || p instanceof AbstractSubqueryJoin)) {
-            result = stampAll(plan, nestedExcludes).transformUp(Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields);
+            result = stampAll(plan, subtreeExcludes).transformUp(Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields);
         } else if (pattern.isNone()) {
             // Exact KEEP/STATS above a merge must not stamp or pass $$unmapped_fields through: alignment
             // Projects snapshot before this rule, and replaceChild on a ResolvingProject would re-append it.
@@ -109,7 +109,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         } else {
             // Project pass before merge finish keeps $$unmapped_fields on branch Projects. The pass after
             // picks it up on Projects above the merge, whose child output only includes the column after refresh.
-            LogicalPlan annotated = annotate(plan, pattern, nestedExcludes);
+            LogicalPlan annotated = annotate(plan, pattern, subtreeExcludes);
             result = annotated.transformUp(Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields)
                 .transformUp(MergePlan.class, DetermineUnmappedFieldsToKeep::finishMergeUnmappedFields)
                 .transformUp(Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields);
@@ -215,9 +215,9 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
      * No {@link MergePlan} or {@link AbstractSubqueryJoin} in the plan: one pattern for the whole query,
      * stamped onto every non-LOOKUP {@link EsRelation} in a single {@code transformUp}.
      */
-    private static LogicalPlan stampAll(LogicalPlan plan, Function<EsRelation, UnmappedFieldsPattern> nestedExcludes) {
+    private static LogicalPlan stampAll(LogicalPlan plan, Function<EsRelation, UnmappedFieldsPattern> subtreeExcludes) {
         UnmappedFieldsPattern pattern = computeUnmappedFieldsToKeep(plan);
-        return pattern.isNone() ? plan : plan.transformUp(EsRelation.class, esr -> stamp(esr, pattern, nestedExcludes));
+        return pattern.isNone() ? plan : plan.transformUp(EsRelation.class, esr -> stamp(esr, pattern, subtreeExcludes));
     }
 
     /**
@@ -232,55 +232,57 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
     private static LogicalPlan annotate(
         LogicalPlan plan,
         UnmappedFieldsPattern pattern,
-        Function<EsRelation, UnmappedFieldsPattern> nestedExcludes
+        Function<EsRelation, UnmappedFieldsPattern> subtreeExcludes
     ) {
         if (plan instanceof MergePlan merge) {
             var newChildren = merge.children().stream().map(child -> {
-                LogicalPlan annotated = annotate(child, computeUnmappedFieldsToKeep(child).intersect(pattern), nestedExcludes);
+                LogicalPlan annotated = annotate(child, computeUnmappedFieldsToKeep(child).intersect(pattern), subtreeExcludes);
                 return annotated instanceof Project project ? passThroughUnmappedFields(project) : annotated;
             }).toList();
             return merge.replaceChildren(newChildren);
         }
         if (plan instanceof AbstractSubqueryJoin join) {
             return join.replaceChildren(
-                annotate(join.left(), pattern, nestedExcludes),
-                annotate(join.right(), UnmappedFieldsPattern.NONE, nestedExcludes)
+                annotate(join.left(), pattern, subtreeExcludes),
+                annotate(join.right(), UnmappedFieldsPattern.NONE, subtreeExcludes)
             );
         }
         if (pattern.isNone()) {
             return plan;
         }
         if (plan instanceof EsRelation esr) {
-            return stamp(esr, pattern, nestedExcludes);
+            return stamp(esr, pattern, subtreeExcludes);
         }
         if (plan.noneMatch(p -> p instanceof MergePlan || p instanceof AbstractSubqueryJoin)) {
-            return plan.transformUp(EsRelation.class, esr -> stamp(esr, pattern, nestedExcludes));
+            return plan.transformUp(EsRelation.class, esr -> stamp(esr, pattern, subtreeExcludes));
         }
-        return plan.replaceChildren(plan.children().stream().map(c -> annotate(c, pattern, nestedExcludes)).toList());
+        return plan.replaceChildren(plan.children().stream().map(c -> annotate(c, pattern, subtreeExcludes)).toList());
     }
 
     private static EsRelation stamp(
         EsRelation esr,
         UnmappedFieldsPattern pattern,
-        Function<EsRelation, UnmappedFieldsPattern> nestedExcludes
+        Function<EsRelation, UnmappedFieldsPattern> subtreeExcludes
     ) {
         if (pattern.isNone() || esr.indexMode() == IndexMode.LOOKUP) {
             return esr;
         }
-        UnmappedFieldsPattern nested = nestedExcludes.apply(esr);
-        UnmappedFieldsPattern stamped = nested.equals(UnmappedFieldsPattern.ALL) ? pattern : pattern.intersect(nested);
+        UnmappedFieldsPattern excluded = subtreeExcludes.apply(esr);
+        UnmappedFieldsPattern stamped = excluded.equals(UnmappedFieldsPattern.ALL) ? pattern : pattern.intersect(excluded);
         return stamped.excludesEverything() ? esr : esr.withAdditionalAttribute(new UnmappedFieldsAttribute(Source.EMPTY, stamped));
     }
 
     /**
-     * Excludes, per relation, every path that some index of its {@code FROM} maps as {@code nested}, with everything below it.
+     * Excludes, per relation, every path that some index of its {@code FROM} maps as {@code nested} or {@code flattened}, with
+     * everything below it: a nested object is unsupported, and a flattened field's dotted {@code _source} keys are that field's own
+     * contents rather than unmapped leaves, so neither should expand into columns.
      */
-    private static Function<EsRelation, UnmappedFieldsPattern> nestedExcludes(AnalyzerContext context) {
+    private static Function<EsRelation, UnmappedFieldsPattern> subtreeExcludes(AnalyzerContext context) {
         Map<String, UnmappedFieldsPattern> byIndexPattern = new HashMap<>();
         for (IndexResolution resolution : context.indexResolution().values()) {
             EsIndex index = resolution.isValid() ? resolution.get() : null;
-            if (index != null && index.nestedPaths().isEmpty() == false) {
-                byIndexPattern.put(index.name(), excludesSubtrees(index.nestedPaths()));
+            if (index != null && index.sourceExcludedSubtrees().isEmpty() == false) {
+                byIndexPattern.put(index.name(), excludesSubtrees(index.sourceExcludedSubtrees()));
             }
         }
         return esr -> byIndexPattern.getOrDefault(esr.indexPattern(), UnmappedFieldsPattern.ALL);

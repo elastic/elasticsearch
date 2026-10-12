@@ -2544,12 +2544,12 @@ public class EsqlSession {
         QueryBuilder requestFilter,
         ActionListener<PreAnalysisResult> listener
     ) {
-        boolean resolveNestedPaths = needsNestedPaths(loadsAllUnmappedFields, indexMode, result);
+        boolean resolveSourceExcludedSubtrees = needsSourceExcludedSubtrees(loadsAllUnmappedFields, indexMode, result);
         if (executionInfo.clusterAliases().isEmpty()) {
             // return empty resolution if the expression is pure CCS and resolved no remote clusters (like no-such-cluster*:index)
             listener.onResponse(result.withIndices(indexPattern, IndexResolution.empty(indexPattern.indexPattern())));
         } else {
-            countFieldCapsCalls(executionInfo, resolveNestedPaths);
+            countFieldCapsCalls(executionInfo, resolveSourceExcludedSubtrees);
             indexResolver.resolveMainIndicesVersioned(
                 indexPattern.indexPattern(),
                 result.fieldNames,
@@ -2570,12 +2570,12 @@ public class EsqlSession {
                 preAnalysis.hasTimeSeriesAggregation(),
                 preAnalysis.needsAnalyzerGroups(),
                 trackUnmappedFieldIndices,
-                resolveNestedPaths,
+                resolveSourceExcludedSubtrees,
                 indicesExpressionGrouper,
                 listener.delegateFailureAndWrap((l, indexResolution) -> {
                     EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
                     maybeRetryConcreteTimeSeriesResolution(indexPattern, indexMode, result, indexResolution, l, retryListener -> {
-                        countFieldCapsCalls(executionInfo, resolveNestedPaths);
+                        countFieldCapsCalls(executionInfo, resolveSourceExcludedSubtrees);
                         indexResolver.resolveMainIndicesVersioned(
                             indexPattern.indexPattern(),
                             result.fieldNames,
@@ -2587,7 +2587,7 @@ public class EsqlSession {
                             false,
                             preAnalysis.needsAnalyzerGroups(),
                             trackUnmappedFieldIndices,
-                            resolveNestedPaths,
+                            resolveSourceExcludedSubtrees,
                             indicesExpressionGrouper,
                             retryListener
                         );
@@ -2598,18 +2598,18 @@ public class EsqlSession {
     }
 
     /**
-     * Whether to resolve {@link EsIndex#nestedPaths()}: only LOAD_ALL reads them, to keep them out of what a wildcard discovers, and
-     * never for TS, which LOAD_ALL rejects, nor when the query names no field at all, like a bare {@code STATS COUNT(*)}.
+     * Whether to resolve {@link EsIndex#sourceExcludedSubtrees()}: only LOAD_ALL reads them, to keep them out of what a wildcard
+     * discovers, and never for TS, which LOAD_ALL rejects, nor when the query names no field at all, like a bare {@code STATS COUNT(*)}.
      */
-    private static boolean needsNestedPaths(boolean loadsAllUnmappedFields, IndexMode indexMode, PreAnalysisResult result) {
+    private static boolean needsSourceExcludedSubtrees(boolean loadsAllUnmappedFields, IndexMode indexMode, PreAnalysisResult result) {
         return loadsAllUnmappedFields
             && indexMode != IndexMode.TIME_SERIES
             && IndexResolver.INDEX_METADATA_FIELD.equals(result.fieldNames) == false;
     }
 
-    private static void countFieldCapsCalls(EsqlExecutionInfo executionInfo, boolean resolveNestedPaths) {
+    private static void countFieldCapsCalls(EsqlExecutionInfo executionInfo, boolean resolveSourceExcludedSubtrees) {
         executionInfo.queryProfile().incFieldCapsCalls();
-        if (resolveNestedPaths) {
+        if (resolveSourceExcludedSubtrees) {
             executionInfo.queryProfile().incFieldCapsCalls();
         }
     }
@@ -2667,8 +2667,8 @@ public class EsqlSession {
         @Nullable Consumer<TargetProjects> routingInfoCapture,
         ActionListener<PreAnalysisResult> listener
     ) {
-        boolean resolveNestedPaths = needsNestedPaths(loadsAllUnmappedFields, indexMode, result);
-        countFieldCapsCalls(executionInfo, resolveNestedPaths);
+        boolean resolveSourceExcludedSubtrees = needsSourceExcludedSubtrees(loadsAllUnmappedFields, indexMode, result);
+        countFieldCapsCalls(executionInfo, resolveSourceExcludedSubtrees);
         indexResolver.resolveFlatIndicesVersioned(
             false /* lenient */,
             indexPattern.indexPattern(),
@@ -2683,7 +2683,7 @@ public class EsqlSession {
             preAnalysis.hasTimeSeriesAggregation(),
             preAnalysis.needsAnalyzerGroups(),
             trackUnmappedFieldIndices,
-            resolveNestedPaths,
+            resolveSourceExcludedSubtrees,
             routingInfoCapture,
             ActionListener.wrap(indexResolution -> {
                 EsqlCCSUtils.initCrossClusterState(indexResolution.inner(), executionInfo);
@@ -2691,7 +2691,7 @@ public class EsqlSession {
                 EsqlCCSUtils.validateCcsLicense(verifier.licenseState(), executionInfo);
                 planTelemetry.linkedProjectsCount(executionInfo.clusterInfo.size());
                 maybeRetryConcreteTimeSeriesResolution(indexPattern, indexMode, result, indexResolution, listener, retryListener -> {
-                    countFieldCapsCalls(executionInfo, resolveNestedPaths);
+                    countFieldCapsCalls(executionInfo, resolveSourceExcludedSubtrees);
                     indexResolver.resolveFlatIndicesVersioned(
                         false /* lenient */,
                         indexPattern.indexPattern(),
@@ -2705,7 +2705,7 @@ public class EsqlSession {
                         false,
                         preAnalysis.needsAnalyzerGroups(),
                         trackUnmappedFieldIndices,
-                        resolveNestedPaths,
+                        resolveSourceExcludedSubtrees,
                         null,
                         retryListener
                     );

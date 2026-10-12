@@ -18,13 +18,16 @@ public record EsIndex(
     Map<String, IndexProperties> indexProperties, // keyed by concrete index name
     Map<String, List<String>> originalIndices, // keyed by cluster alias
     Map<String, List<String>> concreteIndices, // keyed by cluster alias
-    Set<String> nestedPaths // mapped as nested by some concrete index; only resolved for LOAD_ALL
+    // The roots whose whole _source subtree LOAD_ALL must not expand into columns: paths some concrete index maps as nested or
+    // flattened. Both are kept out of unmapped expansion - nested is unsupported, and a flattened field's dotted keys are its own,
+    // not unmapped leaves. Only resolved for LOAD_ALL.
+    Set<String> sourceExcludedSubtrees
 ) {
 
     public EsIndex {
         assert name != null;
         assert mapping != null;
-        assert nestedPaths != null;
+        assert sourceExcludedSubtrees != null;
     }
 
     public EsIndex(
@@ -37,8 +40,8 @@ public record EsIndex(
         this(name, mapping, indexProperties, originalIndices, concreteIndices, Set.of());
     }
 
-    public EsIndex withNestedPaths(Set<String> nestedPaths) {
-        return new EsIndex(name, mapping, indexProperties, originalIndices, concreteIndices, Set.copyOf(nestedPaths));
+    public EsIndex withSourceExcludedSubtrees(Set<String> sourceExcludedSubtrees) {
+        return new EsIndex(name, mapping, indexProperties, originalIndices, concreteIndices, Set.copyOf(sourceExcludedSubtrees));
     }
 
     public Set<String> concreteQualifiedIndices() {

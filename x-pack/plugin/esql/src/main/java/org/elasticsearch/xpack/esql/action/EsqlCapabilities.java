@@ -3674,6 +3674,14 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_HIDES_NESTED(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, no unmapped field is discovered below a path that some index of the same
+         * {@code FROM} maps as {@code flattened}: the subkeys of a flattened field belong to it, not to the {@code _source} tree that
+         * LOAD_ALL expands. The flattened root itself still loads as its mapped column, exactly like under LOAD.
+         * See https://github.com/elastic/elasticsearch/issues/158157.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_HIDES_FLATTENED(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
          * Under {@code unmapped_fields="LOAD_ALL"}, at most 1000 fields discovered in {@code _source} become columns: the
          * alphabetically first ones, with a warning if there were more.
          * See https://github.com/elastic/elasticsearch/issues/159972.

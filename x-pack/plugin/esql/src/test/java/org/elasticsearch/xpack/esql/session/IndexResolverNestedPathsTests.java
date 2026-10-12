@@ -86,21 +86,21 @@ public class IndexResolverNestedPathsTests extends ESTestCase {
             ),
             index("idx_b", "hash_b", field("other", "nested"), field("other.leaf", "keyword"), field("plain", "keyword"))
         );
-        assertThat(IndexResolver.nestedPaths(response), equalTo(Set.of("nested_punk", "obj.inner", "other")));
+        assertThat(IndexResolver.sourceExcludedSubtrees(response), equalTo(Set.of("nested_punk", "obj.inner", "other")));
     }
 
     public void testKeepsNestedPathsBelowOtherNestedPaths() {
         FieldCapabilitiesResponse response = response(
             index("idx", "hash", field("outer", "nested"), field("outer.inner", "nested"), field("outer.inner.leaf", "keyword"))
         );
-        assertThat(IndexResolver.nestedPaths(response), equalTo(Set.of("outer", "outer.inner")));
+        assertThat(IndexResolver.sourceExcludedSubtrees(response), equalTo(Set.of("outer", "outer.inner")));
     }
 
     public void testObjectsAndLeavesAreNotNested() {
         FieldCapabilitiesResponse response = response(
             index("idx", "hash", field("obj", "object"), field("obj.leaf", "keyword"), field("plain", "long"))
         );
-        assertThat(IndexResolver.nestedPaths(response), empty());
+        assertThat(IndexResolver.sourceExcludedSubtrees(response), empty());
     }
 
     public void testReadsEveryMappingItIsSentEvenUnderTheSameHash() {
@@ -110,7 +110,7 @@ public class IndexResolverNestedPathsTests extends ESTestCase {
             new FieldCapabilitiesIndexResponse("idx_b", "shared", shared, true, IndexMode.STANDARD, 1, 0, 0),
             index("idx_c", "shared", field("other", "nested"), field("other.leaf", "keyword"))
         );
-        assertThat(IndexResolver.nestedPaths(response), equalTo(Set.of("nested_punk", "other")));
+        assertThat(IndexResolver.sourceExcludedSubtrees(response), equalTo(Set.of("nested_punk", "other")));
     }
 
     public void testReadsIndicesWithoutMappingHash() {
@@ -118,17 +118,17 @@ public class IndexResolverNestedPathsTests extends ESTestCase {
             index("idx_a", null, field("first", "nested"), field("first.leaf", "keyword")),
             index("idx_b", null, field("second", "nested"), field("second.leaf", "keyword"))
         );
-        assertThat(IndexResolver.nestedPaths(response), equalTo(Set.of("first", "second")));
+        assertThat(IndexResolver.sourceExcludedSubtrees(response), equalTo(Set.of("first", "second")));
     }
 
     public void testIgnoresIndicesThatCannotMatch() {
         FieldCapabilitiesResponse response = response(index("idx", "hash", false, field("punk", "nested"), field("punk.leaf", "keyword")));
-        assertThat(IndexResolver.nestedPaths(response), empty());
+        assertThat(IndexResolver.sourceExcludedSubtrees(response), empty());
     }
 
     public void testNestedPathsRequestKeepsNestedFieldsOfTheMainRequest() {
         QueryBuilder filter = QueryBuilders.termQuery("tier", "hot");
-        FieldCapabilitiesRequest request = IndexResolver.createNestedPathsRequest(
+        FieldCapabilitiesRequest request = IndexResolver.createSourceExcludedSubtreesRequest(
             IndexResolver.DEFAULT_OPTIONS,
             "logs-*,remote:metrics",
             null,
@@ -150,7 +150,7 @@ public class IndexResolverNestedPathsTests extends ESTestCase {
             .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
             .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
             .build();
-        FieldCapabilitiesRequest request = IndexResolver.createNestedPathsRequest(strict, "logs-*", "_alias:linked", null, true)
+        FieldCapabilitiesRequest request = IndexResolver.createSourceExcludedSubtreesRequest(strict, "logs-*", "_alias:linked", null, true)
             .fieldCapsRequest();
         assertThat(request.indicesOptions(), equalTo(strict));
         assertThat(request.includeResolvedTo(), is(true));
@@ -162,7 +162,7 @@ public class IndexResolverNestedPathsTests extends ESTestCase {
         EsIndex index = resolve(client, false).get();
         assertThat(client.requests, hasSize(1));
         assertThat(Arrays.asList(client.requests.getFirst().filters()), equalTo(List.of("-nested")));
-        assertThat(index.nestedPaths(), empty());
+        assertThat(index.sourceExcludedSubtrees(), empty());
     }
 
     public void testNestedPathsRequestRunsAlongsideTheMainOne() {
@@ -178,7 +178,7 @@ public class IndexResolverNestedPathsTests extends ESTestCase {
         EsIndex index = resolve(client, true).get();
         assertThat(client.requests, hasSize(2));
         assertThat(client.requests.stream().map(FieldCapabilitiesRequest::indexFilter).toList(), everyItem(equalTo(REQUEST_FILTER)));
-        assertThat(index.nestedPaths(), equalTo(Set.of("punk")));
+        assertThat(index.sourceExcludedSubtrees(), equalTo(Set.of("punk")));
         assertThat(index.mapping().keySet(), equalTo(Set.of("id")));
     }
 
@@ -219,7 +219,7 @@ public class IndexResolverNestedPathsTests extends ESTestCase {
         assertThat(client.requests, hasSize(2));
         assertFalse(future.isDone());
         client.answerDeferred();
-        assertThat(future.actionGet().inner().get().nestedPaths(), equalTo(Set.of("punk")));
+        assertThat(future.actionGet().inner().get().sourceExcludedSubtrees(), equalTo(Set.of("punk")));
     }
 
     public void testFailingNestedPathsRequestFailsTheResolution() {

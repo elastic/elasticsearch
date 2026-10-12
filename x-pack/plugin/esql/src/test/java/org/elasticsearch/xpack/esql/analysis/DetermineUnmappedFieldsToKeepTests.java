@@ -870,7 +870,10 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     }
 
     private TestAnalyzer testWithNestedPaths(String... nestedPaths) {
-        return analyzer().addIndex("test", TestAnalyzer.loadMapping("mapping-basic.json", "test").withNestedPaths(Set.of(nestedPaths)));
+        return analyzer().addIndex(
+            "test",
+            TestAnalyzer.loadMapping("mapping-basic.json", "test").withSourceExcludedSubtrees(Set.of(nestedPaths))
+        );
     }
 
     private static FieldAttribute fieldNamed(EsRelation relation, String name) {

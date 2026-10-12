@@ -74,10 +74,10 @@ public final class IndexResolution {
         this.failures = failures;
     }
 
-    public IndexResolution withNestedPaths(Set<String> nestedPaths) {
-        return isValid() == false || nestedPaths.isEmpty()
+    public IndexResolution withSourceExcludedSubtrees(Set<String> sourceExcludedSubtrees) {
+        return isValid() == false || sourceExcludedSubtrees.isEmpty()
             ? this
-            : new IndexResolution(index.withNestedPaths(nestedPaths), invalid, resolvedIndices, failures);
+            : new IndexResolution(index.withSourceExcludedSubtrees(sourceExcludedSubtrees), invalid, resolvedIndices, failures);
     }
 
     public boolean matches(String indexName) {

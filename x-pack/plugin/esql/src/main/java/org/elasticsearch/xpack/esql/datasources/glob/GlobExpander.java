@@ -608,14 +608,9 @@ public final class GlobExpander {
         if (failure == null && (narrowed.isResolved() == false || narrowed.fileCount() > 0)) {
             return narrowed;
         }
-        // A narrowing that provably hid nothing needs no retry, and now that the bound counts matches rather
-        // than keys it can say so: a drain that exhausted the prefix without reaching the bound saw every key under
-        // it, so no files means the dataset has none rather than the bound having stopped short of them. That is the
-        // distinction the keys-visited bound could not draw - it returned the same empty list either way, which is
-        // why every bounded listing over a prefix wider than the bound paid a second, unbounded pass. A rewrite
-        // cannot say it hid nothing, because it listed a different prefix, so a rewritten pattern still retries. A
-        // truncated empty result also still retries: the bound was reached by matches that the partition-value
-        // filter then dropped, and matches past it may survive that filter.
+        // An untruncated empty drain is conclusive: it saw every key under the prefix, so the dataset has none.
+        // A rewrite listed a different prefix and cannot say that, and a truncated empty result was cut short by
+        // matches the partition-value filter dropped - matches past the bound may survive it. Both still retry.
         if (failure == null && rewritten == false && narrowed.isTruncated() == false) {
             return narrowed;
         }
@@ -1054,24 +1049,14 @@ public final class GlobExpander {
         boolean truncated = false;
         int reserved = 0;
         try (StorageIterator iterator = provider.listObjects(prefix, recursive)) {
-            // The bound counts files the glob selected, not keys the store handed over, because what it bounds is the
-            // listing another query may be served and the sample partition detection folds over - both populations of
-            // files. Counting keys instead made the bound a property of whatever unrelated data shares the prefix:
-            // `patternPrefix` cuts at the last `/` before the first metacharacter, so a wildcard inside a segment
-            // (`date=2024-01-0*`) lists the whole parent, object listings are lexicographic, date partitions sort
-            // oldest-first, and a query about recent data spent the whole bound on keys it could never match. The
-            // bounded pass then returned nothing, which is indistinguishable from an empty dataset, so the expander
-            // re-listed unbounded - and paid the prefix fan-out it had set out to avoid. For a glob that matches
-            // most of its prefix the two counts move together and nothing changes; the selective glob is where they
-            // diverged, and it is the one the bound was meant to help.
+            // Files the glob selected, not keys the store handed over: a selective glob lists its whole parent, so
+            // counting keys made the bound a property of unrelated data sharing the prefix. Keys stay capped by
+            // `maxListedObjects`, which is the setting for that.
             //
-            // Keys visited stay capped, by `maxListedObjects` (a million by default), which is the setting whose job
-            // that is. The bound is tested before hasNext(), not inside the loop: on S3 hasNext() fetches the next
-            // page as soon as the current one is exhausted, so asking it after the bound is reached buys a
-            // ListObjectsV2 whose result is then discarded. Reaching the bound therefore marks the listing truncated
-            // without establishing that more matches exist - a dataset of exactly the file-set extent is marked
-            // truncated when it is not. That costs such a dataset its cache entry and an exact file count, and saves
-            // every larger one a request.
+            // Tested before hasNext() because on S3 hasNext() fetches the next page, which reaching the bound would
+            // then discard. So the bound marks the listing truncated without establishing more matches exist: a
+            // dataset of exactly the extent is flagged truncated when it is not, costing it a cache entry and
+            // saving every larger one a request.
             while (globKeptCount < extents.maxFiles() && iterator.hasNext()) {
                 StorageEntry entry = iterator.next();
                 listed++;
@@ -1349,14 +1334,7 @@ public final class GlobExpander {
                     listener.onResponse(narrowed);
                     return;
                 }
-                // A narrowing that provably hid nothing needs no retry, and now that the bound counts matches rather
-                // than keys it can say so: a drain that exhausted the prefix without reaching the bound saw every key under
-                // it, so no files means the dataset has none rather than the bound having stopped short of them. That is the
-                // distinction the keys-visited bound could not draw - it returned the same empty list either way, which is
-                // why every bounded listing over a prefix wider than the bound paid a second, unbounded pass. A rewrite
-                // cannot say it hid nothing, because it listed a different prefix, so a rewritten pattern still retries. A
-                // truncated empty result also still retries: the bound was reached by matches that the partition-value
-                // filter then dropped, and matches past it may survive that filter.
+                // Same rule as the synchronous fallback above: an untruncated empty drain is conclusive.
                 if (finalRewritten == false && narrowed.isTruncated() == false) {
                     listener.onResponse(narrowed);
                     return;

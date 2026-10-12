@@ -1416,6 +1416,9 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
         }
 
         @Override
+        public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+        @Override
         public boolean supportsNativeAsync() {
             return true;
         }

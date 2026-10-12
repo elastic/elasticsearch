@@ -50,8 +50,9 @@ public interface NodeByteBudget {
     SubscribableListener<Hold> admitAsync(long bytes, RowGroupIo lease, BooleanSupplier cancelSignal, Executor executor);
 
     /**
-     * Unconditional charge for buffers that must exist (UNGATED alloc, sliding window). Not a
-     * ticket and not a decode-shortfall reconcile.
+     * Unconditional charge for buffers that must exist (UNGATED alloc, sliding window) and for
+     * decode-working-set shortfalls that exceed the footer estimate already in a hold. Never
+     * waits. Pair shortfalls with {@link #release} when the working set drops.
      */
     void add(long bytes);
 

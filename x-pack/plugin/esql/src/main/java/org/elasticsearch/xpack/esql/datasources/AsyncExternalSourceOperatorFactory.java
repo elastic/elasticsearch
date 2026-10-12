@@ -2105,6 +2105,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * <p>
      * Collapses three structurally identical {@code addListener} blocks (page-ready, page-ready
      * recheck, buffer-space) into one site, removing copy-paste drift risk between branches.
+     * <p>
+     * The park is registered through {@link AsyncExternalSourceBuffer#waitForReadyOrFinished}, so a
+     * finished buffer (cancel / DELETE / LIMIT teardown, STOP, producer failure) ends it even when
+     * {@code signal} is the iterator's own readiness (a byte-budget ticket, an in-flight GET) that
+     * nothing on the cancel path completes. The woken loop returns {@link DrainResult#DONE} on
+     * {@code noMoreInputs} and closes the iterator from its own run, which is what cancels the
+     * iterator's pending ticket / GET.
      *
      * @param signal a not-done listener from {@code waitForReady()} or {@code waitForSpace()};
      *               callers must verify {@code signal.isDone() == false} before invoking this
@@ -2116,9 +2123,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         // Unlock before addListener. SubscribableListener completes an already-done signal inline
         // (DIRECT) even when an executor is passed, and addListener(producerExecutor) is not
         // force-execution (T8). Release so an inline resume can claim the run; this task must not
-        // mutate producer state after this point.
+        // mutate producer state after this point. An already-finished buffer completes the park
+        // inline too, so the same ordering covers a cancel that raced this park.
         releaseProducerRun(state);
-        signal.addListener(ActionListener.wrap(v -> {
+        state.buffer.waitForReadyOrFinished(signal).addListener(ActionListener.wrap(v -> {
             try {
                 executeProducer(state, completionListener, () -> runProducerLoop(state, completionListener));
             } catch (Exception e) {
@@ -2135,7 +2143,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     /**
      * Like {@link #parkUntilReady} but holds an already-consumed page across the park. On resume
      * the page is delivered to the buffer (or released if the buffer was finished); then the
-     * producer loop continues.
+     * producer loop continues. {@code signal} is {@code waitForSpace()}, which the buffer already
+     * completes on finish; it goes through {@code waitForReadyOrFinished} anyway so every producer
+     * park follows the one rule.
      */
     private DrainResult parkUntilReadyWithPage(
         SubscribableListener<Void> signal,
@@ -2145,7 +2155,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     ) {
         snapshotFormatReaderStatus(state);
         releaseProducerRun(state);
-        signal.addListener(ActionListener.wrap(v -> {
+        state.buffer.waitForReadyOrFinished(signal).addListener(ActionListener.wrap(v -> {
             boolean consumed = false;
             try {
                 if (state.buffer.noMoreInputs() || noFurtherCandidates()) {

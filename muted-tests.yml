@@ -227,9 +227,6 @@ tests:
 - class: org.elasticsearch.index.engine.MergeWithLowDiskSpaceIT
   method: testForceMergeIsBlockedThenUnblocked
   issue: https://github.com/elastic/elasticsearch/issues/161490
-- class: org.elasticsearch.cluster.metadata.MetadataCreateIndexServiceIT
-  method: testCreateIndexBatching
-  issue: https://github.com/elastic/elasticsearch/issues/161634
 - class: org.elasticsearch.multi_cluster.MultiClusterYamlTestSuiteIT
   method: test {yaml=multi_cluster/80_transform/Batch transform local and remote index sharing the same name}
   issue: https://github.com/elastic/elasticsearch/issues/161651

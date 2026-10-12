@@ -86,6 +86,8 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class TranslogReplicatorTests extends ESTestCase {
@@ -830,6 +832,42 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         syncStartedFuture.actionGet();
         future.actionGet();
+    }
+
+    /// A shard unregistered after writing to the node buffer but before any sync must not leave its bytes buffered.
+    public void testUnregisterReleasesBufferedBytesWithoutUpload() throws Exception {
+        ShardId shardId = new ShardId(new Index(randomAlphaOfLength(5), randomUUID()), randomIntBetween(0, 5));
+        long primaryTerm = randomLongBetween(0, 10);
+
+        ObjectStoreService objectStoreService = mock(ObjectStoreService.class);
+        when(objectStoreService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
+        doAnswer(invocation -> {
+            invocation.<ActionListener<Void>>getArgument(2).onResponse(null);
+            return null;
+        }).when(objectStoreService).uploadTranslogFile(any(), any(), any());
+        StatelessClusterConsistencyService consistencyService = mockConsistencyService();
+
+        TranslogReplicator translogReplicator = new TranslogReplicator(
+            threadPool,
+            getSettings(),
+            objectStoreService,
+            consistencyService,
+            false,
+            (sId) -> primaryTerm
+        );
+        translogReplicator.doStart();
+        translogReplicator.register(shardId, primaryTerm, (seqNo) -> {});
+
+        Translog.Serialized[] serialized = serializeOperations(generateRandomOperations(1));
+        translogReplicator.add(shardId, serialized[0], 0, new Translog.Location(0, 0, serialized[0].length()));
+        assertThat(translogReplicator.getTranslogBufferedDataSize(), greaterThan(0L));
+
+        translogReplicator.unregister(shardId);
+
+        assertBusy(() -> assertThat(translogReplicator.getTranslogBufferedDataSize(), equalTo(0L)));
+        verify(objectStoreService, never()).uploadTranslogFile(any(), any(), any());
+
+        translogReplicator.doClose();
     }
 
     public void testTranslogSyncOnlyCompletedOnceAllPriorFilesSynced() throws Exception {

@@ -11448,4 +11448,63 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
     }
 
+    /**
+     * The fallback in {@code cachedStatistics}, which had integration coverage only. A retyping declaration asks
+     * its own overlaid address first; on a miss it asks the schema record's own, and {@code restrictToReadConfig}
+     * decides what may cross from there. Exactly one thing may: a row count whose producer licensed it as
+     * read-independent. Every per-column statistic must be dropped, because an extremum does depend on how the
+     * column was read.
+     * <p>
+     * Both halves are asserted on one seeded record, so the case cannot pass by the fallback returning nothing:
+     * the count crossing proves the fallback ran, and the extremum's absence proves the restriction ran with it.
+     * Reverting the fallback to {@code return null} drops the count and reddens the first assertion.
+     */
+    public void testTheFallbackCrossesALicensedCountAndNothingElse() throws Exception {
+        String path = "s3://bucket/data/a.csv";
+        List<Attribute> fileSchema = List.of(attr("x", DataType.LONG), attr("note", DataType.KEYWORD));
+        Map<String, List<Attribute>> schemasByPath = Map.of(path, fileSchema);
+        CountingStorageProvider provider = new CountingStorageProvider(
+            Map.of("s3://bucket/data/", List.of(entry(path, 100))),
+            schemasByPath
+        );
+
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            ExternalSourceResolver resolver = createResolverWithCache(provider, schemasByPath, cacheService);
+
+            // Cold, undeclared: this is what files the schema record whose own address the fallback asks.
+            PlainActionFuture<ExternalSourceResolution> cold = new PlainActionFuture<>();
+            resolver.resolve(List.of(path), Map.of(path, new HashMap<>()), null, null, null, cold);
+            assertNotNull(cold.actionGet().resolvedSource(path));
+
+            // Seed that address with a LICENSED count and a per-column extremum. The licence is what lets the
+            // count cross a read; nothing licenses the extremum.
+            String ownRead = ReadConfigFingerprint.of(fileSchema, DeclaredReadSpec.NONE);
+            Map<String, Object> seeded = promiseContribution(resolver.formatConfigIdentity(path, Map.of()), ownRead, 500L);
+            seeded.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+            seeded.put(SourceStatisticsSerializer.STATS_COL_PREFIX + "x.min", 7L);
+            cacheService.reconcileSourceStatsFromContributions(Map.of(path, List.of(seeded)));
+
+            // Warm, with a declaration that retypes x: the overlaid read is not the record's, so the lookup
+            // misses at its own address and falls back.
+            DatasetMapping retyping = new DatasetMapping(
+                new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, Map.of("x", new DatasetFieldMapping("keyword", null)))
+            );
+            PlainActionFuture<ExternalSourceResolution> warm = new PlainActionFuture<>();
+            resolver.resolve(List.of(path), Map.of(path, new HashMap<>()), null, Map.of(path, retyping), null, warm);
+            ExternalSourceResolution.ResolvedSource resolved = warm.actionGet().resolvedSource(path);
+            assertNotNull(resolved);
+
+            Map<String, Object> served = resolved.metadata().sourceMetadata();
+            assertEquals(
+                "a licensed row count must cross to a read the record does not describe: " + served,
+                500L,
+                ((Number) served.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue()
+            );
+            assertNull(
+                "an extremum must NOT cross - it depends on how the column was read: " + served,
+                served.get(SourceStatisticsSerializer.STATS_COL_PREFIX + "x.min")
+            );
+        }
+    }
+
 }

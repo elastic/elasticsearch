@@ -63,22 +63,25 @@ public class ConfigWireBoundaryCensusTests extends ESTestCase {
                     String source = Files.readString(file, StandardCharsets.UTF_8);
                     Matcher write = GENERIC_WRITE.matcher(source);
                     while (write.find()) {
-                        int signature = source.lastIndexOf("writeTo(StreamOutput", write.start());
+                        int signature = source.lastIndexOf("(StreamOutput ", write.start());
                         if (signature < 0) {
-                            continue; // not inside a writeTo, so not a wire boundary this census governs
+                            continue; // nothing takes a StreamOutput above this, so it is not a wire boundary
                         }
                         // What is WRITTEN decides whether this is a config boundary, not whether the word appears
                         // somewhere in the method - which also matches an unrelated `configuration` parameter, as
                         // DataNodeRequest's alias filters did. One hop of resolution, because a boundary may
                         // assign the stripped map to a local before writing it.
                         String body = COMMENTS.matcher(source.substring(signature, write.start())).replaceAll(" ");
-                        String written = argumentOf(source, write.end() - 1);
+                        String written = COMMENTS.matcher(argumentOf(source, write.end() - 1)).replaceAll(" ");
                         String effective = written + " " + assignmentsOf(body, written);
                         if (effective.toLowerCase(Locale.ROOT).contains("config") == false) {
                             continue; // this write carries something else
                         }
                         String site = file.getFileName().toString();
-                        (effective.contains("wireConfig(") ? guarded : unguarded).add(site);
+                        // Guarded means NO raw reference survives once every wireConfig(...) span is removed. Asking
+                        // only whether the text appears would pass a conditional that wraps one arm and not the
+                        // other - and the unwrapped arm can be the one every current node takes.
+                        (unwrappedConfigReference(effective) ? unguarded : guarded).add(site);
                     }
                     return FileVisitResult.CONTINUE;
                 }
@@ -155,6 +158,31 @@ public class ConfigWireBoundaryCensusTests extends ESTestCase {
             }
         }
         return found.toString();
+    }
+
+    /**
+     * Whether a raw {@code config} reference survives once every {@code wireConfig(...)} span is removed. That is
+     * the question, rather than whether the text appears: a {@code writeTo} may wrap one arm of a conditional and
+     * write the field directly on the other, and the direct arm can be the one every current node takes.
+     */
+    private static boolean unwrappedConfigReference(String expression) {
+        StringBuilder remaining = new StringBuilder(expression);
+        for (int at = remaining.indexOf("wireConfig("); at >= 0; at = remaining.indexOf("wireConfig(")) {
+            int open = remaining.indexOf("(", at);
+            int depth = 0;
+            int end = remaining.length();
+            for (int i = open; i < remaining.length(); i++) {
+                char ch = remaining.charAt(i);
+                if (ch == '(') {
+                    depth++;
+                } else if (ch == ')' && --depth == 0) {
+                    end = i + 1;
+                    break;
+                }
+            }
+            remaining.delete(at, end);
+        }
+        return Pattern.compile("\\bconfig\\b", Pattern.CASE_INSENSITIVE).matcher(remaining).find();
     }
 
 }

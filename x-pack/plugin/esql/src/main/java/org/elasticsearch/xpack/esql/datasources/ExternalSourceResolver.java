@@ -200,12 +200,16 @@ public class ExternalSourceResolver {
      * Returns a config with the dataset-tier definition version removed, for the plan that goes over the wire.
      * <p>
      * The version addresses the dataset-level fold, which only the coordinator mints and reads, so a data node has
-     * no use for it. Sending it anyway is not harmless: a data node builds its storage provider from this map and
-     * {@code StorageProviderCache} keys on the whole of it, which is why {@code StorageProviderRegistry.FRAMEWORK_KEYS}
-     * strips the file-tier version before it gets there. An OLDER node's {@code FRAMEWORK_KEYS} does not know this
-     * key, so it would reach that cache key and fragment the client pool per dataset definition rather than per
-     * credential set — and that pool throws at its ceiling rather than degrading. Not sending it needs no transport
-     * version and leaves nothing for an old node to mishandle.
+     * no use for it. Sending it anyway is not harmless where the map becomes a storage provider: a data node builds
+     * one from the external source's config and {@code StorageProviderCache} keys on the whole of it, which is why
+     * {@code StorageProviderRegistry.FRAMEWORK_KEYS} strips the file-tier version before it gets there. An OLDER
+     * node's {@code FRAMEWORK_KEYS} does not know this key, so it would reach that cache key and fragment the client
+     * pool per dataset definition rather than per credential set — and that pool throws at its ceiling rather than
+     * degrading. Not sending it needs no transport version and leaves nothing for an old node to mishandle.
+     * <p>
+     * That reason is live on the relation and the exec. On a {@code FileSplit} it is defence in depth: a data node
+     * reads a split's config only for the split markers, and no provider is built from it. Stripped there anyway,
+     * because "nothing reads it today" is not a property the next change preserves.
      */
     public static Map<String, Object> wireConfig(Map<String, Object> config) {
         if (config == null || config.containsKey(DefinitionVersion.DATASET_CONFIG_KEY) == false) {

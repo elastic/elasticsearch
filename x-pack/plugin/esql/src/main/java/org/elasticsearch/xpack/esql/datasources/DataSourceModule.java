@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
+import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -80,6 +81,7 @@ public final class DataSourceModule implements Closeable {
     private final DecompressionCodecRegistry codecRegistry;
     @Nullable
     private final AdmissionStallWatchdog admissionWatchdog;
+    private final NodeByteBudget nodeByteBudget;
 
     public DataSourceModule(
         List<DataSourcePlugin> dataSourcePlugins,
@@ -262,7 +264,8 @@ public final class DataSourceModule implements Closeable {
                 this.codecRegistry.register(codec);
             }
         }
-        this.formatReaderRegistry = new FormatReaderRegistry(this.codecRegistry);
+        this.nodeByteBudget = NodeByteBudgetService.forHeap();
+        this.formatReaderRegistry = new FormatReaderRegistry(this.codecRegistry, this.nodeByteBudget);
         this.formatReaderRegistry.setAdmissionTracker(admissionTracker);
 
         Map<String, ExternalSourceFactory> sourceFactoryMap = new LinkedHashMap<>();
@@ -505,6 +508,16 @@ public final class DataSourceModule implements Closeable {
     @Nullable
     AdmissionStallWatchdog admissionWatchdog() {
         return admissionWatchdog;
+    }
+
+    /**
+     * Toggles byte-budget rescue. Production wires this to
+     * {@link ExternalSourceSettings#ADMISSION_RESCUE_ENABLED}.
+     */
+    public void setAdmissionRescueEnabled(boolean enabled) {
+        if (admissionWatchdog != null) {
+            admissionWatchdog.setRescueEnabled(enabled);
+        }
     }
 
     public DecompressionCodecRegistry codecRegistry() {

@@ -17,6 +17,8 @@ import org.elasticsearch.columnar.substrate.ColumnInputs;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 
 import java.io.IOException;
+import java.util.NavigableSet;
+import java.util.Set;
 import java.util.function.Predicate;
 
 /**
@@ -213,6 +215,100 @@ public final class PlainStringColumnReader extends StringColumnReader {
                 }
             }
         };
+    }
+
+    @Override
+    protected DocIdSetIterator unorderedRangeMatches(BytesRef lower, boolean includeLower, BytesRef upper, boolean includeUpper)
+        throws IOException {
+        final ColumnIterator presence = iterator();
+        final LastSeen lastSeen = new LastSeen();
+        return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(presence) {
+            @Override
+            public boolean matches() throws IOException {
+                return matchesRangeRank(presence.rank(), lower, includeLower, upper, includeUpper, lastSeen);
+            }
+
+            @Override
+            public float matchCost() {
+                return 10f;
+            }
+        });
+    }
+
+    private boolean matchesRangeRank(
+        int rank,
+        BytesRef lower,
+        boolean includeLower,
+        BytesRef upper,
+        boolean includeUpper,
+        LastSeen lastSeen
+    ) throws IOException {
+        final long first = firstValueAddress(rank);
+        final long count = valueCount(rank);
+        if (count == 1) {
+            if (isNullSlot(first)) {
+                return false;
+            }
+            final long identity = values.read(first, scratch);
+            if (identity == lastSeen.identity && scratch.length == lastSeen.length) {
+                return lastSeen.matched;
+            }
+            final boolean matched = inRange(scratch, lower, includeLower, upper, includeUpper);
+            lastSeen.identity = identity;
+            lastSeen.length = scratch.length;
+            lastSeen.matched = matched;
+            return matched;
+        }
+        for (long i = 0; i < count; i++) {
+            final BytesRef v = valueAt(first + i);
+            if (v != null && inRange(v, lower, includeLower, upper, includeUpper)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    protected DocIdSetIterator unorderedAnyOfMatches(NavigableSet<BytesRef> terms, Set<BytesRef> membership) throws IOException {
+        final ColumnIterator presence = iterator();
+        final LastSeen lastSeen = new LastSeen();
+        return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(presence) {
+            @Override
+            public boolean matches() throws IOException {
+                return matchesAnyOfRank(presence.rank(), membership, lastSeen);
+            }
+
+            @Override
+            public float matchCost() {
+                return 10f;
+            }
+        });
+    }
+
+    private boolean matchesAnyOfRank(int rank, Set<BytesRef> terms, LastSeen lastSeen) throws IOException {
+        final long first = firstValueAddress(rank);
+        final long count = valueCount(rank);
+        if (count == 1) {
+            if (isNullSlot(first)) {
+                return false;
+            }
+            final long identity = values.read(first, scratch);
+            if (identity == lastSeen.identity && scratch.length == lastSeen.length) {
+                return lastSeen.matched;
+            }
+            final boolean matched = terms.contains(scratch);
+            lastSeen.identity = identity;
+            lastSeen.length = scratch.length;
+            lastSeen.matched = matched;
+            return matched;
+        }
+        for (long i = 0; i < count; i++) {
+            final BytesRef v = valueAt(first + i);
+            if (v != null && terms.contains(v)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

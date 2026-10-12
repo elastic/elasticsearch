@@ -121,6 +121,33 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertThat(responsePath.evaluate("data.result"), empty());
     }
 
+    public void testInstantQueryWithTimeout() throws Exception {
+        ingestTestData("test_gauge_iq");
+
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query",
+            new BasicNameValuePair("query", "test_gauge_iq{job=\"test_job\"}"),
+            new BasicNameValuePair("time", "2026-01-01T00:08:00Z"),
+            new BasicNameValuePair("timeout", "1m")
+        );
+
+        ObjectPath responsePath = ObjectPath.createFromResponse(client().performRequest(request));
+        assertThat(responsePath.evaluate("status"), equalTo("success"));
+        assertThat(responsePath.evaluate("data.result"), hasSize(1));
+    }
+
+    public void testInstantQueryWithInvalidTimeoutReturnsBadRequest() throws Exception {
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query",
+            new BasicNameValuePair("query", "up"),
+            new BasicNameValuePair("timeout", "soon")
+        );
+
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("invalid parameter \\\"timeout\\\""));
+    }
+
     public void testInstantQueryReturnsLatestSampleWithinDefaultLookback() throws Exception {
         ingestTestData("test_gauge_iq");
         // Evaluation time T = 00:08:00; default lookback = 5m, so window is (00:03:00, 00:08:00].
@@ -146,6 +173,19 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertThat(path.evaluate("data.resultType"), equalTo("scalar"));
         // scalar result is [timestamp_seconds, value_string]
         assertThat(path.evaluate("data.result"), equalTo(List.of(1767225900.0, "3.14")));
+    }
+
+    /** Prometheus: a duration literal is a float literal in seconds - {@code 1h30m} is the scalar {@code 5400}. */
+    public void testInstantQueryDurationLiteralIsSeconds() throws Exception {
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query",
+            new BasicNameValuePair("query", "1h30m"),
+            new BasicNameValuePair("time", "2026-01-01T00:05:00Z")
+        );
+        ObjectPath path = ObjectPath.createFromResponse(client().performRequest(request));
+        assertThat(path.evaluate("status"), equalTo("success"));
+        assertThat(path.evaluate("data.resultType"), equalTo("scalar"));
+        assertThat(Double.parseDouble(path.evaluate("data.result.1")), equalTo(5400.0));
     }
 
     /** Prometheus: a string literal is a result of type {@code string}, rendered as {@code [<unix_time>, "<string>"]}. */
@@ -540,6 +580,44 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
     private void assertBinopInstantDuplicate(String expression) {
         ResponseException error = expectThrows(ResponseException.class, () -> executeBinopInstantQuery(expression));
         assertThat(error.getMessage(), containsString("duplicate"));
+    }
+
+    /**
+     * Prometheus answers an instant query over a range vector with a {@code matrix} of the raw samples in the window: the
+     * two samples of every series here, 30 seconds apart. Nothing produces that yet, so the shape is rejected instead.
+     */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/metrics-program/issues/344")
+    public void testInstantRangeVectorIsAMatrixOfRawSamples() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query",
+            new BasicNameValuePair("query", "tx{host=\"a\"}[5m]"),
+            new BasicNameValuePair("time", QUERY_TIME.toString())
+        );
+        ObjectPath path = ObjectPath.createFromResponse(client().performRequest(request));
+        assertThat(path.evaluate("data.resultType"), equalTo("matrix"));
+        List<Map<String, Object>> result = path.evaluate("data.result");
+        assertThat(result, hasSize(1));
+        assertThat(result.getFirst().get("metric"), equalTo(Map.of("__name__", "tx", "host", "a", "cluster", "prod")));
+        assertThat(result.getFirst().get("values"), equalTo(List.of(List.of(1715299170.0, "5.0"), List.of(1715299200.0, "10.0"))));
+    }
+
+    /** Until then the shape is a clear rejection rather than a plan that fails in the optimizer. */
+    public void testInstantRangeVectorIsRejected() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        for (String query : List.of("tx[5m]", "tx[5m] offset 1m")) {
+            Request request = prometheusReadRequest(
+                "/_prometheus/api/v1/query",
+                new BasicNameValuePair("query", query),
+                new BasicNameValuePair("time", QUERY_TIME.toString())
+            );
+            ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+            assertThat(query, e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+            assertThat(
+                EntityUtils.toString(e.getResponse().getEntity()),
+                containsString("range vector results are not supported at this time [" + query + "]")
+            );
+        }
     }
 
     /**

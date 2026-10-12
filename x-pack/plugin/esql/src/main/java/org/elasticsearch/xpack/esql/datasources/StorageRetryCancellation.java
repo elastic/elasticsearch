@@ -91,7 +91,7 @@ public final class StorageRetryCancellation {
      * Runs {@code body} with {@code isCancelled} installed as the ambient cancellation signal for the
      * current thread, restoring any previously installed supplier on exit (so nested scopes compose).
      */
-    static <E extends Exception> void runWithCancellation(BooleanSupplier isCancelled, CheckedRunnable<E> body) throws E {
+    public static <E extends Exception> void runWithCancellation(BooleanSupplier isCancelled, CheckedRunnable<E> body) throws E {
         BooleanSupplier previous = CURRENT.get();
         CURRENT.set(isCancelled);
         try {
@@ -127,6 +127,14 @@ public final class StorageRetryCancellation {
     public static boolean isCancelled() {
         BooleanSupplier current = CURRENT.get();
         return current != null && current.getAsBoolean();
+    }
+
+    /**
+     * The ambient cancellation supplier on this thread, or {@code null} when no scope is
+     * installed. Grant threads re-install this around GET start.
+     */
+    public static BooleanSupplier current() {
+        return CURRENT.get();
     }
 
     /**

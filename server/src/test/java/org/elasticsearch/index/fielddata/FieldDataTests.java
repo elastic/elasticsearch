@@ -77,6 +77,42 @@ public class FieldDataTests extends ESTestCase {
         assertSame(multiValues, FieldData.toSortableLongBits(asMultiDoubles));
     }
 
+    public void testCastToDouble() throws IOException {
+        final long value = randomLong();
+
+        LongValues values = new DummyValues(value);
+        SortedNumericDoubleValues asMultiDoubles = FieldData.castToDouble(SortedNumericLongValues.singleton(values));
+        // a singleton input should produce a singleton output, not just the right values
+        DoubleValues asDoubles = SortedNumericDoubleValues.unwrapSingleton(asMultiDoubles);
+        assertNotNull(asDoubles);
+        assertTrue(asDoubles.advanceExact(0));
+        assertEquals((double) value, asDoubles.doubleValue(), 0);
+
+        SortedNumericLongValues multiValues = new SortedNumericLongValues(null) {
+
+            @Override
+            public boolean advanceExact(int target) {
+                return true;
+            }
+
+            @Override
+            public long nextValue() {
+                return value;
+            }
+
+            @Override
+            public int docValueCount() {
+                return 1;
+            }
+        };
+
+        asMultiDoubles = FieldData.castToDouble(multiValues);
+        // a genuinely multi-valued input should not be collapsed into a singleton
+        assertNull(SortedNumericDoubleValues.unwrapSingleton(asMultiDoubles));
+        assertTrue(asMultiDoubles.advanceExact(0));
+        assertEquals((double) value, asMultiDoubles.nextValue(), 0);
+    }
+
     public void testDoublesToSortableLongBits() throws IOException {
         final double value = randomDouble();
         final long valueBits = NumericUtils.doubleToSortableLong(value);

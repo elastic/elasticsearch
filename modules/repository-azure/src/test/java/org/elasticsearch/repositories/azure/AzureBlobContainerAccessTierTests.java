@@ -57,6 +57,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.repositories.azure.AzureRepository.Repository.CONTAINER_SETTING;
 import static org.elasticsearch.repositories.azure.AzureRepository.Repository.COPY_POLL_INTERVAL;
 import static org.elasticsearch.repositories.azure.AzureRepository.Repository.MAX_SINGLE_PART_UPLOAD_SIZE_SETTING;
+import static org.elasticsearch.repositories.azure.AzureRepository.Repository.MULTIPART_UPLOAD_PART_SIZE_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.ACCOUNT_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.ENDPOINT_SUFFIX_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.KEY_SETTING;
@@ -149,11 +150,6 @@ public class AzureBlobContainerAccessTierTests extends ESTestCase {
                     null
                 );
             }
-
-            @Override
-            long getUploadBlockSize() {
-                return ByteSizeUnit.MB.toBytes(1);
-            }
         };
 
         final RepositoryMetadata repositoryMetadata = new RepositoryMetadata(
@@ -163,6 +159,7 @@ public class AzureBlobContainerAccessTierTests extends ESTestCase {
                 .put(CONTAINER_SETTING.getKey(), CONTAINER)
                 .put(ACCOUNT_SETTING.getKey(), clientName)
                 .put(MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.MB))
+                .put(MULTIPART_UPLOAD_PART_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.MB))
                 .put(COPY_POLL_INTERVAL.getKey(), TimeValue.timeValueMillis(100))
                 .build()
         );

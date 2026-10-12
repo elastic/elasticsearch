@@ -245,6 +245,9 @@ class FieldCapabilitiesFetcher {
                     inferenceFieldNames.contains(field),
                     isTimeSeriesIndex ? ft.isDimension() : false,
                     isTimeSeriesIndex ? ft.getMetricType() : null,
+                    // Look up by the field caps key rather than ft.name(): a passthrough alias (e.g. host.name) shares the
+                    // field type of its target and must not be flagged, and neither must an explicit alias field.
+                    context.getMappingLookup().isPassthrough(field),
                     ft.meta(),
                     reported == null ? null : reported.name(),
                     reported == null ? TextFieldMapper.Defaults.POSITION_INCREMENT_GAP : reported.getPositionIncrementGap(ft.name()),
@@ -270,6 +273,14 @@ class FieldCapabilitiesFetcher {
                     if (context.getFieldType(parentField) == null && isUnderSubobjectsFalseMapper(parentField, objectMappers) == false) {
                         // no field type and not under a subobjects:false context, it must be an object field
                         String type = context.nestedLookup().getNestedMappers().get(parentField) != null ? "nested" : "object";
+                        // A synthesized object may have no backing ObjectMapper, e.g. for a dotted leaf under a root-level
+                        // subobjects:false mapping. It is reported as a plain object nonetheless, so it must carry the
+                        // same passthrough status as one, unless prefix properties identify it as an auto-flattened
+                        // passthrough object in a strict columnar index.
+                        Boolean isPassthrough = context.getMappingLookup().isPassthrough(parentField);
+                        if (isPassthrough == null && "object".equals(type)) {
+                            isPassthrough = false;
+                        }
                         IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                             parentField,
                             type,
@@ -279,6 +290,7 @@ class FieldCapabilitiesFetcher {
                             false,
                             false,
                             null,
+                            isPassthrough,
                             Map.of(),
                             null,
                             TextFieldMapper.Defaults.POSITION_INCREMENT_GAP,

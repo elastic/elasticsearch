@@ -49,15 +49,18 @@ final class FileRealmUsers {
     }
 
     /**
-     * Adds {@code username} with an already computed password hash and the given comma-separated roles. The file realm
-     * merges repeated role lines in {@code users_roles}, so each role is appended as its own line.
+     * Adds {@code username} with an already computed password hash and the given comma-separated roles, splitting them
+     * the same way {@code useradd} does. The file realm merges repeated role lines in {@code users_roles}, so each role is
+     * appended as its own line.
      */
     static void addUser(Path configDir, String username, String passwordHash, String roles) {
         append(configDir.resolve("users"), username + ":" + passwordHash + "\n");
-        append(
-            configDir.resolve("users_roles"),
-            Arrays.stream(roles.split(",")).map(String::trim).map(role -> role + ":" + username + "\n").collect(Collectors.joining())
-        );
+        if (roles.isEmpty() == false) {
+            append(
+                configDir.resolve("users_roles"),
+                Arrays.stream(roles.split(",")).map(role -> role + ":" + username + "\n").collect(Collectors.joining())
+            );
+        }
     }
 
     private static void append(Path file, String content) {

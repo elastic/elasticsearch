@@ -612,7 +612,11 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                 LOGGER.info("Creating users for node '{}'", name);
                 final Set<String> operators = new HashSet<>();
                 final Map<String, String> hashByPassword = new HashMap<>();
+                final Set<String> usernames = new HashSet<>();
                 for (User user : spec.getUsers()) {
+                    if (usernames.add(user.getUsername()) == false) {
+                        throw new IllegalStateException("User [" + user.getUsername() + "] is defined more than once");
+                    }
                     String passwordHash = hashByPassword.get(user.getPassword());
                     if (passwordHash == null) {
                         runToolScript(

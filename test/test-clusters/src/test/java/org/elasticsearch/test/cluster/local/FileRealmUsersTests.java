@@ -50,6 +50,17 @@ public class FileRealmUsersTests {
     }
 
     @Test
+    public void testNoRolesWritesNoRolesLine() throws IOException {
+        Path configDir = Files.createTempDirectory("config");
+        Files.writeString(configDir.resolve("users_roles"), "superuser:first\n");
+
+        FileRealmUsers.addUser(configDir, "second", PBKDF2_HASH, "");
+
+        assertThat(Files.readAllLines(configDir.resolve("users"), StandardCharsets.UTF_8), is(List.of("second:" + PBKDF2_HASH)));
+        assertThat(Files.readAllLines(configDir.resolve("users_roles"), StandardCharsets.UTF_8), is(List.of("superuser:first")));
+    }
+
+    @Test
     public void testDoesNotMatchUsernamePrefix() throws IOException {
         Path configDir = Files.createTempDirectory("config");
         Files.writeString(configDir.resolve("users"), "user_long:" + PBKDF2_HASH + "\n");

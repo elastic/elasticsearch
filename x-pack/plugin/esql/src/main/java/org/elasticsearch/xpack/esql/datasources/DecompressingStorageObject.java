@@ -227,14 +227,12 @@ final class DecompressingStorageObject implements StorageObject {
      *   bytes. Gzip/zstd/lz4/brotli text files are one whole-object GET, so discarding the connection
      *   is cheaper than draining them.</li>
      *   <li>Read to the decoder's end-of-stream: the raw body is (normally) exhausted, but whether the
-     *   provider has seen its end depends on the decoder. Zstd reads its input until {@code -1}. The JDK
-     *   gzip decoder depends on the JDK version: on JDK 21, 22 and 27+ it only probes for a next member when
-     *   {@code available() > 0}, so at the end of a network body it stops after the trailer without that
-     *   read, Apache HttpClient still holds the connection, and the abort would destroy it. JDK 23 to 26
-     *   always probe, which reads the body to {@code -1} themselves. Reading raw to its end first (bounded
-     *   by {@link #MAX_TRAILING_DRAIN_BYTES}) returns the connection to the pool and turns the abort into a
-     *   no-op whichever JDK runs, so do not drop it because the gzip tests pass without it on JDK 23 to
-     *   26.</li>
+     *   provider has seen its end depends on the decoder. Zstd and the gzip codec (which does not use the JDK
+     *   {@code GZIPInputStream}, see elastic/esql-planning#2121) read their input until {@code -1}. A decoder that
+     *   stops without that read leaves Apache HttpClient holding the connection, and the abort would destroy it.
+     *   Reading raw to its end first (bounded by {@link #MAX_TRAILING_DRAIN_BYTES}) returns the connection to the
+     *   pool and turns the abort into a no-op for any decoder, so do not drop it because the gzip and zstd tests
+     *   pass without it.</li>
      * </ul>
      * Idempotent with {@link DecompressingStorageObject#abortStream(InputStream)}.
      */
@@ -374,9 +372,8 @@ final class DecompressingStorageObject implements StorageObject {
                 throw e;
             }
             if (trailing > 0) {
-                // Bytes after the decoder's end-of-stream are not decoded. For gzip this is either trailing
-                // padding/garbage or further members the JDK decoder did not detect because its next-member probe
-                // only runs when the raw stream reports available() > 0.
+                // Bytes after the decoder's end-of-stream are not decoded. The gzip codec rejects them itself (apart
+                // from zero padding), so this is reached by codecs that do not read their input to its end.
                 logger.debug(
                     "[{}] has [{}]{} undecoded bytes after the [{}] decoder's end of stream",
                     rawOwner.path(),

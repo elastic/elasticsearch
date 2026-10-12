@@ -838,8 +838,8 @@ public class ExternalSourceResolver {
                 finalSource = resolvedSource;
                 effectiveReadSpec = declaredReadSpec;
             }
-            // The spec goes on FIRST: the stamp reads its renames and its provenance, and every producer of
-            // finalSource builds a ResolvedSource without one, so stamping first saw neither.
+            // The spec goes on FIRST: the stamp reads its renames, and every producer of
+            // finalSource builds a ResolvedSource without one, so stamping first saw none of them.
             resolved.put(path, stampConversionMayNarrow(finalSource.withDeclaredReadSpec(effectiveReadSpec)));
             LOGGER.debug("Successfully resolved external source: {}", path);
             // Dispatch to the executor rather than calling directly: on a cache-hit the callback fires
@@ -1331,7 +1331,8 @@ public class ExternalSourceResolver {
                 dataOnlySchema,
                 fileStats,
                 // physicalSchema is what was read out of this very file.
-                true
+                true,
+                null
             );
             listener.onResponse(new ExternalSourceResolution.ResolvedSource(extMetadata, singletonList, schemaMap));
         } finally {
@@ -1344,7 +1345,7 @@ public class ExternalSourceResolver {
         @Nullable List<Attribute> schema,
         @Nullable SourceStatistics statistics
     ) {
-        return singleEntrySchemaMap(path, schema, schema, statistics, true);
+        return singleEntrySchemaMap(path, schema, schema, statistics, true, null);
     }
 
     /**
@@ -1357,7 +1358,8 @@ public class ExternalSourceResolver {
         @Nullable List<Attribute> physicalSchema,
         @Nullable List<Attribute> dataOnlySchema,
         @Nullable SourceStatistics statistics,
-        boolean physicalSchemaIsTheFilesOwnTypes
+        boolean physicalSchemaIsTheFilesOwnTypes,
+        @Nullable Map<String, DataType> readFileTypes
     ) {
         if (physicalSchema == null || physicalSchema.isEmpty()) {
             return Map.of();
@@ -1365,10 +1367,10 @@ public class ExternalSourceResolver {
         ColumnMapping mapping = dataOnlySchema == null || dataOnlySchema.size() == physicalSchema.size()
             ? new ColumnMapping(identityMapping(physicalSchema.size()), null)
             : SchemaReconciliation.computeMapping(dataOnlySchema, physicalSchema);
-        // Record the types when the schema handed in was read OUT of this file, so later decisions need not work
-        // that out from how the schema was authored. The caller knows it as a fact about the argument it is
-        // passing: an inferred read hands over what it found, a declared one hands over what was asked for.
-        Map<String, DataType> fileOwnTypes = physicalSchemaIsTheFilesOwnTypes ? attributesToTypeMap(physicalSchema) : null;
+        // Record what this file actually holds, so later decisions need not work it out from how the schema was
+        // authored. Either the schema handed in IS what was read out of the file, or the caller read the types
+        // separately and passes them - a strict read does the latter, because its schema is the declaration.
+        Map<String, DataType> fileOwnTypes = physicalSchemaIsTheFilesOwnTypes ? attributesToTypeMap(physicalSchema) : readFileTypes;
         return Map.of(path, new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(physicalSchema), mapping, statistics, fileOwnTypes));
     }
 
@@ -3939,27 +3941,6 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * The pre-#2076 form: {@link #isSchemaPinnedFromAnchorFile} narrowed to inferred reads. Still read by
-     * {@code pinnedColumnsOf} and {@code EsqlSession.collectPinnedReads}, which strip columns from a
-     * statistics commit. Those two are not left here because the provenance question is harmless there -
-     * {@code SourceStatisticsSerializer#overlayPinnedColumnsOnStats} calls what they strip "wrong VALUES",
-     * so a strict read that skips the strip can commit a value a narrow read then serves. They are left
-     * because moving them changes what a cache entry holds rather than what one read returns, and that is
-     * worth doing on its own. Removed with the last provenance reader.
-     */
-    public static boolean isAnchorPinnedFirstFileWins(
-        @Nullable String sourcePath,
-        @Nullable Map<String, Object> config,
-        @Nullable DeclaredReadSpec declaredReadSpec
-    ) {
-        if (isSchemaPinnedFromAnchorFile(sourcePath, config) == false) {
-            return false;
-        }
-        SchemaProvenance provenance = declaredReadSpec == null ? SchemaProvenance.INFERRED : declaredReadSpec.provenance();
-        return provenance == SchemaProvenance.INFERRED;
-    }
-
-    /**
      * True when this file's own column types were never read, so column statistics must not be
      * interpreted against them. Unknown is not incompatible: it means nobody looked.
      * <p>
@@ -3970,15 +3951,6 @@ public class ExternalSourceResolver {
      */
     static boolean nativeTypesUnknown(@Nullable SchemaReconciliation.FileSchemaInfo info) {
         return info == null || info.nativeTypesRead() == false;
-    }
-
-    /**
-     * The pre-#2076 form, still read by {@code pinnedColumnsOf} and {@code EsqlSession}: those two decide
-     * which columns to safe-miss on the read-schema-blind cache, and routing a strict read through
-     * "types unknown" there pins every column rather than none. Removed with the last provenance reader.
-     */
-    static boolean nativeTypesUnknown(@Nullable SchemaReconciliation.FileSchemaInfo info, boolean anchorPinnedFirstFileWins) {
-        return anchorPinnedFirstFileWins && nativeTypesUnknown(info);
     }
 
     /**
@@ -4009,18 +3981,20 @@ public class ExternalSourceResolver {
 
     /**
      * {@link #pinnedColumnsOf(SchemaReconciliation.FileSchemaInfo)} with the source-level decision from
-     * {@link #isAnchorPinnedFirstFileWins}. Inferred FIRST_FILE_WINS reads without a native-type snapshot
-     * conservatively protect every file-backed read column.
+     * {@link #isSchemaPinnedFromAnchorFile}: a read whose schema was pinned from one file, over a file whose own
+     * types were never read, protects every file-backed read column. The two questions are the same pair
+     * {@code FileSplitProvider.resolveSurvivor} asks, and neither is about how the schema was authored - asking
+     * that instead let a declared read commit values a narrower read then served (esql-planning#2076).
      */
     public static Set<String> pinnedColumnsOf(
         SchemaReconciliation.FileSchemaInfo info,
-        boolean anchorPinnedFirstFileWins,
+        boolean schemaPinnedFromAnchorFile,
         @Nullable DeclaredReadSpec declaredReadSpec
     ) {
         if (info == null) {
             return Set.of();
         }
-        if (nativeTypesUnknown(info, anchorPinnedFirstFileWins)) {
+        if (schemaPinnedFromAnchorFile && nativeTypesUnknown(info)) {
             return fileBackedPhysicalColumns(info.fileSchema().attributes(), declaredReadSpec);
         }
         Map<String, DataType> inferred = info.inferredTypes();
@@ -4909,7 +4883,7 @@ public class ExternalSourceResolver {
         // this file's footer (cached when the provider is).
         rejectDeclaredMappingViolations(singletonList.partitionMetadata(), declaredMapping);
         long mtimeMillis = meta.mtimeMillis();
-        rejectStrictColumnarUncoercibleTypes(
+        Map<String, DataType> fileOwnTypes = rejectStrictColumnarUncoercibleTypes(
             sourceType,
             provider,
             storageIdentity,
@@ -4938,13 +4912,17 @@ public class ExternalSourceResolver {
         // Strict declares the whole schema, so no per-file footer statistics were harvested. Partition
         // attributes are extra on the coordinator schema, not in the mapping — identity over declared width,
         // same as resolveStrictMultiFile.
+        // The schema recorded is the declaration, so it is NOT the file's own types - but the footer check above
+        // just read those, so they are recorded separately rather than discarded. Without them the may-narrow
+        // question could only be answered from the fact that a declaration exists, which is the defect
+        // esql-planning#2076 removes; with them it is answered by comparing the two.
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(
             storagePath,
             logicalSchema,
             logicalSchema,
             null,
-            // The declaration, not what the file holds: strict never reads this file's own column types.
-            false
+            false,
+            fileOwnTypes
         );
         return new ExternalSourceResolution.ResolvedSource(extMetadata, singletonList, schemaMap);
     }
@@ -5504,7 +5482,8 @@ public class ExternalSourceResolver {
      * either a working read-time coercion or an actionable resolution error. No-op for text formats, which parse into
      * the declared type.
      */
-    private void rejectStrictColumnarUncoercibleTypes(
+    @Nullable
+    private Map<String, DataType> rejectStrictColumnarUncoercibleTypes(
         String sourceType,
         StorageProvider provider,
         String storageIdentity,
@@ -5518,13 +5497,17 @@ public class ExternalSourceResolver {
         // throws, so the null branch is defensive-only today; it is kept so a future null-returning resolution path
         // cannot silently NPE on Set.contains(null) and resurrect the earlier NPE-wrapped-500.
         if (sourceType == null || FILE_TYPED_FORMATS.contains(sourceType) == false || declaredMapping.mappings() == null) {
-            return;
+            return null;
         }
         Map<String, Object> probeConfig = declaredProbeConfig(sourceType, config);
         List<Attribute> physicalSchema = (isCacheable(provider)
             ? cachedResolveSingleSource(anchor, anchorMtime, storageIdentity, secretIdentity, probeConfig)
             : resolveSingleSource(anchor.toString(), probeConfig)).schema();
         rejectUncoercibleFileTypedRetypes(physicalSchema, sourceType, declaredMapping);
+        // Hand back the file's OWN types, physically keyed, rather than discarding what this read already cost.
+        // Returning null above means the footer was never read, which is not the same as reading it and finding
+        // nothing; the caller records the difference (esql-planning#2076).
+        return attributesToTypeMap(physicalSchema);
     }
 
     /**

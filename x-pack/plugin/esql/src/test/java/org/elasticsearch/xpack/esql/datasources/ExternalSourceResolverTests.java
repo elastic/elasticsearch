@@ -2165,30 +2165,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals(Map.of("x", DataType.INTEGER), info.inferredTypes());
     }
 
-    public void testAnchorPinnedFirstFileWinsRequiresMultiFileInferredRead() {
-        Map<String, Object> ffw = configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS);
-        Map<String, Object> ubn = configFor(FormatReader.SchemaResolution.UNION_BY_NAME);
-
-        assertTrue(ExternalSourceResolver.isAnchorPinnedFirstFileWins(GLOB, ffw, DeclaredReadSpec.NONE));
-        assertTrue(
-            ExternalSourceResolver.isAnchorPinnedFirstFileWins(
-                "s3://bucket/data/a.parquet,s3://bucket/data/b.parquet",
-                ffw,
-                DeclaredReadSpec.NONE
-            )
-        );
-        assertFalse(ExternalSourceResolver.isAnchorPinnedFirstFileWins("s3://bucket/data/a.parquet", ffw, DeclaredReadSpec.NONE));
-        assertFalse(ExternalSourceResolver.isAnchorPinnedFirstFileWins(null, ffw, DeclaredReadSpec.NONE));
-        assertFalse(ExternalSourceResolver.isAnchorPinnedFirstFileWins(GLOB, ubn, DeclaredReadSpec.NONE));
-        assertFalse(
-            ExternalSourceResolver.isAnchorPinnedFirstFileWins(
-                GLOB,
-                ffw,
-                DeclaredReadSpec.of(Map.of(), Map.of(), Set.of(), SchemaProvenance.DECLARED)
-            )
-        );
-    }
-
     /**
      * The structural half of the pin, which the split planner reads: a glob or comma-list under
      * FIRST_FILE_WINS pins the schema from one file, and an explicit single-file path does not, because
@@ -2217,21 +2193,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertTrue(ExternalSourceResolver.nativeTypesUnknown(new SchemaReconciliation.FileSchemaInfo(pin, null, null)));
         assertFalse(
             ExternalSourceResolver.nativeTypesUnknown(new SchemaReconciliation.FileSchemaInfo(pin, null, null, Map.of("x", DataType.LONG)))
-        );
-    }
-
-    public void testNativeTypesUnknownRequiresAnchorPinAndMissingSnapshot() {
-        ExternalSchema pin = new ExternalSchema(List.of(attr("x", DataType.INTEGER)));
-        SchemaReconciliation.FileSchemaInfo unknown = new SchemaReconciliation.FileSchemaInfo(pin, null, null);
-        assertTrue(ExternalSourceResolver.nativeTypesUnknown(unknown, true));
-        assertTrue(ExternalSourceResolver.nativeTypesUnknown(null, true));
-        assertFalse(ExternalSourceResolver.nativeTypesUnknown(unknown, false));
-        assertFalse(ExternalSourceResolver.nativeTypesUnknown(null, false));
-        assertFalse(
-            ExternalSourceResolver.nativeTypesUnknown(
-                new SchemaReconciliation.FileSchemaInfo(pin, null, null, Map.of("x", DataType.LONG)),
-                true
-            )
         );
     }
 
@@ -5024,6 +4985,42 @@ public class ExternalSourceResolverTests extends ESTestCase {
             "physical x is a long read as a 32-bit integer, which narrows",
             SourceStatisticsSerializer.conversionMayNarrow(resolved.metadata().sourceMetadata())
         );
+    }
+
+    /**
+     * A strict single-file read reads that file's footer for the coercibility check, so its types are recorded and
+     * the stamp is computed by comparing them with the declared types - it is NOT decided by the declaration
+     * merely existing. The sync footer check used to discard what it read, which made every {@code dynamic: false}
+     * single-file dataset answer "a value may fail" whatever the file held: the flag renamed, which is what
+     * esql-planning#2076 forbids.
+     */
+    public void testAStrictSingleFileStampsFromTheFilesTypesNotFromTheDeclaration() throws Exception {
+        String filePath = "s3://bucket/data/only.parquet";
+        for (DataType declaredAs : List.of(DataType.LONG, DataType.INTEGER)) {
+            Map<String, List<Attribute>> schemasByPath = Map.of(filePath, List.of(attr("x", DataType.LONG)));
+            Map<String, List<StorageEntry>> listingsByPrefix = Map.of(
+                StoragePath.of(filePath).patternPrefix().toString(),
+                List.of(entry(filePath, 100))
+            );
+            ExternalSourceResolver resolver = createResolver(schemasByPath, listingsByPrefix);
+            DatasetMapping mapping = new DatasetMapping(
+                new DatasetMapping.Mappings(
+                    DatasetMapping.Dynamic.FALSE,
+                    Map.of("x", new DatasetFieldMapping(declaredAs == DataType.LONG ? "long" : "integer", null))
+                )
+            );
+            PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+            resolver.resolve(List.of(filePath), Map.of(filePath, new HashMap<>()), null, Map.of(filePath, mapping), null, future);
+            ExternalSourceResolution.ResolvedSource resolved = future.actionGet().resolvedSource(filePath);
+
+            assertNotNull(resolved);
+            boolean stamped = SourceStatisticsSerializer.conversionMayNarrow(resolved.metadata().sourceMetadata());
+            if (declaredAs == DataType.LONG) {
+                assertFalse("the file holds long and is read as long, so nothing is converted", stamped);
+            } else {
+                assertTrue("the file holds long and is read as a 32-bit integer, which narrows", stamped);
+            }
+        }
     }
 
     /**

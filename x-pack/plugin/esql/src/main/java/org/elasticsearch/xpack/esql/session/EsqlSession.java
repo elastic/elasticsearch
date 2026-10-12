@@ -1079,15 +1079,14 @@ public class EsqlSession {
     }
 
     static void collectPinnedReads(ExternalRelation relation, boolean dropRowCount, Map<String, PinnedColumns> into) {
-        boolean anchorPinnedFirstFileWins = ExternalSourceResolver.isAnchorPinnedFirstFileWins(
+        boolean schemaPinnedFromAnchorFile = ExternalSourceResolver.isSchemaPinnedFromAnchorFile(
             relation.sourcePath(),
-            relation.metadata().config(),
-            relation.declaredReadSpec()
+            relation.metadata().config()
         );
         for (var entry : relation.schemaMap().entrySet()) {
             Set<String> pinned = ExternalSourceResolver.pinnedColumnsOf(
                 entry.getValue(),
-                anchorPinnedFirstFileWins,
+                schemaPinnedFromAnchorFile,
                 relation.declaredReadSpec()
             );
             if (pinned.isEmpty()) {

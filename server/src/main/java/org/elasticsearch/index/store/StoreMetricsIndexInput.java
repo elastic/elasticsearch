@@ -47,6 +47,18 @@ public class StoreMetricsIndexInput extends FilterIndexInput implements DirectAc
         super(resourceDescription, in);
         this.metricHolder = metricHolder;
         assert in instanceof StoreMetricsIndexInput == false;
+        assert noSelfAccountingDelegate(in) : "would double-count bytes read by " + in;
+    }
+
+    private static boolean noSelfAccountingDelegate(IndexInput in) {
+        IndexInput current = in;
+        while (current instanceof FilterIndexInput filter) {
+            if (current instanceof SelfAccountingIndexInput) {
+                return false;
+            }
+            current = filter.getDelegate();
+        }
+        return current instanceof SelfAccountingIndexInput == false;
     }
 
     @Override
@@ -104,7 +116,11 @@ public class StoreMetricsIndexInput extends FilterIndexInput implements DirectAc
         CheckedConsumer<MemorySegment, IOException> action
     ) throws IOException {
         if (in instanceof DirectAccessInput dai) {
-            return dai.withMemorySegmentSlice(offset, length, scratch, action);
+            boolean read = dai.withMemorySegmentSlice(offset, length, scratch, action);
+            if (read) {
+                addBytesRead(length);
+            }
+            return read;
         }
         // An mmap'd input exposes its bytes as a MemorySegmentAccessInput, not a DirectAccessInput. Returning false for
         // it here would send IndexInputUtils#withSlice, which only sees this wrapper, down its copy-to-heap fallback.
@@ -129,7 +145,11 @@ public class StoreMetricsIndexInput extends FilterIndexInput implements DirectAc
         CheckedConsumer<MemorySegment, IOException> action
     ) throws IOException {
         if (in instanceof DirectAccessInput dai) {
-            return dai.withSliceAddresses(offsets, length, count, addressesScratch, action);
+            boolean read = dai.withSliceAddresses(offsets, length, count, addressesScratch, action);
+            if (read) {
+                addBytesRead((long) length * count);
+            }
+            return read;
         }
         if (in instanceof MemorySegmentAccessInput msai) {
             return IndexInputUtils.resolveFromMmap(msai, offsets, length, count, addressesScratch, action);

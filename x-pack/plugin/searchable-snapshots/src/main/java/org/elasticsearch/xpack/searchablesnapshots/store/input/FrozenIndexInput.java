@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.store.IndexInputStats;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.foreign.MemorySegment;
@@ -116,7 +117,22 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput implements
         IntFunction<MemorySegment> scratch,
         CheckedConsumer<MemorySegment, IOException> action
     ) throws IOException {
-        return cacheFile.withMemorySegmentSlice(offset + this.offset, Math.toIntExact(length), action);
+        final int len = Math.toIntExact(length);
+        if (cacheFile.withMemorySegmentSlice(offset + this.offset, len, action)) {
+            return true;
+        }
+        if (len < getBufferSize()) {
+            // cheaper through readBytes, which refills the buffer once and serves the following reads from it
+            return false;
+        }
+        if (offset + len > length()) {
+            throw new EOFException("read past EOF: " + this);
+        }
+        final MemorySegment copy = scratch.apply(len);
+        assert copy.byteSize() == len : "scratch segment of " + copy.byteSize() + " bytes, expected " + len;
+        readAt(copy.asByteBuffer(), offset + this.offset);
+        action.accept(copy);
+        return true;
     }
 
     @Override

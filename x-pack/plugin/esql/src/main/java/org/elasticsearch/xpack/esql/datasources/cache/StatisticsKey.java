@@ -19,6 +19,13 @@ import java.util.Objects;
  * record is always about the same path, mtime, dataset and rail as the schema record beside it, and only the
  * read differs. It carries the declared-strict rail for free, because the file key already does.
  * <p>
+ * <b>The one component it drops is a shared sample's depth</b> ({@link SchemaCacheKey#withoutSampleDepth}). The
+ * depth decides which schema inference produced, not what a read of the file measures, and the read
+ * configuration already tells apart the reads whose schemas differ: it hashes every column's name and type in
+ * order ({@link ReadConfigFingerprint}). Records of one file that differ only in depth, and resolved the same
+ * schema, would otherwise hold the same measurements once per depth. The reconcile writes such a shared address
+ * once per harvest.
+ * <p>
  * <b>Why the read is part of the address.</b> A statistic measures the rows one read produced, and which rows a
  * read produces depends on the schema it was handed. Two reads of one file that resolved different schemas
  * measured different things and must not share an address. A schema record, by contrast, describes the file
@@ -41,6 +48,7 @@ public record StatisticsKey(SchemaCacheKey file, String readConfig) {
         if (readConfig == null || readConfig.isEmpty()) {
             throw new IllegalArgumentException("a statistics address needs the read that produced it");
         }
+        file = file.withoutSampleDepth();
     }
 
     /**

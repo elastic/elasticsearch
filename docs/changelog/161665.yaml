@@ -1,0 +1,5 @@
+pr: 161665
+summary: Name the dataset mapping's rename key `rename_from`
+area: ES|QL
+type: enhancement
+issues: []

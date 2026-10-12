@@ -24,6 +24,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
@@ -382,9 +383,12 @@ public class ExternalListingPassCountIT extends AbstractExternalDataSourceIT {
         }
         long largePasses = CountingStorageProvider.listingPasses();
 
+        long largeChildListings = CountingStorageProvider.childListings();
+
         CountingStorageProvider.reset();
         query(coordinator, "FROM " + large + " | STATS c = COUNT(*)").close();
         long largeWarm = CountingStorageProvider.listingPasses();
+        long largeWarmChildListings = CountingStorageProvider.childListings();
 
         assertThat("the fan-out drains one matching folder per pass", smallPasses, equalTo((long) MATCHING_FOLDERS));
         assertThat(
@@ -393,6 +397,11 @@ public class ExternalListingPassCountIT extends AbstractExternalDataSourceIT {
             equalTo((long) MATCHING_FOLDERS)
         );
         assertThat("and a repeat aggregate is served from the listing cache", largeWarm, equalTo(0L));
+        // The positive control for every "asks the store nothing" assertion in this suite, including the
+        // delimiter-listing zero in testASecondQueryListsNothing: the fan-out asks for a prefix's children, so
+        // this counter demonstrably moves. Without it, a zero proves only that nothing was ever counted.
+        assertThat("the fan-out asks for the prefix's children", largeChildListings, greaterThan(0L));
+        assertThat("and a repeat asks for none", largeWarmChildListings, equalTo(0L));
     }
 
     /**

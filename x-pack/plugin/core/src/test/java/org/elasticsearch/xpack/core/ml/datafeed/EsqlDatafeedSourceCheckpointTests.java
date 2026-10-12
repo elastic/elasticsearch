@@ -39,6 +39,11 @@ public class EsqlDatafeedSourceCheckpointTests extends AbstractXContentTestCase<
     }
 
     @Override
+    protected boolean supportsUnknownFields() {
+        return true;
+    }
+
+    @Override
     protected ToXContent.Params getToXContentParams() {
         return new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"));
     }

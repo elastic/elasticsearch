@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.mockito.ArgumentCaptor;
@@ -323,6 +324,22 @@ public class S3RequestCountingTests extends ESTestCase {
         assertEquals(FILE_SIZE, metadata.length());
         assertEquals(LAST_MODIFIED, metadata.lastModified());
         verify(mockS3, times(1)).headObject(any(HeadObjectRequest.class));
+        verify(mockS3, never()).getObject(any(GetObjectRequest.class));
+    }
+
+    /**
+     * Pre-known length and modification time reach the handle, so nothing asks the store for what the caller
+     * already supplied. The four single-path entry points resolve the bucket's clients through one step and then
+     * construct at different arities, and an argument dropped on the way to the longest one is otherwise silent.
+     */
+    public void testProviderPassesPreKnownLengthAndModificationTime() throws IOException {
+        S3StorageProvider provider = new S3StorageProvider(S3Configuration.fromMap(Map.of("auth", "anonymous")), mockS3);
+
+        StorageObject object = provider.newObject(PATH, FILE_SIZE, LAST_MODIFIED);
+
+        assertEquals(FILE_SIZE, object.length());
+        assertEquals(LAST_MODIFIED, object.lastModified());
+        verify(mockS3, never()).headObject(any(HeadObjectRequest.class));
         verify(mockS3, never()).getObject(any(GetObjectRequest.class));
     }
 

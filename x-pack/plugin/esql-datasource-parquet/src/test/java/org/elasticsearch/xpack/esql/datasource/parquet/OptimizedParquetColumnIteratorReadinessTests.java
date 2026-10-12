@@ -647,13 +647,21 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
             assertTrue("group 0 must hold a reservation; used=" + usedWhenReady, usedWhenReady >= group0.reservation);
             gateGroup1.set(true);
             assertNull(iter.tryAdvance());
-            assertEquals(ReadinessPhase.GROUP_IO_PENDING, opci.readinessPhase());
+            ReadinessPhase phase = opci.readinessPhase();
+            // Look-ahead may finish group 1 before the gate latches, so DECODING is a race with
+            // GROUP_IO_PENDING, not a leaked reservation (#161623).
+            assertTrue(
+                "group 1 GET parks or look-ahead already decoded; was " + phase,
+                phase == ReadinessPhase.GROUP_IO_PENDING || phase == ReadinessPhase.DECODING
+            );
             long usedParked = watermark.used();
-            assertTrue("group 1 must hold R1; used=" + usedParked, usedParked >= group1.reservation);
             assertTrue(
                 "no-match must drop R0 before the group-1 GET; used was " + usedWhenReady + " then " + usedParked,
                 usedParked <= usedWhenReady - group0.reservation + group1.reservation
             );
+            if (phase == ReadinessPhase.GROUP_IO_PENDING) {
+                assertTrue("group 1 must hold R1; used=" + usedParked, usedParked >= group1.reservation);
+            }
             assertEquals(0, blockFactory.breaker().getUsed());
             allowGroup1.countDown();
             assertBusy(() -> assertTrue(iter.waitForReady().isDone()), 5, TimeUnit.SECONDS);

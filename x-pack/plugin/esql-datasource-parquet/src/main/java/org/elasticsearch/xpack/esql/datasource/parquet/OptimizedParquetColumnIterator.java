@@ -1023,7 +1023,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         }
     }
 
-    private static void attachHoldToFuture(
+    private void attachHoldToFuture(
         CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future,
         ParquetIoWatermark.AdmitHold hold,
         long decodeBytes
@@ -1031,13 +1031,29 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         attachHoldToFuture(future, hold, decodeBytes, true);
     }
 
-    private static void attachHoldToFuture(
+    private void attachHoldToFuture(
         CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future,
         ParquetIoWatermark.AdmitHold hold,
         long decodeBytes,
         boolean dropOnError
     ) {
+        attachHoldToFuture(future, hold, decodeBytes, dropOnError, () -> closed.get() || ticketAbandoned.get());
+    }
+
+    private static void attachHoldToFuture(
+        CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future,
+        ParquetIoWatermark.AdmitHold hold,
+        long decodeBytes,
+        boolean dropOnError,
+        BooleanSupplier abandoned
+    ) {
         future.whenComplete((chunks, error) -> {
+            if (abandoned.getAsBoolean()) {
+                // Close/abandon always drops; dropOnError=false is only for a live Phase-2 retry.
+                // Do not release chunks here — DirectReadBuffer.close() is not idempotent.
+                hold.drop();
+                return;
+            }
             if (error != null || chunks == null) {
                 if (dropOnError) {
                     hold.drop();
@@ -1046,6 +1062,17 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 hold.dropIoRemainder(decodeBytes);
             }
         });
+    }
+
+    private static void releaseAbandonedChunks(@Nullable ColumnChunkPrefetcher.PrefetchedChunks chunks) {
+        if (chunks == null) {
+            return;
+        }
+        try {
+            chunks.release().close();
+        } catch (RuntimeException ignored) {
+            // Close/cancel already owns the query failure; leftover bytes surface in ledger asserts.
+        }
     }
 
     private void enqueueEmptyPrefetch(int ordinal) {
@@ -2999,9 +3026,12 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             ColumnChunkPrefetcher.PrefetchedChunks chunks = future.getNow(null);
             if (chunks != null) {
                 chunks.release().close();
+            } else {
+                future.whenComplete((late, error) -> releaseAbandonedChunks(late));
             }
         } catch (CompletionException | CancellationException ignored) {
             // Cancelled or failed GET produced no chunks.
+            future.whenComplete((late, error) -> releaseAbandonedChunks(late));
         }
     }
 
@@ -4456,14 +4486,18 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         }
         CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> inFlightPhase2 = phase2Future;
         phase2Future = null;
-        releasePhase2Future(inFlightPhase2);
         readinessPhase = ReadinessPhase.DONE;
         signalReady();
         try {
-            releaseHeldIo(true);
+            releasePhase2Future(inFlightPhase2);
         } finally {
-            finishRemainingLeases();
-            reader.close();
+            try {
+                releaseHeldIo(true);
+            } finally {
+                dropCurrentGroupHold();
+                finishRemainingLeases();
+                reader.close();
+            }
         }
     }
 
@@ -4700,19 +4734,21 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
 
         void release() {
             // Non-blocking cancellation cleanup: if I/O is still in flight, FutureUtils.cancel()
-            // plus the prefetch wrapper's cancel hook abort the backend GET.
+            // plus the prefetch wrapper's cancel hook abort the backend GET. A GET that wins
+            // the cancel race still delivers chunks; attach a late release so those buffers
+            // cannot outlive close().
             try {
                 ColumnChunkPrefetcher.PrefetchedChunks chunks;
                 try {
                     chunks = future.getNow(null);
                 } catch (CompletionException | CancellationException ignored) {
-                    // Future completed exceptionally (or was cancelled) — no chunks were ever produced
-                    // so there is nothing for us to release. Narrowing the catch keeps real bugs in
-                    // release().close() visible to the caller.
+                    future.whenComplete((late, error) -> releaseAbandonedChunks(late));
                     return;
                 }
                 if (chunks != null) {
                     chunks.release().close();
+                } else {
+                    future.whenComplete((late, error) -> releaseAbandonedChunks(late));
                 }
             } finally {
                 if (hold != null) {

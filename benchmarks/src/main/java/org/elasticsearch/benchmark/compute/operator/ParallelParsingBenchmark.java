@@ -78,7 +78,7 @@ public class ParallelParsingBenchmark {
     }
 
     private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("bench"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     private static final List<Attribute> SCHEMA = List.of(

@@ -17,6 +17,8 @@ You can query data stored in compatible external data sources, using the same sy
 
 ## Requirements
 
+Before using {{esql}} Data Federation, review the following requirements and limitations:
+
 - This is an experimental feature and is not enabled by default. Refer to [Enable the feature](#enable-the-feature).
 - For {{ech}}, {{ece}}, and {{eck}} deployments or self-managed clusters, ES|QL Data Federation requires an [Enterprise subscription](https://www.elastic.co/subscriptions).
 - Currently, this feature is not supported on Windows.
@@ -69,7 +71,7 @@ A [data source](esql-data-federation-sources.md) tells {{es}} where the storage 
 ::::::
 
 ::::::{step} You create datasets (what to read)
-Each [dataset](esql-data-federation-datasets.md) points at specific files in that storage and makes them queryable. Datasets should be scoped to a single [file format](esql-data-federation-datasets.md#supported-file-formats) and ideally share one schema. One data source can serve many datasets.
+Each [dataset](esql-data-federation-datasets.md) points at specific files in that storage and makes them queryable. Datasets should be scoped to a single [file format](esql-data-federation-file-formats.md) and ideally share one schema. One data source can serve many datasets.
 
 Datasets are designed to work like indices for queries. They share the same namespace as indices, data streams, aliases, and [{{esql}} views](esql-views.md), so a dataset cannot have the same name as any of them.
 ::::::
@@ -102,14 +104,7 @@ Amazon S3 is the first supported data source type. Support for additional storag
 
 ## Supported file formats
 
-Federated data sources can read the following file formats:
-
-:::{include} _snippets/data-federation/supported-file-formats.md
-:::
-
-The format is inferred from the resource pattern when that pattern implies exactly one registered format. Extensionless or mixed patterns require an explicit `format` in the dataset settings.
-
-For details on type-specific settings and format options, refer to [](esql-data-federation-datasets.md).
+Federated data sources support Parquet, NDJSON, CSV, and TSV files. Each dataset reads one format, inferred from its resource pattern or set explicitly in its settings. Refer to [supported file formats](esql-data-federation-file-formats.md) for extensions, compression support, and schema sources.
 
 ## Capabilities and limitations
 
@@ -123,14 +118,25 @@ The exceptions are operations that need structures only an {{es}} index has, suc
 
 ## Get started
 
+Use the following pages to configure, query, and administer federated data:
+
 [Quickstart](esql-data-federation-quickstart.md)
 :   Register a data source, create a dataset, and run your first query against external data.
 
 [Connect data sources](esql-data-federation-sources.md)
 :   Connect to external storage, configure S3 settings, and set up authentication.
 
-[Add datasets](esql-data-federation-datasets.md)
-:   Select which files to query, configure format settings, and control schema inference.
+[Datasets](esql-data-federation-datasets.md)
+:   Design datasets, select which files to query, and make them available to {{esql}}.
+
+[Supported file formats](esql-data-federation-file-formats.md)
+:   Review supported extensions, compression codecs, and schema sources.
+
+[Dataset settings](esql-data-federation-dataset-settings.md)
+:   Configure file discovery, parsing, error handling, and reader behavior.
+
+[Schema inference](esql-data-federation-schema.md)
+:   Learn how {{es}} discovers and reconciles schemas across files.
 
 [Query datasets](esql-data-federation-querying.md)
 :   Learn how the engine reduces storage reads, query external and indexed data together, review current limitations, and troubleshoot common issues.

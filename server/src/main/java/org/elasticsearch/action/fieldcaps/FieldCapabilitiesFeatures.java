@@ -16,9 +16,10 @@ import java.util.Set;
 
 public class FieldCapabilitiesFeatures implements FeatureSpecification {
     public static final NodeFeature FIELD_CAPS_INFERENCE_FIELD = new NodeFeature("field_caps.inference_field");
+    public static final NodeFeature FIELD_CAPS_PASSTHROUGH = new NodeFeature("field_caps.passthrough");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(FIELD_CAPS_INFERENCE_FIELD);
+        return Set.of(FIELD_CAPS_INFERENCE_FIELD, FIELD_CAPS_PASSTHROUGH);
     }
 }

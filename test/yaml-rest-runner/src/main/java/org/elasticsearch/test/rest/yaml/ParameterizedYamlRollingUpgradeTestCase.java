@@ -70,7 +70,7 @@ public abstract class ParameterizedYamlRollingUpgradeTestCase extends ESClientYa
                 case NODE_NUM -> "upgraded_cluster";
                 default -> "mixed_cluster";
             };
-            for (Object[] candidate : createParameters(testPath)) {
+            for (Object[] candidate : createParameters(new String[] { testPath })) {
                 result.add(new Object[] { i, candidate[0] });
             }
         }

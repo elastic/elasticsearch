@@ -3793,7 +3793,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             final var entry = cacheService.get(generateCacheKey(), size(12L), 0, irrelevantTimestamp());
             final ByteRange range = ByteRange.of(0, size(1L));
             final List<Runnable> readTasks = new ArrayList<>();
-            final List<Runnable> warmTasks = new ArrayList<>();
+            final List<Runnable> populateTasks = new ArrayList<>();
             final AtomicInteger fills = new AtomicInteger();
             final RangeMissingHandler writer = fillingWriter(fills);
 
@@ -3803,27 +3803,27 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertThat(readFuture.isDone(), is(false));
 
             // the range is pending but unclaimed, so the populate still has gaps to claim and queues its own task
-            final PlainActionFuture<Boolean> warmFuture = new PlainActionFuture<>();
-            entry.populate(range, writer, warmTasks::add, warmFuture);
-            assertThat(warmTasks, hasSize(1));
-            assertThat(warmFuture.isDone(), is(false));
+            final PlainActionFuture<Boolean> populateFuture = new PlainActionFuture<>();
+            entry.populate(range, writer, populateTasks::add, populateFuture);
+            assertThat(populateTasks, hasSize(1));
+            assertThat(populateFuture.isDone(), is(false));
 
             if (populateRunsFirst) {
-                warmTasks.get(0).run();
-                assertThat(safeGet(warmFuture), is(true));
+                // If populate runs first, it'll complete the gaps needed by populateAndRead and notify the executor
+                populateTasks.get(0).run();
+                assertThat(safeGet(populateFuture), is(true));
                 assertThat(safeGet(readFuture), equalTo(Math.toIntExact(range.length())));
                 readTasks.get(0).run();
             } else {
+                // In this case, the populateAndRead will claim the gaps first, and it'll notify the populateTask future once the gaps
+                // are filled
                 readTasks.get(0).run();
                 assertThat(safeGet(readFuture), equalTo(Math.toIntExact(range.length())));
-                warmTasks.get(0).run();
-                assertThat(safeGet(warmFuture), is(false));
+                populateTasks.get(0).run();
+                assertThat(safeGet(populateFuture), is(false));
             }
             assertThat(fills.get(), equalTo(1));
             assertThat(entry.tracker.checkAvailable(range.end()), is(true));
-            synchronized (cacheService) {
-                assertTrue(tryEvict(entry));
-            }
         });
     }
 

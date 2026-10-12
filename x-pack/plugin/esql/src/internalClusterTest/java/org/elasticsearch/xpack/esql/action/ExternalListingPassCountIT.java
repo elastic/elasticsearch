@@ -193,19 +193,21 @@ public class ExternalListingPassCountIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * A bounded query whose filter narrows the listing beyond the glob is not served from the cache.
+     * An entry the cache holds is served to a repeat of the query that produced it, and not to a query whose own
+     * listing would have stopped on its bound.
      * <p>
-     * The entry's file count is what survived the partition-value filter; the bound stops the drain on files whose
-     * path the glob matched, before that filter runs. With one active those are different numbers, so the count
-     * cannot answer "would my own listing have completed?" and the only safe answer is to list.
+     * Both halves are about one entry and are asserted together so a failure says which direction broke. The glob
+     * is {@code date=*} rather than the suite's usual {@code date=2024-01-0*} because a partition-value filter
+     * narrows a listing only under a fully-wildcard segment, so this is the shape where the entry the cache holds
+     * is narrower than the pattern it was listed from — here one folder of 1,209.
      * <p>
-     * The glob is {@code date=*} rather than the suite's usual {@code date=2024-01-0*}, and that is the whole
-     * reason this test exists separately: {@code walkableGlob} requires the first partition segment to be exactly
-     * {@code key=*}, so under a partially-literal segment no value filter is ever active and the guard is
-     * unreachable. Paired with {@code testASecondQueryListsNothing}, which takes the other branch — either test
-     * alone passes against a rule that always serves or always declines.
+     * The repeat is owed that entry: a narrowing the drain applied is part of the listing's address, so only a
+     * query carrying the same filter can reach it. The unfiltered query is not, and must list for itself — served
+     * the filtered entry it would infer a schema, and a partition column's type, from one folder of the dataset.
+     * That is the failure the second assertion exists for, and the entry's width is no defence against it: one
+     * file is far below this query's bound.
      */
-    public void testAFilteredBoundedQueryIsNotServedFromTheCache() throws Exception {
+    public void testAFilteredEntryServesTheSameFilterAndNoOther() throws Exception {
         Path dir = writeFixture(PADDING_FOLDERS);
         String glob = CountingStorageProvider.SCHEME + "://" + dir.toAbsolutePath() + "/date=*/*.csv";
         String dataset = registerDataset("pass_filtered", glob, Map.of("format", "csv", "schema_resolution", "first_file_wins"));
@@ -216,9 +218,40 @@ public class ExternalListingPassCountIT extends AbstractExternalDataSourceIT {
 
         CountingStorageProvider.reset();
         query(coordinator, filtered).close();
+        assertThat("a repeat of the query that produced the entry must be served it", CountingStorageProvider.listingPasses(), equalTo(0L));
+
+        CountingStorageProvider.reset();
+        query(coordinator, "FROM " + dataset + " | LIMIT 0").close();
+        assertThat(
+            "a query without that filter must not be served a listing narrowed by it",
+            CountingStorageProvider.listingPasses(),
+            equalTo(1L)
+        );
+    }
+
+    /**
+     * A complete listing wider than this query's bound is not served to it.
+     * <p>
+     * The aggregate lists unbounded, so the entry is the whole pattern: nine matching files. The schema query's
+     * bound is three, so its own listing would have stopped on three of them and inferred the schema, and the
+     * partition column's type, from those — while the entry reports all nine. Serving it would make the answer
+     * depend on whether an aggregate ran first, which is the shape of the bug that made the bounded rail and the
+     * cache mutually exclusive in the first place. Paired with {@code testASecondQueryListsNothing}: either test
+     * alone passes against a rule that always serves or always declines.
+     */
+    public void testAnEntryWiderThanTheBoundIsNotServed() throws Exception {
+        String dataset = registerCountingDataset("pass_wider", 0, Map.of("partition_sample_size", 3));
+        String coordinator = internalCluster().getNodeNames()[0];
+
+        query(coordinator, "FROM " + dataset + " | STATS c = COUNT(*)").close();
+
+        CountingStorageProvider.reset();
+        try (EsqlQueryResponse response = query(coordinator, "FROM " + dataset + " | LIMIT 0")) {
+            assertThat(columnsOf(response), equalTo(List.of("id:integer", "v:keyword", "date:keyword")));
+        }
 
         assertThat(
-            "a value filter makes the entry's count incomparable to this query's bound, so it lists for itself",
+            "an entry listing nine matches cannot answer a query whose drain stops at three",
             CountingStorageProvider.listingPasses(),
             equalTo(1L)
         );

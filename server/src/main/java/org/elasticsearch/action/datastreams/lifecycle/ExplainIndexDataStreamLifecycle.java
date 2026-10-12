@@ -40,12 +40,14 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
     private static final ParseField TIME_SINCE_ROLLOVER_FIELD = new ParseField("time_since_rollover");
     private static final ParseField GENERATION_TIME = new ParseField("generation_time");
     private static final ParseField LIFECYCLE_FIELD = new ParseField("lifecycle");
+    private static final ParseField MINIMUM_LIFECYCLE_ENABLED_FIELD = new ParseField("minimum_lifecycle_enabled");
     private static final ParseField ERROR_FIELD = new ParseField("error");
     private static final ParseField FROZEN_TRANSITION_STATUS_FIELD = new ParseField("frozen_transition_status");
     private static final ParseField UNMANAGED_REASON_FIELD = new ParseField("unmanaged_reason");
 
     static final TransportVersion EXPLAIN_INDEX_FROZEN_TRANSITION = TransportVersion.fromName("explain_index_frozen_transition");
     public static final TransportVersion EXPLAIN_INDEX_UNMANAGED_REASON = TransportVersion.fromName("explain_index_unmanaged_reason");
+    static final TransportVersion EXPLAIN_INDEX_MINIMUM_LIFECYCLE = TransportVersion.fromName("explain_index_minimum_lifecycle");
 
     private final String index;
     private final boolean managedByLifecycle;
@@ -64,6 +66,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
     private final FrozenTransitionStatus frozenTransitionStatus;
     @Nullable
     private final String unmanagedReason;
+    private final boolean minimumLifecycleEnabled;
     private Supplier<Long> nowSupplier = System::currentTimeMillis;
 
     private ExplainIndexDataStreamLifecycle(
@@ -76,7 +79,8 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
         @Nullable DataStreamLifecycle lifecycle,
         @Nullable ErrorEntry error,
         @Nullable FrozenTransitionStatus frozenTransitionStatus,
-        @Nullable String unmanagedReason
+        @Nullable String unmanagedReason,
+        boolean minimumLifecycleEnabled
     ) {
         this.index = index;
         this.managedByLifecycle = managedByLifecycle;
@@ -88,6 +92,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
         this.error = error;
         this.frozenTransitionStatus = frozenTransitionStatus;
         this.unmanagedReason = unmanagedReason;
+        this.minimumLifecycleEnabled = minimumLifecycleEnabled;
     }
 
     public ExplainIndexDataStreamLifecycle(StreamInput in) throws IOException {
@@ -103,6 +108,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
             this.frozenTransitionStatus = in.getTransportVersion().supports(EXPLAIN_INDEX_FROZEN_TRANSITION)
                 ? in.readOptionalEnum(FrozenTransitionStatus.class)
                 : null;
+            this.minimumLifecycleEnabled = in.getTransportVersion().supports(EXPLAIN_INDEX_MINIMUM_LIFECYCLE) && in.readBoolean();
             this.unmanagedReason = null;
         } else {
             this.indexCreationDate = null;
@@ -111,12 +117,13 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
             this.lifecycle = null;
             this.error = null;
             this.frozenTransitionStatus = null;
+            this.minimumLifecycleEnabled = false;
             this.unmanagedReason = in.getTransportVersion().supports(EXPLAIN_INDEX_UNMANAGED_REASON) ? in.readOptionalString() : null;
         }
     }
 
     public static ExplainIndexDataStreamLifecycle unmanagedIndexResponse(String indexName, @Nullable String reason) {
-        return new ExplainIndexDataStreamLifecycle(indexName, false, false, null, null, null, null, null, null, reason);
+        return new ExplainIndexDataStreamLifecycle(indexName, false, false, null, null, null, null, null, null, reason, false);
     }
 
     public static ExplainIndexDataStreamLifecycle managedIndexResponse(
@@ -127,7 +134,8 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
         @Nullable TimeValue generationDate,
         @Nullable DataStreamLifecycle lifecycle,
         @Nullable ErrorEntry error,
-        @Nullable FrozenTransitionStatus frozenTransitionStatus
+        @Nullable FrozenTransitionStatus frozenTransitionStatus,
+        boolean minimumLifecycleEnabled
     ) {
         return new ExplainIndexDataStreamLifecycle(
             index,
@@ -139,7 +147,8 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
             lifecycle,
             error,
             frozenTransitionStatus,
-            null
+            null,
+            minimumLifecycleEnabled
         );
     }
 
@@ -183,6 +192,8 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
             if (this.lifecycle != null) {
                 builder.field(LIFECYCLE_FIELD.getPreferredName());
                 lifecycle.toXContent(builder, params, rolloverConfiguration, globalRetention, isInternalDataStream);
+            } else if (minimumLifecycleEnabled) {
+                builder.field(MINIMUM_LIFECYCLE_ENABLED_FIELD.getPreferredName(), minimumLifecycleEnabled);
             }
             if (this.error != null) {
                 if (error.firstOccurrenceTimestamp() != -1L && error.recordedTimestamp() != -1L && error.retryCount() != -1) {
@@ -215,6 +226,9 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
             out.writeOptionalWriteable(error);
             if (out.getTransportVersion().supports(EXPLAIN_INDEX_FROZEN_TRANSITION)) {
                 out.writeOptionalEnum(frozenTransitionStatus);
+            }
+            if (out.getTransportVersion().supports(EXPLAIN_INDEX_MINIMUM_LIFECYCLE)) {
+                out.writeBoolean(minimumLifecycleEnabled);
             }
         } else if (out.getTransportVersion().supports(EXPLAIN_INDEX_UNMANAGED_REASON)) {
             out.writeOptionalString(unmanagedReason);
@@ -294,6 +308,13 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
         return unmanagedReason;
     }
 
+    /**
+     * @return true if the index is managed by the minimum data stream lifecycle.
+     */
+    public boolean isMinimumLifecycleEnabled() {
+        return minimumLifecycleEnabled;
+    }
+
     // public for testing purposes only
     public void setNowSupplier(Supplier<Long> nowSupplier) {
         this.nowSupplier = nowSupplier;
@@ -315,7 +336,8 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
             && Objects.equals(lifecycle, that.lifecycle)
             && Objects.equals(error, that.error)
             && Objects.equals(frozenTransitionStatus, that.frozenTransitionStatus)
-            && Objects.equals(unmanagedReason, that.unmanagedReason);
+            && Objects.equals(unmanagedReason, that.unmanagedReason)
+            && minimumLifecycleEnabled == that.minimumLifecycleEnabled;
     }
 
     @Override
@@ -328,7 +350,8 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
             lifecycle,
             error,
             frozenTransitionStatus,
-            unmanagedReason
+            unmanagedReason,
+            minimumLifecycleEnabled
         );
     }
 }

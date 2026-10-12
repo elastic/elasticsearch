@@ -14,6 +14,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.telemetry.metric.MetricAttributes;
+import org.elasticsearch.transport.TransportActionMetrics;
 
 import java.util.Map;
 import java.util.Objects;
@@ -159,6 +160,10 @@ public class MetricValidator {
             "server_name",
             "strategy"
         );
+        static final Set<String> TRANSPORT_ACTION_ATTRIBUTES = Set.of(
+            TransportActionMetrics.ACTION_NAME_ATTRIBUTE,
+            TransportActionMetrics.IS_REMOTE_CONNECTION_ATTRIBUTE
+        );
         static final Set<String> TRANSLOG_ATTRIBUTES = Set.of("translog_blob_type", "translog_op_type");
         static final Set<String> FAILURE_STORE_ATTRIBUTES = Set.of("data_stream", "error_location", "failure_store");
 
@@ -289,6 +294,10 @@ public class MetricValidator {
             Map.entry("es.search.shards.phases.dfs.duration.histogram", SEARCH_SHARD_ATTRIBUTES),
             Map.entry("es.search.shards.phases.fetch.duration.histogram", SEARCH_SHARD_ATTRIBUTES),
             Map.entry("es.search.shards.phases.query.duration.histogram", SEARCH_SHARD_ATTRIBUTES),
+            Map.entry(TransportActionMetrics.SENT_REQUEST_SIZE_METRIC, TRANSPORT_ACTION_ATTRIBUTES),
+            Map.entry(TransportActionMetrics.RECEIVED_REQUEST_SIZE_METRIC, TRANSPORT_ACTION_ATTRIBUTES),
+            Map.entry(TransportActionMetrics.SENT_RESPONSE_SIZE_METRIC, TRANSPORT_ACTION_ATTRIBUTES),
+            Map.entry(TransportActionMetrics.RECEIVED_RESPONSE_SIZE_METRIC, TRANSPORT_ACTION_ATTRIBUTES),
             Map.entry("es.tsdb.downsample.actions.shard.total", DOWNSAMPLE_ATTRIBUTES),
             Map.entry("es.tsdb.downsample.actions.total", DOWNSAMPLE_ATTRIBUTES),
             Map.entry("es.tsdb.downsample.latency.shard.histogram", DOWNSAMPLE_ATTRIBUTES),

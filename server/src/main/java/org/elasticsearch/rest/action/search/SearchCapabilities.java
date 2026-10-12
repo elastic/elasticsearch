@@ -88,6 +88,8 @@ public final class SearchCapabilities {
      * exception and nothing stays reserved afterwards.
      */
     private static final String REGEXP_QUERY_CHARGED = "regexp_query_charged";
+    /** {@code BinaryDocValuesRangeQuery} descriptions (e.g. in {@code _explanation}) name the queried range field. */
+    private static final String RANGE_FIELD_DV_QUERY_DESCRIPTION_HAS_FIELD = "range_field_dv_query_description_has_field";
 
     /** A text field that indexes no positions answers positional queries from the values it keeps. */
     private static final String POSITIONAL_QUERIES_ON_TEXT_WITHOUT_POSITIONS = "positional_queries_on_text_without_positions";
@@ -134,6 +136,7 @@ public final class SearchCapabilities {
         capabilities.add(AGGREGATION_INCLUDE_EXCLUDE_REGEX_CHARGED);
         capabilities.add(REGEXP_QUERY_CHARGED);
         capabilities.add(POSITIONAL_QUERIES_ON_TEXT_WITHOUT_POSITIONS);
+        capabilities.add(RANGE_FIELD_DV_QUERY_DESCRIPTION_HAS_FIELD);
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

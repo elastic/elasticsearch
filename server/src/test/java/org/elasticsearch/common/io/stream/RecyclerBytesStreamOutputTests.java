@@ -1637,7 +1637,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
     }
 
     public void testCircuitBreakerReleaseOnRecyclerFailure() {
-        final var bytes = randomBytesReference(between(PageCacheRecycler.BYTE_PAGE_SIZE * 3 + 1, PageCacheRecycler.BYTE_PAGE_SIZE * 4));
+        final var bytes = randomBytesReference(between(PageCacheRecycler.BYTE_PAGE_SIZE * 3, PageCacheRecycler.BYTE_PAGE_SIZE * 4 - 1));
         assertEquals(PageCacheRecycler.BYTE_PAGE_SIZE * 4L, getExpectedAllocation(bytes.length()));
         final var circuitBreaker = new LimitedBreaker("test", ByteSizeValue.ofBytes(PageCacheRecycler.BYTE_PAGE_SIZE * 4));
 

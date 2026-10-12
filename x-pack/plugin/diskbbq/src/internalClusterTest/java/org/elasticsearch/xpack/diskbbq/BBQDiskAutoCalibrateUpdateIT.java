@@ -181,6 +181,47 @@ public class BBQDiskAutoCalibrateUpdateIT extends ESIntegTestCase {
     }
 
     /**
+     * Switches {@code auto_calibrate} between the {@code quality} and {@code iso_sizing} profiles, and through {@code false},
+     * indexing, searching and force merging between every switch. Each calibrating merge runs over segments that earlier merges
+     * calibrated under a different profile, so segments with different persisted quantization and oversample coexist in one shard
+     * and every one of them must still be searched correctly.
+     */
+    public void testRecallSurvivesSwitchingBetweenProfiles() {
+        final int batch = 3500;
+        createIndexWithAutoCalibrate("quality");
+        generateVectors();
+        int indexed = 0;
+
+        indexed = indexAndRefresh(indexed, batch);
+        assertRecallAtLeast(indexed, "quality: first batch");
+
+        updateAutoCalibrate("iso_sizing");
+        indexed = indexAndRefresh(indexed, batch);
+        assertRecallAtLeast(indexed, "iso_sizing: segments written under quality and iso_sizing");
+
+        updateAutoCalibrate("quality");
+        indexed = indexAndRefresh(indexed, batch);
+        assertRecallAtLeast(indexed, "quality: back again, three batches");
+        forceMergeToOneSegment();
+        assertRecallAtLeast(indexed, "quality: calibrating merge over segments written under both profiles");
+
+        updateAutoCalibrate("iso_sizing");
+        indexed = indexAndRefresh(indexed, batch);
+        assertRecallAtLeast(indexed, "iso_sizing: quality-calibrated segment next to a fresh one");
+        forceMergeToOneSegment();
+        assertRecallAtLeast(indexed, "iso_sizing: calibrating merge over a segment calibrated under quality");
+
+        updateAutoCalibrate(false);
+        indexed = indexAndRefresh(indexed, EXTRA_BATCH);
+        assertRecallAtLeast(indexed, "disabled: iso_sizing-calibrated segment next to a fresh one");
+        forceMergeToOneSegment();
+        assertRecallAtLeast(indexed, "disabled: uncalibrated merge over a calibrated segment");
+
+        updateAutoCalibrate("quality");
+        assertRecallAtLeast(indexed, "quality: enabled again after being disabled");
+    }
+
+    /**
      * Toggling on an index that never reaches {@link IvfAutoCalibration#MIN_VECTORS_FOR_CALIBRATION}, so no merge
      * ever calibrates, must keep working and keep the mapping and the segments consistent.
      */
@@ -322,7 +363,8 @@ public class BBQDiskAutoCalibrateUpdateIT extends ESIntegTestCase {
         indexVectors(from, to - from);
     }
 
-    private void updateAutoCalibrate(boolean autoCalibrate) {
+    /** @param autoCalibrate a {@link Boolean} or the name of an auto-calibration profile */
+    private void updateAutoCalibrate(Object autoCalibrate) {
         assertAcked(indicesAdmin().preparePutMapping(INDEX).setSource(mappingSource(autoCalibrate)));
         assertAutoCalibrateInMapping(autoCalibrate);
     }
@@ -332,7 +374,7 @@ public class BBQDiskAutoCalibrateUpdateIT extends ESIntegTestCase {
         flushAndRefresh(INDEX);
     }
 
-    private void createIndexWithAutoCalibrate(boolean autoCalibrate) {
+    private void createIndexWithAutoCalibrate(Object autoCalibrate) {
         assertAcked(
             prepareCreate(INDEX).setSettings(
                 Settings.builder()
@@ -344,7 +386,8 @@ public class BBQDiskAutoCalibrateUpdateIT extends ESIntegTestCase {
         ensureGreen(INDEX);
     }
 
-    private static String mappingSource(boolean autoCalibrate) {
+    private static String mappingSource(Object autoCalibrate) {
+        String autoCalibrateJson = autoCalibrate instanceof String ? "\"" + autoCalibrate + "\"" : autoCalibrate.toString();
         return Strings.format("""
             {
               "properties": {
@@ -359,11 +402,11 @@ public class BBQDiskAutoCalibrateUpdateIT extends ESIntegTestCase {
                   }
                 }
               }
-            }""", FIELD, DIMS, autoCalibrate);
+            }""", FIELD, DIMS, autoCalibrateJson);
     }
 
     @SuppressWarnings("unchecked")
-    private void assertAutoCalibrateInMapping(boolean expected) {
+    private void assertAutoCalibrateInMapping(Object expected) {
         Map<String, Object> mapping = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, INDEX)
             .get()
             .mappings()
@@ -372,8 +415,8 @@ public class BBQDiskAutoCalibrateUpdateIT extends ESIntegTestCase {
         Map<String, Object> properties = (Map<String, Object>) mapping.get("properties");
         Map<String, Object> field = (Map<String, Object>) properties.get(FIELD);
         Map<String, Object> indexOptions = (Map<String, Object>) field.get("index_options");
-        // disabling is serialized as an explicit false, and the option is absent only when it was never set
-        assertEquals(expected, Boolean.TRUE.equals(indexOptions.get("auto_calibrate")));
+        // the value the user supplied is kept as is: an explicit false, or the profile name
+        assertEquals(expected, indexOptions.get("auto_calibrate"));
     }
 
     /** Unit vectors drawn in a few loose clusters so nearest neighbours are well separated. */

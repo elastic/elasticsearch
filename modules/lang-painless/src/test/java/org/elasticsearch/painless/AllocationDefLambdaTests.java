@@ -14,6 +14,7 @@ import org.elasticsearch.painless.spi.PainlessTestScript;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptedMetricAggContexts;
 
 import java.io.IOException;
@@ -645,6 +646,16 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
         new Wrapper("def", "", "SETUP def o1 = Optional.of(1);", "o1.map(x -> { BODY }).get()", "D"),
         new Wrapper("supplier", "", "SETUP def x = 1;", "Optional.empty().orElseGet(() -> { BODY })", "T"),
         new Wrapper("def supplier", "", "SETUP def x = 1; def o1 = Optional.empty();", "o1.orElseGet(() -> { BODY })", "D"),
+        new Wrapper("def binary operator", "", "SETUP def l1 = [1];", "l1.stream().reduce(0, (acc, x) -> { BODY })", "D"),
+        new Wrapper("def consumer", "", "SETUP List out = new ArrayList(); def l1 = [1]; l1.forEach(x -> { STORE });", "out[0]", "D"),
+        new Wrapper(
+            "def predicate",
+            "",
+            "SETUP List out = new ArrayList(); def l1 = [1]; l1.removeIf(x -> { STORE return false; });",
+            "out[0]",
+            "D"
+        ),
+        new Wrapper("def int parameter", "", "SETUP def o1 = Optional.of(1);", "o1.map((int x) -> { BODY }).get()", "D"),
         new Wrapper("binary operator", "", "SETUP", "[1].stream().reduce(0, (acc, x) -> { BODY })", "T"),
         new Wrapper("consumer", "", "SETUP List out = new ArrayList(); [1].forEach(x -> { STORE });", "out[0]", "T"),
         new Wrapper("predicate", "", "SETUP List out = new ArrayList(); [1].removeIf(x -> { STORE return false; });", "out[0]", "T"),
@@ -998,6 +1009,9 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
      * A method reference form. {@code REF} in a tail is where the reference goes. The charged and neutral tails run the same
      * receiver pipeline against a charged and an uncharged target of the same kind, so the charge difference between them is
      * exactly {@code delta}. {@code escape} names the user function that can pass the reference through as a value.
+     * {@code need} says when the charged reference makes a lambda around it capture the script, and {@code ownLambdas} lists
+     * the lambdas inside the form's user functions, charged and neutral both, by what they need: n never, t under tracking,
+     * a always.
      */
     private record Ref(
         String name,
@@ -1011,12 +1025,15 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
         String neutral,
         String neutralExpected,
         long delta,
-        String escape
+        String escape,
+        Need need,
+        String ownLambdas
     ) {}
 
     private static final String USER_FUNCTIONS = "def g(def s) { return s.substring(0, 3); } def h(def s) { return s; } ";
     private static final String USER_FUNCTIONS_NO_PARAMETERS =
         "def g0() { return 'abcdef'.substring(0, 3); } def h0() { return 'abcdef'; } ";
+    private static final long CONSTANT_ESTIMATE = AllocationEstimatorTestObject.constantEstimate(null);
 
     private static final List<Ref> REFS = List.of(
         new Ref(
@@ -1031,7 +1048,9 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
             "Math::abs",
             "3.0",
             AllocationEstimatorTestObject.staticAllocatingEstimate(3) + SCRIPT_CAPTURE_SLOT,
-            "escapeFunction"
+            "escapeFunction",
+            Need.NEVER,
+            ""
         ),
         new Ref(
             "constructor",
@@ -1045,7 +1064,9 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
             TEST_OBJECT + "::new",
             "0",
             AllocationEstimators.arrayListShellBytes() + SCRIPT_CAPTURE_SLOT,
-            "escapeSupplier"
+            "escapeSupplier",
+            Need.NEVER,
+            ""
         ),
         new Ref(
             "constructor with a parameter",
@@ -1059,7 +1080,9 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
             "List::size",
             "1",
             AllocationEstimators.arrayListCollectionBytes(List.of("a")) + SCRIPT_CAPTURE_SLOT,
-            "escapeFunction"
+            "escapeFunction",
+            Need.NEVER,
+            ""
         ),
         new Ref(
             "array constructor",
@@ -1073,7 +1096,9 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
             "Math::abs",
             "2.0",
             AllocSizes.arrayBytes(2, 4) + SCRIPT_CAPTURE_SLOT,
-            "escapeFunction"
+            "escapeFunction",
+            Need.NEVER,
+            ""
         ),
         new Ref(
             "unbound instance",
@@ -1086,8 +1111,10 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
             ".map(REF).get()",
             TEST_OBJECT + "::zeroAllocating",
             "0",
-            AllocationEstimatorTestObject.constantEstimate(null),
-            "escapeFunction"
+            CONSTANT_ESTIMATE,
+            "escapeFunction",
+            Need.NEVER,
+            ""
         ),
         new Ref(
             "unbound, script-aware",
@@ -1101,7 +1128,9 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
             "String::compareTo",
             "-1",
             SCRIPT_CAPTURE_SLOT,
-            "escapeBiFunction"
+            "escapeBiFunction",
+            Need.ALWAYS,
+            ""
         ),
         new Ref(
             "bound, typed receiver",
@@ -1114,8 +1143,10 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
             ".orElseGet(REF)",
             "o::zeroAllocating",
             "0",
-            AllocationEstimatorTestObject.constantEstimate(null),
-            "escapeSupplier"
+            CONSTANT_ESTIMATE,
+            "escapeSupplier",
+            Need.NEVER,
+            ""
         ),
         new Ref(
             "bound, typed receiver, script-aware",
@@ -1129,10 +1160,12 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
             "s::endsWith",
             "false",
             SCRIPT_CAPTURE_SLOT,
-            "escapeFunction"
+            "escapeFunction",
+            Need.ALWAYS,
+            ""
         ),
         new Ref(
-            "bound, primitive receiver",
+            "bound, primitive int receiver",
             "",
             "int i = 3;",
             "Optional.empty()",
@@ -1143,7 +1176,57 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
             "i::intValue",
             "3",
             AllocationEstimators.toStringBytes((Object) 3) + SCRIPT_CAPTURE_SLOT,
-            "escapeSupplier"
+            "escapeSupplier",
+            Need.NEVER,
+            ""
+        ),
+        new Ref(
+            "bound, primitive double receiver",
+            "",
+            "double d = 2.5;",
+            "Optional.empty()",
+            ".orElseGet(REF)",
+            "d::toString",
+            "2.5",
+            ".orElseGet(REF)",
+            "d::doubleValue",
+            "2.5",
+            AllocationEstimators.toStringBytes((Object) 2.5) + SCRIPT_CAPTURE_SLOT,
+            "escapeSupplier",
+            Need.NEVER,
+            ""
+        ),
+        new Ref(
+            "bound, primitive boolean receiver",
+            "",
+            "boolean b = true;",
+            "Optional.empty()",
+            ".orElseGet(REF)",
+            "b::toString",
+            "true",
+            ".orElseGet(REF)",
+            "b::booleanValue",
+            "true",
+            AllocationEstimators.toStringBytes((Object) true) + SCRIPT_CAPTURE_SLOT,
+            "escapeSupplier",
+            Need.NEVER,
+            ""
+        ),
+        new Ref(
+            "bound, primitive long receiver",
+            "",
+            "long n = 5L;",
+            "Optional.empty()",
+            ".orElseGet(REF)",
+            "n::toString",
+            "5",
+            ".orElseGet(REF)",
+            "n::longValue",
+            "5",
+            AllocationEstimators.toStringBytes((Object) 5L) + SCRIPT_CAPTURE_SLOT,
+            "escapeSupplier",
+            Need.NEVER,
+            ""
         ),
         new Ref(
             "bound, def receiver",
@@ -1156,8 +1239,10 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
             ".orElseGet(REF)",
             "o::zeroAllocating",
             "0",
-            AllocationEstimatorTestObject.constantEstimate(null),
-            "escapeSupplier"
+            CONSTANT_ESTIMATE,
+            "escapeSupplier",
+            Need.NEVER,
+            ""
         ),
         new Ref(
             "bound, def receiver, script-aware",
@@ -1171,7 +1256,9 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
             "kw::size",
             "1",
             KEYWORD_BYTES,
-            "escapeSupplier"
+            "escapeSupplier",
+            Need.ALWAYS,
+            ""
         ),
         new Ref(
             "user function",
@@ -1185,7 +1272,9 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
             "this::h",
             "abcdef",
             SUBSTRING_BYTES,
-            "escapeFunction"
+            "escapeFunction",
+            Need.ALWAYS,
+            ""
         ),
         new Ref(
             "user function with no parameters",
@@ -1199,7 +1288,9 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
             "this::h0",
             "abcdef",
             SUBSTRING_BYTES,
-            "escapeSupplier"
+            "escapeSupplier",
+            Need.ALWAYS,
+            ""
         ),
         new Ref(
             "user function holding a lambda",
@@ -1214,7 +1305,9 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
             "this::hl",
             "abcdef",
             SUBSTRING_BYTES,
-            "escapeFunction"
+            "escapeFunction",
+            Need.ALWAYS,
+            "tn"
         ),
         new Ref(
             "user function with no parameters holding a supplier lambda",
@@ -1229,7 +1322,9 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
             "this::hz",
             "abcdef",
             SUBSTRING_BYTES,
-            "escapeSupplier"
+            "escapeSupplier",
+            Need.ALWAYS,
+            "nn"
         ),
         new Ref(
             "user function holding a lambda holding a reference",
@@ -1245,7 +1340,9 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
             "this::hll",
             "abcdef",
             SUBSTRING_BYTES,
-            "escapeFunction"
+            "escapeFunction",
+            Need.ALWAYS,
+            "aa"
         )
     );
 
@@ -1253,60 +1350,76 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
      * Where a reference is used: on a typed or def receiver, at the top level, inside typed and def lambdas nested either way
      * round, inside supplier lambdas, inside a user function called from a lambda ({@code REFSETUP} takes the form's setup), or
      * passed through a user function as a value ({@code refWrap} wraps the reference, {@code ESCAPE} being the form's function).
+     * {@code chain} lists the context's own lambdas from the outside in, as for a {@link Wrapper}.
      */
-    private record RefContext(String name, String functions, String setup, String expression, String refWrap) {}
+    private record RefContext(String name, String functions, String setup, String expression, String refWrap, String chain) {}
 
     private static final String ESCAPE_FUNCTIONS = "def escapeFunction(Function f) { return f; } "
         + "def escapeSupplier(Supplier s) { return s; } "
         + "def escapeBiFunction(BiFunction b) { return b; } ";
 
     private static final List<RefContext> REF_CONTEXTS = List.of(
-        new RefContext("typed receiver", "", "", "RECEIVER TAIL", "REF"),
-        new RefContext("def receiver", "", "def r = RECEIVER;", "r TAIL", "REF"),
-        new RefContext("typed receiver in typed lambda", "", "", "Optional.of(1).map(q -> RECEIVER TAIL).get()", "REF"),
-        new RefContext("def receiver in typed lambda", "", "def r = RECEIVER;", "Optional.of(1).map(q -> r TAIL).get()", "REF"),
-        new RefContext("typed receiver in def lambda", "", "def o9 = Optional.of(1);", "o9.map(q -> RECEIVER TAIL).get()", "REF"),
-        new RefContext("def receiver in def lambda", "", "def r = RECEIVER; def o9 = Optional.of(1);", "o9.map(q -> r TAIL).get()", "REF"),
-        new RefContext("typed receiver in a supplier lambda", "", "", "Optional.empty().orElseGet(() -> RECEIVER TAIL)", "REF"),
+        new RefContext("typed receiver", "", "", "RECEIVER TAIL", "REF", ""),
+        new RefContext("def receiver", "", "def r = RECEIVER;", "r TAIL", "REF", ""),
+        new RefContext("typed receiver in typed lambda", "", "", "Optional.of(1).map(q -> RECEIVER TAIL).get()", "REF", "T"),
+        new RefContext("def receiver in typed lambda", "", "def r = RECEIVER;", "Optional.of(1).map(q -> r TAIL).get()", "REF", "T"),
+        new RefContext("typed receiver in def lambda", "", "def o9 = Optional.of(1);", "o9.map(q -> RECEIVER TAIL).get()", "REF", "D"),
+        new RefContext(
+            "def receiver in def lambda",
+            "",
+            "def r = RECEIVER; def o9 = Optional.of(1);",
+            "o9.map(q -> r TAIL).get()",
+            "REF",
+            "D"
+        ),
+        new RefContext("typed receiver in a supplier lambda", "", "", "Optional.empty().orElseGet(() -> RECEIVER TAIL)", "REF", "T"),
         new RefContext(
             "def receiver in a def supplier lambda",
             "",
             "def r = RECEIVER; def o9 = Optional.empty();",
             "o9.orElseGet(() -> r TAIL)",
-            "REF"
+            "REF",
+            "D"
         ),
         new RefContext(
             "typed receiver in def lambda in typed lambda",
             "",
             "",
             "Optional.of(1).map(p -> { def o8 = Optional.of(p); return o8.map(q -> RECEIVER TAIL).get(); }).get()",
-            "REF"
+            "REF",
+            "TD"
         ),
         new RefContext(
             "def receiver in typed lambda in def lambda",
             "",
             "def r = RECEIVER; def o9 = Optional.of(1);",
             "o9.map(p -> Optional.of(p).map(q -> r TAIL).get()).get()",
-            "REF"
+            "REF",
+            "DT"
         ),
         new RefContext(
             "in a user function called from a typed lambda",
             "def fx(def params) { REFSETUP return RECEIVER TAIL; } ",
             "",
             "Optional.of(1).map(q -> fx(params)).get()",
-            "REF"
+            "REF",
+            "F"
         ),
-        new RefContext("passed through a user function", ESCAPE_FUNCTIONS, "", "RECEIVER TAIL", "ESCAPE(REF)"),
+        new RefContext("passed through a user function", ESCAPE_FUNCTIONS, "", "RECEIVER TAIL", "ESCAPE(REF)", ""),
         new RefContext(
             "passed through a user function inside a typed lambda",
             ESCAPE_FUNCTIONS,
             "",
             "Optional.of(1).map(q -> RECEIVER TAIL).get()",
-            "ESCAPE(REF)"
+            "ESCAPE(REF)",
+            "F"
         )
     );
 
     private record Outcome(Object value, long bytes) {}
+
+    /** A charging cell kept for the limit check: its neutral twin's cost is the limit that must let the twin pass and trip it. */
+    private record TripCell(String label, String charged, String neutral, String neutralExpected, long neutralBytes) {}
 
     private static final String CANCEL_LIMIT_KEY = "script.painless.max_allocation_bytes.context."
         + ScriptedMetricAggContexts.InitScript.CONTEXT.name
@@ -1314,7 +1427,11 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
 
     /** One engine per mode, serving the test context and the cancellation-aware init script context with the same allowlist. */
     private PainlessScriptEngine matrixEngine(Mode mode) {
-        String limit = mode.limit ? "1mb" : MAX_ALLOCATION_BYTES_DISABLED;
+        return matrixEngine(mode, mode.limit ? "1mb" : MAX_ALLOCATION_BYTES_DISABLED);
+    }
+
+    /** The limit is an engine setting, so a cell that needs a particular limit needs its own engine. */
+    private PainlessScriptEngine matrixEngine(Mode mode, String limit) {
         Settings settings = Settings.builder().put(LIMIT_KEY, limit).put(CANCEL_LIMIT_KEY, limit).build();
         Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>(scriptContexts());
         contexts.put(ScriptedMetricAggContexts.InitScript.CONTEXT, contexts.get(PainlessTestScript.CONTEXT));
@@ -1380,12 +1497,16 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
         return new Outcome(script.execute(), ((PainlessScript) script).getAllocBytes());
     }
 
-    /** Runs a charged source and its neutral twin and records any wrong value or wrong charge difference. */
+    /**
+     * Runs a charged source and its neutral twin and records any wrong value, wrong charge difference, or anything counted
+     * with tracking off. A charging cell under a limit mode is kept for the limit check.
+     */
     private static void checkMatrixCell(
         PainlessScriptEngine engine,
         Mode mode,
         Map<String, Object> params,
         List<String> problems,
+        List<TripCell> trips,
         String label,
         String charged,
         String expected,
@@ -1404,6 +1525,45 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
         long expectedDelta = mode.tracking() ? delta : 0L;
         if (got.bytes - base.bytes != expectedDelta) {
             problems.add("charge " + label + " expected " + expectedDelta + " got " + (got.bytes - base.bytes));
+        }
+        if (mode.tracking() == false && (got.bytes != 0 || base.bytes != 0)) {
+            problems.add("counted with tracking off " + label + " got " + got.bytes + " and " + base.bytes);
+        }
+        if (delta > 0 && mode.limit && mode.metrics == false) {
+            trips.add(new TripCell(label, charged, neutral, neutralExpected, base.bytes));
+        }
+    }
+
+    /**
+     * Sets the limit to exactly what each neutral twin costs: the twin must still pass, since a total equal to the limit is
+     * within it, and the charged source must trip, however deep the lambda or reference that charges sits. Cells sharing a
+     * cost share an engine.
+     */
+    private void checkTrips(Mode mode, Map<String, Object> params, List<String> problems, List<TripCell> trips) {
+        Map<Long, List<TripCell>> byCost = new HashMap<>();
+        for (TripCell cell : trips) {
+            byCost.computeIfAbsent(Math.max(1L, cell.neutralBytes), k -> new ArrayList<>()).add(cell);
+        }
+        for (Map.Entry<Long, List<TripCell>> group : byCost.entrySet()) {
+            PainlessScriptEngine engine = matrixEngine(mode, group.getKey() + "b");
+            for (TripCell cell : group.getValue()) {
+                Outcome base = runMatrixCell(engine, mode, cell.neutral, params, "neutral at its own cost as the limit " + cell.label);
+                if (cell.neutralExpected.equals(String.valueOf(base.value)) == false) {
+                    problems.add("neutral value at the limit " + cell.label + " expected " + cell.neutralExpected + " got " + base.value);
+                }
+                try {
+                    runMatrixCell(engine, mode, cell.charged, params);
+                    problems.add("no trip at limit " + group.getKey() + " " + cell.label);
+                } catch (ScriptException e) {
+                    boolean tripped = false;
+                    for (Throwable t = e; t != null; t = t.getCause()) {
+                        tripped |= t.getMessage() != null && t.getMessage().contains("allocation limit exceeded");
+                    }
+                    if (tripped == false) {
+                        problems.add("wrong error at limit " + group.getKey() + " " + cell.label + ": " + e);
+                    }
+                }
+            }
         }
     }
 
@@ -1431,6 +1591,17 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
         return instance;
     }
 
+    /** Instance lambdas expected around a reference, plus those inside the form's own functions, which propagate nowhere. */
+    private static int expectedInstanceLambdas(Mode mode, Ref ref, RefContext context) {
+        int instance = expectedInstanceLambdas(mode, ref.need, context.chain);
+        for (char need : ref.ownLambdas.toCharArray()) {
+            if (mode.cancellation || need == 'a' || (need == 't' && mode.tracking())) {
+                instance++;
+            }
+        }
+        return instance;
+    }
+
     private static int count(String text, String part) {
         int n = 0;
         for (int i = text.indexOf(part); i >= 0; i = text.indexOf(part, i + part.length())) {
@@ -1439,11 +1610,57 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
         return n;
     }
 
+    /**
+     * Every lambda must be static or an instance method exactly as expected, or it is an over-capture or an under-capture. An
+     * array constructor reference's own method takes the script only under tracking. With tracking off there is no tracking
+     * bytecode at all.
+     */
+    private static void checkShape(
+        Mode mode,
+        String label,
+        String source,
+        String asm,
+        int lambdas,
+        int expectedInstance,
+        List<String> problems
+    ) {
+        int instance = count(asm, "public synthetic lambda$");
+        int statics = count(asm, "public static synthetic lambda$");
+        if (instance != expectedInstance || statics != lambdas - expectedInstance) {
+            problems.add(
+                label
+                    + ": expected "
+                    + expectedInstance
+                    + " instance of "
+                    + lambdas
+                    + " lambdas, got "
+                    + instance
+                    + " instance and "
+                    + statics
+                    + " static: "
+                    + source
+            );
+        }
+        if (source.contains("int[]::new")) {
+            int expectedArrays = mode.tracking() ? 1 : 0;
+            if (count(asm, "public synthetic newarray$") != expectedArrays
+                || count(asm, "public static synthetic newarray$") != 1 - expectedArrays) {
+                problems.add(
+                    label + ": array constructor method is " + (mode.tracking() ? "static" : "an instance method") + ": " + source
+                );
+            }
+        }
+        if (mode.tracking() == false && asm.contains("$checkAllocBytes")) {
+            problems.add(label + ": tracking bytecode with tracking off: " + source);
+        }
+    }
+
     public void testLambdaMatrixRunsAndCharges() throws IOException {
         Map<String, Object> params = matrixParams();
         List<String> problems = new ArrayList<>();
         for (Mode mode : Mode.values()) {
             PainlessScriptEngine engine = matrixEngine(mode);
+            List<TripCell> trips = new ArrayList<>();
             for (Wrapper wrapper : WRAPPERS) {
                 for (Body body : BODIES) {
                     String charged = matrixSource(mode, wrapper, body, body.body);
@@ -1454,6 +1671,7 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
                         mode,
                         params,
                         problems,
+                        trips,
                         label,
                         charged,
                         body.expected,
@@ -1463,6 +1681,7 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
                     );
                 }
             }
+            checkTrips(mode, params, problems, trips);
         }
         assertTrue(problems.size() + " problems:\n" + String.join("\n", problems), problems.isEmpty());
     }
@@ -1472,49 +1691,64 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
         List<String> problems = new ArrayList<>();
         for (Mode mode : Mode.values()) {
             PainlessScriptEngine engine = matrixEngine(mode);
+            List<TripCell> trips = new ArrayList<>();
             for (RefContext context : REF_CONTEXTS) {
                 for (Ref ref : REFS) {
                     String charged = refSource(mode, context, ref, true);
                     String neutral = refSource(mode, context, ref, false);
                     String label = mode + " / " + context.name + " / " + ref.name + ": " + charged;
-                    checkMatrixCell(engine, mode, params, problems, label, charged, ref.expected, neutral, ref.neutralExpected, ref.delta);
+                    checkMatrixCell(
+                        engine,
+                        mode,
+                        params,
+                        problems,
+                        trips,
+                        label,
+                        charged,
+                        ref.expected,
+                        neutral,
+                        ref.neutralExpected,
+                        ref.delta
+                    );
+                }
+            }
+            checkTrips(mode, params, problems, trips);
+        }
+        assertTrue(problems.size() + " problems:\n" + String.join("\n", problems), problems.isEmpty());
+    }
+
+    public void testLambdaMatrixCaptureShape() {
+        List<String> problems = new ArrayList<>();
+        for (Mode mode : Mode.values()) {
+            for (Wrapper wrapper : WRAPPERS) {
+                for (Body body : BODIES) {
+                    String source = matrixSource(mode, wrapper, body, body.body);
+                    String label = mode + " / " + wrapper.name + " / " + body.name;
+                    int expected = expectedInstanceLambdas(mode, body.need, wrapper.chain);
+                    checkShape(mode, label, source, matrixBytecode(mode, source), wrapper.chain.length(), expected, problems);
                 }
             }
         }
         assertTrue(problems.size() + " problems:\n" + String.join("\n", problems), problems.isEmpty());
     }
 
-    public void testLambdaMatrixCaptureShape() {
-        // Every lambda in a shape must be static or an instance method exactly as expectedInstanceLambdas says. Anything else
-        // is an over-capture or an under-capture.
+    public void testReferenceMatrixCaptureShape() {
         List<String> problems = new ArrayList<>();
         for (Mode mode : Mode.values()) {
-            for (Wrapper wrapper : WRAPPERS) {
-                for (Body body : BODIES) {
-                    String source = matrixSource(mode, wrapper, body, body.body);
-                    String asm = matrixBytecode(mode, source);
-                    int instance = count(asm, "public synthetic lambda$");
-                    int statics = count(asm, "public static synthetic lambda$");
-                    int expected = expectedInstanceLambdas(mode, body.need, wrapper.chain);
-                    if (instance != expected || statics != wrapper.chain.length() - expected) {
-                        problems.add(
-                            mode
-                                + " / "
-                                + wrapper.name
-                                + " / "
-                                + body.name
-                                + ": expected "
-                                + expected
-                                + " instance of "
-                                + wrapper.chain.length()
-                                + " lambdas, got "
-                                + instance
-                                + " instance and "
-                                + statics
-                                + " static: "
-                                + source
-                        );
-                    }
+            for (RefContext context : REF_CONTEXTS) {
+                for (Ref ref : REFS) {
+                    String source = refSource(mode, context, ref, true);
+                    String label = mode + " / " + context.name + " / " + ref.name;
+                    int lambdas = context.chain.length() + ref.ownLambdas.length();
+                    checkShape(
+                        mode,
+                        label,
+                        source,
+                        matrixBytecode(mode, source),
+                        lambdas,
+                        expectedInstanceLambdas(mode, ref, context),
+                        problems
+                    );
                 }
             }
         }

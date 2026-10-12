@@ -554,8 +554,8 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
         boolean conversionMayNarrow,
         Set<String> declaredTypeColumns
     ) {
-        // Stamped explicitly either way; an absent stamp means a coordinator that predates it and is answered
-        // differently (see ExternalSourceResolverTests.testAnUnstampedPlanFallsBackToThePreStampAnswer).
+        // Stamped explicitly either way; an absent stamp means a coordinator that predates it and is read
+        // conservatively (see FileSourceFactoryTests.testAnUnstampedPlanIsReadConservatively).
         Map<String, Object> sourceMetadata = Map.of(SourceStatisticsSerializer.CONVERSION_MAY_NARROW_KEY, conversionMayNarrow);
         return parquetSource(schema, null, sourceMetadata, Map.of(ErrorPolicy.CONFIG_ERROR_MODE, errorMode)).withDeclaredReadSpec(
             DeclaredReadSpec.of(Map.of(), Map.of(), declaredTypeColumns)

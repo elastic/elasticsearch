@@ -1502,9 +1502,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * type instead.
      * <p>
      * The readers no longer care - they compare the file's actual type to the one being read, per file, at read time.
-     * What this costs is statistics: with no snapshot, every file of such a read safe-misses its extrema, the anchor
-     * included, even though the anchor's footer WAS read at resolution for the coercibility check and then discarded.
-     * Recording it is what would let the anchor keep its statistics, and is its own change.
+     * What this costs is statistics for the files nobody opened: they safe-miss their extrema, because nothing has
+     * established what they hold. The ANCHOR is different, and that is what this pins: its footer was read at
+     * resolution for the coercibility check, so its types are recorded and it keeps its statistics. Discarding what
+     * that check read is what used to make the whole read answer from the declaration instead.
      */
     public void testStrictDeclaredMultiFileRecordsOnlyTheAnchorsTypes() throws Exception {
         String anchorPath = "s3://bucket/data/a.parquet";
@@ -1552,6 +1553,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
             driftInfo.fileSchema().attributes().get(0).dataType()
         );
         assertEquals("with no snapshot, no column reads as pinned", Set.of(), ExternalSourceResolver.pinnedColumnsOf(driftInfo));
+        // And the stamp the whole read carries, which no assertion here used to read. The anchor's int32 widens to
+        // the declared long losslessly, so the anchor alone would say no; the file nobody opened may hold anything,
+        // and that is what makes the answer yes. Conservative, and derived from what was read rather than from the
+        // declaration existing - under the old rule this read answered yes because a column had been declared.
+        assertTrue(
+            "a file whose types were never read may hold anything, so a value may fail",
+            SourceStatisticsSerializer.conversionMayNarrow(resolved.metadata().sourceMetadata())
+        );
     }
 
     // ===== Stats partial / file-count flag tests =====
@@ -4807,11 +4816,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * The same absent snapshot means the opposite when the schema was not pinned from another file: an explicitly
-     * named single file's own schema IS its types, so nothing is being converted and the stamp stays off. Reading
-     * the absent snapshot as "unknown" here withheld filter pushdown from the commonest read there is.
-     */
-    /**
+     * An explicitly named single file's own schema IS its types, so nothing is being converted and the stamp stays
+     * off. Reading an absent snapshot as "unknown" here withheld filter pushdown from the commonest read there is.
+     * <p>
      * Driven through the resolver, because what makes this answerable is the PRODUCER: the single-file path records
      * the column types it just read out of the file, so the stamp is computed by comparing them with the types being
      * read. It used to hand over nothing, which left the question answerable only by asking how the schema had been
@@ -4906,8 +4913,12 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
     }
 
-    /** The stamp is absent rather than false when nothing narrows, which is how an older plan arrives. */
-    public void testConversionMayNarrowStampIsAbsentRatherThanFalse() {
+    /**
+     * The stamp is written even when nothing narrows, so a reader can tell "this coordinator says no" from "this
+     * coordinator never said". Writing only the true case would make absent ambiguous, and absent is the one value
+     * that has to mean a pre-stamp coordinator.
+     */
+    public void testTheStampIsWrittenEvenWhenNothingNarrows() {
         ExternalSchema readAsLong = new ExternalSchema(List.of(attr("x", DataType.LONG)));
         StoragePath path = StoragePath.of("s3://bucket/part-a.parquet");
         ExternalSourceResolution.ResolvedSource clean = new ExternalSourceResolution.ResolvedSource(
@@ -4994,6 +5005,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * single-file dataset answer "a value may fail" whatever the file held: the flag renamed, which is what
      * esql-planning#2076 forbids.
      */
+
     public void testAStrictSingleFileStampsFromTheFilesTypesNotFromTheDeclaration() throws Exception {
         String filePath = "s3://bucket/data/only.parquet";
         for (DataType declaredAs : List.of(DataType.LONG, DataType.INTEGER)) {
@@ -5019,6 +5031,78 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 assertFalse("the file holds long and is read as long, so nothing is converted", stamped);
             } else {
                 assertTrue("the file holds long and is read as a 32-bit integer, which narrows", stamped);
+            }
+        }
+    }
+
+    /**
+     * The criterion this change is held to: no decision taken after the schema is settled may be decided by whether
+     * a declaration exists. Two files holding the same type, read at that type, must stamp the same whether the
+     * dataset declares the column or not, on every schema_resolution rail.
+     * <p>
+     * Before this change the strict and union-by-name rails recorded no per-file types, so the undeclared arm fell
+     * through to "a value may fail" while the declared arm's overlay synthesized a type map from the file schema and
+     * stamped "nothing can fail". Same bytes, same types, different plan - under skip_row the declared arm pushed a
+     * filter the undeclared arm withheld. Reverting either reconcile rail to the three-arg FileSchemaInfo turns the
+     * union_by_name and strict arms of this test red.
+     */
+    public void testTheStampDoesNotDependOnWhetherAColumnWasDeclared() throws Exception {
+        List<Attribute> fileSchema = List.of(attr("x", DataType.LONG));
+        for (String resolution : List.of("union_by_name", "strict", "first_file_wins")) {
+            Boolean undeclaredStamp = null;
+            for (boolean declared : List.of(false, true)) {
+                Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+                List<StorageEntry> files = new ArrayList<>(2);
+                for (int i = 0; i < 2; i++) {
+                    String file = "s3://bucket/data/file" + i + ".parquet";
+                    files.add(entry(file, 100));
+                    schemasByPath.put(file, fileSchema);
+                }
+                Map<String, List<StorageEntry>> listingsByPrefix = Map.of(
+                    StoragePath.of(DECLARED_GLOB).patternPrefix().toString(),
+                    files
+                );
+                ExternalSourceResolver resolver = createResolver(schemasByPath, listingsByPrefix);
+                // dynamic:true, so the schema is still inferred from the files and only the type is declared. This is
+                // the arm whose overlay used to synthesize the per-file types the rails had not recorded.
+                Map<String, DatasetMapping> mappings = declared
+                    ? Map.of(
+                        DECLARED_GLOB,
+                        new DatasetMapping(
+                            new DatasetMapping.Mappings(
+                                DatasetMapping.Dynamic.TRUE,
+                                Map.of("x", new DatasetFieldMapping("long", null))
+                            )
+                        )
+                    )
+                    : Map.of();
+                Map<String, Map<String, Object>> configs = Map.of(
+                    DECLARED_GLOB,
+                    new HashMap<>(Map.of("schema_resolution", resolution))
+                );
+                PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+                resolver.resolve(List.of(DECLARED_GLOB), configs, null, mappings, null, future);
+                ExternalSourceResolution.ResolvedSource resolved = future.actionGet().resolvedSource(DECLARED_GLOB);
+                assertNotNull(resolution + ", declared=" + declared, resolved);
+
+                boolean stamped = SourceStatisticsSerializer.conversionMayNarrow(resolved.metadata().sourceMetadata());
+                if (declared == false) {
+                    undeclaredStamp = stamped;
+                } else {
+                    assertEquals(
+                        resolution + ": the stamp changed when the same types were declared, so it still answers "
+                            + "from declaredness",
+                        undeclaredStamp,
+                        (Boolean) stamped
+                    );
+                }
+                if (resolution.equals("first_file_wins") == false) {
+                    assertFalse(
+                        resolution + ", declared=" + declared + ": every file holds long and is read as long, so no "
+                            + "value can fail",
+                        stamped
+                    );
+                }
             }
         }
     }

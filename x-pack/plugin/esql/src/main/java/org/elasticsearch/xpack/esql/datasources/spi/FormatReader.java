@@ -316,9 +316,10 @@ public interface FormatReader extends Closeable {
      * schema is inferred; it does not leak into how columns bind (esql-planning#1307).
      * <p>
      * Only the text readers need it to bind. Parquet/ORC bind by footer name and NDJSON by object key under either
-     * provenance. NDJSON and Parquet still override it, to lift the file-width cap ({@code schema_max_fields}) on a
-     * declared read, since only the declared columns are read; the text readers lift it the same way. ORC does not
-     * enforce the cap yet, pending a follow-up, and keeps the no-op default.
+     * provenance, so they keep the no-op default. It does not touch the file-width cap
+     * ({@code schema_max_fields}): NDJSON and Parquet used to lift the cap here on a declared read, which refused a
+     * wide file when its types were inferred and read the same file when they were declared. The cap now bounds every
+     * read of a file whatever the schema's provenance (esql-planning#2076).
      *
      * @param declaredProvenanceBinding true when the pinned schema is a DECLARED claim (provenance DECLARED)
      * @return a new reader honoring the binding mode, or {@code this} when it does not apply

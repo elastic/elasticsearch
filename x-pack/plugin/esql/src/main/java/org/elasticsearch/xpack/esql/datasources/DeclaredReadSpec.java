@@ -114,6 +114,19 @@ public record DeclaredReadSpec(
         return renames.isEmpty() && dateFormats.isEmpty() && declaredTypeColumns.isEmpty() && provenance == SchemaProvenance.INFERRED;
     }
 
+    /**
+     * True when the mapping declared nothing that changes how a file's statistics map onto the read schema — no
+     * rename to rekey, no parse-format to poison, no declared type to differ from the file's own.
+     * <p>
+     * Deliberately blind to {@link #provenance}, unlike {@link #isEmpty()}. The binding mode is an instruction to
+     * the text readers and has to survive the wire, which is why {@code isEmpty()} consults it; it says nothing
+     * about whether a footer statistic still describes the read. Asking {@code isEmpty()} here made the split-side
+     * statistics decision turn on whether a declaration existed (esql-planning#2076).
+     */
+    public boolean declaresNoStatsAffectingInstructions() {
+        return renames.isEmpty() && dateFormats.isEmpty() && declaredTypeColumns.isEmpty();
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(renames, StreamOutput::writeString, StreamOutput::writeString);

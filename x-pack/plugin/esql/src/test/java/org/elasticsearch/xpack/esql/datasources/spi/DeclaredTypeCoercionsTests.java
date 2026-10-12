@@ -115,7 +115,7 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
      * signed whole number, so a supertype test alone called {@code long -> unsigned_long} lossless, while
      * {@link DeclaredTypeCoercions#exactToUnsignedLong} refuses a negative.
      */
-    public void testReadsLosslessAdmitsNoPairThatCanFailAValue() {
+    public void testReadsLosslessNeverAdmitsASignedValueReadAsUnsignedLong() {
         List<String> admitted = new ArrayList<>();
         for (DataType from : DataType.values()) {
             for (DataType to : DataType.values()) {
@@ -128,14 +128,42 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
     }
 
     /**
-     * The negative that makes the pair above unsafe, so the exclusion is not merely asserted. A non-negative value
-     * converts, which is what makes the failure a per-value one rather than a property of the type pair - and so
-     * what makes it invisible to a supertype test. The return is the sign-flip block encoding, not the value.
+     * Three callers skip a guard on {@link DeclaredTypeCoercions#readsLossless}, so a pair it admits must be one the
+     * reader can actually perform: admitting a pair {@link DeclaredTypeCoercions#supports} rejects would skip the
+     * guard for a read that then has no way to produce the value at all.
+     * <p>
+     * Scoped to the types a file reader can yield and a query can read at, because the two predicates are different
+     * kinds of thing: {@code readsLossless} is a question about the type lattice and answers for every pair in it,
+     * while {@code supports} is an allow-list over the decodable types. Over the whole of {@link DataType} the
+     * containment is false and means nothing - {@code short -> long} is a lossless widening no reader will ever be
+     * asked for. It is over this set that a caller can act on the answer, so it is over this set that it must hold.
      */
-    public void testSignedValueReadAsUnsignedLongFailsOnlyWhenNegative() {
-        expectThrows(Exception.class, () -> DeclaredTypeCoercions.exactToUnsignedLong(-1L));
-        assertEquals(NumericUtils.asLongUnsigned(BigInteger.ZERO), DeclaredTypeCoercions.exactToUnsignedLong(0L));
-        assertEquals(NumericUtils.asLongUnsigned(BigInteger.valueOf(7L)), DeclaredTypeCoercions.exactToUnsignedLong(7L));
+    public void testEveryLosslessPairIsAlsoASupportedPair() {
+        Set<DataType> decodable = Set.of(
+            DataType.KEYWORD,
+            DataType.TEXT,
+            DataType.INTEGER,
+            DataType.LONG,
+            DataType.DOUBLE,
+            DataType.BOOLEAN,
+            DataType.DATETIME,
+            DataType.DATE_NANOS,
+            DataType.IP,
+            DataType.UNSIGNED_LONG
+        );
+        List<String> admittedButUnsupported = new ArrayList<>();
+        for (DataType from : decodable) {
+            for (DataType to : decodable) {
+                if (DeclaredTypeCoercions.readsLossless(from, to) && DeclaredTypeCoercions.supports(from, to) == false) {
+                    admittedButUnsupported.add(from + " -> " + to);
+                }
+            }
+        }
+        assertThat(
+            "readsLossless promised a decodable pair the reader cannot perform, so its callers skip a guard for nothing",
+            admittedButUnsupported,
+            empty()
+        );
     }
 
     /**

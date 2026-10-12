@@ -84,7 +84,7 @@ public class ParquetFormatReaderStateLifecycleTests extends ESTestCase {
         Map.entry("withConfigTrackingConsumedKeys", WitherLifecycle.CREATES_COPY),
         Map.entry("withConfig", WitherLifecycle.CREATES_COPY),
         Map.entry("withSchema", WitherLifecycle.IDENTITY_NO_COPY),
-        Map.entry("withDeclaredProvenanceBinding", WitherLifecycle.CREATES_COPY),
+        Map.entry("withDeclaredProvenanceBinding", WitherLifecycle.IDENTITY_NO_COPY),
         Map.entry("withHeaderBindingByProvenance", WitherLifecycle.IDENTITY_NO_COPY),
         Map.entry("withReadConfig", WitherLifecycle.IDENTITY_NO_COPY),
         Map.entry("withSchemaSampleShare", WitherLifecycle.IDENTITY_NO_COPY)

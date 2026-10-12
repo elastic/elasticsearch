@@ -931,14 +931,6 @@ public class OrcFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * {@code IS NULL} pushes to ORC's stripe statistics, which describe the stored values, so it must be withheld
-     * exactly where the decode can turn a stored value into a null. A declared date {@code format} does that; being
-     * named in a declaration does not.
-     * <p>
-     * It used to be withheld for any column the dataset declared a type for, even one read at its own type where no
-     * conversion happens at all, which cost the pruning for nothing (esql-planning#2076).
-     */
-    /**
      * A whole-file {@code read()} reads the columns AS the schema the plan carries, not at the file's own types.
      * Nothing pinned that: reverting it left every ORC test green while the per-file can-null set silently
      * degenerated to the declared date formats, because every column then compared equal to itself.
@@ -1006,6 +998,14 @@ public class OrcFormatReaderTests extends ESTestCase {
         assertThat(ownType.predicateColumns(), contains("n"));
     }
 
+    /**
+     * {@code IS NULL} pushes to ORC's stripe statistics, which describe the stored values, so it must be withheld
+     * exactly where the decode can turn a stored value into a null. A declared date {@code format} does that; being
+     * named in a declaration does not.
+     * <p>
+     * It used to be withheld for any column the dataset declared a type for, even one read at its own type where no
+     * conversion happens at all, which cost the pruning for nothing (esql-planning#2076).
+     */
     public void testIsNullPushdownWithheldOnlyWhereDecodeCanNull() throws Exception {
         TypeDescription schema = TypeDescription.createStruct()
             .addField("ts", TypeDescription.createLong())

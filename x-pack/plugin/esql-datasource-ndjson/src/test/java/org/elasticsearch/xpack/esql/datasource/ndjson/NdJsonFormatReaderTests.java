@@ -139,13 +139,20 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         assertEquals(3, overridden.metadata(new BytesObject(flatRecord(3))).schema().size());
     }
 
-    /** A declared schema names the columns it reads, so a file past the field cap is still inferred (breaker-bounded). */
-    public void testDeclaredProvenanceExemptsTheFieldCap() throws IOException {
+    /**
+     * The field cap bounds a declared read too. It used to be lifted for one, so the same wide file was refused when
+     * its types were inferred and read when they were declared - one file, two behaviours, decided by how the
+     * dataset was written down rather than by anything about the file (esql-planning#2076). Raising the cap is the
+     * way to read a wide file, and it works the same either way.
+     */
+    public void testTheFieldCapBoundsADeclaredReadToo() throws IOException {
         NdJsonFormatReader capped = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
         FormatReader lowered = capped.withConfigTrackingConsumedKeys(Map.of(NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, 3)).value();
         expectThrows(ExternalClientException.class, () -> lowered.metadata(new BytesObject(flatRecord(4))));
         FormatReader declared = lowered.withDeclaredProvenanceBinding(true);
-        assertEquals(4, declared.metadata(new BytesObject(flatRecord(4))).schema().size());
+        expectThrows(ExternalClientException.class, () -> declared.metadata(new BytesObject(flatRecord(4))));
+        FormatReader raised = capped.withConfigTrackingConsumedKeys(Map.of(NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, 4)).value();
+        assertEquals(4, raised.metadata(new BytesObject(flatRecord(4))).schema().size());
     }
 
     /** A value that is not a number at all is refused with a message naming the key, not the JDK's bare one. */

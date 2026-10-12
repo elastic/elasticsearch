@@ -94,7 +94,7 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
         "withPushedFilter",
         WitherLifecycle.IDENTITY_NO_COPY,
         "withDeclaredProvenanceBinding",
-        WitherLifecycle.SHARES_COUNTERS,
+        WitherLifecycle.IDENTITY_NO_COPY,
         "withHeaderBindingByProvenance",
         WitherLifecycle.IDENTITY_NO_COPY
     );

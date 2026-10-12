@@ -564,15 +564,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         );
     }
 
-    /**
-     * A declared dataset names the columns it reads, so it is not capped by how many columns the file has, the same as
-     * the text formats. The attribute list built from a wide footer is bounded by the breaker instead (see
-     * {@link #convertParquetSchemaToAttributes}).
-     */
-    @Override
-    public ParquetFormatReader withDeclaredProvenanceBinding(boolean declaredProvenanceBinding) {
-        return declaredProvenanceBinding ? withSchemaMaxFields(Integer.MAX_VALUE) : this;
-    }
 
     ParquetFormatReader copySharingCachesForTests() {
         return new ParquetFormatReader(

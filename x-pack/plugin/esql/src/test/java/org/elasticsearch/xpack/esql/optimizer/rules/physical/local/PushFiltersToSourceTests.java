@@ -247,8 +247,8 @@ public class PushFiltersToSourceTests extends ESTestCase {
         Set<String> declaredTypeColumns
     ) {
         FieldAttribute salary = fieldAttr("salary");
-        // Stamped explicitly either way; an absent stamp means a coordinator that predates it and is answered
-        // differently (see ExternalSourceResolverTests.testAnUnstampedPlanFallsBackToThePreStampAnswer).
+        // Stamped explicitly either way; an absent stamp means a coordinator that predates it and is read
+        // conservatively (see FileSourceFactoryTests.testAnUnstampedPlanIsReadConservatively).
         Map<String, Object> sourceMetadata = Map.of(SourceStatisticsSerializer.CONVERSION_MAY_NARROW_KEY, conversionMayNarrow);
         ExternalSourceExec source = new ExternalSourceExec(
             SRC,

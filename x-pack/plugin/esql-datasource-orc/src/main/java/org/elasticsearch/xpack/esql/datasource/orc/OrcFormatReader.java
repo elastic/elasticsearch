@@ -1157,10 +1157,11 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             if (threshold == null) {
                 return null;
             }
-            // A conversion that can null a cell also makes the sort column decode into a unit the raw stripe stats
-            // are NOT in (a declared epoch_second format scales x1000), so a raw-vs-decoded dominance compare would
-            // drop the true extreme. This rail holds raw stats and does not convert, so decline the skip for such a
-            // column — mirroring the parquet threshold rail (sortColumnIsTemporal ? null : raw). Latent today:
+            // conversionCanNull holds the columns whose decode can turn a stored value into a null. Some of them
+            // also decode into a unit the raw stripe stats are NOT in (a declared epoch_second format scales
+            // x1000), where a raw-vs-decoded dominance compare would drop the true extreme; a plain narrowing
+            // (int64 read as int32) nulls a cell without changing the unit. This rail holds raw stats and does not
+            // convert, so it cannot tell those two apart and declines the skip for the whole set — mirroring the parquet threshold rail (sortColumnIsTemporal ? null : raw). Latent today:
             // OrcFormatReader is not ColumnExtractorAware, so no dynamic threshold is installed in production; this
             // guards the day it is.
             if (conversionCanNull.contains(threshold.columnName())) {

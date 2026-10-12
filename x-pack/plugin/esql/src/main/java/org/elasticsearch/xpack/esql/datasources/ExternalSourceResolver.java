@@ -1340,14 +1340,6 @@ public class ExternalSourceResolver {
         }
     }
 
-    private static Map<StoragePath, SchemaReconciliation.FileSchemaInfo> singleEntrySchemaMap(
-        StoragePath path,
-        @Nullable List<Attribute> schema,
-        @Nullable SourceStatistics statistics
-    ) {
-        return singleEntrySchemaMap(path, schema, schema, statistics, true, null);
-    }
-
     /**
      * One-entry schema map for a concrete file. {@code physicalSchema} is what the reader parses
      * (footer, or declared logical columns); {@code dataOnlySchema} is the mapping output width after
@@ -1729,7 +1721,7 @@ public class ExternalSourceResolver {
      * holds it as, and also whenever a file's own types were never read - an unexamined file may hold anything.
      * Every rail passes through here, so no rail can be left answering from provenance (esql-planning#2076).
      * Written on every resolve, true or false, so a data node can tell "this coordinator says no" from "this
-     * coordinator never said" - the second is a pre-stamp plan and is answered the pre-stamp way.
+     * coordinator never said" - the second is a pre-stamp plan and is read conservatively.
      */
     static ExternalSourceResolution.ResolvedSource stampConversionMayNarrow(ExternalSourceResolution.ResolvedSource source) {
         Map<String, Object> current = source.metadata().sourceMetadata();
@@ -1751,19 +1743,26 @@ public class ExternalSourceResolver {
         }
         DeclaredReadSpec spec = source.declaredReadSpec() == null ? DeclaredReadSpec.NONE : source.declaredReadSpec();
         Map<String, String> renames = spec.renames();
+        // The types the query reads the columns AT, which is the only target a conversion can narrow toward. It has
+        // to come from the read schema rather than from each file's own entry: fileSchema is the pinned read schema
+        // on a first-file-wins read but the file's own schema under union-by-name, so comparing a file's types with
+        // its own entry asked whether the file converts to itself and answered "lossless" for every rail that does
+        // not pin (esql-planning#2076).
+        List<Attribute> readSchema = source.metadata().schema();
         for (SchemaReconciliation.FileSchemaInfo info : schemaMap.values()) {
-            // No snapshot means nobody recorded what this file holds, so it may hold anything. Every producer now
-            // records them when it read them, so this asks the record rather than working it out from how the
-            // schema was authored (esql-planning#2076).
+            // No snapshot means nobody recorded what this file holds, so it may hold anything. Every rail that
+            // opens a file records them, so this asks the record rather than working it out from how the schema
+            // was authored (esql-planning#2076).
             Map<String, DataType> nativeTypes = info.inferredTypes();
             if (nativeTypes == null) {
                 return true;
             }
-            for (Attribute attr : info.fileSchema().attributes()) {
-                // fileSchema carries LOGICAL names (a declaration's path rename is already applied to it) while
-                // inferredTypes is keyed PHYSICALLY, so the rename has to be undone to find the file's own type -
-                // the same translation normalizeSplitStats and fileBackedPhysicalColumns perform. Reading the
-                // logical name out of the physical map silently found nothing and called the column safe.
+            for (Attribute attr : readSchema) {
+                // The read schema carries LOGICAL names (a declaration's path rename is already applied to it)
+                // while inferredTypes is keyed PHYSICALLY, so the rename has to be undone to find the file's own
+                // type - the same translation normalizeSplitStats and fileBackedPhysicalColumns perform. Reading
+                // the logical name out of the physical map silently found nothing and called the column safe.
+                // A column this file does not supply is absent from the map and null-fills, converting nothing.
                 String physical = PhysicalNames.translate(attr.name(), renames);
                 DataType nativeType = nativeTypes.get(physical);
                 if (nativeType != null && DeclaredTypeCoercions.readsLossless(nativeType, attr.dataType()) == false) {

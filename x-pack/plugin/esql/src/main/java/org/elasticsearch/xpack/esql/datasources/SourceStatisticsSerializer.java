@@ -81,8 +81,11 @@ public final class SourceStatisticsSerializer {
      * coordinator that predates the key, which said nothing. Absent must not be read as "cannot fail" - the
      * predicate this replaced answered YES for a declared read, so a new data node taking absent as no would push
      * a filter the old coordinator withheld, during a rolling upgrade. Readers use
-     * {@link #conversionNarrowingStamped} to tell the two apart, which reproduces the old plan rather than the old
-     * outcome: see {@code ExternalSourceExec#conversionMayNarrow} for what that window looks like.
+     * {@link #conversionNarrowingStamped} to tell the two apart and read an unstamped plan CONSERVATIVELY - as
+     * though a value may fail. That is not the old plan: the predicate this replaced answered no for an undeclared
+     * read, so such a read is now planned without the pushdown it used to get, for the length of the upgrade
+     * window. Reproducing the old plan exactly would mean asking which columns were declared, which is the read
+     * this change exists to remove.
      * <p>
      * Like {@link #PARTITION_COLUMNS_KEY}, deliberately
      * not under the {@code _stats.} prefix, so the statistics merges preserve it. Value: {@code Boolean}.
@@ -145,7 +148,7 @@ public final class SourceStatisticsSerializer {
 
     /**
      * Whether this plan carries the {@link #CONVERSION_MAY_NARROW_KEY} stamp at all. False only for a plan minted by
-     * a coordinator that predates it, which a reader must answer the pre-stamp way rather than assume into.
+     * a coordinator that predates it, which a reader must then answer conservatively rather than assume into.
      */
     public static boolean conversionNarrowingStamped(Map<String, Object> sourceMetadata) {
         return sourceMetadata != null && sourceMetadata.containsKey(CONVERSION_MAY_NARROW_KEY);

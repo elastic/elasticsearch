@@ -156,13 +156,11 @@ public final class SchemaReconciliation {
          * Whether this file's own column types were read. Every consumer that must not fill a type in from the
          * read schema asks this rather than re-deriving the distinction from how the schema was declared.
          * <p>
-         * Derived from {@link #inferredTypes} rather than stored, because no producer can yet answer it any
-         * other way: the strict rail reads only the anchor's footer and keeps no per-file types at all, so
-         * every file of such a read answers false, the anchor included. Storing it would admit two states no
-         * producer builds and one of them - a true with no type map - is the #2076 failure itself, since
-         * {@code normalizeSplitStats} would then take the pinned read schema for the file's own types.
-         * Recording the anchor's footer types is what gives this its own answer, and what lets that anchor keep
-         * its statistics.
+         * Derived from {@link #inferredTypes} rather than stored, so the two cannot disagree. Storing it would
+         * admit a true with no type map, which is the #2076 failure itself: {@code normalizeSplitStats} would
+         * then take the pinned read schema for the file's own types. False therefore means one thing only - no
+         * rail opened this file, which is the case for a file a declared-strict read never examined and for a
+         * first-file-wins file with no cached snapshot. Every rail that does read a file's schema records it.
          */
         public boolean nativeTypesRead() {
             return inferredTypes != null;
@@ -334,7 +332,11 @@ public final class SchemaReconciliation {
                 }
                 mapping = interner.intern(new ColumnMapping(identity, null));
             }
-            perFileInfo.put(filePath, new FileSchemaInfo(interner.intern(canonical), mapping, stats));
+            // Strict read every file's schema to compare them, so each file's own types are known here.
+            // Recording them keeps null meaning "never examined" rather than "examined by a rail that
+            // did not bother to write it down", which is what made the read decision depend on whether a
+            // declaration happened to exist (esql-planning#2076).
+            perFileInfo.put(filePath, new FileSchemaInfo(interner.intern(canonical), mapping, stats, typeMap(canonical)));
         }
 
         return new Result(new ExternalSchema(refSchema), Map.copyOf(perFileInfo));
@@ -613,7 +615,11 @@ public final class SchemaReconciliation {
             StoragePath filePath = entry.getKey();
             SourceMetadata meta = entry.getValue();
             List<Attribute> fileSchema = meta.schema();
-            Map<String, DataType> inferredTypes = null;
+            // This file's own types, before any pin below retypes the read schema. Union-by-name read every
+            // file's schema to merge them, so they are known for every file and every format, not only for the
+            // text formats that pin. Recording them unconditionally keeps null meaning "never examined"
+            // (esql-planning#2076).
+            Map<String, DataType> inferredTypes = typeMap(fileSchema);
             if (readsColumnsAtReconciledType(meta.sourceType())) {
                 // Text readers parse each token at the pinned read type, so pin every widened column
                 // to its reconciled type. The reader then reads at the wider type directly (raw text
@@ -621,17 +627,13 @@ public final class SchemaReconciliation {
                 // the sample never saw, which would otherwise null-fill or abort the read before the
                 // ColumnMapping cast could run. See readsColumnsAtReconciledType for why this is
                 // scoped to sample-inferring text formats.
-                List<Attribute> prePin = fileSchema;
+                // inferredTypes above already holds the pre-pin types, which is what the resolve-side stats
+                // boundary needs to identify a pinned column: its per-file stats were harvested at the narrower
+                // read type while the cache identity is read-schema-blind, so it must safe-miss rather than fold
+                // a stale count or extremum.
+                // The fan-out already interned the inferred shape. The pinned list is a second shape charge.
+                // That extra charge is not refunded.
                 fileSchema = pinToReconciledTypes(fileSchema, unified);
-                if (fileSchema != prePin) {
-                    // At least one column was pinned above its inferred type. Carry the pre-pin (inferred) types
-                    // so the resolve-side stats boundary can identify the pinned columns: their per-file stats were
-                    // harvested at the narrower read type but the cache identity is read-schema-blind, so they must
-                    // safe-miss rather than fold a stale count/extremum.
-                    // The fan-out already interned the inferred shape. The pinned list is a second shape charge.
-                    // That extra charge is not refunded.
-                    inferredTypes = typeMap(prePin);
-                }
             }
             SourceStatistics stats = SourceStatisticsSerializer.fromSource(meta);
 

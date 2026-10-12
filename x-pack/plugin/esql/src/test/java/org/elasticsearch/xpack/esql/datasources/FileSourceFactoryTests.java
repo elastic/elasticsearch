@@ -221,10 +221,10 @@ public class FileSourceFactoryTests extends ESTestCase {
     }
 
     /**
-     * The factory answers an UNSTAMPED plan - one from a coordinator that predates the stamp - from the declared
-     * column set, which is what that coordinator decided. It shares one helper with the two planner rules, so this
-     * also covers their copy; before they shared it, the factory held the only inline copy of the fallback and
-     * nothing exercised it.
+     * The factory reads an UNSTAMPED plan - one from a coordinator that predates the stamp - CONSERVATIVELY, as
+     * though a value may fail. It does not reproduce what that coordinator decided, which would mean asking which
+     * columns were declared. It shares one helper with the two planner rules, so this also covers their copy;
+     * before they shared it, the factory held the only inline copy and nothing exercised it.
      */
     public void testAnUnstampedPlanIsReadConservatively() {
         FileSourceFactory factory = newFileSourceFactory(new ExtractorAwareStubFormatReader("test-parquet", ".parquet"));
@@ -268,8 +268,8 @@ public class FileSourceFactoryTests extends ESTestCase {
             .attributes(List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG)))
             .executor(EsExecutors.DIRECT_EXECUTOR_SERVICE)
             .config(Map.of(ErrorPolicy.CONFIG_ERROR_MODE, errorMode))
-            // Stamped explicitly either way: an ABSENT stamp means a coordinator that predates it and is answered
-            // differently, which testAnUnstampedPlanFallsBackToThePreStampAnswer covers.
+            // Stamped explicitly either way: an ABSENT stamp means a coordinator that predates it and is read
+            // conservatively, which testAnUnstampedPlanIsReadConservatively covers.
             .sourceMetadata(Map.of(SourceStatisticsSerializer.CONVERSION_MAY_NARROW_KEY, conversionMayNarrow))
             .deferredExtraction(true)
             .declaredReadSpec(declaredReadSpec)

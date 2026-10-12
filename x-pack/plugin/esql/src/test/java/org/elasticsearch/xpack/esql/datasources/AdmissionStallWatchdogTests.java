@@ -208,7 +208,7 @@ public class AdmissionStallWatchdogTests extends ESTestCase {
     }
 
     /**
-     * U5: the byte gate warns on waiters plus holders when no grant has landed for the stall
+     * The byte gate warns on waiters plus holders when no grant has landed for the stall
      * window. Permit saturation stays silent in {@link #testHoldersInUseStaySilent}.
      */
     public void testByteGateWarnsOnGrantAgeEvenWithHolders() throws Exception {

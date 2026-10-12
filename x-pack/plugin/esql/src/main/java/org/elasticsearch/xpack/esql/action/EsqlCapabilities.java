@@ -1520,7 +1520,6 @@ public class EsqlCapabilities {
          * identifiers through an aggregation, so the name-and-id match used to collect push-down candidates falsely matched
          * conversions that read aggregate output rather than union branch columns. The synthetic pushed-down reference was then
          * unreachable from the consumer, causing {@code PlanConsistencyChecker} to throw {@code IllegalStateException}.
-         * esql-planning#1987
          */
         SUBQUERY_IN_FROM_COMMAND_FIX_CONVERT_GROUP_KEY,
 
@@ -3080,9 +3079,6 @@ public class EsqlCapabilities {
          * Support for projecting nested STRUCT subfields (e.g. {@code event.action}) from
          * Parquet (Java) and ORC external sources. Gated so format readers that do not yet
          * implement nested support (csv, ndjson, etc.) skip the csv-spec tests until they catch up.
-         *
-         * <p>Tracks: elastic/esql-planning#435 (this PR) and elastic/esql-planning#320
-         * (correctness gap for Parquet-Java MAP/STRUCT/nested LIST).
          */
         EXTERNAL_SOURCE_NESTED_STRUCT_PROJECTION,
 
@@ -3093,8 +3089,6 @@ public class EsqlCapabilities {
          * (Java) reader; this capability gates the csv-spec tests that assert the multivalues now
          * round-trip. Separate from {@link #EXTERNAL_SOURCE_NESTED_STRUCT_PROJECTION} so nodes that
          * predate the fix (and other format readers) skip the tests instead of failing them.
-         *
-         * <p>Tracks: elastic/esql-planning#1055 (correctness gap for Parquet-Java list-under-struct).
          */
         EXTERNAL_SOURCE_LIST_UNDER_STRUCT,
 
@@ -3103,7 +3097,6 @@ public class EsqlCapabilities {
          * instead of throwing at planning time. The reconciler emits a warning header per
          * affected column, the per-file ColumnMapping carries a stringification cast, and the
          * reader's output is adapted via SchemaAdaptingIterator. STRICT mode still throws.
-         * See esql-planning#794.
          */
         EXTERNAL_UNION_BY_NAME_KEYWORD_FALLBACK,
 
@@ -4273,7 +4266,6 @@ public class EsqlCapabilities {
          * null-fills it above the reader; no pattern matches null, so zero rows must survive. Also fixes a
          * second route: {@code readerForMapping} no longer discards YES conjuncts when the per-file filter
          * adaptation empties the list (e.g. when a co-conjunct references a column widened via a one-way cast).
-         * See elastic/esql-planning#2052.
          */
         EXTERNAL_PARQUET_LIKE_MISSING_COLUMN_REJECTS_ROWS,
 

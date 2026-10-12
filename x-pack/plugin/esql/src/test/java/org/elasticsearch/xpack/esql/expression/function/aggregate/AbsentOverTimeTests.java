@@ -83,7 +83,6 @@ public class AbsentOverTimeTests extends AbstractAggregationTestCase {
             DataType.BOOLEAN,
             DataType.CARTESIAN_POINT,
             DataType.CARTESIAN_SHAPE,
-            DataType.DATE_NANOS,
             DataType.DATETIME,
             DataType.DATE_NANOS,
             DataType.DENSE_VECTOR,

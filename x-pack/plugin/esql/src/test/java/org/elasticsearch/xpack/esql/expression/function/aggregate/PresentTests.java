@@ -88,7 +88,6 @@ public class PresentTests extends AbstractAggregationTestCase {
             DataType.BOOLEAN,
             DataType.CARTESIAN_POINT,
             DataType.CARTESIAN_SHAPE,
-            DataType.DATE_NANOS,
             DataType.DATE_RANGE,
             DataType.DATETIME,
             DataType.DATE_NANOS,

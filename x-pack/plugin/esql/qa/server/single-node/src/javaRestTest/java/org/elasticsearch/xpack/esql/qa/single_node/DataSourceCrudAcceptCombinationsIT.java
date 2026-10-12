@@ -206,8 +206,8 @@ public class DataSourceCrudAcceptCombinationsIT extends ESRestTestCase {
         for (String[] formatDet : new String[][] {
             { "ext", null, "simple.ndjson" }, // format inferred from .ndjson extension
             { "exp", "ndjson", "ndjson_noext" }, // explicit format: ndjson on an extensionless file
- // TODO: uncomment once a mismatched explicit format is rejected at PUT
- // { "exp_bad", "parquet", "ndjson_noext" }, // unknown format — not yet rejected at PUT
+            // TODO: uncomment once a mismatched explicit format is rejected at PUT
+            // { "exp_bad", "parquet", "ndjson_noext" }, // unknown format — not yet rejected at PUT
         }) {
             String det = formatDet[0];
             String explicitFormat = formatDet[1];
@@ -240,7 +240,7 @@ public class DataSourceCrudAcceptCombinationsIT extends ESRestTestCase {
         // Parquet has no format-specific config keys.
         // schema_sample_size is in DATASET_FIELDS (coordinator base key) so the validator accepts it,
         // but the Parquet reader rejects it at query time — omitted here until the validator is tightened
- // . error_mode is a true coordinator key that works end-to-end for all formats.
+        // . error_mode is a true coordinator key that works end-to-end for all formats.
         addColumnarFormatCases(cases, "parquet", "simple.parquet", "parquet_noext", "parquet");
 
         // --- ORC matrix ---
@@ -288,8 +288,8 @@ public class DataSourceCrudAcceptCombinationsIT extends ESRestTestCase {
         for (String[] formatDet : new String[][] {
             { "ext", null, extFile },      // format inferred from file extension
             { "exp", formatName, noextFile }, // explicit format on an extensionless file
- // TODO: uncomment once a mismatched explicit format is rejected at PUT
- // { "exp_bad", "parquet", noextFile }, // unknown format — not yet rejected at PUT
+            // TODO: uncomment once a mismatched explicit format is rejected at PUT
+            // { "exp_bad", "parquet", noextFile }, // unknown format — not yet rejected at PUT
         }) {
             String det = formatDet[0];
             String explicitFormat = formatDet[1];

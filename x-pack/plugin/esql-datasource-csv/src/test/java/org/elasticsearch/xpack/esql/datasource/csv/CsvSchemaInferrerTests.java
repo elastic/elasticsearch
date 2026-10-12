@@ -367,7 +367,7 @@ public class CsvSchemaInferrerTests extends ESTestCase {
         );
     }
 
- // -- date_nanos inference --
+    // -- date_nanos inference --
 
     private static DataType inferOne(String... values) {
         List<String[]> rows = new ArrayList<>(values.length);

@@ -14,6 +14,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIoAffinity;
@@ -412,6 +413,11 @@ class ConcurrencyLimitedStorageObject implements StorageObject, ResumeBypassingS
     @Override
     public StorageObjectMetrics metrics() {
         return delegate.metrics();
+    }
+
+    @Override
+    public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {
+        delegate.attachMetrics(metrics, scheme);
     }
 
     /**

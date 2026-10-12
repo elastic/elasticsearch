@@ -86,6 +86,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
@@ -2558,6 +2559,9 @@ public class ParquetFormatReaderTests extends ESTestCase {
         AtomicInteger streamCount = new AtomicInteger();
         try {
             StorageObject asyncObject = new StorageObject() {
+                @Override
+                public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
                 @Override
                 public StorageIdentity storageIdentity() {
                     return AbstractTestStorageObject.NOOP;
@@ -7853,6 +7857,9 @@ public class ParquetFormatReaderTests extends ESTestCase {
     ) {
         return new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -7952,6 +7959,9 @@ public class ParquetFormatReaderTests extends ESTestCase {
     ) {
         return new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -8038,6 +8048,9 @@ public class ParquetFormatReaderTests extends ESTestCase {
         AtomicInteger readIndex = new AtomicInteger();
         return new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -8118,6 +8131,9 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
     private StorageObject createStorageObject(byte[] data, String locationUri) {
         return new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;

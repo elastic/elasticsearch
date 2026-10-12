@@ -16,6 +16,7 @@ import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.util.ArrayList;
@@ -27,11 +28,11 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Peer recovery must not depend on the stateless prewarm pool having spare capacity. Cache population and gap filling
- * coordinate on the prewarm pool; recovery (including engine open and translog replay) must still complete while that
- * pool is fully occupied by an unrelated long-running task.
+ * Peer recovery must not depend on a single stateless thread pool having spare capacity: it must still complete while the
+ * prewarm pool, or the shard read pool, of the target is fully occupied by an unrelated long-running task. The two pools
+ * can fill the same cache ranges, so whichever one is available fills them.
  */
-public class RecoveryWithSaturatedPrewarmPoolIT extends AbstractStatelessPluginIntegTestCase {
+public class RecoveryWithSaturatedPoolsIT extends AbstractStatelessPluginIntegTestCase {
 
     @Override
     protected boolean addMockFsRepository() {
@@ -50,31 +51,63 @@ public class RecoveryWithSaturatedPrewarmPoolIT extends AbstractStatelessPluginI
         return plugins;
     }
 
+    /**
+     * Cache population and gap filling coordinate on the prewarm pool; recovery (including engine open and translog replay) must
+     * still complete while that pool is fully occupied.
+     */
     public void testPeerRecoveryCompletesWhilePrewarmPoolIsFullyOccupied() throws Exception {
-        // Override random cache sizing from settingsForRoles (see class Javadoc); must fit multiple regions so warming runs populate.
-        final ByteSizeValue regionSize = ByteSizeValue.ofBytes(PAGE_SIZE);
-        final ByteSizeValue cacheSize = ByteSizeValue.ofMb(8);
-        final Settings prewarmPoolOneThread = Settings.builder()
-            .put(StatelessPlugin.PREWARM_THREAD_POOL_SETTING + ".core", 1)
-            .put(StatelessPlugin.PREWARM_THREAD_POOL_SETTING + ".max", 1)
+        // Override random cache sizing from settingsForRoles; must fit multiple regions so warming runs populate.
+        assertPeerRecoveryCompletesWhilePoolIsFullyOccupied(
+            StatelessPlugin.PREWARM_THREAD_POOL,
+            StatelessPlugin.PREWARM_THREAD_POOL_SETTING,
+            ByteSizeValue.ofBytes(PAGE_SIZE),
+            ByteSizeValue.ofMb(8)
+        );
+    }
+
+    /**
+     * Cache misses of the BCC header reads claim their gaps on the shard read pool, but the region 0 prewarm, which runs on the prewarm
+     * pool, fills the same ranges, so recovery makes progress while the shard read pool is fully occupied. The regions are large enough
+     * for the whole shard to be in region 0, and so for the engine to open without any other cache miss.
+     */
+    public void testPeerRecoveryCompletesWhileShardReadPoolIsFullyOccupied() throws Exception {
+        assertPeerRecoveryCompletesWhilePoolIsFullyOccupied(
+            StatelessPlugin.SHARD_READ_THREAD_POOL,
+            StatelessPlugin.SHARD_READ_THREAD_POOL_SETTING,
+            ByteSizeValue.ofMb(16),
+            ByteSizeValue.ofMb(128)
+        );
+    }
+
+    private void assertPeerRecoveryCompletesWhilePoolIsFullyOccupied(
+        String occupiedPool,
+        String occupiedPoolSetting,
+        ByteSizeValue regionSize,
+        ByteSizeValue cacheSize
+    ) throws Exception {
+        final Settings oneThreadPool = Settings.builder()
+            .put(occupiedPoolSetting + ".core", 1)
+            .put(occupiedPoolSetting + ".max", 1)
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), regionSize.getStringRep())
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            // hollow relocation targets do not prewarm region 0, so there would be nothing to fill the BCC header ranges in their place
+            .put(HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), false)
             .build();
 
-        final String sourceNode = startMasterAndIndexNode(prewarmPoolOneThread);
-        final String targetNode = startIndexNode(prewarmPoolOneThread);
+        final String sourceNode = startMasterAndIndexNode(oneThreadPool);
+        final String targetNode = startIndexNode(oneThreadPool);
 
-        final CountDownLatch releasePrewarmOccupier = new CountDownLatch(1);
-        final CountDownLatch prewarmOccupierStarted = new CountDownLatch(1);
+        final CountDownLatch releaseOccupier = new CountDownLatch(1);
+        final CountDownLatch occupierStarted = new CountDownLatch(1);
         final ThreadPool targetThreadPool = internalCluster().getInstance(ThreadPool.class, targetNode);
-        // Hold the only prewarm thread before any index workload queues populate tasks on that pool (single-threaded pool).
-        targetThreadPool.executor(StatelessPlugin.PREWARM_THREAD_POOL).execute(() -> {
-            prewarmOccupierStarted.countDown();
-            safeAwait(releasePrewarmOccupier);
+        // Hold the only thread of the pool before any index workload queues tasks on it (single-threaded pool).
+        targetThreadPool.executor(occupiedPool).execute(() -> {
+            occupierStarted.countDown();
+            safeAwait(releaseOccupier);
         });
-        safeAwait(prewarmOccupierStarted);
+        safeAwait(occupierStarted);
 
         final String indexName = randomIdentifier();
         assertAcked(
@@ -94,11 +127,10 @@ public class RecoveryWithSaturatedPrewarmPoolIT extends AbstractStatelessPluginI
                     .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", sourceNode))
             );
 
-            // With reverted synchronous populate(), generic can block on gap fill while prewarm is held → deadlock / no green
             ensureGreen(indexName);
             assertThat(findIndexShard(resolveIndex(indexName), 0).routingEntry().currentNodeId(), equalTo(getNodeId(targetNode)));
         } finally {
-            releasePrewarmOccupier.countDown();
+            releaseOccupier.countDown();
         }
     }
 }

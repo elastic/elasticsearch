@@ -14,6 +14,7 @@ import org.apache.arrow.flight.Location;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -157,6 +158,12 @@ public final class FlightStorageProvider implements StorageProvider {
             this.knownLength = length;
             this.knownLastModified = lastModified;
         }
+
+        /**
+         * Flight objects are not {@code AbstractMeteredStorageObject}s and keep no I/O counters, so there is nothing to attach.
+         */
+        @Override
+        public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
 
         @Override
         public InputStream newStream() throws IOException {

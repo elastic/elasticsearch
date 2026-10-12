@@ -21,6 +21,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
@@ -56,6 +57,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
@@ -98,6 +100,8 @@ class DatafeedJob {
     private volatile boolean haveEverSeenData;
     private volatile long consecutiveDelayedDataBuckets;
     private volatile SearchInterval searchInterval;
+    @Nullable
+    private volatile DataExtractor activeDataExtractor;
 
     DatafeedJob(
         String datafeedId,
@@ -149,6 +153,7 @@ class DatafeedJob {
     void isolate() {
         isIsolated = true;
         timingStatsReporter.disallowPersisting();
+        cancelActiveExtractor();
     }
 
     boolean isIsolated() {
@@ -370,7 +375,11 @@ class DatafeedJob {
      *         otherwise <code>false</code> is returned
      */
     public boolean stop() {
-        return running.compareAndSet(true, false);
+        boolean stopped = running.compareAndSet(true, false);
+        if (stopped) {
+            cancelActiveExtractor();
+        }
+        return stopped;
     }
 
     public boolean isRunning() {
@@ -390,6 +399,7 @@ class DatafeedJob {
         long recordCount = 0;
         List<LinkedClusterState> linkedClusterStates = List.of();
         DataExtractor dataExtractor = dataExtractorFactory.newExtractor(start, end);
+        activeDataExtractor = dataExtractor;
         try {
             while (dataExtractor.hasNext()) {
                 if ((isIsolated || isRunning() == false) && dataExtractor.isCancelled() == false) {
@@ -411,6 +421,13 @@ class DatafeedJob {
                         );
                     }
                 } catch (Exception e) {
+                    if (dataExtractor.isCancelled()
+                        || isRunning() == false
+                        || isIsolated
+                        || e instanceof CancellationException
+                        || e instanceof TaskCancelledException) {
+                        return;
+                    }
                     LOGGER.warn(() -> "[" + jobId + "] error while extracting data", e);
                     // When extraction problems are encountered, we do not want to advance time.
                     // Instead, it is preferable to retry the given interval next time an extraction
@@ -495,7 +512,9 @@ class DatafeedJob {
                 }
             }
 
-            lastEndTimeMs = Math.max(lastEndTimeMs == null ? 0 : lastEndTimeMs, dataExtractor.getEndTime() - 1);
+            if (isRunning() && isIsolated == false && dataExtractor.isCancelled() == false) {
+                lastEndTimeMs = Math.max(lastEndTimeMs == null ? 0 : lastEndTimeMs, dataExtractor.getEndTime() - 1);
+            }
             LOGGER.debug(
                 "[{}] Complete iterating data extractor [{}], [{}], [{}], [{}], [{}]",
                 jobId,
@@ -534,6 +553,14 @@ class DatafeedJob {
         } finally {
             // Ensure the extractor is always destroyed to clean up scroll contexts
             dataExtractor.destroy();
+            activeDataExtractor = null;
+        }
+    }
+
+    private void cancelActiveExtractor() {
+        DataExtractor extractor = activeDataExtractor;
+        if (extractor != null) {
+            extractor.cancel();
         }
     }
 

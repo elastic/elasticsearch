@@ -209,6 +209,42 @@ public class DatafeedJobTests extends ESTestCase {
         verify(client, never()).execute(same(PersistJobAction.INSTANCE), any());
     }
 
+    public void testStopAfterExtractionShouldRetainCursorForNextWindow() throws Exception {
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false);
+        doAnswer(invocation -> {
+            DataExtractor.Result result = new DataExtractor.Result(new SearchInterval(0L, 1000L), Optional.empty(), List.of());
+            datafeedJob.stop();
+            return result;
+        }).when(dataExtractor).next();
+
+        expectThrows(DatafeedJob.EmptyDataCountException.class, () -> datafeedJob.runLookBack(0L, 1000L));
+
+        verify(dataExtractor).cancel();
+        verify(client, never()).execute(same(FlushJobAction.INSTANCE), any());
+        assertNull(datafeedJob.lastEndTimeMs());
+
+        currentTime = 3000L;
+        expectThrows(DatafeedJob.EmptyDataCountException.class, datafeedJob::runRealtime);
+
+        ArgumentCaptor<Long> startTimeCaptor = ArgumentCaptor.forClass(Long.class);
+        verify(dataExtractorFactory, times(2)).newExtractor(startTimeCaptor.capture(), anyLong());
+        assertThat(startTimeCaptor.getAllValues(), equalTo(List.of(0L, 0L)));
+    }
+
+    public void testIsolateDuringActiveExtractionCancelsExtractorExactlyOnce() throws Exception {
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false);
+        doAnswer(invocation -> {
+            datafeedJob.isolate();
+            return new DataExtractor.Result(new SearchInterval(0L, 1000L), Optional.empty(), List.of());
+        }).when(dataExtractor).next();
+
+        assertNull(datafeedJob.runLookBack(0L, 1000L));
+
+        verify(dataExtractor, times(1)).cancel();
+        verify(dataExtractor, times(1)).next();
+        verify(client, never()).execute(same(FlushJobAction.INSTANCE), any());
+    }
+
     public void testLookBackRunWithNoEndTime() throws Exception {
         currentTime = 2000L;
         long frequencyMs = 1000;

@@ -42,8 +42,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.InstrumentedThrottledTaskRunner;
 import org.elasticsearch.common.util.concurrent.PrioritizedThrottledTaskRunner;
+import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.FixForMultiProject;
@@ -67,6 +67,7 @@ import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
@@ -104,6 +105,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -403,7 +405,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
 
     private final long slowTranslogUploadLogThresholdMillis;
 
-    private final InstrumentedThrottledTaskRunner<ActionListener<Releasable>> bccMultipartUploadTaskRunner;
+    private final LongHistogram bccMultipartUploadQueueLatencyHistogram;
 
     // TODO: We have it here because it is used by the `elasticsearch-serverless` repository in `ProjectLifeCycleServiceTests.java`
     // but we can remove when we do the change in `elasticsearch-serverless`
@@ -451,12 +453,11 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         this.concurrentMultipartUploads = OBJECT_STORE_CONCURRENT_MULTIPART_UPLOADS.get(settings);
         this.cacheSearchRecoveryBcc = CACHE_SEARCH_RECOVERY_BCC_ENABLED_SETTING.get(settings);
         this.slowTranslogUploadLogThresholdMillis = OBJECT_STORE_SLOW_TRANSLOG_UPLOAD_LOG_THRESHOLD_SETTING.get(settings).getMillis();
-        this.bccMultipartUploadTaskRunner = new InstrumentedThrottledTaskRunner<ActionListener<Releasable>>(
-            "bcc_multipart_upload_runner",
-            threadPool.info(StatelessPlugin.SHARD_WRITE_THREAD_POOL).getMax(),
-            threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL),
-            meterRegistry,
-            threadPool::relativeTimeInNanos
+        this.bccMultipartUploadQueueLatencyHistogram = meterRegistry.registerLongHistogram(
+            "es.stateless.bcc_multipart_upload.queue.latency.histogram",
+            "time a upload-part task waits (during multi-part uploads) before running that includes the queueing in both the" +
+                " runner and the SHARD_WRITE thread pool (only applicable to S3 and GCP)",
+            "milliseconds"
         );
     }
 
@@ -1723,6 +1724,24 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         }
     }
 
+    private Executor newBccMultipartUploadExecutor() {
+        final var runner = new ThrottledTaskRunner(
+            "bcc-concurrent-multipart-upload",
+            Math.max(1, threadPool.info(StatelessPlugin.SHARD_WRITE_THREAD_POOL).getMax() / 2),
+            threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL)
+        );
+        final Executor runnerExecutor = runner.asExecutor();
+        return task -> {
+            final long enqueuedNanos = threadPool.relativeTimeInNanos();
+            runnerExecutor.execute(() -> {
+                bccMultipartUploadQueueLatencyHistogram.record(
+                    TimeUnit.NANOSECONDS.toMillis(threadPool.relativeTimeInNanos() - enqueuedNanos)
+                );
+                task.run();
+            });
+        };
+    }
+
     private class BatchedCommitFileUploadTask extends ObjectStoreTask {
         private final VirtualBatchedCompoundCommit virtualBatchedCompoundCommit;
         private final BlobContainer blobContainer;
@@ -1770,6 +1789,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                     }
                 } else {
                     virtualBatchedCompoundCommit.mustIncRef();
+
                     try {
                         blobContainer.writeBlobAtomic(
                             OperationPurpose.INDICES,
@@ -1779,8 +1799,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                                 virtualBatchedCompoundCommit.getFrozenInputStreamForUpload(offset, length)
                             ),
                             false,
-                            InstrumentedThrottledTaskRunner.asExecutor(bccMultipartUploadTaskRunner)
-
+                            newBccMultipartUploadExecutor()
                         );
                     } finally {
                         virtualBatchedCompoundCommit.decRef();

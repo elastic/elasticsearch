@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.xpack.esql.datasource.http.local.LocalStorageProvider;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -201,6 +202,13 @@ public final class CountingStorageProvider implements StorageProvider {
             @Override
             public StorageIdentity storageIdentity() {
                 return object.storageIdentity();
+            }
+
+            // Forwarded for the same reason, and likewise without a default: the wrapped object is the one that
+            // performs the I/O these events describe.
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {
+                object.attachMetrics(metrics, scheme);
             }
 
             @Override

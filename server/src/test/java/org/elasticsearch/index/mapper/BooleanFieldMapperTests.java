@@ -373,9 +373,7 @@ public class BooleanFieldMapperTests extends MapperTestCase {
             }
             b.field("ignore_malformed", ignoreMalformed);
             if (enforceSingleValue) {
-                b.startObject("doc_values");
                 b.field("multi_value", false);
-                b.endObject();
             }
         }
 

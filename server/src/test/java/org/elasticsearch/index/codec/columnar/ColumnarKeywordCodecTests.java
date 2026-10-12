@@ -164,7 +164,7 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
 
         final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
         final String mapping = """
-            {"properties":{"@timestamp":{"type":"date"},"kw":{"type":"keyword","doc_values":{"multi_value":false}}}}""";
+            {"properties":{"@timestamp":{"type":"date"},"kw":{"type":"keyword","multi_value":false}}}""";
         final List<String> values = List.of("\"solo\"", "\"\"", "null");
 
         final String withCodec = INDEX + "-sv-codec";
@@ -206,7 +206,7 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
         final boolean descending = randomBoolean();
         final boolean missingFirst = randomBoolean();
         final String mapping = """
-            {"properties":{"@timestamp":{"type":"date"},"kw":{"type":"keyword","doc_values":{"multi_value":false}}}}""";
+            {"properties":{"@timestamp":{"type":"date"},"kw":{"type":"keyword","multi_value":false}}}""";
         final List<String> values = new ArrayList<>();
         final int numDocs = between(50, 200);
         for (int i = 0; i < numDocs; i++) {

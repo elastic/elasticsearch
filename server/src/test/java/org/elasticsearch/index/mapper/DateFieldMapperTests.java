@@ -750,9 +750,7 @@ public class DateFieldMapperTests extends MapperTestCase {
                     b.field("ignore_malformed", true);
                 }
                 if (enforceSingleValue) {
-                    b.startObject("doc_values");
                     b.field("multi_value", false);
-                    b.endObject();
                 }
             }
 

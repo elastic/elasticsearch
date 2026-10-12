@@ -448,9 +448,7 @@ public class IpFieldMapperTests extends MapperTestCase {
                 b.field("ignore_malformed", true);
             }
             if (isColumnar && enforceSingleValue) {
-                b.startObject("doc_values");
                 b.field("multi_value", false);
-                b.endObject();
             }
         }
 
@@ -558,7 +556,7 @@ public class IpFieldMapperTests extends MapperTestCase {
     public void testMultiValueFalseAcceptsSingleIgnoreMalformedValue() throws IOException {
         DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             b.field("type", "ip").field("ignore_malformed", true);
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
         }));
         mapper.parse(source(b -> b.field("field", "not-an-ip")));
     }
@@ -570,7 +568,7 @@ public class IpFieldMapperTests extends MapperTestCase {
     public void testMultiValueFalseRejectsTwoIgnoreMalformedFallbacks() throws IOException {
         DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             b.field("type", "ip").field("ignore_malformed", true);
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
         }));
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
@@ -585,7 +583,7 @@ public class IpFieldMapperTests extends MapperTestCase {
     public void testMultiValueFalseRejectsNormalPlusIgnoreMalformedFallback() throws IOException {
         DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             b.field("type", "ip").field("ignore_malformed", true);
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
         }));
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
@@ -605,7 +603,7 @@ public class IpFieldMapperTests extends MapperTestCase {
     public void testMultiValueFalseRejectsIgnoreMalformedFallbackPlusNormal() throws IOException {
         DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             b.field("type", "ip").field("ignore_malformed", true);
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
         }));
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,

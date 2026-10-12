@@ -1155,7 +1155,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         KeywordFieldMapper.KeywordFieldType columnarSingleValue = (KeywordFieldMapper.KeywordFieldType) createMapperService(
             columnarSettings,
-            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject())
+            fieldMapping(b -> b.field("type", "keyword").field("multi_value", false))
         ).fieldType("field");
         assertFalse(columnarSingleValue.usesMultivaluedBinaryDocValues());
 
@@ -1173,9 +1173,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
      */
     public void testMultiValueFalseColumnarKeywordSetsFieldTypeAttribute() throws Exception {
         assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createColumnarModeDocumentMapper(
-            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject())
-        );
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", "keyword").field("multi_value", false)));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "hello")));
         IndexableField dvField = doc.rootDoc()
             .getFields("field")
@@ -1257,9 +1255,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
      */
     public void testMultiValueFalseRejectsNormalPlusIgnoreAboveFallback() throws IOException {
         DocumentMapper mapper = createColumnarModeDocumentMapper(
-            fieldMapping(
-                b -> b.field("type", "keyword").field("ignore_above", 5).startObject("doc_values").field("multi_value", false).endObject()
-            )
+            fieldMapping(b -> b.field("type", "keyword").field("ignore_above", 5).field("multi_value", false))
         );
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
@@ -1277,9 +1273,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
      */
     public void testMultiValueFalseRejectsIgnoreAboveFallbackPlusNormal() throws IOException {
         DocumentMapper mapper = createColumnarModeDocumentMapper(
-            fieldMapping(
-                b -> b.field("type", "keyword").field("ignore_above", 5).startObject("doc_values").field("multi_value", false).endObject()
-            )
+            fieldMapping(b -> b.field("type", "keyword").field("ignore_above", 5).field("multi_value", false))
         );
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
@@ -1297,9 +1291,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
      */
     public void testMultiValueFalseRejectsTwoIgnoreAboveFallbacks() throws IOException {
         DocumentMapper mapper = createColumnarModeDocumentMapper(
-            fieldMapping(
-                b -> b.field("type", "keyword").field("ignore_above", 5).startObject("doc_values").field("multi_value", false).endObject()
-            )
+            fieldMapping(b -> b.field("type", "keyword").field("ignore_above", 5).field("multi_value", false))
         );
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
@@ -1319,9 +1311,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         IndexVersion preGate = IndexVersionUtils.getPreviousVersion(IndexVersions.IGNORE_ABOVE_NO_OP_IN_COLUMNAR);
         DocumentMapper mapper = createColumnarModeDocumentMapper(
             preGate,
-            fieldMapping(
-                b -> b.field("type", "keyword").field("ignore_above", 5).startObject("doc_values").field("multi_value", false).endObject()
-            )
+            fieldMapping(b -> b.field("type", "keyword").field("ignore_above", 5).field("multi_value", false))
         );
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
@@ -1341,9 +1331,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         IndexVersion preGate = IndexVersionUtils.getPreviousVersion(IndexVersions.IGNORE_ABOVE_NO_OP_IN_COLUMNAR);
         DocumentMapper mapper = createColumnarModeDocumentMapper(
             preGate,
-            fieldMapping(
-                b -> b.field("type", "keyword").field("ignore_above", 5).startObject("doc_values").field("multi_value", false).endObject()
-            )
+            fieldMapping(b -> b.field("type", "keyword").field("ignore_above", 5).field("multi_value", false))
         );
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
@@ -1363,9 +1351,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         IndexVersion preGate = IndexVersionUtils.getPreviousVersion(IndexVersions.IGNORE_ABOVE_NO_OP_IN_COLUMNAR);
         DocumentMapper mapper = createColumnarModeDocumentMapper(
             preGate,
-            fieldMapping(
-                b -> b.field("type", "keyword").field("ignore_above", 5).startObject("doc_values").field("multi_value", false).endObject()
-            )
+            fieldMapping(b -> b.field("type", "keyword").field("ignore_above", 5).field("multi_value", false))
         );
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
@@ -1379,9 +1365,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
     public void testMultiValueFalseAcceptsSingleIgnoreAboveValue() throws IOException {
         DocumentMapper mapper = createColumnarModeDocumentMapper(
-            fieldMapping(
-                b -> b.field("type", "keyword").field("ignore_above", 5).startObject("doc_values").field("multi_value", false).endObject()
-            )
+            fieldMapping(b -> b.field("type", "keyword").field("ignore_above", 5).field("multi_value", false))
         );
         String value = randomAlphanumericOfLength(20);
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", value)));
@@ -1392,9 +1376,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testMultiValueFalseAcceptsSingleNull() throws IOException {
-        DocumentMapper mapper = createColumnarModeDocumentMapper(
-            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject())
-        );
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", "keyword").field("multi_value", false)));
         mapper.parse(source(b -> b.nullField("field")));
     }
 
@@ -1406,7 +1388,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createColumnarModeDocumentMapper(mapping(b -> {
             b.startObject("parent").field("type", "keyword");
             b.startObject("fields");
-            b.startObject("child").field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject().endObject();
+            b.startObject("child").field("type", "keyword").field("multi_value", false).endObject();
             b.endObject();
             b.endObject();
         }));
@@ -1424,7 +1406,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createColumnarModeDocumentMapper(mapping(b -> {
             b.startObject("parent").field("type", "keyword");
             b.startObject("fields");
-            b.startObject("child").field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject().endObject();
+            b.startObject("child").field("type", "keyword").field("multi_value", false).endObject();
             b.endObject();
             b.endObject();
         }));
@@ -1437,7 +1419,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
      */
     public void testMultiValueFalseOnParentWithMultiFieldRejectsParentArray() throws IOException {
         DocumentMapper mapper = createColumnarModeDocumentMapper(mapping(b -> {
-            b.startObject("parent").field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject();
+            b.startObject("parent").field("type", "keyword").field("multi_value", false);
             b.startObject("fields");
             b.startObject("child").field("type", "keyword").endObject();
             b.endObject();
@@ -1465,7 +1447,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         Settings columnarSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         MapperService mapperService = createMapperService(
             columnarSettings,
-            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject())
+            fieldMapping(b -> b.field("type", "keyword").field("multi_value", false))
         );
         DocumentMapper mapper = mapperService.documentMapper();
 

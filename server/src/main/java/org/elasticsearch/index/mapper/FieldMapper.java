@@ -1960,20 +1960,15 @@ public abstract class FieldMapper extends Mapper {
          * <ul>
          *   <li>{@code "doc_values": false} - doc_values disabled</li>
          *   <li>{@code "doc_values": true} - doc_values enabled with defaults</li>
-         *   <li>{@code "doc_values": { "multi_value": true }} - allow multiple values per document (default; columnar only)</li>
-         *   <li>{@code "doc_values": { "multi_value": false }} - reject any document that has more than one value for the
-         *       field (columnar only)</li>
-         *   <li>{@code "doc_values": { "nullability": true }} - allow documents to omit the field or supply null (default;
-         *       columnar only)</li>
-         *   <li>{@code "doc_values": { "nullability": false }} - reject any document that omits the field or supplies null
-         *       (columnar only)</li>
-         *   <li>{@code "doc_values": { "on_failure": "fail" }} - reject the document if it violates multi_value/nullability
-         *       (default; columnar only)</li>
-         *   <li>{@code "doc_values": { "on_failure": "ignore" }} - route the offending value to a per-field failure column
+         *   <li>{@code "multi_value": true} - allow multiple values per document (default; columnar only)</li>
+         *   <li>{@code "multi_value": false} - reject any document that has more than one value for the field (columnar only)</li>
+         *   <li>{@code "nullability": true} - allow documents to omit the field or supply null (default; columnar only)</li>
+         *   <li>{@code "nullability": false} - reject any document that omits the field or supplies null (columnar only)</li>
+         *   <li>{@code "on_failure": "fail"} - reject the document if it violates multi_value/nullability (default; columnar only)</li>
+         *   <li>{@code "on_failure": "ignore"} - route the offending value to a per-field failure column
          *       (columnar only; see {@link DocumentParserContext#enforceSingleValue}).</li>
-         *   <li>{@code "multi_value": false} - same as the object form but as a top-level attribute (new indices only)</li>
-         *   <li>{@code "nullability": false} - same as the object form but as a top-level attribute (new indices only)</li>
-         *   <li>{@code "on_failure": "ignore"} - same as the object form but as a top-level attribute (new indices only)</li>
+         *   <li>Legacy nested form: {@code "doc_values": { "multi_value": false }} etc. — still accepted for backwards
+         *       compatibility but no longer emitted for new indices.</li>
          * </ul>
          * <p>
          * The map branch (nested {@code doc_values: {...}}) sets sub-parameters via {@code setValue} directly to avoid

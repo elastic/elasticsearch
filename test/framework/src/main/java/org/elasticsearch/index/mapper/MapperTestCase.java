@@ -2387,7 +2387,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
         DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
         }));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", getSampleValueForDocument())));
         assertEquals(1, doc.rootDoc().getFields("field").stream().filter(f -> f.fieldType().docValuesType() != DocValuesType.NONE).count());
@@ -2397,7 +2397,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
         DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
         }));
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
@@ -2413,7 +2413,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
         DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
         }));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", getSampleValueForDocument())));
         List<IndexableField> fields = doc.rootDoc().getFields("field");
@@ -2453,7 +2453,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build(),
             fieldMapping(b -> {
                 minimalMapping(b);
-                b.startObject("doc_values").field("multi_value", false).endObject();
+                b.field("multi_value", false);
             })
         );
         MapperService defaults = createMapperService(fieldMapping(this::minimalMapping));
@@ -2487,7 +2487,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assumeTrue("mapper must accept null values", allowsNullValues());
         DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
         }));
         ParsedDocument doc = mapper.parse(source(b -> b.startArray("field").nullValue().value(getSampleValueForDocument()).endArray()));
         assertThat("null discarded: no multi_value violation", doc.rootDoc().getFields("_ignored"), empty());
@@ -2502,7 +2502,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assumeTrue("mapper must accept null values", allowsNullValues());
         DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
         }));
         ParsedDocument doc = mapper.parse(source(b -> b.startArray("field").value(getSampleValueForDocument()).nullValue().endArray()));
         assertThat("null discarded: no multi_value violation", doc.rootDoc().getFields("_ignored"), empty());
@@ -2561,7 +2561,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     private XContentBuilder nullabilityFalseMapping() throws IOException {
         return fieldMapping(b -> {
             minimalMapping(b);
-            b.startObject("doc_values").field("nullability", false).endObject();
+            b.field("nullability", false);
         });
     }
 
@@ -2581,7 +2581,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     private XContentBuilder onFailureIgnoreMapping(String enforcedParameter) throws IOException {
         return fieldMapping(b -> {
             minimalMapping(b);
-            b.startObject("doc_values").field(enforcedParameter, false).field("on_failure", "ignore").endObject();
+            b.field(enforcedParameter, false).field("on_failure", "ignore");
         });
     }
 

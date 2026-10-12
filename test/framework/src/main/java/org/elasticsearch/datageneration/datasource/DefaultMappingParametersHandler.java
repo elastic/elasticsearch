@@ -113,7 +113,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         return () -> {
             var mapping = commonMappingParameters();
 
-            mapping.put("doc_values", extendedDocValuesParams());
+            putExtendedDocValuesParams(mapping);
 
             // Inject copy_to sometimes but reflect that it is not widely used in reality.
             // We only add copy_to to keywords because we get into trouble with numeric fields that are copied to dynamic fields.
@@ -246,7 +246,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         return () -> {
             var mapping = commonMappingParameters();
 
-            mapping.put("doc_values", extendedDocValuesParams());
+            putExtendedDocValuesParams(mapping);
 
             if (ESTestCase.randomDouble() <= 0.2) {
                 mapping.put("null_value", NetworkAddress.format(ESTestCase.randomIp(ESTestCase.randomBoolean())));
@@ -339,20 +339,72 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         };
     }
 
-    protected Object extendedDocValuesParams() {
+    /**
+     * Puts extended doc-values sub-parameters into the field mapping.
+     *
+     * <p>In the default (top-level) mode, sub-parameters ({@code multi_value}, {@code nullability},
+     * {@code on_failure}) are emitted directly on the mapping map alongside {@code doc_values}.
+     * When {@link #supportsTopLevelDocValuesAttributes()} returns {@code false} (e.g. when the old
+     * cluster in a rolling-upgrade suite does not yet understand top-level attributes), the legacy
+     * nested {@code doc_values: {...}} object form is used instead.
+     *
+     * <p>Note: {@code multi_value: false} is handled by {@code SingleValueDocValuesDataSourceHandler};
+     * this method only sets {@code multi_value: true} (the default) when explicitly chosen.
+     */
+    protected void putExtendedDocValuesParams(Map<String, Object> mapping) {
         if (indexMode.isStrictColumnar() == false) {
-            // The object form (including multi_value) is only valid in strict-columnar mode.
-            return ESTestCase.randomBoolean();
+            // Sub-params are only valid in strict-columnar mode; nothing to add.
+            return;
         }
 
-        // doc_values can't be disabled here; multi_value:false is in SingleValueDocValuesDataSourceHandler.
-        var choices = new ArrayList<Object>(List.of(true, Map.of("multi_value", true)));
-        if (supportsOnFailure()) {
-            choices.add(Map.of("on_failure", ESTestCase.randomFrom("fail", "ignore")));
-            choices.add(Map.of("multi_value", true, "on_failure", ESTestCase.randomFrom("fail", "ignore")));
-            choices.add(Map.of("nullability", false, "on_failure", "ignore"));
+        if (supportsTopLevelDocValuesAttributes() == false) {
+            // Old cluster: use the legacy nested doc_values object form.
+            var choices = new ArrayList<Object>(List.of(true, Map.of("multi_value", true)));
+            if (supportsOnFailure()) {
+                choices.add(Map.of("on_failure", ESTestCase.randomFrom("fail", "ignore")));
+                choices.add(Map.of("multi_value", true, "on_failure", ESTestCase.randomFrom("fail", "ignore")));
+                choices.add(Map.of("nullability", false, "on_failure", "ignore"));
+            }
+            mapping.put("doc_values", ESTestCase.randomFrom(choices));
+            return;
         }
-        return ESTestCase.randomFrom(choices);
+
+        // Columnar + top-level attributes: doc_values is already true from commonMappingParameters;
+        // randomly add sub-params directly on the mapping map.
+        // doc_values can't be disabled here; multi_value:false is in SingleValueDocValuesDataSourceHandler.
+        if (supportsOnFailure() == false) {
+            // No sub-params to add; just leave doc_values: true from commonMappingParameters.
+            if (ESTestCase.randomBoolean()) {
+                mapping.put("multi_value", true);
+            }
+            return;
+        }
+        var choices = new ArrayList<Runnable>(
+            List.of(
+                () -> {},
+                () -> mapping.put("multi_value", true),
+                () -> mapping.put("on_failure", ESTestCase.randomFrom("fail", "ignore")),
+                () -> {
+                    mapping.put("multi_value", true);
+                    mapping.put("on_failure", ESTestCase.randomFrom("fail", "ignore"));
+                },
+                () -> {
+                    mapping.put("nullability", false);
+                    mapping.put("on_failure", "ignore");
+                }
+            )
+        );
+        ESTestCase.randomFrom(choices).run();
+    }
+
+    /**
+     * Returns {@code true} if the target cluster supports top-level doc-values attributes
+     * ({@code multi_value}, {@code nullability}, {@code on_failure} at field level rather than
+     * nested under {@code doc_values: {...}}).
+     * Override in mixed-version tests to gate on the old cluster's capabilities.
+     */
+    protected boolean supportsTopLevelDocValuesAttributes() {
+        return true;
     }
 
     /**

@@ -25,8 +25,7 @@
             properties:
               rank:
                 type: integer
-                doc_values:
-                  multi_value: false
+                multi_value: false
   - do:
       cluster.health:
         index: test
@@ -167,8 +166,7 @@
             properties:
               tag:
                 type: keyword
-                doc_values:
-                  multi_value: false
+                multi_value: false
 
   - do:
       cluster.health:
@@ -305,8 +303,7 @@
                 type: keyword
               rank:
                 type: integer
-                doc_values:
-                  multi_value: false
+                multi_value: false
 
   - do:
       cluster.health:

@@ -226,11 +226,11 @@ public class HollowIndexEngine extends Engine {
 
     @Override
     public List<Segment> segments() {
-        return segments(true);
+        return segments(true, false);
     }
 
     @Override
-    public List<Segment> segments(boolean includeVectorFormatsInfo) {
+    public List<Segment> segments(boolean includeVectorFormatsInfo, boolean includeAutoCalibration) {
         throw new UnsupportedOperationException("hollow shard does not support reading segments");
     }
 

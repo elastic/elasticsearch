@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
-  - 160116
-pr: 157233
-summary: Fix METADATA behavior with subqueries and extend that to logical views
-type: bug

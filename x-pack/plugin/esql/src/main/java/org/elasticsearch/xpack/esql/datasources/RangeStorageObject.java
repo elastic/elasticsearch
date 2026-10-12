@@ -170,6 +170,18 @@ class RangeStorageObject implements StorageObject, ResumeBypassingStorageObject 
         Executor executor,
         ActionListener<DirectReadBuffer> listener
     ) {
+        return startReadBytesAsync(position, length, factory, executor, listener, false);
+    }
+
+    @Override
+    public Releasable startReadBytesAsync(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener,
+        boolean barge
+    ) {
         if (position >= this.length) {
             // Allocate a zero-length buffer through the factory so the returned DirectReadBuffer
             // is direct and allocator-owned, consistent with the StorageObject.readBytesAsync
@@ -182,7 +194,7 @@ class RangeStorageObject implements StorageObject, ResumeBypassingStorageObject 
             return () -> {};
         }
         long cappedLength = Math.min(length, this.length - position);
-        return delegate.startReadBytesAsync(Math.addExact(offset, position), cappedLength, factory, executor, listener);
+        return delegate.startReadBytesAsync(Math.addExact(offset, position), cappedLength, factory, executor, listener, barge);
     }
 
     @Override

@@ -53,7 +53,8 @@ final class TransientTypingInputStream extends FilterInputStream implements Abor
     private final long expectedLength;
     /**
      * Bytes delivered to the caller. A single reader thread updates this; a close from another
-     * thread may see a stale count and bias toward drain, which is harmless for LIMIT remainders.
+     * thread may see a stale (lower) count, overestimate leftover, and bias toward abort.
+     * Harmless for LIMIT remainders, which are huge enough to abort anyway.
      */
     private volatile long bytesRead;
     private final AtomicBoolean terminal = new AtomicBoolean();

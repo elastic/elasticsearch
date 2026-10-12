@@ -50,11 +50,12 @@ final class FileListCompactor {
         if (raw == null || raw.isResolved() == false || raw.fileCount() == 0) {
             return raw;
         }
-        // Neither compacted encoding carries the truncation flag, so compacting would report a bounded listing as
-        // a complete one. Refused here rather than at the caller so a future caller cannot drop the flag. The
-        // cost: a listing bounded at a raised partition_sample_size is carried uncompacted through planning.
-        // Teaching the encodings to carry the flag would remove the trade-off.
-        if (raw.isTruncated()) {
+        // Neither compacted encoding carries the truncation flag or the inference-anchor flag, so compacting
+        // would report a bounded listing or a one-file schema stash as a complete dataset. Refused here rather
+        // than at the caller so a future caller cannot drop the flag. The cost: a listing bounded at a raised
+        // partition_sample_size is carried uncompacted through planning. Teaching the encodings to carry the
+        // flag would remove the trade-off.
+        if (raw.isTruncated() || raw.isInferenceAnchor()) {
             return raw;
         }
         String normalizedBase = normalizeBase(basePath);

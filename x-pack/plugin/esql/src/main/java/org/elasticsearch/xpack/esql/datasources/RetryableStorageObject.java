@@ -27,9 +27,11 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -116,7 +118,9 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
             // providers surface breaker trips through this path) double-surfacing as both storage.errors and
             // breaker.tripped. The backoff was spent regardless of the fault type, so the read-stall is always
             // recorded.
-            if (failure instanceof IOException || failure instanceof ExternalUnavailableException) {
+            // A permit timeout (LOCAL_CAPACITY) is this node's own admission limit, not a store fault, so it stays out of
+            // storage.errors / storage.throttled, which describe the store. Its backoff is still a real read stall.
+            if (isStorageFault(failure)) {
                 retryCounters.addError();
                 if (RetryPolicy.isThrottlingError(failure)) {
                     retryCounters.addThrottled();
@@ -128,6 +132,13 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
             // isThrottlingError (not itself guarded), so a throw here must never strand the listener.
             logger.trace("telemetry: recordTerminalFailure failed", e);
         }
+    }
+
+    private static boolean isStorageFault(Throwable failure) {
+        if (failure instanceof ExternalUnavailableException unavailable) {
+            return unavailable.condition() != Condition.LOCAL_CAPACITY;
+        }
+        return failure instanceof IOException;
     }
 
     RetryableStorageObject(StorageObject delegate, RetryPolicy retryPolicy) {
@@ -321,7 +332,7 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
     ) {
         AtomicBoolean cancelled = new AtomicBoolean();
         AtomicReference<InflightSlot> inflight = new AtomicReference<>(InflightSlot.NONE);
-        readBytesAsyncWithRetry(position, length, factory, executor, listener, 0, System.nanoTime(), 0L, inflight, cancelled);
+        readBytesAsyncWithRetry(position, length, factory, executor, listener, 0, System.nanoTime(), 0L, 0L, inflight, cancelled);
         return () -> {
             cancelled.set(true);
             inflight.get().handle().close();
@@ -361,6 +372,7 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
         int attempt,
         long startNanos,
         long accumulatedBackoffMillis,
+        long admissionDeadlineNanos,
         AtomicReference<InflightSlot> inflight,
         AtomicBoolean cancelled
     ) {
@@ -368,7 +380,42 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
             listener.onFailure(new TaskCancelledException(StorageRetryCancellation.CANCELLED_MESSAGE));
             return;
         }
-        Releasable inner = delegate.startReadBytesAsync(position, length, factory, executor, new ActionListener<>() {
+        Releasable inner = startDelegateRead(
+            position,
+            length,
+            factory,
+            executor,
+            listener,
+            attempt,
+            startNanos,
+            accumulatedBackoffMillis,
+            admissionDeadlineNanos,
+            inflight,
+            cancelled
+        );
+        registerInflight(attempt, inner, inflight, cancelled);
+    }
+
+    /**
+     * First attempt uses a blocking permit wait. Retries barge ({@link ConcurrencyLimiter#tryAcquire()})
+     * so the continuation never parks. A miss waits on {@link StorageObject#admissionWaitTimeoutMs()}
+     * without consuming a storage retry attempt or recording retry/error metrics. The node permit
+     * is not held across attempts.
+     */
+    private Releasable startDelegateRead(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener,
+        int attempt,
+        long startNanos,
+        long accumulatedBackoffMillis,
+        long admissionDeadlineNanos,
+        AtomicReference<InflightSlot> inflight,
+        AtomicBoolean cancelled
+    ) {
+        ActionListener<DirectReadBuffer> retryingListener = new ActionListener<>() {
             @Override
             public void onResponse(DirectReadBuffer result) {
                 retryPolicy.notifySuccess();
@@ -397,6 +444,23 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
                     listener.onFailure(e);
                     return;
                 }
+                if (e instanceof ConcurrencyLimiter.PermitMissException miss) {
+                    scheduleAdmissionRetry(
+                        miss,
+                        position,
+                        length,
+                        factory,
+                        executor,
+                        listener,
+                        attempt,
+                        startNanos,
+                        accumulatedBackoffMillis,
+                        admissionDeadlineNanos,
+                        inflight,
+                        cancelled
+                    );
+                    return;
+                }
                 // One shared decision point (classify, budget, backoff) for every driver. The delegate has
                 // already released its DirectReadBuffer on the failure path, so a retry simply allocates a
                 // fresh one via the factory on the next attempt — nothing to release here.
@@ -421,6 +485,7 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
                 // and the listener never completes. Benign only because that happens solely at node shutdown,
                 // which abandons (not awaits) query futures and reclaims all state on JVM exit. Revisit if
                 // graceful query drain is ever added — a stranded listener would then stall shutdown.
+                // Fresh storage attempt: reset the admission deadline so this hop gets a full permit wait.
                 try {
                     retryScheduler.schedule(
                         () -> readBytesAsyncWithRetry(
@@ -432,6 +497,7 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
                             attempt + 1,
                             startNanos,
                             accumulatedBackoffMillis + decision.delayMillis(),
+                            0L,
                             inflight,
                             cancelled
                         ),
@@ -446,8 +512,68 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
                     listener.onFailure(rejected);
                 }
             }
-        });
-        registerInflight(attempt, inner, inflight, cancelled);
+        };
+        return delegate.startReadBytesAsync(position, length, factory, executor, retryingListener, attempt > 0);
+    }
+
+    /**
+     * Barge missed the node permit. Wait on {@link StorageObject#admissionWaitTimeoutMs()} with the
+     * same attempt number; do not count a storage retry. Deadline 0 means this is the first miss of
+     * the hop and starts the clock.
+     */
+    private void scheduleAdmissionRetry(
+        ConcurrencyLimiter.PermitMissException miss,
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener,
+        int attempt,
+        long startNanos,
+        long accumulatedBackoffMillis,
+        long admissionDeadlineNanos,
+        AtomicReference<InflightSlot> inflight,
+        AtomicBoolean cancelled
+    ) {
+        long now = retryPolicy.nanoTime();
+        long deadline = admissionDeadlineNanos != 0L
+            ? admissionDeadlineNanos
+            : now + TimeUnit.MILLISECONDS.toNanos(Math.max(0L, delegate.admissionWaitTimeoutMs()));
+        long remainingMs = TimeUnit.NANOSECONDS.toMillis(deadline - now);
+        if (remainingMs <= 0L) {
+            ExternalUnavailableException timedOut = miss.toUnavailable();
+            recordTerminalFailure(timedOut, accumulatedBackoffMillis);
+            listener.onFailure(timedOut);
+            return;
+        }
+        long delay = retryPolicy.delayMillis(0);
+        if (delay <= 0L) {
+            delay = 1L;
+        }
+        delay = Math.min(delay, remainingMs);
+        logger.debug("waiting for concurrency permit for [{}] (delay [{}]ms, remaining [{}]ms)", delegate.path(), delay, remainingMs);
+        try {
+            retryScheduler.schedule(
+                () -> readBytesAsyncWithRetry(
+                    position,
+                    length,
+                    factory,
+                    executor,
+                    listener,
+                    attempt,
+                    startNanos,
+                    accumulatedBackoffMillis,
+                    deadline,
+                    inflight,
+                    cancelled
+                ),
+                delay,
+                executor
+            );
+        } catch (Exception rejected) {
+            recordTerminalFailure(rejected, accumulatedBackoffMillis);
+            listener.onFailure(rejected);
+        }
     }
 
     @Override
@@ -689,29 +815,11 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
                 // Open-ended (to-EOF) mode: re-open [resumeFrom, end] as an open-ended range; the underlying
                 // stream's EOF marks completion. If the fault landed exactly at EOF, the provider answers the
                 // past-the-end open-ended read with an empty stream.
-                adoptResume(
-                    retryPolicy.execute(
-                        () -> openResume(resumeFrom, READ_TO_END),
-                        "newStream(resume-open)",
-                        delegate.path(),
-                        retryCounters::addRetry,
-                        storageTelemetry
-                    )
-                );
+                adoptResume(openResumeAdmitted(resumeFrom, READ_TO_END, "newStream(resume-open)"));
             } else {
                 long remaining = length - delivered;
                 // If everything was delivered, an empty stream is EOF.
-                adoptResume(
-                    remaining > 0
-                        ? retryPolicy.execute(
-                            () -> openResume(resumeFrom, remaining),
-                            "newStream(resume)",
-                            delegate.path(),
-                            retryCounters::addRetry,
-                            storageTelemetry
-                        )
-                        : InputStream.nullInputStream()
-                );
+                adoptResume(remaining > 0 ? openResumeAdmitted(resumeFrom, remaining, "newStream(resume)") : InputStream.nullInputStream());
             }
             retryCounters.addRetry();
             failuresSinceProgress++;
@@ -726,11 +834,86 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
             ensureGenerationConsistent();
         }
 
-        private InputStream openResume(long resumeFrom, long resumeLength) throws IOException {
-            if (aborted) {
-                throw new IOException("read aborted");
+        /**
+         * Resume re-open: barge ({@link ConcurrencyLimiter#tryAcquire()}) then poll until a permit
+         * or {@link StorageObject#admissionWaitTimeoutMs()}. The poll lives inside one
+         * {@link RetryPolicy#execute} supplier so a 503 whose retry then misses the permit cannot
+         * restart execute at attempt 0 and keep issuing GETs until the admission clock.
+         * {@link ConcurrencyLimiter.PermitMissException} is not an
+         * {@link ExternalUnavailableException}, so {@code decide} will not retry it as a store fault.
+         * <p>
+         * Sync analogue of {@link #scheduleAdmissionRetry}, not an async ticket. Resume runs inside
+         * {@link InputStream#read}; there is no listener to hop onto {@code retryScheduler} without
+         * still occupying this reader thread. {@link ConcurrencyLimiter#acquireAsync}{@code .join()}
+         * is not used: the grant forks onto {@code esql_external_io}, the same pool the segmentator
+         * already holds, so a pool of join-waiters would deadlock. Barge skips the fair queue;
+         * the poll still pins this thread up to the admission timeout, cancellable each
+         * {@link StorageRetryCancellation#POLL_INTERVAL_MS}.
+         */
+        private InputStream openResumeAdmitted(long resumeFrom, long resumeLength, String operationName) throws IOException {
+            long timeoutMs = Math.max(1L, delegate.admissionWaitTimeoutMs());
+            long deadlineNanos = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs);
+            try {
+                return retryPolicy.execute(
+                    () -> openResumeOnce(resumeFrom, resumeLength, deadlineNanos),
+                    operationName,
+                    delegate.path(),
+                    retryCounters::addRetry,
+                    storageTelemetry
+                );
+            } catch (UncheckedIOException uio) {
+                if (uio.getCause() instanceof IOException io) {
+                    throw io;
+                }
+                throw uio;
+            } catch (ConcurrencyLimiter.PermitMissException miss) {
+                ExternalUnavailableException timedOut = miss.toUnavailable();
+                recordTerminalFailure(timedOut, 0L);
+                throw timedOut;
             }
-            return delegate.newStream(resumeFrom, resumeLength);
+        }
+
+        /**
+         * One execute attempt: barge, poll on miss, GET only after a permit. Admission timeout
+         * throws {@link ConcurrencyLimiter.PermitMissException} so execute does not treat it as a
+         * retryable store fault. Abort/interrupt wrap as {@link UncheckedIOException} so
+         * execute does not retry them as {@link IOException}.
+         */
+        private InputStream openResumeOnce(long resumeFrom, long resumeLength, long deadlineNanos) throws IOException {
+            while (true) {
+                if (aborted) {
+                    throw new UncheckedIOException(new IOException("read aborted"));
+                }
+                try {
+                    return StoragePermitBarge.call(() -> delegate.newStream(resumeFrom, resumeLength));
+                } catch (ConcurrencyLimiter.PermitMissException miss) {
+                    if (aborted) {
+                        throw new UncheckedIOException(new IOException("read aborted"));
+                    }
+                    if (System.nanoTime() >= deadlineNanos) {
+                        throw miss;
+                    }
+                    long remainingMs = Math.max(1L, TimeUnit.NANOSECONDS.toMillis(deadlineNanos - System.nanoTime()));
+                    try {
+                        StorageRetryCancellation.sleepWithCancellationChecks(
+                            Math.min(StorageRetryCancellation.POLL_INTERVAL_MS, remainingMs)
+                        );
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new UncheckedIOException(
+                            new IOException(
+                                "interrupted while waiting for a concurrency permit to resume read of ["
+                                    + delegate.path().objectName()
+                                    + "]",
+                                ie
+                            )
+                        );
+                    }
+                    if (aborted) {
+                        throw new UncheckedIOException(new IOException("read aborted"));
+                    }
+                }
+            }
         }
 
         private void adoptResume(InputStream opened) throws IOException {

@@ -47,7 +47,7 @@ public final class ConfigKeyValidator {
      * {@link #check} skips these keys so that a report names only settings the user wrote, which also means it never
      * rejects one they wrote that looks like a framework key. A map straight from a query must therefore be stripped
      * before anything reads a framework key out of it, or a user-supplied value is indistinguishable from an injected
-     * one: {@code _definition_version} reaches a cache key through {@code SchemaCacheKey.definitionVersionOf}, and a
+     * one: {@code _definition_version} reaches a cache key through {@code DatasetIdentity.definitionVersionOf}, and a
      * forged value equal to a registered dataset's version addresses that dataset's entries. Stripped rather than
      * rejected because the key belongs to the framework, so there is nothing to tell the user about it.
      * <p>

@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -61,7 +62,12 @@ public class TransportFlushAction extends TransportBroadcastReplicationAction<
 
     @Override
     protected ShardFlushRequest newShardRequest(FlushRequest request, ShardId shardId, SplitShardCountSummary shardCountSummary) {
-        return new ShardFlushRequest(request, shardId, shardCountSummary);
+        ShardFlushRequest shardRequest = new ShardFlushRequest(request, shardId, shardCountSummary);
+        final TimeValue timeout = request.timeout();
+        if (timeout != null) {
+            shardRequest.timeout(timeout);
+        }
+        return shardRequest;
     }
 
     @Override

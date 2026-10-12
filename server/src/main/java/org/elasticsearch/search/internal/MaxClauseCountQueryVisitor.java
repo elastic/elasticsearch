@@ -25,9 +25,12 @@ import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.lucene.queries.BinaryDocValuesScanCost;
 import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.lucene.search.cost.PointRangeQueryCostEstimator;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -69,6 +72,13 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
      */
     private final int segmentCount;
 
+    /** Reader to probe for a {@link BinaryDocValuesScanCost} field's real decode-block size; {@code null} to skip. */
+    @Nullable
+    private final IndexReader reader;
+
+    /** Per-field cache of the resolved decode-bytes estimate, so many clauses on one field probe it only once. */
+    private final Map<String, Long> binaryDvDecodeBytesCache = new HashMap<>();
+
     public MaxClauseCountQueryVisitor(int maxClauseCount) {
         this(maxClauseCount, null);
     }
@@ -87,10 +97,21 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
         @Nullable Predicate<Query> preCharged,
         int segmentCount
     ) {
+        this(maxClauseCount, breaker, preCharged, segmentCount, null);
+    }
+
+    public MaxClauseCountQueryVisitor(
+        int maxClauseCount,
+        @Nullable CircuitBreaker breaker,
+        @Nullable Predicate<Query> preCharged,
+        int segmentCount,
+        @Nullable IndexReader reader
+    ) {
         this.maxClauseCount = maxClauseCount;
         this.breaker = breaker;
         this.preCharged = preCharged;
         this.segmentCount = segmentCount;
+        this.reader = reader;
     }
 
     public static int segmentCountOrDefault(@Nullable IndexReader reader) {
@@ -156,6 +177,12 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
             bytes = FuzzyQueries.estimateBytes(fq, segmentCount);
         } else if (query instanceof PointRangeQuery prq) {
             bytes = new PointRangeQueryCostEstimator(prq.getNumDims(), prq.getBytesPerDim()).estimate();
+        } else if (query instanceof BinaryDocValuesScanCost s) {
+            long decodeBytes = binaryDvDecodeBytesCache.computeIfAbsent(
+                s.field(),
+                f -> BinaryDocValuesScanCost.estimateDecodeBytes(f, reader)
+            );
+            bytes = RamUsageEstimator.shallowSizeOf(query) + decodeBytes;
         } else if (query instanceof Accountable a) {
             bytes = a.ramBytesUsed();
         } else {

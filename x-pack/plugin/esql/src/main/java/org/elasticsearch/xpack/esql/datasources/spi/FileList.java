@@ -177,6 +177,20 @@ public interface FileList {
     }
 
     /**
+     * Whether this listing is a one-file schema-inference anchor: partition hints proved no folder matches, but
+     * the resolver still needs a file to infer schema. The leftover file is not the dataset; stats over it are
+     * partial, compaction is refused, and it must not be confused with a genuine one-file glob. Split discovery
+     * still applies the query's partition filter; a certified miss scans nothing.
+     * <p>
+     * Under {@code union_by_name} and {@code strict} the declared columns are this leftover file's, not the
+     * union (or cross-file check) across the glob. Rows are empty either way; {@code LIMIT 0} / {@code columns()}
+     * report the leftover schema. That is the accepted trade-off against re-listing the glob unfiltered.
+     */
+    default boolean isInferenceAnchor() {
+        return false;
+    }
+
+    /**
      * Heap one listed entry occupies: the path String, an Instant and a long. Shared so the walk that reserves for
      * an entry, the list that reports what it holds, and the resolution that tops that up cannot drift apart.
      */

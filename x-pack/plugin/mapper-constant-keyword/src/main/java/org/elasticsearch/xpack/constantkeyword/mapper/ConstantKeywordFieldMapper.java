@@ -364,6 +364,14 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             }
         }
 
+        @Override
+        public ConstantFieldType applyFieldVisibility(boolean visible) {
+            if (visible || value == null) {
+                return this;
+            } else {
+                return new ConstantKeywordFieldType(name(), null, meta());
+            }
+        }
     }
 
     ConstantKeywordFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams) {

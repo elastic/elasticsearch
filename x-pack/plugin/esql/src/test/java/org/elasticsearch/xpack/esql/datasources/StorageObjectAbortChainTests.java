@@ -201,7 +201,7 @@ public class StorageObjectAbortChainTests extends ESTestCase {
 
         StorageObject chain = new RetryableStorageObject(raw, new RetryPolicy(3, 1, 10));
 
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         // Plain mode: the abort-chain contract is format-agnostic; macro-split discovery now refuses non-strided
         // (default/quoted) CSV. Plain CSV keeps strided probing.
         SegmentableFormatReader csvReader = (SegmentableFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("mode", "plain"));
@@ -255,7 +255,7 @@ public class StorageObjectAbortChainTests extends ESTestCase {
 
         StorageObject chain = new RetryableStorageObject(raw, new RetryPolicy(3, 1, 10));
 
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         // Plain mode: the abort-chain contract is format-agnostic; computeSegments now refuses non-strided
         // (default/quoted) CSV. Plain CSV keeps strided probing.
         SegmentableFormatReader csvReader = (SegmentableFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("mode", "plain"));

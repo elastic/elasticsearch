@@ -567,14 +567,16 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     ThreadPool threadPool,
                     TelemetryProvider telemetryProvider,
                     ClusterSettings clusterSettings,
-                    WarmingRatioProvider warmingRatioProvider
+                    WarmingRatioProvider warmingRatioProvider,
+                    SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
                 ) {
                     return new SharedBlobCacheWarmingService(
                         cacheService,
                         threadPool,
                         telemetryProvider(recordingMeterRegistry),
                         clusterSettings,
-                        warmingRatioProvider
+                        warmingRatioProvider,
+                        searchRecoveryTimeoutCalculationService
                     );
                 }
             }
@@ -1091,14 +1093,16 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 ThreadPool threadPool,
                 TelemetryProvider telemetryProvider,
                 ClusterSettings clusterSettings,
-                WarmingRatioProvider warmingRatioProvider
+                WarmingRatioProvider warmingRatioProvider,
+                SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
             ) {
                 return new SharedBlobCacheWarmingService(
                     cacheService,
                     threadPool,
                     telemetryProvider,
                     clusterSettings,
-                    warmingRatioProvider
+                    warmingRatioProvider,
+                    searchRecoveryTimeoutCalculationService
                 ) {
                     @Override
                     protected void scheduleWarmingTask(AbstractWarmingTask warmTask) {
@@ -1212,14 +1216,16 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 ThreadPool threadPool,
                 TelemetryProvider telemetryProvider,
                 ClusterSettings clusterSettings,
-                WarmingRatioProvider warmingRatioProvider
+                WarmingRatioProvider warmingRatioProvider,
+                SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
             ) {
                 return new SharedBlobCacheWarmingService(
                     cacheService,
                     threadPool,
                     telemetryProvider,
                     clusterSettings,
-                    warmingRatioProvider
+                    warmingRatioProvider,
+                    searchRecoveryTimeoutCalculationService
                 ) {
                     @Override
                     protected void scheduleWarmingTask(AbstractWarmingTask task) {
@@ -2125,14 +2131,16 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     ThreadPool threadPool,
                     TelemetryProvider telemetryProvider,
                     ClusterSettings clusterSettings,
-                    WarmingRatioProvider warmingRatioProvider
+                    WarmingRatioProvider warmingRatioProvider,
+                    SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
                 ) {
                     return new SharedBlobCacheWarmingService(
                         cacheService,
                         threadPool,
                         telemetryProvider(recordingMeterRegistry),
                         clusterSettings,
-                        warmingRatioProvider
+                        warmingRatioProvider,
+                        searchRecoveryTimeoutCalculationService
                     );
                 }
 
@@ -2319,14 +2327,16 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     ThreadPool threadPool,
                     TelemetryProvider telemetryProvider,
                     ClusterSettings clusterSettings,
-                    WarmingRatioProvider warmingRatioProvider
+                    WarmingRatioProvider warmingRatioProvider,
+                    SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
                 ) {
                     return new SharedBlobCacheWarmingService(
                         cacheService,
                         threadPool,
                         telemetryProvider(recordingMeterRegistry),
                         clusterSettings,
-                        warmingRatioProvider
+                        warmingRatioProvider,
+                        searchRecoveryTimeoutCalculationService
                     ) {
                         // Capture tasks instead of submitting them so we control exactly when each starts.
                         @Override
@@ -2578,14 +2588,16 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 ThreadPool threadPool,
                 TelemetryProvider telemetryProvider,
                 ClusterSettings clusterSettings,
-                WarmingRatioProvider warmingRatioProvider
+                WarmingRatioProvider warmingRatioProvider,
+                SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
             ) {
                 return new SharedBlobCacheWarmingService(
                     cacheService,
                     threadPool,
                     telemetryProvider(recordingMeterRegistry),
                     clusterSettings,
-                    warmingRatioProvider
+                    warmingRatioProvider,
+                    searchRecoveryTimeoutCalculationService
                 );
             }
 
@@ -2661,14 +2673,16 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 ThreadPool threadPool,
                 TelemetryProvider telemetryProvider,
                 ClusterSettings clusterSettings,
-                WarmingRatioProvider warmingRatioProvider
+                WarmingRatioProvider warmingRatioProvider,
+                SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
             ) {
                 return new SharedBlobCacheWarmingService(
                     cacheService,
                     threadPool,
                     telemetryProvider(recordingMeterRegistry),
                     clusterSettings,
-                    warmingRatioProvider
+                    warmingRatioProvider,
+                    searchRecoveryTimeoutCalculationService
                 );
             }
 
@@ -2782,14 +2796,16 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     ThreadPool threadPool,
                     TelemetryProvider telemetryProvider,
                     ClusterSettings clusterSettings,
-                    WarmingRatioProvider warmingRatioProvider
+                    WarmingRatioProvider warmingRatioProvider,
+                    SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
                 ) {
                     return new SharedBlobCacheWarmingService(
                         cacheService,
                         threadPool,
                         telemetryProvider(recordingMeterRegistry),
                         clusterSettings,
-                        warmingRatioProvider
+                        warmingRatioProvider,
+                        searchRecoveryTimeoutCalculationService
                     );
                 }
             }
@@ -3118,14 +3134,16 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 ThreadPool threadPool,
                 TelemetryProvider telemetryProvider,
                 ClusterSettings clusterSettings,
-                WarmingRatioProvider warmingRatioProvider
+                WarmingRatioProvider warmingRatioProvider,
+                SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
             ) {
                 return new SharedBlobCacheWarmingService(
                     cacheService,
                     threadPool,
                     telemetryProvider,
                     clusterSettings,
-                    warmingRatioProvider
+                    warmingRatioProvider,
+                    searchRecoveryTimeoutCalculationService
                 ) {
                     @Override
                     protected void scheduleWarmingTask(AbstractWarmingTask task) {
@@ -3203,14 +3221,16 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 ThreadPool threadPool,
                 TelemetryProvider telemetryProvider,
                 ClusterSettings clusterSettings,
-                WarmingRatioProvider warmingRatioProvider
+                WarmingRatioProvider warmingRatioProvider,
+                SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
             ) {
                 return new SharedBlobCacheWarmingService(
                     cacheService,
                     threadPool,
                     telemetryProvider,
                     clusterSettings,
-                    warmingRatioProvider
+                    warmingRatioProvider,
+                    searchRecoveryTimeoutCalculationService
                 ) {
                     @Override
                     protected void scheduleWarmingTask(AbstractWarmingTask task) {
@@ -3318,14 +3338,16 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 ThreadPool threadPool,
                 TelemetryProvider telemetryProvider,
                 ClusterSettings clusterSettings,
-                WarmingRatioProvider warmingRatioProvider
+                WarmingRatioProvider warmingRatioProvider,
+                SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
             ) {
                 return new SharedBlobCacheWarmingService(
                     cacheService,
                     threadPool,
                     telemetryProvider(recordingMeterRegistry),
                     clusterSettings,
-                    warmingRatioProvider
+                    warmingRatioProvider,
+                    searchRecoveryTimeoutCalculationService
                 );
             }
         }) {

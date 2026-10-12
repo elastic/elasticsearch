@@ -149,7 +149,7 @@ public class RegionDiscoveryIT extends ESRestTestCase {
      * Verifies region discovery on the exact-path (non-glob) dataset code path.
      *
      * <p>An exact-path resource bypasses {@code listObjects} entirely and goes through
-     * {@code probeFileMetadata → newObject}. Before this fix, {@code newObject} used the
+     * {@code readFileMetadata → newObject}. Before this fix, {@code newObject} used the
      * wrong-region client and the subsequent HeadObject/GET would fail with
      * {@code AuthorizationHeaderMalformed}. The fix makes {@code newObject} trigger a
      * HeadBucket probe (via {@code resolveClientsForBucket}) when no region has been

@@ -110,18 +110,6 @@ final class S3FailureDetail {
     }
 
     /**
-     * True when S3 refused the read because the object is in an archive storage class or tier and is not restored. The
-     * SDK builds an {@link InvalidObjectStateException} for that code whichever store sent it; the code is what is keyed
-     * on, whatever the status, since no other condition shares it.
-     */
-    /**
-     * Storage classes an object must be restored from before it can be read. A HEAD names the class in a header
-     * rather than refusing, so this is how the HEAD path reaches the conclusion {@link #isArchived} draws from a
-     * refused GET's error code. Instant-retrieval classes are readable and are deliberately absent.
-     */
-    private static final Set<String> ARCHIVE_STORAGE_CLASSES = Set.of("GLACIER", "DEEP_ARCHIVE");
-
-    /**
      * The remedy an archived object's refusal carries, shared by the refused-GET path and the HEAD path so one
      * wording serves both. {@code tier} is {@link #archivedTier}'s rendering, or empty when none is known.
      */
@@ -166,6 +154,11 @@ final class S3FailureDetail {
         return sb.toString();
     }
 
+    /**
+     * True when S3 refused the read because the object is in an archive storage class or tier and is not restored. The
+     * SDK builds an {@link InvalidObjectStateException} for that code whichever store sent it; the code is what is keyed
+     * on, whatever the status, since no other condition shares it.
+     */
     static boolean isArchived(S3Exception s3) {
         return "InvalidObjectState".equals(errorCode(s3));
     }

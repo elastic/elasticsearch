@@ -68,8 +68,9 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
      * fetch, so an install or clear takes effect immediately even for streams that were already
      * open when the install happened — which matters because parquet-mr opens the file's
      * {@code SeekableInputStream} during {@code ParquetFileReader.open}, before the caller has had
-     * a chance to install the cache. The map itself is expected to be unmodifiable (see
-     * {@link PreloadedRowGroupMetadata#preWarmedChunks()}).
+     * a chance to install the cache. The map is a live view: {@link
+     * PreloadedRowGroupMetadata#releaseRawBuffers()} clears it, so the adapter must
+     * {@link #installPreWarmedChunks}{@code (null)} first and must not treat the view as a snapshot.
      */
     private volatile NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> preWarmedChunks;
 
@@ -745,18 +746,16 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
 
         @Override
         public void close() throws IOException {
-            long charge = 0L;
+            long charge;
             synchronized (openStreams) {
-                if (closed == false) {
-                    closed = true;
-                    windowStart = -1;
-                    windowLength = 0;
-                    if (window != null) {
-                        charge = windowCharge;
-                        window = null;
-                    }
-                    openStreams.remove(this);
+                if (closed) {
+                    return;
                 }
+                closed = true;
+                windowStart = -1;
+                windowLength = 0;
+                charge = takeWindowCharge();
+                openStreams.remove(this);
             }
             refundWindowCharge(charge);
         }

@@ -103,6 +103,83 @@ public class LocalStorageProviderTests extends ESTestCase {
         assertNotNull(object.lastModified());
     }
 
+    /**
+     * The name-prefix listing must select the same files whichever way its directory is spelled.
+     * <p>
+     * One directory has several legitimate URI spellings, and the walk reports files under the canonical one. An
+     * implementation that selected by comparing the caller's spelling against those paths dropped every file for
+     * any spelling but one — and an empty listing is indistinguishable from an empty dataset, so nothing
+     * downstream could tell. Each spelling below must return the two matching files and not the third.
+     */
+    public void testNamePrefixSelectsTheSameFilesForEverySpellingOfTheDirectory() throws IOException {
+        Path dir = createTempDir();
+        Files.writeString(dir.resolve("part-0000.csv"), "a\n");
+        Files.writeString(dir.resolve("part-0001.csv"), "b\n");
+        Files.writeString(dir.resolve("other-0000.csv"), "c\n");
+        String abs = dir.toAbsolutePath().toString();
+
+        List<String> spellings = List.of(
+            "file://" + abs,
+            "file://" + abs + "/",
+            "file:///" + abs.replaceFirst("^/", ""),
+            "file://localhost" + abs,
+            "file://localhost" + abs + "/",
+            "file://" + abs + "//"
+        );
+
+        try (LocalStorageProvider provider = new LocalStorageProvider()) {
+            for (String spelling : spellings) {
+                List<String> names = new ArrayList<>();
+                try (StorageIterator it = provider.listObjects(StoragePath.of(spelling), "part-", false)) {
+                    while (it.hasNext()) {
+                        names.add(it.next().path().objectName());
+                    }
+                }
+                names.sort(String::compareTo);
+                assertEquals("spelling [" + spelling + "] must select the matching files", 2, names.size());
+                assertEquals(List.of("part-0000.csv", "part-0001.csv"), names);
+            }
+        }
+    }
+
+    /** An empty name prefix selects everything, which is what the two-argument form delegates to. */
+    public void testAnEmptyNamePrefixSelectsEveryFile() throws IOException {
+        Path dir = createTempDir();
+        Files.writeString(dir.resolve("a.csv"), "a\n");
+        Files.writeString(dir.resolve("b.csv"), "b\n");
+
+        try (LocalStorageProvider provider = new LocalStorageProvider()) {
+            int seen = 0;
+            try (StorageIterator it = provider.listObjects(StoragePath.of("file://" + dir.toAbsolutePath()), "", false)) {
+                while (it.hasNext()) {
+                    it.next();
+                    seen++;
+                }
+            }
+            assertEquals(2, seen);
+        }
+    }
+
+    /** A name prefix spanning a directory selects under it, so a recursive listing can be narrowed by folder. */
+    public void testANamePrefixCanSpanADirectory() throws IOException {
+        Path dir = createTempDir();
+        Files.createDirectories(dir.resolve("date=2024-01-05"));
+        Files.createDirectories(dir.resolve("date=2023-07-01"));
+        Files.writeString(dir.resolve("date=2024-01-05").resolve("part.csv"), "a\n");
+        Files.writeString(dir.resolve("date=2023-07-01").resolve("part.csv"), "b\n");
+
+        try (LocalStorageProvider provider = new LocalStorageProvider()) {
+            List<String> kept = new ArrayList<>();
+            try (StorageIterator it = provider.listObjects(StoragePath.of("file://" + dir.toAbsolutePath()), "date=2024-01-0", true)) {
+                while (it.hasNext()) {
+                    kept.add(it.next().path().toString());
+                }
+            }
+            assertEquals("only the matching date folder", 1, kept.size());
+            assertTrue(kept.get(0), kept.get(0).contains("date=2024-01-05"));
+        }
+    }
+
     public void testListDirectory() throws IOException {
         // Create a temporary directory with some files
         Path tempDir = createTempDir();

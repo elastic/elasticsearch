@@ -2846,6 +2846,27 @@ public final class GlobExpander {
      * sound reading. The exclusion settings resolve from
      * {@code config} via {@link ExclusionConfig#fromConfig}. File order resolves via {@link FileOrderConfig#forListing}.
      */
+    /**
+     * Whether a partition-value filter narrows this listing beyond what the glob itself selects.
+     * <p>
+     * It decides whether a listing's own file count is the number the bound was measured against. The drain counts
+     * a file toward the bound when the glob matches its path, and a value filter drops some of those afterwards -
+     * so with one active the count that comes out is smaller than the count that stopped the drain, and a reader
+     * comparing it to a bound is comparing two different things. Without one they are the same number.
+     */
+    public static boolean partitionValueFilterActive(
+        String path,
+        @Nullable List<PartitionFilterHint> hints,
+        @Nullable Map<String, Object> config
+    ) {
+        StoragePath storagePath = StoragePath.of(path);
+        if (storagePath.isPattern() == false) {
+            return false;
+        }
+        PartitionConfig partitionConfig = PartitionConfig.fromConfig(config);
+        return PartitionValueFilter.forGlob(storagePath.globPart(), hints, partitionConfig) != PartitionValueFilter.NONE;
+    }
+
     public static String listingCacheDiscriminator(
         String path,
         @Nullable List<PartitionFilterHint> hints,

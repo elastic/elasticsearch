@@ -228,6 +228,22 @@ public final class DatasetListingService {
         BooleanSupplier cancelled
     ) throws Exception {
         ListingCacheKey listingKey = listingCacheKey(path, storagePath, storageIdentity, secretIdentity, hints, config);
+        // Served from the shared cache when the entry can answer this bound's question, which needs two things.
+        // The entry has to be a listing of the whole pattern, which every entry is -- refuseTruncated is the only way
+        // in. And this query's own listing would have to have completed too, or it would have reported a prefix where
+        // the entry reports the whole thing, and partition types folded over fewer paths. That second part is what
+        // the file count answers, and only when no partition-value filter is active: the drain counts a file toward
+        // the bound when the glob matches its path and a value filter drops some of those afterwards, so with one
+        // active the count that comes out is not the count that stopped the drain. Strictly fewer, because reaching
+        // the bound is what sets the truncation flag.
+        FileList cached = GlobExpander.partitionValueFilterActive(path, hints, config)
+            ? null
+            : cacheService.getListingIfPresent(listingKey);
+        if (cached != null && cached.fileCount() < extents.maxFiles()) {
+            GlobExpander.checkDiscoveredFilesLimit(cached.fileCount(), maxDiscoveredFiles.getAsInt());
+            memory.reserve(cached.fileCount() * FileList.LISTING_BYTES_PER_ENTRY);
+            return cached;
+        }
         FileList listing = expand(path, provider, hints, config, storagePath, extents, memory, cancelled);
         cacheService.putListingIfComplete(listingKey, listing);
         return listing;
@@ -268,6 +284,28 @@ public final class DatasetListingService {
         ActionListener<FileList> listener
     ) {
         ListingCacheKey listingKey = listingCacheKey(path, storagePath, storageIdentity, secretIdentity, hints, config);
+        // Served from the shared cache when the entry can answer this bound's question, which needs two things.
+        // The entry has to be a listing of the whole pattern, which every entry is -- refuseTruncated is the only way
+        // in. And this query's own listing would have to have completed too, or it would have reported a prefix where
+        // the entry reports the whole thing, and partition types folded over fewer paths. That second part is what
+        // the file count answers, and only when no partition-value filter is active: the drain counts a file toward
+        // the bound when the glob matches its path and a value filter drops some of those afterwards, so with one
+        // active the count that comes out is not the count that stopped the drain. Strictly fewer, because reaching
+        // the bound is what sets the truncation flag.
+        FileList cached = GlobExpander.partitionValueFilterActive(path, hints, config)
+            ? null
+            : cacheService.getListingIfPresent(listingKey);
+        if (cached != null && cached.fileCount() < extents.maxFiles()) {
+            try {
+                GlobExpander.checkDiscoveredFilesLimit(cached.fileCount(), maxDiscoveredFiles.getAsInt());
+                memory.reserve(cached.fileCount() * FileList.LISTING_BYTES_PER_ENTRY);
+            } catch (Exception e) {
+                listener.onFailure(e);
+                return;
+            }
+            listener.onResponse(cached);
+            return;
+        }
         expandAsync(
             path,
             provider,

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -18,9 +20,12 @@ import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Predicate;
 
 /**
  * A runtime search that adds to {@code _score} only does so after the filter holding it has run (see
@@ -50,8 +55,11 @@ public final class SplitScorePredicatesFromRuntimeSearch extends OptimizerRules.
 
     @Override
     protected LogicalPlan rule(Filter filter, LogicalOptimizerContext ctx) {
-        if (FullTextFunction.containsRuntimeScorer(filter.condition()) == false
-            || filter.condition().anyMatch(MetadataAttribute::isScoreAttribute) == false) {
+        if (FullTextFunction.containsRuntimeScorer(filter.condition()) == false) {
+            return filter;
+        }
+        Predicate<Expression> isScore = scoreOf(filter.child());
+        if (filter.condition().anyMatch(isScore) == false) {
             return filter;
         }
         Expression normalized = normalize(filter.condition(), ctx.foldCtx());
@@ -63,7 +71,7 @@ public final class SplitScorePredicatesFromRuntimeSearch extends OptimizerRules.
         List<Expression> rest = new ArrayList<>();
         for (Expression conjunct : Predicates.splitAnd(normalized)) {
             // A conjunct that both reads _score and holds a runtime search can't be split; it stays with the search.
-            if (conjunct.anyMatch(MetadataAttribute::isScoreAttribute) && FullTextFunction.containsRuntimeScorer(conjunct) == false) {
+            if (conjunct.anyMatch(isScore) && FullTextFunction.containsRuntimeScorer(conjunct) == false) {
                 scorePredicates.add(conjunct);
             } else {
                 rest.add(conjunct);
@@ -73,6 +81,53 @@ public final class SplitScorePredicatesFromRuntimeSearch extends OptimizerRules.
             return filter;
         }
         return filter.with(filter.with(filter.child(), Predicates.combineAnd(rest)), Predicates.combineAnd(scorePredicates));
+    }
+
+    /**
+     * Matches the attributes that hold the score of {@code plan}'s rows: {@code _score} itself and, above a {@code FORK}
+     * or {@code UNION ALL}, the output that carries it from a branch, where a runtime search pushed into that branch adds
+     * to it. A copy of the score, such as an alias or {@code RENAME} of it, isn't one: it keeps the score from where it
+     * was taken.
+     */
+    public static Predicate<Expression> scoreOf(LogicalPlan plan) {
+        AttributeSet scores = branchScores(plan);
+        return e -> MetadataAttribute.isScoreAttribute(e) || e instanceof Attribute attribute && scores.contains(attribute);
+    }
+
+    /**
+     * {@code expression}, over the output of {@code merge}, as push-down rewrites it to go into {@code branch}.
+     */
+    public static Expression intoBranch(Expression expression, MergePlan merge, LogicalPlan branch) {
+        Map<Expression, Expression> outputs = PushDownUtils.outputMap(merge, branch);
+        return expression.transformDown(e -> outputs.getOrDefault(e, e));
+    }
+
+    /**
+     * The attributes of {@code plan}'s output, other than {@code _score} itself, that carry the score of a branch below.
+     */
+    private static AttributeSet branchScores(LogicalPlan plan) {
+        AttributeSet.Builder scores = AttributeSet.builder();
+        if (plan instanceof MergePlan merge) {
+            // Push-down maps the merge's output to each branch's by name.
+            for (LogicalPlan branch : merge.children()) {
+                Predicate<Expression> isBranchScore = scoreOf(branch);
+                PushDownUtils.outputMap(merge, branch).forEach((output, branchOutput) -> {
+                    if (isBranchScore.test(branchOutput)) {
+                        // The keys are the merge's output attributes.
+                        scores.add((Attribute) output);
+                    }
+                });
+            }
+        } else {
+            AttributeSet.Builder fromChildren = AttributeSet.builder();
+            plan.children().forEach(child -> fromChildren.addAll(branchScores(child)));
+            for (Attribute output : plan.output()) {
+                if (fromChildren.contains(output)) {
+                    scores.add(output);
+                }
+            }
+        }
+        return scores.build();
     }
 
     /**

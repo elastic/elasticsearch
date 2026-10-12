@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -126,6 +125,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownInferencePlan;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownRegexExtract;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SplitInWithFoldableValue;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.SplitScorePredicatesFromRuntimeSearch;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -298,6 +298,33 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         );
     }
 
+    public void testScoreReadAfterRuntimeSearchAfterForkIsFilteredAboveIt() {
+        String prefix = "from test metadata _score | eval t = to_text(concat(first_name, last_name)) "
+            + "| fork (where emp_no > 10010) (where emp_no <= 10010) | ";
+        assertScoreFilteredBelowRuntimeSearch(plan(prefix + "where match(t, \"cat\") and _score > 1.5 | keep _score"), false);
+        assertScoreFilteredBelowRuntimeSearch(plan(prefix + "where match(t, \"cat\") | where _score > 1.5 | keep _score"), false);
+    }
+
+    public void testScoreReadAfterRuntimeSearchAfterSubqueriesIsFilteredAboveIt() {
+        assumeTrue("requires subquery_in_from_command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        String t = " | eval t = to_text(concat(first_name, last_name))";
+        String prefix = "from (from test metadata _score | where emp_no > 10010"
+            + t
+            + "), "
+            + "(from test metadata _score | where emp_no <= 10010"
+            + t
+            + ") | ";
+        assertScoreFilteredBelowRuntimeSearch(plan(prefix + "where match(t, \"cat\") and _score > 1.5 | keep _score"), false);
+        assertScoreFilteredBelowRuntimeSearch(plan(prefix + "where match(t, \"cat\") | where _score > 1.5 | keep _score"), false);
+    }
+
+    public void testScoreCopiedBeforeForkIsFilteredBelowRuntimeSearchAfterIt() {
+        String prefix = "from test metadata _score | eval t = to_text(concat(first_name, last_name)), s = _score "
+            + "| fork (where emp_no > 10010) (where emp_no <= 10010) | ";
+        assertScoreFilteredBelowRuntimeSearch(plan(prefix + "where s < 0.5 and match(t, \"cat\") | keep s"), true);
+        assertScoreFilteredBelowRuntimeSearch(plan(prefix + "where match(t, \"cat\") | where s > 1.5 | keep s"), true);
+    }
+
     public void testScoreAndRuntimeSearchUnderSimplifiableBooleansAreSplit() {
         String prefix = "from test metadata _score | eval t = to_text(concat(first_name, last_name)) | where ";
         String scored = "(match(t, \"cat\") and _score > 1.5)";
@@ -340,12 +367,15 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * and that the filter on {@code _score} sits below it or above it.
      */
     private static void assertScoreFilteredBelowRuntimeSearch(LogicalPlan plan, boolean below) {
+        // One search per FORK branch or subquery, if the filter was pushed into them.
         List<Filter> searches = plan.collect(Filter.class, f -> FullTextFunction.containsRuntimeScorer(f.condition()));
-        assertThat(plan.toString(), searches, hasSize(1));
-        Filter search = searches.get(0);
-        assertFalse(plan.toString(), search.condition().anyMatch(MetadataAttribute::isScoreAttribute));
-        Predicate<LogicalPlan> scoreFilter = p -> p instanceof Filter f && f.condition().anyMatch(MetadataAttribute::isScoreAttribute);
-        assertThat(plan.toString(), search.child().anyMatch(scoreFilter), equalTo(below));
+        assertThat(plan.toString(), searches, not(empty()));
+        Predicate<LogicalPlan> scoreFilter = p -> p instanceof Filter f
+            && f.condition().anyMatch(SplitScorePredicatesFromRuntimeSearch.scoreOf(f.child()));
+        for (Filter search : searches) {
+            assertFalse(plan.toString(), scoreFilter.test(search));
+            assertThat(plan.toString(), search.child().anyMatch(scoreFilter), equalTo(below));
+        }
         assertThat(plan.toString(), plan.anyMatch(scoreFilter), equalTo(true));
     }
 

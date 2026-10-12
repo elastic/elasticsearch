@@ -218,6 +218,33 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         );
     }
 
+    public void testScoreOredWithRuntimeSearchAfterForkRejected() {
+        String message = "[_score] can't be used with runtime search [MATCH] inside OR, NOT or a comparison";
+        String prefix = "from test metadata _score | eval t = to_text(concat(title, body)) | fork (where id > 1) (where id <= 1) | where ";
+        fullTextAnalyzer().error(prefix + "match(t, \"cat\") or _score > 1.5", containsString(message));
+        fullTextAnalyzer().error(prefix + "not match(t, \"cat\") or _score > 1.5", containsString(message));
+    }
+
+    public void testScoreOredWithRuntimeSearchAfterSubqueriesRejected() {
+        assumeTrue("requires subquery_in_from_command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        String message = "[_score] can't be used with runtime search [MATCH] inside OR, NOT or a comparison";
+        String prefix = "from (from test metadata _score | where id > 1), (from test metadata _score | where id <= 1) "
+            + "| eval t = to_text(concat(title, body)) | where ";
+        fullTextAnalyzer().error(prefix + "match(t, \"cat\") or _score > 1.5", containsString(message));
+        fullTextAnalyzer().error(prefix + "not match(t, \"cat\") or _score > 1.5", containsString(message));
+    }
+
+    public void testScoreOredWithSearchOnIndexedFieldAliasAfterForkOrSubqueriesAccepted() {
+        String where = " | where match(t, \"cat\") or _score > 1.5";
+        optimize(fullTextAnalyzer().query("from test metadata _score | eval t = title | fork (where id > 1) (where id <= 1)" + where));
+        assumeTrue("requires subquery_in_from_command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        optimize(
+            fullTextAnalyzer().query(
+                "from (from test metadata _score | eval t = title), (from test metadata _score | rename title as t)" + where
+            )
+        );
+    }
+
     public void testScoreOredWithRuntimeSearchOnDatasetRejected() {
         List<Attribute> schema = List.of(referenceAttribute("emp_no", DataType.LONG), referenceAttribute("first_name", DataType.KEYWORD));
         VerificationException e = expectThrows(

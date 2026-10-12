@@ -71,6 +71,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
+import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
@@ -301,12 +302,16 @@ public abstract class FullTextFunction extends Function
      * the score from before the search and can be combined with it freely.
      */
     private static void checkScoreWithRuntimeScorerOutsideConjunction(Filter filter, Failures failures) {
-        if (filter.condition().anyMatch(MetadataAttribute::isScoreAttribute) == false) {
+        if (containsRuntimeScorer(filter.condition()) == false) {
+            return;
+        }
+        Predicate<Expression> isScore = SplitScorePredicatesFromRuntimeSearch.scoreOf(filter.child());
+        if (filter.condition().anyMatch(isScore) == false) {
             return;
         }
         Expression normalized = SplitScorePredicatesFromRuntimeSearch.normalize(filter.condition(), FoldContext.small());
         for (Expression conjunct : Predicates.splitAnd(normalized)) {
-            if (conjunct.anyMatch(MetadataAttribute::isScoreAttribute) && holdsRuntimeScorerOncePushedDown(conjunct, filter.child())) {
+            if (conjunct.anyMatch(isScore) && holdsRuntimeScorerOncePushedDown(conjunct, filter.child())) {
                 conjunct.forEachDown(FullTextFunction.class, ftf -> {
                     if (ftf.isRuntimeSearch() && ftf.contributesToScore()) {
                         failures.add(scoreWithRuntimeScorerFailure(conjunct, ftf));
@@ -347,6 +352,18 @@ public abstract class FullTextFunction extends Function
                 plan = orderBy.child();
             } else if (plan instanceof Join join && PushDownAndCombineFilters.pushesIntoLeftSide(pushed, join)) {
                 plan = join.left();
+            } else if (plan instanceof Subquery subquery) {
+                plan = subquery.child();
+            } else if (plan instanceof MergePlan merge) {
+                // Push-down moves the conjunct into every branch of a FORK or UNION ALL, mapping the merge's output to
+                // each branch's by name.
+                for (LogicalPlan branch : merge.children()) {
+                    Expression inBranch = SplitScorePredicatesFromRuntimeSearch.intoBranch(pushed, merge, branch);
+                    if (holdsRuntimeScorerOncePushedDown(inBranch, branch)) {
+                        return true;
+                    }
+                }
+                return false;
             } else if (plan instanceof UnaryPlan unary && PushDownAndCombineFilters.pushDownPast(unary) instanceof UnaryPushDown pushDown) {
                 Expression resolved = pushDown.resolveRenames().apply(pushed);
                 if (resolved.anyMatch(pushDown.cannotPush())) {

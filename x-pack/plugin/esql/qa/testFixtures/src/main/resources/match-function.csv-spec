@@ -3425,6 +3425,78 @@ c:long | min_score:double | max_score:double
 6      | 2.0              | 2.0
 ;
 
+matchOnRuntimeTextAfterForkThenScoreFilter
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: fork_v9
+required_capability: runtime_score_fix
+
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| FORK (WHERE book_no < "5000") (WHERE book_no >= "5000")
+| WHERE match(content, "Tolkien Rings")
+| WHERE _score > 1.5
+| STATS c = COUNT(*), min_score = MIN(_score), max_score = MAX(_score)
+;
+
+c:long | min_score:double | max_score:double
+6      | 2.0              | 2.0
+;
+
+matchOnRuntimeTextAndScoreFilterInOneWhereAfterFork
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: fork_v9
+required_capability: runtime_score_fix
+
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| FORK (WHERE book_no < "5000") (WHERE book_no >= "5000")
+| WHERE match(content, "Tolkien Rings") AND _score > 1.5
+| STATS c = COUNT(*), min_score = MIN(_score), max_score = MAX(_score)
+;
+
+c:long | min_score:double | max_score:double
+6      | 2.0              | 2.0
+;
+
+matchOnRuntimeTextAfterSubqueriesThenScoreFilter
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: subquery_in_from_command
+required_capability: runtime_score_fix
+
+FROM (FROM books METADATA _score | WHERE book_no < "5000" | EVAL content = to_text(concat(title, " ", description))),
+     (FROM books METADATA _score | WHERE book_no >= "5000" | EVAL content = to_text(concat(title, " ", description)))
+| WHERE match(content, "Tolkien Rings")
+| WHERE _score > 1.5
+| STATS c = COUNT(*), min_score = MIN(_score), max_score = MAX(_score)
+;
+
+c:long | min_score:double | max_score:double
+6      | 2.0              | 2.0
+;
+
+matchOnRuntimeTextAndScoreFilterInOneWhereAfterSubqueries
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: subquery_in_from_command
+required_capability: runtime_score_fix
+
+FROM (FROM books METADATA _score | WHERE book_no < "5000" | EVAL content = to_text(concat(title, " ", description))),
+     (FROM books METADATA _score | WHERE book_no >= "5000" | EVAL content = to_text(concat(title, " ", description)))
+| WHERE match(content, "Tolkien Rings") AND _score > 1.5
+| STATS c = COUNT(*), min_score = MIN(_score), max_score = MAX(_score)
+;
+
+c:long | min_score:double | max_score:double
+6      | 2.0              | 2.0
+;
+
 matchAfterInlineStats
 required_capability: match_function
 required_capability: full_text_functions_after_inline_stats

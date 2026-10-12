@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
@@ -78,14 +77,18 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
         // last `STATS ... BY field` can assume that `field` is single-valued (to be checked more thoroughly).
         // https://github.com/elastic/elasticsearch/issues/115311
         if (child instanceof Filter f) {
-            if (FullTextFunction.containsRuntimeScorer(f.condition()) && referencesScore(condition)) {
+            // Where the score comes from only matters below a runtime scorer.
+            Predicate<Expression> isScore = FullTextFunction.containsRuntimeScorer(f.condition())
+                ? SplitScorePredicatesFromRuntimeSearch.scoreOf(f)
+                : e -> false;
+            if (condition.anyMatch(isScore)) {
                 // _score predicates stay above the runtime scorer to see its score; the rest can run alongside it and
                 // continue pushing down, unless they hold a runtime scorer themselves, which the _score predicates
                 // must not see either.
                 List<Expression> above = new ArrayList<>();
                 List<Expression> below = new ArrayList<>();
                 for (Expression conjunct : Predicates.splitAnd(condition)) {
-                    if (referencesScore(conjunct) || FullTextFunction.containsRuntimeScorer(conjunct)) {
+                    if (conjunct.anyMatch(isScore) || FullTextFunction.containsRuntimeScorer(conjunct)) {
                         above.add(conjunct);
                     } else {
                         below.add(conjunct);
@@ -179,10 +182,6 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
         return join.config().type() == JoinTypes.LEFT
             && join instanceof InlineJoin == false
             && conjunct.references().subsetOf(join.left().outputSet());
-    }
-
-    private static boolean referencesScore(Expression expression) {
-        return expression.anyMatch(MetadataAttribute::isScoreAttribute);
     }
 
     private record ScopedFilter(List<Expression> commonFilters, List<Expression> leftFilters, List<Expression> rightFilters) {}

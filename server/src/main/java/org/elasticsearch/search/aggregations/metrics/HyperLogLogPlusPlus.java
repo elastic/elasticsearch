@@ -289,7 +289,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
     }
 
     private static class HyperLogLog extends AbstractHyperLogLog implements Releasable {
-        /** The most registers that a bulk operation moves at once, and so the largest scratch array. */
+        /** The most registers that a bulk step moves. */
         private static final int MAX_SCRATCH_SIZE = 4096;
 
         private final BigArrays bigArrays;
@@ -297,17 +297,16 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         private ByteArray runLens;
         private long totalBuckets = 0;
         private final CircuitBreaker breaker;
+
         /** Scratch for bulk register moves, allocated on first use. It is charged to the breaker until this is closed. */
         private byte[] scratch;
-        private long scratchBytes;
+        private final int scratchSize;
 
         private byte[] scratch() {
             if (scratch == null) {
-                final int length = Math.min(m, MAX_SCRATCH_SIZE);
-                final long bytes = RamUsageEstimator.alignObjectSize((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + length);
+                final long bytes = RamUsageEstimator.alignObjectSize((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + scratchSize);
                 breaker.addEstimateBytesAndMaybeBreak(bytes, "hll scratch");
-                scratchBytes = bytes;
-                scratch = new byte[length];
+                scratch = new byte[scratchSize];
             }
             return scratch;
         }
@@ -317,6 +316,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             this.runLens = bigArrays.newByteArray(initialBucketCount << precision);
             this.bigArrays = bigArrays;
             this.breaker = breaker;
+            this.scratchSize = Math.min(m, MAX_SCRATCH_SIZE);
         }
 
         public long maxOrd() {
@@ -334,43 +334,60 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             return new HyperLogLogIterator(this, bucketOrd);
         }
 
-        /** Sets each register of the bucket to the larger of itself and the byte at the same position of {@code src}, in bulk. */
-        void mergeRegisters(long bucketOrd, byte[] src, int srcOffset) {
+        /** Merges the registers at {@code other[otherOffset]} into the bucket, keeping the larger of each pair. */
+        void mergeRegisters(long bucketOrd, byte[] other, int otherOffset) {
+            assert otherOffset >= 0 && otherOffset + m <= other.length;
             final long start = bucketOrd << p;
-            final BytesRef dest = new BytesRef();
-            final byte[] scratch = scratch();
-            for (int done = 0; done < m; done += scratch.length) {
-                final int length = Math.min(scratch.length, m - done);
-                // get can return a live page, even the zero page that BigArrays shares between unwritten pages, so only read it;
-                // set copies a shared page before it writes.
-                runLens.get(start + done, length, dest);
-                maxInto(scratch, 0, dest.bytes, dest.offset, src, srcOffset + done, length);
-                runLens.set(start + done, scratch, 0, length);
+            final BytesRef thisSlice = new BytesRef();
+            for (int done = 0; done < m; done += scratchSize) {
+                final int length = Math.min(scratchSize, m - done);
+                mergeRange(thisSlice, start + done, other, otherOffset + done, length);
             }
         }
 
         /** As {@link #mergeRegisters(long, byte[], int)}, from a bucket of another HyperLogLog of the same precision. */
         void mergeRegisters(long bucketOrd, HyperLogLog other, long otherBucketOrd) {
-            final BytesRef src = new BytesRef();
-            other.runLens.get(otherBucketOrd << p, m, src);
-            // The slice can alias the destination if both buckets are in one structure. That is safe: buckets do not overlap.
-            mergeRegisters(bucketOrd, src.bytes, src.offset);
+            final long start = bucketOrd << p;
+            final long otherStart = otherBucketOrd << p;
+            final BytesRef thisSlice = new BytesRef();
+            final BytesRef otherSlice = new BytesRef();
+            for (int done = 0; done < m; done += scratchSize) {
+                final int length = Math.min(scratchSize, m - done);
+                other.runLens.get(otherStart + done, length, otherSlice);
+                assert otherSlice.length == length;
+                // If other is this structure, the slices are identical or disjoint, so reading a live page here is safe.
+                mergeRange(thisSlice, start + done, otherSlice.bytes, otherSlice.offset, length);
+            }
+        }
+
+        /**
+         * Merges {@code length} registers, at most the size of the scratch array, from {@code other[otherOffset]} into the registers
+         * at {@code start}. {@code thisSlice} is a reusable holder for the registers that it reads.
+         */
+        private void mergeRange(BytesRef thisSlice, long start, byte[] other, int otherOffset, int length) {
+            final byte[] scratch = scratch();
+            assert length <= scratchSize;
+            // get can return a live page, even the zero page that BigArrays shares, so only read it. set copies a shared page.
+            runLens.get(start, length, thisSlice);
+            assert thisSlice.length == length;
+            maxInto(scratch, thisSlice.bytes, thisSlice.offset, other, otherOffset, length);
+            runLens.set(start, scratch, 0, length);
         }
 
         /** Reads the registers of an empty bucket from the stream, one scratch array at a time. */
         void readRegisters(long bucketOrd, StreamInput in) throws IOException {
             final long start = bucketOrd << p;
             final byte[] scratch = scratch();
-            for (int done = 0; done < m; done += scratch.length) {
-                final int length = Math.min(scratch.length, m - done);
+            for (int done = 0; done < m; done += scratchSize) {
+                final int length = Math.min(scratchSize, m - done);
                 in.readBytes(scratch, 0, length);
                 runLens.set(start + done, scratch, 0, length);
             }
         }
 
-        private static void maxInto(byte[] out, int outOffset, byte[] a, int aOffset, byte[] b, int bOffset, int length) {
+        private static void maxInto(byte[] out, byte[] a, int aOffset, byte[] b, int bOffset, int length) {
             for (int i = 0; i < length; i++) {
-                out[outOffset + i] = (byte) Math.max(a[aOffset + i], b[bOffset + i]);
+                out[i] = (byte) Math.max(a[aOffset + i], b[bOffset + i]);
             }
         }
 
@@ -383,7 +400,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         @Override
         public void close() {
             if (scratch != null) {
-                breaker.addWithoutBreaking(-scratchBytes);
+                breaker.addWithoutBreaking(-RamUsageEstimator.sizeOf(scratch));
                 scratch = null;
             }
             Releasables.close(runLens);

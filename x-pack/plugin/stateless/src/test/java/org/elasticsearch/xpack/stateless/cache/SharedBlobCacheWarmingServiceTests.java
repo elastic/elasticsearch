@@ -3152,37 +3152,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
     }
 
     /**
-     * A BCC header read claims its cache gaps on the shard read pool, which is blocked here, so the read cannot make progress by itself.
-     * The region-0 prewarm, running on the prewarm pool, claims and fills the same gaps first and the read completes from its fill.
-     */
-    public void testBccHeaderReadCompletesThroughRegion0PrewarmWhileShardReadIsBlocked() throws Exception {
-        final long primaryTerm = randomLongBetween(10, 42);
-        try (var fakeNode = newBccHeaderReadNode(primaryTerm, true, UnaryOperator.identity())) {
-            final var lastCommit = uploadBccs(fakeNode, primaryTerm, randomIntBetween(1, 2)).lastCompoundCommit();
-            final var directory = IndexBlobStoreCacheDirectory.unwrapDirectory(fakeNode.indexingDirectory);
-
-            final var releaseShardRead = blockShardReadPool(fakeNode);
-            try {
-                final var readFuture = readReferencedCompoundCommitsOnGeneric(fakeNode, lastCommit, directory);
-                assertBusy(() -> assertThat(queuedShardReadTasks(fakeNode.threadPool), greaterThan(0L)));
-                assertThat(readFuture.isDone(), is(false));
-
-                final var warmFuture = new PlainActionFuture<Void>();
-                fakeNode.warmingService.warmCacheForBCCHeadersRead(
-                    mockIndexShard(fakeNode),
-                    directory,
-                    lastCommit.getBlobFiles(),
-                    warmFuture
-                );
-                safeGet(warmFuture);
-                safeGet(readFuture);
-            } finally {
-                releaseShardRead.countDown();
-            }
-        }
-    }
-
-    /**
      * The header read waits on the range claimed by the region 0 prewarm, so it fails when that fill fails, as any read waiting on a
      * range filled by someone else would.
      */

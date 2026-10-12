@@ -132,6 +132,7 @@ public class IndexEngine extends InternalEngine {
     );
     // A flag for whether the flush call is originated from a refresh
     private static final ThreadLocal<Boolean> IS_FLUSH_BY_REFRESH = ThreadLocal.withInitial(() -> false);
+    private static final String HOLLOW_FLUSH_REFRESH_SOURCE = "hollow_flush";
 
     private final TranslogReplicator translogReplicator;
     private final StatelessCommitService statelessCommitService;
@@ -607,6 +608,9 @@ public class IndexEngine extends InternalEngine {
         if (isLastCommitHollow()) {
             listener.onResponse(FlushResult.FLUSH_REQUEST_PROCESSED_AND_NOT_PERFORMED);
         } else {
+            // DOC_STATS and SHARD_FIELD_STATS are read from the internal searcher when the hollow commit is
+            // written. Refresh first so documents indexed since the last internal refresh are included.
+            refreshInternalSearcher(HOLLOW_FLUSH_REFRESH_SOURCE, true);
             long maxSeqNo = getMaxSeqNo();
             assert hollowMaxSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO || hollowMaxSeqNo == maxSeqNo
                 : "engine hollowed with max seq no [" + hollowMaxSeqNo + "] cannot be hollowed again with max seq no [" + maxSeqNo + "]";

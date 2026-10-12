@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 
 import static org.hamcrest.CoreMatchers.containsString;
 
@@ -18,8 +17,6 @@ import static org.hamcrest.CoreMatchers.containsString;
  */
 public class KnnRuntimeFunctionIT extends AbstractEsqlIntegTestCase {
     public void testKnnRuntimeNonUnitQueryVector() {
-        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.KNN_RUNTIME_FIELD.isEnabled());
-
         var query = """
             ROW dv = to_dense_vector([1.0, 0.0, 0.0])
             | WHERE knn(dv, [0.0, 2.0, 0.0], {"similarity_function": "dot_product"})
@@ -35,8 +32,6 @@ public class KnnRuntimeFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testKnnRuntimeZeroMagnitudeQueryVector() {
-        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.KNN_RUNTIME_FIELD.isEnabled());
-
         var query = """
             ROW dv = to_dense_vector([1.0, 0.0, 0.0])
             | WHERE knn(dv, [0.0, 0.0, 0.0], {"similarity_function": "cosine"})

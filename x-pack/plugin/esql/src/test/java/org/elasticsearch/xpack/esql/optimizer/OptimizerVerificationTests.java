@@ -361,7 +361,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     /**
      * Test that LogicalVerifier does not falsely reject a KNN query whose field is resolved to an index-backed field only after the
      * optimizer runs. In the test query, colors index has a dense_vector field rgb_vector, while languages index does not. During
-     * analysis phase, the rgb_vector field is a reference attribute from UnionAll output, and Knn.isRuntimeSearch() falsely returns true.
+     * analysis phase, the rgb_vector field is a reference attribute from UnionAll output and Knn.isRuntimeSearch() falsely returns true.
      * The optimizer later resolves the rgb_vector field to an index-backed field attribute at which point Knn.isRuntimeSearch() is false.
      */
     public void testKnnIndexBackedInUnionAllSubqueryAllowedOnOlderTransportVersion() {

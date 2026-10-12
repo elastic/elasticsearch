@@ -1,8 +1,6 @@
 // Tests for KNN() function operating on runtime expressions (non-index-mapped dense_vector).
 //
-// All tests require:
-//   - knn_runtime_field capability (snapshot builds only)
-//   - knn_runtime_field pragma to enable the runtime execution path
+// All tests require knn_runtime_field capability
 //
 // The knn_hex_vectors dataset stores vectors as hex strings which is converted at runtime into
 // dense_vector field. It does not matter how the runtime dense_vector field is created;

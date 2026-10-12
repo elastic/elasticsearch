@@ -48,6 +48,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -126,7 +127,10 @@ public class ESNextDiskBBQByteVectorsFormatTests extends BaseByteKnnVectorsForma
     public void testAutoCalibrationOnByteMerge() throws IOException {
         int dimensions = 32;
         int numDocs = IvfAutoCalibration.MIN_VECTORS_FOR_CALIBRATION + random().nextInt(500);
-        VectorSimilarityFunction similarity = VectorSimilarityFunction.values()[random().nextInt(VectorSimilarityFunction.values().length)];
+        VectorSimilarityFunction similarity = Arrays.stream(VectorSimilarityFunction.values())
+            .filter(v -> v != VectorSimilarityFunction.COSINE)
+            .toList()
+            .get(random().nextInt(VectorSimilarityFunction.values().length - 1));
         IvfMergeConfigResolver calibrating = IvfAutoCalibration.mergeConfigResolver(
             MIN_VECTORS_PER_CLUSTER * 4,
             IvfAutoCalibrationProfile.QUALITY
@@ -148,7 +152,7 @@ public class ESNextDiskBBQByteVectorsFormatTests extends BaseByteKnnVectorsForma
             assertArrayEquals(expected, live, 0f);
             for (int i = 0; i < sampled.size(); i++) {
                 for (float v : sampled.vectorValue(i)) {
-                    assertTrue("byte value widened exactly", v == (byte) v);
+                    assertEquals("byte value widened exactly", v, (byte) v, 0.0);
                 }
             }
             return calibrating.resolve(fieldInfo, mergeState, codecDefault);

@@ -397,7 +397,8 @@ public final class DatasetListingService {
     /**
      * The compacted listing for a cacheable provider, from the cache or computed into it. Always the whole pattern:
      * a bounded listing is a sample of a dataset rather than the dataset, so it must never become the answer another
-     * query is served, and the refusal below is what holds that.
+     * query is served, and {@code ExternalSourceCacheService.refuseTruncated} is what holds that, at the single
+     * put every writer goes through.
      * <p>
      * {@code memory} reserves the entries either way, once each, and the same figure either way: a miss reserves
      * through the walk as it grows, a hit reserves the equivalent here.

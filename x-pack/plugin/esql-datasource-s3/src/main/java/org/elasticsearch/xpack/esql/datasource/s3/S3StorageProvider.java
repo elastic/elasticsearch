@@ -783,8 +783,8 @@ public class S3StorageProvider implements StorageProvider {
 
     /**
      * S3 lists by key prefix natively, so {@code namePrefix} is appended to the directory's key and the store does
-     * the narrowing. The trailing separator is added only when there is no name prefix: with one, the key being
-     * asked for deliberately stops mid-name.
+     * the narrowing. The separator closing that directory's key is added either way; what differs is that with a
+     * name prefix the key asked for then deliberately stops mid-name.
      */
     @Override
     public StorageIterator listObjects(StoragePath prefix, String namePrefix, boolean recursive) throws IOException {

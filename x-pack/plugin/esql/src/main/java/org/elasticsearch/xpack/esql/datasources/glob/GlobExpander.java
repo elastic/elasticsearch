@@ -529,9 +529,10 @@ public final class GlobExpander {
      * <p>Two things narrow a listing, and neither is allowed to decide that a dataset is empty. The glob rewrite
      * ({@link #effectivePattern}/{@link #rewriteSegment}) spells a hint value with {@link String#valueOf}, so
      * {@code WHERE month == 6} narrows the glob to {@code month=6} while the Hive convention writes a zero-padded
-     * {@code month=06}. And a bound stops the drain once it has its matching files, so a prefix holding nothing
-     * but litter or another format matches nothing while the dataset is full of files. Both report empty
-     * for a dataset that has data, which is silent zero rows rather than a slow query.
+     * {@code month=06}. And a bound stops the drain once it has counted its matching files, which a partition-value
+     * filter or a {@code _file.*} hint can then drop every one of — leaving the listing empty with matches still
+     * beyond where it stopped. Both report empty for a dataset that has data, which is silent zero rows rather
+     * than a slow query.
      *
      * <p>So emptiness after a rewrite is decided by listing the original glob once more, with the bound dropped and
      * the rewrite skipped, while the partition hints stay. {@link PartitionValueMatcher} keeps a spelling the splice

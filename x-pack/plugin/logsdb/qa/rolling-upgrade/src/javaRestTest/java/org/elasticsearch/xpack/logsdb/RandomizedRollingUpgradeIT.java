@@ -206,7 +206,6 @@ public class RandomizedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTest
                 @Override
                 protected void putExtendedDocValuesParams(Map<String, Object> mapping) {
                     if (oldClusterHasFeature(MapperFeatures.DOC_VALUES_MULTI_VALUE_RENAME) == false) {
-                        // Old cluster does not support the extended doc_values form at all.
                         return;
                     }
                     super.putExtendedDocValuesParams(mapping);

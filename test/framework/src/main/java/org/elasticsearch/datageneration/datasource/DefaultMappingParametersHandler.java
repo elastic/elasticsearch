@@ -339,18 +339,6 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         };
     }
 
-    /**
-     * Puts extended doc-values sub-parameters into the field mapping.
-     *
-     * <p>In the default (top-level) mode, sub-parameters ({@code multi_value}, {@code nullability},
-     * {@code on_failure}) are emitted directly on the mapping map alongside {@code doc_values}.
-     * When {@link #supportsTopLevelDocValuesAttributes()} returns {@code false} (e.g. when the old
-     * cluster in a rolling-upgrade suite does not yet understand top-level attributes), the legacy
-     * nested {@code doc_values: {...}} object form is used instead.
-     *
-     * <p>Note: {@code multi_value: false} is handled by {@code SingleValueDocValuesDataSourceHandler};
-     * this method only sets {@code multi_value: true} (the default) when explicitly chosen.
-     */
     protected void putExtendedDocValuesParams(Map<String, Object> mapping) {
         if (indexMode.isStrictColumnar() == false) {
             // Sub-params are only valid in strict-columnar mode; nothing to add.
@@ -358,7 +346,6 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         }
 
         if (supportsTopLevelDocValuesAttributes() == false) {
-            // Old cluster: use the legacy nested doc_values object form.
             var choices = new ArrayList<Object>(List.of(true, Map.of("multi_value", true)));
             if (supportsOnFailure()) {
                 choices.add(Map.of("on_failure", ESTestCase.randomFrom("fail", "ignore")));
@@ -369,11 +356,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             return;
         }
 
-        // Columnar + top-level attributes: doc_values is already true from commonMappingParameters;
-        // randomly add sub-params directly on the mapping map.
-        // doc_values can't be disabled here; multi_value:false is in SingleValueDocValuesDataSourceHandler.
         if (supportsOnFailure() == false) {
-            // No sub-params to add; just leave doc_values: true from commonMappingParameters.
             if (ESTestCase.randomBoolean()) {
                 mapping.put("multi_value", true);
             }

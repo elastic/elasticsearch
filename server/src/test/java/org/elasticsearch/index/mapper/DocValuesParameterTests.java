@@ -348,8 +348,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         mapper.parse(source(b -> b.array("field", randomAlphanumericOfLength(4), randomAlphanumericOfLength(4))));
     }
 
-    // The nested form rejection is exercised in YAML (40_doc_values_multi_value.yml "doc_values object form rejected outside columnar
-    // mode").
     public void testMultiValueRejectedInNonColumnarMode() throws Exception {
         for (boolean multiValue : new boolean[] { false, true }) {
             Exception e = expectThrows(
@@ -364,8 +362,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
     // nullability
     // -----------------------------------------------------------------------
 
-    // The nested form rejection is exercised in YAML (41_doc_values_nullability.yml "doc_values object form rejected outside columnar
-    // mode").
     public void testNullabilityRejectedInNonColumnarMode() throws Exception {
         for (boolean nullability : new boolean[] { false, true }) {
             Exception e = expectThrows(
@@ -393,7 +389,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         }
     }
 
-    // BWC: nested doc_values object form is still accepted for parsing without deprecation.
     public void testLegacyNullabilityFalseNestedFormStillParses() throws Exception {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         MapperService mapperService = createMapperService(
@@ -612,8 +607,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
     // on_failure
     // -----------------------------------------------------------------------
 
-    // The nested form rejection is exercised in YAML (42_doc_values_on_failure.yml "doc_values object form rejected outside columnar
-    // mode").
     public void testOnFailureRejectedInNonColumnarMode() throws Exception {
         for (String onFailure : new String[] { "fail", "ignore" }) {
             Exception e = expectThrows(
@@ -641,7 +634,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         assertThat(mapper.docValuesParameters().onFailure(), equalTo(FieldMapper.DocValuesParameter.Values.OnFailure.FAIL));
     }
 
-    // BWC: nested doc_values object form is still accepted for parsing without deprecation.
     public void testLegacyOnFailureIgnoreNestedFormStillParses() throws Exception {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         MapperService mapperService = createMapperService(
@@ -1163,11 +1155,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
             containsString("configured with [multi_value=false] but encountered multiple values in the same document")
         );
     }
-
-    // -----------------------------------------------------------------------
-    // BWC: the nested doc_values.{...} object form is still accepted for parsing
-    // (no deprecation warning, no rejection; it is simply no longer emitted for new indices).
-    // -----------------------------------------------------------------------
 
     /**
      * The legacy {@code doc_values: { multi_value: false }} form is still accepted and resolves identically to the top-level form.

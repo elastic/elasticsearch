@@ -21,6 +21,10 @@ import java.util.zip.GZIPInputStream;
  * Gzip decompression codec for compound extensions like {@code .csv.gz} or {@code .ndjson.gz}.
  *
  * <p>Uses {@link java.util.zip.GZIPInputStream} from the JDK; no external dependencies.
+ * The JDK decoder (21, 22, 27+) concatenates members after a trailer only when
+ * {@code available() > 0} or leftover inflater bytes {@code n > 26}. HTTP/S3 bodies report 0, so
+ * a leftover {@code n <= 26} or a next member still on the wire is dropped.
+ * {@link AtLeastOneAvailableInputStream} restores the JDK 23–26 leftover-buffer probe.
  */
 public class GzipDecompressionCodec implements DecompressionCodec {
 
@@ -63,23 +67,114 @@ public class GzipDecompressionCodec implements DecompressionCodec {
 
     @Override
     public InputStream decompress(InputStream raw, @Nullable CircuitBreaker breaker) throws IOException {
-        GZIPInputStream gzip = new GZIPInputStream(raw, RAW_BUFFER_SIZE);
-        if (breaker == null) {
-            return gzip;
-        }
-        try {
-            breaker.addEstimateBytesAndMaybeBreak(NATIVE_INFLATER_BYTES, BREAKER_LABEL);
-        } catch (Throwable t) {
-            // inf.end() via GZIPInputStream.close(). Production wraps raw in UncloseableInputStream
-            // first, so this does not drain the GET; DecompressingStorageObject.abortStream does.
+        AtLeastOneAvailableInputStream probe = new AtLeastOneAvailableInputStream(raw);
+        GZIPInputStream gzip = new GZIPInputStream(probe, RAW_BUFFER_SIZE);
+        InputStream decoded = gzip;
+        if (breaker != null) {
             try {
-                gzip.close();
-            } catch (Exception closeEx) {
-                t.addSuppressed(closeEx);
+                breaker.addEstimateBytesAndMaybeBreak(NATIVE_INFLATER_BYTES, BREAKER_LABEL);
+            } catch (Throwable t) {
+                // inf.end() via GZIPInputStream.close(). Production wraps raw in UncloseableInputStream
+                // first, so this does not drain the GET; DecompressingStorageObject.abortStream does.
+                try {
+                    gzip.close();
+                } catch (Exception closeEx) {
+                    t.addSuppressed(closeEx);
+                }
+                throw t;
             }
-            throw t;
+            decoded = new AccountedGzipInputStream(gzip, breaker, NATIVE_INFLATER_BYTES);
         }
-        return new AccountedGzipInputStream(gzip, breaker, NATIVE_INFLATER_BYTES);
+        return new RethrowProbeFailureInputStream(decoded, probe);
+    }
+
+    /**
+     * {@link GZIPInputStream#readTrailer} concatenates members when {@code in.available() > 0} or
+     * leftover inflater bytes {@code n > 26} (JDK 21, 22, 27+). A 64 KiB fill of a tiny concatenated
+     * object can leave {@code n <= 26} in the inflater buffer, and HTTP bodies report 0, so the
+     * probe is skipped and those bytes are drained unread. Reporting at least 1 until a {@code read}
+     * has seen EOF restores the leftover-buffer probe without a second GET. Also covers a next
+     * member that is still on the wire ({@code n == 0} and {@code available() == 0}).
+     */
+    private static final class AtLeastOneAvailableInputStream extends FilterInputStream {
+        private boolean seenEof;
+        private IOException unexpectedFailure;
+
+        AtLeastOneAvailableInputStream(InputStream in) {
+            super(in);
+        }
+
+        @Override
+        public int available() throws IOException {
+            if (seenEof) {
+                return 0;
+            }
+            int n = in.available();
+            return n > 0 ? n : 1;
+        }
+
+        @Override
+        public int read() throws IOException {
+            try {
+                int b = in.read();
+                if (b < 0) {
+                    seenEof = true;
+                }
+                return b;
+            } catch (IOException e) {
+                unexpectedFailure = e;
+                throw e;
+            }
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            try {
+                int n = in.read(b, off, len);
+                if (n < 0) {
+                    seenEof = true;
+                }
+                return n;
+            } catch (IOException e) {
+                unexpectedFailure = e;
+                throw e;
+            }
+        }
+    }
+
+    /**
+     * {@link GZIPInputStream#readTrailer} swallows {@link IOException} from the next-member probe and
+     * treats it as EOS. The wrapper above forces that probe, so a transport reset at a member
+     * boundary would otherwise look like a clean truncated object. Rethrow the stashed failure
+     * when gzip reports {@code -1}.
+     */
+    private static final class RethrowProbeFailureInputStream extends FilterInputStream {
+        private final AtLeastOneAvailableInputStream probe;
+
+        private RethrowProbeFailureInputStream(InputStream decoded, AtLeastOneAvailableInputStream probe) {
+            super(decoded);
+            this.probe = probe;
+        }
+
+        @Override
+        public int read() throws IOException {
+            int b = in.read();
+            throwIfProbeFailed(b);
+            return b;
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            int n = in.read(b, off, len);
+            throwIfProbeFailed(n);
+            return n;
+        }
+
+        private void throwIfProbeFailed(int n) throws IOException {
+            if (n < 0 && probe.unexpectedFailure != null) {
+                throw probe.unexpectedFailure;
+            }
+        }
     }
 
     /**

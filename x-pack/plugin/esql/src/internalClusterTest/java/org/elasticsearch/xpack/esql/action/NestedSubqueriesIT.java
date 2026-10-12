@@ -28,6 +28,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlAsyncTestUtils.getAsyncResponse;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.asyncEsqlQueryRequest;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.allOf;
@@ -159,7 +160,13 @@ public class NestedSubqueriesIT extends AbstractPausableIntegTestCase {
         var request = syncEsqlQueryRequest(query).pragmas(new QueryPragmas(Settings.builder().put("branch_parallel_degree", 1).build()));
 
         ActionFuture<EsqlQueryResponse> future = client().execute(EsqlQueryAction.INSTANCE, request);
-        try (EsqlQueryResponse response = future.actionGet(30, TimeUnit.SECONDS)) {
+        long deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+        while (future.isDone() == false) {
+            assertThat("nested leaf started before LIMIT finished the root exchange", scriptWaits.availablePermits(), equalTo(0));
+            assertTrue("timed out waiting for the query to complete", System.nanoTime() < deadlineNanos);
+            safeSleep(10);
+        }
+        try (EsqlQueryResponse response = future.actionGet()) {
             assertColumnNames(response.columns(), List.of("branch", "foo"));
             assertColumnTypes(response.columns(), List.of("keyword", "long"));
             // Skipping branches is not a partial result: the query ran to completion, it just did not need every branch.
@@ -268,7 +275,15 @@ public class NestedSubqueriesIT extends AbstractPausableIntegTestCase {
             assertThat(initialResponse.asyncExecutionId(), isPresent());
             assertTrue("the first outer branch must reach the pausable field", scriptWaits.tryAcquire(30, TimeUnit.SECONDS));
 
-            var stopFuture = client().execute(EsqlAsyncStopAction.INSTANCE, new AsyncStopRequest(initialResponse.asyncExecutionId().get()));
+            String asyncId = initialResponse.asyncExecutionId().get();
+            var stopFuture = client().execute(EsqlAsyncStopAction.INSTANCE, new AsyncStopRequest(asyncId));
+            assertBusy(() -> {
+                try (EsqlQueryResponse running = getAsyncResponse(client(), asyncId)) {
+                    assertNotNull(running.getExecutionInfo());
+                    assertThat(running.getExecutionInfo().isStopped(), is(true));
+                    assertThat(running.isPartial(), is(true));
+                }
+            });
             scriptPermits.release(numberOfDocs() * 10);
             try (EsqlQueryResponse stoppedResponse = stopFuture.actionGet(60, TimeUnit.SECONDS)) {
                 assertThat(stoppedResponse.isRunning(), is(false));

@@ -536,6 +536,10 @@ public class PartitionSpecTests extends ESTestCase {
         );
         assertThat(e.getMessage(), containsString("start"));
         assertThat(e.getMessage(), containsString("bind [@timestamp]"));
+        // Pins the wording itself, not just the names in it: the message deliberately describes the rename rather than
+        // naming a mapping key, because the same rename arrives as `rename_from` or as its former spelling `path`, and
+        // naming either one is wrong for the requests that used the other.
+        assertThat(e.getMessage(), containsString("is the file column that mapping field"));
     }
 
     public void testAlignWithMappingRejectsLagOnPathSource() {

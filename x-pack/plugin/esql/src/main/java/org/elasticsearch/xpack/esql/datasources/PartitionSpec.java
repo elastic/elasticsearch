@@ -1304,7 +1304,7 @@ public final class PartitionSpec {
     }
 
     /**
-     * Same as {@link #emitListingNotices(Set, List, Map, Consumer)} plus the BWC path-rename warning
+     * Same as {@link #emitListingNotices(Set, List, Map, Consumer)} plus the BWC rename warning
      * when the spec still names a physical column a mapping field consumed with {@code path}.
      */
     public void emitListingNotices(

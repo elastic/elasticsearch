@@ -198,7 +198,7 @@ public final class DeclaredSchemaResolver {
         }
         output.addAll(absent);
         // A move whose logical name collides with a surviving (undeclared) inferred column would produce two output
-        // columns with the same name (declare logical `y` with path `x` when the file also has an undeclared `y`).
+        // columns with the same name (declare logical `y` renamed from `x` when the file also has an undeclared `y`).
         // Reject against the authoritative unified schema (lenient == false); PUT cannot catch this — it needs the file.
         if (lenient == false) {
             Set<String> seen = new HashSet<>(output.size());

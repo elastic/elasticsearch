@@ -114,7 +114,8 @@ public final class DatasetFieldMapping implements Writeable, ToXContentObject {
      * A column with a declared date {@code format}.
      *
      * <p>This is a named factory, not a public 3-arg constructor, on purpose. The erased signature
-     * {@code (String, String, String)} previously meant {@code (type, renameFrom, copyTo)}; {@code copy_to} has since been
+     * {@code (String, String, String)} previously meant {@code (type, path, copyTo)} — the rename key was spelled
+     * {@code path} then, and {@code copy_to} has since been
      * dropped and the third String now means {@code format}. Exposing it only as {@code withFormat} keeps the
      * argument's meaning in the call site and prevents a future third-String field from silently inheriting the old
      * positional contract.

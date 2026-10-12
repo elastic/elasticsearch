@@ -4750,7 +4750,7 @@ public class ExternalSourceResolver {
 
     /**
      * The typed read-instructions a declared mapping produces for the data node: the logical&rarr;physical column
-     * renames declared with {@code rename_from} and per-column date parse-patterns (keyed by
+     * declared column renames and per-column date parse-patterns (keyed by
      * logical column name). {@link DeclaredReadSpec#NONE} when there is no mapping or it declares none of these. Built
      * once per path in {@link #resolve} and carried on the {@code ResolvedSource}.
      */

@@ -94,7 +94,7 @@ public final class DeclaredSchemaValidator {
             Map<String, String> physicalToLogical = new HashMap<>();
             for (Map.Entry<String, DatasetFieldMapping> e : mappings.properties().entrySet()) {
                 requireNonBlank(e.getKey(), "column name");
-                requireNonBlank(e.getValue().renameFrom(), "rename_from of column [" + e.getKey() + "]");
+                requireNonBlank(e.getValue().renameFrom(), "the file column that column [" + e.getKey() + "] is renamed from");
                 validateType(e.getKey(), e.getValue().type());
                 validateFormat(e.getKey(), e.getValue().type(), e.getValue().format());
                 String logical = e.getKey();

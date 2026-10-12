@@ -772,19 +772,34 @@ public class FileSplitProvider implements SplitProvider {
             );
             List<PartitionFilterHintExtractor.PartitionFilterHint> narrowing = hints.isEmpty() ? null : hints;
             if (extents.boundsFileSet()) {
-                // Never the cache: what comes back is a prefix of the dataset, and the cache's entries are answers
-                // other queries are served whole. This query may read a prefix because its own demand is covered by
-                // one; the next query's demand is not this one's.
-                return listingService.expand(
-                    pattern,
-                    provider,
-                    narrowing,
-                    config,
-                    storagePath,
-                    extents,
-                    scanMemory(context),
-                    context.isCancelled()
-                );
+                // The cache either way, because what decides is the listing that comes back rather than the bound
+                // that was asked for: a first attempt that drained its whole prefix is the dataset, and the next
+                // query is owed exactly that. One that stopped on the bound is a prefix, and the cache refuses it
+                // (DatasetListingService.boundedListing), so the attempt below still re-lists unbounded for its own
+                // query and leaves nothing behind for anyone else's.
+                return listingService.isCacheable(provider)
+                    ? listingService.boundedListing(
+                        pattern,
+                        storagePath,
+                        provider,
+                        storageIdentity,
+                        secretIdentity,
+                        narrowing,
+                        config,
+                        extents,
+                        scanMemory(context),
+                        context.isCancelled()
+                    )
+                    : listingService.expand(
+                        pattern,
+                        provider,
+                        narrowing,
+                        config,
+                        storagePath,
+                        extents,
+                        scanMemory(context),
+                        context.isCancelled()
+                    );
             }
             // The whole pattern either way, so it is cacheable: the query's file set is the dataset's, narrowed by
             // filters the cache key already distinguishes. Without this a warm second query over the same dataset

@@ -1941,9 +1941,10 @@ public class ExternalSourceResolver {
 
     /**
      * Lists (and, when cacheable, caches) the inferred multi-file glob, and publishes the discovery telemetry for
-     * it. FIRST_FILE_WINS, UNION_BY_NAME, and inferred STRICT share this so a cacheable provider hits
-     * {@link #cachedListingAsync} regardless of merge strategy. Declared-schema resolution stays in
-     * {@link #resolveStrictMultiFileAsync}, which repeats the bounded-is-never-cached rule below.
+     * it. FIRST_FILE_WINS, UNION_BY_NAME, and inferred STRICT share this so a cacheable provider reaches the shared
+     * listing cache regardless of merge strategy; which of the two cached rails it takes depends on whether the mode
+     * allowed a bound. Declared-schema resolution stays in {@link #resolveStrictMultiFileAsync}, which makes the
+     * same three-way choice.
      *
      * <p>Cache entries are keyed by the path and its filters rather than by what the query needed, so what may be
      * cached is decided by the listing that came back, not by the bound that was asked for: a bounded listing that

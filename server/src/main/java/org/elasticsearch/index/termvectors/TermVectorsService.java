@@ -146,6 +146,8 @@ public class TermVectorsService {
         } catch (StaleRequestException sre) {
             // The exception type is important to execute retries during resharding.
             throw sre;
+        } catch (ElasticsearchException ee) {
+            throw ee;
         } catch (Exception ex) {
             throw new ElasticsearchException("failed to execute term vector request", ex);
         }

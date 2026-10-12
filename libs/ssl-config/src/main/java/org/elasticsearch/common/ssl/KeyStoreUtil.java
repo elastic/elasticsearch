@@ -55,6 +55,8 @@ public final class KeyStoreUtil {
         String name = path == null ? "" : path.toLowerCase(Locale.ROOT);
         if (name.endsWith(".p12") || name.endsWith(".pfx") || name.endsWith(".pkcs12")) {
             return "PKCS12";
+        } else if (name.endsWith(".bcfks")) {
+            return "BCFKS";
         } else {
             return "jks";
         }

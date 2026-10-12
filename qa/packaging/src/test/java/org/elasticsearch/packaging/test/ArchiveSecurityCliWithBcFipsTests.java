@@ -51,6 +51,23 @@ public class ArchiveSecurityCliWithBcFipsTests extends PackagingTestCase {
         assertThat(out, fileExists());
     }
 
+    /**
+     * {@code --bcfks} is the one certutil feature where the tool's shaded Bouncy Castle provides an algorithm ({@code KeyStore.BCFKS})
+     * that the BC FIPS jars in {@code lib} also provide, so it is the sharpest check that the two do not collide. Signing a
+     * certificate from the generated CA also exercises reading a BCFKS keystore back through the shaded provider.
+     */
+    public void test21CertutilBcfks() throws Exception {
+        Path ca = installation.home.resolve("ca.bcfks");
+        installation.executables().certutilTool.run("ca --bcfks --silent --pass capass --out " + ca);
+        assertThat(ca, fileExists());
+
+        Path cert = installation.home.resolve("node.bcfks");
+        installation.executables().certutilTool.run(
+            "cert --bcfks --silent --ca " + ca + " --ca-pass capass --pass nodepass --name node --out " + cert
+        );
+        assertThat(cert, fileExists());
+    }
+
     public void test30AutoConfiguration() throws Exception {
         // auto-config requires that the archive owner and the process user be the same
         Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));

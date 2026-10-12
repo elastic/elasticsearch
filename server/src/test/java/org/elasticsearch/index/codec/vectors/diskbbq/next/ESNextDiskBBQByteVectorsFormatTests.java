@@ -15,6 +15,7 @@ import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -37,7 +38,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.codec.vectors.BaseByteKnnVectorsFormatTestCase;
-import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibrationProfile;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
@@ -137,9 +137,15 @@ public class ESNextDiskBBQByteVectorsFormatTests extends BaseByteKnnVectorsForma
             resolverCalls.incrementAndGet();
             assertThat(fieldInfo.getVectorEncoding(), equalTo(VectorEncoding.BYTE));
             assertThat(CalibrationUtils.countMergedVectors(fieldInfo, mergeState), equalTo(numDocs));
-            KMeansFloatVectorValues sampled = CalibrationUtils.buildSampled(fieldInfo, mergeState, numDocs);
+            FloatVectorValues sampled = CalibrationUtils.buildSampled(fieldInfo, mergeState, numDocs);
             assertTrue(sampled.size() > 0);
             assertThat(sampled.dimension(), equalTo(dimensions));
+            // a copy reads independently of the original, which reuses one scratch buffer across reads
+            FloatVectorValues sampledCopy = sampled.copy();
+            float[] live = sampled.vectorValue(0);
+            float[] expected = live.clone();
+            sampledCopy.vectorValue(1);
+            assertArrayEquals(expected, live, 0f);
             for (int i = 0; i < sampled.size(); i++) {
                 for (float v : sampled.vectorValue(i)) {
                     assertTrue("byte value widened exactly", v == (byte) v);

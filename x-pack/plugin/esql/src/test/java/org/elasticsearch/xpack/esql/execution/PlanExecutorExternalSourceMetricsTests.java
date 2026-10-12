@@ -15,7 +15,10 @@ import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.Before;
 
 import java.util.List;
@@ -100,6 +103,54 @@ public class PlanExecutorExternalSourceMetricsTests extends ESTestCase {
         assertThat(single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.BREAKER_TRIPPED_TOTAL).getLong(), equalTo(1L));
         // A non-cancellation failure does not touch the cancelled counter.
         assertThat(measurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_CANCELLED_TOTAL), hasSize(0));
+    }
+
+    public void testFailureCarriesErrorTypeAndStatusOnQueryMetrics() {
+        Throwable failure = new RuntimeException(
+            "wrapped",
+            new ExternalClientException(
+                ExternalException.Condition.ACCESS_DENIED,
+                StoragePath.of("s3://bucket/key.parquet"),
+                "HTTP 403",
+                ""
+            )
+        );
+        PlanExecutor.recordExternalSourceQuery(metrics, true, 55L, false, failure);
+
+        Measurement total = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_TOTAL);
+        assertThat(total.attributes().get(ExternalSourceMetrics.OUTCOME_ATTRIBUTE), equalTo(ExternalSourceMetrics.OUTCOME_FAILURE));
+        assertThat(total.attributes().get(ExternalSourceMetrics.ERROR_TYPE_ATTRIBUTE), equalTo("storage_auth"));
+        assertThat(total.attributes().get(ExternalSourceMetrics.STATUS_ATTRIBUTE), equalTo("400"));
+        Measurement duration = single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.QUERY_DURATION);
+        assertThat(duration.attributes().get(ExternalSourceMetrics.ERROR_TYPE_ATTRIBUTE), equalTo("storage_auth"));
+        assertThat(duration.attributes().get(ExternalSourceMetrics.STATUS_ATTRIBUTE), equalTo("400"));
+    }
+
+    public void testCircuitBreakerFailureIsClassifiedAsCircuitBreaker() {
+        PlanExecutor.recordExternalSourceQuery(
+            metrics,
+            true,
+            55L,
+            false,
+            new CircuitBreakingException("es_datasource breaker tripped", CircuitBreaker.Durability.TRANSIENT)
+        );
+
+        Measurement total = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_TOTAL);
+        assertThat(total.attributes().get(ExternalSourceMetrics.ERROR_TYPE_ATTRIBUTE), equalTo("circuit_breaker"));
+        assertThat(total.attributes().get(ExternalSourceMetrics.STATUS_ATTRIBUTE), equalTo("429"));
+        assertThat(single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.BREAKER_TRIPPED_TOTAL).getLong(), equalTo(1L));
+    }
+
+    public void testSuccessAndCancellationCarryNoFailureAttributes() {
+        PlanExecutor.recordExternalSourceQuery(metrics, true, 1L, false, null);
+        PlanExecutor.recordExternalSourceQuery(metrics, true, 1L, false, new TaskCancelledException("cancelled"));
+
+        List<Measurement> totals = measurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_TOTAL);
+        assertThat(totals, hasSize(2));
+        for (Measurement total : totals) {
+            assertThat(total.attributes().containsKey(ExternalSourceMetrics.ERROR_TYPE_ATTRIBUTE), equalTo(false));
+            assertThat(total.attributes().containsKey(ExternalSourceMetrics.STATUS_ATTRIBUTE), equalTo(false));
+        }
     }
 
     public void testNonExternalSourceQueryRecordsNothing() {

@@ -25,6 +25,12 @@ To check for security updates, go to [Security announcements for the Elastic sta
 stack: ga 9.5.5
 ```
 
+### Highlights [elasticsearch-9.5.5-highlights]
+
+::::{dropdown} Security advisory
+The 9.5.5 release contains fixes for potential security vulnerabilities. Please see our [security advisory](https://discuss.elastic.co/c/announcements/security-announcements/31) for more details.
+::::
+
 ### Features and enhancements [elasticsearch-9.5.5-features-enhancements]
 
 Aggregations:
@@ -126,6 +132,12 @@ Vector Search:
 ```{applies_to}
 stack: ga 9.4.8
 ```
+
+### Highlights [elasticsearch-9.4.8-highlights]
+
+::::{dropdown} Security advisory
+The 9.4.8 release contains fixes for potential security vulnerabilities. Please see our [security advisory](https://discuss.elastic.co/c/announcements/security-announcements/31) for more details.
+::::
 
 ### Features and enhancements [elasticsearch-9.4.8-features-enhancements]
 

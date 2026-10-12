@@ -13,6 +13,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownLiteralConversion;
 import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownPredicates;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCompare;
@@ -97,11 +98,14 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
         // motivation: avoiding double LIKE evaluation on every surviving row).
         List<Expression> remainder = new ArrayList<>();
         for (Expression filter : filters) {
-            Pushability p = canPush(filter);
+            // Rewrite only the pushed side so late-mat / FilterPredicate see column-typed bounds.
+            // Remainder keeps the original expression — FilterExec re-checks the user's predicate.
+            Expression rewritten = PushdownLiteralConversion.rewrite(filter);
+            Pushability p = pushabilityOfRewritten(rewritten);
             if (p == Pushability.YES) {
-                pushed.add(filter);
+                pushed.add(rewritten);
             } else if (p == Pushability.RECHECK) {
-                pushed.add(filter);
+                pushed.add(rewritten);
                 remainder.add(filter);
             } else {
                 remainder.add(filter);
@@ -123,6 +127,11 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
 
     @Override
     public Pushability canPush(Expression expr) {
+        return pushabilityOfRewritten(PushdownLiteralConversion.rewrite(expr));
+    }
+
+    /** Pushability for an expression that has already been through {@link PushdownLiteralConversion#rewrite}. */
+    private static Pushability pushabilityOfRewritten(Expression expr) {
         if (canConvert(expr) == false) {
             return Pushability.NO;
         }
@@ -246,6 +255,10 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
      * Validates whether an expression can be converted to a Parquet FilterPredicate.
      * For AND, partial pushdown is safe (at least one side convertible).
      * For OR and NOT, all children must be convertible.
+     * <p>
+     * Structural convertibility for an expression that is already column-typed on every
+     * convertible mixed leaf (see {@link PushdownLiteralConversion#rewrite}). Callers that hold
+     * a raw plan expression must rewrite first.
      */
     static boolean canConvert(Expression expr) {
         if (PushdownPredicates.allPushdownLiteralsAgree(expr) == false) {

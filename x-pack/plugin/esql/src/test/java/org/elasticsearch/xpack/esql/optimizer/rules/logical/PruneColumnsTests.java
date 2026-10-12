@@ -7,8 +7,9 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -3214,6 +3215,15 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     /**
+     * DENSE_VECTOR is rejected below {@link DenseVector#ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION}, so its tests pin a version
+     * that supports it.
+     */
+    private TestAnalyzer denseVectorAnalyzer() {
+        TransportVersion floor = DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION;
+        return typesAnalyzer().minimumTransportVersion(minimumVersion.supports(floor) ? minimumVersion : floor);
+    }
+
+    /**
      * The unused generated column and its input field are pruned. Checks the delta explicitly: the analyzed node embeds
      * both {@code keyword} and {@code text}; after pruning only {@code keyword} (whose generated column is kept) remains,
      * proving {@code text} and its embedding were actually dropped.
@@ -3235,13 +3245,12 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * }
      */
     public void testDenseVectorPrunesUnusedGeneratedColumn() {
-        assumeTrue("DENSE_VECTOR is snapshot-only", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
         var query = """
             from types
             | dense_vector keyword, text WITH { "inference_id" : "text-embedding-inference-id" }
             | keep keyword_dense_vector
             """;
-        var analyzedPlan = typesAnalyzer().query(query);
+        var analyzedPlan = denseVectorAnalyzer().query(query);
 
         // before pruning: both fields are embedded
         {
@@ -3269,13 +3278,12 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * When none of the generated columns are used, the whole DENSE_VECTOR node is removed.
      */
     public void testDenseVectorNodeRemovedWhenNoGeneratedColumnUsed() {
-        assumeTrue("DENSE_VECTOR is snapshot-only", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
         var query = """
             from types
             | dense_vector keyword, text WITH { "inference_id" : "text-embedding-inference-id" }
             | keep integer
             """;
-        var analyzedPlan = typesAnalyzer().query(query);
+        var analyzedPlan = denseVectorAnalyzer().query(query);
         assertTrue("DenseVector present before pruning", analyzedPlan.anyMatch(p -> p instanceof DenseVector));
 
         LogicalPlan pruned = new PruneColumns().apply(analyzedPlan);
@@ -3286,13 +3294,12 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * When every generated column is used, the node is left unchanged.
      */
     public void testDenseVectorUnchangedWhenAllGeneratedColumnsUsed() {
-        assumeTrue("DENSE_VECTOR is snapshot-only", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
         var query = """
             from types
             | dense_vector keyword, text WITH { "inference_id" : "text-embedding-inference-id" }
             | keep keyword_dense_vector, text_dense_vector
             """;
-        DenseVector dv = onlyDenseVector(new PruneColumns().apply(typesAnalyzer().query(query)));
+        DenseVector dv = onlyDenseVector(new PruneColumns().apply(denseVectorAnalyzer().query(query)));
         assertThat(Expressions.names(dv.fields()), contains("keyword", "text"));
         assertThat(Expressions.names(dv.generatedAttributes()), contains("keyword_dense_vector", "text_dense_vector"));
     }
@@ -3301,14 +3308,13 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * With three embedded fields and two used generated columns, only the unused middle field is pruned.
      */
     public void testDenseVectorPrunesMiddleFieldOnly() {
-        assumeTrue("DENSE_VECTOR is snapshot-only", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
         var query = """
             from types
             | eval a = keyword, b = keyword, c = keyword
             | dense_vector a, b, c WITH { "inference_id" : "text-embedding-inference-id" }
             | keep a_dense_vector, c_dense_vector
             """;
-        var analyzedPlan = typesAnalyzer().query(query);
+        var analyzedPlan = denseVectorAnalyzer().query(query);
         assertThat(Expressions.names(onlyDenseVector(analyzedPlan).fields()), contains("a", "b", "c"));
 
         DenseVector dv = onlyDenseVector(new PruneColumns().apply(analyzedPlan));
@@ -3321,14 +3327,13 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * first clause survives.
      */
     public void testChainedDenseVectorClausesPruneIndependently() {
-        assumeTrue("DENSE_VECTOR is snapshot-only", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
         var query = """
             from types
             | dense_vector keyword WITH { "inference_id" : "text-embedding-inference-id" }
             | dense_vector text WITH { "inference_id" : "text-embedding-inference-id" }
             | keep keyword_dense_vector
             """;
-        var analyzedPlan = typesAnalyzer().query(query);
+        var analyzedPlan = denseVectorAnalyzer().query(query);
         assertThat("two clauses before pruning", analyzedPlan.collect(p -> p instanceof DenseVector), hasSize(2));
 
         LogicalPlan pruned = new PruneColumns().apply(analyzedPlan);
@@ -3341,14 +3346,13 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * Pruning commutes with a preceding filter: a WHERE before DENSE_VECTOR still prunes the unused field.
      */
     public void testDenseVectorPruneWithFilter() {
-        assumeTrue("DENSE_VECTOR is snapshot-only", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
         var query = """
             from types
             | where integer > 0
             | dense_vector keyword, text WITH { "inference_id" : "text-embedding-inference-id" }
             | keep keyword_dense_vector
             """;
-        DenseVector dv = onlyDenseVector(new PruneColumns().apply(typesAnalyzer().query(query)));
+        DenseVector dv = onlyDenseVector(new PruneColumns().apply(denseVectorAnalyzer().query(query)));
         assertThat(Expressions.names(dv.fields()), contains("keyword"));
         assertThat(Expressions.names(dv.generatedAttributes()), contains("keyword_dense_vector"));
     }
@@ -3359,7 +3363,6 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * clause is not confused by the earlier, dropped one.
      */
     public void testDenseVectorPruneKeepsUsedClauseAcrossChain() {
-        assumeTrue("DENSE_VECTOR is snapshot-only", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
         var query = """
             from types
             | dense_vector keyword WITH { "inference_id" : "text-embedding-inference-id" }
@@ -3367,7 +3370,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             | dense_vector keyword_copy WITH { "inference_id" : "text-embedding-inference-id" }
             | keep keyword_copy_dense_vector
             """;
-        var analyzedPlan = typesAnalyzer().query(query);
+        var analyzedPlan = denseVectorAnalyzer().query(query);
         assertThat("two clauses before pruning", analyzedPlan.collect(p -> p instanceof DenseVector), hasSize(2));
 
         // only the used (second) clause survives, embedding keyword_copy

@@ -179,7 +179,7 @@ For metric discovery, autocompletion, or template-variable problems, check the r
   Before assuming an {{es}} problem, rule out a genuinely invalid query, which would fail against upstream Prometheus too.
   Confirm the expression is valid PromQL, for example with [PromLens](https://demo.promlens.com/).
   Then check whether the behavior is an expected difference:
-    - The expression might use a [construct that {{es}} does not evaluate yet](promql-limitations.md#promql-limitations-unsupported-constructs), such as set operators or group modifiers. These return a `4xx` with `errorType: bad_data`.
+    - The expression might use a [construct that {{es}} does not evaluate yet](promql-limitations.md#promql-limitations-unsupported-constructs). These return a `4xx` with `errorType: bad_data`.
     - The request might include a [query parameter {{es}} does not support yet](promql-limitations.md#promql-limitations-unsupported-query-params), which also fails with `4xx`.
     - [Instant queries](promql-limitations.md#promql-limitations-instant-query) and [staleness handling](promql-limitations.md#promql-limitations-staleness) differ from upstream Prometheus.
 

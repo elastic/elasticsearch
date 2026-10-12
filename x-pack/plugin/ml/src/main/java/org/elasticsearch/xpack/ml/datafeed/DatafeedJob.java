@@ -261,8 +261,19 @@ class DatafeedJob {
         return Intervals.alignToFloor(frequencyAlignedEnd, groupingIntervalMs);
     }
 
+    private long realtimeWindowStart() {
+        if (lastEndTimeMs == null) {
+            return lookbackStartTimeMs;
+        }
+        long resumeFrom = lastEndTimeMs + 1;
+        if (isEsqlDatafeed && groupingIntervalMs > 0) {
+            resumeFrom = Intervals.alignToFloor(resumeFrom, groupingIntervalMs);
+        }
+        return Math.max(lookbackStartTimeMs, resumeFrom);
+    }
+
     long runRealtime() throws Exception {
-        long start = lastEndTimeMs == null ? lookbackStartTimeMs : Math.max(lookbackStartTimeMs, lastEndTimeMs + 1);
+        long start = realtimeWindowStart();
         long nowMinusQueryDelay = currentTimeSupplier.get() - queryDelayMs;
         long end = toIntervalStartEpochMs(nowMinusQueryDelay);
         if (isEsqlDatafeed && groupingIntervalMs > 0 && realtimeAdvanceTime(end) <= start) {

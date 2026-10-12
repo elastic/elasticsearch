@@ -35,9 +35,11 @@ abstract class AbstractBinaryDocValuesAutomatonQuery extends AbstractBinaryDocVa
         }
     }
 
+    protected abstract long shallowSize();
+
     @Override
     public long ramBytesUsed() {
-        return automaton.ramBytesUsed();
+        return shallowSize() + automaton.ramBytesUsed();
     }
 
     @Override

@@ -13,6 +13,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
@@ -32,6 +33,7 @@ import java.util.Objects;
  * This implementation is slow, because it potentially scans binary doc values for each document.
  */
 public final class ScanningBinaryDocValuesAutomatonQuery extends AbstractBinaryDocValuesAutomatonQuery {
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ScanningBinaryDocValuesAutomatonQuery.class);
 
     private final String description;
 
@@ -171,5 +173,10 @@ public final class ScanningBinaryDocValuesAutomatonQuery extends AbstractBinaryD
     @Override
     public int hashCode() {
         return Objects.hash(classHash(), fieldName, automaton, binaryFormat);
+    }
+
+    @Override
+    protected long shallowSize() {
+        return SHALLOW_SIZE + RamUsageEstimator.sizeOf(description);
     }
 }

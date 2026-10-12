@@ -347,7 +347,8 @@ abstract class BinaryDvConfirmedQuery extends Query implements BinaryDocValuesSc
 
         @Override
         public long ramBytesUsed() {
-            // Only what the shallow size of this query misses; MaxClauseCountQueryVisitor adds the shallow size itself.
+            // Only what the shallow size of this query misses; MaxClauseCountQueryVisitor adds the shallow size itself for
+            // BinaryDocValuesScanCost.
             return byteRunAutomaton.ramBytesUsed();
         }
 

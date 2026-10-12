@@ -27,6 +27,7 @@ import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
@@ -57,6 +58,7 @@ import java.util.Objects;
  * read a document at a time like any binary doc values.
  */
 public final class ColumnarStringAutomatonQuery extends Query implements Accountable {
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ColumnarStringAutomatonQuery.class);
 
     private final String field;
     private final ByteRunAutomaton automaton;
@@ -197,6 +199,6 @@ public final class ColumnarStringAutomatonQuery extends Query implements Account
 
     @Override
     public long ramBytesUsed() {
-        return automaton.ramBytesUsed() + description.length();
+        return SHALLOW_SIZE + automaton.ramBytesUsed() + RamUsageEstimator.sizeOf(field) + RamUsageEstimator.sizeOf(description);
     }
 }

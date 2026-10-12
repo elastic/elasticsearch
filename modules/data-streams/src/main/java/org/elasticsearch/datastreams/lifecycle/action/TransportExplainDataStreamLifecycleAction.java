@@ -107,6 +107,7 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
         ProjectMetadata metadata = state.metadata();
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(metadata, request);
         List<ExplainIndexDataStreamLifecycle> explainIndices = new ArrayList<>(concreteIndices.length);
+        boolean minimumLifecycleEnabled = dataStreamLifecycleSettings.minimumLifecycleEnabled();
         Map<String, Set<Index>> pastFrozenAfterByDataStream = new HashMap<>();
         for (String index : concreteIndices) {
             IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index);
@@ -119,11 +120,15 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
             }
             DataStream parentDataStream = indexAbstraction.getParentDataStream();
             if (parentDataStream == null
-                || parentDataStream.isIndexManagedByDataStreamLifecycle(idxMetadata.getIndex(), metadata::index, false) == false) {
+                || parentDataStream.isIndexManagedByDataStreamLifecycle(
+                    idxMetadata.getIndex(),
+                    metadata::index,
+                    minimumLifecycleEnabled
+                ) == false) {
                 explainIndices.add(
                     ExplainIndexDataStreamLifecycle.unmanagedIndexResponse(
                         index,
-                        describeNotManagedByDlmReason(parentDataStream, idxMetadata, dlmOnly)
+                        describeNotManagedByDlmReason(parentDataStream, idxMetadata, minimumLifecycleEnabled, dlmOnly)
                     )
                 );
                 continue;
@@ -141,6 +146,7 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
                 lifecycle,
                 errorStore.getError(state.projectId(), idxMetadata.getIndex()),
                 computeFrozenTransitionStatus(state, parentDataStream, idxMetadata, lifecycle, pastFrozenAfterByDataStream),
+                parentDataStream.isMinimumLifecycleApplicable(index, minimumLifecycleEnabled),
                 tailMergeDate(idxMetadata)
             );
             explainIndices.add(explainIndexDataStreamLifecycle);
@@ -157,14 +163,12 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
         );
     }
 
-    @Nullable
-    private static Long tailMergeDate(IndexMetadata indexMetadata) {
-        Map<String, String> customMetadata = indexMetadata.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
-        String timestamp = customMetadata == null ? null : customMetadata.get(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY);
-        return timestamp == null ? null : Long.parseLong(timestamp);
-    }
-
-    private String describeNotManagedByDlmReason(DataStream parentDataStream, IndexMetadata indexMetadata, boolean dlmOnly) {
+    private String describeNotManagedByDlmReason(
+        DataStream parentDataStream,
+        IndexMetadata indexMetadata,
+        boolean minimumLifecycleEnabled,
+        boolean dlmOnly
+    ) {
         String indexName = indexMetadata.getIndex().getName();
         if (indexMetadata.getIndexMode() == IndexMode.LOOKUP) {
             return "Index [" + indexName + "] is a lookup index which is not compatible with lifecycle management.";
@@ -172,7 +176,7 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
         if (parentDataStream == null) {
             return "Index [" + indexName + "] does not belong to a data stream, so it cannot be managed by data stream lifecycle.";
         }
-        DataStreamLifecycle lifecycle = parentDataStream.getDataLifecycleForIndex(indexMetadata.getIndex());
+        DataStreamLifecycle lifecycle = parentDataStream.getEffectiveLifecycleForIndex(indexMetadata.getIndex(), minimumLifecycleEnabled);
         if (lifecycle == null) {
             return "Index ["
                 + indexName
@@ -203,6 +207,13 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
                 + "], you can switch to data stream lifecycle by setting prefer_ilm to false.";
         }
         return null;
+    }
+
+    @Nullable
+    private static Long tailMergeDate(IndexMetadata indexMetadata) {
+        Map<String, String> customMetadata = indexMetadata.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
+        String timestamp = customMetadata == null ? null : customMetadata.get(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY);
+        return timestamp == null ? null : Long.parseLong(timestamp);
     }
 
     /**

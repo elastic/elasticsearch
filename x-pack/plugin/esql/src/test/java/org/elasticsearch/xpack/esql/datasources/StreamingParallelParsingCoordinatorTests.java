@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
+import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget.UntrackedWait;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
@@ -1550,8 +1551,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
-     * Evidence-first repro for the {@code esql_external_io} segmentator-saturation hazard
-     * (elastic/esql-planning #1093, structural-fix item 4). Faithfully mirrors the post-#153074 two-pool
+     * Evidence-first repro for the {@code esql_external_io} segmentator-saturation hazard.
+     * Faithfully mirrors the post-#153074 two-pool
      * wiring: segmentators <em>and</em> their one-shot parser tasks share a single bounded pool of size
      * {@code K} (the production {@code esql_external_io} pool), while the consumer drains run on a
      * <strong>separate</strong> pool (the production {@code esql_worker} producer-loop drivers).
@@ -1645,7 +1646,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                     + " never drained: their parser tasks starved. The admission gate ("
                     + admission.maxConcurrentSegmentators()
                     + " concurrent segmentators) must keep a pool thread free for parsers "
-                    + "(regression of the esql-planning #1093 item 4 fix).",
+                    + "(regression of the admission-gate fix).",
                 completed
             );
             assertTrue("no drain thread should have failed: " + failures, failures.isEmpty());
@@ -1662,7 +1663,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
-     * T2 (C1): production cap {@code maxConcurrentSegmentators=1} on a 2-thread pool, p=2, with the
+     * Production cap {@code maxConcurrentSegmentators=1} on a 2-thread pool, p=2, with the
      * non-segmentator thread pinned so parser tasks never run. Inline parse on the segmentator must
      * still drain. If this starves later, raise the cap and the pool together; do not drop the cap.
      * Do not use {@link StreamingSegmentatorAdmission#unbounded()}.
@@ -2313,9 +2314,15 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         @Override
-        public SubscribableListener<Hold> admitAsync(long bytes, RowGroupIo lease, BooleanSupplier cancelSignal, Executor executor) {
+        public SubscribableListener<Hold> admitAsync(
+            long bytes,
+            RowGroupIo lease,
+            BooleanSupplier cancelSignal,
+            Executor executor,
+            UntrackedWait untrackedWait
+        ) {
             SubscribableListener<Hold> out = new SubscribableListener<>();
-            inner.admitAsync(bytes, lease, cancelSignal, executor).addListener(ActionListener.wrap(hold -> {
+            inner.admitAsync(bytes, lease, cancelSignal, executor, untrackedWait).addListener(ActionListener.wrap(hold -> {
                 record();
                 out.onResponse(wrap(hold));
             }, e -> {
@@ -2326,15 +2333,15 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         @Override
-        public void add(long bytes) {
+        public void add(long bytes, RowGroupIo lease) {
             addCount.incrementAndGet();
-            inner.add(bytes);
+            inner.add(bytes, lease);
             record();
         }
 
         @Override
-        public void release(long bytes) {
-            inner.release(bytes);
+        public void release(long bytes, RowGroupIo lease) {
+            inner.release(bytes, lease);
             record();
         }
 
@@ -2356,6 +2363,11 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         @Override
         public long limit() {
             return inner.limit();
+        }
+
+        @Override
+        public long untracked() {
+            return inner.untracked();
         }
 
         @Override

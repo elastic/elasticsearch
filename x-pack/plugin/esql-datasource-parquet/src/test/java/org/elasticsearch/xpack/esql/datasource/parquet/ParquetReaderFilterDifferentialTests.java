@@ -515,7 +515,7 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
     }
 
     // ---------------------------------------------------------------------------------------
-    // List-column (multivalue) regression — esql-planning#1070
+    // List-column (multivalue) regression —
     // ---------------------------------------------------------------------------------------
 
     /**

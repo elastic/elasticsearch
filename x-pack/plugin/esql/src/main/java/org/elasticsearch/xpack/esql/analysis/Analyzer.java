@@ -675,7 +675,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * <p>
      * Delegates to {@link UnionAll#pruneEmptyBranches(java.util.function.Predicate)} so a matched shadow
      * (now an {@code EsRelation}) survives alongside the dataset's external relation as separate
-     * {@code UnionAll} branches (Strategy A — no merging into a single combined relation). A single-survivor
+     * {@code UnionAll} branches (no merging into a single combined relation). A single-survivor
      * union collapses to its lone child, so {@code FROM ds} with no remote match returns to exactly the bare
      * {@code UnresolvedExternalRelation} shape the non-CPS path produces.
      */

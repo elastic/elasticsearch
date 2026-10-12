@@ -407,7 +407,10 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             "id1",
             null,
             List.of(dataStreamName + "*"),
-            indexSettings(1, 0).put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1") // This allows merging to succeed in a single node test
+                .put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), TARGET_MERGE_FACTOR_VALUE)
                 .build(),
             null,
@@ -482,8 +485,12 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                     ExplainDataStreamLifecycleAction.Response response = safeGet(
                         client().execute(ExplainDataStreamLifecycleAction.INSTANCE, request)
                     );
-                    ExplainIndexDataStreamLifecycle lifecycleExplain = response.getIndices().getFirst();
-                    assertThat(lifecycleExplain.getTailMergeDate(), notNullValue());
+                    Optional<ExplainIndexDataStreamLifecycle> lifecycleExplain = response.getIndices()
+                        .stream()
+                        .filter(r -> r.getIndex().equals(toBeForceMergedIndex))
+                        .findFirst();
+                    assertThat(lifecycleExplain.isPresent(), equalTo(true));
+                    assertThat(lifecycleExplain.get().getTailMergeDate(), notNullValue());
                 }
                 // We want to assert that when data stream lifecycle rolls over the write index it, it doesn't forcemerge it on that
                 // iteration:

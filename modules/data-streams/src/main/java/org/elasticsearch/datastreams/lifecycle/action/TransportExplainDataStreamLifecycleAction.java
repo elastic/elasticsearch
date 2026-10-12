@@ -209,8 +209,9 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
         return null;
     }
 
+    // Visible for testing
     @Nullable
-    private static Long tailMergeDate(IndexMetadata indexMetadata) {
+    static Long tailMergeDate(IndexMetadata indexMetadata) {
         Map<String, String> customMetadata = indexMetadata.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
         String timestamp = customMetadata == null ? null : customMetadata.get(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY);
         return timestamp == null ? null : Long.parseLong(timestamp);

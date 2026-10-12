@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.vector;
 
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -49,8 +48,7 @@ public class KnnErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
             args.size() > 2 ? args.get(2) : null,
             null,
             null,
-            List.of(),
-            EsqlTestUtils.TEST_CFG
+            List.of()
         );
     }
 

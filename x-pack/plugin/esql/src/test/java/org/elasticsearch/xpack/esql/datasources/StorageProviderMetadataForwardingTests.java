@@ -16,7 +16,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.IOException;
+import java.lang.reflect.Modifier;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -114,13 +116,13 @@ public class StorageProviderMetadataForwardingTests extends ESTestCase {
     public void testCloseIsNotInheritedFromTheBase() throws Exception {
         assertTrue(
             "close() must stay abstract on the base",
-            java.lang.reflect.Modifier.isAbstract(ForwardingStorageProvider.class.getMethod("close").getModifiers())
+            Modifier.isAbstract(ForwardingStorageProvider.class.getMethod("close").getModifiers())
         );
     }
 
     /** Records which method arrived, in order, so a forward that goes to the wrong one is visible. */
     private static final class RecordingProvider extends StubProvider {
-        private final List<String> seen = new java.util.ArrayList<>();
+        private final List<String> seen = new ArrayList<>();
 
         @Override
         public StorageObject newObject(StoragePath path) {

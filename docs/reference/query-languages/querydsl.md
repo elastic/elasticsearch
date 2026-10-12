@@ -1,11 +1,18 @@
 ---
+navigation_title: Query DSL
+description: Look up Query DSL in Elasticsearch, including leaf and compound query clauses, expensive queries, and links to every query type.
+applies_to:
+  serverless: ga
+  stack: ga
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl.html
 ---
 
-# Query DSL [query-dsl]
+# Query DSL reference [query-dsl]
 
 :::{note}
+This section provides detailed **reference information**.
+
 Refer to the [Query DSL overview](docs-content://explore-analyze/query-filter/languages/querydsl.md) in the **Explore and analyze** section for overview and conceptual information about Query DSL.
 :::
 
@@ -22,7 +29,7 @@ Query clauses behave differently depending on whether they are used in [query co
 $$$query-dsl-allow-expensive-queries$$$
 
 Allow expensive queries
-:   Certain types of queries will generally execute slowly due to the way they are implemented, which can affect the stability of the cluster. Those queries can be categorised as follows:
+:   Certain types of queries generally run slowly because of the way they are implemented, which can affect the stability of the cluster. These queries fall into the following categories:
 
     * Queries that need to do linear scans to identify matches:
         * [`script` queries](/reference/query-languages/query-dsl/query-dsl-script-query.md)
@@ -31,15 +38,16 @@ Allow expensive queries
     * Queries that have a high up-front cost:
         * [`fuzzy` queries](/reference/query-languages/query-dsl/query-dsl-fuzzy-query.md) (except on [`wildcard`](/reference/elasticsearch/mapping-reference/keyword.md#wildcard-field-type) fields)
         * [`regexp` queries](/reference/query-languages/query-dsl/query-dsl-regexp-query.md) (except on [`wildcard`](/reference/elasticsearch/mapping-reference/keyword.md#wildcard-field-type) fields)
-        * [`prefix` queries](/reference/query-languages/query-dsl/query-dsl-prefix-query.md)  (except on [`wildcard`](/reference/elasticsearch/mapping-reference/keyword.md#wildcard-field-type) fields or those without [`index_prefixes`](/reference/elasticsearch/mapping-reference/index-prefixes.md))
+        * [`prefix` queries](/reference/query-languages/query-dsl/query-dsl-prefix-query.md) (except on [`wildcard`](/reference/elasticsearch/mapping-reference/keyword.md#wildcard-field-type) fields, and on [`text`](/reference/elasticsearch/mapping-reference/text.md) fields that have [`index_prefixes`](/reference/elasticsearch/mapping-reference/index-prefixes.md) enabled when the prefix has from `min_chars` minus 1 to `max_chars` characters)
         * [`wildcard` queries](/reference/query-languages/query-dsl/query-dsl-wildcard-query.md) (except on [`wildcard`](/reference/elasticsearch/mapping-reference/keyword.md#wildcard-field-type) fields)
         * [`range` queries](/reference/query-languages/query-dsl/query-dsl-range-query.md) on [`text`](/reference/elasticsearch/mapping-reference/text.md) and [`keyword`](/reference/elasticsearch/mapping-reference/keyword.md) fields
 
     * [Joining queries](/reference/query-languages/query-dsl/joining-queries.md)
-    * Queries that may have a high per-document cost:
+    * Queries on [runtime fields](docs-content://manage-data/data-store/mapping/runtime-fields.md)
+    * Queries that might have a high per-document cost:
         * [`script_score` queries](/reference/query-languages/query-dsl/query-dsl-script-score-query.md)
         * [`percolate` queries](/reference/query-languages/query-dsl/query-dsl-percolate-query.md)
 
 
-The execution of such queries can be prevented by setting the value of the `search.allow_expensive_queries` setting to `false` (defaults to `true`).
+{applies_to}`serverless: unavailable` To block these queries, set `search.allow_expensive_queries` to `false` with the [cluster update settings API]({{es-apis}}operation/operation-cluster-put-settings). This requires the `manage` [cluster privilege](/reference/elasticsearch/security-privileges.md#privileges-list-cluster). The setting is dynamic, so the change applies without a restart. While it is `false`, {{es}} rejects the listed queries with an error instead of running them. The default is `true`.
 

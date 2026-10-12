@@ -285,7 +285,7 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
         Settings settings = Settings.builder().put("esql.external.cache.size", "48kb").build();
         try (ExternalSourceCacheService cache = new ExternalSourceCacheService(settings)) {
             long daCeiling = (Long) cache.usageStats().get("dataset_aggregate_max_entry_bytes");
-            DatasetAggregateKey key = DatasetAggregateKey.of(
+            DatasetAggregateKey key = DatasetAggregateKey.ofDefinition(
                 "file:///tmp/warm-fold/*.ndjson",
                 new FileSetFingerprint(11, 22),
                 "0123456789abcdef0123456789abcdef"

@@ -1402,9 +1402,11 @@ public class ExternalSourceCacheService implements Closeable {
                 // dropUnrepresentable=false: an unrepresentable value is left for that fold's POISON to
                 // safe-miss the whole column (a per-stripe drop would fold a subset).
                 //
-                // A foreign read is stored as harvested: no record holds the right types to normalise it against,
-                // and its values are already in the types its own address names. A pair that still cannot fold is
-                // poisoned by mergeStatistics and safe-misses the column, never a wrong number.
+                // A foreign read is stored as harvested, which is also the whole-file arm's rule. Coercing it
+                // would be unsound rather than merely unnecessary: the record's types are not this read's, so
+                // the target would be wrong for a column the two disagree about - and an extremum's box already
+                // follows the READ's resolved type (ColumnStatsAccumulator.ColumnState.classify), so every
+                // stripe at one address is boxed the same way and there is nothing here to normalise.
                 Map<String, Object> stripeStats = deltaIsTheRecordsOwnRead
                     ? coerceColumnStatsToResolvedTypes(stripe.getValue(), schemaRecord.columnNames(), schemaRecord.columnTypes(), false)
                     : stripe.getValue();
@@ -1455,6 +1457,15 @@ public class ExternalSourceCacheService implements Closeable {
      * overflow garbage). Returns the input unchanged when no column needed coercion.
      */
     static Map<String, Object> coerceColumnStatsToResolvedTypes(
+        Map<String, Object> statsMap,
+        String[] columnNames,
+        DataType[] columnTypes,
+        boolean dropUnrepresentable
+    ) {
+        return coerceColumnStats(statsMap, columnNames, columnTypes, dropUnrepresentable);
+    }
+
+    private static Map<String, Object> coerceColumnStats(
         Map<String, Object> statsMap,
         String[] columnNames,
         DataType[] columnTypes,

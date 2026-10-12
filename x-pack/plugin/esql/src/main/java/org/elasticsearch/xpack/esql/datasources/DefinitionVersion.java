@@ -31,50 +31,55 @@ import java.util.Map;
 import java.util.TreeMap;
 
 /**
- * A version of the stored definitions a query reads a dataset under: the dataset's own definition and
- * that of the data source it references, folded into one opaque value.
+ * A version of the stored definitions a query reads a dataset under: the dataset's own definition and that of the
+ * data source it references, folded into one opaque value.
  * <p>
- * <b>Which bytes, not how they are read.</b> This covers what a query can reach — the resource, the
- * storage settings, the credentials — and deliberately not the declared mapping. A mapping decides how
- * bytes become rows, which is what {@link org.elasticsearch.xpack.esql.datasources.cache.ReadConfigFingerprint}
- * addresses; folding it here would encode the procedure that reached a read rather than the read itself,
- * so a dataset declaring exactly what inference already produced would stop sharing the entries of its
- * undeclared twin and pay a cold scan for declaring nothing.
+ * <b>Two versions, because there are two tiers.</b> {@link #of} addresses a fact about a FILE; {@link #ofDataset}
+ * addresses a fact about a DATASET. They fold different things, and the difference is the whole point:
+ * <ul>
+ *   <li><b>Per file ({@code of}): which bytes, not how they are read.</b> The resource, the storage settings, the
+ *       credentials - and deliberately neither the declared mapping nor either name. A mapping decides how bytes
+ *       become rows, which {@link org.elasticsearch.xpack.esql.datasources.cache.ReadConfigFingerprint} addresses;
+ *       folding it here would stop a dataset declaring exactly what inference already produced from sharing its
+ *       undeclared twin's entries, so it would pay a cold scan for declaring nothing. A name decides nothing about
+ *       what is read, so renaming a dataset keeps its cache warm.</li>
+ *   <li><b>Per dataset ({@code ofDataset}): which definition exactly.</b> Both names and the declared mapping ARE
+ *       folded, because a dataset-level fold is not reusable the way a file's measurements are: one definition over
+ *       one file set performs one read, so the fold belongs to that definition entire and any edit must move it.
+ *       Both descriptions are excluded, being the only fields that decide nothing.</li>
+ * </ul>
  * <p>
- * Everything cached about a file is derived from those definitions, so every entry is <em>addressed</em> by
- * this. An edit to either — a setting, the resource pattern, an endpoint, a credential — yields a different
- * version, so entries derived under the old one are no longer reachable and age out. That replaces an
- * invalidation path from the registry to the caches: nothing has to notice a change and tell anyone about it,
- * because the address moved.
+ * Everything cached is <em>addressed</em> by one of these, so an edit yields a different version, entries derived
+ * under the old one become unreachable and age out. That replaces an invalidation path from the registry to the
+ * caches: nothing has to notice a change and tell anyone, because the address moved.
  * <p>
  * <b>Addressing is not the same as attribution.</b> A statistics contribution says which path, at which mtime,
- * under which format config, and never which store or which definition — so a harvest cannot be attributed to one
+ * under which format config, and never which store or which definition - so a harvest cannot be attributed to one
  * of two entries that agree on those three, which two stores serving one bucket and key written in the same second
  * do. {@code ExternalSourceCacheService.collectMatchingEntries} therefore enriches none of them rather than
  * guessing. A version in the key keeps entries apart; it does not let the write path tell them apart.
  * <p>
- * Deliberately coarse. An edit that could not have changed what is cached still changes the version,
- * and the cost is one cold read. Deciding per field which edits matter would have to be re-decided
- * for every setting added, and being wrong that way is silent — an entry keeps being served after the
- * thing it was derived from has changed.
+ * Deliberately coarse. An edit that could not have changed what is cached still changes the version, and the cost
+ * is one cold read. Deciding per field which edits matter would have to be re-decided for every setting added, and
+ * being wrong that way is silent - an entry keeps being served after the thing it was derived from has changed.
  * <p>
- * <b>Content, not names.</b> Neither the dataset's name nor its data source's is folded in: a name
- * decides nothing about what is read, so two definitions that are equal in content address one set of
- * entries and share the work of filling them. Renaming a dataset keeps its cache warm.
+ * <b>An encrypted secret's value is not folded in.</b> Encryption draws a fresh IV per write, so a stored secret's
+ * ciphertext is not a function of the secret: folding it versioned definitions that had not changed, and two data
+ * sources registered with the same settings addressed nothing in common. What is folded for such a secret is its
+ * name and the key id it is stored under, which moves when the project's encryption key does.
  * <p>
- * <b>An encrypted secret's value is not folded in.</b> Encryption draws a fresh IV per write, so a stored
- * secret's ciphertext is not a function of the secret: folding it versioned definitions that had not changed,
- * and two data sources registered with the same settings addressed nothing in common. What is folded for such
- * a secret is its name and the key id it is stored under, which moves when the project's encryption key does.
- * Credential isolation is carried by the party holding the decrypted value instead: {@code
- * Configured.secretIdentity}, digested from plaintext and therefore equal exactly when the secrets are, and
- * the {@code StorageIdentity} a provider stamps on the objects it reads.
+ * <b>So the dataset tier's credential separation is weaker than the per-file tier's, deliberately.</b> A per-file
+ * entry is addressed by {@code DatasetIdentity}, whose source lane carries the secret digested from plaintext
+ * ({@code StorageIdentity.digestSecret}), so two credential sets can never share one address. A dataset-level fold
+ * is addressed by {@code ofDataset} alone, which sees only the key id - so a rotation under the SAME key id keeps
+ * the previous fold reachable. What that fold holds is a row count over a file set the fingerprint pins, so the
+ * count is the same number either way; two different data sources still separate, by name.
  * <p>
- * A cluster that has opted out of state encryption stores a secret as plaintext — {@code
- * DataSourceService.applyEncryption} returns the settings unencrypted when the encryption service is
- * unavailable and {@code cluster.state.encryption.required} is false — and there the value IS folded in,
- * because for that shape it is stable. Rotating a secret moves every address derived from it on such a
- * cluster and does not on an encrypted one. The asymmetry is in the storage shape, not decided here.
+ * A cluster that has opted out of state encryption stores a secret as plaintext - {@code
+ * DataSourceService.applyEncryption} returns the settings unencrypted when the encryption service is unavailable
+ * and {@code cluster.state.encryption.required} is false - and there the value IS folded in, because for that shape
+ * it is stable. Rotating a secret moves every address derived from it on such a cluster and does not on an
+ * encrypted one. The asymmetry is in the storage shape, not decided here.
  */
 public final class DefinitionVersion {
 
@@ -99,9 +104,13 @@ public final class DefinitionVersion {
      * <p>
      * Keyed by the IDENTITY of the two definitions, not by their contents. {@code Dataset.equals} deep-compares
      * the mapping, which is the work this exists to avoid; and identity is the right question, because
-     * {@code DatasetMetadata} is a diffable custom - an unchanged {@code Dataset} keeps its reference across a
-     * publish, and an edited one is a new instance. An identity HASH collision lands two keys in one bucket and
-     * then fails {@code equals}, so it costs a recomputation rather than a wrong answer.
+     * {@code DatasetMetadata} is a diffable custom whose diff is a {@code CompleteNamedDiff}
+     * ({@code AbstractNamedDiffable.diff}), so a publish that touches it replaces the whole custom: on a node
+     * applying that diff EVERY {@code Dataset} is a new instance, not only the edited one, and the memo misses
+     * for all of them. A publish that does not touch the custom keeps every reference. So the memo is warm
+     * between dataset edits rather than across them, which is the common case and is all this needs to be. An
+     * identity HASH collision lands two keys in one bucket and then fails {@code equals}, so either way the cost
+     * is a recomputation and never a wrong answer.
      * <p>
      * The premise is that a {@code Dataset} does not change under its own reference. It holds final fields, but
      * its constructor wraps the caller's settings map rather than copying it, so a caller that retained and

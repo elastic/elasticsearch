@@ -710,13 +710,16 @@ public class DefinitionVersionTests extends ESTestCase {
     }
 
     /**
-     * The parser, separated from the file it reads so {@link #testTheFieldScannerSeesBothShapes} can hold it to a
+     * The parser, separated from the file it reads so {@link #testTheFieldScannerSeesEveryDeclarationShape} can hold it to a
      * fixture. It was wrong once - splitting a record header on every comma tore {@code Map<String, V>} in half -
      * and a scanner that silently finds the wrong set makes the census above pass while checking nothing.
      */
     static Set<String> declaredFieldsIn(String source) {
         Set<String> names = new TreeSet<>();
-        Matcher field = Pattern.compile("^\\s{4}private final [\\w<>,\\[\\] ?.]+ (\\w+);", Pattern.MULTILINE).matcher(source);
+        // {4,} not {4}: a field declared on a NESTED type is indented deeper. And the declaration may end at an
+        // initializer rather than the semicolon. Both shapes were invisible, and a field this misses is a field
+        // the census above cannot report - so the fixture below demands them rather than expecting their absence.
+        Matcher field = Pattern.compile("^\\s{4,}private final [\\w<>,\\[\\] ?.]+ (\\w+)\\s*[;=]", Pattern.MULTILINE).matcher(source);
         while (field.find()) {
             names.add(field.group(1));
         }
@@ -745,7 +748,13 @@ public class DefinitionVersionTests extends ESTestCase {
         return names;
     }
 
-    public void testTheFieldScannerSeesBothShapes() {
+    /**
+     * The scanner's own fixture. Two shapes used to be invisible here and the fixture asserted their absence,
+     * which made the blind spot the expected result: a field added with an initializer, or added to a nested
+     * type, passed the census while never reaching the fold. A field the scanner cannot see is a field the
+     * census cannot report, so each shape is required rather than permitted.
+     */
+    public void testTheFieldScannerSeesEveryDeclarationShape() {
         String source = """
             public final class Thing {
                 private static final String IGNORED = "not an instance field";
@@ -754,12 +763,17 @@ public class DefinitionVersionTests extends ESTestCase {
                 private final Map<String, List<Integer>> settings;
                 private final String withInitializer = "x";
 
+                public static final class Nested {
+                    private final long nestedField;
+                }
+
                 public record Inner(Dynamic dynamic, Map<String, Field> properties) {}
             }
             """;
         assertEquals(
-            "a plain field, a generic field, and both components of a record whose type carries a comma",
-            Set.of("name", "settings", "dynamic", "properties"),
+            "every declaration shape must be seen: plain, generic, initialized, nested, and both components of a "
+                + "record whose type carries a comma",
+            Set.of("name", "settings", "withInitializer", "nestedField", "dynamic", "properties"),
             declaredFieldsIn(source)
         );
     }

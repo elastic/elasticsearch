@@ -95,9 +95,11 @@ public class FileSplitTests extends ESTestCase {
 
     /**
      * A split is the route by which a query's config reaches every data node, so it is the route the
-     * coordinator-only dataset version must not take. A data node builds its storage provider from a config map
-     * and keys the provider cache on the whole of it, and an older node's framework keys cannot know to ignore
-     * this one.
+     * coordinator-only dataset version must not take.
+     * <p>
+     * Defence in depth rather than a live hazard: a data node reads a split's config only for the split markers,
+     * and the storage provider is built from the external source's config, not a split's. The strip is here
+     * because "nothing reads it today" is not a property the next change preserves.
      */
     public void testTheDatasetVersionDoesNotRideASplitToADataNode() throws IOException {
         Map<String, Object> config = new LinkedHashMap<>();

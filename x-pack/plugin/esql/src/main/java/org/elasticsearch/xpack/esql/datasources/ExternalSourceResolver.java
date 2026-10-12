@@ -1595,7 +1595,13 @@ public class ExternalSourceResolver {
                 Set<String> declaredTypeColumns = physicalDeclaredTypeColumnsOf(declaredMapping);
                 // Prefetch the dataset-level aggregate BEFORE the per-file stats gather — see
                 // applyDatasetAggregate for why post-gather reads self-defeat under cache pressure.
-                DatasetAggregatePrefetch datasetPrefetch = prefetchDatasetAggregate(listing, config, cacheable);
+                DatasetAggregatePrefetch datasetPrefetch = prefetchDatasetAggregate(
+                    listing,
+                    config,
+                    cacheable,
+                    storageIdentity,
+                    secretIdentity
+                );
                 // Under skip_row a narrow-read parse failure drops the whole row, so the unread files' counts are
                 // stripped at commit (dropRowCount) and the dataset-aggregate promise can never be fulfilled -
                 // every warm COUNT(*) would re-scan, which is worse than the reads the stop saves. The predicate
@@ -2491,7 +2497,7 @@ public class ExternalSourceResolver {
      * for a reader-overridden resolve. Package-private for testing.
      */
     @Nullable
-    DatasetAggregateKey datasetAggregateKey(FileList listing, Map<String, Object> config) {
+    DatasetAggregateKey datasetAggregateKey(FileList listing, Map<String, Object> config, String storageIdentity, String secretIdentity) {
         if (listing == null || listing.fileSetFingerprint() == null || listing.fileCount() < 2) {
             return null;
         }
@@ -2499,13 +2505,19 @@ public class ExternalSourceResolver {
         if (format == null) {
             return null;
         }
-        // A bare FROM over a URI has no stored definition, so there is nothing for a dataset-level fold to belong
-        // to and nothing that would move if a definition changed. Such a query keeps the per-file rail.
+        // A registered dataset's fold belongs to its definition, so an edit moves the address. A bare FROM over a
+        // URI has no definition to move - but it still performs one read over one file set, and this tier is what
+        // survives per-file eviction, so it keeps the identity-owned address this tier has always had. Refusing it
+        // a key would have re-scanned every warm COUNT(*) over a glob once the per-file records aged out.
         Object datasetVersion = config == null ? null : config.get(DefinitionVersion.DATASET_CONFIG_KEY);
         if (datasetVersion instanceof String version && version.isEmpty() == false) {
-            return DatasetAggregateKey.of(listing.originalPattern(), listing.fileSetFingerprint(), version);
+            return DatasetAggregateKey.ofDefinition(listing.originalPattern(), listing.fileSetFingerprint(), version);
         }
-        return null;
+        return DatasetAggregateKey.ofIdentity(
+            listing.originalPattern(),
+            listing.fileSetFingerprint(),
+            datasetIdentity(listing.path(0).objectName(), storageIdentity, secretIdentity, storageConfig(config))
+        );
     }
 
     /**
@@ -2558,8 +2570,14 @@ public class ExternalSourceResolver {
      */
     record DatasetAggregatePrefetch(@Nullable DatasetAggregateKey key, @Nullable Map<String, Object> prefetched) {}
 
-    private DatasetAggregatePrefetch prefetchDatasetAggregate(FileList listing, Map<String, Object> config, boolean cacheable) {
-        DatasetAggregateKey key = cacheable ? datasetAggregateKey(listing, config) : null;
+    private DatasetAggregatePrefetch prefetchDatasetAggregate(
+        FileList listing,
+        Map<String, Object> config,
+        boolean cacheable,
+        String storageIdentity,
+        String secretIdentity
+    ) {
+        DatasetAggregateKey key = cacheable ? datasetAggregateKey(listing, config, storageIdentity, secretIdentity) : null;
         return new DatasetAggregatePrefetch(key, key != null ? cacheService.getDatasetAggregate(key) : null);
     }
 
@@ -2615,10 +2633,16 @@ public class ExternalSourceResolver {
                 // immediately is a pre-existing main bug tracked separately (GA issue); this guard only
                 // keeps the dataset aggregate from memoizing it.
                 if (rowCount instanceof Number n && listingPathsAreDistinct(listing)) {
-                    // Addressed by the definition version, which folds everything about the dataset and its
-                    // source that decides how the bytes become rows. The stored value is a bare count: it carries
-                    // no read of its own, so the address has to be what keeps it away from a definition it does
-                    // not describe.
+                    // The address separates DEFINITIONS: it folds everything about the dataset and its source
+                    // that decides how bytes become rows. It does NOT separate reads, and this write-through is
+                    // not licence-gated - RunningFileStatsFold.finish returns its merged fold whether or not
+                    // every file licensed the crossing, so an unlicensed one is stored here too.
+                    //
+                    // What makes that safe is the error policy rather than the licence. skip_row is the only one
+                    // that drops rows, and it strips row_count as stale (SourceStatisticsSerializer's
+                    // dropRowCount), so no aggregate survives to be stored. null_field keeps every row and
+                    // fail_fast aborts instead of dropping any, so for both the count IS the file's physical
+                    // record count - the same number whichever of the two read it.
                     cacheService.putDatasetAggregate(datasetKey, n.longValue());
                 }
             }
@@ -2627,8 +2651,8 @@ public class ExternalSourceResolver {
         cacheService.recordStatsAggregateIncomplete();
         if (prefetch.prefetched() != null) {
             // Needed (per-file merge incomplete) AND present: the fallback actually served. What it serves now
-            // was addressed by the definition version, so a count minted under a different definition is not
-            // reachable from here at all rather than being handed over unlabelled.
+            // was addressed by its owner, so a count minted under a different definition is not reachable from
+            // here at all; and the licence above is what let it cross reads in the first place.
             cacheService.recordDatasetAggregateHit();
             return prefetch.prefetched();
         }
@@ -2703,7 +2727,7 @@ public class ExternalSourceResolver {
         String formatForStats = datasetFormat != null ? datasetFormat : registeredFormatName(fileList.path(0), config);
         boolean implicitNulls = foldsAbsentColumnAsImplicitNull(formatForStats);
         RunningFileStatsFold fold = RunningFileStatsFold.reconciliation(implicitNulls);
-        DatasetAggregatePrefetch datasetPrefetch = prefetchDatasetAggregate(fileList, config, cacheable);
+        DatasetAggregatePrefetch datasetPrefetch = prefetchDatasetAggregate(fileList, config, cacheable, storageIdentity, secretIdentity);
         // Each file's private toAttributes() list stays reachable until gatherPerFile's completion drops
         // its list. That is after this listener returns, so overlay and the next path's listing still run
         // under the charge. queryHeld keeps the listing credit and the unique-schema overflow until query

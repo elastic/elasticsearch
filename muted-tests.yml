@@ -636,15 +636,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.datasource.parquet.OptimizedParquetColumnIteratorReadinessTests
   method: testNoMatchReleasesGroupReservation
   issue: https://github.com/elastic/elasticsearch/issues/161623
-- class: org.elasticsearch.xpack.esql.EsqlSecurityLogsdbColumnarIT
-  method: testGetDataSourceForbiddenOutsideGrantedNamePatterns
-  issue: https://github.com/elastic/elasticsearch/issues/161625
-- class: org.elasticsearch.xpack.esql.EsqlSecurityIT
-  method: testViewRewriteDoesNotDropUnauthorizedTargets
-  issue: https://github.com/elastic/elasticsearch/issues/161626
-- class: org.elasticsearch.xpack.esql.EsqlAsyncSecurityIT
-  method: testViewReferencingAliasAuthorized
-  issue: https://github.com/elastic/elasticsearch/issues/161627
 - class: org.elasticsearch.rest.ChunkedZipResponseIT
   method: testRandomZipResponse
   issue: https://github.com/elastic/elasticsearch/issues/161628

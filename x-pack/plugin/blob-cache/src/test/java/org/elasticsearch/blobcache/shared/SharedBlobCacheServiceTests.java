@@ -3874,7 +3874,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
     /**
      * When the executor rejects the claiming task, the read is failed with the rejection. The task never claimed the gaps, so they are left
-     * for whoever reads or warms the range next.
+     * for whoever reads or warms the range next. (Even though, if the executor starts rejecting tasks, it means that the node is shutting
+     * down, and the node will stop using the cache at that point.)
      */
     public void testPopulateAndReadDeferredClaimRejected() throws Exception {
         withCacheServiceOnDirectExecutor(cacheService -> {

@@ -22,10 +22,12 @@ import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -142,9 +144,14 @@ public abstract sealed class ReasoningDetail implements Accountable, ToXContentO
     private static void declareParsedFields(ConstructingObjectParser<ReasoningDetail, Void> parser) {
         // common fields
         parser.declareString(constructorArg(), new ParseField(TYPE_FIELD));
-        parser.declareString(optionalConstructorArg(), new ParseField(FORMAT_FIELD));
-        parser.declareString(optionalConstructorArg(), new ParseField(ID_FIELD));
-        parser.declareLong(optionalConstructorArg(), new ParseField(INDEX_FIELD));
+        parser.declareStringOrNull(optionalConstructorArg(), new ParseField(FORMAT_FIELD));
+        parser.declareStringOrNull(optionalConstructorArg(), new ParseField(ID_FIELD));
+        parser.declareField(
+            optionalConstructorArg(),
+            p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : p.longValue(),
+            new ParseField(INDEX_FIELD),
+            ObjectParser.ValueType.LONG_OR_NULL
+        );
 
         // reasoning.encrypted specific field
         parser.declareString(optionalConstructorArg(), new ParseField(DATA_FIELD));
@@ -153,8 +160,8 @@ public abstract sealed class ReasoningDetail implements Accountable, ToXContentO
         parser.declareString(optionalConstructorArg(), new ParseField(SUMMARY_FIELD));
 
         // reasoning.text specific fields
-        parser.declareString(optionalConstructorArg(), new ParseField(TEXT_FIELD));
-        parser.declareString(optionalConstructorArg(), new ParseField(SIGNATURE_FIELD));
+        parser.declareStringOrNull(optionalConstructorArg(), new ParseField(TEXT_FIELD));
+        parser.declareStringOrNull(optionalConstructorArg(), new ParseField(SIGNATURE_FIELD));
     }
 
     /**

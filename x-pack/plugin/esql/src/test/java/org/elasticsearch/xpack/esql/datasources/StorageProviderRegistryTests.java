@@ -55,11 +55,12 @@ public class StorageProviderRegistryTests extends ESTestCase {
     }
 
     /**
-     * Covers the registry's wrapping ({@code Retryable -> ConcurrencyLimited -> leaf}) plus a {@link QueryBudgetedStorageProvider}
-     * built by hand over it, with a {@link RangeStorageObject} view on top. That hand-built wrap mirrors {@code FileSourceFactory#operatorFactory()}, but this test does not
-     * exercise that wiring; a change that drops or reorders the real wrap would not fail here. Attaching metrics on the outermost
-     * object must reach the metered leaf. A decorator that does not forward {@code attachMetrics} stops the attach at that layer,
-     * so no {@code storage.*} metric is published for that remote scheme.
+     * Covers the registry's wrapping ({@code Retryable -> ConcurrencyLimited -> leaf}) plus a
+     * {@link QueryBudgetedStorageProvider} built by hand over it, with a {@link RangeStorageObject} view on top.
+     * That hand-built wrap mirrors {@code FileSourceFactory#operatorFactory()}, but this test does not exercise
+     * that wiring; a change that drops or reorders the real wrap would not fail here. Attaching metrics on the
+     * outermost object must reach the metered leaf. A decorator that does not forward {@code attachMetrics} stops
+     * the attach at that layer, so no {@code storage.*} metric is published for that remote scheme.
      */
     public void testAttachMetricsReachesMeteredLeafThroughProductionChain() throws Exception {
         RecordingMeterRegistry meters = new RecordingMeterRegistry();

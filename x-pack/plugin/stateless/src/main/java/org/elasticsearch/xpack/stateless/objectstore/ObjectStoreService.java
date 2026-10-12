@@ -1789,7 +1789,6 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                     }
                 } else {
                     virtualBatchedCompoundCommit.mustIncRef();
-
                     try {
                         blobContainer.writeBlobAtomic(
                             OperationPurpose.INDICES,

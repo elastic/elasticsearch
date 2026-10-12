@@ -16,7 +16,6 @@ import java.util.Iterator;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntConsumer;
 
@@ -67,6 +66,7 @@ public class ConcurrentMultipartHelper {
 
     /**
      * Executes {@code tasks} independent tasks concurrently. The calling thread also participates
+     *
      * @param tasks        number of tasks to execute
      * @param executor     executor used to dispatch concurrent tasks
      * @param taskConsumer callback invoked per task index, must be thread-safe

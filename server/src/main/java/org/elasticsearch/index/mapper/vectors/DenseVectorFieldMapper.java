@@ -46,6 +46,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -142,6 +143,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
@@ -316,8 +318,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final boolean indexDisabledByDefault;
         private final float postFilterSelectivityThreshold;
 
-        // whether every node in the cluster can apply an {@code auto_calibrate} change on an existing field.
-        private boolean clusterSupportsUpdatableAutoCalibrate = true;
+        /**
+         * Answers whether every node in the cluster supports a feature. Only the builder parsed from an incoming mapping has a parser
+         * context to ask, and a merge consults that incoming builder. It is deliberately not evaluated while parsing: parsing also
+         * happens on the cluster applier thread, which must not read the cluster state. Builders without a context, such as the one
+         * derived from an existing mapper, assume support.
+         */
+        private Predicate<NodeFeature> clusterSupportsFeature = f -> true;
 
         public Builder(
             String name,
@@ -488,8 +495,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.indexDisabledByDefault = indexDisabledByDefault;
         }
 
-        Builder clusterSupportsUpdatableAutoCalibrate(boolean clusterSupportsUpdatableAutoCalibrate) {
-            this.clusterSupportsUpdatableAutoCalibrate = clusterSupportsUpdatableAutoCalibrate;
+        Builder clusterSupportsFeature(Predicate<NodeFeature> clusterSupportsFeature) {
+            this.clusterSupportsFeature = clusterSupportsFeature;
             return this;
         }
 
@@ -501,8 +508,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         protected void mergeFromBuilder(FieldMapper.Builder incoming, Conflicts conflicts, MapperMergeContext mergeContext) {
             Builder that = (Builder) incoming;
-            if (that.clusterSupportsUpdatableAutoCalibrate == false
-                && autoCalibrate(indexOptions.getValue()) != autoCalibrate(that.indexOptions.getValue())) {
+            if (autoCalibrationProfile(indexOptions.getValue()) != autoCalibrationProfile(that.indexOptions.getValue())
+                && that.clusterSupportsFeature.test(MapperFeatures.BBQ_DISK_UPDATABLE_AUTO_CALIBRATE) == false) {
                 throw new IllegalArgumentException(
                     "cannot update [auto_calibrate] on [index_options] of field ["
                         + leafName()
@@ -512,8 +519,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             super.mergeFromBuilder(incoming, conflicts, mergeContext);
         }
 
-        private static boolean autoCalibrate(DenseVectorIndexOptions options) {
-            return options instanceof BBQIVFIndexOptions bbqIvf && bbqIvf.autoCalibrate();
+        private static IvfAutoCalibrationProfile autoCalibrationProfile(DenseVectorIndexOptions options) {
+            return options instanceof BBQIVFIndexOptions bbqIvf ? bbqIvf.autoCalibrationProfile() : IvfAutoCalibrationProfile.DISABLED;
         }
 
         private boolean isVectorIndexTypeAllowedByProviders(VectorIndexType indexType) {
@@ -3257,9 +3264,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return false;
             }
             BBQIVFIndexOptions that = (BBQIVFIndexOptions) update;
-            return this.doPrecondition == that.doPrecondition
-                && this.autoCalibrationProfile() == that.autoCalibrationProfile()
-                && Objects.equals(this.quantizationType, that.quantizationType);
+            return this.doPrecondition == that.doPrecondition && Objects.equals(this.quantizationType, that.quantizationType);
         }
 
         @Override
@@ -3425,7 +3430,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             c.getVectorsFormatProviders(),
             c.getIndexSettings().isIndexDisabledByDefault(),
             c.getIndexSettings().getPostFilterSelectivityThreshold()
-        ).clusterSupportsUpdatableAutoCalibrate(c.clusterHasFeature(MapperFeatures.BBQ_DISK_UPDATABLE_AUTO_CALIBRATE)),
+        ).clusterSupportsFeature(c::clusterHasFeature),
         notInMultiFields(CONTENT_TYPE)
     );
 

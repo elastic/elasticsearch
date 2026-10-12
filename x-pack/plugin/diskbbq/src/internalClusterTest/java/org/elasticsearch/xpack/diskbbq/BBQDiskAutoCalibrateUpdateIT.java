@@ -372,7 +372,7 @@ public class BBQDiskAutoCalibrateUpdateIT extends ESIntegTestCase {
         Map<String, Object> properties = (Map<String, Object>) mapping.get("properties");
         Map<String, Object> field = (Map<String, Object>) properties.get(FIELD);
         Map<String, Object> indexOptions = (Map<String, Object>) field.get("index_options");
-        // auto_calibrate is only serialized when enabled
+        // disabling is serialized as an explicit false, and the option is absent only when it was never set
         assertEquals(expected, Boolean.TRUE.equals(indexOptions.get("auto_calibrate")));
     }
 

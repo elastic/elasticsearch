@@ -1910,7 +1910,7 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
     }
 
     // -----------------------------------------------------------------------------------
-    // : a Parquet UINT_32 column (physical INT32) widens to ESQL LONG
+    // A Parquet UINT_32 column (physical INT32) widens to ESQL LONG
     // because unsigned 32-bit values can exceed signed int range. Pushing a longColumn
     // predicate against it makes parquet-mr reject the predicate as a declared-type
     // mismatch against the file's INT32 schema — every comparator on such a column 500s.

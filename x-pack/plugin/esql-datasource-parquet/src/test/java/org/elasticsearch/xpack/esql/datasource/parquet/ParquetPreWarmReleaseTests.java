@@ -89,7 +89,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
- * Guards the dictionary pre-warm floor on small row groups .
+ * Guards the dictionary pre-warm floor on small row groups.
  * <p>
  * {@code PreloadedRowGroupMetadata} used to keep coalesced dictionary/bloom buffers force-added
  * until iterator end. After the row-group filter those buffers have no reader; {@code

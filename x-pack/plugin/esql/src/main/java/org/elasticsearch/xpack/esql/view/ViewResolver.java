@@ -227,8 +227,7 @@ public class ViewResolver {
         // {@link org.elasticsearch.xpack.esql.view.ViewCompaction} and is applied by EsqlSession
         // between view resolution and pre-analysis, so PreAnalyzer extracts the same index
         // patterns that the analyzer's ResolveTable will later look up. Keeping the resolver's
-        // output uncompacted is the foundation for the CPS lenient-field-caps work in
-        // , #472.
+        // output uncompacted is the foundation for CPS lenient field-caps.
         replaceViews(
             plan,
             projectRouting,
@@ -569,7 +568,7 @@ public class ViewResolver {
         }
 
         // ViewShadowRelation siblings are only emitted in CPS mode — they exist solely to drive a
-        // per-level lenient field-caps lookup against linked projects . In
+        // per-level lenient field-caps lookup against linked projects. In
         // non-CPS mode the shadow has no consumer, so we skip the bookkeeping entirely; the rest of
         // the resolver behaves as if shadows are simply not part of the tree.
         boolean cpsEnabled = crossProjectModeDecider.crossProjectEnabled();

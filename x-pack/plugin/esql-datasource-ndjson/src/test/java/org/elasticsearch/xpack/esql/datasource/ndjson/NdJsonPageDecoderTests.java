@@ -2675,7 +2675,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
      * An invalid bare token (not a JSON object; one whose tokenizer advances past the line terminator without
      * bumping Jackson's line counter) must drop only itself, not the following record. Exercises the streaming
      * path, which uses {@link NdJsonUtils#moveToNextLine} with the {@link NdJsonUtils.LineTerminatorTrackingStream}
-    * guard added for .
+     * guard for tokenizer line-terminator handling.
      * <p>
      * Tokens covered: every identifier-like token whose rejection path in Jackson consumes the newline as the
      * first non-{@link Character#isJavaIdentifierPart} byte, plus the lone {@code -} case that goes through

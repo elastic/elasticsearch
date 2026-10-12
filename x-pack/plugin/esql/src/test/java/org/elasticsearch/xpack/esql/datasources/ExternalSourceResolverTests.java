@@ -8126,7 +8126,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
     }
 
-    /** : the retained per-file schema is charged by its column names, not only by its column count. */
+    /** The retained per-file schema is charged by its column names, not only by its column count. */
     public void testGatheredFileBytesChargesColumnNames() {
         String location = "s3://bucket/data/f0.ndjson";
         SourceMetadata shortNamed = new SimpleSourceMetadata(
@@ -10415,7 +10415,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-    * : reconciling reads every file, so a full sample from each would have planning read the whole
+     * Reconciling reads every file, so a full sample from each would have planning read the whole
      * dataset when files are small. Each file contributes its share of {@code schema_sample_size} instead, while
      * {@code first_file_wins} still reads its one file in full.
      */

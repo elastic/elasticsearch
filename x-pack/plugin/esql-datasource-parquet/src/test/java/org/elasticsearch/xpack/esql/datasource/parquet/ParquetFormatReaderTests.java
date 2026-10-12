@@ -270,7 +270,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-    * : a top-level list column must be published under its attribute name (so
+     * A top-level list column must be published under its attribute name (so
      * {@code findColumn} hits) but with an <em>unknown</em> null count, which makes {@code COUNT} /
      * {@code IS NOT NULL} decline the footer fast path and scan. Before the fix the list stats were
      * keyed by the leaf path {@code ints.list.element}, never matching the attribute {@code ints}, so
@@ -314,10 +314,10 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-    * : a list nested in a STRUCT is surfaced by the flattener at its logical dotted
+     * A list nested in a STRUCT is surfaced by the flattener at its logical dotted
      * name {@code s.blist} (not the struct root {@code s}, and not the raw leaf {@code s.blist.list.element}).
      * The stats must therefore publish under {@code s.blist} with an <em>unknown</em> null count — like a
-     * top-level list (#1056), a stats-based {@code rowCount - nullCount} count is wrong for a leaf with
+     * top-level list, a stats-based {@code rowCount - nullCount} count is wrong for a leaf with
      * several values per row, so COUNT falls back to a scan. No phantom marker is published under the
      * struct root {@code s}, and the flat struct leaf {@code s.a} keeps its concrete null count.
      */
@@ -707,7 +707,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
      * flattened like a STRUCT into the Variant encoding's internals. Before the fix the flattener
      * descended into an unshredded variant and emitted {@code var.metadata} / {@code var.value} as
      * {@code keyword} (both are un-annotated BINARY), so a query returned the raw Variant binary
-    * encoding instead of the user's data. .
+     * encoding instead of the user's data.
      */
     public void testUnshreddedVariantColumnIsUnsupported() throws Exception {
         MessageType schema = MessageTypeParser.parseMessageType("""
@@ -9312,7 +9312,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
-    // : WHERE pushdown over a uint32 column (physical INT32, widened to
+    // WHERE pushdown over a uint32 column (physical INT32, widened to
     // ESQL LONG) used to build a Parquet longColumn FilterPredicate, which parquet-mr rejects
     // against the file's INT32 schema — every comparator 500d. This exercises the full read
     // path end to end: the reader must not throw, and must return exactly the matching rows.

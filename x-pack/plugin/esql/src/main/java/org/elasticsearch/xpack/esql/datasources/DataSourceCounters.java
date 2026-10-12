@@ -195,7 +195,9 @@ public final class DataSourceCounters {
                 String name = gate.name().replace('.', '_');
                 counters.inc("datasources.admission.gates." + name + ".waiters", gate.waiters());
                 counters.inc("datasources.admission.gates." + name + ".holders", gate.holders());
-                counters.inc("datasources.admission.gates." + name + ".millis_since_grant", gate.millisSinceGrant());
+                // Never-granted is -1; Counters.writeTo uses writeVLong and rejects negatives.
+                long sinceGrant = gate.millisSinceGrant();
+                counters.inc("datasources.admission.gates." + name + ".millis_since_grant", sinceGrant < 0L ? 0L : sinceGrant);
             }
         }
         if (permits != null) {

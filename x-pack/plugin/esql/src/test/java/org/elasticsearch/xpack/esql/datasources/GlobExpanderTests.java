@@ -247,7 +247,7 @@ public class GlobExpanderTests extends ESTestCase {
 
     /**
      * A Spark _SUCCESS marker at the same prefix level must not appear in the expansion result.
-    * Hidden-file convention: objects whose name begins with '_' are excluded .
+     * Hidden-file convention: objects whose name begins with '_' are excluded.
      */
     public void testExpandGlobExcludesUnderscorePrefixedMarker() throws IOException {
         List<StorageEntry> listing = List.of(
@@ -268,7 +268,7 @@ public class GlobExpanderTests extends ESTestCase {
 
     /**
      * A .crc sidecar file must not appear in the expansion result.
-    * Hidden-file convention: objects whose name begins with '.' are excluded .
+     * Hidden-file convention: objects whose name begins with '.' are excluded.
      */
     public void testExpandGlobExcludesDotPrefixedSidecar() throws IOException {
         List<StorageEntry> listing = List.of(
@@ -287,7 +287,7 @@ public class GlobExpanderTests extends ESTestCase {
 
     /**
      * A _metadata file must not appear in the expansion result.
-    * Hidden-file convention: objects whose name begins with '_' are excluded .
+     * Hidden-file convention: objects whose name begins with '_' are excluded.
      */
     public void testExpandGlobExcludesMetadataFile() throws IOException {
         List<StorageEntry> listing = List.of(entry("s3://bucket/data/_metadata", 512), entry("s3://bucket/data/file1.parquet", 100));
@@ -303,7 +303,7 @@ public class GlobExpanderTests extends ESTestCase {
 
     /**
      * A zero-byte directory placeholder key (ending in '/') must not appear in the expansion result.
-    * Object stores create these when the S3 console creates a "folder" .
+     * Object stores create these when the S3 console creates a "folder".
      */
     @SuppressWarnings("RegexpMultiline")
     public void testExpandGlobExcludesZeroByteDirectoryPlaceholder() throws IOException {
@@ -373,7 +373,7 @@ public class GlobExpanderTests extends ESTestCase {
     /**
      * Mixed non-data objects (_SUCCESS marker, .crc sidecars, zero-byte placeholder) alongside real
      * Parquet data files: only the data files must be returned, exactly as Hive/Spark/Trino behave
-    * on the same prefix .
+     * on the same prefix.
      */
     public void testExpandGlobExcludesAllNonDataObjectsFromCleanPrefix() throws IOException {
         List<StorageEntry> listing = List.of(
@@ -823,7 +823,7 @@ public class GlobExpanderTests extends ESTestCase {
     /**
      * End-to-end: an IN over a Hive-escaped partition folder lists it. Folders `category=login/` and the escaped
      * `category=ns%3Aclick/` (Spark's on-disk spelling of value `ns:click`); `WHERE category IN ("login","ns:click")`
-    * must list both, not silently drop the escaped one. Red before the escape-spelling fix .
+     * must list both, not silently drop the escaped one. Red before the escape-spelling fix.
      */
     public void testInListMatchesHiveEscapedFolder() throws IOException {
         PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
@@ -2022,7 +2022,7 @@ public class GlobExpanderTests extends ESTestCase {
      * A single glob with an IN-list mixing single- and multi-digit values on a zero-padded partition. `month=11`
      * matches the rewrite so the listing is non-empty and the empty-fallback never fires; without the zero-padded
      * spelling in the brace, `month=06` is silently dropped even though the row filter would keep it. (Same wrong-data
-    * class as the human-reviewed comma bug, single-glob form; .)
+     * class as the human-reviewed comma bug, single-glob form.)
      */
     public void testInListMixedDigitValuesMatchZeroPaddedFolders() throws IOException {
         PrefixAwareStubProvider provider = new PrefixAwareStubProvider(

@@ -61,7 +61,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * assertion failure. Values that PUT legitimately accepts but the reader reinterprets (e.g.
  * {@code del_empty}, which the reader treats as the format default) are exercised optimistically: if
  * PUT accepts them and the query then fails, CI catches the regression. Dimension values that are
- * entirely unreachable at query time are commented out with a reference to .
+ * entirely unreachable at query time are commented out; they are not PUT-rejected yet.
  *
  * <p>If a case fails (PUT returns 200 but the query fails due to a mis-wired or mis-validated
  * setting), mute it individually in {@code muted-tests.yml} by its case name with a reference to
@@ -239,8 +239,8 @@ public class DataSourceCrudAcceptCombinationsIT extends ESRestTestCase {
         // --- Parquet matrix ---
         // Parquet has no format-specific config keys.
         // schema_sample_size is in DATASET_FIELDS (coordinator base key) so the validator accepts it,
-        // but the Parquet reader rejects it at query time — omitted here until the validator is tightened
-        // . error_mode is a true coordinator key that works end-to-end for all formats.
+        // but the Parquet reader rejects it at query time — omitted here until the validator is tightened.
+        // error_mode is a true coordinator key that works end-to-end for all formats.
         addColumnarFormatCases(cases, "parquet", "simple.parquet", "parquet_noext", "parquet");
 
         // --- ORC matrix ---

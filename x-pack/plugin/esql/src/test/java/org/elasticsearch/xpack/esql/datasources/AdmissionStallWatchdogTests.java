@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
@@ -17,6 +18,7 @@ import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.esql.datasources.spi.AdmissionGate;
 import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
@@ -24,6 +26,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -169,6 +172,17 @@ public class AdmissionStallWatchdogTests extends ESTestCase {
         assertEquals(1, stats.get(0).waiters());
         assertEquals(3, stats.get(0).holders());
         assertEquals(2500L, stats.get(0).oldestWaitMillis());
+        watchdog.close();
+    }
+
+    public void testPopulateAdmissionNeverGrantedSerializes() throws Exception {
+        AdmissionStallWatchdog watchdog = watchdog(new AtomicLong(), TimeValue.timeValueSeconds(15), TimeValue.timeValueSeconds(30));
+        watchdog.register(gate("bytes", 0, ""));
+        assertEquals(-1L, watchdog.stats().get(0).millisSinceGrant());
+        Counters counters = new Counters();
+        DataSourceCounters.populateAdmission(counters, new NodeByteBudgetService(10), watchdog, Map.of());
+        BytesStreamOutput out = new BytesStreamOutput();
+        counters.writeTo(out);
         watchdog.close();
     }
 

@@ -265,7 +265,7 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
 
     /**
      * A bare JSON number on its own line must not cause the following record to be dropped from the
-    * inference sample . The record after the bare number is the only
+     * inference sample. The record after the bare number is the only
      * one that carries {@code email}, so if it is silently skipped the inferred schema omits it.
      * <p>
      * The bug: {@code nextToken()} succeeds (returning {@code VALUE_NUMBER_INT}), then

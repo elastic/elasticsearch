@@ -1843,7 +1843,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     // answer row-level COUNT / IS NOT NULL. Publish only a size marker under the attribute
                     // name (path[0]) so findColumn hits but the unknown null_count makes COUNT decline the
                     // footer fast path and scan, rather than the absent-column contract answering 0.
-                    // .
                     colSizes.merge(path[0], new long[] { col.getTotalUncompressedSize() }, (a, b) -> {
                         a[0] += b[0];
                         return a;
@@ -2222,7 +2221,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             if (desc != null && desc.getMaxRepetitionLevel() > 0 && isTopLevelListLeaf(parquetSchema, path)) {
                 // Top-level list column: size marker only under the attribute name (path[0]); the unknown
                 // null_count makes COUNT decline the footer fast path and scan. Mirrors extractStatistics.
-                // .
                 stats.merge(
                     SourceStatisticsSerializer.columnSizeBytesKey(path[0]),
                     col.getTotalUncompressedSize(),
@@ -2772,13 +2770,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 // WindowedSeekableInputStream skip the cache lookup. Then release the raw
                 // dictionary/bloom buffers: the data path uses ColumnChunkPrefetcher, not these
                 // chunks, and holding them would pin untracked forceAdd bytes until iterator
-                // end while the driver waits for tickets . Parsed column
+                // end while the driver waits for tickets. Parsed column
                 // and offset indexes stay on preloadedMetadata for the iterator.
                 adapter.installPreWarmedChunks(null);
                 // Optimized path only. Drop the open-time sliding window before ticket admission.
                 // The iterator reads through ColumnChunkPrefetcher, not the reader stream; the
                 // window would otherwise stay charged to the node byte budget while the driver
-                // waits for tickets . Also runs when there is no record filter:
+                // waits for tickets. Also runs when there is no record filter:
                 // unfiltered LIMIT sequential OffsetIndex reads can allocate the same window.
                 // Do not call this on the row-based reader: it still reads through the stream.
                 adapter.releaseIdleWindows();
@@ -3549,7 +3547,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * internals ({@code metadata}, {@code value}, and {@code typed_value.*} when shredded), not
      * user fields: flattening them typed the raw binary encoding as {@code keyword}, so a query
      * returned the encoding's bytes instead of the user's data. Surfacing the group as one
-    * UNSUPPORTED attribute gives a clear unsupported answer instead .
+     * UNSUPPORTED attribute gives a clear unsupported answer instead of leaking encoding fields.
      *
      * <p>Recursion is bounded by {@link #MAX_STRUCT_FLATTENING_DEPTH}; groups deeper than the cap
      * are emitted as a single UNSUPPORTED attribute and a DEBUG log line is recorded.

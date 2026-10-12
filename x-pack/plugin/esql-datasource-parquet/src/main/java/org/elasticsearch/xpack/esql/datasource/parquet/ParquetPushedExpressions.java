@@ -517,7 +517,7 @@ final class ParquetPushedExpressions {
         // IS NULL / IS NOT NULL (null-valued EQ/NOT_EQ) over a list must decline: a 3-level LIST
         // attribute is a group (resolver returns null); a 2-level repeated leaf is a primitive that
         // parquet-mr still rejects (maxRepLevel > 0). resolveNestedPrimitive covers both.
-        // FilterExec's MV-safe evaluator answers instead. .
+        // FilterExec's MV-safe evaluator answers instead of a false footer null_count.
         if (value == null && resolveNestedPrimitive(schema, columnName) == null) {
             return null;
         }

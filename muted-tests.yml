@@ -239,9 +239,6 @@ tests:
 - class: org.elasticsearch.integration.FieldLevelSecurityTests
   method: testPercolatorConstantKeywordQueryDependsOnIndexingUsersFls
   issue: https://github.com/elastic/elasticsearch/issues/161396
-- class: org.elasticsearch.upgrades.RecoveryIT
-  method: testRelocationWithConcurrentIndexing {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/161684
 
 # Examples:
 #

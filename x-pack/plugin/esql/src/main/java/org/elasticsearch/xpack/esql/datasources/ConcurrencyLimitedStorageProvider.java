@@ -16,13 +16,16 @@ import java.io.IOException;
 import java.time.Instant;
 
 /**
- * Decorates a {@link StorageProvider} with concurrency limiting. A call that reaches the store for data acquires a
- * permit from a shared {@link ConcurrencyLimiter} before executing and releases it when the call completes. Permits
- * are per-API-call, not held across retries or backoff sleeps.
+ * Decorates a {@link StorageProvider} with concurrency limiting. {@link #listObjects}, {@link #listChildren} and
+ * {@link #exists} acquire a permit from a shared {@link ConcurrencyLimiter} before executing and release it when the
+ * call completes; byte transfers acquire theirs inside the {@link StorageObject} that {@link #newObject} wraps.
+ * Permits are per-API-call, not held across retries or backoff sleeps, except for a listing's, which is held until
+ * its iterator is closed.
  * <p>
- * Metadata calls are deliberately not among them: {@code objectMetadata} is left to the base's forward, for the
- * reason recorded above {@code ConcurrencyLimitedStorageObject#length} — parking a metadata request behind the
- * permits that long-lived streams hold starved the threads the resolve runs on.
+ * {@code objectMetadata} is deliberately not permit-governed: it is left to the base's forward, matching
+ * {@code ConcurrencyLimitedStorageObject#length}, which the resolve path called before this and which forwards
+ * without a permit. Parking a metadata request behind the permits that long-lived streams hold starved the threads
+ * the resolve runs on.
  */
 class ConcurrencyLimitedStorageProvider extends ForwardingStorageProvider {
 

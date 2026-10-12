@@ -48,7 +48,7 @@ public class DeferredPoolLeaseTests extends ESTestCase {
 
         lease.exists(PATH);
         lease.supportedSchemes();
-        lease.objectMetadata(PATH);
+        assertEquals("the lease did not forward objectMetadata to the borrowed provider", 1L, lease.objectMetadata(PATH).length());
         assertEquals("each call borrowed again instead of reusing the lease", 1, borrows.get());
     }
 

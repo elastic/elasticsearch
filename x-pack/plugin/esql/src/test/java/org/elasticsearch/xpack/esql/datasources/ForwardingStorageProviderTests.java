@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
@@ -21,6 +22,7 @@ import java.lang.reflect.Modifier;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -209,15 +211,27 @@ public class ForwardingStorageProviderTests extends ESTestCase {
      */
     public void testEachDecoratorsForwardReachesTheDelegate() throws Exception {
         StoragePath path = StoragePath.of("s3://bucket/file.csv");
-        for (String name : List.of(
-            "RetryableStorageProvider",
-            "QueryBudgetedStorageProvider",
-            "ConcurrencyLimitedStorageProvider",
-            "PooledStorageProvider"
-        )) {
+        // Named by the constructor rather than by a string, so a renamed decorator is a compile error here.
+        Map<String, CheckedFunction<StorageProvider, StorageProvider, Exception>> decorators = new LinkedHashMap<>();
+        decorators.put(RetryableStorageProvider.class.getSimpleName(), d -> new RetryableStorageProvider(d, new RetryPolicy(3, 1, 10)));
+        decorators.put(
+            QueryBudgetedStorageProvider.class.getSimpleName(),
+            d -> new QueryBudgetedStorageProvider(d, new QueryConcurrencyBudget(3, 60_000L, null))
+        );
+        decorators.put(
+            ConcurrencyLimitedStorageProvider.class.getSimpleName(),
+            d -> new ConcurrencyLimitedStorageProvider(
+                d,
+                new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(3, false))
+            )
+        );
+        // The pooled lease is the one that cannot be constructed directly: it is private to the cache.
+        decorators.put("PooledStorageProvider", ForwardingStorageProviderTests::pooled);
+
+        for (var decorator : decorators.entrySet()) {
+            String name = decorator.getKey();
             AtomicInteger calls = new AtomicInteger();
-            StorageProvider delegate = countingProvider(calls);
-            StorageProvider decorated = name.equals("PooledStorageProvider") ? pooled(delegate) : decorate(delegate, name);
+            StorageProvider decorated = decorator.getValue().apply(countingProvider(calls));
 
             assertEquals(name + " did not forward objectMetadata", 7L, decorated.objectMetadata(path).length());
             assertEquals(name + " forwarded a different number of times", 1, calls.get());
@@ -231,18 +245,6 @@ public class ForwardingStorageProviderTests extends ESTestCase {
                 calls.incrementAndGet();
                 return new StorageEntry(path, 7L, Instant.EPOCH);
             }
-        };
-    }
-
-    private static StorageProvider decorate(StorageProvider delegate, String which) {
-        return switch (which) {
-            case "RetryableStorageProvider" -> new RetryableStorageProvider(delegate, new RetryPolicy(3, 1, 10));
-            case "QueryBudgetedStorageProvider" -> new QueryBudgetedStorageProvider(delegate, new QueryConcurrencyBudget(3, 60_000L, null));
-            case "ConcurrencyLimitedStorageProvider" -> new ConcurrencyLimitedStorageProvider(
-                delegate,
-                new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(3, false))
-            );
-            default -> throw new IllegalArgumentException(which);
         };
     }
 

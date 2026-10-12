@@ -270,6 +270,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * then {@link #onClose} (or {@link #releaseDeferredCloseRef()} when deferred extraction is on).
      * Dual refs keep the storage lease alive until every operator built during pipeline construction
      * has closed, even if an earlier producer fails while later {@code get()} calls are still pending.
+     * While the count is zero {@link #dynamicThreshold()} builds nothing, so a late probe cannot
+     * acquire a side-channel reference that no {@link #releaseOperator} would release.
      */
     private final AtomicInteger operatorRefCount = new AtomicInteger(0);
     /**
@@ -1523,6 +1525,18 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         return objectPath == null ? null : objectPath.objectName();
     }
 
+    /**
+     * The shared TopN threshold for this factory's readers, built on first use and torn down by
+     * {@link #closeDynamicThreshold()} once the last operator hold is released. Returns {@code null}
+     * when no threshold supplier is installed, and also once {@link #operatorRefCount} has reached
+     * zero: building the threshold acquires a reference on the TopN side channel, and after the
+     * final {@link #releaseOperator} nothing runs {@link #closeDynamicThreshold()} again, so a
+     * threshold built by a late {@link #noFurtherCandidates()} probe would hold that reference (and
+     * the channel's request-breaker bytes) for the life of the node. The check is made under the
+     * monitor {@link #closeDynamicThreshold()} takes, after the decrement that precedes it, so a
+     * caller either observes zero and builds nothing, or builds before the decrement and is torn
+     * down by the closer.
+     */
     @Nullable
     private DynamicThreshold dynamicThreshold() {
         DynamicThreshold threshold = cachedThreshold;
@@ -1532,6 +1546,17 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         synchronized (this) {
             threshold = cachedThreshold;
             if (threshold == null) {
+                int holds = operatorRefCount.get();
+                assert holds >= 0 : "operator hold released more often than acquired: " + holds;
+                if (holds <= 0) {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug(
+                            () -> "threshold probe after the last operator hold was released; not building a threshold for [" + path + "]",
+                            new IllegalStateException("late threshold probe")
+                        );
+                    }
+                    return null;
+                }
                 if (thresholdColumnName == null) {
                     throw new IllegalStateException("threshold descriptor is incomplete");
                 }
@@ -1560,7 +1585,12 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         }
     }
 
-    private boolean noFurtherCandidates() {
+    /**
+     * Whether the readers can stop opening units: the TopN threshold reports no further
+     * candidates, or the pushed/observed LIMIT is exhausted. Package-private so tests can issue a
+     * probe after the last operator hold was released (see {@link #dynamicThreshold()}).
+     */
+    boolean noFurtherCandidates() {
         DynamicThreshold threshold = dynamicThreshold();
         if (threshold != null && threshold.noFurtherCandidates()) {
             return true;

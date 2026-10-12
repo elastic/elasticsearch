@@ -86,6 +86,7 @@ public final class LocalStorageProvider implements StorageProvider {
 
         return new LocalStorageIterator(dirPath, recursive, "");
     }
+
     /**
      * A filesystem has no key prefix to push, so the walk is the same and the name prefix selects from what it
      * yields. The selection is on each file's path <em>relative to the directory being listed</em>, never on the
@@ -228,7 +229,6 @@ public final class LocalStorageProvider implements StorageProvider {
         private static boolean selects(Path directory, Path file, String namePrefix) {
             return namePrefix.isEmpty() || directory.relativize(file).toString().startsWith(namePrefix);
         }
-
 
         LocalStorageIterator(Path directory, boolean recursive, String namePrefix) throws IOException {
             this.entries = new ArrayList<>();

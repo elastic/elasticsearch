@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -35,6 +36,8 @@ import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterCo
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitCleaner;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.elasticsearch.xpack.stateless.reshard.ReshardIndexRequest;
+import org.elasticsearch.xpack.stateless.reshard.TransportReshardAction;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -52,9 +55,14 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.xpack.stateless.reshard.SplitSourceService.RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -110,6 +118,94 @@ public class StaleIndicesGCIT extends AbstractStatelessPluginIntegTestCase {
             final var indexRoutingTable = routingTable.index(indexName);
             return indexRoutingTable != null && indexRoutingTable.allPrimaryShardsActive();
         }).toArray(String[]::new);
+    }
+
+    public void testRestoreBeforeReshardCleansRemovedShards() throws Exception {
+        restoreBeforeReshardCleansRemovedShards(false);
+    }
+
+    public void testRestoreClosedIndexBeforeReshardCleansRemovedShards() throws Exception {
+        restoreBeforeReshardCleansRemovedShards(true);
+    }
+
+    private void restoreBeforeReshardCleansRemovedShards(boolean closeBeforeRestore) throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(0);
+        startMasterNode();
+        final String indexNode = startIndexNode(
+            Settings.builder()
+                .put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.ZERO)
+                .put(StatelessClusterConsistencyService.DELAYED_CLUSTER_CONSISTENCY_INTERVAL_SETTING.getKey(), "100ms")
+                .build()
+        );
+        startSearchNode();
+        final String indexName = "restored";
+        createIndex(indexName, indexSettings(1, 1).build());
+        indexDocsAndRefresh(indexName, 20);
+        createRepository("test-repo", "fs");
+        createSnapshot("test-repo", "before-reshard", List.of(indexName), List.of());
+        final var identity = resolveIndex(indexName);
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet(SAFE_AWAIT_TIMEOUT);
+        awaitClusterState(state -> state.metadata().getProject().index(indexName).getReshardingMetadata() == null);
+        ensureGreen(indexName);
+        final int expandedShards = getNumShards(indexName).numPrimaries;
+        assertThat(expandedShards, greaterThan(1));
+        prepareIndex(indexName).setId("after-reshard").setSource("field", "new").get();
+        flush(indexName);
+        createSnapshot("test-repo", "after-reshard", List.of(indexName), List.of());
+        final var objectStore = getObjectStoreService(indexNode);
+        final var removedContainer = objectStore.getProjectBlobContainer(new ShardId(identity, expandedShards - 1));
+        assertBusy(() -> assertTrue(hasShardFiles(removedContainer)));
+
+        for (String snapshot : List.of("before-reshard", "after-reshard", "before-reshard")) {
+            if (closeBeforeRestore) {
+                assertAcked(indicesAdmin().prepareClose(indexName));
+            }
+            final var restore = clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", snapshot)
+                .setIndices(indexName)
+                .setWaitForCompletion(true);
+            restore.request().restoreOverExisting(closeBeforeRestore == false);
+            assertEquals(0, restore.get().getRestoreInfo().failedShards());
+            ensureGreen(indexName);
+            assertEquals(identity, resolveIndex(indexName));
+            assertHitCount(prepareSearch(indexName), snapshot.equals("before-reshard") ? 20 : 21);
+            if (snapshot.equals("before-reshard")) {
+                assertEquals(1, getNumShards(indexName).numPrimaries);
+                assertBusy(() -> assertFalse(hasShardFiles(removedContainer)), 30, TimeUnit.SECONDS);
+            } else {
+                assertEquals(expandedShards, getNumShards(indexName).numPrimaries);
+            }
+        }
+        // Reusing the removed IDs through another reshard must be safe too, not just through a larger snapshot restore.
+        final var beforeSplit = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().getProject().index(indexName);
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet(SAFE_AWAIT_TIMEOUT);
+        awaitClusterState(state -> state.metadata().getProject().index(indexName).getReshardingMetadata() == null);
+        ensureGreen(indexName);
+        assertEquals(expandedShards, getNumShards(indexName).numPrimaries);
+        final var afterSplit = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().getProject().index(indexName);
+        for (int shard = 1; shard < expandedShards; shard++) {
+            assertThat(afterSplit.primaryTerm(shard), greaterThanOrEqualTo(beforeSplit.primaryTerm(0)));
+        }
+        assertHitCount(prepareSearch(indexName), 20);
+        // Snapshot data must remain usable after the removed live shard files have been collected.
+        final var restore = clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "after-reshard")
+            .setIndices(indexName)
+            .setWaitForCompletion(true);
+        restore.request().restoreOverExisting(true);
+        assertEquals(0, restore.get().getRestoreInfo().failedShards());
+        ensureGreen(indexName);
+        assertHitCount(prepareSearch(indexName), 21);
+    }
+
+    private static boolean hasShardFiles(BlobContainer container) throws IOException {
+        if (container.listBlobs(OperationPurpose.INDICES).isEmpty() == false) {
+            return true;
+        }
+        for (BlobContainer child : container.children(OperationPurpose.INDICES).values()) {
+            if (hasShardFiles(child)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public void testStaleIndicesAreCleanedEventually() throws Exception {

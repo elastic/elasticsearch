@@ -577,8 +577,6 @@ tests:
 - class: org.elasticsearch.xpack.search.AsyncSearchActionIT
   method: testRemoveAsyncIndex
   issue: https://github.com/elastic/elasticsearch/issues/161316
-- class: org.elasticsearch.xpack.esql.qa.csv.TsvFormatSpecIT
-  issue: https://github.com/elastic/elasticsearch/issues/161394
 - class: org.elasticsearch.integration.FieldLevelSecurityTests
   method: testPercolatorConstantKeywordQueryDependsOnIndexingUsersFls
   issue: https://github.com/elastic/elasticsearch/issues/161396
@@ -599,8 +597,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ExternalCsvQuotedMultilineMacroSplitIT
   method: testStreamingBranchCountsCorrectlyWithParsingParallelism
   issue: https://github.com/elastic/elasticsearch/issues/161472
-- class: org.elasticsearch.xpack.esql.qa.csv.TsvCompressedFormatSpecIT
-  issue: https://github.com/elastic/elasticsearch/issues/161473
 - class: org.elasticsearch.xpack.ml.action.datafeed.DatafeedEsqlGatesTests
   method: testValidateDatafeedCreateEsqlDatafeedOnUpgradedClusterShouldSucceed
   issue: https://github.com/elastic/elasticsearch/issues/161484
@@ -624,9 +620,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/161607
 - class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/161608
-- class: org.elasticsearch.xpack.esql.datasource.parquet.OptimizedParquetColumnIteratorReadinessTests
-  method: testNoMatchReleasesGroupReservation
-  issue: https://github.com/elastic/elasticsearch/issues/161623
 - class: org.elasticsearch.xpack.esql.EsqlSecurityLogsdbColumnarIT
   method: testGetDataSourceForbiddenOutsideGrantedNamePatterns
   issue: https://github.com/elastic/elasticsearch/issues/161625
@@ -636,15 +629,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.EsqlAsyncSecurityIT
   method: testViewReferencingAliasAuthorized
   issue: https://github.com/elastic/elasticsearch/issues/161627
-- class: org.elasticsearch.rest.ChunkedZipResponseIT
-  method: testRandomZipResponse
-  issue: https://github.com/elastic/elasticsearch/issues/161628
 - class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/161633
-- class: org.elasticsearch.xpack.esql.datasource.parquet.ParquetPreWarmReleaseTests
-  method: testEarlyCloseReleasesTicket
-  issue: https://github.com/elastic/elasticsearch/issues/161642
 - class: org.elasticsearch.xpack.stateless.StatelessCommitServiceIT
   method: testTrackOldSearchNodesWhenIndexingShardRelocates
   issue: https://github.com/elastic/elasticsearch/issues/161643
@@ -663,3 +650,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessCommitNotificationsIT
   method: testVbccRemainsServableUntilSearchTierNotificationCompletes
   issue: https://github.com/elastic/elasticsearch/issues/161667
+- class: org.elasticsearch.xpack.esql.datasource.s3.S3EndpointRedirectTests
+  method: testAsyncReadDoesNotFollowRedirectAwayFromTheEndpoint
+  issue: https://github.com/elastic/elasticsearch/issues/161727

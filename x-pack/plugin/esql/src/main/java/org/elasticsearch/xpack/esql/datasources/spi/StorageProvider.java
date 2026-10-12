@@ -59,8 +59,7 @@ public interface StorageProvider extends Closeable {
 
     /**
      * The object's length and modification time, for a caller that wants those two values and will not read the
-     * object. The default asks for a handle and reads both from it, which is what every caller did before this
-     * method existed, so a provider that does not override it behaves exactly as it did.
+     * object. The default asks for a handle and reads both values from it.
      * <p>
      * A provider whose store answers metadata without transferring the object overrides it; S3 does.
      * <p>

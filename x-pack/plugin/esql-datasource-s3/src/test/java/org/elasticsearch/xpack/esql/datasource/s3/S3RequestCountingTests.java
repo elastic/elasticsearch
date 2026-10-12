@@ -150,6 +150,54 @@ public class S3RequestCountingTests extends ESTestCase {
         assertEquals(ExternalClientException.Condition.OBJECT_NOT_FOUND, missing.condition());
     }
 
+    /**
+     * A HEAD on an archived object succeeds and names the class in a header, where a GET is refused with
+     * InvalidObjectState. The resolve has to reach the same conclusion from the header, or it accepts the object
+     * and the read fails later instead.
+     */
+    public void testObjectMetadataRefusesAnArchivedObject() {
+        when(mockS3.headObject(any(HeadObjectRequest.class))).thenReturn(
+            HeadObjectResponse.builder().contentLength(FILE_SIZE).lastModified(LAST_MODIFIED).storageClass("GLACIER").build()
+        );
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        ExternalClientException archived = expectThrows(ExternalClientException.class, obj::headObjectMetadata);
+        assertEquals(ExternalClientException.Condition.OBJECT_ARCHIVED, archived.condition());
+        assertThat(archived.getMessage(), containsString("GLACIER"));
+        // The remedy, not just the condition: an archived message that does not say how to fix it is the regression
+        // ExternalErrorSurfaceIT caught when the resolve stopped failing here.
+        assertThat(archived.getMessage(), containsString("restore it"));
+
+        verify(mockS3, never()).getObject(any(GetObjectRequest.class));
+    }
+
+    /**
+     * A refused HEAD whose recovery GET reports 416 is an empty object, not a failure. probeObject already drew
+     * that conclusion; the recovery path reported "HTTP 416" instead.
+     */
+    public void testObjectMetadataRecoveryTreatsA416AsAnEmptyObject() throws IOException {
+        when(mockS3.headObject(any(HeadObjectRequest.class))).thenThrow(S3Exception.builder().statusCode(403).build());
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(
+            S3Exception.builder().statusCode(416).message("Range Not Satisfiable").build()
+        );
+
+        StorageEntry metadata = new S3StorageObject(mockS3, BUCKET, KEY, PATH).headObjectMetadata();
+
+        assertEquals(0L, metadata.length());
+        assertEquals(Instant.EPOCH, metadata.lastModified());
+    }
+
+    /** An instant-retrieval class is readable, so it must not be refused. */
+    public void testObjectMetadataAcceptsAnInstantRetrievalClass() throws IOException {
+        when(mockS3.headObject(any(HeadObjectRequest.class))).thenReturn(
+            HeadObjectResponse.builder().contentLength(FILE_SIZE).lastModified(LAST_MODIFIED).storageClass("GLACIER_IR").build()
+        );
+
+        StorageEntry metadata = new S3StorageObject(mockS3, BUCKET, KEY, PATH).headObjectMetadata();
+
+        assertEquals(FILE_SIZE, metadata.length());
+    }
+
     /** A HeadObject response without a Content-Length cannot answer the length the caller asked for. */
     public void testObjectMetadataWithoutContentLengthFails() {
         when(mockS3.headObject(any(HeadObjectRequest.class))).thenReturn(HeadObjectResponse.builder().lastModified(LAST_MODIFIED).build());

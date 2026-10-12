@@ -335,9 +335,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 ExternalClientException.Condition.OBJECT_ARCHIVED,
                 path,
                 S3FailureDetail.of(archived),
-                tier.isEmpty()
-                    ? "Restore it, or wait for a restore in progress to finish, before reading it."
-                    : "It is in " + tier + "; restore it, or wait for a restore in progress to finish, before reading it.",
+                S3FailureDetail.archivedRemedy(tier),
                 cause
             );
         }
@@ -733,14 +731,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 throw archived;
             }
             if (e.statusCode() == 416) {
-                // 416 Range Not Satisfiable: the object exists and is empty (0 bytes). A 416 is itself an
-                // answer from S3, not a failure to reach it, so this counts as a successful probe.
-                cachedExists = true;
-                cachedLength = 0L;
-                // The 416 carries no timestamp, and lastModified() would otherwise return null for an object
-                // that exists. EPOCH is sound for an empty one: the timestamp is a version token for content,
-                // and there is none.
-                cachedLastModified = Instant.EPOCH;
+                recordEmptyObject();
             } else if (e.statusCode() == 403) {
                 // Denied, and nothing cheaper is left to try: this request already is the cheapest read, and a
                 // HEAD needs the same s3:GetObject, so a second request would only be refused again.
@@ -760,27 +751,16 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
      * <p>
      * Deliberately not {@link #probeObject}, which this leaves untouched: that path serves callers who go on to
      * read, so it uses a range GET and latches the generation in {@code pinnedEtag} for later ranged reads to
-     * validate against. This one establishes no pin, because its caller has nothing to validate.
+     * validate against. This one issues no range GET when the HEAD answers, so it latches nothing; on the
+     * recovery path below it does, because the GET that recovers the error body latches the pin as any GET
+     * does.
      */
     StorageEntry headObjectMetadata() throws IOException {
+        HeadObjectResponse response;
         try {
-            HeadObjectResponse response = s3Client.headObject(HeadObjectRequest.builder().bucket(bucket).key(key).build());
-            Long length = response.contentLength();
-            if (length == null) {
-                throw new IOException("Failed to determine external object size: HeadObject response carried no Content-Length");
-            }
-            StorageEntry entry = new StorageEntry(path, length, response.lastModified());
-            ExternalPlanningIo.addMetadataGet(0);
-            return entry;
+            response = s3Client.headObject(HeadObjectRequest.builder().bucket(bucket).key(key).build());
         } catch (Exception e) {
             ExternalPlanningIo.addMetadataGet(0);
-            if (e instanceof IOException io && e instanceof SdkException == false) {
-                throw io;
-            }
-            Exception mapped = mapReadFailure("Failed to read object metadata for", e);
-            if (mapped instanceof ExternalCredentialsExpiredException expired) {
-                throw expired;
-            }
             if (e instanceof S3Exception s3e
                 && s3e.statusCode() >= 400
                 && s3e.statusCode() < 500
@@ -799,6 +779,27 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             }
             throw throwReadFailure("Failed to read object metadata for", e);
         }
+
+        // Reading the response happens outside the try: these throws are this method's own conclusions about a
+        // successful HEAD, and a catch that re-mapped them would turn them into a read failure.
+        ExternalPlanningIo.addMetadataGet(0);
+        if (S3FailureDetail.isArchivedStorageClass(response.storageClassAsString())) {
+            // A HEAD on an archived object succeeds and names the class in a header, where a GET is refused with
+            // InvalidObjectState. Without this the resolve accepts the object and the read fails later, with a
+            // message that no longer says to restore it. Narrower than the GET path, which keys on the error code
+            // and so covers whatever the store refuses.
+            throw new ExternalClientException(
+                ExternalClientException.Condition.OBJECT_ARCHIVED,
+                path,
+                "",
+                S3FailureDetail.archivedRemedy(S3FailureDetail.archivedTier(response.storageClassAsString()))
+            );
+        }
+        Long length = response.contentLength();
+        if (length == null) {
+            throw new IOException("Failed to determine external object size: HeadObject response carried no Content-Length");
+        }
+        return new StorageEntry(path, length, response.lastModified());
     }
 
     private void probeObjectViaHead() throws IOException {
@@ -856,10 +857,25 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         } catch (Exception e) {
             if (e instanceof NoSuchKeyException) {
                 setNotFound();
+            } else if (e instanceof S3Exception s3e && s3e.statusCode() == 416) {
+                recordEmptyObject();
             } else {
                 throw throwReadFailure("Failed to get metadata for", e);
             }
         }
+    }
+
+    /**
+     * What a 416 on a {@code bytes=0-0} range means: the object exists and is empty. A 416 is S3's answer, not a
+     * failure to reach it, so either probe that sees one has finished successfully.
+     * <p>
+     * The response carries no timestamp, and {@code lastModified()} would otherwise return null for an object that
+     * exists. EPOCH is sound for an empty one: the timestamp is a version token for content, and there is none.
+     */
+    private void recordEmptyObject() {
+        cachedExists = true;
+        cachedLength = 0L;
+        cachedLastModified = Instant.EPOCH;
     }
 
     private void setNotFound() {

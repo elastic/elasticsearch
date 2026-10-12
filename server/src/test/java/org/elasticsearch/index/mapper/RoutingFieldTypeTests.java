@@ -9,6 +9,9 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
@@ -21,9 +24,18 @@ import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.queries.XSortedSetDocValuesRangeQuery;
+import org.elasticsearch.test.IndexSettingsModule;
 
 import java.util.List;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class RoutingFieldTypeTests extends FieldTypeTestCase {
 
@@ -52,6 +64,41 @@ public class RoutingFieldTypeTests extends FieldTypeTestCase {
         TermInSetQuery actual = (TermInSetQuery) RoutingFieldMapper.DOC_VALUES_FIELD_TYPE.termsQuery(List.of("foo", "bar"), MOCK_CONTEXT);
         assertEquals(expected, actual);
         assertEquals(MultiTermQuery.DOC_VALUES_REWRITE, actual.getRewriteMethod());
+    }
+
+    /**
+     * On a slice-enabled index term queries redirect to the hash-prefixed {@code _slice_key}, the primary index sort.
+     */
+    public void testTermQuerySliceEnabled() {
+        Query query = RoutingFieldMapper.DOC_VALUES_FIELD_TYPE.termQuery("foo", sliceEnabledMockContext());
+        assertEquals(sliceKeyExactQuery("foo"), query);
+    }
+
+    public void testTermsQuerySliceEnabled() {
+        Query query = RoutingFieldMapper.DOC_VALUES_FIELD_TYPE.termsQuery(List.of("foo", "bar"), sliceEnabledMockContext());
+        Query expected = new ConstantScoreQuery(
+            new BooleanQuery.Builder().add(sliceKeyExactQuery("foo"), BooleanClause.Occur.SHOULD)
+                .add(sliceKeyExactQuery("bar"), BooleanClause.Occur.SHOULD)
+                .build()
+        );
+        assertEquals(expected, query);
+
+        // a single distinct value collapses to the exact query
+        query = RoutingFieldMapper.DOC_VALUES_FIELD_TYPE.termsQuery(List.of("foo", "foo"), sliceEnabledMockContext());
+        assertEquals(sliceKeyExactQuery("foo"), query);
+    }
+
+    private static Query sliceKeyExactQuery(String slice) {
+        return XSortedSetDocValuesRangeQuery.newSlowExactQuery(SliceIndexing.SLICE_KEY_FIELD_NAME, SliceIndexing.encodeSliceKey(slice));
+    }
+
+    private static SearchExecutionContext sliceEnabledMockContext() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        SearchExecutionContext context = mock(SearchExecutionContext.class);
+        when(context.allowExpensiveQueries()).thenReturn(true);
+        Settings settings = Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build();
+        when(context.getIndexSettings()).thenReturn(IndexSettingsModule.newIndexSettings("test", settings));
+        return context;
     }
 
     public void testPrefixQuery() {

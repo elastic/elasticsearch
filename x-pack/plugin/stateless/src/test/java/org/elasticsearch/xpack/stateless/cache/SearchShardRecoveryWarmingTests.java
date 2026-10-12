@@ -33,9 +33,11 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeout.TimeoutContext;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.SearchRecoveryWaitOutcome;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
@@ -44,6 +46,7 @@ import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.mockito.Mockito;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -51,10 +54,15 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Delayed;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongFunction;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.apache.logging.log4j.Level.DEBUG;
 import static org.apache.logging.log4j.Level.WARN;
 import static org.elasticsearch.cluster.metadata.Metadata.DEFAULT_PROJECT_ID;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -65,10 +73,14 @@ import static org.elasticsearch.xpack.stateless.cache.SearchRecoveryWarmingTestU
 import static org.elasticsearch.xpack.stateless.cache.SearchRecoveryWarmingTestUtils.initializingSearchReplica;
 import static org.elasticsearch.xpack.stateless.cache.SearchRecoveryWarmingTestUtils.mockIndexShard;
 import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.SEARCH_RECOVERY_LOG_FIELD_PREFIX;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -91,8 +103,11 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_NON_RELOCATION_SETTING,
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RESHARD_TARGET_SETTING,
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING,
+                SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TOTAL_TIMEOUT_CAP_SETTING,
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING,
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_CACHE_RATIO_SETTING,
+                SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING,
+                SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING,
                 DefaultWarmingRatioProviderFactory.SEARCH_RECOVERY_WARMING_RATIO_SETTING,
                 SharedBlobCacheWarmingService.UPLOAD_PREWARM_MAX_SIZE_SETTING,
                 SharedBlobCacheWarmingService.WARM_BYTE_RANGE_THROTTLE_RATIO_SETTING,
@@ -231,7 +246,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             ClusterState state = clusterStateOneSearchReplica("idx", STARTED);
             ShardId shardId = new ShardId("idx", IndexMetadata.INDEX_UUID_NA_VALUE, 0);
             ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID).shardRoutingTable(shardId).replicaShards().get(0);
-            service.warmCacheForSearchShardRecovery(state, mockIndexShard(self), null, null, null, resume);
+            service.warmCacheForSearchShardRecovery(() -> state, mockIndexShard(self), null, null, null, resume);
             // recovery is resumed
             assertTrue(resume.isDone());
             // make sure warming started running
@@ -289,7 +304,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             ShardId shardId = new ShardId("idx", IndexMetadata.INDEX_UUID_NA_VALUE, 0);
             ShardRouting self = initializingSearchReplica(state, shardId);
             service.warmCacheForSearchShardRecovery(
-                state,
+                () -> state,
                 mockIndexShard(self),
                 null,
                 mockDirectory(),
@@ -344,7 +359,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             ShardId shardId = new ShardId("idx", IndexMetadata.INDEX_UUID_NA_VALUE, 0);
             ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID).shardRoutingTable(shardId).replicaShards().get(0);
             service.warmCacheForSearchShardRecovery(
-                state,
+                () -> state,
                 mockIndexShard(self),
                 null,
                 null,
@@ -408,7 +423,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             ShardRouting self = initializingSearchReplica(state, shardId);
             PlainActionFuture<Void> resume = new PlainActionFuture<>();
             service.warmCacheForSearchShardRecovery(
-                state,
+                () -> state,
                 mockIndexShard(self),
                 null,
                 mockDirectory(),
@@ -443,16 +458,28 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
     /// deterministically whether and when the "timeout" fires. Its cancellable always reports a successful cancellation, mimicking
     /// the real-life window in which a scheduled task's command has already been dispatched to its target executor but the JDK
     /// future is not yet marked done, so a concurrent cancel() still "wins" (see https://github.com/elastic/elasticsearch/issues/154033).
+    ///
+    /// Time is simulated: [#relativeTimeInMillis()] only advances by the delay of a captured command when the test runs it, so the
+    /// elapsed time seen by the code under test is deterministic.
     private static class CapturingScheduleThreadPool extends TestThreadPool {
         final AtomicReference<Runnable> scheduledCommand = new AtomicReference<>();
+        private final AtomicLong currentTimeMillis = new AtomicLong();
 
         CapturingScheduleThreadPool(String name) {
             super(name, StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true));
         }
 
         @Override
+        public long relativeTimeInMillis() {
+            return currentTimeMillis.get();
+        }
+
+        @Override
         public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
-            assertTrue("expected a single scheduled task", scheduledCommand.compareAndSet(null, command));
+            assertTrue("expected a single scheduled task", scheduledCommand.compareAndSet(null, () -> {
+                currentTimeMillis.addAndGet(delay.millis());
+                command.run();
+            }));
             return new ScheduledCancellable() {
                 @Override
                 public long getDelay(TimeUnit unit) {
@@ -477,13 +504,74 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         }
     }
 
+    /// [TestThreadPool] for re-evaluation loop tests. Unlike [CapturingScheduleThreadPool], each call to
+    /// [#schedule] replaces the previous captured task, so tests can step through every cycle of the loop by
+    /// popping and running one task at a time.
+    ///
+    /// A `null` result from [#drainTask()] means no task was scheduled, i.e. the timeout fired rather than rescheduling.
+    private static class ReEvaluationThreadPool extends TestThreadPool {
+        private final AtomicReference<Runnable> pendingTask = new AtomicReference<>();
+        private final AtomicLong currentTimeMillis = new AtomicLong();
+        private final AtomicReference<AtomicBoolean> latestTaskCancelled = new AtomicReference<>(new AtomicBoolean());
+
+        ReEvaluationThreadPool(String name) {
+            super(name, StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true));
+        }
+
+        @Override
+        public long relativeTimeInMillis() {
+            return currentTimeMillis.get();
+        }
+
+        @Override
+        public ScheduledCancellable schedule(Runnable task, TimeValue delay, Executor executor) {
+            pendingTask.set(() -> {
+                currentTimeMillis.addAndGet(delay.millis());
+                task.run();
+            });
+            final var cancelled = new AtomicBoolean();
+            latestTaskCancelled.set(cancelled);
+            return new ScheduledCancellable() {
+                @Override
+                public long getDelay(TimeUnit unit) {
+                    throw new AssertionError("not used");
+                }
+
+                @Override
+                public int compareTo(Delayed o) {
+                    throw new AssertionError("not used");
+                }
+
+                @Override
+                public boolean cancel() {
+                    return cancelled.compareAndSet(false, true);
+                }
+
+                @Override
+                public boolean isCancelled() {
+                    return cancelled.get();
+                }
+            };
+        }
+
+        /// Whether the task scheduled last has been cancelled.
+        boolean latestTaskCancelled() {
+            return latestTaskCancelled.get().get();
+        }
+
+        Runnable drainTask() {
+            return pendingTask.getAndSet(null);
+        }
+    }
+
     private static IndexShard randomMockIndexShard() {
         return mockIndexShard(
             TestShardRouting.newShardRouting(
                 new ShardId(randomIdentifier(), IndexMetadata.INDEX_UUID_NA_VALUE, 0),
                 randomIdentifier(),
-                true,
-                STARTED
+                false,
+                STARTED,
+                ShardRouting.Role.SEARCH_ONLY
             )
         );
     }
@@ -498,8 +586,8 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             var service = newWarmingService(threadPool, telemetryProvider(meterRegistry));
             PlainActionFuture<Void> resume = new PlainActionFuture<>();
             var warmingListener = service.searchRecoveryWarmingListener(
-                TimeValue.timeValueMillis(randomLongBetween(1, 100_000)),
-                randomAlphaOfLength(10),
+                new SearchRecoveryTimeout(TimeValue.timeValueMillis(randomLongBetween(1, 100_000)), TimeoutContext.RESHARD_SPLIT_TARGET),
+                () -> null, // unused in this test case: re-evaluation is disabled, so the cluster state is never read
                 randomMockIndexShard(),
                 mockDirectory(),
                 randomNonNegativeLong(),
@@ -529,8 +617,8 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             var service = newWarmingService(threadPool, telemetryProvider(meterRegistry));
             PlainActionFuture<Void> resume = new PlainActionFuture<>();
             var warmingListener = service.searchRecoveryWarmingListener(
-                TimeValue.timeValueMillis(randomLongBetween(1, 100_000)),
-                randomAlphaOfLength(10),
+                new SearchRecoveryTimeout(TimeValue.timeValueMillis(randomLongBetween(1, 100_000)), TimeoutContext.RESHARD_SPLIT_TARGET),
+                () -> null, // unused in this test case: re-evaluation is disabled, so the cluster state is never read
                 randomMockIndexShard(),
                 mockDirectory(),
                 randomNonNegativeLong(),
@@ -557,8 +645,11 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             Exception thrown = safeAwaitFailure(
                 Void.class,
                 resumeListener -> service.searchRecoveryWarmingListener(
-                    TimeValue.timeValueMillis(randomLongBetween(1, 100_000)),
-                    randomAlphaOfLength(10),
+                    new SearchRecoveryTimeout(
+                        TimeValue.timeValueMillis(randomLongBetween(1, 100_000)),
+                        TimeoutContext.RESHARD_SPLIT_TARGET
+                    ),
+                    () -> null, // unused in this test case: re-evaluation is disabled, so the cluster state is never read
                     randomMockIndexShard(),
                     mockDirectory(),
                     randomNonNegativeLong(),
@@ -573,6 +664,530 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         assertWaitOutcome(measurements.get(0), SearchRecoveryWaitOutcome.WARMING_COMPLETE);
     }
 
+    /// [SharedBlobCacheWarmingService] that delegates every
+    /// [SharedBlobCacheWarmingService#searchRecoveryTimeout] call to a supplied function, so re-evaluation loop
+    /// tests can inject any sequence of plans without building cluster state. `warmCache` is a no-op; tests drive
+    /// the listener directly via [SharedBlobCacheWarmingService#searchRecoveryWarmingListener].
+    private static SharedBlobCacheWarmingService newReevaluatingService(
+        ThreadPool threadPool,
+        Settings settings,
+        Supplier<SearchRecoveryTimeout> planSupplier
+    ) {
+        return newReevaluatingService(threadPool, settings, bytesToWarm -> planSupplier.get());
+    }
+
+    /// Like the overload taking a plan supplier, but the plan is computed from the `totalBytesToWarm` that the re-evaluation passes in.
+    private static SharedBlobCacheWarmingService newReevaluatingService(
+        ThreadPool threadPool,
+        Settings settings,
+        LongFunction<SearchRecoveryTimeout> planForBytesToWarm
+    ) {
+        final var clusterSettings = newClusterSettings(settings);
+        final var cacheService = Mockito.mock(StatelessSharedBlobCacheService.class);
+        return new SharedBlobCacheWarmingService(
+            cacheService,
+            threadPool,
+            TelemetryProvider.NOOP,
+            clusterSettings,
+            new DefaultWarmingRatioProviderFactory().create(clusterSettings),
+            new SearchRecoveryTimeoutCalculationService(cacheService, threadPool, clusterSettings)
+        ) {
+            @Override
+            protected SearchRecoveryTimeout searchRecoveryTimeout(
+                ClusterState state,
+                IndexShard indexShard,
+                long totalBytesToWarm,
+                @Nullable SearchRecoveryTimeout previous
+            ) {
+                return planForBytesToWarm.apply(totalBytesToWarm);
+            }
+
+            @Override
+            protected void warmCache(
+                Type type,
+                IndexShard indexShard,
+                StatelessCompoundCommit commit,
+                BlobStoreCacheDirectory directory,
+                @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
+                boolean preWarmForIdLookup,
+                ActionListener<Void> listener
+            ) {}
+        };
+    }
+
+    /// With re-evaluation enabled, the loop reschedules as long as the remaining grace budget exceeds the abort threshold.
+    /// Once the budget is exhausted, it timeouts instead of rescheduling.
+    public void testReevaluationLoopReschedulesWithinBudgetAndTerminatesWhenExhausted() {
+        final var budget = TimeValue.timeValueMillis(500);
+        final var sliceSize = TimeValue.timeValueMillis(200);
+        final var abortThreshold = TimeValue.timeValueMillis(50);
+        final var settings = Settings.builder()
+            .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TOTAL_TIMEOUT_CAP_SETTING.getKey(), budget)
+            .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
+            .put(
+                SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING.getKey(),
+                abortThreshold
+            )
+            .build();
+
+        try (var threadPool = new ReEvaluationThreadPool(getTestName())) {
+            final SharedBlobCacheWarmingService service = newReevaluatingService(
+                threadPool,
+                settings,
+                () -> new SearchRecoveryTimeout(sliceSize, TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN)
+            );
+            final var resume = new PlainActionFuture<Void>();
+            service.searchRecoveryWarmingListener(
+                new SearchRecoveryTimeout(sliceSize, TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN),
+                () -> null, // unused in this test case
+                randomMockIndexShard(),
+                mockDirectory(),
+                0L,
+                resume
+            );
+
+            final var task1 = threadPool.drainTask();
+            assertThat("initial schedule must exist", task1, notNullValue());
+            assertThat(resume.isDone(), is(false));
+
+            task1.run(); // eval 1: remaining=300 → reschedule
+            assertThat("race must not fire after eval 1", resume.isDone(), is(false));
+            final var task2 = threadPool.drainTask();
+            assertThat("eval 1 must reschedule", task2, notNullValue());
+
+            task2.run(); // eval 2: remaining=100 → reschedule
+            assertThat("race must not fire after eval 2", resume.isDone(), is(false));
+            final var task3 = threadPool.drainTask();
+            assertThat("eval 2 must reschedule", task3, notNullValue());
+
+            task3.run(); // eval 3: remaining=0 → time out
+            safeGet(resume);
+            assertThat("no reschedule after budget exhausted", threadPool.drainTask(), nullValue());
+        }
+    }
+
+    /// The total timeout cap applies to every plan. Shutdown plans are additionally bounded by the grace deadline, which is already part
+    /// of the plan's timeout, so the lower of the two wins and a wait cannot gain budget by switching to a shutting-down source.
+    public void testReevaluationLoopCapsShutdownPlansToTheTotalTimeoutCap() {
+        final var sliceSize = TimeValue.timeValueMillis(200);
+        final var settings = Settings.builder()
+            .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TOTAL_TIMEOUT_CAP_SETTING.getKey(), TimeValue.timeValueMillis(300))
+            .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
+            .put(
+                SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING.getKey(),
+                TimeValue.timeValueMillis(50)
+            )
+            .build();
+
+        try (var threadPool = new ReEvaluationThreadPool(getTestName())) {
+            final var service = newReevaluatingService(
+                threadPool,
+                settings,
+                () -> new SearchRecoveryTimeout(sliceSize, TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE)
+            );
+            final var resume = new PlainActionFuture<Void>();
+            service.searchRecoveryWarmingListener(
+                new SearchRecoveryTimeout(sliceSize, TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN),
+                () -> null, // unused in this test case
+                randomMockIndexShard(),
+                mockDirectory(),
+                0L,
+                resume
+            );
+
+            // 200ms elapsed: the 200ms shutdown slice is cut to the 100ms left of the 300ms cap
+            threadPool.drainTask().run();
+            assertThat(resume.isDone(), is(false));
+            // 300ms elapsed: nothing is left of the cap, the 200ms shutdown slice is cut to 0 which is below the abort threshold
+            threadPool.drainTask().run();
+            safeGet(resume);
+            assertThat(threadPool.drainTask(), nullValue());
+        }
+    }
+
+    /// When warming completes while a re-evaluation is in flight, the listener's cancel() has already run by the time the re-evaluation
+    /// schedules its next slice, so the re-evaluation must cancel that task itself instead of leaving it queued until it fires.
+    public void testReevaluationCancelsTaskScheduledAfterWarmingCompleted() {
+        final var sliceSize = TimeValue.timeValueMillis(200);
+        final var settings = Settings.builder()
+            .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
+            .put(
+                SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING.getKey(),
+                TimeValue.timeValueMillis(50)
+            )
+            .build();
+
+        try (var threadPool = new ReEvaluationThreadPool(getTestName())) {
+            final var warmingListener = new AtomicReference<ActionListener<Void>>();
+            final var service = newReevaluatingService(threadPool, settings, () -> {
+                // warming completes while the re-evaluation is computing its plan
+                warmingListener.get().onResponse(null);
+                return new SearchRecoveryTimeout(sliceSize, TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN);
+            });
+            final var resume = new PlainActionFuture<Void>();
+            warmingListener.set(
+                service.searchRecoveryWarmingListener(
+                    new SearchRecoveryTimeout(sliceSize, TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN),
+                    () -> null, // unused in this test case
+                    randomMockIndexShard(),
+                    mockDirectory(),
+                    0L,
+                    resume
+                )
+            );
+
+            threadPool.drainTask().run();
+            safeGet(resume);
+            assertThat("the task scheduled after the race completed must be cancelled", threadPool.latestTaskCancelled(), is(true));
+        }
+    }
+
+    /// When nothing changed since the previous equal-share plan there is nothing to add: the re-evaluated plan is still extendable, but
+    /// its timeout is below the abort threshold, so the wait times out at once instead of rescheduling an ever shorter slice.
+    public void testReevaluationLoopTimesOutImmediatelyWhenNothingWasSaved() {
+        final var sliceSize = TimeValue.timeValueMillis(200);
+        final var abortThreshold = TimeValue.timeValueMillis(50);
+        final var settings = Settings.builder()
+            .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
+            .put(
+                SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING.getKey(),
+                abortThreshold
+            )
+            .build();
+
+        try (var threadPool = new ReEvaluationThreadPool(getTestName())) {
+            // nothing saved: zero, or at most a sliver below the abort threshold
+            final var nothingSaved = new SearchRecoveryTimeout(
+                TimeValue.timeValueMillis(randomLongBetween(0, abortThreshold.millis() - 1)),
+                TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE,
+                2500.0
+            );
+            assertThat(nothingSaved.extendable(), is(true));
+            final var service = newReevaluatingService(threadPool, settings, () -> nothingSaved);
+            final var resume = new PlainActionFuture<Void>();
+            service.searchRecoveryWarmingListener(
+                new SearchRecoveryTimeout(sliceSize, TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE, 2500.0),
+                () -> null, // unused in this test case
+                randomMockIndexShard(),
+                mockDirectory(),
+                0L,
+                resume
+            );
+
+            threadPool.drainTask().run();
+            safeGet(resume);
+            assertThat("the loop must not reschedule", threadPool.drainTask(), nullValue());
+        }
+    }
+
+    /// A total timeout cap of 0 disables extensions: only the initial slice is ever waited for.
+    public void testReevaluationLoopDoesNotExtendWhenTotalTimeoutCapIsZero() {
+        final var sliceSize = TimeValue.timeValueMillis(200);
+        final var settings = Settings.builder()
+            .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TOTAL_TIMEOUT_CAP_SETTING.getKey(), TimeValue.ZERO)
+            .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
+            .put(
+                SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING.getKey(),
+                TimeValue.timeValueMillis(50)
+            )
+            .build();
+
+        try (var threadPool = new ReEvaluationThreadPool(getTestName())) {
+            final var service = newReevaluatingService(
+                threadPool,
+                settings,
+                () -> new SearchRecoveryTimeout(sliceSize, TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN)
+            );
+            final var resume = new PlainActionFuture<Void>();
+            service.searchRecoveryWarmingListener(
+                new SearchRecoveryTimeout(sliceSize, TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN),
+                () -> null, // unused in this test case
+                randomMockIndexShard(),
+                mockDirectory(),
+                0L,
+                resume
+            );
+
+            threadPool.drainTask().run();
+            safeGet(resume);
+            assertThat(threadPool.drainTask(), nullValue());
+        }
+    }
+
+    /// The cluster-state supplier passed to [SharedBlobCacheWarmingService#searchRecoveryWarmingListener] is called
+    /// lazily on each re-evaluation, not captured once at the start. This is the mechanism that allows a recovery waiting
+    /// for warming to react to a node shutdown that was registered after the wait began.
+    ///
+    /// The test verifies by switching the plan between re-evaluations: the DEBUG log on the first re-evaluation must
+    /// reflect the new plan's context, not the one that was current when the listener was built.
+    @TestLogging(
+        value = "org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService:DEBUG",
+        reason = "the timeout extension is logged at DEBUG"
+    )
+    public void testReevaluationLoopPicksUpUpdatedPlanOnEachExpiry() {
+        final var budget = TimeValue.timeValueMillis(1_000);
+        final var sliceSize = TimeValue.timeValueMillis(300);
+        final var abortThreshold = TimeValue.timeValueMillis(50);
+        final var settings = Settings.builder()
+            .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TOTAL_TIMEOUT_CAP_SETTING.getKey(), budget)
+            .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
+            .put(
+                SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING.getKey(),
+                abortThreshold
+            )
+            .build();
+
+        final var planRef = new AtomicReference<>(
+            new SearchRecoveryTimeout(sliceSize, TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN)
+        );
+
+        try (var threadPool = new ReEvaluationThreadPool(getTestName())) {
+            final SharedBlobCacheWarmingService service = newReevaluatingService(threadPool, settings, planRef::get);
+            final var resume = new PlainActionFuture<Void>();
+            service.searchRecoveryWarmingListener(
+                new SearchRecoveryTimeout(sliceSize, TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN),
+                () -> null, // unused in this test case
+                randomMockIndexShard(),
+                mockDirectory(),
+                0L,
+                resume
+            );
+
+            final var task = threadPool.drainTask();
+            assertThat(task, notNullValue());
+
+            // switch the plan before the first re-evaluation fires — the supplier must be read lazily
+            planRef.set(
+                new SearchRecoveryTimeout(sliceSize, TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT)
+            );
+
+            assertThatLogger(
+                task,
+                SharedBlobCacheWarmingService.class,
+                new MockLog.SeenEventExpectation(
+                    "DEBUG log must reflect the updated context, not the one current at listener-build time",
+                    SharedBlobCacheWarmingService.class.getCanonicalName(),
+                    DEBUG,
+                    "*timeout extended*cluster shutdown metadata present*"
+                )
+            );
+        }
+    }
+
+    /// Extension rules depending on the transition between the previous and the re-evaluated plan:
+    /// no shutdown -> no shutdown extends, no shutdown -> shutdown metadata present extends, shutdown metadata present -> same does not
+    /// extend, shutdown metadata present -> source shutting down extends. A data-volume plan extends only as the first plan after the
+    /// source started shutting down, never after a plan that already was computed for a shutting down source.
+    public void testReevaluationLoopExtensionRulesByTransition() {
+        final var sliceSize = TimeValue.timeValueMillis(200);
+        final var settings = Settings.builder()
+            .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
+            .put(
+                SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING.getKey(),
+                TimeValue.timeValueMillis(50)
+            )
+            .build();
+        final var noShutdown = new SearchRecoveryTimeout(sliceSize, TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN);
+        final var metadataPresent = new SearchRecoveryTimeout(
+            sliceSize,
+            TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT
+        );
+        final var sourceShuttingDown = new SearchRecoveryTimeout(sliceSize, TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE);
+        final var dataVolume = new SearchRecoveryTimeout(sliceSize, TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME);
+        // plans for which there is nothing to wait for any more, even with a non-zero slice
+        final var skip = new SearchRecoveryTimeout(sliceSize, TimeoutContext.SKIP);
+        final var graceElapsed = new SearchRecoveryTimeout(sliceSize, TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_GRACE_ELAPSED);
+
+        // previous plan, re-evaluated plan, whether the wait is extended
+        final var scenarios = List.of(
+            new Object[] { noShutdown, noShutdown, true },
+            new Object[] { noShutdown, metadataPresent, true },
+            new Object[] { metadataPresent, metadataPresent, false },
+            new Object[] { metadataPresent, sourceShuttingDown, true },
+            new Object[] { noShutdown, dataVolume, true },
+            new Object[] { metadataPresent, dataVolume, true },
+            new Object[] { sourceShuttingDown, dataVolume, false },
+            new Object[] { sourceShuttingDown, sourceShuttingDown, true },
+            new Object[] { noShutdown, skip, false },
+            new Object[] { noShutdown, graceElapsed, false }
+        );
+        for (final var scenario : scenarios) {
+            final var initialPlan = (SearchRecoveryTimeout) scenario[0];
+            final var reevaluatedPlan = (SearchRecoveryTimeout) scenario[1];
+            final boolean extended = (boolean) scenario[2];
+            try (var threadPool = new ReEvaluationThreadPool(getTestName())) {
+                final var service = newReevaluatingService(threadPool, settings, () -> reevaluatedPlan);
+                final var resume = new PlainActionFuture<Void>();
+                service.searchRecoveryWarmingListener(
+                    initialPlan,
+                    () -> null, // unused in this test case
+                    randomMockIndexShard(),
+                    mockDirectory(),
+                    0L,
+                    resume
+                );
+                threadPool.drainTask().run();
+                if (extended) {
+                    assertThat(resume.isDone(), is(false));
+                    assertThat(threadPool.drainTask(), notNullValue());
+                } else {
+                    safeGet(resume);
+                    assertThat(threadPool.drainTask(), nullValue());
+                }
+            }
+        }
+    }
+
+    /// Entering "cluster shutdown metadata present" from "no cluster shutdown" is extended once, staying in it is then not extended.
+    public void testReevaluationLoopStopsOnRepeatedShutdownMetadataPresent() {
+        final var sliceSize = TimeValue.timeValueMillis(200);
+        final var settings = Settings.builder()
+            .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
+            .put(
+                SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING.getKey(),
+                TimeValue.timeValueMillis(50)
+            )
+            .build();
+        final var metadataPresent = new SearchRecoveryTimeout(
+            sliceSize,
+            TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT
+        );
+        try (var threadPool = new ReEvaluationThreadPool(getTestName())) {
+            final var service = newReevaluatingService(threadPool, settings, () -> metadataPresent);
+            final var resume = new PlainActionFuture<Void>();
+            service.searchRecoveryWarmingListener(
+                new SearchRecoveryTimeout(sliceSize, TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN),
+                () -> null, // unused in this test case
+                randomMockIndexShard(),
+                mockDirectory(),
+                0L,
+                resume
+            );
+            threadPool.drainTask().run();
+            assertThat(resume.isDone(), is(false));
+            threadPool.drainTask().run();
+            safeGet(resume);
+            assertThat(threadPool.drainTask(), nullValue());
+        }
+    }
+
+    /// Each re-evaluation is given the bytes still to warm, i.e. the bytes to warm at the start minus what has been warmed from the
+    /// object store since then, never below zero. The stand-in plan mimics the data-volume heuristic: while more than half of the bytes
+    /// are still to be warmed it returns a zero timeout, which ends the wait; once warming has progressed it returns an extension.
+    public void testReevaluationLoopUsesBytesStillToWarm() {
+        final long bytesToWarm = 1_000L;
+        final var budget = TimeValue.timeValueMillis(1_000);
+        final var sliceSize = TimeValue.timeValueMillis(200);
+        final var settings = Settings.builder()
+            .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TOTAL_TIMEOUT_CAP_SETTING.getKey(), budget)
+            .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
+            .put(
+                SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING.getKey(),
+                TimeValue.timeValueMillis(50)
+            )
+            .build();
+
+        // (a) nothing warmed yet: still all bytes to warm, the plan ends the wait
+        // (b) some bytes warmed: the plan extends, and a later re-evaluation sees fewer bytes remaining
+        // (c) more bytes warmed than targeted (the directory counter also covers other reads): remaining is clamped to zero
+        final var warmedFromObjectStore = new AtomicLong();
+        final var bytesRemainingSeen = new ArrayList<Long>();
+        final LongFunction<SearchRecoveryTimeout> plan = bytesRemaining -> {
+            bytesRemainingSeen.add(bytesRemaining);
+            return bytesRemaining > bytesToWarm / 2
+                ? new SearchRecoveryTimeout(TimeValue.ZERO, TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME)
+                : new SearchRecoveryTimeout(sliceSize, TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE);
+        };
+
+        try (var threadPool = new ReEvaluationThreadPool(getTestName())) {
+            final var service = newReevaluatingService(threadPool, settings, plan);
+            final var directory = mock(BlobStoreCacheDirectory.class);
+            when(directory.totalBytesWarmedFromObjectStore()).thenAnswer(invocation -> warmedFromObjectStore.get());
+
+            // a
+            final var timedOut = new PlainActionFuture<Void>();
+            service.searchRecoveryWarmingListener(
+                new SearchRecoveryTimeout(sliceSize, TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN),
+                () -> null, // unused in this test case
+                randomMockIndexShard(),
+                directory,
+                bytesToWarm,
+                timedOut
+            );
+            threadPool.drainTask().run();
+            safeGet(timedOut);
+            assertThat(bytesRemainingSeen, contains(bytesToWarm));
+            assertThat("a zero timeout must end the wait", threadPool.drainTask(), nullValue());
+
+            // b, c: bytes warmed before the listener is built do not count towards it
+            bytesRemainingSeen.clear();
+            warmedFromObjectStore.set(10_000L);
+            final var resume = new PlainActionFuture<Void>();
+            service.searchRecoveryWarmingListener(
+                new SearchRecoveryTimeout(sliceSize, TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN),
+                () -> null, // unused in this test case
+                randomMockIndexShard(),
+                directory,
+                bytesToWarm,
+                resume
+            );
+            final var task1 = threadPool.drainTask();
+            warmedFromObjectStore.addAndGet(600L);
+            task1.run(); // 400 bytes remaining → extended
+            assertThat(resume.isDone(), is(false));
+            final var task2 = threadPool.drainTask();
+            assertThat("the first re-evaluation must have rescheduled", task2, notNullValue());
+            warmedFromObjectStore.addAndGet(5_000L);
+            task2.run(); // overcounted → clamped to 0 remaining → extended due to equal share
+            assertThat(bytesRemainingSeen, contains(400L, 0L));
+            assertThat(resume.isDone(), is(false));
+            assertThat("the second re-evaluation must have rescheduled", threadPool.drainTask(), notNullValue());
+        }
+    }
+
+    /// When warming finishes while a re-evaluation is still pending, recovery completes immediately with
+    /// [SearchRecoveryWaitOutcome#WARMING_COMPLETE].
+    public void testReevaluationWarmingFinishesWhileReEvaluationLoopIsPending() {
+        final var budget = TimeValue.timeValueMillis(1_000);
+        final var sliceSize = TimeValue.timeValueMillis(200);
+        final var abortThreshold = TimeValue.timeValueMillis(50);
+        final var settings = Settings.builder()
+            .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TOTAL_TIMEOUT_CAP_SETTING.getKey(), budget)
+            .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
+            .put(
+                SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING.getKey(),
+                abortThreshold
+            )
+            .build();
+
+        try (var threadPool = new ReEvaluationThreadPool(getTestName())) {
+            final var service = newReevaluatingService(
+                threadPool,
+                settings,
+                () -> new SearchRecoveryTimeout(sliceSize, TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE)
+            );
+            final var resume = new PlainActionFuture<Void>();
+            final var warmingListener = service.searchRecoveryWarmingListener(
+                new SearchRecoveryTimeout(sliceSize, TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN),
+                () -> null, // unused in this test case
+                randomMockIndexShard(),
+                mockDirectory(),
+                0L,
+                resume
+            );
+
+            final var task = threadPool.drainTask();
+            assertThat(task, notNullValue());
+            task.run(); // re-eval 1: reschedule
+            assertThat("re-evaluation must have rescheduled", threadPool.drainTask(), notNullValue());
+            assertThat(resume.isDone(), is(false));
+
+            // warming finishes first while a re-evaluation command is still pending
+            warmingListener.onResponse(null);
+            safeGet(resume);
+        }
+    }
+
     /// The timeout branch reports how much of the shard was warmed before the deadline: the shard's data set size, the bytes offline
     /// warming was targeting, and the bytes actually warmed since the listener was built.
     public void testSearchRecoveryWarmingListenerLogsWarmingProgressOnTimeout() {
@@ -582,15 +1197,17 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         final var bytesWarmed = ByteSizeValue.ofMb(64);
         final var shardId = new ShardId("logs", IndexMetadata.INDEX_UUID_NA_VALUE, 2);
         final var timeout = TimeValue.timeValueSeconds(30);
-        final var timeoutContext = "relocation source shutting down";
+        final var timeoutContext = TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME;
 
         try (var threadPool = new CapturingScheduleThreadPool(getTestName())) {
             final var service = newWarmingService(threadPool);
             final var resume = new PlainActionFuture<Void>();
             final var warmingListener = service.searchRecoveryWarmingListener(
-                timeout,
-                timeoutContext,
-                mockIndexShard(TestShardRouting.newShardRouting(shardId, randomIdentifier(), true, STARTED)),
+                new SearchRecoveryTimeout(timeout, timeoutContext),
+                () -> null, // unused in this test case
+                mockIndexShard(
+                    TestShardRouting.newShardRouting(shardId, randomIdentifier(), false, STARTED, ShardRouting.Role.SEARCH_ONLY)
+                ),
                 // the baseline is read when the listener is built, so only the 64mb warmed afterwards must be reported
                 mockDirectory(dataSetSize.getBytes(), bytesWarmedBefore.getBytes(), bytesWarmedBefore.getBytes() + bytesWarmed.getBytes()),
                 bytesToWarm.getBytes(),
@@ -605,7 +1222,9 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                     "warming timeout reporting sizes",
                     SharedBlobCacheWarmingService.class.getCanonicalName(),
                     WARN,
-                    "Search shard recovery cache warming timed out after [30s] (relocation source shutting down) for [logs][2], "
+                    "Search shard recovery cache warming timed out after [30s] ("
+                        + timeoutContext.description()
+                        + ") for [logs][2], "
                         + "shard data set size [4gb], bytes to warm [512mb], bytes warmed [64mb]"
                 ),
                 new MockLog.SeenEventExpectation(

@@ -694,7 +694,7 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
     }
 
     /**
-     * The manual "graceful termination" test on esql-planning#1778 flagged both expansion loops - {@code collectFieldNames} and
+    * The manual "graceful termination" test on flagged both expansion loops - {@code collectFieldNames} and
      * {@code rewritePages} - as running to completion without checking for cancellation. {@link
      * #testCancellationDuringExpansionThrowsAndReleasesPages} pins the first loop: a checker that reports cancelled up front trips on
      * {@code collectFieldNames}' opening poll, before {@code rewritePage} ever runs. This pins the second: name collection scans every

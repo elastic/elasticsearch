@@ -564,9 +564,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingIT
   method: testShardPrewarming
   issue: https://github.com/elastic/elasticsearch/issues/161487
-- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
-  method: test {csv-spec:external-multifile.multiFileSalaryStats [ndjson.gz/S3]}
-  issue: https://github.com/elastic/elasticsearch/issues/161557
 - class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
   method: test {yaml=/37_columnar_collapse/collapse on a single valued columnar keyword field with the columnar codec disabled}
   issue: https://github.com/elastic/elasticsearch/issues/161603
@@ -599,12 +596,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.SubqueryIT
   method: testNestedSubqueryOuterLimitWithQueuedLeaves
   issue: https://github.com/elastic/elasticsearch/issues/161662
-- class: org.elasticsearch.xpack.esql.qa.csv.CsvCompressedFormatSpecIT
-  method: test {csv-spec:csv-multifile-resolution.omittedSalaryStats [csv.gz/S3]}
-  issue: https://github.com/elastic/elasticsearch/issues/161664
-- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
-  method: test {csv-spec:external-basic.aggregateSalaryStats [ndjson.gz/S3]}
-  issue: https://github.com/elastic/elasticsearch/issues/161666
 - class: org.elasticsearch.xpack.stateless.commits.StatelessCommitNotificationsIT
   method: testVbccRemainsServableUntilSearchTierNotificationCompletes
   issue: https://github.com/elastic/elasticsearch/issues/161667

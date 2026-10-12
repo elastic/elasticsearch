@@ -39,9 +39,10 @@ FilteringJarTransform.registerTransform(dependencies) { spec ->
 }
 
 // Guava's explicit module is never resolved into the plugin's module layer, so bundle it as an automatic module
-esplugin.bundleSpec.from(configurations.unmodularGuava)
+def unmodularGuavaFiles = configurations.unmodularGuava
+esplugin.bundleSpec.from(unmodularGuavaFiles)
 esplugin.bundleSpec.exclude { FileTreeElement e ->
-  e.file.name.startsWith('guava-') && configurations.unmodularGuava.files.contains(e.file) == false
+  e.file.name.startsWith('guava-') && unmodularGuavaFiles.files.contains(e.file) == false
 }
 
 dependencies {

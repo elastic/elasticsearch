@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.List;
 
 /**
  * Decorates a {@link StorageProvider} with concurrency limiting. Each cloud API call
@@ -22,7 +21,7 @@ import java.util.List;
  * releases it when the call completes. Permits are per-API-call, not held across
  * retries or backoff sleeps.
  */
-class ConcurrencyLimitedStorageProvider implements StorageProvider {
+class ConcurrencyLimitedStorageProvider extends ForwardingStorageProvider {
 
     private final StorageProvider delegate;
     private final ConcurrencyLimiter limiter;
@@ -33,8 +32,8 @@ class ConcurrencyLimitedStorageProvider implements StorageProvider {
     }
 
     @Override
-    public StorageEntry objectMetadata(StoragePath path) throws IOException {
-        return delegate.objectMetadata(path);
+    protected StorageProvider delegate() {
+        return delegate;
     }
 
     @Override
@@ -83,21 +82,6 @@ class ConcurrencyLimitedStorageProvider implements StorageProvider {
         } finally {
             limiter.release();
         }
-    }
-
-    @Override
-    public List<String> supportedSchemes() {
-        return delegate.supportedSchemes();
-    }
-
-    @Override
-    public boolean supportsStableMetadata() {
-        return delegate.supportsStableMetadata();
-    }
-
-    @Override
-    public boolean listsInKeyOrder() {
-        return delegate.listsInKeyOrder();
     }
 
     @Override

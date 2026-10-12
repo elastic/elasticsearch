@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.IOException;
-import java.lang.reflect.Method;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -36,42 +35,6 @@ import static org.mockito.Mockito.when;
  * source.
  */
 public class StorageProviderMetadataForwardingTests extends ESTestCase {
-
-    private static final List<String> WRAPPING_PROVIDERS = List.of(
-        "org.elasticsearch.xpack.esql.datasources.RetryableStorageProvider",
-        "org.elasticsearch.xpack.esql.datasources.QueryBudgetedStorageProvider",
-        "org.elasticsearch.xpack.esql.datasources.ConcurrencyLimitedStorageProvider",
-        "org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache$PooledStorageProvider",
-        "org.elasticsearch.xpack.esql.datasources.FileSourceFactory$DeferredPoolLease"
-    );
-
-    public void testEveryWrappingProviderForwardsObjectMetadata() throws Exception {
-        for (String name : WRAPPING_PROVIDERS) {
-            Class<?> wrapper = Class.forName(name);
-            assertTrue(
-                name + " is listed here but does not implement StorageProvider, so this entry checks nothing",
-                StorageProvider.class.isAssignableFrom(wrapper)
-            );
-            assertTrue(
-                wrapper.getName()
-                    + " wraps a StorageProvider but does not declare objectMetadata, so it inherits the interface "
-                    + "default and the delegate's override never runs. Forward it to the delegate.",
-                declaresObjectMetadata(wrapper)
-            );
-        }
-    }
-
-    private static boolean declaresObjectMetadata(Class<?> wrapper) {
-        for (Method method : wrapper.getMethods()) {
-            if (method.getName().equals("objectMetadata")
-                && method.getParameterCount() == 1
-                && method.getParameterTypes()[0] == StoragePath.class
-                && method.getDeclaringClass() == wrapper) {
-                return true;
-            }
-        }
-        return false;
-    }
 
     /**
      * The default is what every provider but S3 uses, so it is the majority path through this method.
@@ -94,6 +57,130 @@ public class StorageProviderMetadataForwardingTests extends ESTestCase {
         when(handle.lastModified()).thenReturn(null);
 
         assertEquals(Instant.EPOCH, providerReturning(handle).objectMetadata(StoragePath.of("s3://bucket/f")).lastModified());
+    }
+
+    /**
+     * The base forwards every call, so a decorator that does not mention a method still reaches the delegate.
+     * This is the property the five decorators now inherit instead of copying, and the one a method added to
+     * the interface later depends on.
+     */
+    public void testTheBaseForwardsEveryCallToTheDelegate() throws Exception {
+        RecordingProvider delegate = new RecordingProvider();
+        StorageProvider forwarding = new ForwardingStorageProvider() {
+            @Override
+            protected StorageProvider delegate() {
+                return delegate;
+            }
+
+            @Override
+            public void close() {}
+        };
+        StoragePath path = StoragePath.of("s3://bucket/file.csv");
+
+        forwarding.newObject(path);
+        forwarding.newObject(path, 1L);
+        forwarding.newObject(path, 1L, Instant.EPOCH);
+        forwarding.listObjects(path, false);
+        forwarding.listChildren(path, 1);
+        forwarding.exists(path);
+        forwarding.objectMetadata(path);
+        forwarding.supportedSchemes();
+        forwarding.supportsStableMetadata();
+        forwarding.listsInKeyOrder();
+
+        assertEquals(
+            "a call did not reach the delegate",
+            List.of(
+                "newObject/1",
+                "newObject/2",
+                "newObject/3",
+                "listObjects",
+                "listChildren",
+                "exists",
+                "objectMetadata",
+                "supportedSchemes",
+                "supportsStableMetadata",
+                "listsInKeyOrder"
+            ),
+            delegate.seen
+        );
+    }
+
+    /**
+     * close() is abstract on the base rather than forwarded, so the compiler asks every decorator what owning
+     * the delegate means. Two of them return a pooled provider instead of closing it, and inheriting a forward
+     * would have closed one under the queries still holding it.
+     */
+    public void testCloseIsNotInheritedFromTheBase() throws Exception {
+        assertTrue(
+            "close() must stay abstract on the base",
+            java.lang.reflect.Modifier.isAbstract(ForwardingStorageProvider.class.getMethod("close").getModifiers())
+        );
+    }
+
+    /** Records which method arrived, in order, so a forward that goes to the wrong one is visible. */
+    private static final class RecordingProvider extends StubProvider {
+        private final List<String> seen = new java.util.ArrayList<>();
+
+        @Override
+        public StorageObject newObject(StoragePath path) {
+            seen.add("newObject/1");
+            return null;
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length) {
+            seen.add("newObject/2");
+            return null;
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
+            seen.add("newObject/3");
+            return null;
+        }
+
+        @Override
+        public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
+            seen.add("listObjects");
+            return null;
+        }
+
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            seen.add("listChildren");
+            return null;
+        }
+
+        @Override
+        public boolean exists(StoragePath path) {
+            seen.add("exists");
+            return true;
+        }
+
+        @Override
+        public StorageEntry objectMetadata(StoragePath path) {
+            seen.add("objectMetadata");
+            return new StorageEntry(StoragePath.of("s3://b/k"), 1L, Instant.EPOCH);
+        }
+
+        @Override
+        public List<String> supportedSchemes() {
+            seen.add("supportedSchemes");
+            return List.of();
+        }
+
+        @Override
+        public boolean supportsStableMetadata() {
+            seen.add("supportsStableMetadata");
+            return true;
+        }
+
+        @Override
+        public boolean listsInKeyOrder() {
+            seen.add("listsInKeyOrder");
+            return true;
+        }
     }
 
     /**

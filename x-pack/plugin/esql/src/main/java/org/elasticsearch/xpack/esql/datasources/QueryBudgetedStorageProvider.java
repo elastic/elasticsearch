@@ -7,14 +7,12 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.List;
 
 /**
  * Decorates a {@link StorageProvider} with per-query concurrency budget enforcement. Each
@@ -25,7 +23,7 @@ import java.util.List;
  * Closing this provider closes the underlying budget, which deregisters from the
  * {@link ConcurrencyBudgetAllocator} and triggers rebalancing of remaining active queries.
  */
-class QueryBudgetedStorageProvider implements StorageProvider {
+class QueryBudgetedStorageProvider extends ForwardingStorageProvider {
 
     private final StorageProvider delegate;
     private final QueryConcurrencyBudget budget;
@@ -36,8 +34,8 @@ class QueryBudgetedStorageProvider implements StorageProvider {
     }
 
     @Override
-    public StorageEntry objectMetadata(StoragePath path) throws IOException {
-        return delegate.objectMetadata(path);
+    protected StorageProvider delegate() {
+        return delegate;
     }
 
     @Override
@@ -53,31 +51,6 @@ class QueryBudgetedStorageProvider implements StorageProvider {
     @Override
     public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
         return new QueryBudgetedStorageObject(delegate.newObject(path, length, lastModified), budget);
-    }
-
-    @Override
-    public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
-        return delegate.listObjects(prefix, recursive);
-    }
-
-    @Override
-    public StorageChildren listChildren(StoragePath prefix, int limit) throws IOException {
-        return delegate.listChildren(prefix, limit);
-    }
-
-    @Override
-    public boolean exists(StoragePath path) throws IOException {
-        return delegate.exists(path);
-    }
-
-    @Override
-    public List<String> supportedSchemes() {
-        return delegate.supportedSchemes();
-    }
-
-    @Override
-    public boolean listsInKeyOrder() {
-        return delegate.listsInKeyOrder();
     }
 
     /**

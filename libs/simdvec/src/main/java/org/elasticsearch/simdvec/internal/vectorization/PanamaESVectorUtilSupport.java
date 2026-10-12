@@ -2487,7 +2487,6 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
 
     private static final int MIN_PARALLEL_TASKS = 16;
 
-
     /**
      * Panama version of matrix multiply, with 4x or 8x row unrolling.
      * <p>

@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownLiteralConversion;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
@@ -1166,35 +1167,38 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         assertThat(fp.toString(), containsString("42"));
     }
 
-    public void testToFilterPredicateDateLiteralOnDateNanosColumnDeclines() {
+    public void testToFilterPredicateDateLiteralOnDateNanosColumnConverts() {
         MessageType schema = int64Ts(timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS));
-        Expression expr = new Equals(Source.EMPTY, attr("ts", DataType.DATE_NANOS), datetimeLit(1_700_000_000_000L), null);
-        assertNull(new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema));
-    }
-
-    public void testToFilterPredicateDateRangeOnDateNanosColumnDeclines() {
-        MessageType schema = int64Ts(timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS));
-        Expression expr = new Range(
-            Source.EMPTY,
-            attr("ts", DataType.DATE_NANOS),
-            datetimeLit(1_000L),
-            true,
-            datetimeLit(2_000L),
-            true,
-            ZoneOffset.UTC
+        long millis = 1_700_000_000_000L;
+        Expression expr = PushdownLiteralConversion.rewrite(
+            new Equals(Source.EMPTY, attr("ts", DataType.DATE_NANOS), datetimeLit(millis), null)
         );
-        assertNull(new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema));
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString(String.valueOf(millis * 1_000_000L)));
     }
 
-    public void testToFilterPredicateDateNanosLiteralOnDateColumnDeclines() {
+    public void testToFilterPredicateDateRangeOnDateNanosColumnConverts() {
+        MessageType schema = int64Ts(timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS));
+        Expression expr = PushdownLiteralConversion.rewrite(
+            new Range(Source.EMPTY, attr("ts", DataType.DATE_NANOS), datetimeLit(1_000L), true, datetimeLit(2_000L), true, ZoneOffset.UTC)
+        );
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString(String.valueOf(1_000L * 1_000_000L)));
+        assertThat(fp.toString(), containsString(String.valueOf(2_000L * 1_000_000L)));
+    }
+
+    public void testToFilterPredicateDateNanosLiteralOnDateColumnConverts() {
         MessageType schema = int64Ts(timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS));
-        Expression expr = new Equals(
-            Source.EMPTY,
-            attr("ts", DataType.DATETIME),
-            lit(1_700_000_000_000_000_000L, DataType.DATE_NANOS),
-            null
+        long nanos = 1_700_000_000_000_000_000L;
+        Expression expr = PushdownLiteralConversion.rewrite(
+            new Equals(Source.EMPTY, attr("ts", DataType.DATETIME), lit(nanos, DataType.DATE_NANOS), null)
         );
-        assertNull(new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema));
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString(String.valueOf(nanos / 1_000_000L)));
+        assertThat(fp.toString(), not(containsString(String.valueOf(nanos))));
     }
 
     public void testToFilterPredicateMatchingDateNanosOnMicrosStillScales() {
@@ -1206,16 +1210,29 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         assertThat(fp.toString(), not(containsString(String.valueOf(nanos))));
     }
 
-    public void testToFilterPredicateIntegerLessThanDoubleDeclines() {
+    public void testToFilterPredicateIntegerLessThanDoubleWidensToLte() {
         MessageType schema = Types.buildMessage().required(INT32).named("id").named("test");
-        Expression expr = new LessThan(Source.EMPTY, attr("id", DataType.INTEGER), lit(5.5, DataType.DOUBLE), null);
-        assertNull(new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema));
+        Expression expr = PushdownLiteralConversion.rewrite(
+            new LessThan(Source.EMPTY, attr("id", DataType.INTEGER), lit(5.5, DataType.DOUBLE), null)
+        );
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString("lteq"));
+        assertThat(fp.toString(), containsString("5"));
+        assertThat(fp.toString(), not(containsString("5.5")));
     }
 
-    public void testToFilterPredicateIntegerLessThanOrEqualLongDeclines() {
+    public void testToFilterPredicateIntegerLessThanOrEqualLongIsTautologyNotTruncated() {
         MessageType schema = Types.buildMessage().required(INT32).named("id").named("test");
-        Expression expr = new LessThanOrEqual(Source.EMPTY, attr("id", DataType.INTEGER), lit(3_000_000_000L, DataType.LONG), null);
-        assertNull(new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema));
+        Expression expr = PushdownLiteralConversion.rewrite(
+            new LessThanOrEqual(Source.EMPTY, attr("id", DataType.INTEGER), lit(3_000_000_000L, DataType.LONG), null)
+        );
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        // Domain tautology: i <= Integer.MAX_VALUE — never the truncated (int) 3000000000.
+        assertThat(fp.toString(), containsString(String.valueOf(Integer.MAX_VALUE)));
+        assertThat(fp.toString(), not(containsString("3000000000")));
+        assertThat(fp.toString(), not(containsString(String.valueOf((int) 3_000_000_000L))));
     }
 
     public void testToFilterPredicateLessThanOrEqualDatetime() {

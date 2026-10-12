@@ -234,6 +234,34 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         fullTextAnalyzer().error(prefix + "not match(t, \"cat\") or _score > 1.5", containsString(message));
     }
 
+    public void testScoreOredWithSearchOnIndexedFieldAliasAfterSampleAccepted() {
+        String prefix = "from test metadata _score | eval t = title | ";
+        String where = " | where match(t, \"cat\") or _score > 1.5";
+        optimize(fullTextAnalyzer().query(prefix + "sample 0.5" + where));
+        optimize(fullTextAnalyzer().query("from test metadata _score | rename title as t | sample 0.5" + where));
+        optimize(fullTextAnalyzer().query(prefix + "sample 0.5 | dissect body \"%{part}\"" + where));
+        optimize(fullTextAnalyzer().query(prefix + "dissect body \"%{part}\" | sample 0.5" + where));
+        optimize(fullTextAnalyzer().query(prefix + "where match(t, \"dog\") | sample 0.5" + where));
+        optimize(fullTextAnalyzer().query(prefix + "sample 0.5 | where match(t, \"dog\")" + where));
+    }
+
+    public void testScoreOredWithSearchOnAliasAboveSampleThatStaysRuntimeRejected() {
+        String message = "[_score] can't be used with runtime search [MATCH] inside OR, NOT or a comparison";
+        String where = " | where match(t, \"cat\") or _score > 1.5";
+        String prefix = "from test metadata _score | eval t = title | ";
+        // SAMPLE can't sink past these, so the filter stays above them and the alias isn't resolved.
+        fullTextAnalyzer().error(prefix + "mv_expand tags | sample 0.5" + where, containsString(message));
+        fullTextAnalyzer().error(prefix + "limit 10 | sample 0.5" + where, containsString(message));
+        fullTextAnalyzer().error(
+            "from test metadata _score | eval t = to_text(concat(title, body)) | sample 0.5" + where,
+            containsString(message)
+        );
+        fullTextAnalyzer().error(
+            "from test metadata _score | eval t = title, u = to_text(concat(title, body)) | where match(u, \"dog\") | sample 0.5" + where,
+            containsString(message)
+        );
+    }
+
     public void testScoreOredWithSearchOnIndexedFieldAliasAfterForkOrSubqueriesAccepted() {
         String where = " | where match(t, \"cat\") or _score > 1.5";
         optimize(fullTextAnalyzer().query("from test metadata _score | eval t = title | fork (where id > 1) (where id <= 1)" + where));

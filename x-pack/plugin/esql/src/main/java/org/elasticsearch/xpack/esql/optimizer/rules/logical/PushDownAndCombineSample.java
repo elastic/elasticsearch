@@ -63,17 +63,24 @@ public class PushDownAndCombineSample extends OptimizerRules.ParameterizedOptimi
         if (child instanceof Sample sampleChild) {
             var probability = combinedProbability(context, sample, sampleChild);
             plan = new Sample(sample.source(), probability, sampleChild.child());
-        } else if (child instanceof Enrich
-            || child instanceof Eval
-            || child instanceof Filter
-            || child instanceof OrderBy
-            || child instanceof Project
-            || child instanceof RegexExtract
-            || child instanceof CompoundOutputEval<?>) {
-                var unaryChild = (UnaryPlan) child;
-                plan = unaryChild.replaceChild(sample.replaceChild(unaryChild.child()));
-            }
+        } else if (child instanceof UnaryPlan unaryChild && sinksPast(unaryChild)) {
+            plan = unaryChild.replaceChild(sample.replaceChild(unaryChild.child()));
+        }
         return plan;
+    }
+
+    /**
+     * Whether this rule pushes a {@code SAMPLE} down past {@code plan}. Shared with the verifier, which needs to know
+     * where a filter above a {@code SAMPLE} ends up before optimization moves it there.
+     */
+    public static boolean sinksPast(LogicalPlan plan) {
+        return plan instanceof Enrich
+            || plan instanceof Eval
+            || plan instanceof Filter
+            || plan instanceof OrderBy
+            || plan instanceof Project
+            || plan instanceof RegexExtract
+            || plan instanceof CompoundOutputEval<?>;
     }
 
     private static Expression combinedProbability(LogicalOptimizerContext context, Sample parent, Sample child) {

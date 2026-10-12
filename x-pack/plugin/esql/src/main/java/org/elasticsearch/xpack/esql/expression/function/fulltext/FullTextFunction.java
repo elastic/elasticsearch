@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineFilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineFilters.UnaryPushDown;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineSample;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SplitScorePredicatesFromRuntimeSearch;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -311,7 +312,7 @@ public abstract class FullTextFunction extends Function
         }
         Expression normalized = SplitScorePredicatesFromRuntimeSearch.normalize(filter.condition(), FoldContext.small());
         for (Expression conjunct : Predicates.splitAnd(normalized)) {
-            if (conjunct.anyMatch(isScore) && holdsRuntimeScorerOncePushedDown(conjunct, filter.child())) {
+            if (conjunct.anyMatch(isScore) && holdsRuntimeScorerOncePushedDown(conjunct, filter.child(), false)) {
                 conjunct.forEachDown(FullTextFunction.class, ftf -> {
                     if (ftf.isRuntimeSearch() && ftf.contributesToScore()) {
                         failures.add(scoreWithRuntimeScorerFailure(conjunct, ftf));
@@ -326,18 +327,26 @@ public abstract class FullTextFunction extends Function
      * once push-down has moved it as far down as it goes. A search on an alias or {@code RENAME} of an indexed field
      * looks like a runtime search when analyzed, but push-down resolves the alias and turns it back into one that scores
      * at the source. This moves the conjunct the way {@link PushDownAndCombineFilters} would, resolving aliases as it
-     * goes, and stops wherever that would stop, or at any command it doesn't follow it past.
+     * goes, and stops wherever that would stop, or at any command it doesn't follow it past. {@code belowSample} says
+     * whether the walk has already passed a {@code SAMPLE}, which bounds how far the conjunct goes.
      */
-    private static boolean holdsRuntimeScorerOncePushedDown(Expression conjunct, LogicalPlan child) {
+    private static boolean holdsRuntimeScorerOncePushedDown(Expression conjunct, LogicalPlan child, boolean belowSample) {
         Expression pushed = conjunct;
         LogicalPlan plan = child;
         while (containsRuntimeScorer(pushed)) {
-            if (plan instanceof Filter filter) {
+            if (plan instanceof Sample sample) {
+                // A filter isn't pushed past a SAMPLE, but the SAMPLE is pushed down past the commands below it, so the
+                // filter can follow those, up to the SAMPLE's new place.
+                belowSample = true;
+                plan = sample.child();
+            } else if (belowSample && PushDownAndCombineSample.sinksPast(plan) == false) {
+                return true;
+            } else if (plan instanceof Filter filter) {
                 // A _score predicate doesn't combine into a filter which holds a runtime scorer, unless push-down turns
                 // the searches in that filter into ones that score at the source too.
                 Expression normalized = SplitScorePredicatesFromRuntimeSearch.normalize(filter.condition(), FoldContext.small());
                 for (Expression lower : Predicates.splitAnd(normalized)) {
-                    if (holdsRuntimeScorerOncePushedDown(lower, filter.child())) {
+                    if (holdsRuntimeScorerOncePushedDown(lower, filter.child(), belowSample)) {
                         return true;
                     }
                 }
@@ -359,7 +368,7 @@ public abstract class FullTextFunction extends Function
                 // each branch's by name.
                 for (LogicalPlan branch : merge.children()) {
                     Expression inBranch = SplitScorePredicatesFromRuntimeSearch.intoBranch(pushed, merge, branch);
-                    if (holdsRuntimeScorerOncePushedDown(inBranch, branch)) {
+                    if (holdsRuntimeScorerOncePushedDown(inBranch, branch, belowSample)) {
                         return true;
                     }
                 }

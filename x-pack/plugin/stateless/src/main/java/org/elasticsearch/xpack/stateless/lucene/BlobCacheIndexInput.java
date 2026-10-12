@@ -220,8 +220,12 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput imple
 
     @Override
     protected void readInternal(ByteBuffer b) throws IOException {
+        readAt(b, getAbsolutePosition());
+    }
+
+    private void readAt(ByteBuffer b, long position) throws IOException {
         try {
-            doReadInternal(b);
+            doReadInternal(b, position);
         } catch (Exception e) {
             if (ExceptionsHelper.unwrap(e, FileNotFoundException.class, NoSuchFileException.class) != null) {
                 // includes the file name of the BlobCacheIndexInput
@@ -237,8 +241,7 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput imple
         }
     }
 
-    private void doReadInternal(ByteBuffer b) throws Exception {
-        final long position = getAbsolutePosition();
+    private void doReadInternal(ByteBuffer b, long position) throws Exception {
         final int length = b.remaining();
         try {
             logger.debug("reading file: {}, position: {}, length: {}", super.toString(), position, length);

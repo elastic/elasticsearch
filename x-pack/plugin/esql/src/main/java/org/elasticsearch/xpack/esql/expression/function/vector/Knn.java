@@ -603,16 +603,7 @@ public class Knn extends SingleFieldFullTextFunction
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(
-            this,
-            Knn::new,
-            field(),
-            query(),
-            options(),
-            implicitK(),
-            queryBuilder(),
-            filterExpressions()
-        );
+        return NodeInfo.create(this, Knn::new, field(), query(), options(), implicitK(), queryBuilder(), filterExpressions());
     }
 
     @Override

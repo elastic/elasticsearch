@@ -564,7 +564,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         );
     }
 
-
     ParquetFormatReader copySharingCachesForTests() {
         return new ParquetFormatReader(
             blockFactory,

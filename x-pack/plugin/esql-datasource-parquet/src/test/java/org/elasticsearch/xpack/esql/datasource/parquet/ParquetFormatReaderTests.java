@@ -2390,8 +2390,9 @@ public class ParquetFormatReaderTests extends ESTestCase {
         };
         // Raise the width cap directly. This exercises the schema budget, not the binding mode; the cap used to be
         // lifted here by claiming a declared read, which is the read esql-planning#2076 removed.
-        ParquetFormatReader reader = new ParquetFormatReader(new BlockFactory(roomy, blockFactory.bigArrays()))
-            .withSchemaMaxFields(Integer.MAX_VALUE);
+        ParquetFormatReader reader = new ParquetFormatReader(new BlockFactory(roomy, blockFactory.bigArrays())).withSchemaMaxFields(
+            Integer.MAX_VALUE
+        );
         reader.clearFooterCachesForTests();
         assertEquals(1_000, reader.metadata(createStorageObject(data)).schema().size());
         assertTrue("the flattened schema must be charged", charged.get());
@@ -2406,8 +2407,9 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 super.addEstimateBytesAndMaybeBreak(bytes, label);
             }
         };
-        ParquetFormatReader tight = new ParquetFormatReader(new BlockFactory(refusing, blockFactory.bigArrays()))
-            .withSchemaMaxFields(Integer.MAX_VALUE);
+        ParquetFormatReader tight = new ParquetFormatReader(new BlockFactory(refusing, blockFactory.bigArrays())).withSchemaMaxFields(
+            Integer.MAX_VALUE
+        );
         tight.clearFooterCachesForTests();
         CircuitBreakingException e = expectThrows(CircuitBreakingException.class, () -> tight.metadata(createStorageObject(data)));
         assertEquals(RestStatus.TOO_MANY_REQUESTS, e.status());

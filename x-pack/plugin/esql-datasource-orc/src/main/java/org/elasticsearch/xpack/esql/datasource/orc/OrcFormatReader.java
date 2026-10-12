@@ -1161,7 +1161,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             // also decode into a unit the raw stripe stats are NOT in (a declared epoch_second format scales
             // x1000), where a raw-vs-decoded dominance compare would drop the true extreme; a plain narrowing
             // (int64 read as int32) nulls a cell without changing the unit. This rail holds raw stats and does not
-            // convert, so it cannot tell those two apart and declines the skip for the whole set — mirroring the parquet threshold rail (sortColumnIsTemporal ? null : raw). Latent today:
+            // convert, so it cannot tell those two apart and declines the skip for the whole set — mirroring the parquet threshold rail
+            // (sortColumnIsTemporal ? null : raw). Latent today:
             // OrcFormatReader is not ColumnExtractorAware, so no dynamic threshold is installed in production; this
             // guards the day it is.
             if (conversionCanNull.contains(threshold.columnName())) {

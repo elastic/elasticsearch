@@ -5058,10 +5058,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                     files.add(entry(file, 100));
                     schemasByPath.put(file, fileSchema);
                 }
-                Map<String, List<StorageEntry>> listingsByPrefix = Map.of(
-                    StoragePath.of(DECLARED_GLOB).patternPrefix().toString(),
-                    files
-                );
+                Map<String, List<StorageEntry>> listingsByPrefix = Map.of(StoragePath.of(DECLARED_GLOB).patternPrefix().toString(), files);
                 ExternalSourceResolver resolver = createResolver(schemasByPath, listingsByPrefix);
                 // dynamic:true, so the schema is still inferred from the files and only the type is declared. This is
                 // the arm whose overlay used to synthesize the per-file types the rails had not recorded.
@@ -5069,17 +5066,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
                     ? Map.of(
                         DECLARED_GLOB,
                         new DatasetMapping(
-                            new DatasetMapping.Mappings(
-                                DatasetMapping.Dynamic.TRUE,
-                                Map.of("x", new DatasetFieldMapping("long", null))
-                            )
+                            new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, Map.of("x", new DatasetFieldMapping("long", null)))
                         )
                     )
                     : Map.of();
-                Map<String, Map<String, Object>> configs = Map.of(
-                    DECLARED_GLOB,
-                    new HashMap<>(Map.of("schema_resolution", resolution))
-                );
+                Map<String, Map<String, Object>> configs = Map.of(DECLARED_GLOB, new HashMap<>(Map.of("schema_resolution", resolution)));
                 PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
                 resolver.resolve(List.of(DECLARED_GLOB), configs, null, mappings, null, future);
                 ExternalSourceResolution.ResolvedSource resolved = future.actionGet().resolvedSource(DECLARED_GLOB);
@@ -5090,16 +5081,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
                     undeclaredStamp = stamped;
                 } else {
                     assertEquals(
-                        resolution + ": the stamp changed when the same types were declared, so it still answers "
-                            + "from declaredness",
+                        resolution + ": the stamp changed when the same types were declared, so it still answers " + "from declaredness",
                         undeclaredStamp,
                         (Boolean) stamped
                     );
                 }
                 if (resolution.equals("first_file_wins") == false) {
                     assertFalse(
-                        resolution + ", declared=" + declared + ": every file holds long and is read as long, so no "
-                            + "value can fail",
+                        resolution + ", declared=" + declared + ": every file holds long and is read as long, so no " + "value can fail",
                         stamped
                     );
                 }

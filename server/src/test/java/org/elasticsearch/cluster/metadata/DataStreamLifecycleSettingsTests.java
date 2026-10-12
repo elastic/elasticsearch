@@ -37,7 +37,8 @@ public class DataStreamLifecycleSettingsTests extends ESTestCase {
             dataStreamLifecycleSettings.getGlobalRetention(true),
             equalTo(DataStreamGlobalRetention.create(TimeValue.timeValueDays(30), null))
         );
-        assertThat(dataStreamLifecycleSettings.minimumLifecycleEnabled(), equalTo(true));
+        // The setting is registered by the ILM plugin; without it the minimum lifecycle cannot be enabled.
+        assertThat(dataStreamLifecycleSettings.minimumLifecycleEnabled(), equalTo(false));
     }
 
     public void testMonitorsDefaultRetention() {
@@ -198,11 +199,30 @@ public class DataStreamLifecycleSettingsTests extends ESTestCase {
         // In DLM only mode all data streams have an initial lifecycle, there is no need for this flag.
         assertThat(dataStreamLifecycleSettings.minimumLifecycleEnabled(), equalTo(false));
 
-        dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(
-            ClusterSettings.createBuiltInClusterSettings(),
+        dataStreamLifecycleSettings = DataStreamLifecycleSettings.createWithMinimumLifecycleSetting(
             Settings.builder().put(DataStreamLifecycle.DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME, false).build()
         );
         assertThat(dataStreamLifecycleSettings.minimumLifecycleEnabled(), equalTo(true));
+
+        // Even if the setting is registered and set, it is ignored in DLM only mode.
+        dataStreamLifecycleSettings = DataStreamLifecycleSettings.createWithMinimumLifecycleSetting(
+            Settings.builder()
+                .put(DataStreamLifecycle.DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME, true)
+                .put(DataStreamLifecycleSettings.MINIMUM_LIFECYCLE_ENABLED_SETTING_NAME, true)
+                .build()
+        );
+        assertThat(dataStreamLifecycleSettings.minimumLifecycleEnabled(), equalTo(false));
+    }
+
+    public void testMinimumLifecycleIsDisabledWhenSettingIsNotRegistered() {
+        // Without the ILM plugin the setting is not registered, so it cannot be enabled, not even via the node settings.
+        DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(
+            ClusterSettings.createBuiltInClusterSettings(
+                Settings.builder().put(DataStreamLifecycleSettings.MINIMUM_LIFECYCLE_ENABLED_SETTING_NAME, true).build()
+            ),
+            Settings.EMPTY
+        );
+        assertThat(dataStreamLifecycleSettings.minimumLifecycleEnabled(), equalTo(false));
     }
 
     public void testMinimumLifecycleForTimeSeriesSettingMonitored() {

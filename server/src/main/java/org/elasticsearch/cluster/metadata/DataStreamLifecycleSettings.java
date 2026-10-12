@@ -17,9 +17,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * This class holds the data stream lifecycle cluster wide settings. It defines, validates and monitors the configuration
@@ -166,10 +168,23 @@ public class DataStreamLifecycleSettings {
         return failureStore ? failuresDefaultRetention : defaultRetention;
     }
 
+    // For testing
+    public static DataStreamLifecycleSettings create(ClusterSettings clusterSettings) {
+        return create(clusterSettings, Settings.EMPTY);
+    }
+
+    // For testing
+    public static DataStreamLifecycleSettings createWithMinimumLifecycleSetting(Settings nodeSettings) {
+        // Mimics the ILM plugin, which is the one registering the minimum lifecycle setting.
+        Set<Setting<?>> settingsSet = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        settingsSet.add(MINIMUM_LIFECYCLE_ENABLED_SETTING);
+        return create(new ClusterSettings(nodeSettings, settingsSet), nodeSettings);
+    }
+
     /**
      * Creates an instance and initialises the cluster settings listeners
      * @param clusterSettings it will register the cluster settings listeners to monitor for changes
-     * @param settings
+     * @param settings the node settings, we read if we are running in dlmOnly mode
      */
     public static DataStreamLifecycleSettings create(ClusterSettings clusterSettings, Settings settings) {
         DataStreamLifecycleSettings dataStreamLifecycleSettings = new DataStreamLifecycleSettings();
@@ -179,11 +194,9 @@ public class DataStreamLifecycleSettings {
             FAILURE_STORE_DEFAULT_RETENTION_SETTING,
             dataStreamLifecycleSettings::setFailuresDefaultRetention
         );
-        if (DataStreamLifecycle.isDataStreamsLifecycleOnlyMode(settings) == false) {
-            clusterSettings.initializeAndWatchIfRegistered(
-                MINIMUM_LIFECYCLE_ENABLED_SETTING,
-                dataStreamLifecycleSettings::setMinimumLifecycleEnabled
-            );
+        if (DataStreamLifecycle.isDataStreamsLifecycleOnlyMode(settings) == false
+            && clusterSettings.isDynamicSetting(MINIMUM_LIFECYCLE_ENABLED_SETTING.getKey())) {
+            clusterSettings.initializeAndWatch(MINIMUM_LIFECYCLE_ENABLED_SETTING, dataStreamLifecycleSettings::setMinimumLifecycleEnabled);
         }
         return dataStreamLifecycleSettings;
     }

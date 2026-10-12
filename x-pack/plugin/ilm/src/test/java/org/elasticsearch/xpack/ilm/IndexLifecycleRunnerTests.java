@@ -1579,9 +1579,9 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         return DataStream.getDefaultBackingIndexName("ts_data_stream", 1);
     }
 
-    private DataStreamLifecycleSettings createDataStreamLifecycleSettings(boolean enabled) {
-        var dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings());
-        dataStreamLifecycleSettings.setMinimumLifecycleEnabled(enabled);
-        return dataStreamLifecycleSettings;
+    private DataStreamLifecycleSettings createDataStreamLifecycleSettings(boolean minimumLifecycleEnabled) {
+        return DataStreamLifecycleSettings.createWithMinimumLifecycleSetting(
+            Settings.builder().put(DataStreamLifecycleSettings.MINIMUM_LIFECYCLE_ENABLED_SETTING_NAME, minimumLifecycleEnabled).build()
+        );
     }
 }

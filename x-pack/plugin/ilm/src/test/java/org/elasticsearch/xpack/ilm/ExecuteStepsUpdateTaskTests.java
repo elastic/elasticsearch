@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.TimeValue;
@@ -495,9 +494,9 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         return newState.metadata().getProject(state.projectId()).index(index).getLifecycleExecutionState();
     }
 
-    private DataStreamLifecycleSettings createDataStreamLifecycleSettings(boolean enabled) {
-        var dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings());
-        dataStreamLifecycleSettings.setMinimumLifecycleEnabled(enabled);
-        return dataStreamLifecycleSettings;
+    private DataStreamLifecycleSettings createDataStreamLifecycleSettings(boolean minimumLifecycleEnabled) {
+        return DataStreamLifecycleSettings.createWithMinimumLifecycleSetting(
+            Settings.builder().put(DataStreamLifecycleSettings.MINIMUM_LIFECYCLE_ENABLED_SETTING_NAME, minimumLifecycleEnabled).build()
+        );
     }
 }

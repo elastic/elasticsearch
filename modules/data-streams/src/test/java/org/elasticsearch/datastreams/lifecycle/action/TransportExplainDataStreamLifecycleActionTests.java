@@ -60,17 +60,13 @@ import static org.mockito.Mockito.when;
 public class TransportExplainDataStreamLifecycleActionTests extends ESTestCase {
 
     private TransportExplainDataStreamLifecycleAction testAction;
-    private final DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(
-        ClusterSettings.createBuiltInClusterSettings(),
-        Settings.EMPTY
-    );
+    private ClusterService clusterService;
 
     @Before
     public void setUpAction() {
-        ClusterService clusterService = mock(ClusterService.class);
+        clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(ClusterSettings.createBuiltInClusterSettings());
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
-        dataStreamLifecycleSettings = DataStreamLifecycleFixtures.createDataStreamLifecycleSettings(false, null, null);
         testAction = new TransportExplainDataStreamLifecycleAction(
             mock(TransportService.class),
             clusterService,
@@ -79,7 +75,7 @@ public class TransportExplainDataStreamLifecycleActionTests extends ESTestCase {
             TestProjectResolvers.alwaysThrow(),
             TestIndexNameExpressionResolver.newInstance(),
             mock(DataStreamLifecycleErrorStore.class),
-            dataStreamLifecycleSettings,
+            DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings(), Settings.EMPTY),
             FrozenTransitionInfoProvider.noop()
         );
     }
@@ -338,15 +334,22 @@ public class TransportExplainDataStreamLifecycleActionTests extends ESTestCase {
             .projectState(projectMetadata.id());
 
         for (boolean minimumLifecycleEnabled : new boolean[] { false, true }) {
-            // The default lifecycle for time series cannot be enabled via the cluster settings yet, so we spy on real settings and stub
-            // only this method. This should be replaced with the cluster setting once it is available.
-            dataStreamLifecycleSettings.setMinimumLifecycleEnabled(minimumLifecycleEnabled);
-
             ExplainDataStreamLifecycleAction.Request request = new ExplainDataStreamLifecycleAction.Request(
                 TEST_REQUEST_TIMEOUT,
                 new String[] { tsdsName, tsdsWithLifecycleName, standardName, failureIndex.getIndex().getName() }
             );
             AtomicReference<ExplainDataStreamLifecycleAction.Response> responseRef = new AtomicReference<>();
+            testAction = new TransportExplainDataStreamLifecycleAction(
+                mock(TransportService.class),
+                clusterService,
+                mock(ThreadPool.class),
+                mock(ActionFilters.class),
+                TestProjectResolvers.alwaysThrow(),
+                TestIndexNameExpressionResolver.newInstance(),
+                mock(DataStreamLifecycleErrorStore.class),
+                DataStreamLifecycleFixtures.createDataStreamLifecycleSettings(minimumLifecycleEnabled, null, null),
+                FrozenTransitionInfoProvider.noop()
+            );
             testAction.masterOperation(
                 mock(Task.class),
                 request,

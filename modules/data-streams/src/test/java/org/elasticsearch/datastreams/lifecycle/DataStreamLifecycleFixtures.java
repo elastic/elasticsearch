@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.ResettableValue;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
@@ -246,14 +245,9 @@ public class DataStreamLifecycleFixtures {
         if (globalMaxRetention != null) {
             clusterSettingsBuilder.put(DataStreamLifecycleSettings.DATA_STREAMS_MAX_RETENTION_SETTING.getKey(), globalMaxRetention);
         }
-        DataStreamLifecycleSettings settings = DataStreamLifecycleSettings.create(
-            ClusterSettings.createBuiltInClusterSettings(clusterSettingsBuilder.build())
-        );
-        // The minimum lifecycle for time series cannot be enabled via the cluster settings yet, so we spy on real settings and stub
-        // only this method. This should be replaced with the cluster setting once it is available.
         if (minimumLifecycleEnabled != null) {
-            settings.setMinimumLifecycleEnabled(minimumLifecycleEnabled);
+            clusterSettingsBuilder.put(DataStreamLifecycleSettings.MINIMUM_LIFECYCLE_ENABLED_SETTING_NAME, minimumLifecycleEnabled);
         }
-        return settings;
+        return DataStreamLifecycleSettings.createWithMinimumLifecycleSetting(clusterSettingsBuilder.build());
     }
 }

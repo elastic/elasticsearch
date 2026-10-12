@@ -45,11 +45,19 @@ public class RecoverySourceDiscoveryTests extends ESTestCase {
     }
 
     private static RecoverySource idx(String name) {
-        return new RecoverySource(name, RecoverySource.Type.INDEX);
+        return new RecoverySource(name, RecoverySource.Type.INDEX, true);
+    }
+
+    private static RecoverySource partialIdx(String name) {
+        return new RecoverySource(name, RecoverySource.Type.INDEX, false);
     }
 
     private static RecoverySource ds(String name) {
-        return new RecoverySource(name, RecoverySource.Type.DATA_STREAM);
+        return new RecoverySource(name, RecoverySource.Type.DATA_STREAM, true);
+    }
+
+    private static RecoverySource partialDs(String name) {
+        return new RecoverySource(name, RecoverySource.Type.DATA_STREAM, false);
     }
 
     private static SortedSet<RecoverySource> candidates(RecoverySource... sources) {
@@ -175,7 +183,7 @@ public class RecoverySourceDiscoveryTests extends ESTestCase {
         );
 
         assertThat(result, hasSize(1));
-        assertEquals(new RecoverySource("my-index", RecoverySource.Type.INDEX), result.first());
+        assertEquals(idx("my-index"), result.first());
     }
 
     public void testSystemIndexIsExcluded() {
@@ -188,6 +196,23 @@ public class RecoverySourceDiscoveryTests extends ESTestCase {
         );
 
         assertThat(result, empty());
+    }
+
+    public void testIndexWithoutMetadataIsExcluded() {
+        Map<String, SnapshotInfo.IndexSnapshotDetails> details = Map.of(
+            "with-metadata",
+            successDetails(),
+            "missing-metadata",
+            successDetails()
+        );
+        SnapshotInfo snap = successSnap(List.of("with-metadata", "missing-metadata"), List.of(), details);
+
+        SortedSet<RecoverySource> result = RecoverySourceDiscovery.buildCandidates(
+            snap,
+            projectMeta(List.of(userIndex("with-metadata")), List.of())
+        );
+
+        assertThat(result, contains(idx("with-metadata")));
     }
 
     public void testIncompleteIndexIsExcluded() {
@@ -203,6 +228,19 @@ public class RecoverySourceDiscoveryTests extends ESTestCase {
 
         assertThat(result, hasSize(1));
         assertEquals("my-index", result.first().name());
+    }
+
+    public void testIncompleteIndexIsIncludedWhenRequested() {
+        Map<String, SnapshotInfo.IndexSnapshotDetails> details = Map.of("bad-index", SnapshotInfo.IndexSnapshotDetails.SKIPPED);
+        SnapshotInfo snap = partialSnap(List.of("bad-index"), List.of(), details, List.of(shardFailure("bad-index")));
+
+        SortedSet<RecoverySource> result = RecoverySourceDiscovery.buildCandidates(
+            snap,
+            projectMeta(List.of(userIndex("bad-index")), List.of()),
+            true
+        );
+
+        assertThat(result, contains(partialIdx("bad-index")));
     }
 
     public void testBackingIndexIsExcludedEvenWhenComplete() {
@@ -245,7 +283,7 @@ public class RecoverySourceDiscoveryTests extends ESTestCase {
         SortedSet<RecoverySource> result = RecoverySourceDiscovery.buildCandidates(snap, projectMeta(List.of(), List.of(ds)));
 
         assertThat(result, hasSize(1));
-        assertEquals(new RecoverySource("logs-app", RecoverySource.Type.DATA_STREAM), result.first());
+        assertEquals(ds("logs-app"), result.first());
     }
 
     public void testSystemDataStreamIsExcluded() {
@@ -271,6 +309,40 @@ public class RecoverySourceDiscoveryTests extends ESTestCase {
         SortedSet<RecoverySource> result = RecoverySourceDiscovery.buildCandidates(snap, projectMeta(List.of(), List.of(ds)));
 
         assertThat(result, empty());
+    }
+
+    public void testIncompleteDataStreamIsIncludedWhenRequested() {
+        String backing1 = ".ds-logs-app-000001";
+        String backing2 = ".ds-logs-app-000002";
+        DataStream ds = DataStreamTestHelper.newInstance("logs-app", List.of(index(backing1), index(backing2)));
+        Map<String, SnapshotInfo.IndexSnapshotDetails> details = Map.of(
+            backing1,
+            successDetails(),
+            backing2,
+            SnapshotInfo.IndexSnapshotDetails.SKIPPED
+        );
+        SnapshotInfo snap = partialSnap(List.of(backing1, backing2), List.of("logs-app"), details, List.of(shardFailure(backing2)));
+
+        SortedSet<RecoverySource> result = RecoverySourceDiscovery.buildCandidates(snap, projectMeta(List.of(), List.of(ds)), true);
+
+        assertThat(result, contains(partialDs("logs-app")));
+    }
+
+    public void testIncompleteFailureStoreMakesDataStreamIncomplete() {
+        String backing = ".ds-logs-app-000001";
+        String failure = ".fs-logs-app-000001";
+        DataStream ds = DataStreamTestHelper.newInstance("logs-app", List.of(index(backing)), List.of(index(failure)));
+        Map<String, SnapshotInfo.IndexSnapshotDetails> details = Map.of(
+            backing,
+            successDetails(),
+            failure,
+            SnapshotInfo.IndexSnapshotDetails.SKIPPED
+        );
+        SnapshotInfo snap = partialSnap(List.of(backing, failure), List.of("logs-app"), details, List.of(shardFailure(failure)));
+        ProjectMetadata projectMetadata = projectMeta(List.of(), List.of(ds));
+
+        assertThat(RecoverySourceDiscovery.buildCandidates(snap, projectMetadata), empty());
+        assertThat(RecoverySourceDiscovery.buildCandidates(snap, projectMetadata, true), contains(partialDs("logs-app")));
     }
 
     public void testCandidatesOrderedByName() {

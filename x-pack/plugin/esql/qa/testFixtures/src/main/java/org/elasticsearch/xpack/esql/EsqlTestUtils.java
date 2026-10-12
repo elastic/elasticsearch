@@ -15,8 +15,9 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
@@ -106,6 +107,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FlattenedCases;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohash;
@@ -466,6 +468,7 @@ public final class EsqlTestUtils {
      *     <li>isIndexed</li>
      *     <li>hasDocValues</li>
      *     <li>hasExactSubfield</li>
+     *     <li>hasValueQueries (off unless included)</li>
      * </ol>
      * The default will return true for all fields. The include/exclude methods can be used to configure the settings for specific fields.
      * If you call 'include' with no fields, it will switch to return false for all fields.
@@ -475,7 +478,8 @@ public final class EsqlTestUtils {
             EXISTS,
             INDEXED,
             DOC_VALUES,
-            EXACT_SUBFIELD
+            EXACT_SUBFIELD,
+            VALUE_QUERIES
         }
 
         private final Map<Config, Set<String>> includes = new HashMap<>();
@@ -523,6 +527,12 @@ public final class EsqlTestUtils {
         @Override
         public boolean hasExactSubfield(FieldName field) {
             return isConfigationSet(Config.EXACT_SUBFIELD, field.string());
+        }
+
+        @Override
+        public boolean hasValueQueries(FieldName field) {
+            // Off unless a test asks for it: answering over values is what the columnar modes give, not a default.
+            return includes.getOrDefault(Config.VALUE_QUERIES, Set.of()).contains(field.string());
         }
 
         public TestConfigurableSearchStats withConstantValue(String field, String value) {
@@ -625,6 +635,27 @@ public final class EsqlTestUtils {
      */
     public static TestOptimizer optimizer() {
         return new TestOptimizer();
+    }
+
+    /**
+     * Test helper for {@code DatasetRewriter#rewriteUnsecured} that applies empty query pragmas and {@link EsqlFlags#DEFAULTS}. Tests
+     * that need a non-default {@code max_branch_count_per_merge} (pragma or cluster setting) must call
+     * {@code DatasetRewriter#rewriteUnsecured} with explicit pragmas and flags.
+     */
+    public static LogicalPlan rewriteDatasetsUnsecured(
+        LogicalPlan parsed,
+        ProjectMetadata projectMetadata,
+        IndexNameExpressionResolver iner,
+        boolean wildcardsMatchDatasets
+    ) {
+        return DatasetRewriter.rewriteUnsecured(
+            parsed,
+            projectMetadata,
+            iner,
+            wildcardsMatchDatasets,
+            QueryPragmas.EMPTY,
+            EsqlFlags.DEFAULTS
+        );
     }
 
     // TODO: make this even simpler, remove the enrichResolution for tests that do not require it (most tests)
@@ -1042,9 +1073,7 @@ public final class EsqlTestUtils {
      * add to this, you must also add to {@code EsqlSpecTestCase#tables};
      */
     public static Map<String, Map<String, Column>> tables() {
-        BlockFactory factory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-            .breaker(new NoopCircuitBreaker(CircuitBreaker.REQUEST))
-            .build();
+        BlockFactory factory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         Map<String, Map<String, Column>> tables = new TreeMap<>();
         try (
             IntBlock.Builder ints = factory.newIntBlockBuilder(10);

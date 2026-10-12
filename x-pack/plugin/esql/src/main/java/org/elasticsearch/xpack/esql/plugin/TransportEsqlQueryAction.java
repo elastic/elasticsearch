@@ -346,12 +346,14 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private void doExecuteForked(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         if (requestIsAsync(request)) {
+            assert task instanceof CancellableTask : "EsqlQueryRequest.createTask always returns CancellableTask";
             asyncTaskManagementService.asyncExecute(
                 request,
                 request.waitForCompletionTimeout(),
                 request.keepAlive(),
                 request.keepOnCompletion(),
-                listener
+                listener,
+                (CancellableTask) task
             );
         } else {
             innerExecuteWithLogging(task, request, listener);
@@ -426,7 +428,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             externalSourceConcurrency(),
             ((CancellableTask) task)::isCancelled,
             ActionListener.wrap(result -> {
-                releaseExternalPlanningBytes(executionInfo);
                 recordCCSTelemetry(task, executionInfo, request, null);
                 planExecutor.metrics().recordTook(executionInfo.overallTook().millis());
                 collectMetrics(result.inner());
@@ -445,7 +446,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
                 listener.onResponse(response);
             }, ex -> {
-                releaseExternalPlanningBytes(executionInfo);
                 recordCCSTelemetry(task, executionInfo, request, ex);
                 listener.onFailure(ex);
             })
@@ -453,18 +453,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     }
 
-    /**
-     * Closes the query's external-planning reservation. Both the success and failure listeners of
-     * {@link #innerExecute} call this; {@link org.elasticsearch.xpack.esql.action.ExternalPlanningReservation#close()}
-     * is idempotent. Timeout callbacks must not call it — the query is still running.
-     */
-    static void releaseExternalPlanningBytes(EsqlExecutionInfo executionInfo) {
-        if (executionInfo == null || executionInfo.externalPlanning() == null) {
-            return;
-        }
-        executionInfo.externalPlanning().close();
-    }
-
+    // Note: this gate differs from the by_outcome.success gate (PlanTelemetry.externalSource()). A
+    // query that prunes all splits (splitsScanned=0, externalWarmAggregates=0) counts as a success
+    // in by_outcome but does not trigger CPU recording — it consumed no external CPU.
     private boolean hasExternalSources(Result result) {
         if (result.executionInfo() == null) {
             return false;
@@ -474,35 +465,49 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     void collectMetrics(Result result) {
-        // Currently, the metrics are only collected when the query has federated sources, since we are not planning
-        // to do any per-query billing otherwise, so no point in collecting the metrics.
-        if (metricsCollector.equals(QueryMetricsListener.NOOP) || hasExternalSources(result) == false) {
-            // don't even bother to create a map
+        if (hasExternalSources(result) == false) {
             return;
         }
+        // ci and qp are safe to fetch here: hasExternalSources() confirmed executionInfo() != null,
+        // and completionInfo() / queryProfile() are plain getters.
+        var ci = result.completionInfo();
+        var qp = result.executionInfo().queryProfile();
+        // APM and phone-home CPU recording — independent of the billing listener so that a failure
+        // here never silently suppresses the billing call below.
         try {
-            var ci = result.completionInfo();
-            var qp = result.executionInfo().queryProfile();
-            metricsCollector.onQueryCompleted(
-                Map.of(
-                    QueryMetricsListener.PLANNING_NANOS,
-                    qp.planning().timeSpan().durationInNanos(),
-                    QueryMetricsListener.CPU_NANOS,
-                    ci.cpuNanos(),
-                    QueryMetricsListener.READ_NANOS,
-                    ci.readNanos(),
-                    QueryMetricsListener.READ_CPU_NANOS,
-                    ci.readCpuNanos(),
-                    QueryMetricsListener.SPLIT_DISCOVERY_NANOS,
-                    qp.splitDiscoveryNanos(),
-                    QueryMetricsListener.SPLIT_DISCOVERY_CPU_NANOS,
-                    qp.splitDiscoveryCpuNanos(),
-                    QueryMetricsListener.BYTES_READ,
-                    ci.bytesRead()
-                )
-            );
+            // planning().timeSpan() is non-null by the time we reach the success path:
+            // EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning calls planning().stop() before execution starts.
+            planExecutor.dataSourceModule()
+                .externalSourceMetrics()
+                .recordQueryCpu(ci.cpuNanos(), ci.readCpuNanos(), qp.planning().timeSpan().durationInNanos(), qp.splitDiscoveryCpuNanos());
         } catch (Exception ex) {
-            logger.warn("failed to collect query metrics", ex);
+            logger.warn("failed to record query CPU metrics", ex);
+        }
+        // Billing listener — unchanged from before; kept in its own try so a CPU-recording failure
+        // above never silently skips this call.
+        if (metricsCollector.equals(QueryMetricsListener.NOOP) == false) {
+            try {
+                metricsCollector.onQueryCompleted(
+                    Map.of(
+                        QueryMetricsListener.PLANNING_NANOS,
+                        qp.planning().timeSpan().durationInNanos(),
+                        QueryMetricsListener.CPU_NANOS,
+                        ci.cpuNanos(),
+                        QueryMetricsListener.READ_NANOS,
+                        ci.readNanos(),
+                        QueryMetricsListener.READ_CPU_NANOS,
+                        ci.readCpuNanos(),
+                        QueryMetricsListener.SPLIT_DISCOVERY_NANOS,
+                        qp.splitDiscoveryNanos(),
+                        QueryMetricsListener.SPLIT_DISCOVERY_CPU_NANOS,
+                        qp.splitDiscoveryCpuNanos(),
+                        QueryMetricsListener.BYTES_READ,
+                        ci.bytesRead()
+                    )
+                );
+            } catch (Exception ex) {
+                logger.warn("failed to collect query metrics", ex);
+            }
         }
     }
 
@@ -567,7 +572,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         }
     }
 
-    private EsqlExecutionInfo createEsqlExecutionInfo(EsqlQueryRequest request) {
+    EsqlExecutionInfo createEsqlExecutionInfo(EsqlQueryRequest request) {
         if (request.includeCCSMetadata() != null && request.includeExecutionMetadata() != null) {
             throw new VerificationException(
                 "Both [include_execution_metadata] and [include_ccs_metadata] query parameters are set. Use only one"

@@ -82,6 +82,7 @@ public class InferenceFeatures implements FeatureSpecification {
     public static final NodeFeature INFERENCE_CCM_ENABLEMENT_SERVICE = new NodeFeature("inference.ccm.enablement_service");
 
     public static final NodeFeature EMBEDDING_TASK_TYPE = new NodeFeature("inference.embedding_task_type");
+    public static final NodeFeature DOCUMENT_EXTRACTION_TASK_TYPE = new NodeFeature("inference.document_extraction_task_type");
     public static final NodeFeature ENDPOINT_METADATA_FIELD = new NodeFeature("inference.metadata_field");
 
     /**
@@ -123,6 +124,7 @@ public class InferenceFeatures implements FeatureSpecification {
             INFERENCE_AUTH_POLLER_PERSISTENT_TASK,
             INFERENCE_CCM_ENABLEMENT_SERVICE,
             EMBEDDING_TASK_TYPE,
+            DOCUMENT_EXTRACTION_TASK_TYPE,
             ENDPOINT_METADATA_FIELD,
             INTERNAL_DELETE_INFERENCE_ENDPOINTS_ACTION,
             INFERENCE_ELASTIC_REASONING_TASK_SETTINGS,

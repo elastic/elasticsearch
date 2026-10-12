@@ -105,11 +105,11 @@ public final class EscfEncoder implements SourceBatchEncoder {
     }
 
     /**
-     * Whether the simdjson ESCF encode path may be used at all: the native library is loaded, the
-     * vector API is available, and {@link #SIMDJSON_ESCF_FEATURE_FLAG} is enabled.
+     * Whether the simdjson ESCF encode path may be used at all: {@link #SIMDJSON_ESCF_FEATURE_FLAG} is
+     * enabled, the native library is loaded, and the vector API is available.
      */
     public static boolean isSimdEnabled() {
-        return SimdJsonSupport.isSupported() && SIMDJSON_ESCF_FEATURE_FLAG.isEnabled();
+        return SIMDJSON_ESCF_FEATURE_FLAG.isEnabled() && SimdJsonSupport.isSupported();
     }
 
     public void parseToScratch(BytesReference source, XContentType xContentType) throws IOException {

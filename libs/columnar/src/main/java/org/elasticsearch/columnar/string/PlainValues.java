@@ -269,7 +269,7 @@ final class PlainValues {
         private final long[] slotStarts;
         private final int[] slotLengths;
         /** The loaded block of codes, which is what says a slot is null. */
-        private long[] codes;
+        private final long[] codes;
         private long loadedLengths = -1;
         private int loadedCount;
 
@@ -291,6 +291,7 @@ final class PlainValues {
                 this.lengthMask = 0;
                 this.slotStarts = null;
                 this.slotLengths = null;
+                this.codes = null;
                 return;
             }
             final int lengthBlockSize = meta.lengths().blockSize();
@@ -306,6 +307,7 @@ final class PlainValues {
             this.lengths = new LongBlocks.Reader(meta.lengths(), inputs.lengths(), inputs.navigation());
             this.slotStarts = new long[lengthBlockSize];
             this.slotLengths = new int[lengthBlockSize];
+            this.codes = new long[lengthBlockSize];
         }
 
         long numValues() {
@@ -428,8 +430,8 @@ final class PlainValues {
             if (lengthBlock == loadedLengths) {
                 return;
             }
-            codes = lengths.block(lengthBlock);
             loadedCount = (int) Math.min(slotStarts.length, numValues - (lengthBlock << lengthShift));
+            System.arraycopy(lengths.block(lengthBlock), 0, codes, 0, loadedCount);
             long at = starts.get(lengthBlock);
             for (int i = 0; i < loadedCount; i++) {
                 final long code = codes[i];

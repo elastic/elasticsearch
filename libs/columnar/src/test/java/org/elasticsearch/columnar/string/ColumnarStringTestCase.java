@@ -24,6 +24,8 @@ import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
 
@@ -455,5 +457,55 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
                 return docSlots.length;
             }
         };
+    }
+
+    /**
+     * A sink that takes a page as the values its documents hold, whichever shape the page arrived in. The values are
+     * copies, so they outlive the page.
+     */
+    protected abstract static class ValuesSink implements StringBlockSink {
+        /** Whether the last page arrived as ordinals. */
+        protected boolean wasOrdinals;
+
+        /** The page's values in document order, and how many each document holds, or null where each holds one. */
+        protected abstract void page(List<BytesRef> values, int[] valueCounts, int docCount);
+
+        @Override
+        public void appendOrdinals(int[] ordinals, int valueCount, int[] valueCounts, int docCount, BytesRef[] dictionary, int size) {
+            wasOrdinals = true;
+            final List<BytesRef> values = new ArrayList<>(valueCount);
+            for (int i = 0; i < valueCount; i++) {
+                assertTrue("ordinal in range", ordinals[i] >= 0 && ordinals[i] < size);
+                values.add(BytesRef.deepCopyOf(dictionary[ordinals[i]]));
+            }
+            page(values, valueCounts, docCount);
+        }
+
+        @Override
+        public Values values(int valueCount, int[] valueCounts, int docCount) {
+            wasOrdinals = false;
+            final List<BytesRef> values = new ArrayList<>(valueCount);
+            return new Values() {
+                private boolean finished;
+
+                @Override
+                public void append(BytesRef value) {
+                    assertFalse("appended to a finished page", finished);
+                    values.add(BytesRef.deepCopyOf(value));
+                }
+
+                @Override
+                public void finish() {
+                    assertEquals("values handed over", valueCount, values.size());
+                    finished = true;
+                    page(values, valueCounts, docCount);
+                }
+
+                @Override
+                public void close() {
+                    assertTrue("a page was closed without being finished", finished);
+                }
+            };
+        }
     }
 }

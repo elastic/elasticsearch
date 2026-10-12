@@ -76,7 +76,7 @@ public class CsvFormatReaderByteHintTests extends ESTestCase {
     private int countDirectHintedBuildReservations(List<BytesRef> values, long byteHint) {
         CountingBreaker breaker = new CountingBreaker();
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breaker.service());
-        BlockFactory factory = BlockFactory.builder(bigArrays).breaker(new NoopCircuitBreaker("test-factory")).build();
+        BlockFactory factory = BlockFactory.builder(bigArrays).breaker(NoopCircuitBreaker.INSTANCE).build();
         breaker.reset();
         try (BytesRefBlock.Builder builder = factory.newBytesRefBlockBuilder(values.size(), byteHint)) {
             for (BytesRef value : values) {
@@ -94,7 +94,7 @@ public class CsvFormatReaderByteHintTests extends ESTestCase {
     private int countCsvReaderReservations(String csv, List<BytesRef> expected) throws IOException {
         CountingBreaker breaker = new CountingBreaker();
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breaker.service());
-        BlockFactory factory = BlockFactory.builder(bigArrays).breaker(new NoopCircuitBreaker("test-factory")).build();
+        BlockFactory factory = BlockFactory.builder(bigArrays).breaker(NoopCircuitBreaker.INSTANCE).build();
         CsvFormatReader reader = new CsvFormatReader(factory);
         breaker.reset();
         try (CloseableIterator<Page> iterator = reader.read(storageObject(csv), null, ROWS)) {

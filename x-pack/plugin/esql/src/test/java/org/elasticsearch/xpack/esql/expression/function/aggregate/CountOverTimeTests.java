@@ -42,7 +42,8 @@ public class CountOverTimeTests extends AbstractAggregationTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        // TODO Use CountTests.parameters() once absent over time allows for dense_vectors
+        // TODO Use CountTests.parameters() once count over time allows for date_range, double_range, flattened, exponential_histogram,
+        // tdigest
         var suppliers = new ArrayList<TestCaseSupplier>();
 
         Stream.of(
@@ -64,7 +65,8 @@ public class CountOverTimeTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.geotileCases(1, 1000),
             MultiRowTestCaseSupplier.geohexCases(1, 1000),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
-            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT)
+            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT),
+            MultiRowTestCaseSupplier.denseVectorCases(1, 1000)
         ).flatMap(List::stream).map(CountTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         // No rows
@@ -75,6 +77,7 @@ public class CountOverTimeTests extends AbstractAggregationTestCase {
             DataType.DOUBLE,
             DataType.DATETIME,
             DataType.DATE_NANOS,
+            DataType.DENSE_VECTOR,
             DataType.BOOLEAN,
             DataType.IP,
             DataType.VERSION,

@@ -37,7 +37,7 @@ public class AbsentOverTimeTests extends AbstractAggregationTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        // TODO Use AbsentTests.parameters() once absent over time allows for dense_vectors
+        // TODO Use AbsentTests.parameters() once absent over time allows for date_range, double_range, flattened
         ArrayList<TestCaseSupplier> suppliers = new ArrayList<>();
         FunctionAppliesTo histogramPreviewAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
         FunctionAppliesTo histogramGaAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.4.0", "", true);
@@ -62,6 +62,7 @@ public class AbsentOverTimeTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.geohexCases(1, 1000),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT),
+            MultiRowTestCaseSupplier.denseVectorCases(1, 1000),
             MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100)
                 .stream()
                 .map(s -> s.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo))
@@ -85,6 +86,7 @@ public class AbsentOverTimeTests extends AbstractAggregationTestCase {
             DataType.DATE_NANOS,
             DataType.DATETIME,
             DataType.DATE_NANOS,
+            DataType.DENSE_VECTOR,
             DataType.DOUBLE,
             DataType.GEO_POINT,
             DataType.GEO_SHAPE,

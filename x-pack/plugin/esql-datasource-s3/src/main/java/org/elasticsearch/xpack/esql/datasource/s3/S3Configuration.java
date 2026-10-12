@@ -143,6 +143,11 @@ public class S3Configuration extends FileDataSourceConfiguration {
         return secretFieldNamesFrom(DATA_SOURCE_FIELDS);
     }
 
+    /** Names of every setting accepted on a data source PUT. Package-private so the docs coverage test can check them. */
+    static Set<String> dataSourceFieldNames() {
+        return DATA_SOURCE_FIELDS.keySet();
+    }
+
     public static S3Configuration fromMap(Map<String, Object> raw) {
         return raw == null || raw.isEmpty() ? null : new S3Configuration(raw);
     }

@@ -765,9 +765,12 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 && s3e.statusCode() >= 400
                 && s3e.statusCode() < 500
                 && s3e.statusCode() != 404
+                && ExternalUnavailableException.isRetryableStatus(s3e.statusCode()) == false
                 && S3FailureDetail.lacksErrorCode(s3e)) {
-                // A HEAD carries no body, so no error code, and every condition this layer distinguishes is read
-                // from one. A range GET recovers it. 404 is excluded: a GET would only repeat it.
+                // A HEAD carries no body, so no error code, and the conditions this layer distinguishes are read
+                // from one. A range GET recovers it. 404 is excluded because a GET would only repeat it, and a
+                // retryable status because the retry layer is about to ask again -- spending a second request per
+                // attempt against a store that answered 429 is the opposite of what it asked for.
                 probeObjectViaRangeGet();
                 if (Boolean.FALSE.equals(cachedExists)) {
                     // The GET answered NoSuchKey, which probeObjectViaRangeGet records rather than throws. Without
@@ -783,16 +786,17 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         // Reading the response happens outside the try: these throws are this method's own conclusions about a
         // successful HEAD, and a catch that re-mapped them would turn them into a read failure.
         ExternalPlanningIo.addMetadataGet(0);
-        if (S3FailureDetail.isArchivedStorageClass(response.storageClassAsString())) {
-            // A HEAD on an archived object succeeds and names the class in a header, where a GET is refused with
+        if (S3FailureDetail.isArchivedHeadResponse(response.storageClassAsString(), response.archiveStatusAsString(), response.restore())) {
+            // A HEAD on an archived object succeeds and reports the state in headers, where a GET is refused with
             // InvalidObjectState. Without this the resolve accepts the object and the read fails later, with a
-            // message that no longer says to restore it. Narrower than the GET path, which keys on the error code
-            // and so covers whatever the store refuses.
+            // message that no longer says to restore it.
             throw new ExternalClientException(
                 ExternalClientException.Condition.OBJECT_ARCHIVED,
                 path,
                 "",
-                S3FailureDetail.archivedRemedy(S3FailureDetail.archivedTier(response.storageClassAsString()))
+                S3FailureDetail.archivedRemedy(
+                    S3FailureDetail.archivedTier(response.storageClassAsString(), response.archiveStatusAsString())
+                )
             );
         }
         Long length = response.contentLength();

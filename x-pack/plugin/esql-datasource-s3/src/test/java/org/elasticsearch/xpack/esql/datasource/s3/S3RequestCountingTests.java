@@ -187,6 +187,59 @@ public class S3RequestCountingTests extends ESTestCase {
         assertEquals(Instant.EPOCH, metadata.lastModified());
     }
 
+    /**
+     * A restored object still names its archive class; {@code x-amz-restore} is what says the copy is available.
+     * Refusing on the class alone tells the user to restore an object that is already restored.
+     */
+    public void testObjectMetadataAcceptsARestoredArchivedObject() throws IOException {
+        when(mockS3.headObject(any(HeadObjectRequest.class))).thenReturn(
+            HeadObjectResponse.builder()
+                .contentLength(FILE_SIZE)
+                .lastModified(LAST_MODIFIED)
+                .storageClass("GLACIER")
+                .restore("ongoing-request=\"false\", expiry-date=\"Fri, 21 Dec 2026 00:00:00 GMT\"")
+                .build()
+        );
+
+        StorageEntry metadata = new S3StorageObject(mockS3, BUCKET, KEY, PATH).headObjectMetadata();
+
+        assertEquals(FILE_SIZE, metadata.length());
+    }
+
+    /**
+     * An Intelligent-Tiering object names INTELLIGENT_TIERING as its class and carries the archive state in
+     * {@code x-amz-archive-status}, so reading the class alone lets it through and the read fails later.
+     */
+    public void testObjectMetadataRefusesAnIntelligentTieringArchivedObject() {
+        when(mockS3.headObject(any(HeadObjectRequest.class))).thenReturn(
+            HeadObjectResponse.builder()
+                .contentLength(FILE_SIZE)
+                .lastModified(LAST_MODIFIED)
+                .storageClass("INTELLIGENT_TIERING")
+                .archiveStatus("DEEP_ARCHIVE_ACCESS")
+                .build()
+        );
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        ExternalClientException archived = expectThrows(ExternalClientException.class, obj::headObjectMetadata);
+        assertEquals(ExternalClientException.Condition.OBJECT_ARCHIVED, archived.condition());
+        assertThat(archived.getMessage(), containsString("DEEP_ARCHIVE_ACCESS"));
+        assertThat(archived.getMessage(), containsString("restore it"));
+    }
+
+    /**
+     * A throttled HEAD must not spend a second request recovering an error body: the retry layer is about to ask
+     * again, so a GET per attempt is two requests against a store that asked for fewer.
+     */
+    public void testObjectMetadataDoesNotRecoverOnARetryableStatus() {
+        when(mockS3.headObject(any(HeadObjectRequest.class))).thenThrow(S3Exception.builder().statusCode(429).build());
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        expectThrows(Exception.class, obj::headObjectMetadata);
+
+        verify(mockS3, never()).getObject(any(GetObjectRequest.class));
+    }
+
     /** An instant-retrieval class is readable, so it must not be refused. */
     public void testObjectMetadataAcceptsAnInstantRetrievalClass() throws IOException {
         when(mockS3.headObject(any(HeadObjectRequest.class))).thenReturn(

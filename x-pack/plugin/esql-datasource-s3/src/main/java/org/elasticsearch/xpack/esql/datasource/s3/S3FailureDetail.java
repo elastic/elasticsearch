@@ -131,14 +131,39 @@ final class S3FailureDetail {
             : "It is in " + tier + "; restore it, or wait for a restore in progress to finish, before reading it.";
     }
 
-    /** {@link #archivedTier}'s rendering for a storage class read from a HEAD response header. */
-    static String archivedTier(String storageClass) {
-        return storageClass == null || storageClass.isEmpty() ? "" : "storage class [" + storageClass + "]";
+    /** Storage classes whose objects must be restored before a GET will serve them. */
+    private static final Set<String> ARCHIVE_STORAGE_CLASSES = Set.of("GLACIER", "DEEP_ARCHIVE");
+
+    /** Intelligent-Tiering access tiers that behave the same way, reported separately from the storage class. */
+    private static final Set<String> ARCHIVE_ACCESS_TIERS = Set.of("ARCHIVE_ACCESS", "DEEP_ARCHIVE_ACCESS");
+
+    /**
+     * Whether a HEAD response describes an object a GET would refuse with {@code InvalidObjectState}. Three
+     * headers decide it, and reading fewer gets it wrong in both directions: an Intelligent-Tiering object names
+     * {@code INTELLIGENT_TIERING} as its class and carries the archive state in {@code x-amz-archive-status}, and
+     * a restored object still names its archive class while {@code x-amz-restore} reports the restore finished.
+     */
+    static boolean isArchivedHeadResponse(String storageClass, String archiveStatus, String restore) {
+        boolean archived = ARCHIVE_STORAGE_CLASSES.contains(storageClass == null ? "" : storageClass)
+            || ARCHIVE_ACCESS_TIERS.contains(archiveStatus == null ? "" : archiveStatus);
+        return archived && restoreFinished(restore) == false;
     }
 
-    /** True when a storage class reported by a HEAD requires a restore before the object can be read. */
-    static boolean isArchivedStorageClass(String storageClass) {
-        return storageClass != null && ARCHIVE_STORAGE_CLASSES.contains(storageClass);
+    /** {@code x-amz-restore} reports {@code ongoing-request="false"} once a restored copy is available. */
+    private static boolean restoreFinished(String restore) {
+        return restore != null && restore.contains("ongoing-request=\"false\"");
+    }
+
+    /** {@link #archivedTier}'s rendering for the class and access tier a HEAD response reports. */
+    static String archivedTier(String storageClass, String archiveStatus) {
+        StringBuilder sb = new StringBuilder();
+        if (storageClass != null && storageClass.isEmpty() == false) {
+            sb.append("storage class [").append(storageClass).append(']');
+        }
+        if (archiveStatus != null && archiveStatus.isEmpty() == false) {
+            sb.append(sb.isEmpty() ? "" : ", ").append("access tier [").append(archiveStatus).append(']');
+        }
+        return sb.toString();
     }
 
     static boolean isArchived(S3Exception s3) {

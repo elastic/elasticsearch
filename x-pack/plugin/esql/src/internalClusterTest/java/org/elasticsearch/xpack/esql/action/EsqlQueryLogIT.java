@@ -46,6 +46,7 @@ import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_Q
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_ERROR_TYPE;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_PREFIX;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_QUERY;
+import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_SETTINGS_PREFIX;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_SUCCESS;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_TOOK;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_TOOK_MILLIS;
@@ -108,7 +109,7 @@ public class EsqlQueryLogIT extends AbstractEsqlIntegTestCase {
             levels,
             coordinator,
             0,
-            "FROM index-* | EVAL ip = to_ip(host) | STATS s = COUNT(*) by ip | KEEP ip | LIMIT 100",
+            "SET unmapped_fields = \"NULLIFY\"; FROM index-* | EVAL ip = to_ip(host) | STATS s = COUNT(*) by ip | KEEP ip | LIMIT 100",
             null,
             null
         );
@@ -117,7 +118,7 @@ public class EsqlQueryLogIT extends AbstractEsqlIntegTestCase {
                 levels,
                 coordinator,
                 randomIntBetween(0, 500),
-                "FROM index-* | EVAL ip = to_ip(host) | STATS s = COUNT(*) by ip | KEEP ip | LIMIT 100",
+                "SET unmapped_fields = \"NULLIFY\"; FROM index-* | EVAL ip = to_ip(host) | STATS s = COUNT(*) by ip | KEEP ip | LIMIT 100",
                 null,
                 null
             );
@@ -126,7 +127,7 @@ public class EsqlQueryLogIT extends AbstractEsqlIntegTestCase {
             levels,
             coordinator,
             600_000,
-            "FROM index-* | EVAL ip = to_ip(host) | STATS s = COUNT(*) by ip | KEEP ip | LIMIT 100",
+            "SET unmapped_fields = \"NULLIFY\"; FROM index-* | EVAL ip = to_ip(host) | STATS s = COUNT(*) by ip | KEEP ip | LIMIT 100",
             null,
             null
         );
@@ -219,7 +220,14 @@ public class EsqlQueryLogIT extends AbstractEsqlIntegTestCase {
                         }
                     }
 
-                    assertThat(msg.get(ELASTICSEARCH_QUERYLOG_QUERY), is(query));
+                    // the query is JSON-escaped in the log
+                    assertThat(msg.get(ELASTICSEARCH_QUERYLOG_QUERY), is(query.replace("\"", "\\\"")));
+                    if (expectedException == null) {
+                        // successful queries reach resolution, so every applicable setting is logged with its resolved value
+                        assertThat(msg.get(ELASTICSEARCH_QUERYLOG_SETTINGS_PREFIX + ".approximation"), is("false"));
+                        assertThat(msg.get(ELASTICSEARCH_QUERYLOG_SETTINGS_PREFIX + ".time_zone"), is("default"));
+                        assertThat(msg.get(ELASTICSEARCH_QUERYLOG_SETTINGS_PREFIX + ".unmapped_fields"), is("nullify"));
+                    }
                     assertThat(appender.getLastEventAndReset().getLevel(), equalTo(logLevel.getKey()));
 
                     boolean success = Booleans.parseBoolean(msg.get(ELASTICSEARCH_QUERYLOG_SUCCESS));

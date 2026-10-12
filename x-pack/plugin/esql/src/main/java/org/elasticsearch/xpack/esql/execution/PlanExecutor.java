@@ -365,7 +365,7 @@ public class PlanExecutor {
             partial,
             null
         );
-        queryLog.onQueryPhase(x, request.queryDescription());
+        queryLog.onQueryPhase(x, request.queryDescription(), planTelemetry.resolvedSettings());
         // record routing usage telemetry
         usageService.getProjectRoutingUsageHolder()
             .recordEsql(
@@ -398,7 +398,7 @@ public class PlanExecutor {
             false,
             ex
         );
-        queryLog.onQueryFailure(request.queryDescription(), ex, System.nanoTime() - begin);
+        queryLog.onQueryFailure(request.queryDescription(), ex, System.nanoTime() - begin, planTelemetry.resolvedSettings());
         listener.onFailure(ex);
     }
 

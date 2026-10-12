@@ -38,10 +38,12 @@ import org.junit.BeforeClass;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_PREFIX;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_QUERY;
+import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_SETTINGS_PREFIX;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_TOOK;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_TOOK_MILLIS;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_TOOK_MILLIS_SUFFIX;
@@ -52,6 +54,8 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class EsqlQueryLogTests extends ESTestCase {
+    private static final Map<String, String> RESOLVED_SETTINGS = Map.of("TIME_ZONE", "default", "UNMAPPED_FIELDS", "nullify");
+
     private static ClusterSettings settings = new ClusterSettings(
         Settings.builder()
             .put(EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_WARN_SETTING.getKey(), "40ms")
@@ -115,7 +119,8 @@ public class EsqlQueryLogTests extends ESTestCase {
                     new Result(List.of(), List.of(), null, EsqlTestUtils.TEST_CFG, DriverCompletionInfo.EMPTY, warnQuery, null),
                     TransportVersion.current()
                 ),
-                query
+                query,
+                RESOLVED_SETTINGS
             );
             if (expectedLevel[i] != null) {
                 assertThat(appender.lastEvent(), is(not(nullValue())));
@@ -140,6 +145,8 @@ public class EsqlQueryLogTests extends ESTestCase {
                     assertThat(timeSpanTookMillis, is(timeSpanTookMillisExpected));
                 }
                 assertThat(msg.get(ELASTICSEARCH_QUERYLOG_QUERY), is(query));
+                assertThat(msg.get(ELASTICSEARCH_QUERYLOG_SETTINGS_PREFIX + ".time_zone"), is("default"));
+                assertThat(msg.get(ELASTICSEARCH_QUERYLOG_SETTINGS_PREFIX + ".unmapped_fields"), is("nullify"));
                 assertThat(appender.getLastEventAndReset().getLevel(), equalTo(expectedLevel[i]));
             } else {
                 assertThat(appender.lastEvent(), is(nullValue()));
@@ -165,7 +172,7 @@ public class EsqlQueryLogTests extends ESTestCase {
         String validationError = randomAlphaOfLength(10);
         ValidationException ex = new ValidationException().addValidationError(validationError);
         for (int i = 0; i < actualTook.length; i++) {
-            queryLog.onQueryFailure(query, ex, actualTook[i]);
+            queryLog.onQueryFailure(query, ex, actualTook[i], RESOLVED_SETTINGS);
             if (expectedLevel[i] != null) {
                 assertThat(appender.lastEvent(), is(not(nullValue())));
                 var msg = (ESLogMessage) appender.lastMessage();
@@ -175,6 +182,8 @@ public class EsqlQueryLogTests extends ESTestCase {
                 assertThat(took, is(actualTook[i]));
                 assertThat(tookMillis, is(tookMillisExpected));
                 assertThat(msg.get(ELASTICSEARCH_QUERYLOG_QUERY), is(query));
+                assertThat(msg.get(ELASTICSEARCH_QUERYLOG_SETTINGS_PREFIX + ".time_zone"), is("default"));
+                assertThat(msg.get(ELASTICSEARCH_QUERYLOG_SETTINGS_PREFIX + ".unmapped_fields"), is("nullify"));
                 assertThat(appender.getLastEventAndReset().getLevel(), equalTo(expectedLevel[i]));
             } else {
                 assertThat(appender.lastEvent(), is(nullValue()));

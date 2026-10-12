@@ -50,11 +50,14 @@ compressedCodecs.each { entry ->
 }
 
 // Compressed multifile splits: split employees.csv into 3 parts for each codec.
-// Only GZIP and ZSTD are generated (SNAPPY and LZ4_RAW are single-file-only).
-def compressedMultifileCodecs = [
-  [name: 'gzip', codec: 'GZIP'],
-  [name: 'zstd', codec: 'ZSTD'],
-]
+// The broad multifile csv-spec matrix remains GZIP/ZSTD-only; SNAPPY and LZ4_RAW
+// fixtures are used by the deterministic mixed-version reader/profile guard.
+def compressedMultifileCodecs = ext.has('generateAllCompressedMultifileCodecs') && ext.generateAllCompressedMultifileCodecs
+  ? compressedCodecs
+  : [
+    [name: 'gzip', codec: 'GZIP'],
+    [name: 'zstd', codec: 'ZSTD'],
+  ]
 def multifileSplitCsv = new File(fixturesDataDir, "employees.csv")
 
 compressedMultifileCodecs.each { entry ->

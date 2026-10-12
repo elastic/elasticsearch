@@ -1,0 +1,2 @@
+FROM employees
+| STATS cnt = COUNT(*) WHERE emp_no NOT IN (FROM employees | KEEP emp_no)

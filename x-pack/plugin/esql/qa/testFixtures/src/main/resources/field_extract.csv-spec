@@ -15,6 +15,24 @@ infra-filebeat-6vjxr
 // end::field_extract_host_name-result[]
 ;
 
+field_extract_basic
+required_capability: fn_field_extract
+required_capability: flattened_datatype
+
+// tag::field_extract_basic[]
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:02:48.461Z"
+| EVAL host.name = field_extract(resource.attributes, "host.name")
+| KEEP @timestamp, host.name
+// end::field_extract_basic[]
+;
+
+// tag::field_extract_basic-result[]
+@timestamp:date          | host.name:keyword
+2020-01-01T00:02:48.461Z | infra-filebeat-6vjxr
+// end::field_extract_basic-result[]
+;
+
 field_extract_nested_agent_id
 required_capability: fn_field_extract
 required_capability: flattened_datatype

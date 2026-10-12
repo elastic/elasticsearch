@@ -11,7 +11,7 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -48,6 +48,7 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.RemoteTransportClient;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
@@ -178,7 +179,7 @@ public abstract class Plugin implements Closeable {
          * A service that holds the data stream global retention settings that applies to
          * data streams managed by the data stream lifecycle.
          */
-        DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings();
+        DataStreamLifecycleSettings dataStreamLifecycleSettings();
 
         /**
          * A provider of utilities to observe and report parsing of documents
@@ -230,6 +231,9 @@ public abstract class Plugin implements Closeable {
 
         /** The IP location service for IP-geolocation database lookups and lifecycle management */
         IpLocationService ipLocationService();
+
+        /** The usage service for tracking cluster and endpoint usage statistics */
+        UsageService usageService();
     }
 
     /**

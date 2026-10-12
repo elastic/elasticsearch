@@ -14,6 +14,7 @@ import java.lang.foreign.MemoryLayout;
 import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
+import java.nio.charset.Charset;
 
 /**
  * Adapts MemorySegment APIs that changed between JDK 21 and 22+.
@@ -30,6 +31,31 @@ public final class MemorySegmentAdapter {
 
     public static MemorySegment allocateString(Arena arena, String s) {
         return arena.allocateFrom(s);
+    }
+
+    /**
+     * Charset-aware counterpart to {@link #getString(MemorySegment, long)}, needed for
+     * non-UTF-8 encodings such as UTF-16LE used by Windows {@code *W}-suffixed APIs. FFM has
+     * supported charset-aware string access natively since JDK 22, so this is a direct passthrough.
+     */
+    public static String getString(MemorySegment segment, long offset, Charset charset) {
+        return segment.getString(offset, charset);
+    }
+
+    /**
+     * Charset-aware counterpart to {@link #setString(MemorySegment, long, String)}. See
+     * {@link #getString(MemorySegment, long, Charset)} for why this overload exists.
+     */
+    public static void setString(MemorySegment segment, long offset, String value, Charset charset) {
+        segment.setString(offset, value, charset);
+    }
+
+    /**
+     * Charset-aware counterpart to {@link #allocateString(Arena, String)}. See
+     * {@link #getString(MemorySegment, long, Charset)} for why this overload exists.
+     */
+    public static MemorySegment allocateString(Arena arena, String s, Charset charset) {
+        return arena.allocateFrom(s, charset);
     }
 
     // MemoryLayout.varHandle changed between Java 21 and 22 to require a new offset

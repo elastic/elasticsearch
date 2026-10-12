@@ -249,6 +249,14 @@ public class EsField implements Writeable {
     }
 
     /**
+     * Returns a copy with a different sub-field map, preserving the concrete field type. Subtypes with extra state must
+     * override this so that state (e.g. a keyword's {@code normalized} flag, which decides exact-match eligibility) is not lost.
+     */
+    public EsField withProperties(Map<String, EsField> newProperties) {
+        return new EsField(name, esDataType, newProperties, aggregatable, isAlias, timeSeriesFieldType);
+    }
+
+    /**
      * This field is an alias to another field
      */
     public boolean isAlias() {

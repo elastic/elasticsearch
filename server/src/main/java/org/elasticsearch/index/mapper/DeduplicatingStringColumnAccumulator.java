@@ -80,21 +80,22 @@ final class DeduplicatingStringColumnAccumulator {
         final int docCount = docOrds.length;
         // MERGE: a doc with several interned values becomes a multi-valued ARRAY row. Hint STRING so an
         // all-absent column still finishes as STRING rather than the default kind.
-        final EscfColumnBuilder builder = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, recycler);
-        builder.hintScalar(EscfColumnKind.STRING);
-        for (int doc = 0; doc < docCount; doc++) {
-            final int[] ords = docOrds[doc];
-            if (ords == null) {
-                continue;
+        try (EscfColumnBuilder builder = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, recycler)) {
+            builder.hintScalar(EscfColumnKind.STRING);
+            for (int doc = 0; doc < docCount; doc++) {
+                final int[] ords = docOrds[doc];
+                if (ords == null) {
+                    continue;
+                }
+                for (int ord : ords) {
+                    builder.setString(doc, ordToValue[ord]);
+                }
             }
-            for (int ord : ords) {
-                builder.setString(doc, ordToValue[ord]);
-            }
+            docOrds = null;
+            valueToOrd = null;
+            ordToValue = null;
+            return builder.finish(docCount);
         }
-        docOrds = null;
-        valueToOrd = null;
-        ordToValue = null;
-        return builder.finish(docCount);
     }
 
     private int intern(BytesRef value) {

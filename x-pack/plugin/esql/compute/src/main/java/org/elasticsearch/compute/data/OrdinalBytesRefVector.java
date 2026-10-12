@@ -184,6 +184,11 @@ public final class OrdinalBytesRefVector extends AbstractBlockRefCounted impleme
     }
 
     @Override
+    public String toString() {
+        return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", ordinals=" + ordinals + ", bytes=" + bytes + "]";
+    }
+
+    @Override
     public boolean equals(Object o) {
         if (o instanceof BytesRefVector other) {
             return BytesRefVector.equals(this, other);

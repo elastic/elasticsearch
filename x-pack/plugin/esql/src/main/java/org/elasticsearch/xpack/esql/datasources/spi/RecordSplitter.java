@@ -17,6 +17,12 @@ import java.util.function.BooleanSupplier;
  * Implementations are used in two different contexts: stream-based planning code that skips
  * forward to the next complete record, and byte-array chunking code that slices an already-read
  * buffer at the last complete record.
+ * <p>
+ * <b>Implementations must be immutable and safe to call concurrently.</b> A splitter holds only its
+ * configuration, never the state of a scan: every method here takes the stream or buffer it works on and
+ * carries no progress between calls. Callers rely on this, and one splitter serves every concurrent probe
+ * of a file during split discovery. A splitter that accumulated per-scan state in a field would corrupt
+ * those probes' boundaries against each other, and the resulting splits would silently mis-count rows.
  */
 public interface RecordSplitter {
 
@@ -112,6 +118,11 @@ public interface RecordSplitter {
      * convergence window. Never returns {@link #RECORD_TOO_LARGE}: window exhaustion is always {@link #AMBIGUOUS},
      * deferring the cap verdict to {@link #findRecordStartAtOrAfter(InputStream, long, BooleanSupplier)}.
      * <p>
+     * <b>The stream is not reusable afterwards.</b> An implementation may read ahead of the byte count it
+     * returns — buffering is its own business — so the stream's position on return says nothing about the
+     * boundary. A caller that needs to read from the boundary opens a new stream there; one that is finished
+     * closes or aborts this one.
+     * <p>
      * The default implementation throws so a splitter that advertises {@link #supportsProvenProbing()} but forgets
      * to override this fails loud rather than silently delegating to a quote-unaware scan.
      */
@@ -130,6 +141,11 @@ public interface RecordSplitter {
      * {@code isCancelled} is polled inside the byte loop so a long walk (a record up to {@link #maxRecordBytes()})
      * aborts promptly; a cancelled walk throws {@link org.elasticsearch.tasks.TaskCancelledException}. Read-time
      * callers that do not carry a cancellable task pass {@code () -> false}.
+     * <p>
+     * <b>The stream is not reusable afterwards.</b> An implementation may read ahead of the byte count it
+     * returns — buffering is its own business — so the stream's position on return says nothing about the
+     * boundary. A caller that needs to read from the boundary opens a new stream there; one that is finished
+     * closes or aborts this one.
      * <p>
      * The default implementation throws so a splitter that advertises {@link #supportsProvenProbing()} but forgets
      * to override this fails loud.

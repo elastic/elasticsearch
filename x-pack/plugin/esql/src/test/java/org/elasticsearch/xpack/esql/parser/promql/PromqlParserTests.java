@@ -426,6 +426,45 @@ public class PromqlParserTests extends ESTestCase {
         });
     }
 
+    /**
+     * Prometheus: a duration in an expression is another spelling of a float literal, its number of seconds; a range or
+     * offset written as a number (or arithmetic over one) is a duration again, truncated to the millisecond.
+     */
+    public void testDurationLiteralIsSeconds() {
+        assertThat(as(parse("PROMQL index=test step=5m 1h30m").promqlPlan(), LiteralSelector.class).literal().value(), equalTo(5400.0));
+        assertThat(as(parse("PROMQL index=test step=5m 1ms").promqlPlan(), LiteralSelector.class).literal().value(), equalTo(0.001));
+        assertThat(as(parse("PROMQL index=test step=5m 2m + 30s").promqlPlan(), LiteralSelector.class).literal().value(), equalTo(150.0));
+        assertThat(
+            as(parse("PROMQL index=test step=5m foo[300]").promqlPlan(), RangeSelector.class).range().fold(null),
+            equalTo(Duration.ofMinutes(5))
+        );
+        assertThat(
+            as(parse("PROMQL index=test step=5m foo[5m * 2]").promqlPlan(), RangeSelector.class).range().fold(null),
+            equalTo(Duration.ofMinutes(10))
+        );
+        assertThat(
+            as(parse("PROMQL index=test step=5m foo[1.5]").promqlPlan(), RangeSelector.class).range().fold(null),
+            equalTo(Duration.ofMillis(1500))
+        );
+        assertThat(
+            as(parse("PROMQL index=test step=5m foo offset 90").promqlPlan(), InstantSelector.class).evaluation().offset().value(),
+            equalTo(Duration.ofSeconds(90))
+        );
+        assertThat(
+            as(parse("PROMQL index=test step=5m foo[1.0007]").promqlPlan(), RangeSelector.class).range().fold(null),
+            equalTo(Duration.ofMillis(1000))
+        );
+        assertThat(
+            as(parse("PROMQL index=test step=5m foo offset -1.0007").promqlPlan(), InstantSelector.class).evaluation().offset().value(),
+            equalTo(Duration.ofMillis(-1000))
+        );
+        assertThat(
+            as(parse("PROMQL index=test step=5m foo[0.0009]").promqlPlan(), RangeSelector.class).range().fold(null),
+            equalTo(Duration.ofMillis(1))
+        );
+        assertWarnings("Line 1:31: duration [0.0009] is shorter than 1ms, using 1ms instead");
+    }
+
     public void testCaseInsensitivityKeywords() {
         var promql = parse("PROMQL index=test step=5m avg(foo) BY (pod)");
         assertThat(as(promql.promqlPlan(), UnresolvedPromqlFunction.class).grouping(), equalTo(AcrossSeriesAggregate.Grouping.BY));
@@ -1039,6 +1078,35 @@ public class PromqlParserTests extends ESTestCase {
         for (InstantSelector selector : selectors) {
             assertThat(selector.labelMatchers().matchers().get(1).getFirstValue(), equalTo("server-1"));
         }
+    }
+
+    public void testPromqlExpressionTooLarge() {
+        String query = "m".repeat(PromqlParser.MAX_LENGTH + 1);
+        ParsingException e = assertThrows(ParsingException.class, () -> new PromqlParser().createStatement(query));
+        assertThat(e.getMessage(), containsString("PromQL statement is too large"));
+    }
+
+    public void testPromqlBinaryOperatorChainRejected() {
+        // security#12593: a long chain of binary operators must be rejected before ANTLR builds the parse tree
+        String query = "m" + " + m".repeat(PromqlParser.MAX_BINARY_OPERATORS + 500);
+        ParsingException e = assertThrows(ParsingException.class, () -> new PromqlParser().createStatement(query));
+        assertThat(e.getMessage(), containsString("exceeded the maximum number of binary operators allowed"));
+    }
+
+    public void testPromqlDeepParenthesesRejected() {
+        String query = "(".repeat(PromqlAstBuilder.MAX_EXPRESSION_DEPTH + 10)
+            + "m"
+            + ")".repeat(PromqlAstBuilder.MAX_EXPRESSION_DEPTH + 10);
+        ParsingException e = assertThrows(ParsingException.class, () -> new PromqlParser().createStatement(query));
+        assertThat(e.getMessage(), containsString("exceeded the maximum expression depth allowed"));
+    }
+
+    public void testPromqlCommandBinaryOperatorChainRejectedEndToEnd() {
+        // Same attack shape as security#12593 but through the full PROMQL source command; must fail fast
+        // with a ParsingException (400) rather than exhausting the heap.
+        String inner = "m" + " + m".repeat(PromqlParser.MAX_BINARY_OPERATORS + 500);
+        ParsingException e = assertThrows(ParsingException.class, () -> parse("PROMQL index=test step=5m (" + inner + ")"));
+        assertThat(e.getMessage(), containsString("exceeded the maximum number of binary operators allowed"));
     }
 
     private static PromqlCommand parse(String query) {

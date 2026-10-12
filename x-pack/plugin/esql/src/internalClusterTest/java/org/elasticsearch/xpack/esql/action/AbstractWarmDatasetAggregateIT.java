@@ -35,20 +35,22 @@ public abstract class AbstractWarmDatasetAggregateIT extends AbstractExternalDat
     protected static final int FILE_BYTES = 512_000;
 
     /**
-     * These suites drive the {@code parsing_parallelism} pragma to select the SEGMENTABLE_UNCOMPRESSED
+     * These suites drive the {@code external_parsing_parallelism} pragma to select the SEGMENTABLE_UNCOMPRESSED
      * parallel-parse regime the dataset-aggregate fold is built for. Pragmas are rejected on release
      * builds, so skip the whole suite there rather than run it in an unintended serial-parse shape — the
      * snapshot {@code internalClusterTest} run is the real coverage. Mirrors {@link AbstractPausableIntegTestCase}.
      */
     @Before
     public void requireQueryPragmas() {
-        assumeTrue("requires the snapshot-only parsing_parallelism pragma", canUseQueryPragmas());
+        assumeTrue("requires the snapshot-only external_parsing_parallelism pragma", canUseQueryPragmas());
     }
 
     @Override
     protected QueryPragmas getPragmas() {
-        // parsing_parallelism > 1 selects the SEGMENTABLE_UNCOMPRESSED parallel-parse path (the bench regime).
-        return new QueryPragmas(Settings.builder().put("parsing_parallelism", 8).put("max_concurrent_open_segments", 2).build());
+        // external_parsing_parallelism > 1 selects the SEGMENTABLE_UNCOMPRESSED parallel-parse path (the bench regime).
+        return new QueryPragmas(
+            Settings.builder().put("external_parsing_parallelism", 8).put("external_max_concurrent_open_segments", 2).build()
+        );
     }
 
     /**

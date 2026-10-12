@@ -17,9 +17,9 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.StreamingCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerClient;
@@ -67,7 +67,7 @@ public class SageMakerStreamSchema extends SageMakerSchema {
     }
 
     public InferenceServiceResults streamResponse(SageMakerModel model, SageMakerClient.SageMakerStream response) {
-        return new StreamingChatCompletionResults(streamResponse(model, response, payload::streamResponseBody, this::error));
+        return new StreamingCompletionResults(streamResponse(model, response, payload::streamResponseBody, this::error));
     }
 
     private <T> Flow.Publisher<T> streamResponse(
@@ -122,7 +122,7 @@ public class SageMakerStreamSchema extends SageMakerSchema {
         };
     }
 
-    public InvokeEndpointWithResponseStreamRequest chatCompletionStreamRequest(SageMakerModel model, UnifiedCompletionRequest request) {
+    public InvokeEndpointWithResponseStreamRequest chatCompletionStreamRequest(SageMakerModel model, UnifiedCompletionRequestBody request) {
         return streamRequest(model, () -> payload.chatCompletionRequestBytes(model, request));
     }
 

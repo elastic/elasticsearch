@@ -22,4 +22,8 @@ class MaxIntAggregator {
     public static int combine(int current, int v) {
         return Math.max(current, v);
     }
+
+    public static void combine(IntArrayState state, int groupId, int v) {
+        state.max(groupId, v);
+    }
 }

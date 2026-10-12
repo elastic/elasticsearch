@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 158504
+pr: 158529
+summary: Gracefully handle non-existing histograms in TS BUCKET queries
+type: bug

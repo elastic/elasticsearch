@@ -288,15 +288,24 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
             upper,
             upper.dataType()
         );
+        // Null bound = open end (one-sided ranges). Skip formatting for the missing side.
         if (dataType == DataType.DATETIME) {
-            l = dateWithTypeToString((Long) l, lower.dataType());
-            u = dateWithTypeToString((Long) u, upper.dataType());
+            if (l != null) {
+                l = dateWithTypeToString((Long) l, lower.dataType());
+            }
+            if (u != null) {
+                u = dateWithTypeToString((Long) u, upper.dataType());
+            }
             format = DEFAULT_DATE_TIME_FORMATTER.pattern();
         }
 
         if (dataType == DATE_NANOS) {
-            l = dateWithTypeToString((Long) l, lower.dataType());
-            u = dateWithTypeToString((Long) u, upper.dataType());
+            if (l != null) {
+                l = dateWithTypeToString((Long) l, lower.dataType());
+            }
+            if (u != null) {
+                u = dateWithTypeToString((Long) u, upper.dataType());
+            }
             format = DEFAULT_DATE_NANOS_FORMATTER.pattern();
         }
 

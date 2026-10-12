@@ -9,7 +9,7 @@
 
 package org.elasticsearch.nativeaccess.lib;
 
-import org.elasticsearch.foreign.CaptureErrno;
+import org.elasticsearch.foreign.CaptureSystemError;
 import org.elasticsearch.foreign.Function;
 import org.elasticsearch.foreign.InlineStringField;
 import org.elasticsearch.foreign.LibrarySpecification;
@@ -82,11 +82,11 @@ public abstract class PosixCLibrary {
      * @return 0 on success, -1 on failure with errno set
      * @see <a href="https://man7.org/linux/man-pages/man2/getrlimit.2.html">getrlimit manpage</a>
      */
-    @CaptureErrno
+    @CaptureSystemError
     @Function("getrlimit")
     public abstract int getrlimit(int resource, RLimit rlimit);
 
-    @CaptureErrno
+    @CaptureSystemError
     @Function("setrlimit")
     public abstract int setrlimit(int resource, RLimit rlimit);
 
@@ -96,12 +96,12 @@ public abstract class PosixCLibrary {
      * @return 0 on success, -1 on failure with errno set
      * @see <a href="https://man7.org/linux/man-pages/man2/mlock.2.html">mlockall manpage</a>
      */
-    @CaptureErrno
+    @CaptureSystemError
     @Function("mlockall")
     public abstract int mlockall(int flags);
 
     /** Raw binding for madvise; use {@link #madvise(MemorySegment, long, long, int)} instead. */
-    @CaptureErrno
+    @CaptureSystemError
     @Function("madvise")
     protected abstract int madvise(long addr, long length, int advice);
 
@@ -179,21 +179,21 @@ public abstract class PosixCLibrary {
     @StructFactory
     public abstract Stat64 newStat64();
 
-    @CaptureErrno
+    @CaptureSystemError
     @Variadic(firstArg = 2)
     @Function("open")
     public abstract int open(String pathname, int flags, int mode);
 
-    @CaptureErrno
+    @CaptureSystemError
     @Variadic(firstArg = 2)
     @Function("open")
     public abstract int open(String pathname, int flags);
 
-    @CaptureErrno
+    @CaptureSystemError
     @Function("fstat64")
     public abstract int fstat64(int fd, Stat64 stats);
 
-    @CaptureErrno
+    @CaptureSystemError
     @Function("ftruncate")
     public abstract int ftruncate(int fd, long length);
 
@@ -213,7 +213,7 @@ public abstract class PosixCLibrary {
     @StructFactory
     public abstract FStore newFStore();
 
-    @CaptureErrno
+    @CaptureSystemError
     @Variadic(firstArg = 2)
     @Function("fcntl")
     public abstract int fcntl(int fd, int cmd, FStore fst);
@@ -227,7 +227,7 @@ public abstract class PosixCLibrary {
      * @return an open file descriptor, or -1 on failure with errno set
      * @see <a href="https://man7.org/linux/man-pages/man2/socket.2.html">socket manpage</a>
      */
-    @CaptureErrno
+    @CaptureSystemError
     @Function("socket")
     public abstract int socket(int domain, int type, int protocol);
 
@@ -253,7 +253,7 @@ public abstract class PosixCLibrary {
     public abstract SockAddr newSockAddr();
 
     /** Raw binding for connect; use {@link #connect(int, SockAddr)} instead. */
-    @CaptureErrno
+    @CaptureSystemError
     @Function("connect")
     protected abstract int connect(int sockfd, SockAddr addr, int addrlen);
 
@@ -278,7 +278,7 @@ public abstract class PosixCLibrary {
      * @return The number of bytes sent, or -1 on failure with errno set
      * @see <a href="https://man7.org/linux/man-pages/man2/sendto.2.html">send manpage</a>
      */
-    @CaptureErrno
+    @CaptureSystemError
     @Function("send")
     public abstract long send(int sockfd, MemorySegment buf, long len, int flags);
 
@@ -288,7 +288,7 @@ public abstract class PosixCLibrary {
      * @return 0 on success, -1 on failure with errno set
      * @see <a href="https://man7.org/linux/man-pages/man2/close.2.html">close manpage</a>
      */
-    @CaptureErrno
+    @CaptureSystemError
     @Function("close")
     public abstract int close(int fd);
 
@@ -308,6 +308,6 @@ public abstract class PosixCLibrary {
      * @see <a href="https://man7.org/linux/man-pages/man3/errno.3.html">errno manpage</a>
      */
     public int errno() {
-        return LinkerHelper.errno();
+        return LinkerHelper.systemError();
     }
 }

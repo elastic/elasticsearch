@@ -12,11 +12,15 @@ package org.elasticsearch.action.bulk;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -26,6 +30,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.hamcrest.Matchers.empty;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -37,12 +42,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * Tests the {@link IncrementalBulkService#REQUEST_TIMEOUT} scheduling that this service adds on top of
- * the bulk-session cancellation machinery. The downstream effect of cancellation (the next chunk failing
- * with a {@code TaskCancelledException}) is covered by {@code IncrementalBulkIT}; here we only assert that
- * the timeout reliably triggers cancellation and is cancelled itself once the request finishes.
- */
 public class IncrementalBulkServiceTests extends ESTestCase {
 
     /**
@@ -153,5 +152,37 @@ public class IncrementalBulkServiceTests extends ESTestCase {
         // close() cancelled the scheduled task, so advancing past the deadline must not fire the timeout
         taskQueue.runAllTasksInTimeOrder();
         verify(taskManager, never()).cancelTaskAndDescendants(any(), startsWith("request timed out"), anyBoolean(), any());
+    }
+
+    /**
+     * The admission check must run before the session task is registered. A node that is over its coordinating
+     * limit rejects every incoming request, so registering first and unwinding afterwards would leak a task per
+     * rejected request for as long as the overload lasts.
+     */
+    public void testIndexingPressureRejectionRegistersNoTask() {
+        DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        ThreadPool threadPool = taskQueue.getThreadPool();
+        TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Task.HEADERS_TO_COPY);
+        IndexingPressure indexingPressure = new IndexingPressure(
+            Settings.builder().put(IndexingPressure.MAX_COORDINATING_BYTES.getKey(), ByteSizeValue.ofKb(1)).build()
+        );
+        IncrementalBulkService service = new IncrementalBulkService(
+            mock(Client.class),
+            indexingPressure,
+            MeterRegistry.NOOP,
+            taskManager,
+            threadPool,
+            ClusterSettings.createBuiltInClusterSettings(
+                Settings.builder().put(IncrementalBulkService.REQUEST_TIMEOUT.getKey(), TimeValue.timeValueSeconds(30)).build()
+            )
+        );
+
+        // forceExecution so this operation itself is admitted, leaving the node over its coordinating limit
+        try (Releasable ignored = indexingPressure.markCoordinatingOperationStarted(1, ByteSizeValue.ofKb(2).getBytes(), true)) {
+            expectThrows(EsRejectedExecutionException.class, service::newBulkRequest);
+        }
+
+        assertThat(taskManager.getTasks().values(), empty());
+        assertFalse("no timeout task should be scheduled for a rejected request", taskQueue.hasDeferredTasks());
     }
 }

@@ -54,14 +54,14 @@ abstract class AbstractStatelessRecoveryListener {
             || recoverySource == RecoverySource.LocalShardsRecoverySource.INSTANCE;
     }
 
-    static void logBootstrappingFromObjectStore(Logger logger, IndexShard indexShard, BatchedCompoundCommit latestCommit) {
+    static void logBootstrappingFromObjectStore(Logger logger, IndexShard indexShard, BatchedCompoundCommit batchedCompoundCommit) {
         logger.info(
             "{} with UUID [{}] bootstrapping [{}] shard on primary term [{}] with {} from object store ({})",
             indexShard.shardId(),
             indexShard.shardId().getIndex().getUUID(),
             indexShard.routingEntry().role(),
             indexShard.getOperationPrimaryTerm(),
-            latestCommit != null ? latestCommit.lastCompoundCommit().toShortDescription() : "empty commit",
+            batchedCompoundCommit != null ? batchedCompoundCommit.toString() : "empty commit",
             describe(indexShard.recoveryState())
         );
     }

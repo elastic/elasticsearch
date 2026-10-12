@@ -458,7 +458,7 @@ public class PluginsLoader {
         String result = name.replaceAll("\\W+", ".") // replace non-alphanumeric character strings with dots
             .replaceAll("(^[^A-Za-z_]*)", "") // trim non-alpha or underscore characters from start
             .replaceAll("\\.$", "") // trim trailing dot
-            .toLowerCase(Locale.getDefault());
+            .toLowerCase(Locale.ROOT);
         assert ModuleSupport.isPackageName(result);
         return result;
     }

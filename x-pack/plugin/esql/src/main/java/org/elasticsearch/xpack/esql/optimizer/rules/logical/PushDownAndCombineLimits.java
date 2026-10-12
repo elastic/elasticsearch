@@ -16,10 +16,10 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
-import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
@@ -102,50 +102,50 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
             // And the verifier checks that there are no non-synthetic limits before the join.
             // TODO: However, this means that the non-remote join will be always forced on the coordinator. We may want to revisit this.
             return duplicateLimitAsFirstGrandchild(limit, false);
-        } else if (limit.child() instanceof Fork fork) {
-            return maybePushDownLimitToFork(limit, fork, ctx);
+        } else if (limit.child() instanceof MergePlan merge) {
+            return maybePushDownLimitToMergePlan(limit, merge, ctx);
         }
         return limit;
     }
 
-    private static LogicalPlan maybePushDownLimitToFork(Limit limit, Fork fork, LogicalOptimizerContext ctx) {
+    private static LogicalPlan maybePushDownLimitToMergePlan(Limit limit, MergePlan mergePlan, LogicalOptimizerContext ctx) {
         // Allow limit pushdown into a direct-leaf UnionAll (heterogeneous FROM shape).
-        // Subquery-shape UnionAll branches return false from shouldPushDownPipelineBreakerIntoForkBranch
+        // Subquery-shape UnionAll branches return false from shouldPushDownPipelineBreakerIntoMergeBranch
         // so the loop below is a no-op for them anyway, but skip explicitly for clarity.
-        if (fork instanceof UnionAll unionAll && PushDownUtils.isLeafUnionAll(unionAll) == false) {
+        if (mergePlan instanceof UnionAll unionAll && PushDownUtils.isLeafUnionAll(unionAll) == false) {
             return limit;
         }
 
-        List<LogicalPlan> newForkChildren = new ArrayList<>();
+        List<LogicalPlan> newChildren = new ArrayList<>();
         boolean changed = false;
 
-        for (LogicalPlan forkChild : fork.children()) {
-            LogicalPlan newForkChild = maybePushDownLimitToForkBranch(limit, forkChild, ctx);
-            changed = changed || newForkChild != forkChild;
-            newForkChildren.add(newForkChild);
+        for (LogicalPlan child : mergePlan.children()) {
+            LogicalPlan newChild = maybePushDownLimitToMergeBranch(limit, child, ctx);
+            changed = changed || newChild != child;
+            newChildren.add(newChild);
         }
 
-        return changed ? limit.replaceChild(fork.replaceChildren(newForkChildren)) : limit;
+        return changed ? limit.replaceChild(mergePlan.replaceChildren(newChildren)) : limit;
     }
 
-    private static LogicalPlan maybePushDownLimitToForkBranch(Limit limit, LogicalPlan forkBranch, LogicalOptimizerContext ctx) {
-        if (forkBranch instanceof UnaryPlan == false) {
-            return forkBranch;
+    private static LogicalPlan maybePushDownLimitToMergeBranch(Limit limit, LogicalPlan branch, LogicalOptimizerContext ctx) {
+        if (branch instanceof UnaryPlan == false) {
+            return branch;
         }
 
-        if (PushDownUtils.shouldPushDownPipelineBreakerIntoForkBranch(forkBranch)) {
-            return new Limit(forkBranch.source(), limit.limit(), forkBranch);
+        if (PushDownUtils.shouldPushDownPipelineBreakerIntoMergeBranch(branch)) {
+            return new Limit(branch.source(), limit.limit(), branch);
         }
 
-        Limit descendantLimit = descendantLimit((UnaryPlan) forkBranch);
+        Limit descendantLimit = descendantLimit((UnaryPlan) branch);
         if (descendantLimit == null) {
-            return forkBranch;
+            return branch;
         }
         var descendantLimitValue = (int) descendantLimit.limit().fold(ctx.foldCtx());
         var limitValue = (int) limit.limit().fold(ctx.foldCtx());
 
-        // We push down a limit to a Fork branch when the Fork branch contains a limit with a higher value
-        return descendantLimitValue > limitValue ? new Limit(forkBranch.source(), limit.limit(), forkBranch) : forkBranch;
+        // We push down a limit to a merge branch when the branch contains a limit with a higher value
+        return descendantLimitValue > limitValue ? new Limit(branch.source(), limit.limit(), branch) : branch;
     }
 
     private static Limit combineLimits(Limit upper, Limit lower, FoldContext ctx) {

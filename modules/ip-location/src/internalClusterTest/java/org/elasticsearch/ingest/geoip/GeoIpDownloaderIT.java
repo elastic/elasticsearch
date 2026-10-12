@@ -620,6 +620,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             String indexName,
             String dataStreamName,
             IndexMode templateIndexMode,
+            boolean registryInstalledTemplate,
             ProjectMetadata projectMetadata,
             Instant resolvedAt,
             Settings indexTemplateAndCreateRequestSettings,

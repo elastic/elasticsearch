@@ -57,7 +57,13 @@ public class TestFixturesDeployPlugin implements Plugin<Project> {
                             resolveTargetDockerRegistry(fixture) + "/" + fixture.getName() + "-fixture:" + fixture.getVersion().get() }
                     );
                     task.getPush().set(isCi);
-                    task.getPlatforms().addAll(Arrays.stream(Architecture.values()).map(a -> a.dockerPlatform).toList());
+                    // A fixture may restrict the platforms it is built/published for (e.g. images that do not run
+                    // on aarch64); otherwise default to every supported architecture.
+                    List<String> platforms = fixture.getPlatforms().get();
+                    if (platforms.isEmpty()) {
+                        platforms = Arrays.stream(Architecture.values()).map(a -> a.dockerPlatform).toList();
+                    }
+                    task.getPlatforms().addAll(platforms);
                     task.setGroup("Deploy TestFixtures");
                     task.setDescription("Deploys the " + fixture.getName() + " test fixture");
                 })

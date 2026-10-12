@@ -95,15 +95,11 @@ public class ClusterSearchShardsRequestTests extends ESTestCase {
         assertTrue(request.isRoutingFromSlice());
     }
 
-    public void testClearingSearchSliceClearsDerivedRouting() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        ClusterSearchShardsRequest request = new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT).searchSlice("s1");
-        request.searchSlice(null);
+    public void testSearchSliceRejectsNull() {
+        ClusterSearchShardsRequest request = new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT);
+        expectThrows(NullPointerException.class, () -> request.searchSlice(null));
         assertNull(request.searchSlice());
         assertFalse(request.isRoutingFromSlice());
-
         assertNull(request.routing());
-        request.routing("manual");
-        assertEquals("manual", request.routing());
     }
 }

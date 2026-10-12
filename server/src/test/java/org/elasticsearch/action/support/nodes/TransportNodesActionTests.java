@@ -271,7 +271,7 @@ public class TransportNodesActionTests extends ESTestCase {
                 "indices:admin/test",
                 clusterService,
                 transportService,
-                new ActionFilters(Collections.emptySet()),
+                ActionFilters.EMPTY,
                 TestNodeRequest::new,
                 THREAD_POOL.executor(ThreadPool.Names.GENERIC)
             ) {
@@ -326,7 +326,7 @@ public class TransportNodesActionTests extends ESTestCase {
         final var action = new TestTransportNodesAction(
             clusterService,
             transportService,
-            new ActionFilters(Set.of()),
+            ActionFilters.EMPTY,
             TestNodeRequest::new,
             THREAD_POOL.executor(ThreadPool.Names.GENERIC)
         ) {
@@ -519,7 +519,7 @@ public class TransportNodesActionTests extends ESTestCase {
         return new TestTransportNodesAction(
             clusterService,
             transportService,
-            new ActionFilters(Collections.emptySet()),
+            ActionFilters.EMPTY,
             TestNodeRequest::new,
             THREAD_POOL.executor(ThreadPool.Names.GENERIC)
         );
@@ -529,7 +529,7 @@ public class TransportNodesActionTests extends ESTestCase {
         return new DataNodesOnlyTransportNodesAction(
             clusterService,
             transportService,
-            new ActionFilters(Collections.emptySet()),
+            ActionFilters.EMPTY,
             TestNodeRequest::new,
             THREAD_POOL.executor(ThreadPool.Names.GENERIC)
         );

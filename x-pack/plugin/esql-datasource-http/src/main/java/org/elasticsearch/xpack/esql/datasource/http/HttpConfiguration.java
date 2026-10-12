@@ -18,6 +18,12 @@ import java.util.Objects;
 public final class HttpConfiguration {
     private final Duration connectTimeout;
     private final Duration requestTimeout;
+    /**
+     * Maximum gap between body bytes on a streaming GET. {@link Duration#ZERO} disables the timer.
+     * Default 30s matches the AWS SDK idle socket timeout used by the S3 provider; JDK
+     * {@code HttpClient} has no equivalent after {@code send()} returns headers.
+     */
+    private final Duration idleTimeout;
     private final boolean followRedirects;
     private final Map<String, String> customHeaders;
     private final int maxRetries;
@@ -43,11 +49,18 @@ public final class HttpConfiguration {
         if (builder.requestTimeout == null) {
             throw new IllegalArgumentException("requestTimeout cannot be null");
         }
+        if (builder.idleTimeout == null) {
+            throw new IllegalArgumentException("idleTimeout cannot be null");
+        }
+        if (builder.idleTimeout.isNegative()) {
+            throw new IllegalArgumentException("idleTimeout cannot be negative");
+        }
         if (builder.customHeaders == null) {
             throw new IllegalArgumentException("customHeaders cannot be null");
         }
         this.connectTimeout = builder.connectTimeout;
         this.requestTimeout = builder.requestTimeout;
+        this.idleTimeout = builder.idleTimeout;
         this.followRedirects = builder.followRedirects;
         this.customHeaders = Map.copyOf(builder.customHeaders);
         this.maxRetries = builder.maxRetries;
@@ -59,6 +72,10 @@ public final class HttpConfiguration {
 
     public Duration requestTimeout() {
         return requestTimeout;
+    }
+
+    public Duration idleTimeout() {
+        return idleTimeout;
     }
 
     public boolean followRedirects() {
@@ -76,6 +93,7 @@ public final class HttpConfiguration {
     public static final class Builder {
         private Duration connectTimeout = Duration.ofSeconds(30);
         private Duration requestTimeout = Duration.ofMinutes(5);
+        private Duration idleTimeout = Duration.ofSeconds(30);
         private boolean followRedirects = true;
         private Map<String, String> customHeaders = Map.of();
         private int maxRetries = 3;
@@ -95,6 +113,17 @@ public final class HttpConfiguration {
                 throw new IllegalArgumentException("requestTimeout cannot be null");
             }
             this.requestTimeout = requestTimeout;
+            return this;
+        }
+
+        public Builder idleTimeout(Duration idleTimeout) {
+            if (idleTimeout == null) {
+                throw new IllegalArgumentException("idleTimeout cannot be null");
+            }
+            if (idleTimeout.isNegative()) {
+                throw new IllegalArgumentException("idleTimeout cannot be negative");
+            }
+            this.idleTimeout = idleTimeout;
             return this;
         }
 
@@ -133,12 +162,13 @@ public final class HttpConfiguration {
             && maxRetries == that.maxRetries
             && Objects.equals(connectTimeout, that.connectTimeout)
             && Objects.equals(requestTimeout, that.requestTimeout)
+            && Objects.equals(idleTimeout, that.idleTimeout)
             && Objects.equals(customHeaders, that.customHeaders);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(connectTimeout, requestTimeout, followRedirects, customHeaders, maxRetries);
+        return Objects.hash(connectTimeout, requestTimeout, idleTimeout, followRedirects, customHeaders, maxRetries);
     }
 
     @Override
@@ -148,6 +178,8 @@ public final class HttpConfiguration {
             + connectTimeout
             + ", requestTimeout="
             + requestTimeout
+            + ", idleTimeout="
+            + idleTimeout
             + ", followRedirects="
             + followRedirects
             + ", customHeaders="

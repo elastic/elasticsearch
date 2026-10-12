@@ -24,8 +24,10 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.SliceIndexing;
+import org.elasticsearch.index.SliceSelection;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -252,6 +254,71 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
         }
     }
 
+    /**
+     * The slice filter of the search execution context matches the root and nested documents of the selected slices only.
+     */
+    public void testSliceFilterMatchesSelectedSlices() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+
+        Settings settings = Settings.builder().put(getIndexSettings()).put(IndexSettings.SLICE_ENABLED.getKey(), true).build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {
+            b.startObject("n");
+            b.field("type", "nested");
+            b.startObject("properties");
+            b.startObject("k").field("type", "keyword").endObject();
+            b.endObject();
+            b.endObject();
+        }));
+
+        withLuceneIndex(mapperService, iw -> {
+            // one root document and one nested document for each of the slices
+            for (String slice : List.of("s1", "s2", "s3")) {
+                ParsedDocument parsed = mapperService.documentMapper()
+                    .parse(source("1", b -> b.startArray("n").startObject().field("k", "v").endObject().endArray(), slice));
+                assertEquals(2, parsed.docs().size());
+                for (LuceneDocument doc : parsed.docs()) {
+                    iw.addDocument(doc);
+                }
+            }
+        }, reader -> {
+            IndexSearcher searcher = newSearcher(reader);
+            SearchExecutionContext context = createSearchExecutionContext(mapperService, searcher);
+
+            assertNull(context.sliceFilter());
+            context.setSliceSelection(SliceSelection.ALL);
+            assertNull(context.sliceFilter());
+
+            context.setSliceSelection(SliceSelection.of(List.of("s1")));
+            assertEquals(2, searcher.count(context.sliceFilter()));
+            context.setSliceSelection(SliceSelection.of(List.of("s1", "s3")));
+            assertEquals(4, searcher.count(context.sliceFilter()));
+            context.setSliceSelection(SliceSelection.of(List.of("unknown")));
+            assertEquals(0, searcher.count(context.sliceFilter()));
+
+            context.setSliceSelection(SliceSelection.of(List.of("s2")));
+            SearchExecutionContext copy = new SearchExecutionContext(context);
+            assertEquals(context.sliceSelection(), copy.sliceSelection());
+            assertEquals(2, searcher.count(copy.sliceFilter()));
+        });
+    }
+
+    /**
+     * An index without slices has no document in any slice, whatever the routing of its documents.
+     */
+    public void testSliceFilterMatchesNothingWithoutSlices() throws Exception {
+        MapperService mapperService = createMapperService(mapping(b -> {}));
+        withLuceneIndex(mapperService, iw -> {
+            iw.addDocument(mapperService.documentMapper().parse(source("1", b -> {}, "s1")).rootDoc());
+            iw.addDocument(mapperService.documentMapper().parse(source("2", b -> {}, null)).rootDoc());
+        }, reader -> {
+            IndexSearcher searcher = newSearcher(reader);
+            SearchExecutionContext context = createSearchExecutionContext(mapperService, searcher);
+            assertNull(context.sliceFilter());
+            context.setSliceSelection(SliceSelection.of(List.of("s1")));
+            assertEquals(0, searcher.count(context.sliceFilter()));
+        });
+    }
+
     public void testSliceEnabledIncludeInParentDoesNotDuplicateRootRouting() throws Exception {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
 
@@ -337,32 +404,34 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
             new IndexRequest("index").id("1").routing("route-a"),
             new IndexRequest("index").id("2") };
         IndexOperationBatch batch = EngineTestCase.initFromRequests(requests);
-        BatchMappingContext context = new BatchMappingContext(
-            batch,
-            mapperService.mappingLookup(),
-            mapperService.getIndexSettings(),
-            BytesRefRecycler.NON_RECYCLING_INSTANCE
-        );
+        try (
+            BatchMappingContext context = new BatchMappingContext(
+                batch,
+                mapperService.mappingLookup(),
+                mapperService.getIndexSettings(),
+                new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
+            )
+        ) {
+            mapper.preColumnarParse(context);
 
-        mapper.preColumnarParse(context);
-
-        final MappedColumns mappedColumns = context.columns();
-        Column routingColumn = null;
-        for (Column column : mappedColumns.toColumnBatch().columns()) {
-            if (column.name().equals(RoutingFieldMapper.NAME)) {
-                routingColumn = column;
+            final MappedColumns mappedColumns = context.columns();
+            Column routingColumn = null;
+            for (Column column : mappedColumns.toColumnBatch().columns()) {
+                if (column.name().equals(RoutingFieldMapper.NAME)) {
+                    routingColumn = column;
+                }
             }
-        }
-        assertNotNull("expected a _routing column", routingColumn);
-        assertEquals("doc values type must be SORTED", DocValuesType.SORTED, routingColumn.fieldType().docValuesType());
-        assertEquals("must have no inverted index", IndexOptions.NONE, routingColumn.fieldType().indexOptions());
-        assertFalse("must not be stored", routingColumn.fieldType().stored());
+            assertNotNull("expected a _routing column", routingColumn);
+            assertEquals("doc values type must be SORTED", DocValuesType.SORTED, routingColumn.fieldType().docValuesType());
+            assertEquals("must have no inverted index", IndexOptions.NONE, routingColumn.fieldType().indexOptions());
+            assertFalse("must not be stored", routingColumn.fieldType().stored());
 
-        BinaryColumn binaryColumn = (BinaryColumn) routingColumn;
-        ObjectTupleCursor<BytesRef> cursor = binaryColumn.tuples();
-        assertEquals(0, cursor.nextDoc());
-        assertEquals(new BytesRef("route-a"), cursor.value());
-        assertEquals(DocIdSetIterator.NO_MORE_DOCS, cursor.nextDoc());
+            BinaryColumn binaryColumn = (BinaryColumn) routingColumn;
+            ObjectTupleCursor<BytesRef> cursor = binaryColumn.tuples();
+            assertEquals(0, cursor.nextDoc());
+            assertEquals(new BytesRef("route-a"), cursor.value());
+            assertEquals(DocIdSetIterator.NO_MORE_DOCS, cursor.nextDoc());
+        }
     }
 
     private static void assertRoutingStoredAsDocValues(LuceneDocument document, String routing) {

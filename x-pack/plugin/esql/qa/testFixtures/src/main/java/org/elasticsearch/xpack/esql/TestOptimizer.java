@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -100,6 +101,15 @@ public class TestOptimizer {
     // =======================================
     // Below this is delegates to TestAnalyzer
     // =======================================
+
+    /**
+     * Pins the negotiated minimum transport version used during analysis and optimization. By default the analyzer picks a random
+     * compatible version, which makes version-gated plan shapes nondeterministic. Pin it when a test asserts on such a shape.
+     */
+    public TestOptimizer minimumTransportVersion(TransportVersion minimumTransportVersion) {
+        analyzer.minimumTransportVersion(minimumTransportVersion);
+        return this;
+    }
 
     /**
      * Adds an index resolution by loading the mapping from a resource file.

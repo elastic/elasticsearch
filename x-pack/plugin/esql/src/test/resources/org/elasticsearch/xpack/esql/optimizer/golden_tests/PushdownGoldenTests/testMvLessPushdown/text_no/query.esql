@@ -1,0 +1,3 @@
+    FROM all_types
+    | KEEP text
+    | WHERE mv_less(text, "a")

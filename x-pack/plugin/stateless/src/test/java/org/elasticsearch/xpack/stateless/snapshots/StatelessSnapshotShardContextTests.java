@@ -52,6 +52,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -247,7 +249,8 @@ public class StatelessSnapshotShardContextTests extends ESTestCase {
 
         try (var fileReader = snapshotShardContext.fileReader("bad_file", mock(StoreFileMetadata.class))) {
             readBlobContent(fileReader, numberOfParts, (int) totalLength, randomBoolean());
-            expectThrows(CorruptIndexException.class, fileReader::verify);
+            final var e = expectThrows(CorruptIndexException.class, fileReader::verify);
+            assertThat(e.getMessage(), allOf(containsString("bad_file"), containsString(badBlobName)));
         }
     }
 

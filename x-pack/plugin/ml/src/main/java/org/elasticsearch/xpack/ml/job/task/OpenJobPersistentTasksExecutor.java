@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManage
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.task.AbstractJobPersistentTasksExecutor;
+import org.elasticsearch.xpack.ml.utils.MlRecoverableErrorClassifier;
 
 import java.time.Instant;
 import java.util.Collection;
@@ -345,6 +346,26 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
         ActionListener<Boolean> listener
     ) {
         return new OpenJobRetryableAction(jobTask, jobTaskState, params, listener);
+    }
+
+    /**
+     * Computes the next exponential-backoff bound for the job-open retry. For capacity-constrained failures
+     * (scroll/breaker/pool saturation) the bound jumps to at least {@code capacityInitialMillis} and is capped at
+     * {@code capacityMaxMillis} (deliberately above the normal cap) so retries slow enough for the search tier to
+     * drain. Availability-class failures keep the default {@code min(prev*2, normalMaxMillis)} behavior.
+     * See elastic/elasticsearch#153260.
+     */
+    static long nextCapacityAwareDelayBound(
+        long previousBoundMillis,
+        boolean capacityConstrained,
+        long normalMaxMillis,
+        long capacityInitialMillis,
+        long capacityMaxMillis
+    ) {
+        if (capacityConstrained) {
+            return Math.min(Math.max(previousBoundMillis * 2, capacityInitialMillis), capacityMaxMillis);
+        }
+        return Math.min(previousBoundMillis * 2, normalMaxMillis);
     }
 
     // Exceptions that occur while the node is dying, i.e. after the JVM has received a SIGTERM,
@@ -679,18 +700,36 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
      * Retries the entire job opening pipeline for system-initiated reassignments.
      *
      * Uses exponential backoff with:
-     * - Initial delay: 5 seconds
-     * - Max delay: 5 minutes
+     * - Initial delay: 5 seconds; normal max delay: 5 minutes (availability-class errors)
+     * - Capacity-constrained failures ({@link MlRecoverableErrorClassifier#isCapacityConstrained}: HTTP 429 /
+     *   scroll-context exhaustion, transient circuit-breaker, non-shutdown rejection) use a longer regime: the backoff
+     *   bound escalates to {@link MachineLearning#JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY}
+     *   ({@code xpack.ml.job_open_capacity_retry_initial_delay}, default 30s) and is capped at
+     *   {@link MachineLearning#JOB_OPEN_CAPACITY_RETRY_MAX_DELAY} ({@code xpack.ml.job_open_capacity_retry_max_delay},
+     *   default 10m) so the search tier can drain (elastic/elasticsearch#153260)
      * - Total timeout: from {@link MachineLearning#JOB_OPEN_RETRY_TIMEOUT} (default 60 minutes)
+     *
+     * The exponential backoff bound is shared across error classes (inherited from {@link RetryableAction}); it is not
+     * reset when the error class changes. After a capacity-constrained failure raises the bound, a following
+     * availability-class retry inherits the raised bound rather than the 5s→5m ramp. This is intentional: backing off
+     * slightly longer immediately after capacity pressure helps the tier recover and self-heals as the bound continues
+     * under the normal cap.
      *
      * Only applies to reassignments (detected via {@link JobTaskState#isStatusStale(PersistentTask)}).
      * User-initiated opens fail fast.
      */
     class OpenJobRetryableAction extends RetryableAction<Boolean> {
 
+        private static final TimeValue INITIAL_RETRY_DELAY = TimeValue.timeValueSeconds(5);
+        private static final TimeValue MAX_RETRY_DELAY = TimeValue.timeValueMinutes(5);
+
         private final JobTask jobTask;
         private final JobTaskState jobTaskState;
         private final OpenJobAction.JobParams params;
+
+        private final long capacityInitialDelayMillis;
+        private final long capacityMaxDelayMillis;
+        private volatile boolean lastErrorCapacityConstrained = false;
 
         OpenJobRetryableAction(
             JobTask jobTask,
@@ -701,8 +740,8 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             super(
                 logger,
                 client.threadPool(),
-                TimeValue.timeValueSeconds(5),
-                TimeValue.timeValueMinutes(5),
+                INITIAL_RETRY_DELAY,
+                MAX_RETRY_DELAY,
                 clusterSettings.get(MachineLearning.JOB_OPEN_RETRY_TIMEOUT),
                 listener,
                 client.threadPool().generic()
@@ -710,6 +749,8 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             this.jobTask = Objects.requireNonNull(jobTask);
             this.jobTaskState = jobTaskState;
             this.params = Objects.requireNonNull(params);
+            this.capacityInitialDelayMillis = clusterSettings.get(MachineLearning.JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY).millis();
+            this.capacityMaxDelayMillis = clusterSettings.get(MachineLearning.JOB_OPEN_CAPACITY_RETRY_MAX_DELAY).millis();
         }
 
         @Override
@@ -722,7 +763,19 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             if (jobTask.isClosing() || jobTask.isVacating()) {
                 return false;
             }
+            lastErrorCapacityConstrained = MlRecoverableErrorClassifier.isCapacityConstrained(e);
             return org.elasticsearch.xpack.ml.utils.MlRecoverableErrorClassifier.isRecoverable(e);
+        }
+
+        @Override
+        protected long calculateDelayBound(long previousDelayBound) {
+            return nextCapacityAwareDelayBound(
+                previousDelayBound,
+                lastErrorCapacityConstrained,
+                MAX_RETRY_DELAY.millis(),
+                capacityInitialDelayMillis,
+                capacityMaxDelayMillis
+            );
         }
     }
 }

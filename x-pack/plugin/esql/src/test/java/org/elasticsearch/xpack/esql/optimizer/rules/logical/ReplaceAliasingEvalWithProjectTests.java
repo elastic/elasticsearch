@@ -27,6 +27,11 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
 import static org.hamcrest.Matchers.startsWith;
 
 public class ReplaceAliasingEvalWithProjectTests extends AbstractLogicalPlanOptimizerTests {
+
+    public ReplaceAliasingEvalWithProjectTests(VersionMode versionMode) {
+        super(versionMode);
+    }
+
     /**
      * {@snippet lang="text":
      * Project[[emp_no{f}#18, salary{f}#23, emp_no{f}#18 AS emp_no2#7, salary2{r}#10, emp_no{f}#18 AS emp_no3#13, salary3{r}#16]]

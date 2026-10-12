@@ -40,6 +40,8 @@ public class ElasticInferenceServiceResponseHandler extends BaseResponseHandler 
             return new RetryException(false, buildError(METHOD_NOT_ALLOWED, outboundRequest, result));
         } else if (statusCode == 413) {
             return new ContentTooLargeException(buildError(CONTENT_TOO_LARGE, outboundRequest, result));
+        } else if (statusCode == 422) {
+            return new RetryException(false, buildError(VALIDATION_ERROR, outboundRequest, result));
         } else if (statusCode == 429) {
             return new RetryException(true, buildError(RATE_LIMIT, outboundRequest, result));
         }
@@ -54,7 +56,7 @@ public class ElasticInferenceServiceResponseHandler extends BaseResponseHandler 
         return error;
     }
 
-    private void addRetryAfterHeaderIfPresent(HttpResult result, ElasticsearchException e) {
+    protected void addRetryAfterHeaderIfPresent(HttpResult result, ElasticsearchException e) {
         Header retryAfterHeader = result.response().getFirstHeader(RETRY_AFTER_HEADER);
         if (retryAfterHeader != null) {
             e.addHttpHeader(RETRY_AFTER_HEADER, retryAfterHeader.getValue());

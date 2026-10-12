@@ -185,6 +185,12 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
 
             // Split the filter condition in 3 parts.
             // For InlineJoin we use a scoping that allows pushing down filters either to right side only or to both sides.
+            // Left-only filters deliberately stay above an InlineJoin: it computes its right side from the left branch (through the
+            // StubRelation planted by stubSource), so filtering the left branch would also filter the aggregate's input and change
+            // its result. Note that relaxing this once the right side has been resolved into a LocalRelation, and thus no longer
+            // depends on the left, would be dead code today: the logical optimizer runs exactly once, before any sub-plan is
+            // executed, and the plan rebuilt after a sub-plan result is substituted in is marked optimized without being
+            // re-optimized (see the TODO in InlineJoin#newMainPlan).
             // For the rest of the joins we use the standard scoping:
             // - filters scoped to the left
             // - filters scoped to the right

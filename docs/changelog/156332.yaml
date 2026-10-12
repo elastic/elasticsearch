@@ -1,6 +1,0 @@
-area: Vector Search
-issues:
- - 138496
-pr: 156332
-summary: Score nested kNN `inner_hits` like the query phase
-type: bug

@@ -10,7 +10,8 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.transport.LeakTracker;
 
@@ -25,11 +26,15 @@ class ArraySearchPhaseResults<Result extends SearchPhaseResult> extends SearchPh
 
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
-    private final Releasable releasable = LeakTracker.wrap(() -> {
-        for (Result result : getAtomicArray().asList()) {
-            result.decRef();
-        }
-    });
+    /**
+     * Held by the search until {@link #close()}, and while each {@link #consumeResult} call records its result. The
+     * last reference to go releases every collected result.
+     * <p>
+     * A failed phase leaves its shard requests in flight, so results keep arriving after the search closes this
+     * collection. Counting the calls still recording makes the release wait for them; once the last reference is
+     * gone, a late result is refused rather than referenced by a collection that can no longer release it.
+     */
+    private final RefCounted refs = LeakTracker.wrap(AbstractRefCounted.of(this::releaseResults));
 
     ArraySearchPhaseResults(int size) {
         super(size);
@@ -43,17 +48,41 @@ class ArraySearchPhaseResults<Result extends SearchPhaseResult> extends SearchPh
     @Override
     void consumeResult(Result result, Runnable next) {
         assert results.get(result.getShardIndex()) == null : "shardIndex: " + result.getShardIndex() + " is already set";
-        results.set(result.getShardIndex(), result);
-        result.incRef();
+        if (refs.tryIncRef()) {
+            try {
+                results.set(result.getShardIndex(), result);
+                result.incRef();
+            } finally {
+                refs.decRef();
+            }
+        }
         next.run();
+    }
+
+    private void releaseResults() {
+        // Not results.asList(), which caches its list and can hand back one built before the last result was stored.
+        for (int i = 0; i < results.length(); i++) {
+            Result result = results.get(i);
+            if (result != null) {
+                result.decRef();
+            }
+        }
     }
 
     @Override
     public final void close() {
         if (closed.compareAndSet(false, true)) {
-            releasable.close();
+            refs.decRef();
             doClose();
         }
+    }
+
+    /**
+     * Whether {@link #close()} has been called, in which case a result being consumed must not be handed to state
+     * that {@link #doClose()} releases.
+     */
+    protected final boolean isClosed() {
+        return closed.get();
     }
 
     protected void doClose() {}

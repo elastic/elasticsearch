@@ -60,6 +60,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.IntConsumer;
 
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.randomRegionTimestampMillis;
 import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
 import static org.elasticsearch.blobcache.shared.SharedBytes.PAGE_SIZE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
@@ -199,6 +200,7 @@ public class StatelessBlobCacheServiceIT extends AbstractStatelessPluginIntegTes
                     }
                 },
                 threadPool.executor(PREWARM_THREAD_POOL),
+                randomRegionTimestampMillis(),
                 future
             );
             future.get(10, TimeUnit.SECONDS);
@@ -268,6 +270,7 @@ public class StatelessBlobCacheServiceIT extends AbstractStatelessPluginIntegTes
                 StatelessPlugin.PREWARM_THREAD_POOL
             ),
             threadPool.executor(PREWARM_THREAD_POOL),
+            randomRegionTimestampMillis(),
             future
         );
         future.get(10, TimeUnit.SECONDS);
@@ -315,10 +318,18 @@ public class StatelessBlobCacheServiceIT extends AbstractStatelessPluginIntegTes
             ThreadPool threadPool,
             TelemetryProvider telemetryProvider,
             ClusterSettings clusterSettings,
-            WarmingRatioProvider warmingRatioProvider
+            WarmingRatioProvider warmingRatioProvider,
+            SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
         ) {
             // no-op the warming on shard recovery so we can manually fetch ranges into the cache on the search tier
-            return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, clusterSettings, warmingRatioProvider) {
+            return new SharedBlobCacheWarmingService(
+                cacheService,
+                threadPool,
+                telemetryProvider,
+                clusterSettings,
+                warmingRatioProvider,
+                searchRecoveryTimeoutCalculationService
+            ) {
                 @Override
                 protected void warmCache(
                     Type type,

@@ -8,7 +8,7 @@ ProjectExec[[MEDIAN(length){r}#0, _approximation_confidence_interval(MEDIAN(leng
             \_FilterExec[ISNOTNULL(language_name{f}#103)]
               \_LookupJoinExec[[language_code{r}#104],[language_code{f}#105],[language_name{f}#103],null]
                 |_EvalExec[[sv{f}#106 % 4[INTEGER] + 1[INTEGER] AS language_code#104]]
-                | \_FieldExtractExec[sv{f}#106]<[],[],[]>
+                | \_FieldExtractExec[[sv{f}#106]<[],[],[]>,_doc{f}#107]
                 |   \_EsQueryExec[many_numbers], indexMode[standard], [_doc{f}#107], limit[], sort[] estimatedRowSize[70] queryBuilderAndTags [[QueryBuilderAndTags[query={
   "bool" : {
     "filter" : [

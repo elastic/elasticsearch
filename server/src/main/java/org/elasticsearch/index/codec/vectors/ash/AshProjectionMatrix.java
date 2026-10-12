@@ -11,15 +11,14 @@ package org.elasticsearch.index.codec.vectors.ash;
 
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 /**
- * Serialization for the ASH projection matrix W. Stored in the
- * preconditioner slot of the {@code .cenivf} file.
+ * Serialization for the ASH projection matrix W in transposed form.
+ * Stored in the preconditioner slot of the {@code .cenivf} file.
  * <p>
  * Centroids are not stored here — in the IVF context, each posting list implicitly
  * defines its own centroid, so no separate centroid storage is needed.
@@ -28,50 +27,50 @@ import java.nio.ByteOrder;
  * <pre>
  *   [int] originalDim (number of rows in W)
  *   [int] nDims (number of columns in W, i.e. projected dimensions)
- *   [float[originalDim * nDims]] W matrix in row-major order (little-endian)
+ *   [float[originalDim * nDims]] WT matrix in row-major order (little-endian)
  * </pre>
  */
 public final class AshProjectionMatrix {
 
-    private final float[] w;
+    private final float[] wT;
     private final int originalDim;
     private final int nDims;
-    private float[] wT; // lazily computed transposed W, length nDims*originalDim, row-major (nDims x originalDim)
+    private final boolean learned;
 
     /**
      * Creates a projection matrix.
      *
-     * @param w           the projection matrix in row-major order, length originalDim*nDims
+     * @param wT          the transposed projection matrix in row-major order, length originalDim*nDims
      * @param originalDim number of rows (original vector dimensionality)
      * @param nDims       number of columns (projected dimensionality)
+     * @param learned     {@code true} if W was learned via PCA + Procrustes; {@code false} if it is a
+     *                    random orthonormal projection (e.g. a transient flush segment). A random
+     *                    matrix must not be inherited/warm-started at merge time — merge should learn
+     *                    a full W instead.
      */
-    public AshProjectionMatrix(float[] w, int originalDim, int nDims) {
-        if (w.length != originalDim * nDims) {
-            throw new IllegalArgumentException("w.length " + w.length + " != originalDim * nDims " + (originalDim * nDims));
+    public AshProjectionMatrix(float[] wT, int originalDim, int nDims, boolean learned) {
+        if (wT.length != originalDim * nDims) {
+            throw new IllegalArgumentException("wT.length " + wT.length + " != originalDim * nDims " + (originalDim * nDims));
         }
-        this.w = w;
+        this.wT = wT;
         this.originalDim = originalDim;
         this.nDims = nDims;
+        this.learned = learned;
     }
 
     /**
-     * Returns the projection matrix W in row-major order, shape (originalDim, nDims).
+     * Returns whether W was learned (PCA + Procrustes) rather than a random orthonormal projection.
      */
-    public float[] w() {
-        return w;
+    public boolean isLearned() {
+        return learned;
     }
 
     /**
      * Returns the transposed projection matrix W^T in row-major order, shape (nDims, originalDim).
-     * Row j of wT starts at offset {@code j * originalDim} and is suitable for SIMD dot products.
-     * Computed lazily on first access.
      *
      * @return the transposed projection matrix
      */
     public float[] wT() {
-        if (wT == null) {
-            wT = ESVectorUtil.transposeMatrix(w, originalDim, nDims);
-        }
         return wT;
     }
 
@@ -98,8 +97,9 @@ public final class AshProjectionMatrix {
     public void write(IndexOutput out) throws IOException {
         out.writeInt(originalDim);
         out.writeInt(nDims);
-        ByteBuffer buffer = ByteBuffer.allocate(w.length * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
-        buffer.asFloatBuffer().put(w);
+        out.writeByte((byte) (learned ? 1 : 0));
+        ByteBuffer buffer = ByteBuffer.allocate(wT.length * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        buffer.asFloatBuffer().put(wT);
         out.writeBytes(buffer.array(), buffer.capacity());
     }
 
@@ -113,11 +113,12 @@ public final class AshProjectionMatrix {
     public static AshProjectionMatrix read(IndexInput in) throws IOException {
         int originalDim = in.readInt();
         int nDims = in.readInt();
-        float[] w = new float[originalDim * nDims];
-        ByteBuffer buffer = ByteBuffer.allocate(w.length * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        boolean learned = in.readByte() != 0;
+        float[] wT = new float[originalDim * nDims];
+        ByteBuffer buffer = ByteBuffer.allocate(wT.length * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
         in.readBytes(buffer.array(), 0, buffer.capacity());
-        buffer.asFloatBuffer().get(w);
-        return new AshProjectionMatrix(w, originalDim, nDims);
+        buffer.asFloatBuffer().get(wT);
+        return new AshProjectionMatrix(wT, originalDim, nDims, learned);
     }
 
     /**
@@ -126,6 +127,6 @@ public final class AshProjectionMatrix {
      * @return total bytes when serialized
      */
     public long byteSize() {
-        return Integer.BYTES * 2L + (long) originalDim * nDims * Float.BYTES;
+        return Integer.BYTES * 2L + Byte.BYTES + (long) originalDim * nDims * Float.BYTES;
     }
 }

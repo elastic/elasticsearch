@@ -9,8 +9,8 @@
 
 package org.elasticsearch.nativeaccess.jdk;
 
+import org.elasticsearch.foreign.LibraryProvider;
 import org.elasticsearch.nativeaccess.MappedSegment;
-import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 
 import java.io.IOException;
@@ -22,7 +22,7 @@ import java.util.Objects;
 
 public class PosixMappedSegment extends JdkMappedSegment {
 
-    static final PosixCLibrary LIB = NativeLibraryProvider.instance().getLibrary(PosixCLibrary.class);
+    static final PosixCLibrary LIB = LibraryProvider.lookupLibrary(PosixCLibrary.class);
     static final int PAGE_SIZE = LIB.getPageSize();
 
     public static PosixMappedSegment ofShared(FileChannel fileChannel, MapMode mode, long position, long size) throws IOException {

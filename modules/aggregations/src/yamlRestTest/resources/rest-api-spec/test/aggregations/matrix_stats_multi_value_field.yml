@@ -2,6 +2,7 @@
 setup:
   - requires:
       cluster_features: ["gte_v8.7.0"]
+      test_runner_features: [ "allowed_warnings" ]
       reason: serialization bug fixed in 8.7.0
 
   - do:
@@ -21,6 +22,8 @@ setup:
                 "type": "double"
               "vals":
                 "type": "float"
+      allowed_warnings:
+        - "[index.number_of_routing_shards] setting was deprecated in Elasticsearch and will be removed in a future release. See the deprecation documentation for the next major version."
 
   - do:
       indices.create:

@@ -16,8 +16,11 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.support.local.LocalClusterStateRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV10;
@@ -25,10 +28,10 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 
@@ -117,7 +120,7 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
         }
     }
 
-    public static class Response extends ActionResponse implements ToXContentObject {
+    public static class Response extends ActionResponse implements ChunkedToXContentObject {
         public static final ParseField NAME = new ParseField("name");
         public static final ParseField INDEX_TEMPLATES = new ParseField("index_templates");
         public static final ParseField INDEX_TEMPLATE = new ParseField("index_template");
@@ -198,19 +201,25 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.startArray(INDEX_TEMPLATES.getPreferredName());
-            for (Map.Entry<String, ComposableIndexTemplate> indexTemplate : this.indexTemplates.entrySet()) {
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+            return Iterators.concat(
+                ChunkedToXContentHelper.startObject(),
+                ChunkedToXContentHelper.startArray(INDEX_TEMPLATES.getPreferredName()),
+                Iterators.map(indexTemplates.entrySet().iterator(), this::indexTemplateChunk),
+                ChunkedToXContentHelper.endArray(),
+                ChunkedToXContentHelper.endObject()
+            );
+        }
+
+        private ToXContent indexTemplateChunk(Map.Entry<String, ComposableIndexTemplate> indexTemplate) {
+            return (builder, params) -> {
                 builder.startObject();
                 builder.field(NAME.getPreferredName(), indexTemplate.getKey());
                 builder.field(INDEX_TEMPLATE.getPreferredName());
                 indexTemplate.getValue().toXContent(builder, params, rolloverConfiguration);
                 builder.endObject();
-            }
-            builder.endArray();
-            builder.endObject();
-            return builder;
+                return builder;
+            };
         }
     }
 }

@@ -14,7 +14,7 @@ import org.elasticsearch.common.util.ByteUtils;
 import java.nio.charset.StandardCharsets;
 
 /**
- * A forward-only reader over a key-value structure in EIRF format.
+ * A forward-only reader over a key-value structure in the batch key-value format (see {@link SourceBatchEncodeHelper}).
  *
  * <p>Layout: a sequence of entries, each being:
  * <pre>

@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 141300
+pr: 157922
+summary: "Fixed #141300 `ClassCaseException` with doc-values points passed to TO_STRING"
+type: bug

@@ -99,18 +99,18 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
         // with failure store and empty lifecycle contains the default rollover
         prepareDataStreamAndIndex(dataStreamName, null);
 
-        List<String> backingIndices = waitForDataStreamBackingIndices(dataStreamName, 2);
-        String backingIndex = backingIndices.get(0);
+        List<Index> backingIndices = waitForDataStreamBackingIndices(dataStreamName, 2);
+        String backingIndex = backingIndices.get(0).getName();
         assertThat(backingIndex, backingIndexEqualTo(dataStreamName, 1));
-        String writeIndex = backingIndices.get(1);
+        String writeIndex = backingIndices.get(1).getName();
         assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
 
         // initialise the failure store
         indexFailedDoc(dataStreamName);
-        List<String> failureIndices = waitForDataStreamIndices(dataStreamName, 2, true);
-        String firstFailureIndex = failureIndices.get(0);
+        List<Index> failureIndices = waitForDataStreamIndices(dataStreamName, 2, true);
+        String firstFailureIndex = failureIndices.get(0).getName();
         assertThat(firstFailureIndex, dataStreamIndexEqualTo(dataStreamName, 3, true));
-        String secondFailureIndexGen = failureIndices.get(1);
+        String secondFailureIndexGen = failureIndices.get(1).getName();
         assertThat(secondFailureIndexGen, dataStreamIndexEqualTo(dataStreamName, 4, true));
 
         assertNoAuthzErrors();
@@ -157,11 +157,14 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
         indexFailedDoc(dataStreamName);
 
         assertBusy(() -> {
-            Map<String, String> indicesAndErrors = collectErrorsFromStoreAsMap();
+            Map<Index, String> indicesAndErrors = collectErrorsFromStoreAsMap();
             // Both the backing and failures indices should have errors
             assertThat(indicesAndErrors.size(), is(2));
-            for (String index : indicesAndErrors.keySet()) {
-                assertThat(index, anyOf(containsString(DataStream.BACKING_INDEX_PREFIX), containsString(DataStream.FAILURE_STORE_PREFIX)));
+            for (Index index : indicesAndErrors.keySet()) {
+                assertThat(
+                    index.getName(),
+                    anyOf(containsString(DataStream.BACKING_INDEX_PREFIX), containsString(DataStream.FAILURE_STORE_PREFIX))
+                );
             }
             assertThat(
                 indicesAndErrors.values(),
@@ -202,12 +205,12 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
         return randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT);
     }
 
-    private Map<String, String> collectErrorsFromStoreAsMap() {
+    private Map<Index, String> collectErrorsFromStoreAsMap() {
         Iterable<DataStreamLifecycleService> lifecycleServices = internalCluster().getInstances(DataStreamLifecycleService.class);
-        Map<String, String> indicesAndErrors = new HashMap<>();
+        Map<Index, String> indicesAndErrors = new HashMap<>();
         for (DataStreamLifecycleService lifecycleService : lifecycleServices) {
             DataStreamLifecycleErrorStore errorStore = lifecycleService.getErrorStore();
-            Set<String> allIndices = errorStore.getAllIndices(Metadata.DEFAULT_PROJECT_ID);
+            Set<Index> allIndices = errorStore.getAllIndices(Metadata.DEFAULT_PROJECT_ID);
             for (var index : allIndices) {
                 ErrorEntry error = errorStore.getError(Metadata.DEFAULT_PROJECT_ID, index);
                 if (error != null) {

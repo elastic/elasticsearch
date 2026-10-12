@@ -106,7 +106,7 @@ final class FieldLayouts {
             case ADDRESS -> ValueLayout.ADDRESS;
             // Marshaling-only types, not struct-field layout types; the parser rejects them as fields
             // before layout, so this is unreachable.
-            case VOID, STRING, ADDRESSABLE -> throw new AssertionError(type + " is not a struct field layout type");
+            case VOID, STRING, ADDRESSABLE, UPCALL -> throw new AssertionError(type + " is not a struct field layout type");
         };
     }
 }

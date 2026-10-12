@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import java.util.List;
-import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * Pluggable strategy for detecting partition columns from file paths.
@@ -17,7 +17,12 @@ import java.util.Map;
  */
 public interface PartitionDetector {
 
-    PartitionMetadata detect(List<StorageEntry> files, Map<String, Object> config);
+    /**
+     * Detects partitions. Any notice the user should see, such as a partition column renamed away from a reserved name,
+     * goes to {@code warningSink}. Detection runs on the resolver's executor, off the request thread, so the resolver
+     * passes its buffered sink.
+     */
+    PartitionMetadata detect(List<StorageEntry> files, Consumer<String> warningSink);
 
     String name();
 }

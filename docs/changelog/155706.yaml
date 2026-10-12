@@ -1,6 +1,0 @@
-area: Search
-issues:
- - 110438
-pr: 155706
-summary: Exclude non-metadata `_type` from default search hit fields
-type: bug

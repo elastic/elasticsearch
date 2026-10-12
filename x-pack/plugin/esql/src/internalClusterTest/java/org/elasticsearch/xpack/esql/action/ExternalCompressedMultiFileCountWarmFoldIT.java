@@ -77,14 +77,14 @@ public class ExternalCompressedMultiFileCountWarmFoldIT extends AbstractExternal
             // Stripe grid at its 64kb floor: the smallest addressable grid, so a few hundred KB per file yields
             // several per-stripe sub-entries without a heavy scan. Row VOLUME is irrelevant to the eviction — the
             // retained per-stripe entry WEIGHT is what overflows the cache; a few stripes over a tiny budget suffice.
-            .put("esql.source.cache.stripe.size", "64kb")
+            .put("esql.external.cache.stripe.size", "64kb")
             // Deliberately tiny schema cache: the whole-file base entries fit, but the retained per-stripe
             // sub-entries push the multi-file working set over the (20%-of-this) schema budget, so committed
             // entries are evicted before the warm serve can fold across all files. clearStripeState is what
             // brings the folded entries back to O(1) so they survive. Method execution order
             // is irrelevant: clearStripeState compacts each file's entry after its fold, so
             // leftover state from one method cannot exhaust the budget for the next.
-            .put("esql.source.cache.size", "40kb")
+            .put("esql.external.cache.size", "40kb")
             // Reap inactive exchange sinks within a few seconds (default is 5 minutes) so a data-node sink whose
             // async cleanup trails the query response is released well inside the exchange/breaker teardown checks.
             .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(3000, 4000)))
@@ -126,8 +126,8 @@ public class ExternalCompressedMultiFileCountWarmFoldIT extends AbstractExternal
 
     /**
      * Runs {@code query} with profiling on. This test's weight-driven eviction is independent of
-     * {@code parsing_parallelism} (stripe count comes from the stripe grid, not the parse degree), so nothing
-     * is pinned — and pinning would be illegal anyway: {@code parsing_parallelism} is a snapshot-only pragma
+     * {@code external_parsing_parallelism} (stripe count comes from the stripe grid, not the parse degree), so nothing
+     * is pinned — and pinning would be illegal anyway: {@code external_parsing_parallelism} is a snapshot-only pragma
      * and a request carrying it is rejected in release builds.
      */
     private EsqlQueryResponse runProfiled(String query) {

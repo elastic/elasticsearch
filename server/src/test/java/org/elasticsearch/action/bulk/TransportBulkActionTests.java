@@ -30,7 +30,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -131,7 +131,7 @@ public class TransportBulkActionTests extends ESTestCase {
                 TransportBulkActionTests.this.clusterService,
                 null,
                 new NodeClient(Settings.EMPTY, TransportBulkActionTests.this.threadPool, TestProjectResolvers.alwaysThrow()),
-                new ActionFilters(Collections.emptySet()),
+                ActionFilters.EMPTY,
                 new Resolver(),
                 new IndexingPressure(Settings.EMPTY),
                 new SystemIndices(
@@ -164,7 +164,7 @@ public class TransportBulkActionTests extends ESTestCase {
                     }
                 },
                 new TimeSeriesEligibleWriteWindowLocator(),
-                DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings()),
+                DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings()),
                 new MockPageCacheRecycler(Settings.EMPTY)
             );
         }

@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Clamp
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToRadians;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
+import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramFraction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acosh;
@@ -117,10 +118,15 @@ public class PromqlFunctionRegistry {
         PromqlBuiltinFunctionDefinitions.TOPK,
         PromqlBuiltinFunctionDefinitions.BOTTOMK,
         PromqlBuiltinFunctionDefinitions.LIMITK,
+        PromqlBuiltinFunctionDefinitions.LIMIT_RATIO,
+        //
+        PromqlBuiltinFunctionDefinitions.LABEL_REPLACE,
+        PromqlBuiltinFunctionDefinitions.LABEL_JOIN,
         //
         ExtractHistogramComponent.PROMQL_HISTOGRAM_AVG,
         ExtractHistogramComponent.PROMQL_HISTOGRAM_COUNT,
         ExtractHistogramComponent.PROMQL_HISTOGRAM_SUM,
+        HistogramFraction.PROMQL_DEFINITION,
         //
         Ceil.PROMQL_DEFINITION,
         Abs.PROMQL_DEFINITION,
@@ -176,9 +182,6 @@ public class PromqlFunctionRegistry {
         }
     }
 
-    /**
-     * Carries the PromQL evaluation context needed by function builders to construct ES|QL expressions.
-     */
     public record PromqlContext(Expression timestamp, Expression window, Expression step, Configuration configuration) {}
 
     // PromQL function names not yet implemented
@@ -187,10 +190,6 @@ public class PromqlFunctionRegistry {
         // Across-series aggregations (not yet available in ESQL)
         "group",
         "count_values",
-        // Ratio-based series sampling: requires knowing per-group cardinality at plan time to compute
-        // ceil(r * count), which is not available without a two-phase execution plan or new primitives.
-        "limit_ratio",
-
         // Range vector functions (not yet implemented)
         "changes",
         // Prometheus 3.x replacement for holt_winters; requires smoothing factors applied over a range vector.
@@ -210,12 +209,7 @@ public class PromqlFunctionRegistry {
         "sort_by_label",
         "sort_by_label_desc",
 
-        // Label manipulation functions
-        "label_join",
-        "label_replace",
-
         // Histogram functions
-        "histogram_fraction",
         "histogram_stddev",
         "histogram_stdvar"
     );
@@ -264,13 +258,22 @@ public class PromqlFunctionRegistry {
         }
     }
 
+    /**
+     * Builds the ES|QL expression for scalar, aggregate, and value-transformation functions.
+     * Functions translated directly by the translator ({@code limit_ratio} lowers to a sampling
+     * filter, metadata functions to dedicated nodes) must go through
+     * {@code PromqlFunctionCall#buildEsqlFunction} or the translator instead.
+     */
     public Expression buildEsqlFunction(String name, Source source, Expression target, PromqlContext ctx, List<Expression> extraParams) {
         checkFunction(source, name);
         PromqlFunctionDefinition metadata = functionMetadata(name);
         try {
             return metadata.esqlBuilder().build(source, target, ctx, extraParams);
+        } catch (ParsingException e) {
+            throw e;
         } catch (Exception e) {
-            throw new ParsingException(source, "Error building ESQL function for [{}]: {}", name, e.getMessage());
+            String message = e.getMessage() != null ? e.getMessage() : e.toString();
+            throw new ParsingException(source, "Error building ESQL function for [{}]: {}", name, message);
         }
     }
 }

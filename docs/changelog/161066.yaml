@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 161066
+summary: Bound the Parquet I/O byte wait and fall back to the request breaker
+type: bug

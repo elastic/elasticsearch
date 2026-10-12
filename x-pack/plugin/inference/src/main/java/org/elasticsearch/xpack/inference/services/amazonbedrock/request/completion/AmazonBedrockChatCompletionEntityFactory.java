@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion;
 
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
 
@@ -48,7 +48,7 @@ public final class AmazonBedrockChatCompletionEntityFactory {
 
     public static AmazonBedrockChatCompletionRequestEntity createEntity(
         AmazonBedrockChatCompletionModel model,
-        UnifiedCompletionRequest request
+        UnifiedCompletionRequestBody request
     ) {
         Objects.requireNonNull(model);
         Objects.requireNonNull(request);

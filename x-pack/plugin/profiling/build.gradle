@@ -22,6 +22,7 @@ dependencies {
   testImplementation project(path: xpackModule('mapper-version'))
   testImplementation project(path: xpackModule('ilm'))
   testImplementation project(':modules:data-streams')
+  testImplementation project(path: xpackModule('otel-data'))
 }
 tasks.named("dependencyLicenses").configure {
   ignoreFile 'cloudcarbonfootprint-LICENSE.txt'

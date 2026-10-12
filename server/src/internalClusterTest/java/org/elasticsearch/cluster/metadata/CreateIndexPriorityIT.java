@@ -94,7 +94,7 @@ public class CreateIndexPriorityIT extends ESIntegTestCase {
                     () -> masterClusterService.getMasterService()
                         .pendingTasks()
                         .stream()
-                        .anyMatch(pct -> pct.getSource().toString().startsWith(taskSourcePrefix))
+                        .anyMatch(pct -> pct.getSource().startsWith(taskSourcePrefix))
                 )
             );
 

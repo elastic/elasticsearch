@@ -19,6 +19,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.mapper.AbstractBlockLoaderTestCase;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.TestBlock;
@@ -79,7 +80,7 @@ public class BinaryUtf8CodePointLengthBlockLoaderTests extends AbstractBlockLoad
                     warnings,
                     "field",
                     ByteSizeValue.ofKb(between(1, 100)),
-                    BytesRefsFromBinaryMultiSeparateCountBlockLoader.ArrayOrderSource.NONE
+                    BinaryDocValuesFormat.SEPARATE_COUNT
                 );
 
                 BlockLoader.Docs docs = TestBlock.docs(ctx);
@@ -87,7 +88,12 @@ public class BinaryUtf8CodePointLengthBlockLoaderTests extends AbstractBlockLoad
                     var stringsReader = stringsLoader.reader(breaker, ctx);
                     var codePointsReader = codePointsLoader.reader(breaker, ctx);
                 ) {
-                    assertThat(codePointsReader, hasToString("Utf8CodePointsFromOrds.MultiValuedBinaryWithSeparateCounts"));
+                    if (multiValues) {
+                        assertThat(codePointsReader, hasToString("Utf8CodePointsFromOrds.MultiValuedBinaryWithSeparateCounts"));
+                    } else {
+                        // Every count is one, so the counts are skipped and each blob read as the value.
+                        assertThat(codePointsReader, hasToString("Utf8CodePointsFromOrds.SingleValuedBinary"));
+                    }
                     try (TestBlock strings = read(stringsReader, docs); TestBlock codePoints = read(codePointsReader, docs)) {
                         checkBlocks(strings, codePoints);
                     }

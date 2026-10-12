@@ -70,4 +70,32 @@ public class LogicalPlanOptimizerGoldenTests extends UnmappedGoldenTestCase {
             | LIMIT 10
             """, STAGES);
     }
+
+    public void testHistogramBucketAfterPerSeriesAggregation() throws Exception {
+        builder("""
+            TS exp_histo_sample
+            | STATS count = COUNT(responseTime, bucket) BY bucket = BUCKET(responseTime, 42)
+            """).stages(STAGES).since("esql_count_histogram_bucket").run();
+    }
+
+    public void testHistogramBucketAfterExplicitLastOverTime() throws Exception {
+        builder("""
+            TS exp_histo_sample
+            | STATS count = COUNT(LAST_OVER_TIME(responseTime), bucket) BY bucket = BUCKET(responseTime, 42)
+            """).stages(STAGES).since("esql_count_histogram_bucket").run();
+    }
+
+    public void testTDigestCastHistogramBucketAfterPerSeriesAggregation() throws Exception {
+        builder("""
+            TS exp_histo_sample
+            | STATS count = COUNT(responseTime::tdigest, bucket) BY bucket = BUCKET(responseTime::tdigest, 42)
+            """).stages(STAGES).since("esql_count_histogram_bucket").run();
+    }
+
+    public void testTDigestCastHistogramBucketAfterExplicitLastOverTime() throws Exception {
+        builder("""
+            TS exp_histo_sample
+            | STATS count = COUNT(LAST_OVER_TIME(responseTime::tdigest), bucket) BY bucket = BUCKET(responseTime::tdigest, 42)
+            """).stages(STAGES).since("esql_count_histogram_bucket").run();
+    }
 }

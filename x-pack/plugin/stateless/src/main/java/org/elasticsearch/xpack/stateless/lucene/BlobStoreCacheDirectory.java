@@ -43,6 +43,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.OptionalLong;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongFunction;
@@ -340,9 +341,19 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
             cacheService.getThreadPool().relativeTimeInMillisSupplier(),
             cacheService.getRegionSize(),
             context,
-            cacheService.hasSearchRole()
+            cacheService.hasSearchRole(),
+            cacheService.isObjectStorePrefetchEnabled()
         );
         return new BlobCacheIndexInput(name, context, reader, releasable, blobFileRanges.fileLength(), blobFileRanges.fileOffset());
+    }
+
+    /**
+     * @return the executor on which cache misses of this directory's reads claim their gaps, or {@code null} to claim them on the calling
+     * thread
+     */
+    @Nullable
+    protected Executor claimExecutor() {
+        return null;
     }
 
     private SharedBlobCacheService<FileCacheKey>.CacheFile getCacheFile(BlobFileRanges blobFileRanges) {
@@ -357,7 +368,8 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
             blobFileRanges.fileOffset() + blobFileRanges.fileLength(),
             // todo: time-source
             new CacheMissHandler(metricsHolder.singleThreaded(), System::nanoTime),
-            timestampMillis
+            timestampMillis,
+            claimExecutor()
         );
     }
 

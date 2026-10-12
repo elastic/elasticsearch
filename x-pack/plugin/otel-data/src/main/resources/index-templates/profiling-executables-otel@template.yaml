@@ -1,0 +1,17 @@
+---
+version: ${xpack.oteldata.template.version}
+index_patterns: ["profiling-executables.otel-*"]
+priority: 100
+data_stream: {}
+allow_auto_create: true
+_meta:
+  description: OTel data stream template for eBPF Profiler executables
+  managed: true
+composed_of:
+  - profiling-executables-otel@mappings
+  - profiling-executables-otel@custom
+ignore_missing_component_templates:
+  - profiling-executables-otel@custom
+template:
+  lifecycle:
+    data_retention: 60d

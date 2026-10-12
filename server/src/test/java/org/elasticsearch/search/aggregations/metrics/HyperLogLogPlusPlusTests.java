@@ -68,7 +68,7 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
         final int maxValue = randomIntBetween(1, randomBoolean() ? 1000 : 100000);
         final int p = randomIntBetween(14, MAX_PRECISION);
         Set<Integer> set = new HashSet<>();
-        final CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        final CircuitBreaker breaker = NoopCircuitBreaker.INSTANCE;
         HyperLogLogPlusPlus e = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, breaker, 1);
         for (int i = 0; i < numValues; ++i) {
             final int n = randomInt(maxValue);
@@ -85,7 +85,7 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
 
     public void testMerge() {
         final int p = randomIntBetween(MIN_PRECISION, MAX_PRECISION);
-        final CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        final CircuitBreaker breaker = NoopCircuitBreaker.INSTANCE;
         final HyperLogLogPlusPlus single = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, breaker, 0);
         final HyperLogLogPlusPlus[] multi = new HyperLogLogPlusPlus[randomIntBetween(2, 100)];
         final long[] bucketOrds = new long[multi.length];
@@ -115,7 +115,7 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
     public void testFakeHashes() {
         // hashes with lots of leading zeros trigger different paths in the code that we try to go through here
         final int p = randomIntBetween(MIN_PRECISION, MAX_PRECISION);
-        final CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        final CircuitBreaker breaker = NoopCircuitBreaker.INSTANCE;
         final HyperLogLogPlusPlus counts = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, breaker, 0);
 
         counts.collect(0, 0);
@@ -176,7 +176,7 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
 
     public void testRetrieveCardinality() {
         final int p = randomIntBetween(MIN_PRECISION, MAX_PRECISION);
-        final CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        final CircuitBreaker breaker = NoopCircuitBreaker.INSTANCE;
         final HyperLogLogPlusPlus counts = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, breaker, 1);
         int bucket = randomInt(100);
         counts.collect(bucket, randomLong());
@@ -197,7 +197,7 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
 
     public void testMaxOrdIsExclusiveUpperBound() {
         final int p = randomIntBetween(MIN_PRECISION, MAX_PRECISION);
-        final CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        final CircuitBreaker breaker = NoopCircuitBreaker.INSTANCE;
         // Use initialBucketCount=1 so that hll.maxOrd() stays at 1 and doesn't mask lc.maxOrd() bugs.
         // Iterate through enough buckets to guarantee we cross at least one internal array growth boundary,
         // where the off-by-one in LinearCounting.maxOrd() would surface.

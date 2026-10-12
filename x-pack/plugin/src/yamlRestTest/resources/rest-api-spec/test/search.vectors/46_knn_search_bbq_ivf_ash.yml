@@ -1,0 +1,220 @@
+setup:
+  - requires:
+      cluster_features: ["mapper.ash_quantization_type_support"]
+      reason: Needs ASH quantization_type support
+  - skip:
+      features: "headers"
+  - do:
+      indices.create:
+        index: ash_test
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 64
+                index: true
+                similarity: max_inner_product
+                index_options:
+                  type: bbq_disk
+                  quantization_type: ash
+
+  - do:
+      index:
+        index: ash_test
+        id: "1"
+        body:
+          vector: [0.077,  0.32 , -0.205,  0.63 ,  0.032,  0.201,  0.167, -0.313,
+                   0.176,  0.531, -0.375,  0.334, -0.046,  0.078, -0.349,  0.272,
+                   0.307, -0.083,  0.504,  0.255, -0.404,  0.289, -0.226, -0.132,
+                   -0.216,  0.49 ,  0.039,  0.507, -0.307,  0.107,  0.09 , -0.265,
+                   -0.285,  0.336, -0.272,  0.369, -0.282,  0.086, -0.132,  0.475,
+                   -0.224,  0.203,  0.439,  0.064,  0.246, -0.396,  0.297,  0.242,
+                   -0.028,  0.321, -0.022, -0.009, -0.001,  0.031, -0.533,  0.45,
+                   -0.683,  1.331,  0.194, -0.157, -0.1  , -0.279, -0.098, -0.176]
+  - do:
+      indices.flush:
+        index: ash_test
+
+  - do:
+      index:
+        index: ash_test
+        id: "2"
+        body:
+          vector: [0.196,  0.514,  0.039,  0.555, -0.042,  0.242,  0.463, -0.348,
+                   -0.08 ,  0.442, -0.067, -0.05 , -0.001,  0.298, -0.377,  0.048,
+                   0.307,  0.159,  0.278,  0.119, -0.057,  0.333, -0.289, -0.438,
+                   -0.014,  0.361, -0.169,  0.292, -0.229,  0.123,  0.031, -0.138,
+                   -0.139,  0.315, -0.216,  0.322, -0.445, -0.059,  0.071,  0.429,
+                   -0.602, -0.142,  0.11 ,  0.192,  0.259, -0.241,  0.181, -0.166,
+                   0.082,  0.107, -0.05 ,  0.155,  0.011,  0.161, -0.486,  0.569,
+                   -0.489,  0.901,  0.208,  0.011, -0.209, -0.153, -0.27 , -0.013]
+  - do:
+      indices.flush:
+        index: ash_test
+
+  - do:
+      index:
+        index: ash_test
+        id: "3"
+        body:
+          vector: [-0.11 ,  0.377, -0.137,  0.623, -0.132,  0.113,  0.37 , -0.142,
+                   -0.069,  0.455, -0.174,  0.057, -0.097,  0.199, -0.357,  0.14 ,
+                   0.429,  0.108,  0.293,  0.063, -0.181,  0.384, -0.31 , -0.307,
+                   -0.066,  0.428, -0.103,  0.349, -0.124,  0.082, -0.074, -0.085,
+                   -0.088,  0.395, -0.095,  0.419, -0.364,  0.   ,  0.027,  0.34 ,
+                   -0.504, -0.018,  0.2  ,  0.128,  0.287, -0.305,  0.244, -0.009,
+                   0.091,  0.183, -0.012,  0.114,  0.012,  0.121, -0.43 ,  0.509,
+                   -0.539,  1.019,  0.199, -0.036, -0.178, -0.186, -0.226, -0.051]
+  - do:
+      indices.flush:
+        index: ash_test
+
+  - do:
+      indices.forcemerge:
+        index: ash_test
+        max_num_segments: 1
+
+  - do:
+      indices.refresh:
+        index: ash_test
+
+---
+"ASH knn search returns results":
+  - do:
+      search:
+        index: ash_test
+        body:
+          knn:
+            field: vector
+            query_vector: [0.1, 0.3, -0.2, 0.6, 0.0, 0.2, 0.2, -0.3,
+                           0.2, 0.5, -0.4, 0.3, 0.0, 0.1, -0.3, 0.3,
+                           0.3, -0.1, 0.5, 0.3, -0.4, 0.3, -0.2, -0.1,
+                           -0.2, 0.5, 0.0, 0.5, -0.3, 0.1, 0.1, -0.3,
+                           -0.3, 0.3, -0.3, 0.4, -0.3, 0.1, -0.1, 0.5,
+                           -0.2, 0.2, 0.4, 0.1, 0.2, -0.4, 0.3, 0.2,
+                           0.0, 0.3, 0.0, 0.0, 0.0, 0.0, -0.5, 0.5,
+                           -0.7, 1.3, 0.2, -0.2, -0.1, -0.3, -0.1, -0.2]
+            k: 3
+            num_candidates: 3
+          size: 3
+  - match: { hits.total.value: 3 }
+  - length: { hits.hits: 3 }
+
+---
+"ASH with bits 1 is accepted":
+  - do:
+      indices.create:
+        index: ash_bits_1
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 64
+                index: true
+                similarity: max_inner_product
+                index_options:
+                  type: bbq_disk
+                  quantization_type: ash
+                  bits: 1
+  - match: { acknowledged: true }
+
+---
+"ASH with bits 7 is rejected":
+  - do:
+      catch: bad_request
+      indices.create:
+        index: ash_bits_7
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 64
+                index: true
+                similarity: max_inner_product
+                index_options:
+                  type: bbq_disk
+                  quantization_type: ash
+                  bits: 7
+  - match: { error.type: "mapper_parsing_exception" }
+
+---
+"ASH with auto_calibrate is rejected":
+  - do:
+      catch: bad_request
+      indices.create:
+        index: ash_auto_cal
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 64
+                index: true
+                similarity: max_inner_product
+                index_options:
+                  type: bbq_disk
+                  quantization_type: ash
+                  auto_calibrate: true
+  - match: { error.type: "mapper_parsing_exception" }
+
+---
+"Invalid quantization_type is rejected":
+  - do:
+      catch: bad_request
+      indices.create:
+        index: ash_invalid
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 64
+                index: true
+                similarity: max_inner_product
+                index_options:
+                  type: bbq_disk
+                  quantization_type: invalid_type
+  - match: { error.type: "mapper_parsing_exception" }
+
+---
+"Default quantization_type is osq":
+  - do:
+      indices.create:
+        index: osq_default
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 64
+                index: true
+                similarity: max_inner_product
+                index_options:
+                  type: bbq_disk
+  - match: { acknowledged: true }
+  - do:
+      indices.get_mapping:
+        index: osq_default
+  # osq is the default and should NOT appear in the serialized mapping
+  - is_false: osq_default.mappings.properties.vector.index_options.quantization_type

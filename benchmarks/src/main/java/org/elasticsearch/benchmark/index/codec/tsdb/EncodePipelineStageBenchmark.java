@@ -10,7 +10,6 @@
 package org.elasticsearch.benchmark.index.codec.tsdb;
 
 import org.apache.lucene.store.ByteArrayDataOutput;
-import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.BoundaryBlockSupplier;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.ConstantIntegerSupplier;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.CounterWithResetsSupplier;
@@ -22,6 +21,7 @@ import org.elasticsearch.benchmark.index.codec.tsdb.internal.LowCardinalitySuppl
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.NearConstantWithOutliersSupplier;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.NonSortedIntegerSupplier;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.TimestampLikeSupplier;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericBlockEncoder;
@@ -114,7 +114,7 @@ import java.util.function.Supplier;
 public class EncodePipelineStageBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     private static final int SEED = 17;

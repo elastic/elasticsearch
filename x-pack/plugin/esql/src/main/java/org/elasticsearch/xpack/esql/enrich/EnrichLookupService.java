@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -146,8 +147,8 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
     }
 
     @Override
-    protected LookupResponse readLookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException {
-        return new LookupResponse(in, blockFactory);
+    protected LookupResponse readLookupResponse(StreamInput in, BlockFactory blockFactory, ThreadContext threadContext) throws IOException {
+        return new LookupResponse(in, blockFactory, threadContext);
     }
 
     private static void validateTypes(@Nullable DataType inputDataType, MappedFieldType fieldType) {
@@ -287,7 +288,7 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             this.warnings = warnings == null ? List.of() : warnings;
         }
 
-        private LookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException {
+        private LookupResponse(StreamInput in, BlockFactory blockFactory, ThreadContext threadContext) throws IOException {
             super(blockFactory);
             try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
                 this.page = new Page(bsi);
@@ -295,7 +296,17 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             this.bytesRead = in.getTransportVersion().supports(EnrichQuerySourceOperator.Status.ESQL_ENRICH_BYTES_READ)
                 ? in.readVLong()
                 : 0L;
-            this.warnings = in.getTransportVersion().supports(ESQL_LOOKUP_RESPONSE_WARNINGS) ? in.readStringCollectionAsList() : List.of();
+            if (in.getTransportVersion().supports(ESQL_LOOKUP_RESPONSE_WARNINGS)) {
+                this.warnings = in.readStringCollectionAsList();
+            } else {
+                // Old nodes send warnings as transport response headers; the transport layer has already
+                // deposited them into the current thread's context before this constructor is called.
+                // Parse the RFC 7234 warning format to extract the plain warning text.
+                this.warnings = threadContext.takeResponseHeaders("Warning")
+                    .stream()
+                    .map(s -> HeaderWarning.decodeAndUnescape(HeaderWarning.extractWarningValueFromWarningHeader(s, false)))
+                    .toList();
+            }
         }
 
         @Override

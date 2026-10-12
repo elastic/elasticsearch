@@ -65,10 +65,15 @@ import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfigur
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.rewriteDatasetsUnsecured;
 import static org.hamcrest.Matchers.instanceOf;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlanOptimizerTests {
+
+    public PushDownFilterAndLimitIntoUnionAllTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     @Before
     public void checkSubqueryInFromCommandSupport() {
@@ -2151,10 +2156,12 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
             .datasets(Map.of(EXTERNAL_DATASET, dataset))
             .build();
         // FROM <dataset> -> UnresolvedExternalRelation, the same shape the EXTERNAL command would parse to.
-        LogicalPlan rewritten = DatasetRewriter.rewriteUnsecured(
+        LogicalPlan rewritten = rewriteDatasetsUnsecured(
             TEST_PARSER.parseQuery(query),
             projectMetadata,
-            TestIndexNameExpressionResolver.newInstance()
+            TestIndexNameExpressionResolver.newInstance(),
+            // These cases name their datasets exactly, which reaches them at the wildcards_match_datasets default.
+            false
         );
         List<Attribute> externalSchema = List.of(
             referenceAttribute("emp_no", DataType.INTEGER),

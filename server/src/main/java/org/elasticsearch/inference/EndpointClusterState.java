@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.metadata.EndpointMetadata;
+import org.elasticsearch.inference.metadata.EndpointMetadataClusterState;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -38,10 +39,10 @@ import static org.elasticsearch.inference.metadata.EndpointMetadata.METADATA_FIE
 
 /**
  * Defines the base settings required to configure an inference endpoint.
- *
+ * <p>
  * These settings are immutable and describe the input and output types that the endpoint will handle.
  * They capture the essential properties of an inference model, ensuring the endpoint is correctly configured.
- *
+ * <p>
  * Key properties include:
  * <ul>
  *   <li>{@code taskType} - Specifies the type of task the model performs, such as classification or text embeddings.</li>
@@ -49,14 +50,14 @@ import static org.elasticsearch.inference.metadata.EndpointMetadata.METADATA_FIE
  *       the {@code taskType} is {@link TaskType#TEXT_EMBEDDING}. They define the structure and behavior of embeddings.</li>
  * </ul>
  *
- * @param taskType the type of task the inference model performs.
- * @param dimensions the number of dimensions for the embeddings,
- *                   applicable only for {@link TaskType#TEXT_EMBEDDING} and {@link TaskType#EMBEDDING} (nullable).
- * @param similarity the similarity measure used for embeddings,
- *                   applicable only for {@link TaskType#TEXT_EMBEDDING} and {@link TaskType#EMBEDDING} (nullable).
- * @param elementType the type of elements in the embeddings,
- *                    applicable only for {@link TaskType#TEXT_EMBEDDING} and {@link TaskType#EMBEDDING} (nullable).
- * @param endpointMetadata the metadata associated with the inference endpoint.
+ * @param taskType         the type of task the inference model performs.
+ * @param dimensions       the number of dimensions for the embeddings,
+ *                         applicable only for {@link TaskType#TEXT_EMBEDDING} and {@link TaskType#EMBEDDING} (nullable).
+ * @param similarity       the similarity measure used for embeddings,
+ *                         applicable only for {@link TaskType#TEXT_EMBEDDING} and {@link TaskType#EMBEDDING} (nullable).
+ * @param elementType      the type of elements in the embeddings,
+ *                         applicable only for {@link TaskType#TEXT_EMBEDDING} and {@link TaskType#EMBEDDING} (nullable).
+ * @param endpointMetadata the subset of endpoint metadata stored in cluster state (heuristics and internal only).
  */
 public record EndpointClusterState(
     @Nullable String service,
@@ -64,7 +65,7 @@ public record EndpointClusterState(
     @Nullable Integer dimensions,
     @Nullable SimilarityMeasure similarity,
     @Nullable ElementType elementType,
-    EndpointMetadata endpointMetadata
+    EndpointMetadataClusterState endpointMetadata
 ) implements ToXContentObject, SimpleDiffable<EndpointClusterState> {
 
     public static final String SERVICE_FIELD = "service";
@@ -72,9 +73,7 @@ public record EndpointClusterState(
     static final String DIMENSIONS_FIELD = "dimensions";
     static final String SIMILARITY_FIELD = "similarity";
     static final String ELEMENT_TYPE_FIELD = "element_type";
-
     private static final String INCLUDE_ENDPOINT_METADATA_PARAM_NAME = "include_endpoint_metadata";
-
     private static final ConstructingObjectParser<EndpointClusterState, Void> PARSER = new ConstructingObjectParser<>(
         "model_settings",
         true,
@@ -86,7 +85,7 @@ public record EndpointClusterState(
             DenseVectorFieldMapper.ElementType elementType = args[4] == null
                 ? null
                 : DenseVectorFieldMapper.ElementType.fromString((String) args[4]);
-            var metadata = args[5] == null ? EndpointMetadata.EMPTY_INSTANCE : (EndpointMetadata) args[5];
+            var metadata = args[5] == null ? EndpointMetadataClusterState.EMPTY_INSTANCE : (EndpointMetadataClusterState) args[5];
             return new EndpointClusterState(service, taskType, dimensions, similarity, elementType, metadata);
         }
     );
@@ -99,7 +98,7 @@ public record EndpointClusterState(
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(ELEMENT_TYPE_FIELD));
         PARSER.declareObject(
             ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> EndpointMetadata.parse(p),
+            (p, c) -> EndpointMetadataClusterState.parse(p),
             new ParseField(METADATA_FIELD_NAME)
         );
     }
@@ -115,6 +114,15 @@ public record EndpointClusterState(
     @SuppressWarnings("unused")
     private static final TransportVersion INFERENCE_MODEL_REGISTRY_METADATA = TransportVersion.fromName(
         "inference_model_registry_metadata"
+    );
+
+    /**
+     * Transport version at which cluster state stores only {@link EndpointMetadataClusterState}
+     * which is a subset of {@link EndpointMetadata}.
+     * Peers older than this expect the full {@link EndpointMetadata} layout on the wire.
+     */
+    private static final TransportVersion INFERENCE_ENDPOINT_METADATA_CLUSTER_STATE_ADDED = TransportVersion.fromName(
+        "inference_endpoint_metadata_cluster_state_added"
     );
 
     public static EndpointClusterState textEmbedding(
@@ -163,7 +171,7 @@ public record EndpointClusterState(
         @Nullable SimilarityMeasure similarity,
         @Nullable ElementType elementType
     ) {
-        this(service, taskType, dimensions, similarity, elementType, EndpointMetadata.EMPTY_INSTANCE);
+        this(service, taskType, dimensions, similarity, elementType, EndpointMetadataClusterState.EMPTY_INSTANCE);
     }
 
     public EndpointClusterState(Model model) {
@@ -173,7 +181,7 @@ public record EndpointClusterState(
             model.getServiceSettings().dimensions(),
             model.getServiceSettings().similarity(),
             model.getServiceSettings().elementType(),
-            model.getConfigurations().getEndpointMetadataOrEmpty()
+            EndpointMetadataClusterState.from(model.getConfigurations().getEndpointMetadataOrEmpty())
         );
     }
 
@@ -184,10 +192,24 @@ public record EndpointClusterState(
             in.readOptionalInt(),
             in.readOptionalEnum(SimilarityMeasure.class),
             in.readOptionalEnum(ElementType.class),
-            in.getTransportVersion().supports(INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED)
-                ? new EndpointMetadata(in)
-                : EndpointMetadata.EMPTY_INSTANCE
+            readEndpointMetadataClusterState(in)
         );
+    }
+
+    /**
+     * Reads the cluster-state metadata subset. Nodes older than {@link #INFERENCE_ENDPOINT_METADATA_CLUSTER_STATE_ADDED} wrote the full
+     * {@link EndpointMetadata} layout, so it is read with that class's own reader — which owns the layout and its internal version
+     * gates — and then narrowed to the subset. The dropped fields are authoritative in the {@code .inference} system index and are
+     * never read back from cluster state.
+     */
+    private static EndpointMetadataClusterState readEndpointMetadataClusterState(StreamInput in) throws IOException {
+        if (in.getTransportVersion().supports(INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED) == false) {
+            return EndpointMetadataClusterState.EMPTY_INSTANCE;
+        }
+        if (in.getTransportVersion().supports(INFERENCE_ENDPOINT_METADATA_CLUSTER_STATE_ADDED) == false) {
+            return EndpointMetadataClusterState.from(new EndpointMetadata(in));
+        }
+        return new EndpointMetadataClusterState(in);
     }
 
     @Override
@@ -197,9 +219,23 @@ public record EndpointClusterState(
         out.writeOptionalInt(dimensions);
         out.writeOptionalEnum(similarity);
         out.writeOptionalEnum(elementType);
-        if (out.getTransportVersion().supports(INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED)) {
-            endpointMetadata.writeTo(out);
+        writeEndpointMetadataClusterState(out);
+    }
+
+    /**
+     * Writes the cluster-state metadata subset. Peers older than {@link #INFERENCE_ENDPOINT_METADATA_CLUSTER_STATE_ADDED} expect the full
+     * {@link EndpointMetadata} layout, so the subset is expanded with empty values for the dropped fields to keep the stream aligned
+     * for the peer's map-level reader in {@code ModelRegistryClusterStateMetadata}.
+     */
+    private void writeEndpointMetadataClusterState(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().supports(INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED) == false) {
+            return;
         }
+        if (out.getTransportVersion().supports(INFERENCE_ENDPOINT_METADATA_CLUSTER_STATE_ADDED) == false) {
+            endpointMetadata.writeAsFullEndpointMetadata(out);
+            return;
+        }
+        endpointMetadata.writeTo(out);
     }
 
     public static Diff<EndpointClusterState> readDiffFrom(StreamInput in) throws IOException {

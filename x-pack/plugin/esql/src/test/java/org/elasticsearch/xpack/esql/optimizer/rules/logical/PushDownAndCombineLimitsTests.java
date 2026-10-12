@@ -45,7 +45,6 @@ import java.util.function.BiFunction;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
@@ -56,6 +55,10 @@ import static org.hamcrest.Matchers.instanceOf;
 
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class PushDownAndCombineLimitsTests extends AbstractLogicalPlanOptimizerTests {
+
+    public PushDownAndCombineLimitsTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     private static class PushDownLimitTestCase<PlanType extends LogicalPlan> {
         private final Class<PlanType> clazz;
@@ -268,7 +271,7 @@ public class PushDownAndCombineLimitsTests extends AbstractLogicalPlanOptimizerT
     }
 
     private LogicalPlan optimizePlan(LogicalPlan plan) {
-        return new PushDownAndCombineLimits().apply(plan, unboundLogicalOptimizerContext());
+        return new PushDownAndCombineLimits().apply(plan, logicalOptimizerCtx);
     }
 
     /**

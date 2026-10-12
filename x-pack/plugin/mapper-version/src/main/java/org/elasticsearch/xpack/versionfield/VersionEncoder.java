@@ -15,6 +15,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
@@ -230,7 +231,7 @@ class VersionEncoder {
 
         assert Operations.hasDeadStates(a) == false;
 
-        a = Operations.concatenate(a, Automata.makeAnyBinary());
+        a = Operations.concatenate(List.of(a, Automata.makeAnyBinary()));
         assert a.isDeterministic();
         a = Operations.determinize(a, 0);
 

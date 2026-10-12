@@ -1,0 +1,3 @@
+    FROM all_types
+    | KEEP double
+    | WHERE mv_greater(double, 1.0)

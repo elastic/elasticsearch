@@ -86,6 +86,10 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
         this.templatesEnabled = templatesEnabled;
     }
 
+    public boolean isTemplatesEnabled() {
+        return templatesEnabled;
+    }
+
     public void close() {
         clusterService.removeListener(this);
     }
@@ -118,7 +122,7 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
         return templatesEnabled ? lifecyclePolicies : Collections.emptyList();
     }
 
-    private final Map<String, ComponentTemplate> componentTemplates = parseComponentTemplates(
+    private final Map<String, ComponentTemplate> ecsComponentTemplates = parseComponentTemplates(
         new IndexTemplateConfig(
             "profiling-events",
             "/profiling/component-template/profiling-events.json",
@@ -188,10 +192,10 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected Map<String, ComponentTemplate> getComponentTemplateConfigs() {
-        return templatesEnabled ? componentTemplates : Collections.emptyMap();
+        return templatesEnabled ? ecsComponentTemplates : Collections.emptyMap();
     }
 
-    private final Map<String, ComposableIndexTemplate> composableIndexTemplates = parseComposableTemplates(
+    private final Map<String, ComposableIndexTemplate> ecsComposableIndexTemplates = parseComposableTemplates(
         new IndexTemplateConfig(
             "profiling-events",
             "/profiling/index-template/profiling-events.json",
@@ -266,7 +270,7 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
-        return templatesEnabled ? composableIndexTemplates : Collections.emptyMap();
+        return templatesEnabled ? ecsComposableIndexTemplates : Collections.emptyMap();
     }
 
     @Override
@@ -301,15 +305,15 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
      * @return <code>true</code> if and only if all resources managed by this registry have been created and are current.
      */
     public boolean isAllResourcesCreated(ClusterState state, Settings settings) {
-        for (String name : componentTemplates.keySet()) {
-            ComponentTemplate componentTemplate = state.metadata().getProject().componentTemplates().get(name);
-            if (componentTemplate == null || componentTemplate.version() < INDEX_TEMPLATE_VERSION) {
+        for (String name : ecsComponentTemplates.keySet()) {
+            ComponentTemplate ct = state.metadata().getProject().componentTemplates().get(name);
+            if (ct == null || ct.version() < INDEX_TEMPLATE_VERSION) {
                 return false;
             }
         }
-        for (String name : composableIndexTemplates.keySet()) {
-            ComposableIndexTemplate composableIndexTemplate = state.metadata().getProject().templatesV2().get(name);
-            if (composableIndexTemplate == null || composableIndexTemplate.version() < INDEX_TEMPLATE_VERSION) {
+        for (String name : ecsComposableIndexTemplates.keySet()) {
+            ComposableIndexTemplate cit = state.metadata().getProject().templatesV2().get(name);
+            if (cit == null || cit.version() < INDEX_TEMPLATE_VERSION) {
                 return false;
             }
         }

@@ -22,6 +22,8 @@
 | boolean | dense_vector | | dense_vector |
 | boolean | double | double | double |
 | boolean | double | | double |
+| boolean | double_range {applies_to}`stack: preview 9.6.0` | double_range {applies_to}`stack: preview 9.6.0` | double_range |
+| boolean | double_range {applies_to}`stack: preview 9.6.0` | | double_range |
 | boolean | exponential_histogram {applies_to}`stack: preview 9.3.0, ga 9.4.0` | exponential_histogram {applies_to}`stack: preview 9.3.0, ga 9.4.0` | exponential_histogram |
 | boolean | exponential_histogram {applies_to}`stack: preview 9.3.0, ga 9.4.0` | | exponential_histogram |
 | boolean | flattened {applies_to}`stack: preview 9.5.0` | flattened {applies_to}`stack: preview 9.5.0` | flattened |

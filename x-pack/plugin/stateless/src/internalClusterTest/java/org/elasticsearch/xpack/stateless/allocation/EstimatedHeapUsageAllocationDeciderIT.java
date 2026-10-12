@@ -23,6 +23,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -87,9 +88,12 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessPlug
 
         // Override the WORKLOAD_MEMORY_OVERHEAD of 500MB because testing often runs 512MB nodes.
         // Shards need more space to be assigned than what's leftover with the default node overheads. A value of 100 is arbitrary.
+        // Applied on every node: the master uses it for the allocation estimates, and each index node's recovery gate uses it for
+        // its node-local estimate (with the 500MB default, the gate would exceed the high watermark and defer all recoveries).
         // Refreshes so this value is set before creating indices below
-        internalCluster().getInstance(StatelessMemoryMetricsService.class, internalCluster().getMasterName())
-            .setWorkloadMemoryOverheadOverrideForTesting(100);
+        for (StatelessMemoryMetricsService service : internalCluster().getInstances(StatelessMemoryMetricsService.class)) {
+            service.setWorkloadMemoryOverheadOverrideForTesting(100);
+        }
         refreshClusterInfo();
 
         // Place index shards on both index nodes.
@@ -103,6 +107,7 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessPlug
         // Fake large heap memory usages to block allocation
         final var interceptor = new HeapUsagePublicationInterceptor(
             MockTransportService.getInstance(masterNodeName),
+            internalCluster().getInstance(StatelessMemoryMetricsService.class, masterNodeName),
             nodeHeapMaxLookupById
         );
         interceptor.injectAll(nodeHeapMaxLookupById.keySet());
@@ -213,9 +218,12 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessPlug
 
         // Override the WORKLOAD_MEMORY_OVERHEAD of 500MB because testing often runs 512MB nodes.
         // Shards need more space to be assigned than what's leftover with the default node overheads. A value of 100 is arbitrary.
+        // Applied on every node: the master uses it for the allocation estimates, and each index node's recovery gate uses it for
+        // its node-local estimate (with the 500MB default, the gate would exceed the high watermark and defer all recoveries).
         // Refreshes so this value is set before creating indices below
-        internalCluster().getInstance(StatelessMemoryMetricsService.class, internalCluster().getMasterName())
-            .setWorkloadMemoryOverheadOverrideForTesting(100);
+        for (StatelessMemoryMetricsService service : internalCluster().getInstances(StatelessMemoryMetricsService.class)) {
+            service.setWorkloadMemoryOverheadOverrideForTesting(100);
+        }
         refreshClusterInfo();
 
         // Place index shards on both index nodes so that both publish memory metrics.
@@ -236,6 +244,7 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessPlug
         // No injection yet — nodes start well below the 80% high watermark.
         final var interceptor = new HeapUsagePublicationInterceptor(
             MockTransportService.getInstance(masterNodeName),
+            internalCluster().getInstance(StatelessMemoryMetricsService.class, masterNodeName),
             nodeHeapMaxLookupById
         );
         interceptor.waitForNextPublication();
@@ -314,19 +323,25 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessPlug
      * Intercepts {@link TransportPublishHeapMemoryMetrics} requests on the master and optionally replaces the reported mapping sizes with
      * the node's full heap max, simulating a node that is fully saturated. Nodes are added to and removed from injection via
      * {@link #injectAll(Collection)} and {@link #stopInjecting(String)}. Use {@link #waitForNextPublication()} to synchronize
-     * with the next publication cycle from every tracked node.
+     * with the master actually applying a publication from every tracked node.
      */
     private class HeapUsagePublicationInterceptor {
 
         private final Map<String, Long> nodeHeapMaxLookupById;
         private final Set<String> nodesToInject = ConcurrentCollections.newConcurrentSet();
         private final ConcurrentHashMap<String, CountDownLatch> nodeIdToPublicationLatch;
+        private final StatelessMemoryMetricsService masterMemoryMetricsService;
 
-        HeapUsagePublicationInterceptor(MockTransportService masterMockTransportService, Map<String, Long> nodeHeapMaxLookupById) {
+        HeapUsagePublicationInterceptor(
+            MockTransportService masterMockTransportService,
+            StatelessMemoryMetricsService masterMemoryMetricsService,
+            Map<String, Long> nodeHeapMaxLookupById
+        ) {
             this.nodeHeapMaxLookupById = nodeHeapMaxLookupById;
             this.nodeIdToPublicationLatch = new ConcurrentHashMap<>(
                 Maps.transformValues(nodeHeapMaxLookupById, v -> new CountDownLatch(1))
             );
+            this.masterMemoryMetricsService = masterMemoryMetricsService;
             masterMockTransportService.addRequestHandlingBehavior(TransportPublishHeapMemoryMetrics.NAME, this::handlePublication);
         }
 
@@ -341,13 +356,14 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessPlug
         }
 
         /**
-         * Resets the per-node latches and blocks until each tracked node has completed one publication cycle. This ensures callers
-         * observe a publication that started after any injection-set changes were made.
+         * Resets the per-node latches and blocks until each tracked node has a publication applied on the master. Delivering a
+         * publication is not enough: the master silently skips a payload whose sequence number is behind one it already applied, so
+         * callers wait until the applied seq no matches the delivered publication seq no.
          */
         void waitForNextPublication() {
             nodeIdToPublicationLatch.keySet().forEach(nodeId -> nodeIdToPublicationLatch.put(nodeId, new CountDownLatch(1)));
             nodeIdToPublicationLatch.forEach((nodeId, latch) -> {
-                logger.info("--> waiting for publication from node [{}]", nodeId);
+                logger.info("--> waiting for applied publication from node [{}]", nodeId);
                 safeAwait(latch);
             });
         }
@@ -372,10 +388,11 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessPlug
             // is set, and the test can fail. Therefore, we take the latch before handling the publication. If a new latch is set halfway
             // through the publication handling, it will not be pulled by the existing publication, but the next one, which is expected.
             final CountDownLatch latch = nodeIdToPublicationLatch.get(nodeId);
+            final Map<ShardId, ShardMappingSize> deliveredShardMappingSizes;
             if (nodesToInject.contains(nodeId)) {
                 assertThat(nodeHeapMaxLookupById, hasKey(nodeId));
                 final long nodeHeapMax = nodeHeapMaxLookupById.get(nodeId);
-                final var updatedShardMappingSizes = shardMappingSizes.entrySet()
+                deliveredShardMappingSizes = shardMappingSizes.entrySet()
                     .stream()
                     .collect(
                         Collectors.toUnmodifiableMap(
@@ -396,7 +413,7 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessPlug
                     new PublishHeapMemoryMetricsRequest(
                         new HeapMemoryUsage(
                             heapMemoryUsage.publicationSeqNo(),
-                            updatedShardMappingSizes,
+                            deliveredShardMappingSizes,
                             heapMemoryUsage.clusterStateVersion()
                         )
                     ),
@@ -404,9 +421,20 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessPlug
                     task
                 );
             } else {
+                deliveredShardMappingSizes = shardMappingSizes;
                 handler.messageReceived(request, channel, task);
             }
-            latch.countDown();
+            if (masterHasAppliedPublication(heapMemoryUsage.publicationSeqNo(), deliveredShardMappingSizes.keySet())) {
+                latch.countDown();
+            }
+        }
+
+        private boolean masterHasAppliedPublication(long publicationSeqNo, Set<ShardId> shardIds) {
+            final var appliedByShard = masterMemoryMetricsService.getShardMemoryMetrics();
+            return shardIds.stream().allMatch(shardId -> {
+                final var applied = appliedByShard.get(shardId);
+                return applied != null && applied.getSeqNo() == publicationSeqNo;
+            });
         }
 
         private static String nodeIdFromShardMappingSizes(HeapMemoryUsage heapMemoryUsage) {

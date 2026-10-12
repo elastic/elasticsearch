@@ -17,7 +17,7 @@ public class EventsIndexTests extends ESTestCase {
     }
 
     public void testResampledIndexSameSize() {
-        EventsIndex resampledIndex = EventsIndex.MEDIUM_DOWNSAMPLED.getResampledIndex(100, 100);
+        EventsIndex resampledIndex = EventsIndex.MEDIUM_DOWNSAMPLED.getResampledIndex(100, 100, false);
         assertEquals("profiling-events-5pow06", resampledIndex.getName());
         assertEquals(Math.pow(1.0d / 5.0d, 6.0d), resampledIndex.getSampleRate(), 1e-9);
     }
@@ -43,6 +43,6 @@ public class EventsIndexTests extends ESTestCase {
         long currentSampleSize = 10_000_000L;
         long targetSampleSize = (long) (currentSampleSize * ratio);
         EventsIndex e = EventsIndex.MEDIUM_DOWNSAMPLED;
-        assertEquals(expectedName, e.getResampledIndex(targetSampleSize, currentSampleSize).getName());
+        assertEquals(expectedName, e.getResampledIndex(targetSampleSize, currentSampleSize, false).getName());
     }
 }

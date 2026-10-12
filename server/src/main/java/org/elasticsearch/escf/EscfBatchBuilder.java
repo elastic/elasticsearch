@@ -122,11 +122,11 @@ public final class EscfBatchBuilder implements Releasable {
         } finally {
             if (success == false) {
                 // Close any columns that were already finished (they own the recycler pages).
-                // Then discard all builders — a no-op for the ones already finished since
+                // Then close all builders — a no-op for the ones already finished since
                 // finish() moved their pages into the column data, which we just closed.
                 Releasables.closeWhileHandlingException(columns);
                 for (EscfColumnBuilder builder : partition.builders) {
-                    builder.discard();
+                    builder.close();
                 }
                 partitions[partitionKey] = null;
             }
@@ -157,14 +157,12 @@ public final class EscfBatchBuilder implements Releasable {
         return path;
     }
 
-    /** Discards all uncommitted and unbuilt column builders, releasing their recycler-backed buffers. */
+    /** Releases all uncommitted and unbuilt column builders, freeing their recycler-backed buffers. */
     @Override
     public void close() {
         for (Partition partition : partitions) {
             if (partition != null) {
-                for (EscfColumnBuilder builder : partition.builders) {
-                    builder.discard();
-                }
+                Releasables.close(partition.builders);
             }
         }
         Arrays.fill(partitions, null);

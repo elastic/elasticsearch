@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.GenericNamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -111,6 +112,13 @@ public final class DoubleRangeBlockBuilder extends AbstractBlockBuilder implemen
         throw new UnsupportedOperationException("cancelPositionEntry is not supported by DoubleRangeBlockBuilder");
     }
 
+    @Override
+    public boolean reopenLastPositionEntry() {
+        // As for cancelPositionEntry: this builder's state lives in the inner builders, which the inherited
+        // implementation does not touch, so it would leave them behind.
+        throw new UnsupportedOperationException("reopenLastPositionEntry is not supported by DoubleRangeBlockBuilder");
+    }
+
     public DoubleRangeBlockBuilder appendDoubleRange(double from, double to) {
         fromBuilder.appendDouble(from);
         toBuilder.appendDouble(to);
@@ -176,6 +184,8 @@ public final class DoubleRangeBlockBuilder extends AbstractBlockBuilder implemen
      * so any reference held by the caller is only valid until the next call.
      */
     public static final class DoubleRange implements GenericNamedWriteable, Comparable<DoubleRange> {
+        /** Shallow size of a range value. */
+        public static final int SIZE = Math.toIntExact(RamUsageEstimator.shallowSizeOfInstance(DoubleRange.class));
         public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
             GenericNamedWriteable.class,
             "DoubleRange",

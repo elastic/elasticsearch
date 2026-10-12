@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.CompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
@@ -135,8 +135,7 @@ public class CohereActionCreator implements CohereActionVisitor {
     public ExecutableAction create(CohereCompletionModel model, Map<String, Object> taskSettings) {
         // no overridden model as task settings are always empty for cohere completion model
 
-        Function<ChatCompletionInput, OutboundRequest> requestCreator = completionInput -> switch (model.getServiceSettings()
-            .apiVersion()) {
+        Function<CompletionInput, OutboundRequest> requestCreator = completionInput -> switch (model.getServiceSettings().apiVersion()) {
             case V1 -> new CohereV1CompletionRequest(completionInput.getInputs(), model, completionInput.stream());
             case V2 -> new CohereV2CompletionRequest(completionInput.getInputs(), model, completionInput.stream());
         };
@@ -146,7 +145,7 @@ public class CohereActionCreator implements CohereActionVisitor {
             model,
             COMPLETION_HANDLER,
             requestCreator,
-            ChatCompletionInput.class
+            CompletionInput.class
         );
 
         var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(COMPLETION_ERROR_PREFIX);

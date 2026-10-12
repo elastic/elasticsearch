@@ -122,6 +122,11 @@ public interface LocalClusterHandle extends ClusterHandle {
     Path getNodeConfigPath(int index);
 
     /**
+     * Returns the {@link Path} to the given node's data directory.
+     */
+    Path getNodeDataPath(int index);
+
+    /**
      * Writes secure settings to the relevant secure config file on each node. Use this method if you are dynamically updating secure
      * settings via a {@link MutableSettingsProvider} and need the update to be written to file, without a cluster restart.
      *

@@ -25,6 +25,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
@@ -92,6 +93,39 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
         TimeValue.ZERO
     );
 
+    // When the JVM property that overrides LARGE_BLOB_THRESHOLD_BYTE_SIZE is set (typically in tests to
+    // exercise the resumable-upload path with small blobs), lower the minimum to that value so that it can
+    // also be set explicitly as a repository setting.
+    private static final ByteSizeValue RESUMABLE_UPLOAD_SIZE_THRESHOLD_MIN = ByteSizeValue.of(
+        Math.min((long) GoogleCloudStorageBlobStore.LARGE_BLOB_THRESHOLD_BYTE_SIZE, ByteSizeUnit.MB.toBytes(5)),
+        ByteSizeUnit.BYTES
+    );
+
+    static final Setting<ByteSizeValue> RESUMABLE_UPLOAD_SIZE_THRESHOLD = byteSizeSetting(
+        "resumable_upload_size_threshold",
+        ByteSizeValue.of(GoogleCloudStorageBlobStore.LARGE_BLOB_THRESHOLD_BYTE_SIZE, ByteSizeUnit.BYTES),
+        RESUMABLE_UPLOAD_SIZE_THRESHOLD_MIN,
+        ByteSizeValue.of(5, ByteSizeUnit.TB)
+    );
+
+    /**
+     * Default is to use 100MB for heaps above 2GB and 5% of
+     * the available memory for smaller heaps.
+     */
+    private static final ByteSizeValue DEFAULT_MULTIPART_UPLOAD_CHUNK_SIZE = ByteSizeValue.ofBytes(
+        Math.max(
+            ByteSizeUnit.MB.toBytes(5), // minimum value
+            Math.min(ByteSizeUnit.MB.toBytes(100), JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() / 20)
+        )
+    );
+
+    static final Setting<ByteSizeValue> MULTIPART_UPLOAD_CHUNK_SIZE = byteSizeSetting(
+        "multipart_upload_chunk_size",
+        DEFAULT_MULTIPART_UPLOAD_CHUNK_SIZE,
+        ByteSizeValue.of(5, ByteSizeUnit.MB),
+        ByteSizeValue.of(5, ByteSizeUnit.TB)
+    );
+
     private final GoogleCloudStorageService storageService;
     private final ByteSizeValue chunkSize;
     private final String bucket;
@@ -102,6 +136,8 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
     private final GcsRepositoryStatsCollector statsCollector;
     private final String dataStorageClass;
     private final String metadataStorageClass;
+    private final long largeBlobThreshold;
+    private final long multipartUploadChunkSize;
 
     GoogleCloudStorageRepository(
         @Nullable final ProjectId projectId,
@@ -135,6 +171,8 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
         this.statsCollector = statsCollector;
         this.dataStorageClass = DATA_STORAGE_CLASS.get(metadata.settings());
         this.metadataStorageClass = METADATA_STORAGE_CLASS.get(metadata.settings());
+        this.largeBlobThreshold = RESUMABLE_UPLOAD_SIZE_THRESHOLD.get(metadata.settings()).getBytes();
+        this.multipartUploadChunkSize = MULTIPART_UPLOAD_CHUNK_SIZE.get(metadata.settings()).getBytes();
         validateStorageClassIfSpecified(metadata.name(), DATA_STORAGE_CLASS.getKey(), this.dataStorageClass);
         validateStorageClassIfSpecified(metadata.name(), METADATA_STORAGE_CLASS.getKey(), this.metadataStorageClass);
         logger.debug("using bucket [{}], base_path [{}], chunk_size [{}], compress [{}]", bucket, basePath(), chunkSize, isCompress());
@@ -182,6 +220,8 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
             storageService,
             bigArrays,
             bufferSize,
+            largeBlobThreshold,
+            multipartUploadChunkSize,
             BackoffPolicy.linearBackoff(retryThrottledCasDelayIncrement, retryThrottledCasMaxNumberOfRetries, retryThrottledCasMaxDelay),
             statsCollector,
             dataStorageClass,

@@ -26,6 +26,7 @@ import org.apache.lucene.search.uhighlight.NoOpOffsetStrategy;
 import org.apache.lucene.search.uhighlight.Passage;
 import org.apache.lucene.search.uhighlight.PassageFormatter;
 import org.apache.lucene.search.uhighlight.PassageScorer;
+import org.apache.lucene.search.uhighlight.UHComponents;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.CheckedSupplier;
@@ -80,6 +81,7 @@ public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
     private static final Snippet[] EMPTY_SNIPPET = new Snippet[0];
 
     private final OffsetSource offsetSource;
+    private final boolean singleDocumentReader;
     private final String index;
     private final String field;
     private final Locale breakIteratorLocale;
@@ -93,6 +95,9 @@ public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
      *
      * @param builder the {@link UnifiedHighlighter.Builder} for the underlying highlighter.
      * @param offsetSource the {@link OffsetSource} to used for offsets retrieval.
+     * @param singleDocumentReader whether the reader passed to {@link #highlightField} holds one in-memory document. If
+     *                             true, {@link OffsetSource#POSTINGS} is kept when Lucene would otherwise switch to
+     *                             {@link OffsetSource#ANALYSIS}.
      * @param breakIteratorLocale the {@link Locale} to use for dividing text into passages.
      *                    If null {@link Locale#ROOT} is used.
      * @param index the index we're highlighting, mostly used for error messages
@@ -107,6 +112,7 @@ public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
     public CustomUnifiedHighlighter(
         Builder builder,
         OffsetSource offsetSource,
+        boolean singleDocumentReader,
         @Nullable Locale breakIteratorLocale,
         String index,
         String field,
@@ -120,6 +126,7 @@ public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
     ) {
         super(builder);
         this.offsetSource = offsetSource;
+        this.singleDocumentReader = singleDocumentReader;
         this.breakIteratorLocale = breakIteratorLocale == null ? Locale.ROOT : breakIteratorLocale;
         this.index = index;
         this.field = field;
@@ -136,6 +143,8 @@ public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
      * Highlights the field value.
      */
     public Snippet[] highlightField(LeafReader reader, int docId, CheckedSupplier<String, IOException> loadFieldValue) throws IOException {
+        assert singleDocumentReader == false || reader.maxDoc() == 1
+            : "singleDocumentReader set for a reader holding [" + reader.maxDoc() + "] documents";
         if (fieldHighlighter.getFieldOffsetStrategy() == NoOpOffsetStrategy.INSTANCE && noMatchSize == 0) {
             // If the query is such that there can't possibly be any matches then skip doing *everything*
             return EMPTY_SNIPPET;
@@ -175,6 +184,11 @@ public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
 
     public PassageFormatter getFormatter() {
         return super.getFormatter(field);
+    }
+
+    /** Returns the offset source selected by Lucene. */
+    OffsetSource resolvedOffsetSource() {
+        return fieldHighlighter.getFieldOffsetStrategy().getOffsetSource();
     }
 
     @Override
@@ -243,6 +257,19 @@ public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
         } else {
             return null;
         }
+    }
+
+    /**
+     * Keeps {@code POSTINGS} for a one-document in-memory reader. Lucene normally switches to {@code ANALYSIS} to avoid
+     * scanning a segment's term dictionary, but scanning a one-document term dictionary is cheaper than re-analyzing it.
+     */
+    @Override
+    protected OffsetSource getOptimizedOffsetSource(UHComponents components) {
+        OffsetSource optimized = super.getOptimizedOffsetSource(components);
+        if (singleDocumentReader && offsetSource == OffsetSource.POSTINGS && optimized == OffsetSource.ANALYSIS) {
+            return OffsetSource.POSTINGS;
+        }
+        return optimized;
     }
 
     /**

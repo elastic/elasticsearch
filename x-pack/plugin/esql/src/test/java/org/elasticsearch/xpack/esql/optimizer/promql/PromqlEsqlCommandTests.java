@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
@@ -38,6 +39,7 @@ import java.time.Instant;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -47,6 +49,10 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
+
+    public PromqlEsqlCommandTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     public void testPromqlTrailingSpaces() {
         planPromql("PROMQL index=k8s step=1h (max(network.bytes_in)) ");
@@ -118,12 +124,33 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
             );
     }
 
-    public void testAvgAvgOverTimeOutput() {
-        var plan = planPromql("""
-            PROMQL index=k8s step=1h ( avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h])) )
-            | LIMIT 1000
-            """);
+    private static final String AVG_AVG_OVER_TIME = """
+        PROMQL index=k8s step=1h ( avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h])) )
+        | LIMIT 1000
+        """;
 
+    /** From {@code pack_dims_agg} on, the outer aggregate sits directly on the Eval: no PackDims, so no Project feeding it either. */
+    public void testAvgAvgOverTimeOutput() {
+        assumeTrue("plan shape from pack_dims_agg on", packsDimsInAggregate());
+        var plan = planPromql(AVG_AVG_OVER_TIME);
+        var aggregate = avgAvgOverTimeOuterAggregate(plan);
+        var evalMiddle = as(aggregate.child(), Eval.class);
+        assertAvgAvgOverTimeBelow(plan, aggregate, evalMiddle);
+    }
+
+    /** Before {@code pack_dims_agg}, a PackDims over a Project packs the dimension between the two aggregates. */
+    public void testAvgAvgOverTimeOutputBeforePackDimsAgg() {
+        assumeFalse("plan shape before pack_dims_agg", packsDimsInAggregate());
+        var plan = planPromql(AVG_AVG_OVER_TIME);
+        var aggregate = avgAvgOverTimeOuterAggregate(plan);
+        var pack = as(aggregate.child(), PackDims.class);
+        assertThat(Expressions.names(pack.dims()), contains("pod"));
+        var innerProject = as(pack.child(), Project.class);
+        var evalMiddle = as(innerProject.child(), Eval.class);
+        assertAvgAvgOverTimeBelow(plan, aggregate, evalMiddle);
+    }
+
+    private static Aggregate avgAvgOverTimeOuterAggregate(LogicalPlan plan) {
         var project = as(plan, Project.class);
         assertThat(project.projections(), hasSize(3));
 
@@ -135,15 +162,13 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
         var outerEval = as(outerProject.child(), Eval.class);
         var aggregate = as(outerEval.child(), Aggregate.class);
         assertThat(aggregate.groupings(), hasSize(2));
+        return aggregate;
+    }
 
-        var pack = as(aggregate.child(), PackDims.class);
-        assertThat(pack.dims(), hasSize(1));
-        assertThat(Expressions.name(pack.dims().getFirst()), equalTo("pod"));
-
-        var innerProject = as(pack.child(), Project.class);
-        var evalMiddle = as(innerProject.child(), Eval.class);
-
+    private void assertAvgAvgOverTimeBelow(LogicalPlan plan, Aggregate aggregate, Eval evalMiddle) {
+        var project = as(plan, Project.class);
         var tsAggregate = as(evalMiddle.child(), TimeSeriesAggregate.class);
+        assertThat(Expressions.names(packedDims(tsAggregate.aggregates())), contains("pod"));
         assertThat(tsAggregate.groupings(), hasSize(2));
 
         // verify bucket duration plus reuse
@@ -364,14 +389,10 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
             """);
         TimeSeriesAggregate tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
         assertThat(tsAggregate.timeBucket().roundingConfiguration(), equalTo(Rounding.RoundingConvention.UP));
-        assertThat(tsAggregate.outputTimeBucket().roundingConfiguration(), equalTo(Rounding.RoundingConvention.UP));
 
         Rounding timeBucketUnprepared = tsAggregate.timeBucket().getDateRoundingOrNull(FoldContext.small()).getUnprepared();
-        Rounding outputTimeBucketUnprepared = tsAggregate.outputTimeBucket().getDateRoundingOrNull(FoldContext.small()).getUnprepared();
         assertThat(timeBucketUnprepared, instanceOf(Rounding.ToUpperRounding.class));
-        assertThat(outputTimeBucketUnprepared, instanceOf(Rounding.ToUpperRounding.class));
         assertThat(Rounding.ToUpperRounding.createRounding(timeBucketUnprepared), sameInstance(timeBucketUnprepared));
-        assertThat(Rounding.ToUpperRounding.createRounding(outputTimeBucketUnprepared), sameInstance(outputTimeBucketUnprepared));
     }
 
     public void testOffsetShiftsTimestampForward() {

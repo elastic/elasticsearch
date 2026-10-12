@@ -1,0 +1,3 @@
+FROM employees
+| MV_EXPAND first_name
+| LIMIT 5 BY emp_no

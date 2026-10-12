@@ -43,13 +43,14 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -545,6 +546,108 @@ public class ReplicationSplitHelperTests extends ESTestCase {
         assertNotNull("Response should not be null", response);
     }
 
+    public void testDelegateToTargetRetriesWhenTargetPrimaryUnassigned() throws Exception {
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final ShardId sourceShardId = new ShardId(indexName, "test-uuid", 0);
+        final ShardId targetShardId = new ShardId(indexName, "test-uuid", 1);
+
+        var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(), 1, 0).build();
+        IndexMetadata indexMetadata = IndexMetadata.builder(indexName).settings(settings).build();
+        indexMetadata = IndexMetadata.builder(indexMetadata).reshardAddShards(2).build();
+
+        // Build an unassigned shard routing (simulates target primary losing its node)
+        ShardRouting unassignedShardRouting = ShardRouting.newUnassigned(
+            targetShardId,
+            true,
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, null),
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
+        );
+
+        // Build an assigned/started shard routing (simulates shard re-allocated after disruption resolves)
+        ShardRouting startedShardRouting = ShardRouting.newUnassigned(
+            targetShardId,
+            true,
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, null),
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
+        ).initialize("node-1", AllocationId.newInitializing().getId(), 0).moveToStarted(0);
+
+        // First tryAction call observes the unassigned shard; subsequent calls see it assigned
+        AtomicBoolean firstCall = new AtomicBoolean(true);
+
+        AtomicReference<ActionListener<TestResponse>> senderListener = new AtomicReference<>();
+        var clusterService = mockClusterService();
+        ClusterState clusterState = mock(ClusterState.class);
+        when(clusterService.state()).thenReturn(clusterState);
+        ThreadPool threadPool = clusterService.threadPool();
+        doAnswer(invocation -> {
+            // Fires after the first tryAction (unassigned → UnavailableShardsException) but before the retry.
+            // The sender must not yet have been called at this point.
+            assertNull("Sender must not be called before the shard is assigned", senderListener.get());
+            Runnable runnable = invocation.getArgument(0);
+            runnable.run();
+            return null;
+        }).when(threadPool).schedule(any(), any(), any());
+        ProjectId projectId = mock(ProjectId.class);
+        ProjectMetadata project = mock(ProjectMetadata.class);
+        when(project.id()).thenReturn(projectId);
+        when(project.index(targetShardId.getIndex())).thenReturn(indexMetadata);
+        RoutingTable routingTable = mock(RoutingTable.class);
+        when(clusterState.routingTable(projectId)).thenReturn(routingTable);
+        IndexShardRoutingTable shardRoutingTable = mock(IndexShardRoutingTable.class);
+        when(routingTable.shardRoutingTable(targetShardId)).thenReturn(shardRoutingTable);
+        when(shardRoutingTable.primaryShard()).thenAnswer(inv -> firstCall.getAndSet(false) ? unassignedShardRouting : startedShardRouting);
+
+        DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
+        when(clusterState.nodes()).thenReturn(discoveryNodes);
+        DiscoveryNode targetNode = mock(DiscoveryNode.class);
+        when(discoveryNodes.get("node-1")).thenReturn(targetNode);
+
+        PlainActionFuture<TestResponse> completionListener = new PlainActionFuture<>();
+        @SuppressWarnings("unchecked")
+        ReplicationSplitHelper<TestReplicationRequest, TestReplicationRequest, TestResponse>.SplitCoordinator coordinator =
+            new ReplicationSplitHelper<TestReplicationRequest, TestReplicationRequest, TestResponse>(
+                logger,
+                clusterService,
+                TimeValue.timeValueHours(1),
+                TimeValue.timeValueHours(1),
+                (node, concreteRequest, listener) -> {
+                    senderListener.set(listener);
+                }
+            ).newSplitRequest(new TestTransportReplicationAction(clusterService) {
+                @Override
+                protected Map<ShardId, TestReplicationRequest> splitRequestOnPrimary(
+                    TestReplicationRequest request,
+                    ProjectMetadata project
+                ) {
+                    // All documents routed to the target shard so coordinate() calls delegateToTarget
+                    return Map.of(targetShardId, request);
+                }
+            },
+                null,
+                project,
+                mock(TransportReplicationAction.PrimaryShardReference.class),
+                new TestReplicationRequest(sourceShardId),
+                (shardRef, request, listener) -> {
+                    throw new AssertionError("executePrimaryRequest must not be called when all documents route to target");
+                },
+                completionListener
+            );
+
+        coordinator.coordinate();
+
+        assertNotNull("Sender listener should be captured", senderListener.get());
+        assertFalse("Completion listener should not be done before sender responds", completionListener.isDone());
+
+        senderListener.get().onResponse(new TestResponse());
+
+        assertTrue("Completion listener should be done", completionListener.isDone());
+        assertNotNull("Response should not be null", completionListener.get());
+    }
+
     private static ClusterService mockClusterService() {
         ClusterService clusterService = mock(ClusterService.class);
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
@@ -618,7 +721,7 @@ public class ReplicationSplitHelperTests extends ESTestCase {
                 mock(IndicesService.class),
                 mock(ThreadPool.class),
                 mock(ShardStateAction.class),
-                new ActionFilters(new HashSet<>()),
+                ActionFilters.EMPTY,
                 TestReplicationRequest::new,
                 TestReplicationRequest::new,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,

@@ -1,0 +1,48 @@
+{
+  "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
+  "type" : "metadata",
+  "name" : "label_replace",
+  "description" : "Matches the regular expression `regex` against the value of the label `src_label`. On a match, sets the label `dst_label` to the expansion of `replacement`, substituting `$1`, `$name`, and `${name}` with the matched capture groups; on no match the input series is returned unchanged.",
+  "signatures" : [
+    {
+      "params" : [
+        {
+          "name" : "v",
+          "type" : "instant_vector",
+          "optional" : false,
+          "description" : "Instant vector input."
+        },
+        {
+          "name" : "dst_label",
+          "type" : "scalar",
+          "optional" : false,
+          "description" : "Name of the label to set."
+        },
+        {
+          "name" : "replacement",
+          "type" : "scalar",
+          "optional" : false,
+          "description" : "Replacement value, with `$1`/`$name`/`${name}` capture-group expansion."
+        },
+        {
+          "name" : "src_label",
+          "type" : "scalar",
+          "optional" : false,
+          "description" : "Name of the label to read."
+        },
+        {
+          "name" : "regex",
+          "type" : "scalar",
+          "optional" : false,
+          "description" : "Regular expression matched against `src_label`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "instant_vector"
+    }
+  ],
+  "examples" : [
+    "sum by (job2) (label_replace(http_requests_total, \"job2\", \"$1\", \"job\", \"(.*)-server\"))"
+  ],
+  "snapshot_only" : false
+}

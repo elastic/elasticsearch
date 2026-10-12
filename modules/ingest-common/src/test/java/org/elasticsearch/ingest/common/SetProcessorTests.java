@@ -237,6 +237,18 @@ public class SetProcessorTests extends ESTestCase {
         processor.execute(ingestDocument);
         originalDate.setTime(originalDate.getTime() + 1);
         assertThat(ingestDocument.getFieldValue(targetField, Object.class), equalTo(preservedDate));
+
+        // String[] types — e.g. the result of String#split() in a script processor
+        document = new HashMap<>();
+        String[] originalArray = "foo.bar.baz".split("\\.");
+        document.put(originalField, originalArray);
+        ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        processor.execute(ingestDocument);
+        String[] copiedArray = ingestDocument.getFieldValue(targetField, String[].class);
+        assertThat(copiedArray, arrayContainingInAnyOrder("foo", "bar", "baz"));
+        assertNotSame(originalArray, copiedArray);
+        originalArray[0] = "mutated";
+        assertThat(ingestDocument.getFieldValue(targetField, String[].class), arrayContainingInAnyOrder("foo", "bar", "baz"));
     }
 
     public void testSetEmptyField() {

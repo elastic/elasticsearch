@@ -12,6 +12,7 @@ import org.elasticsearch.core.TimeValue;
 
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.LongSupplier;
 
 /**
  * A very simple single object cache that allows non-blocking refresh calls
@@ -22,13 +23,21 @@ public abstract class SingleObjectCache<T> {
     private volatile T cached;
     private final Lock refreshLock = new ReentrantLock();
     private final TimeValue refreshInterval;
-    protected long lastRefreshTimestamp = 0;
+    private final LongSupplier timeInMillisSupplier;
+    protected long lastRefreshTimestamp;
 
     protected SingleObjectCache(TimeValue refreshInterval, T initialValue) {
+        this(refreshInterval, initialValue, System::currentTimeMillis);
+    }
+
+    protected SingleObjectCache(TimeValue refreshInterval, T initialValue, LongSupplier timeInMillisSupplier) {
         if (initialValue == null) {
             throw new IllegalArgumentException("initialValue must not be null");
         }
         this.refreshInterval = refreshInterval;
+        this.timeInMillisSupplier = timeInMillisSupplier;
+        // always refresh on the first get
+        this.lastRefreshTimestamp = timeInMillisSupplier.getAsLong() - refreshInterval.millis() - 1;
         cached = initialValue;
     }
 
@@ -42,7 +51,7 @@ public abstract class SingleObjectCache<T> {
                     if (needsRefresh()) { // check again!
                         cached = refresh();
                         assert cached != null;
-                        lastRefreshTimestamp = System.currentTimeMillis();
+                        lastRefreshTimestamp = timeInMillisSupplier.getAsLong();
                     }
                 } finally {
                     refreshLock.unlock();
@@ -70,7 +79,7 @@ public abstract class SingleObjectCache<T> {
         if (refreshInterval.millis() == 0) {
             return true;
         }
-        final long currentTime = System.currentTimeMillis();
+        final long currentTime = timeInMillisSupplier.getAsLong();
         return (currentTime - lastRefreshTimestamp) > refreshInterval.millis();
     }
 }

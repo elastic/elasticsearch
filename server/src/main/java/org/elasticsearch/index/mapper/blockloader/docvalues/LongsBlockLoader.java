@@ -123,7 +123,8 @@ public class LongsBlockLoader extends AbstractNumericBlockLoader {
 
         @Override
         protected LongBuilder newBuilder(BlockFactory factory, int count) {
-            return factory.longsFromDocValues(count);
+            // Values are emitted in source insertion order (not sorted ascending).
+            return factory.longs(count);
         }
 
         @Override

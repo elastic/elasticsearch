@@ -11,7 +11,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.test.ESTestCase;
@@ -28,7 +28,7 @@ public class ElasticInferenceServiceCompletionModelTests extends ESTestCase {
     public void testOverridingModelId() {
         var originalModel = createModel("url", "model_id", TaskType.COMPLETION);
 
-        var request = new UnifiedCompletionRequest(
+        var request = new UnifiedCompletionRequestBody(
             List.of(new Message(new ContentString("message"), "user", null, null)),
             "new_model_id",
             null,

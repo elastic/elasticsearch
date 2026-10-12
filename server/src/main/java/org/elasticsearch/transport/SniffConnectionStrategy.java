@@ -227,18 +227,13 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                     sniffResponseHandler = new ClusterStateSniffResponseHandler(connection, listener, seedNodesSuppliers);
                 }
 
+                final var responseHandler = new TransportService.ContextRestoreResponseHandler<>(
+                    threadContext.newRestorableContext(false),
+                    sniffResponseHandler
+                );
                 try (var ignored = threadContext.newEmptySystemContext()) {
                     // we stash any context here since this is an internal execution and should not leak any existing context information.
-                    transportService.sendRequest(
-                        connection,
-                        action,
-                        request,
-                        TransportRequestOptions.EMPTY,
-                        new TransportService.ContextRestoreResponseHandler<>(
-                            threadContext.newRestorableContext(false),
-                            sniffResponseHandler
-                        )
-                    );
+                    transportService.sendRequest(connection, action, request, TransportRequestOptions.EMPTY, responseHandler);
                 }
             }, e -> {
                 final Transport.Connection connection = openConnectionStep.result();
@@ -258,10 +253,9 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 : "transport profile must be consistent between the connection manager and the actual profile";
             transportService.connectionValidator(node)
                 .validate(
-                    RemoteConnectionManager.wrapConnectionWithRemoteClusterInfo(
+                    RemoteConnectionManager.wrapConnectionWithRemoteInfo(
                         connection,
-                        clusterAlias,
-                        connectionManager.getLinkedProjectId(),
+                        connectionManager.getRemoteConnectionInfo(),
                         connectionManager.getCredentialsManager()
                     ),
                     profile,

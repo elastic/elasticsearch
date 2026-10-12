@@ -23,7 +23,6 @@ import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.injection.guice.Inject;
@@ -363,10 +362,6 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testBytesReadAccountedForEnrich() {
-        assumeTrue(
-            "directory_metrics feature flag must be enabled to record store bytes",
-            Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()
-        );
         EsqlQueryRequest request = syncEsqlQueryRequest("FROM listens | " + enrichSongCommand() + " | STATS count(*) BY artist").profile(
             true
         );

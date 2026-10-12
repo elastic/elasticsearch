@@ -125,7 +125,7 @@ public class ShardInfoIT extends ESIntegTestCase {
             assertThat(healthResponse.isTimedOut(), equalTo(false));
 
             RecoveryResponse recoveryResponse = indicesAdmin().prepareRecoveries("idx").setActiveOnly(true).get();
-            assertThat(recoveryResponse.shardRecoveryStates().get("idx").size(), equalTo(0));
+            assertThat(recoveryResponse.shardRecoveryInfos().get("idx").size(), equalTo(0));
         });
     }
 }

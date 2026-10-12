@@ -26,8 +26,6 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -115,6 +113,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         SegmentWriteState state,
         String rawVectorFormatName,
         boolean useDirectIOReads,
+        boolean onDiskMerge,
         FlatVectorsWriter rawVectorDelegate,
         CentroidIndexFormat centroidIndexFormat,
         QuantEncoding encoding,
@@ -140,7 +139,9 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             ESNextDiskBBQVectorsFormat.CENTROID_EXTENSION,
             ESNextDiskBBQVectorsFormat.CLUSTER_EXTENSION,
             true,
-            flatVectorThreshold
+            flatVectorThreshold,
+            onDiskMerge,
+            true
         );
         this.vectorPerCluster = vectorPerCluster;
         this.centroidIndexFormat = centroidIndexFormat;
@@ -153,24 +154,15 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         this.sliceField = sliceField;
         this.flushConfigSource = flushConfigSource != null ? flushConfigSource : IvfFlushConfigSource.empty();
         this.mergeConfigResolver = mergeConfigResolver != null ? mergeConfigResolver : IvfMergeConfigResolver.useCodecDefault();
-        if (sliceField != null) {
-            Sort sort = state.segmentInfo.getIndexSort();
-            if (sort == null || sort.getSort().length == 0) {
-                throw new IllegalStateException("sliceField requires index sort");
-            }
-            SortField primary = sort.getSort()[0];
-            if (sliceField.equals(primary.getField()) == false) {
-                throw new IllegalStateException("sliceField must be primary index sort");
-            }
-            if (primary.getType() != SortField.Type.STRING) {
-                throw new IllegalStateException("sliceField requires primary index sort");
-            }
-        }
     }
 
     @Override
     protected IvfSegmentConfig beginIvfFieldFlush(FieldInfo fieldInfo) throws IOException {
-        IvfSegmentConfig codec = IvfSegmentConfig.fromCodecDefaults(centroidIndexFormat, quantEncoding, doPrecondition);
+        IvfSegmentConfig codec = IvfSegmentConfig.fromCodecDefaults(
+            centroidIndexFormat,
+            new IvfSegmentConfig.OsqConfig(quantEncoding),
+            doPrecondition
+        );
         return flushConfigSource.load(segmentWriteState, fieldInfo).orElse(codec);
     }
 
@@ -179,7 +171,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         return mergeConfigResolver.resolve(
             fieldInfo,
             mergeState,
-            IvfSegmentConfig.fromCodecDefaults(centroidIndexFormat, quantEncoding, doPrecondition)
+            IvfSegmentConfig.fromCodecDefaults(centroidIndexFormat, new IvfSegmentConfig.OsqConfig(quantEncoding), doPrecondition)
         );
     }
 
@@ -234,7 +226,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
     ) throws IOException {
         final IvfSegmentConfig segmentConfig = requireSegmentConfig(fieldWritingContext);
 
-        final QuantEncoding effectiveQuantEncoding = segmentConfig.quantEncoding();
+        final QuantEncoding effectiveQuantEncoding = segmentConfig.osqEncoding();
         FlatCentroidClusters centroidClusters = (FlatCentroidClusters) centroidSupplier.centroidIndex();
         final boolean isByte = vectorValues instanceof ByteVectorValues;
 
@@ -346,7 +338,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
     ) throws IOException {
         final IvfSegmentConfig segmentConfig = requireSegmentConfig(fieldWritingContext);
 
-        final QuantEncoding effectiveQuantEncoding = segmentConfig.quantEncoding();
+        final QuantEncoding effectiveQuantEncoding = segmentConfig.osqEncoding();
         // first, quantize all the vectors into a temporary file
         var vectorSimilarityFunction = fieldInfo.getVectorSimilarityFunction();
         FlatCentroidClusters centroidClusters = (FlatCentroidClusters) centroidSupplier.centroidIndex();
@@ -708,7 +700,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         final IvfSegmentConfig segmentConfig = requireSegmentConfig(ivfSegmentConfig);
         metaOutput.writeInt(ES940OSQVectorsScorer.BULK_SIZE);
         metaOutput.writeInt(segmentConfig.centroidIndexFormat().id());
-        metaOutput.writeInt(segmentConfig.quantEncoding().id());
+        metaOutput.writeInt(segmentConfig.osqEncoding().id());
         metaOutput.writeLong(preconditionerLength);
         if (preconditionerLength > 0) {
             metaOutput.writeLong(preconditionerOffset);

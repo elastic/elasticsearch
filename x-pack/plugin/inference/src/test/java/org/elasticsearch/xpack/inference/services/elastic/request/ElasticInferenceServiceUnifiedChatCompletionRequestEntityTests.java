@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference.services.elastic.request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.completion.CacheControl;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
@@ -39,7 +39,7 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequestEntityTests exte
         var messageList = new ArrayList<Message>();
         messageList.add(message);
 
-        var unifiedRequest = UnifiedCompletionRequest.of(messageList);
+        var unifiedRequest = UnifiedCompletionRequestBody.of(messageList);
 
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, true);
         OpenAiChatCompletionModel model = createCompletionModel("test-url", "organizationId", "api-key", "test-endpoint", null);
@@ -74,7 +74,7 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequestEntityTests exte
         var messageList = new ArrayList<Message>();
         messageList.add(message);
 
-        var unifiedRequest = new UnifiedCompletionRequest(
+        var unifiedRequest = new UnifiedCompletionRequestBody(
             messageList,
             null,
             null,

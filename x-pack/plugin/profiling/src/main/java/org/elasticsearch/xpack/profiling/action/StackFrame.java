@@ -69,6 +69,15 @@ final class StackFrame implements ToXContentObject {
         }
     }
 
+    public static StackFrame fromOtelSource(Map<String, Object> source) {
+        return new StackFrame(
+            source.get("function.filename"),
+            source.get("function.name"),
+            source.get("function.offset"),
+            source.get("line.number")
+        );
+    }
+
     public static StackFrame fromSource(Map<String, Object> source) {
         return new StackFrame(
             source.get("Stackframe.file.name"),

@@ -1,0 +1,2 @@
+FROM employees
+| EVAL m = emp_no IN (FROM emps_view)

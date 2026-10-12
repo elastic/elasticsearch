@@ -198,7 +198,7 @@ public class PainlessContextAction {
         protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
             Request request = new Request();
             request.setScriptContextName(restRequest.param(SCRIPT_CONTEXT_NAME_PARAM));
-            return channel -> client.executeLocally(INSTANCE, request, new RestToXContentListener<>(channel));
+            return channel -> client.execute(INSTANCE, request, new RestToXContentListener<>(channel));
         }
     }
 }

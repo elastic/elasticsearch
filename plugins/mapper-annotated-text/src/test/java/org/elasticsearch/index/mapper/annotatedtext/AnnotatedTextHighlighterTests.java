@@ -142,6 +142,7 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
                 CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(
                     builder,
                     UnifiedHighlighter.OffsetSource.ANALYSIS,
+                    false,
                     locale,
                     "index",
                     "text",

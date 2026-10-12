@@ -1,0 +1,9 @@
+SET unmapped_fields="nullify";
+FROM ts_view, (
+  FROM sample_data, (FROM sample_data_ts_nanos)
+  | WHERE @timestamp IS NOT NULL OR missing_inner IS NOT NULL
+)
+| WHERE @timestamp IS NOT NULL OR missing_outer IS NOT NULL
+| STATS c = COUNT(*) BY @timestamp
+| SORT @timestamp
+| LIMIT 10

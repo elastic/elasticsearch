@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatchers;
 
 import java.time.Instant;
+import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
@@ -52,6 +53,22 @@ public class PrometheusPlanBuilderUtilsTests extends ESTestCase {
                 "Invalid match[] selector [{not valid!!!}]: line 1:6: mismatched input 'valid' expecting {'!=', '=', '=~', '!~', '}', ','}"
             )
         );
+    }
+
+    public void testParseInstantSelectorsRejectsOversizedBatch() {
+        // Individually valid selectors whose operator count exceeds the limit in total
+        String oneOp = "up == 1";
+        List<String> batch = Collections.nCopies(PromqlParser.MAX_BINARY_OPERATORS + 1, oneOp);
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> PrometheusPlanBuilderUtils.parseInstantSelectors(batch)
+        );
+        assertThat(ex.getMessage(), containsString("maximum number of binary operators allowed in total"));
+    }
+
+    public void testParseInstantSelectorsAcceptsBatchWithinLimits() {
+        List<InstantSelector> selectors = PrometheusPlanBuilderUtils.parseInstantSelectors(List.of("up", "{job=\"api\"}"));
+        assertThat(selectors.size(), is(2));
     }
 
     public void testBuildPreInfoSelectorConditionReturnsIsNotNullForBareMetricName() {

@@ -26,14 +26,41 @@ import org.elasticsearch.compute.test.TestWarningsSource;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.IntConsumer;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RateDoubleGroupingAggregatorFunctionTests extends ComputeTestCase {
     protected final DriverContext driverContext() {
         BlockFactory blockFactory = blockFactory();
         return new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+    }
+
+    public void testAdjacentGroupsAtLookbackLimitAreUsed() {
+        DriverContext driverContext = driverContext();
+        try (var context = lookbackContext(driverContext, new long[] { 0, 360_000 }, new long[] { 60_000, 420_000 })) {
+            assertTrue(AbstractRateGroupingFunction.isPreviousGroupWithinLookback(context, 0, 1));
+            assertTrue(AbstractRateGroupingFunction.isNextGroupWithinLookback(context, 0, 1));
+            assertEquals(60.0, AbstractRateGroupingFunction.interpolationBoundaryInSeconds(60_000, 60_000), 0.0);
+            assertEquals(210.0, AbstractRateGroupingFunction.interpolationBoundaryInSeconds(60_000, 360_000), 0.0);
+            assertEquals(0.0005, AbstractRateGroupingFunction.interpolationBoundaryInSeconds(0, 1), 0.0);
+        } finally {
+            driverContext.finish();
+        }
+    }
+
+    public void testAdjacentGroupsPastLookbackLimitAreIgnored() {
+        DriverContext driverContext = driverContext();
+        try (var context = lookbackContext(driverContext, new long[] { 0, 360_001 }, new long[] { 60_000, 420_001 })) {
+            assertFalse(AbstractRateGroupingFunction.isPreviousGroupWithinLookback(context, 0, 1));
+            assertFalse(AbstractRateGroupingFunction.isNextGroupWithinLookback(context, 0, 1));
+            assertFalse(AbstractRateGroupingFunction.isPreviousGroupWithinLookback(context, -1, 1));
+            assertFalse(AbstractRateGroupingFunction.isNextGroupWithinLookback(context, 0, -1));
+        } finally {
+            driverContext.finish();
+        }
     }
 
     public void testFlushOnSliceChanged() {
@@ -154,5 +181,138 @@ public class RateDoubleGroupingAggregatorFunctionTests extends ComputeTestCase {
                     + "Invalid temporality value: [invalid_temporality], expected [cumulative] or [delta]"
             )
         );
+    }
+
+    public void testRawTimestampMustBeWithinItsGroupBucket() {
+        BlockFactory blockFactory = blockFactory();
+        DriverContext driverContext = driverContext();
+        var aggregator = new RateDoubleGroupingAggregatorFunction.FunctionSupplier(false, false, TestWarningsSource.INSTANCE)
+            .groupingAggregator(driverContext, List.of(0, 1, 2, 3, 4));
+        Page page = new Page(
+            blockFactory.newConstantDoubleBlockWith(10.0, 1),
+            blockFactory.newConstantLongBlockWith(201, 1),
+            blockFactory.newConstantNullBlock(1),
+            blockFactory.newConstantIntBlockWith(0, 1),
+            blockFactory.newConstantLongBlockWith(Long.MAX_VALUE, 1)
+        );
+        try (
+            var groupIds = blockFactory.newConstantIntBlockWith(0, 1).asVector();
+            var context = evaluationContext(driverContext, 100, 200)
+        ) {
+            try (var addInput = aggregator.prepareProcessRawInputPage(null, page)) {
+                addInput.add(0, groupIds);
+            }
+            AssertionError error = expectThrows(AssertionError.class, () -> aggregator.prepareEvaluateIntermediate(groupIds, context));
+            assertThat(error.getMessage(), containsString("raw timestamp 201"));
+            assertThat(error.getMessage(), containsString("was assigned to group 0 outside bucket [100, 200]"));
+        } finally {
+            aggregator.close();
+            page.releaseBlocks();
+            driverContext.finish();
+        }
+    }
+
+    public void testReducedStateTimestampsMustBeWithinTheirGroupBucket() {
+        BlockFactory blockFactory = blockFactory();
+        DriverContext driverContext = driverContext();
+        var aggregator = new RateDoubleGroupingAggregatorFunction.FunctionSupplier(false, false, TestWarningsSource.INSTANCE)
+            .groupingAggregator(driverContext, List.of(0, 1, 2, 3));
+        final Page page;
+        try (var timestamps = blockFactory.newLongBlockBuilder(2); var values = blockFactory.newDoubleBlockBuilder(2)) {
+            timestamps.beginPositionEntry();
+            timestamps.appendLong(201);
+            timestamps.appendLong(150);
+            timestamps.endPositionEntry();
+            values.beginPositionEntry();
+            values.appendDouble(20);
+            values.appendDouble(10);
+            values.endPositionEntry();
+            page = new Page(
+                timestamps.build(),
+                values.build(),
+                blockFactory.newConstantLongBlockWith(2, 1),
+                blockFactory.newConstantDoubleBlockWith(0, 1)
+            );
+        }
+        try (
+            var groupIds = blockFactory.newConstantIntBlockWith(0, 1).asVector();
+            var context = evaluationContext(driverContext, 100, 200)
+        ) {
+            aggregator.addIntermediateInput(0, groupIds, page);
+            AssertionError error = expectThrows(AssertionError.class, () -> aggregator.prepareEvaluateIntermediate(groupIds, context));
+            assertThat(error.getMessage(), containsString("lastTs 201 is after bucket end"));
+        } finally {
+            aggregator.close();
+            page.releaseBlocks();
+            driverContext.finish();
+        }
+    }
+
+    private static TimeSeriesGroupingAggregatorEvaluationContext evaluationContext(
+        DriverContext driverContext,
+        long rangeStart,
+        long rangeEnd
+    ) {
+        return new TimeSeriesGroupingAggregatorEvaluationContext(driverContext) {
+            @Override
+            public long rangeStartInMillis(int groupId) {
+                return rangeStart;
+            }
+
+            @Override
+            public long rangeEndInMillis(int groupId) {
+                return rangeEnd;
+            }
+
+            @Override
+            public void forEachGroupInRange(int startingGroupId, long rangeStartMillis, long rangeEndMillis, IntConsumer action) {}
+
+            @Override
+            public int previousGroupId(int currentGroupId) {
+                return -1;
+            }
+
+            @Override
+            public int nextGroupId(int currentGroupId) {
+                return -1;
+            }
+
+            @Override
+            public void computeAdjacentGroupIds() {}
+        };
+    }
+
+    private static TimeSeriesGroupingAggregatorEvaluationContext lookbackContext(
+        DriverContext driverContext,
+        long[] rangeStarts,
+        long[] rangeEnds
+    ) {
+        return new TimeSeriesGroupingAggregatorEvaluationContext(driverContext) {
+            @Override
+            public long rangeStartInMillis(int groupId) {
+                return rangeStarts[groupId];
+            }
+
+            @Override
+            public long rangeEndInMillis(int groupId) {
+                return rangeEnds[groupId];
+            }
+
+            @Override
+            public void forEachGroupInRange(int startingGroupId, long rangeStartMillis, long rangeEndMillis, IntConsumer action) {}
+
+            @Override
+            public int previousGroupId(int currentGroupId) {
+                return currentGroupId - 1;
+            }
+
+            @Override
+            public int nextGroupId(int currentGroupId) {
+                return currentGroupId + 1;
+            }
+
+            @Override
+            public void computeAdjacentGroupIds() {}
+        };
     }
 }

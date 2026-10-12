@@ -1,5 +1,0 @@
-area: Vector Search
-issues: []
-pr: 156623
-summary: Remove the experimental flag for the `auto_calibrate` configuration
-type: bug

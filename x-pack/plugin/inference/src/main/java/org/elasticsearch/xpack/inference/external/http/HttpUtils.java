@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.http;
 
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 

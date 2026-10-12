@@ -4374,6 +4374,15 @@ public class EsqlCapabilities {
          */
         FIX_DERIVED_EXTERNAL_GROUPING_MULTIVALUE,
 
+        /**
+         * A column declared {@code date} over a file column that renders {@code date_nanos} — an annotated
+         * {@code TIMESTAMP(MICROS)} or {@code TIMESTAMP(NANOS)} — narrows to epoch millis for the whole range
+         * {@code date} represents, including before 1970. Older nodes borrowed {@code date_nanos}' own 1970 floor and
+         * failed the read under the default error mode, while the same column read correctly with no declaration at
+         * all. Gates the csv-spec case asserting the pre-1970 instant, which such nodes still fail.
+         */
+        EXTERNAL_DATASET_DECLARED_DATE_NARROWS_BELOW_THE_EPOCH,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

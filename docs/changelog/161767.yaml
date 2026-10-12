@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 161767
+summary: "ESQL:DS: Narrow a declared date below the epoch instead of failing the query"
+type: bug

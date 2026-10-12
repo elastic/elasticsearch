@@ -151,7 +151,7 @@ final class ParquetColumnDecoding {
      * previously each re-derived it, which is how one of them was always wrong.
      *
      * <p>Note the direction flips on the DECLARED type, not on the file: a {@code TIMESTAMP(MICROS)} column decodes
-     * to nanos ({@code raw x 1000}) when it infers {@code date_nanos}, and to millis ({@code raw / 1000}, truncating)
+     * to nanos ({@code raw x 1000}) when it infers {@code date_nanos}, and to millis ({@code floorDiv(raw, 1000)})
      * when it is declared {@code date}. An explicit declaration is allowed to be lossy — that is the point of
      * declaring it — but the pruning must know which way the map goes.
      *
@@ -188,7 +188,7 @@ final class ParquetColumnDecoding {
             return switch (declaredType) {
                 case DATETIME -> switch (ts.getUnit()) {
                     case MILLIS -> new DeclaredTypeCoercions.RawDecodeRelation.Identity();
-                    // narrowed through DateUtils.toMilliSeconds: one decoded milli covers a band of raw ticks
+                    // narrowed by floor division (DeclaredTypeCoercions): one decoded milli covers a band of raw ticks
                     case MICROS -> new DeclaredTypeCoercions.RawDecodeRelation.ScaleDown(1_000L);
                     case NANOS -> new DeclaredTypeCoercions.RawDecodeRelation.ScaleDown(1_000_000L);
                 };

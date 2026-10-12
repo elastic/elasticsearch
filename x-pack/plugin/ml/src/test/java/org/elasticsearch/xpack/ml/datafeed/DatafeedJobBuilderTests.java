@@ -296,6 +296,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         doReturn(null).when(datafeedWithoutIndices).getIndices();
 
         AtomicReference<Exception> failure = new AtomicReference<>();
+        AtomicReference<DatafeedJob> builtJob = new AtomicReference<>();
         DatafeedContext datafeedContext = new DatafeedContext(
             datafeedWithoutIndices,
             jobBuilder.build(),
@@ -303,9 +304,14 @@ public class DatafeedJobBuilderTests extends ESTestCase {
             new DatafeedTimingStats(jobBuilder.getId())
         );
 
-        datafeedJobBuilder.build(newDatafeedTask("datafeed1"), datafeedContext, ActionListener.wrap(job -> {}, failure::set));
+        datafeedJobBuilder.build(
+            newDatafeedTask("datafeed1"),
+            datafeedContext,
+            ActionListener.wrap(builtJob::set, failure::set)
+        );
 
-        assertThat(failure.get(), not(instanceOf(NullPointerException.class)));
+        assertThat(failure.get(), nullValue());
+        assertThat(builtJob.get(), not(nullValue()));
     }
 
     private static TransportStartDatafeedAction.DatafeedTask newDatafeedTask(String datafeedId) {

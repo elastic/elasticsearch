@@ -165,9 +165,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecK8sTimeseriesIT
   method: test {csv-spec:k8s-timeseries.firstAndLastWithNullSort}
   issue: https://github.com/elastic/elasticsearch/issues/153565
-- class: org.elasticsearch.xpack.esql.CsvFlattenedKeywordIT
-  method: test {csv-spec:scoring.testMatchAndQueryStringFunctionsWithScore}
-  issue: https://github.com/elastic/elasticsearch/issues/153614
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:inlinestats.afterWhere}
   issue: https://github.com/elastic/elasticsearch/issues/152591
@@ -538,9 +535,6 @@ tests:
 - class: org.elasticsearch.index.store.BytesReadHeaderIT
   method: testRequestCacheWorks
   issue: https://github.com/elastic/elasticsearch/issues/160611
-- class: org.elasticsearch.xpack.stateless.engine.translog.StatelessTranslogIT
-  method: testTranslogStressRecoveryTest
-  issue: https://github.com/elastic/elasticsearch/issues/150297
 - class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
   method: testStress
   issue: https://github.com/elastic/elasticsearch/issues/160613
@@ -666,3 +660,15 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {yaml=aggregations/terms/Basic test}
   issue: https://github.com/elastic/elasticsearch/issues/161650
+- class: org.elasticsearch.xpack.esql.action.SubqueryIT
+  method: testNestedSubqueryOuterLimitWithQueuedLeaves
+  issue: https://github.com/elastic/elasticsearch/issues/161662
+- class: org.elasticsearch.xpack.esql.qa.csv.CsvCompressedFormatSpecIT
+  method: test {csv-spec:csv-multifile-resolution.omittedSalaryStats [csv.gz/S3]}
+  issue: https://github.com/elastic/elasticsearch/issues/161664
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.aggregateSalaryStats [ndjson.gz/S3]}
+  issue: https://github.com/elastic/elasticsearch/issues/161666
+- class: org.elasticsearch.xpack.stateless.commits.StatelessCommitNotificationsIT
+  method: testVbccRemainsServableUntilSearchTierNotificationCompletes
+  issue: https://github.com/elastic/elasticsearch/issues/161667

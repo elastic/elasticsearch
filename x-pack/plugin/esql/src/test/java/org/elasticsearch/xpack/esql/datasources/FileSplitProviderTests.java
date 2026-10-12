@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -29,6 +30,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -262,7 +264,11 @@ public class FileSplitProviderTests extends ESTestCase {
             hints.stream().noneMatch(h -> h.columnName().equals("@timestamp"))
         );
         assertEquals(
-            List.of(new PartitionFilterHintExtractor.PartitionFilterHint("year", PartitionFilterHintExtractor.Operator.IN, List.of(2024))),
+            List.of(
+                new PartitionFilterHintExtractor.PartitionFilterHint("year", PartitionFilterHintExtractor.Operator.IN, List.of(2024)),
+                new PartitionFilterHintExtractor.PartitionFilterHint("month", PartitionFilterHintExtractor.Operator.IN, List.of(6)),
+                new PartitionFilterHintExtractor.PartitionFilterHint("day", PartitionFilterHintExtractor.Operator.IN, List.of(15))
+            ),
             hints
         );
     }
@@ -293,7 +299,11 @@ public class FileSplitProviderTests extends ESTestCase {
             hints.stream().noneMatch(h -> h.columnName().equals("@timestamp"))
         );
         assertEquals(
-            List.of(new PartitionFilterHintExtractor.PartitionFilterHint("year", PartitionFilterHintExtractor.Operator.IN, List.of(2024))),
+            List.of(
+                new PartitionFilterHintExtractor.PartitionFilterHint("year", PartitionFilterHintExtractor.Operator.IN, List.of(2024)),
+                new PartitionFilterHintExtractor.PartitionFilterHint("month", PartitionFilterHintExtractor.Operator.IN, List.of(6)),
+                new PartitionFilterHintExtractor.PartitionFilterHint("day", PartitionFilterHintExtractor.Operator.IN, List.of(15, 16))
+            ),
             hints
         );
     }
@@ -1236,6 +1246,46 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(filter, Map.of(FileMetadataColumns.MODIFIED, 3_000L)));
     }
 
+    /**
+     * Identity bind of a date column aliases the keyword folder under the datetime name. Comparing
+     * {@code Instant.toString()} (or millis) to {@code "2024-06-15"} would prune every file; kind mismatch keeps.
+     */
+    public void testKeywordFolderVersusDatetimeRangeIsKept() {
+        FieldAttribute ts = new FieldAttribute(
+            SRC,
+            "@timestamp",
+            new EsField("@timestamp", DataType.DATETIME, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+        );
+        Expression range = new MvInRange(
+            SRC,
+            ts,
+            Literal.dateTime(SRC, Instant.parse("2024-06-15T00:00:00Z")),
+            Literal.dateTime(SRC, Instant.parse("2024-06-15T01:00:00Z"))
+        );
+        assertNull(FileSplitProvider.evaluateFilter(range, Map.of("@timestamp", "2024-06-15")));
+        Expression gte = new GreaterThanOrEqual(SRC, ts, Literal.dateTime(SRC, Instant.parse("2024-06-15T00:00:00Z")), null);
+        assertNull(FileSplitProvider.evaluateFilter(gte, Map.of("@timestamp", "2024-06-15")));
+        Expression lt = new LessThan(SRC, ts, Literal.dateTime(SRC, Instant.parse("2024-06-15T01:00:00Z")), null);
+        assertNull(FileSplitProvider.evaluateFilter(lt, Map.of("@timestamp", "2024-06-15")));
+        Expression instantBound = new GreaterThanOrEqual(
+            SRC,
+            ts,
+            new Literal(SRC, Instant.parse("2024-06-15T00:00:00Z"), DataType.DATETIME),
+            null
+        );
+        assertNull(FileSplitProvider.evaluateFilter(instantBound, Map.of("@timestamp", "2024-06-15")));
+        Literal dt = Literal.dateTime(SRC, Instant.parse("2024-06-15T00:00:00Z"));
+        assertNull(FileSplitProvider.evaluateFilter(new Equals(SRC, ts, dt), Map.of("@timestamp", "2024-06-15")));
+        assertNull(FileSplitProvider.evaluateFilter(new In(SRC, ts, List.of(dt)), Map.of("@timestamp", "2024-06-15")));
+        assertNull(FileSplitProvider.evaluateFilter(new MvContains(SRC, ts, dt), Map.of("@timestamp", "2024-06-15")));
+        assertNull(
+            FileSplitProvider.evaluateFilter(
+                new MvIntersects(SRC, ts, new Literal(SRC, List.of(Instant.parse("2024-06-15T00:00:00Z")), DataType.DATETIME)),
+                Map.of("@timestamp", "2024-06-15")
+            )
+        );
+    }
+
     public void testMatchesPartitionFiltersAllMatch() {
         Map<String, Object> values = Map.of("year", 2024, "month", 6);
         List<Expression> filters = List.of(
@@ -1757,6 +1807,28 @@ public class FileSplitProviderTests extends ESTestCase {
         String lineContent,
         long targetStrideBytes
     ) {
+        return discoverRealDelimitedSplits(
+            config,
+            fileName,
+            extension,
+            baselineOptions,
+            lineContent,
+            targetStrideBytes,
+            TransportVersion.current(),
+            DeclaredReadSpec.NONE
+        );
+    }
+
+    private List<ExternalSplit> discoverRealDelimitedSplits(
+        Map<String, Object> config,
+        String fileName,
+        String extension,
+        CsvFormatOptions baselineOptions,
+        String lineContent,
+        long targetStrideBytes,
+        TransportVersion minTransportVersion,
+        DeclaredReadSpec declaredReadSpec
+    ) {
         StringBuilder sb = new StringBuilder();
         // ~3.5 MiB: above 2 x CSV_MIN_SEGMENT_BYTES so plain data yields several macro-splits.
         while (sb.length() < 3 * CSV_MIN_SEGMENT_BYTES + CSV_MIN_SEGMENT_BYTES / 2) {
@@ -1797,9 +1869,98 @@ public class FileSplitProviderTests extends ESTestCase {
             null,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             () -> false,
-            DeclaredReadSpec.NONE
+            declaredReadSpec,
+            Set.of(),
+            null,
+            FormatReader.NO_LIMIT,
+            null,
+            0,
+            minTransportVersion
         );
         return splitter.discoverSplits(ctx).splits();
+    }
+
+    /**
+     * While some node predates {@link FileSplitProvider#ESQL_EXTERNAL_TEXT_HEADER_EVERY_SPLIT}, a headered CSV stays
+     * one whole-file split; once every node supports it, the same file splits like any other.
+     */
+    public void testHeaderedCsvStaysWholeFileBelowTheHeaderEverySplitVersion() {
+        TransportVersion before = TransportVersionUtils.randomVersionNotSupporting(FileSplitProvider.ESQL_EXTERNAL_TEXT_HEADER_EVERY_SPLIT);
+        List<ExternalSplit> below = discoverRealDelimitedSplits(
+            Map.of("mode", "plain"),
+            "plain.csv",
+            ".csv",
+            CsvFormatOptions.DEFAULT,
+            "a,b,c\n",
+            CSV_MIN_SEGMENT_BYTES,
+            before,
+            DeclaredReadSpec.NONE
+        );
+        assertEquals("a headered CSV is read whole below the version, got " + below, 1, below.size());
+        FileSplit whole = (FileSplit) below.get(0);
+        assertEquals(0L, whole.offset());
+        assertNull("a whole-file split is not a macro-split", whole.config().get(FileSplitProvider.RECORD_ALIGNED_MACRO_SPLIT_KEY));
+
+        TransportVersion atOrAbove = randomBoolean() ? FileSplitProvider.ESQL_EXTERNAL_TEXT_HEADER_EVERY_SPLIT : TransportVersion.current();
+        List<ExternalSplit> at = discoverRealDelimitedSplits(
+            Map.of("mode", "plain"),
+            "plain.csv",
+            ".csv",
+            CsvFormatOptions.DEFAULT,
+            "a,b,c\n",
+            CSV_MIN_SEGMENT_BYTES,
+            atOrAbove,
+            DeclaredReadSpec.NONE
+        );
+        assertTrue("a headered CSV splits at the version, got " + at.size(), at.size() > 1);
+    }
+
+    /**
+     * A headered CSV whose schema was declared splits exactly as an inferred one does.
+     */
+    public void testDeclaredHeaderedCsvMacroSplitsLikeAnInferredOne() {
+        DeclaredReadSpec declared = DeclaredReadSpec.of(Map.of(), Map.of(), Set.of(), SchemaProvenance.DECLARED);
+        List<ExternalSplit> declaredSplits = discoverRealDelimitedSplits(
+            Map.of("mode", "plain"),
+            "plain.csv",
+            ".csv",
+            CsvFormatOptions.DEFAULT,
+            "a,b,c\n",
+            CSV_MIN_SEGMENT_BYTES,
+            TransportVersion.current(),
+            declared
+        );
+        List<ExternalSplit> inferredSplits = discoverRealDelimitedSplits(
+            Map.of("mode", "plain"),
+            "plain.csv",
+            ".csv",
+            CsvFormatOptions.DEFAULT,
+            "a,b,c\n",
+            CSV_MIN_SEGMENT_BYTES,
+            TransportVersion.current(),
+            DeclaredReadSpec.NONE
+        );
+        assertTrue("a declared headered CSV macro-splits, got " + declaredSplits.size(), declaredSplits.size() > 1);
+        assertEquals(
+            inferredSplits.stream().map(s -> ((FileSplit) s).offset()).toList(),
+            declaredSplits.stream().map(s -> ((FileSplit) s).offset()).toList()
+        );
+    }
+
+    /** A headerless CSV has no header to deliver, so it splits whatever the cluster's version. */
+    public void testHeaderlessCsvSplitsBelowTheHeaderEverySplitVersion() {
+        TransportVersion before = TransportVersionUtils.randomVersionNotSupporting(FileSplitProvider.ESQL_EXTERNAL_TEXT_HEADER_EVERY_SPLIT);
+        List<ExternalSplit> splits = discoverRealDelimitedSplits(
+            Map.of("mode", "plain", "header_row", false),
+            "headerless.csv",
+            ".csv",
+            CsvFormatOptions.DEFAULT,
+            "a,b,c\n",
+            CSV_MIN_SEGMENT_BYTES,
+            before,
+            DeclaredReadSpec.NONE
+        );
+        assertTrue("a headerless CSV splits below the version, got " + splits.size(), splits.size() > 1);
     }
 
     /**
@@ -4789,7 +4950,7 @@ public class FileSplitProviderTests extends ESTestCase {
      * {@link #testALimitedQuotedCsvWalkStopsAfterTheCuts}; this case is the full scan #2131 still needs.
      */
     public void testRecordAlignedMacroSplitDiscoveryProvesQuotedCsvBoundaries() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         // Build a CSV payload exceeding 3 MiB so macro-splits form (minimumSegmentSize defaults to 1 MiB).
         // Quoted fields carry both ""-escaped quotes and embedded raw newlines.
@@ -4843,7 +5004,7 @@ public class FileSplitProviderTests extends ESTestCase {
      * warning, not a LIMIT cut. Full-scan #2131 is {@link #testRecordAlignedMacroSplitDiscoveryProvesQuotedCsvBoundaries}.
      */
     public void testProvenBoundariesStopsAtMaxBoundariesWithoutMarkingAShortfall() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         byte[] payload = repeatingLines("1,\"embedded\nnewline\",ok\n", 5L * CSV_MIN_SEGMENT_BYTES);
         var csvReader = new CsvFormatReader(blockFactory);
         StorageObject obj = createInMemoryStorageObject(payload, StoragePath.of("mem://capped.csv"));
@@ -4873,7 +5034,7 @@ public class FileSplitProviderTests extends ESTestCase {
      * whole-file set, which is the property a query over a macro-split file depends on.
      */
     public void testRecordAlignedMacroSplitDiscoveryWalksQuoteFreeCsv() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         StringBuilder csv = new StringBuilder("id,pickup_datetime,passengers,distance,fare\n");
         int dataRows = 0;
@@ -4983,7 +5144,7 @@ public class FileSplitProviderTests extends ESTestCase {
      * would drain far more than the window).
      */
     public void testSerialStridedProbesDrainBoundedProbeWindows() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         // A stride at the S3 close-drain threshold caps every window there too, so leftover after
         // the first row is still drained by close() (not abort-on-close) and all probes pool.
@@ -5026,7 +5187,7 @@ public class FileSplitProviderTests extends ESTestCase {
      * two. Such a probe therefore aborts: it pays a connection per probe and transfers only the bytes it scanned.
      */
     public void testStridedProbesAbortRatherThanDrainWhenTooMuchOfTheWindowIsLeft() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         // The window is the stride, so a stride at twice the drain threshold leaves every probe above it.
         long stride = FULL_WIDTH_WINDOW_BYTES;
@@ -5112,7 +5273,7 @@ public class FileSplitProviderTests extends ESTestCase {
      * terminates a record and the splitter can be probed at any offset, exactly like NDJSON's.
      */
     private static RecordSplitter stridedSplitter() {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         var reader = (SegmentableFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("mode", "plain"));
         return reader.recordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES);
     }
@@ -5541,7 +5702,7 @@ public class FileSplitProviderTests extends ESTestCase {
      * window running out rather than the splitter reporting the record too large.
      */
     public void testMacroSplitDiscoverySkipsAnOffsetWhoseRecordOutrunsTheProbeWindow() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         int maxRecordBytes = 16;
         long stride = 256 * 1024;
         // A record straddling the first stride offset, longer than the window maxRecordBytes allows the probe
@@ -5593,7 +5754,7 @@ public class FileSplitProviderTests extends ESTestCase {
      * all that long, which is the whole file read as one split.
      */
     public void testARecordOfHundredsOfKilobytesResolvesToABoundary() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         long stride = 2 * CSV_MIN_SEGMENT_BYTES;
         int longRecordBytes = 512 * 1024;
         String fillerRow = "tail\n";
@@ -8177,7 +8338,7 @@ public class FileSplitProviderTests extends ESTestCase {
         AtomicInteger gets,
         AtomicInteger cacheHits
     ) {
-        DirectBufferFactory factory = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
+        DirectBufferFactory factory = DirectBufferFactory.forBreaker(NoopCircuitBreaker.INSTANCE);
         return new RangeAwareFormatReader() {
             @Override
             public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
@@ -8284,7 +8445,7 @@ public class FileSplitProviderTests extends ESTestCase {
         @Nullable java.util.function.Predicate<String> cachedObjectName,
         @Nullable AtomicInteger cacheHits
     ) {
-        DirectBufferFactory factory = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
+        DirectBufferFactory factory = DirectBufferFactory.forBreaker(NoopCircuitBreaker.INSTANCE);
         return new RangeAwareFormatReader() {
             @Override
             public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {

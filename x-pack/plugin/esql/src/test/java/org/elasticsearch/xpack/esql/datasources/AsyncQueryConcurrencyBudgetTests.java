@@ -19,9 +19,12 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 
 public class AsyncQueryConcurrencyBudgetTests extends ESTestCase {
 
@@ -37,23 +40,22 @@ public class AsyncQueryConcurrencyBudgetTests extends ESTestCase {
         assertEquals(0, budget.inFlight());
     }
 
-    public void testForkRejectAfterGrantReleasesPermit() throws Exception {
+    public void testThrowingExecutorStillDeliversGrantInline() throws Exception {
         QueryConcurrencyBudget budget = new QueryConcurrencyBudget(1, 60_000L, null);
         budget.acquire();
         EsRejectedExecutionException rejected = new EsRejectedExecutionException("rejected");
-        CountDownLatch failed = new CountDownLatch(1);
-        AtomicReference<Exception> error = new AtomicReference<>();
+        CountDownLatch granted = new CountDownLatch(1);
         budget.acquireAsync(null, false, () -> false, r -> { throw rejected; })
-            .addListener(ActionListener.wrap(unused -> fail("rejected"), e -> {
-                error.set(e);
-                failed.countDown();
+            .addListener(ActionListener.wrap(unused -> granted.countDown(), e -> {
+                throw new AssertionError(e);
             }));
         assertBusy(() -> assertEquals(1, budget.waiterCount()));
         budget.release();
-        assertTrue(failed.await(5, TimeUnit.SECONDS));
-        assertSame(rejected, error.get());
-        assertEquals(0, budget.inFlight());
+        assertTrue(granted.await(5, TimeUnit.SECONDS));
+        assertEquals(1, budget.inFlight());
         assertEquals(0, budget.waiterCount());
+        budget.release();
+        assertEquals(0, budget.inFlight());
     }
 
     public void testAcquireAsyncWaitsThenGrantsOnRelease() throws Exception {
@@ -123,24 +125,197 @@ public class AsyncQueryConcurrencyBudgetTests extends ESTestCase {
         assertEquals(0, budget.waiterCount());
     }
 
-    public void testAcquireAsyncForksGrant() throws Exception {
+    public void testAcquireAsyncDeliversGrantInline() throws Exception {
         QueryConcurrencyBudget budget = new QueryConcurrencyBudget(1, 60_000L, null);
         budget.acquire();
-        ExecutorService grantPool = Executors.newSingleThreadExecutor(r -> new Thread(r, "qcb-grant"));
+        CountDownLatch granted = new CountDownLatch(1);
+        AtomicReference<String> grantThread = new AtomicReference<>();
+        budget.acquireAsync(null, false, () -> false, Runnable::run).addListener(ActionListener.wrap(unused -> {
+            grantThread.set(Thread.currentThread().getName());
+            granted.countDown();
+        }, e -> granted.countDown()));
+        assertBusy(() -> assertEquals(1, budget.waiterCount()));
+        String releaser = Thread.currentThread().getName();
+        budget.release();
+        assertTrue(granted.await(5, TimeUnit.SECONDS));
+        assertEquals(releaser, grantThread.get());
+        budget.release();
+    }
+
+    public void testGrantProgressWhenIoPoolBlockedInAcquire() throws Exception {
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(2, 5_000L, null);
+        budget.acquire();
+        budget.acquire();
+        ExecutorService pool = Executors.newFixedThreadPool(2, r -> new Thread(r, "io-pool"));
         try {
-            CountDownLatch granted = new CountDownLatch(1);
-            AtomicReference<String> grantThread = new AtomicReference<>();
-            budget.acquireAsync(null, false, () -> false, grantPool).addListener(ActionListener.wrap(unused -> {
-                grantThread.set(Thread.currentThread().getName());
-                granted.countDown();
-            }, e -> granted.countDown()));
-            assertBusy(() -> assertEquals(1, budget.waiterCount()));
+            CountDownLatch asyncGranted = new CountDownLatch(2);
+            AtomicReference<Exception> asyncError = new AtomicReference<>();
+            for (int i = 0; i < 2; i++) {
+                budget.acquireAsync(null, false, () -> false, pool).addListener(ActionListener.wrap(unused -> {
+                    budget.release();
+                    asyncGranted.countDown();
+                }, e -> {
+                    asyncError.set(e);
+                    asyncGranted.countDown();
+                }));
+            }
+            assertBusy(() -> assertEquals(2, budget.waiterCount()));
+
+            CountDownLatch entered = new CountDownLatch(2);
+            CountDownLatch syncDone = new CountDownLatch(2);
+            AtomicReference<Exception> syncError = new AtomicReference<>();
+            for (int i = 0; i < 2; i++) {
+                pool.execute(() -> {
+                    entered.countDown();
+                    try {
+                        budget.acquire();
+                        budget.release();
+                    } catch (Exception e) {
+                        syncError.set(e);
+                    } finally {
+                        syncDone.countDown();
+                    }
+                });
+            }
+            assertTrue(entered.await(5, TimeUnit.SECONDS));
+            assertBusy(() -> assertEquals(4, budget.waiterCount()));
+
             budget.release();
-            assertTrue(granted.await(5, TimeUnit.SECONDS));
-            assertEquals("qcb-grant", grantThread.get());
             budget.release();
+            assertTrue("inline grant must not wait for the blocked I/O pool", asyncGranted.await(1, TimeUnit.SECONDS));
+            assertNull(asyncError.get());
+            assertTrue(syncDone.await(5, TimeUnit.SECONDS));
+            assertNull(syncError.get());
+            assertEquals(0, budget.inFlight());
         } finally {
-            grantPool.shutdownNow();
+            terminate(pool);
+        }
+    }
+
+    public void testHoldersIgnoresUndeliveredGrant() throws Exception {
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(1, 60_000L, null);
+        budget.acquire();
+        assertEquals(1, budget.holders());
+        budget.pauseGrantDelivery();
+        CountDownLatch granted = new CountDownLatch(1);
+        budget.acquireAsync(null, false, () -> false, Runnable::run)
+            .addListener(ActionListener.wrap(unused -> granted.countDown(), e -> granted.countDown()));
+        assertBusy(() -> assertEquals(1, budget.waiterCount()));
+        budget.release();
+        assertEquals(0, budget.waiterCount());
+        assertEquals(1, budget.inFlight());
+        assertEquals(0, budget.holders());
+        assertEquals(1, granted.getCount());
+        budget.resumeGrantDelivery();
+        assertTrue(granted.await(5, TimeUnit.SECONDS));
+        assertEquals(1, budget.holders());
+        budget.release();
+        assertEquals(0, budget.holders());
+    }
+
+    public void testAllocatorHoldersIgnoresUndeliveredGrant() throws Exception {
+        ConcurrencyBudgetAllocator allocator = new ConcurrencyBudgetAllocator(2);
+        QueryConcurrencyBudget budget = allocator.register();
+        budget.pauseGrantDelivery();
+        CountDownLatch granted = new CountDownLatch(2);
+        budget.acquireAsync(null, false, () -> false, Runnable::run)
+            .addListener(ActionListener.wrap(unused -> granted.countDown(), e -> granted.countDown()));
+        budget.acquireAsync(null, false, () -> false, Runnable::run)
+            .addListener(ActionListener.wrap(unused -> granted.countDown(), e -> granted.countDown()));
+        assertEquals(2, budget.inFlight());
+        assertEquals(0, budget.holders());
+        assertEquals(0, allocator.holders());
+        budget.resumeGrantDelivery();
+        assertTrue(granted.await(5, TimeUnit.SECONDS));
+        assertEquals(2, budget.holders());
+        assertEquals(2, allocator.holders());
+        budget.release();
+        budget.release();
+        budget.close();
+    }
+
+    public void testInlineGrantChainDoesNotRecurse() throws Exception {
+        int n = 256;
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(1, 60_000L, null);
+        budget.acquire();
+        CountDownLatch all = new CountDownLatch(n);
+        AtomicInteger maxDepth = new AtomicInteger();
+        for (int i = 0; i < n; i++) {
+            budget.acquireAsync(null, false, () -> false, Runnable::run).addListener(ActionListener.wrap(unused -> {
+                maxDepth.accumulateAndGet(Thread.currentThread().getStackTrace().length, Math::max);
+                budget.release();
+                all.countDown();
+            }, e -> all.countDown()));
+        }
+        assertBusy(() -> assertEquals(n, budget.waiterCount()));
+        budget.release();
+        assertTrue(all.await(5, TimeUnit.SECONDS));
+        assertEquals(0, budget.inFlight());
+        assertEquals(0, budget.holders());
+        assertThat(maxDepth.get(), lessThan(200));
+    }
+
+    public void testSyncAcquireFromGrantContinuationFailsImmediately() throws Exception {
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(1, 60_000L, null);
+        budget.acquire();
+        CountDownLatch done = new CountDownLatch(1);
+        AtomicReference<Exception> failed = new AtomicReference<>();
+        budget.acquireAsync(null, false, () -> false, Runnable::run).addListener(ActionListener.wrap(unused -> {
+            try {
+                budget.acquire();
+            } catch (Exception e) {
+                failed.set(e);
+            } finally {
+                budget.release();
+                done.countDown();
+            }
+        }, e -> { throw new AssertionError(e); }));
+        budget.release();
+        assertTrue(done.await(5, TimeUnit.SECONDS));
+        assertThat(failed.get(), instanceOf(TimeoutException.class));
+        assertThat(failed.get().getMessage(), containsString("grant continuation"));
+    }
+
+    public void testFailProgressWhenIoPoolBlockedInAcquire() throws Exception {
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(2, 5_000L, null);
+        budget.acquire();
+        budget.acquire();
+        ExecutorService pool = Executors.newFixedThreadPool(2, r -> new Thread(r, "io-pool"));
+        try {
+            CountDownLatch failed = new CountDownLatch(2);
+            AtomicReference<Exception> error = new AtomicReference<>();
+            for (int i = 0; i < 2; i++) {
+                budget.acquireAsync(null, false, () -> false, pool)
+                    .addListener(ActionListener.wrap(unused -> fail("should have been closed"), e -> {
+                        error.compareAndSet(null, e);
+                        failed.countDown();
+                    }));
+            }
+            assertBusy(() -> assertEquals(2, budget.waiterCount()));
+
+            CountDownLatch entered = new CountDownLatch(2);
+            CountDownLatch syncDone = new CountDownLatch(2);
+            for (int i = 0; i < 2; i++) {
+                pool.execute(() -> {
+                    entered.countDown();
+                    try {
+                        budget.acquire();
+                        budget.release();
+                    } catch (Exception e) {
+                        error.compareAndSet(null, e);
+                    } finally {
+                        syncDone.countDown();
+                    }
+                });
+            }
+            assertTrue(entered.await(5, TimeUnit.SECONDS));
+            budget.close();
+            assertTrue("close must finish without the pool", failed.await(1, TimeUnit.SECONDS));
+            assertThat(error.get(), instanceOf(TimeoutException.class));
+            assertTrue(syncDone.await(5, TimeUnit.SECONDS));
+        } finally {
+            pool.shutdownNow();
+            assertTrue(pool.awaitTermination(5, TimeUnit.SECONDS));
         }
     }
 

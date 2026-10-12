@@ -48,7 +48,7 @@ class ConcurrencyLimitedStorageObject implements StorageObject, ResumeBypassingS
 
     @Override
     public InputStream newStream() throws IOException {
-        limiter.acquireChecked();
+        acquireForStream();
         try {
             InputStream stream = delegate.newStream();
             return new PermitReleasingInputStream(stream, limiter);
@@ -60,13 +60,29 @@ class ConcurrencyLimitedStorageObject implements StorageObject, ResumeBypassingS
 
     @Override
     public InputStream newStream(long position, long length) throws IOException {
-        limiter.acquireChecked();
+        acquireForStream();
         try {
             InputStream stream = delegate.newStream(position, length);
             return new PermitReleasingInputStream(stream, limiter);
         } catch (Exception e) {
             limiter.release();
             throw e;
+        }
+    }
+
+    /**
+     * First GET parks on {@link ConcurrencyLimiter#acquireChecked()}. A text resume
+     * ({@link StoragePermitBarge}) barges ({@link ConcurrencyLimiter#tryAcquire()}) so the
+     * segmentator never joins the fair semaphore queue. A miss is
+     * {@link ConcurrencyLimiter.PermitMissException}; {@link RetryableStorageObject} polls
+     * on the reader rather than {@code acquireAsync().join()}, which would deadlock
+     * {@code esql_external_io}.
+     */
+    private void acquireForStream() {
+        if (StoragePermitBarge.active()) {
+            limiter.acquireBargeChecked();
+        } else {
+            limiter.acquireChecked();
         }
     }
 
@@ -290,6 +306,16 @@ class ConcurrencyLimitedStorageObject implements StorageObject, ResumeBypassingS
         }
     }
 
+    /**
+     * Starts the delegated GET on the grant releaser (SDK completion thread or
+     * {@code esql_worker}). Native-async storage (S3, HTTP, Azure with
+     * {@code blobAsyncClient}) queues SDK I/O and returns without blocking.
+     * Executor-wrapped storage (GCS; Azure/S3 without an async client;
+     * {@link StorageObject} default) submits a blocking read on {@code executor}.
+     * Prefetch passes {@code Runnable::run}, so those reads run on this thread;
+     * forking them onto {@code esql_external_io} would recreate Bug C. That
+     * occupancy is a later fix.
+     */
     private void startDelegate(
         long position,
         long length,

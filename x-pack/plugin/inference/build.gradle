@@ -33,6 +33,11 @@ dependencies {
   implementation project(path: ':libs:logging')
   compileOnly project(":server")
   compileOnly project(path: xpackModule('core'))
+  implementation "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  implementation "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  implementation "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
+  implementation "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
+
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(':server')))
   internalClusterTestImplementation(testArtifact(project(':server'), 'internalClusterTest'))
@@ -165,6 +170,7 @@ dependencies {
 }
 
 tasks.withType(AbstractDependenciesTask).configureEach {
+  mapping from: /httpclient|httpcore.*|httpasyncclient/, to: 'httpclient'
   mapping from: /azure-.*/, to: 'azure'
   mapping from: /google-auth-.*/, to: 'google-auth'
   mapping from: /google-http-.*/, to: 'google-http'

@@ -135,17 +135,15 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
     }
 
     /**
-     * Cache misses of the returned directory claim their gaps in a task on the shard read pool instead of on the reading thread, so that
-     * a concurrent region 0 prewarm, which runs on the prewarm pool, can claim and fill the same range first. The read completes from
-     * whichever fill comes first.
+     * Reads of the returned directory do not claim the missing cache ranges on the reading thread. They queue a task on the shard read
+     * pool that claims them when it runs. If a region 0 prewarm has claimed and filled a range by then, the task has nothing left to
+     * fetch and the read completes from the prewarm's fill.
      * <p>
-     * A miss then costs a single task on the shard read pool, and only as long as these three settings line up:
-     * <ul>
-     * <li>the claim executor of the cache file, {@link #claimExecutor()}, is the shard read pool,
-     * <li>the blob reader fetches in-thread ({@code DIRECT}) instead of dispatching to the shard read pool again, and
-     * <li>the cache fills the claimed gaps inline, which holds because the stateless cache service uses a {@code DIRECT} io executor.
-     * </ul>
-     * Nothing enforces this. If any of them changes, a miss silently waits in the shard read queue twice.
+     * When the task does claim a range, it must also fetch and fill it in that same task, so that a read queues on the shard read pool
+     * only once. This holds because the blob reader fetches in-thread ({@code DIRECT}) and the cache service fills claimed ranges
+     * inline (its io executor is {@code DIRECT}). If either dispatched to the shard read pool, the read would queue a second time
+     * behind the other tasks in that pool. Nothing enforces this except
+     * {@code SharedBlobCacheWarmingServiceTests#testColdBccHeaderReadRunsAsOneShardReadTaskPerBlob}.
      */
     @Override
     public IndexBlobStoreCacheDirectory createPerBccMetadataReadDirectory() {

@@ -605,3 +605,6 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.ash.AsymmetricHashingQuantizerTests
   method: testReconstructedDotProductApproximatesTrueDotProduct
   issue: https://github.com/elastic/elasticsearch/issues/161756
+- class: org.elasticsearch.xpack.stateless.objectstore.AzureBccWriteStallIT
+  method: testRetryWhileFirstTryStillReadsUploadsCorrectBcc
+  issue: https://github.com/elastic/elasticsearch/issues/161762

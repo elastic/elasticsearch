@@ -82,6 +82,17 @@ final class ES92GpuHnswVectorsWriter extends IndexingKnnVectorsWriter {
     // TODO: lower the numVectors threshold when to switch to IVF_PQ based on more benchmarks
     private static final long MAX_NUM_VECTORS_FOR_NN_DESCENT = 5_000_000L;
 
+    /**
+     * CPU threads for the host-side part of a CAGRA build (NN-descent neighbour-list maintenance and graph
+     * optimisation, which cuVS runs with OpenMP). With a single thread the build is 2.2-2.6x slower. Up to
+     * {@link CuVSResourceManager.PoolingCuVSResourceManager#MAX_RESOURCES} builds can run at the same time, so the
+     * available processors are shared between them.
+     */
+    static final int CAGRA_BUILD_CPU_THREADS = Math.max(
+        1,
+        Runtime.getRuntime().availableProcessors() / CuVSResourceManager.PoolingCuVSResourceManager.MAX_RESOURCES
+    );
+
     private final CuVSResourceManager cuVSResourceManager;
     private final long totalDeviceMemory;
     private final IndexOutput meta, vectorIndex;
@@ -414,7 +425,7 @@ final class ES92GpuHnswVectorsWriter extends IndexingKnnVectorsWriter {
             }
         };
 
-        int numCPUThreads = 1; // TODO: how many CPU threads we can use?
+        int numCPUThreads = CAGRA_BUILD_CPU_THREADS;
         CagraIndexParams params;
 
         boolean useIvfPQ = false;

@@ -602,3 +602,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.datasource.s3.S3EndpointRedirectTests
   method: testAsyncReadDoesNotFollowRedirectAwayFromTheEndpoint
   issue: https://github.com/elastic/elasticsearch/issues/161727
+- class: org.elasticsearch.index.codec.vectors.ash.AsymmetricHashingQuantizerTests
+  method: testReconstructedDotProductApproximatesTrueDotProduct
+  issue: https://github.com/elastic/elasticsearch/issues/161756
+- class: org.elasticsearch.xpack.stateless.objectstore.AzureBccWriteStallIT
+  method: testRetryWhileFirstTryStillReadsUploadsCorrectBcc
+  issue: https://github.com/elastic/elasticsearch/issues/161762

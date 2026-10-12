@@ -74,6 +74,7 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.UNSIGNED_LONG_
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * This class exists to give a human-readable string representation of the test case.
@@ -800,6 +801,34 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             }
         } else {
             throw new IllegalArgumentException("Expected gro-grid types, got source [" + sourceType + "], expected [" + expectedType + "]");
+        }
+    }
+
+    /**
+     * Generate negative test cases for a unary function converting invalid values to a geo-grid type.
+     * Each case expects a null result, and a warning describing the exception returned by {@code expectedException}.
+     */
+    public static void forUnaryGeoGridInvalid(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType sourceType,
+        DataType expectedType,
+        List<Object> invalidValues,
+        Function<Object, Exception> expectedException
+    ) {
+        for (Object value : invalidValues) {
+            String display = value instanceof BytesRef bytesRef ? bytesRef.utf8ToString() : value.toString();
+            suppliers.add(new TestCaseSupplier("invalid " + sourceType.typeName() + " " + display, List.of(sourceType), () -> {
+                TestCase testCase = new TestCase(
+                    List.of(new TypedData(value, sourceType, "value")),
+                    expectedEvaluatorToString,
+                    expectedType,
+                    nullValue()
+                );
+                return testCase.withWarning(
+                    "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
+                ).withWarning("Line 1:1: " + expectedException.apply(value));
+            }));
         }
     }
 

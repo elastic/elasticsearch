@@ -20,8 +20,8 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.esql.plugin.RemoteFetchHandle;
-import org.elasticsearch.xpack.esql.plugin.RemoteFetchOperator;
+import org.elasticsearch.xpack.esql.remotefetch.RemoteFetchHandle;
+import org.elasticsearch.xpack.esql.remotefetch.RemoteFetchOperator;
 import org.junit.Before;
 
 import java.util.Collection;

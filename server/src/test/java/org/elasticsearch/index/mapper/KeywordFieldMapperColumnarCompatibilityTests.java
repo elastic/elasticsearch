@@ -10,8 +10,10 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -20,6 +22,7 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Parity tests for {@link KeywordFieldMapper#mapColumnBatch} against the row path.
@@ -51,6 +54,17 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
                     message + ": field [" + FIELD + "] expected docValuesType=" + dvType + " but columnar path did not produce it",
                     actual.stream().anyMatch(a -> a.name().equals(FIELD) && a.fieldType().docValuesType() == dvType)
                 );
+                // FieldType#equals ignores attributes, but the codec reads this one to decide how the blob is framed.
+                final String singleValued = singleValuedAttribute(fd);
+                assertTrue(
+                    message + ": field [" + FIELD + "] expected " + ColumNARDocValuesFormat.SINGLE_VALUED_ATTRIBUTE + "=" + singleValued,
+                    actual.stream()
+                        .anyMatch(
+                            a -> a.name().equals(FIELD)
+                                && a.fieldType().docValuesType() == dvType
+                                && Objects.equals(singleValued, singleValuedAttribute(a))
+                        )
+                );
             }
         }
         final boolean isTsdb = expected.stream().anyMatch(fd -> fd.name().equals("_tsid"));
@@ -59,6 +73,11 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
             actual = actual.stream().filter(fd -> fd.name().equals("_id") == false).toList();
         }
         super.assertFieldSetsEqual(expected, actual, message);
+    }
+
+    private static String singleValuedAttribute(FieldDescriptor fd) {
+        final var attributes = fd.fieldType().getAttributes();
+        return attributes == null ? null : attributes.get(ColumNARDocValuesFormat.SINGLE_VALUED_ATTRIBUTE);
     }
 
     private static Settings columnarSettings() {
@@ -343,9 +362,7 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         );
     }
 
-    public void testIgnoreAboveMultiValueFalse() throws IOException {
-        // ignore_above: the too-long value is recorded in _ignored and stored as a plain
-        // BinaryDocValuesField synthetic-source fallback (no counts sidecar).
+    public void testIgnoreAboveIsNoOpMultiValueFalse() throws IOException {
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword").field("ignore_above", 8);
             b.startObject("doc_values").field("multi_value", false).endObject();
@@ -968,6 +985,20 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
                 doc(tsdbId(ST_TS_A), ST_ROUTING, ST_TSID, 1L, "{\"f\":[\"short\",\"TOOLONG\",\"short2\"],\"@timestamp\":" + ST_TS_A + "}"),
                 doc(tsdbId(ST_TS_A + 1000L), ST_ROUTING, ST_TSID, 2L, "{\"f\":\"other\",\"@timestamp\":" + (ST_TS_A + 1000L) + "}")
             )
+        );
+    }
+
+    public void testTsdbSortedSetDocValuesWithLargeTermThrows() throws IOException {
+        // A non-dimension keyword field with index: false in a TSDB index uses SORTED_SET doc values.
+        final MapperService mapperService = createMapperService(tsdbDimensionSettings(), mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject(FIELD).field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject("f_plain").field("type", "keyword").field("index", false).endObject();
+        }));
+        final String longValue = "a".repeat(IndexWriter.MAX_TERM_LENGTH + 1);
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> mapColumnarLeaf(mapperService, "f_plain", "{\"f_plain\":\"" + longValue + "\"}")
         );
     }
 }

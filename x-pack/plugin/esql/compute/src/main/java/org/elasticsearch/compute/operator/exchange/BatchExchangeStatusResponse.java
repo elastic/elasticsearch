@@ -32,6 +32,10 @@ public final class BatchExchangeStatusResponse extends TransportResponse {
     private static final TransportVersion ESQL_DRIVER_WARNINGS = TransportVersion.fromName("esql_driver_warnings");
     /** Adds the optional server-driver profile summary to batch exchange responses and remote fetch operator status. */
     public static final TransportVersion ESQL_BATCH_EXCHANGE_PROFILE = TransportVersion.fromName("esql_batch_exchange_profile");
+    /** Adds granular per-worker exchange traffic to remote fetch profiles. */
+    public static final TransportVersion ESQL_BATCH_EXCHANGE_GRANULAR_PROFILE = TransportVersion.fromName(
+        "esql_batch_exchange_granular_profile"
+    );
 
     @Nullable
     private final Exception failure;
@@ -127,11 +131,13 @@ public final class BatchExchangeStatusResponse extends TransportResponse {
     }
 
     /**
-     * Compact profile of a batch exchange server driver and its source loading work.
+     * Compact profile of a batch exchange server driver and its exchange traffic.
      * <p>
      * {@code valuesLoaded} sums {@link OperatorStatus#valuesLoaded()} across every operator in the driver.
      * {@code fieldLoadNanos} and the {@code source*} fields cover only
      * {@link ValuesSourceReaderOperatorStatus} instances.
+     * {@code requestPages}/{@code requestRows} come from {@link ExchangeSourceOperator.Status};
+     * {@code responsePages}/{@code responseRows} come from {@link ExchangeSinkOperator.Status}.
      */
     public record Profile(
         long driverTookNanos,
@@ -140,15 +146,55 @@ public final class BatchExchangeStatusResponse extends TransportResponse {
         long fieldLoadNanos,
         long sourceDocsLoaded,
         long sourceFieldReads,
-        long sourceBytesLoaded
+        long sourceBytesLoaded,
+        long requestPages,
+        long requestRows,
+        long responsePages,
+        long responseRows
     ) implements org.elasticsearch.common.io.stream.Writeable {
 
         public Profile(StreamInput in) throws IOException {
-            this(in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong());
+            this(
+                in.readVLong(),
+                in.readVLong(),
+                in.readVLong(),
+                in.readVLong(),
+                in.readVLong(),
+                in.readVLong(),
+                in.readVLong(),
+                in.getTransportVersion().supports(ESQL_BATCH_EXCHANGE_GRANULAR_PROFILE) ? in.readVLong() : 0L,
+                in.getTransportVersion().supports(ESQL_BATCH_EXCHANGE_GRANULAR_PROFILE) ? in.readVLong() : 0L,
+                in.getTransportVersion().supports(ESQL_BATCH_EXCHANGE_GRANULAR_PROFILE) ? in.readVLong() : 0L,
+                in.getTransportVersion().supports(ESQL_BATCH_EXCHANGE_GRANULAR_PROFILE) ? in.readVLong() : 0L
+            );
+        }
+
+        public Profile(
+            long driverTookNanos,
+            long driverCpuNanos,
+            long valuesLoaded,
+            long fieldLoadNanos,
+            long sourceDocsLoaded,
+            long sourceFieldReads,
+            long sourceBytesLoaded
+        ) {
+            this(
+                driverTookNanos,
+                driverCpuNanos,
+                valuesLoaded,
+                fieldLoadNanos,
+                sourceDocsLoaded,
+                sourceFieldReads,
+                sourceBytesLoaded,
+                0L,
+                0L,
+                0L,
+                0L
+            );
         }
 
         /**
-         * Summarizes the driver and values-reader profiles needed to diagnose fetch latency.
+         * Summarizes the driver, values-reader, and exchange-operator profiles needed to diagnose fetch latency.
          *
          * @param driverProfile completed driver profile
          * @param driverTookNanos elapsed time measured from client-ready driver dispatch rather than driver construction
@@ -159,6 +205,10 @@ public final class BatchExchangeStatusResponse extends TransportResponse {
             long sourceDocsLoaded = 0L;
             long sourceFieldReads = 0L;
             long sourceBytesLoaded = 0L;
+            long requestPages = 0L;
+            long requestRows = 0L;
+            long responsePages = 0L;
+            long responseRows = 0L;
             for (OperatorStatus operator : driverProfile.operators()) {
                 valuesLoaded += operator.valuesLoaded();
                 if (operator.status() instanceof ValuesSourceReaderOperatorStatus sourceReader) {
@@ -166,6 +216,12 @@ public final class BatchExchangeStatusResponse extends TransportResponse {
                     sourceDocsLoaded += sourceReader.sourceDocsLoaded();
                     sourceFieldReads += sourceReader.sourceFieldReads();
                     sourceBytesLoaded += sourceReader.sourceBytesLoaded();
+                } else if (operator.status() instanceof ExchangeSourceOperator.Status source) {
+                    requestPages += source.pagesEmitted();
+                    requestRows += source.rowsEmitted();
+                } else if (operator.status() instanceof ExchangeSinkOperator.Status sink) {
+                    responsePages += sink.pagesReceived();
+                    responseRows += sink.rowsReceived();
                 }
             }
             return new Profile(
@@ -175,7 +231,11 @@ public final class BatchExchangeStatusResponse extends TransportResponse {
                 fieldLoadNanos,
                 sourceDocsLoaded,
                 sourceFieldReads,
-                sourceBytesLoaded
+                sourceBytesLoaded,
+                requestPages,
+                requestRows,
+                responsePages,
+                responseRows
             );
         }
 
@@ -188,6 +248,12 @@ public final class BatchExchangeStatusResponse extends TransportResponse {
             out.writeVLong(sourceDocsLoaded);
             out.writeVLong(sourceFieldReads);
             out.writeVLong(sourceBytesLoaded);
+            if (out.getTransportVersion().supports(ESQL_BATCH_EXCHANGE_GRANULAR_PROFILE)) {
+                out.writeVLong(requestPages);
+                out.writeVLong(requestRows);
+                out.writeVLong(responsePages);
+                out.writeVLong(responseRows);
+            }
         }
     }
 

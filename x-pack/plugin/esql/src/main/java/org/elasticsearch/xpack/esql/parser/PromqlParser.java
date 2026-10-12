@@ -19,6 +19,7 @@ import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.atn.ATNConfigSet;
 import org.antlr.v4.runtime.atn.PredictionMode;
 import org.antlr.v4.runtime.dfa.DFA;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -74,6 +75,7 @@ public class PromqlParser {
         return invokeParser(query, start, end, startLine, startColumn, params, PromqlBaseParser::singleStatement, PromqlAstBuilder::plan);
     }
 
+    @SuppressForbidden(reason = "TODO: replace with manual depth tracking before the overflow occurs")
     private <T> T invokeParser(
         String query,
         Literal start,
@@ -129,7 +131,7 @@ public class PromqlParser {
                 log.trace("Parse tree: {}", tree.toStringTree());
             }
             return visitor.apply(new PromqlAstBuilder(start, end, startLine, startColumn, params), tree);
-        } catch (StackOverflowError e) {
+        } catch (StackOverflowError e) { // TODO: unsafe - replace with manual depth tracking
             throw new ParsingException(
                 "PromQL statement is too large, causing stack overflow when generating the parsing tree: [{}]",
                 query

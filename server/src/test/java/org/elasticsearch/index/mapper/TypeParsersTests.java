@@ -94,6 +94,7 @@ public class TypeParsersTests extends ESTestCase {
             type -> null,
             version,
             () -> transportVersion,
+            f -> true,
             null,
             ScriptCompiler.NONE,
             mapperService.getIndexAnalyzers(),

@@ -697,6 +697,88 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                     "read"
                   ],
                   "allow_restricted_indices": false
+                },
+                {
+                  "names": [
+                    ".significant_events-*"
+                  ],
+                  "privileges": [
+                    "read"
+                  ],
+                  "allow_restricted_indices": false
+                },
+                {
+                  "names": [
+                    ".workflows-executions*"
+                  ],
+                  "privileges": [
+                    "read"
+                  ],
+                  "field_security": [
+                    {
+                      "grant": [
+                        "spaceId", "id", "workflowId", "managed", "managedBy",
+                        "originManagedWorkflowId", "managedVersion", "status", "createdAt",
+                        "isTestRun", "stepId", "createdBy", "executedBy", "effectiveIdentity.*", "startedAt",
+                        "finishedAt", "duration", "triggeredBy", "eventChainDepth",
+                        "eventChainVisitedWorkflowIds", "dispatchEventId", "concurrencyGroupKey",
+                        "version", "stepType", "workflowRunId", "usage.*", "stepUsage.*", "hitl.*"
+                      ]
+                    }
+                  ],
+                  "query": [
+                    "{\\"bool\\":{\\"must_not\\":[{\\"term\\":{\\"managed\\":true}}]}}"
+                  ],
+                  "allow_restricted_indices": false
+                },
+                {
+                  "names": [
+                    ".workflows-step-executions*"
+                  ],
+                  "privileges": [
+                    "read"
+                  ],
+                  "field_security": [
+                    {
+                      "grant": [
+                        "spaceId", "id", "workflowId", "managed", "managedBy",
+                        "originManagedWorkflowId", "managedVersion", "status", "createdAt",
+                        "isTestRun", "stepId", "createdBy", "executedBy", "effectiveIdentity.*", "startedAt",
+                        "finishedAt", "duration", "triggeredBy", "eventChainDepth",
+                        "eventChainVisitedWorkflowIds", "dispatchEventId", "concurrencyGroupKey",
+                        "version", "stepType", "workflowRunId", "usage.*", "stepUsage.*", "hitl.*"
+                      ]
+                    }
+                  ],
+                  "query": [
+                    "{\\"bool\\":{\\"filter\\":[{\\"term\\":{\\"managed\\":false}}]}}"
+                  ],
+                  "allow_restricted_indices": false
+                },
+                {
+                  "names": [
+                    ".workflows-executions*",
+                    ".workflows-step-executions*"
+                  ],
+                  "privileges": [
+                    "read"
+                  ],
+                  "field_security": [
+                    {
+                      "grant": [
+                        "spaceId", "id", "workflowId", "managed", "managedBy",
+                        "originManagedWorkflowId", "managedVersion", "status", "createdAt",
+                        "isTestRun", "stepId", "createdBy", "executedBy", "effectiveIdentity.*", "startedAt",
+                        "finishedAt", "duration", "triggeredBy", "eventChainDepth",
+                        "eventChainVisitedWorkflowIds", "dispatchEventId", "concurrencyGroupKey",
+                        "version", "stepType", "workflowRunId", "usage.*", "stepUsage.*", "hitl.*"
+                      ]
+                    }
+                  ],
+                  "query": [
+                    "{\\"match_all\\":{}}"
+                  ],
+                  "allow_restricted_indices": false
                 }
               ],
               "applications": [
@@ -1357,6 +1439,54 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             deleteUser(user);
             deleteRole("temp_manage_security_role");
         }
+    }
+
+    /**
+     * The REST API key counts reported under {@code security.api_key_service.api_keys} by {@code GET _xpack/usage} describe the keys
+     * currently held in the security index. Other tests in this suite leave keys behind, so this test asserts on how the counts change
+     * rather than on their absolute values.
+     */
+    public void testApiKeyUsageStats() throws Exception {
+        final ObjectPath usageBefore = getApiKeyUsage();
+
+        final int activeKeys = randomIntBetween(1, 3);
+        for (int i = 0; i < activeKeys; i++) {
+            // an active key either never expires or expires in the future
+            createApiKey(MANAGE_API_KEY_USER, "active-key-" + i, Map.of(), randomBoolean() ? null : "1d");
+        }
+        final int invalidatedKeys = randomIntBetween(1, 3);
+        final String[] invalidatedKeyIds = new String[invalidatedKeys];
+        for (int i = 0; i < invalidatedKeys; i++) {
+            invalidatedKeyIds[i] = createApiKey(MANAGE_API_KEY_USER, "invalidated-key-" + i, Map.of()).id();
+        }
+        invalidateApiKeys(MANAGE_API_KEY_USER, invalidatedKeyIds);
+        final int expiredKeys = randomIntBetween(1, 3);
+        for (int i = 0; i < expiredKeys; i++) {
+            createApiKey(MANAGE_API_KEY_USER, "expired-key-" + i, Map.of(), "1ms");
+        }
+        // cross-cluster API keys are reported under remote_cluster_server and must not leak into the REST API key counts
+        createCrossClusterApiKey(MANAGE_SECURITY_USER);
+
+        // the short-lived keys only count as expired once their expiration time has actually passed
+        assertBusy(() -> {
+            final ObjectPath usageAfter = getApiKeyUsage();
+            assertThat(usageDelta(usageBefore, usageAfter, "security.api_key_service.api_keys.active"), equalTo(activeKeys));
+            assertThat(usageDelta(usageBefore, usageAfter, "security.api_key_service.api_keys.invalidated"), equalTo(invalidatedKeys));
+            assertThat(usageDelta(usageBefore, usageAfter, "security.api_key_service.api_keys.expired"), equalTo(expiredKeys));
+            assertThat(usageDelta(usageBefore, usageAfter, "security.remote_cluster_server.api_keys.total"), equalTo(1));
+        });
+    }
+
+    private ObjectPath getApiKeyUsage() throws IOException {
+        final Request usageRequest = new Request("GET", "/_xpack/usage");
+        usageRequest.addParameter("filter_path", "security.api_key_service,security.remote_cluster_server");
+        return assertOKAndCreateObjectPath(adminClient().performRequest(usageRequest));
+    }
+
+    private static int usageDelta(ObjectPath before, ObjectPath after, String path) throws IOException {
+        final Integer valueBefore = before.evaluate(path);
+        final Integer valueAfter = after.evaluate(path);
+        return valueAfter - valueBefore;
     }
 
     private ObjectPath invalidateApiKeys(String user, String... ids) throws IOException {

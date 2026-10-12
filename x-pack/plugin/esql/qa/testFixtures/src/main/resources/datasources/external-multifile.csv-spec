@@ -143,3 +143,16 @@ FROM employees_multifile_split METADATA _file.size
 count:long
 100
 ;
+
+// LIMIT 80 needs rows from more than the first of the three ~33-row files.
+multiFileLimitSpansFiles
+required_capability: dataset_in_from_command
+dataset: employees_multifile_split: "{{employees_multifile_split}}"
+
+FROM employees_multifile_split
+| LIMIT 80
+| STATS c = COUNT(*);
+
+c:long
+80
+;

@@ -12,6 +12,7 @@ import org.apache.parquet.io.PositionOutputStream;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -53,7 +54,7 @@ final class DatasourceBenchmarks {
      * for the produced blocks. Matches the setup used by the existing CSV benchmarks.
      */
     static BlockFactory newBlockFactory() {
-        return BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("bench")).build();
+        return BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
     /**
@@ -66,6 +67,11 @@ final class DatasourceBenchmarks {
     }
 
     private static final class InMemoryStorageObject implements StorageObject {
+        /** One identity for all in-memory fixtures, so footer-cache entries stay keyed by URI alone as before. */
+        private record BenchIdentity() implements StorageIdentity {}
+
+        private static final BenchIdentity BENCH_IDENTITY = new BenchIdentity();
+
         private final byte[] data;
         private final String uri;
 
@@ -113,6 +119,11 @@ final class DatasourceBenchmarks {
         @Override
         public boolean exists() {
             return true;
+        }
+
+        @Override
+        public StorageIdentity storageIdentity() {
+            return BENCH_IDENTITY;
         }
 
         @Override

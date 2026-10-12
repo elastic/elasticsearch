@@ -22,12 +22,12 @@ import java.util.stream.IntStream;
  * contexts, used by the node-reduce driver) and individual slices (used by the data drivers). Contexts are added to the array in batches
  * via {@link #newSubRangeView(List)}, which also returns an {@link IndexedByShardId} of the slice.
  */
-class AcquiredSearchContexts implements Releasable {
+public class AcquiredSearchContexts implements Releasable {
     private final ComputeSearchContext[] allContexts;
     private int nextAddIndex = 0;
     private boolean isClosed = false;
 
-    AcquiredSearchContexts(int size) {
+    public AcquiredSearchContexts(int size) {
         this.allContexts = new ComputeSearchContext[size];
     }
 

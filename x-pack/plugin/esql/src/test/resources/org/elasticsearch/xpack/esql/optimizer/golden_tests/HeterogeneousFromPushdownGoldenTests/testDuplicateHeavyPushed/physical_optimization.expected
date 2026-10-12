@@ -6,9 +6,9 @@ ProjectExec[[d1{r}#0, d1{r}#0 AS d2#1]]
       | \_ExchangeExec[[$$partial$$d1$partial{r}#6],true]
       |   \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
 Aggregate[[],[TOPARTIAL(COUNTDISTINCT(emp_no{r}#5,true[BOOLEAN],PT0S[TIME_DURATION]),true[BOOLEAN],PT0S[TIME_DURATION],COUNTDISTINCT(emp_no{r}#5,true[BOOLEAN],PT0S[TIME_DURATION])) AS $$partial$$d1#2]]
-\_ExternalRelation[s3://bucket/heavy_a.parquet][parquet][emp_no{r}#5, salary{r}#7, dept{r}#8]<>]]
+\_ExternalRelation[heavy_a.parquet][parquet][emp_no{r}#5, salary{r}#7, dept{r}#8]<>]]
       \_AggregateExec[[],[TOPARTIAL(COUNTDISTINCT(emp_no{r}#9,true[BOOLEAN],PT0S[TIME_DURATION]),true[BOOLEAN],PT0S[TIME_DURATION],COUNTDISTINCT(emp_no{r}#9,true[BOOLEAN],PT0S[TIME_DURATION])) AS $$partial$$d1#2],FINAL,[$$partial$$d1$partial{r}#10],null]
         \_ExchangeExec[[$$partial$$d1$partial{r}#10],true]
           \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
 Aggregate[[],[TOPARTIAL(COUNTDISTINCT(emp_no{r}#9,true[BOOLEAN],PT0S[TIME_DURATION]),true[BOOLEAN],PT0S[TIME_DURATION],COUNTDISTINCT(emp_no{r}#9,true[BOOLEAN],PT0S[TIME_DURATION])) AS $$partial$$d1#2]]
-\_ExternalRelation[s3://bucket/heavy_b.parquet][parquet][emp_no{r}#9, salary{r}#11, dept{r}#12]<>]]
+\_ExternalRelation[heavy_b.parquet][parquet][emp_no{r}#9, salary{r}#11, dept{r}#12]<>]]

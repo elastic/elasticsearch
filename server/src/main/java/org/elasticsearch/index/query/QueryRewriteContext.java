@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
@@ -22,10 +23,12 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DynamicFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -39,6 +42,7 @@ import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -85,6 +89,7 @@ public class QueryRewriteContext {
     protected boolean allowUnmappedFields;
     protected boolean mapUnmappedFieldAsString;
     protected Predicate<String> allowedFields;
+    protected Predicate<String> fieldVisibilityPredicate = Predicates.always();
     private final ResolvedIndices resolvedIndices;
     private final PointInTimeBuilder pit;
     private QueryRewriteInterceptor queryRewriteInterceptor;
@@ -96,6 +101,8 @@ public class QueryRewriteContext {
     @Nullable
     private Boolean hasAnyLocalInferenceFields;
     private final boolean allowPartialSearchResults;
+    @Nullable
+    private TaskId parentTaskId;
 
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
@@ -398,7 +405,18 @@ public class QueryRewriteContext {
         }
         final String fieldName = resolveSliceAlias(name);
         MappedFieldType fieldType = runtimeMappings.get(fieldName);
-        return fieldType == null ? mappingLookup.getFieldType(fieldName) : fieldType;
+        if (fieldType == null) {
+            fieldType = mappingLookup.getFieldType(fieldName);
+        }
+
+        // if this field is a constant_keyword, and the user's role has FLS rules targeting this field, ensure these are respected
+        if (fieldType instanceof ConstantFieldType constantFieldType) {
+            var visible = (mapperService != null && mapperService.isMetadataField(fieldType.name()))
+                || fieldVisibilityPredicate.test(fieldType.name());
+
+            return constantFieldType.applyFieldVisibility(visible);
+        }
+        return fieldType;
     }
 
     private String resolveSliceAlias(String fieldName) {
@@ -432,6 +450,14 @@ public class QueryRewriteContext {
 
     public void setAllowUnmappedFields(boolean allowUnmappedFields) {
         this.allowUnmappedFields = allowUnmappedFields;
+    }
+
+    /**
+     * Sets the field visibility predicate for this context.
+     * The default value allows all fields, so contexts requiring restricted visibility must set this before resolving fields.
+     */
+    public void setFieldVisibilityPredicate(Predicate<String> fieldVisibilityPredicate) {
+        this.fieldVisibilityPredicate = fieldVisibilityPredicate;
     }
 
     public void setMapUnmappedFieldAsString(boolean mapUnmappedFieldAsString) {
@@ -468,6 +494,14 @@ public class QueryRewriteContext {
     public boolean allowExpensiveQueries() {
         assert allowExpensiveQueries != null;
         return allowExpensiveQueries.getAsBoolean();
+    }
+
+    /**
+     * Sets the task that owns this rewrite. Requests sent by the registered async actions become child tasks of it,
+     * so cancelling the owning task (for instance when the client of a search disconnects) also cancels them.
+     */
+    public void setParentTask(TaskId parentTaskId) {
+        this.parentTaskId = parentTaskId;
     }
 
     /**
@@ -513,17 +547,18 @@ public class QueryRewriteContext {
                 }
             };
 
+            final Client actionClient = parentTaskId == null ? client : new ParentTaskAssigningClient(client, parentTaskId);
             // make a copy to prevent concurrent modification exception
             List<BiConsumer<Client, ActionListener<?>>> biConsumers = new ArrayList<>(asyncActions);
             asyncActions.clear();
             for (BiConsumer<Client, ActionListener<?>> action : biConsumers) {
-                action.accept(client, internalListener);
+                action.accept(actionClient, internalListener);
             }
 
             var copyUniqueAsyncActions = new HashMap<>(uniqueAsyncActions);
             uniqueAsyncActions.clear();
             for (var entry : copyUniqueAsyncActions.keySet()) {
-                entry.execute(client, internalListener, copyUniqueAsyncActions.get(entry));
+                entry.execute(actionClient, internalListener, copyUniqueAsyncActions.get(entry));
             }
         }
     }

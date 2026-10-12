@@ -26,9 +26,11 @@ import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper.BatchMapperResolution;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.sourcebatch.SourceSchema;
@@ -68,6 +70,36 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
         BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schemaOf("host"), ms.mappingLookup(), indexSettings);
         assertNotNull(resolution);
         assertTrue(resolution.columnMappers()[0] instanceof KeywordFieldMapper);
+    }
+
+    /** Settings of a {@code columnar_stored} index, optionally forcing the stored-field layout of {@code _ignored_source}. */
+    private static Settings columnarStoredSettings(boolean docValuesFormat) {
+        return Settings.builder()
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+            .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), docValuesFormat)
+            .build();
+    }
+
+    public void testColumnarStoredSourceIsSupported() throws IOException {
+        Settings settings = columnarStoredSettings(true);
+        MapperService ms = columnarMapperService(settings, mapping(b -> b.startObject("host").field("type", "keyword").endObject()));
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(
+            schemaOf("host"),
+            ms.mappingLookup(),
+            columnarIndexSettings(settings)
+        );
+        assertNotNull(resolution);
+        assertTrue(resolution.columnMappers()[0] instanceof KeywordFieldMapper);
+    }
+
+    /**
+     * Without the time-series doc values format {@code _ignored_source} is a stored field, but the batch path writes the
+     * {@code columnar_stored} blob as doc values. Batching it would make the blob unreadable, so the batch has to fall back.
+     */
+    public void testColumnarStoredSourceWithStoredIgnoredSourceFallsBack() throws IOException {
+        Settings settings = columnarStoredSettings(false);
+        MapperService ms = columnarMapperService(settings, mapping(b -> b.startObject("host").field("type", "keyword").endObject()));
+        assertNull(ShardBatchMapper.resolveMappers(schemaOf("host"), ms.mappingLookup(), columnarIndexSettings(settings)));
     }
 
     public void testNumberMapperIsSupported() throws IOException {
@@ -1116,6 +1148,24 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
         assertEquals(2, resolution.columnGroups().length);
         assertEquals("src", resolution.columnGroups()[0].mapper().fullPath());
         assertEquals("dst", resolution.columnGroups()[1].mapper().fullPath());
+    }
+
+    /**
+     * When a shard has not yet received its first mapping update the {@link MapperService} returns
+     * {@link MappingLookup#EMPTY}, whose {@code getSortedMetadataMappers()} is an empty array.
+     * Before the fix, the per-metadata-mapper loop was vacuously true, letting an empty {@code {}}
+     * document slip through to the batch path.  The batch created a columnar segment (no {@code _id}
+     * terms), and the next document going to the same shard via the sequential fallback threw
+     * {@code IllegalArgumentException: reader does not have _uid terms but not a no-op segment}.
+     */
+    public void testEmptyMappingFallsBackToSequential() throws IOException {
+        // MappingLookup.EMPTY has no metadata mappers — simulates a shard whose mapping has not
+        // been established yet (MapperService.mapper == null).
+        SourceSchema emptyDocSchema = schemaOfJson("{}");
+        assertNull(
+            "batch path must not run when mapping has not been established",
+            ShardBatchMapper.resolveMappers(emptyDocSchema, MappingLookup.EMPTY, indexSettings)
+        );
     }
 
     /**

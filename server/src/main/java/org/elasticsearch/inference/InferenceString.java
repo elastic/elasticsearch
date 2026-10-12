@@ -111,16 +111,12 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
 
     private void validateTypeAndFormat() {
         if (dataType.getSupportedFormats().contains(dataFormat) == false) {
-            var displayedFormats = dataType.getSupportedFormats()
-                .stream()
-                .filter(f -> f != DataFormat.URL || DataFormat.URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled())
-                .toList();
             throw new IllegalArgumentException(
                 Strings.format(
                     "Data type [%s] does not support data format [%s], supported formats are %s",
                     dataType,
                     dataFormat,
-                    displayedFormats
+                    dataType.getSupportedFormats()
                 )
             );
         }
@@ -137,9 +133,6 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
     }
 
     private void validateURLFormat() {
-        if (DataFormat.URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled() == false) {
-            throw new IllegalArgumentException("url format is not supported");
-        }
         try {
             var uri = new URI(value);
             if (DATA_SCHEME.equalsIgnoreCase(uri.getScheme())) {

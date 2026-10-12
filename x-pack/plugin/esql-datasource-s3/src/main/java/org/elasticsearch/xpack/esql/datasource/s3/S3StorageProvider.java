@@ -55,8 +55,11 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalPlanningIo;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -117,6 +120,7 @@ public class S3StorageProvider implements StorageProvider {
      */
     private final RetryStrategy asyncReadRetryStrategy = AwsRetryStrategy.standardRetryStrategy();
     private final S3Configuration config;
+    private final StorageIdentity storageIdentity;
     // Non-null only in the production constructor; null in the test-only constructor (forTesting).
     // Used by buildRetryClient() to rebuild the S3 client at a discovered region.
     @Nullable
@@ -140,22 +144,23 @@ public class S3StorageProvider implements StorageProvider {
     // Owned only on the federated (keyless) workload-identity path; null otherwise. Closed by close().
     private final StsAsyncClient stsAsyncClient;
     private final CustomWebIdentityTokenCredentialsProvider webIdentityTokenCredentialsProvider;
+    private final EsqlContainerCredentialsProvider containerCredentialsProvider;
     /**
      * Managed-identity credentials providers that this instance creates in
-     * {@link #managedIdentityProviders()} and therefore owns: the {@link ContainerCredentialsProvider}
-     * and {@link InstanceProfileCredentialsProvider}, each of which opens a background credential-refresh
-     * resource. Closed by {@link #close()}. The IRSA provider is excluded — it is a node-level singleton
-     * owned by {@code S3DataSourcePlugin}.
+     * {@link #managedIdentityProviders()} and therefore owns: the stock {@link ContainerCredentialsProvider}
+     * (ECS path only) and {@link InstanceProfileCredentialsProvider}, each of which opens a background
+     * credential-refresh resource. Closed by {@link #close()}. The IRSA and Pod Identity providers are
+     * excluded — they are node-level singletons owned by {@code S3DataSourcePlugin}.
      */
     private final List<SdkAutoCloseable> ownedManagedIdentityProviders = new ArrayList<>();
 
     /**
-     * Test-friendly constructor: no IRSA web-identity provider available, async pool sized at the
+     * Test-friendly constructor: no IRSA / Pod Identity providers available, async pool sized at the
      * {@code esql.external.max_concurrent_requests} default. Equivalent to production behavior on a node where
-     * {@code AWS_WEB_IDENTITY_TOKEN_FILE} is unset.
+     * the EKS workload-identity environment variables are unset.
      */
     public S3StorageProvider(S3Configuration config) {
-        this(config, null, ExternalSourceSettings.blobStoreConcurrency(Settings.EMPTY));
+        this(config, null, null, ExternalSourceSettings.blobStoreConcurrency(Settings.EMPTY));
     }
 
     /**
@@ -167,13 +172,16 @@ public class S3StorageProvider implements StorageProvider {
     public S3StorageProvider(
         S3Configuration config,
         CustomWebIdentityTokenCredentialsProvider webIdentityTokenCredentialsProvider,
+        EsqlContainerCredentialsProvider containerCredentialsProvider,
         int maxConnections
     ) {
         this.config = config;
+        this.storageIdentity = identityOf(config);
         this.maxConnections = maxConnections;
         // Set first so that managedIdentityProviders() (called from buildManagedIdentityCredentialsProvider() on
-        // the MANAGED_IDENTITY path) can read it.
+        // the MANAGED_IDENTITY path) can read them.
         this.webIdentityTokenCredentialsProvider = webIdentityTokenCredentialsProvider;
+        this.containerCredentialsProvider = containerCredentialsProvider;
         StsAsyncClient sts = null;
         S3Client s3 = null;
         boolean success = false;
@@ -218,6 +226,10 @@ public class S3StorageProvider implements StorageProvider {
         }
     }
 
+    private static StorageIdentity identityOf(S3Configuration config) {
+        return config == null ? StorageIdentity.unique() : S3CredentialIdentity.of(config);
+    }
+
     /**
      * Adapts a (possibly {@code null}) AWS SDK {@link SdkAutoCloseable} client to a {@link Closeable} so it can be
      * handed to {@link IOUtils}.
@@ -227,11 +239,9 @@ public class S3StorageProvider implements StorageProvider {
     }
 
     /**
-     * Test-only constructor that accepts pre-built clients plus an IRSA provider.
+     * Test-only constructor that accepts pre-built clients plus workload-identity providers.
      * <p>
-     * Single 3-arg form on purpose: a 2-arg test constructor with two nullable reference args
-     * would be ambiguous against the 2-arg production constructor at {@code null, null} call
-     * sites. Tests without IRSA pass {@code null} for the third arg, or use the
+     * Tests without IRSA / Pod Identity pass {@code null} for those args, or use the
      * {@link #forTesting(S3Client, S3AsyncClient)} sugar.
      */
     S3StorageProvider(
@@ -239,10 +249,21 @@ public class S3StorageProvider implements StorageProvider {
         S3AsyncClient s3AsyncClient,
         CustomWebIdentityTokenCredentialsProvider webIdentityTokenCredentialsProvider
     ) {
+        this(s3Client, s3AsyncClient, webIdentityTokenCredentialsProvider, null);
+    }
+
+    S3StorageProvider(
+        S3Client s3Client,
+        S3AsyncClient s3AsyncClient,
+        CustomWebIdentityTokenCredentialsProvider webIdentityTokenCredentialsProvider,
+        EsqlContainerCredentialsProvider containerCredentialsProvider
+    ) {
         this.config = null;
+        this.storageIdentity = StorageIdentity.unique();
         this.credentials = null;
         this.stsAsyncClient = null;
         this.webIdentityTokenCredentialsProvider = webIdentityTokenCredentialsProvider;
+        this.containerCredentialsProvider = containerCredentialsProvider;
         this.s3Client = s3Client;
         this.s3AsyncClient = s3AsyncClient;
         this.maxConnections = ExternalSourceSettings.blobStoreConcurrency(Settings.EMPTY);
@@ -260,9 +281,11 @@ public class S3StorageProvider implements StorageProvider {
      */
     S3StorageProvider(S3Configuration config, S3Client s3Client) {
         this.config = config;
+        this.storageIdentity = identityOf(config);
         this.credentials = null;
         this.stsAsyncClient = null;
         this.webIdentityTokenCredentialsProvider = null;
+        this.containerCredentialsProvider = null;
         this.s3Client = s3Client;
         this.s3AsyncClient = null;
         this.maxConnections = ExternalSourceSettings.blobStoreConcurrency(Settings.EMPTY);
@@ -579,10 +602,19 @@ public class S3StorageProvider implements StorageProvider {
      *       singleton exists and {@link CustomWebIdentityTokenCredentialsProvider#isActive()}.
      *       Wrapped in {@link ErrorLoggingCredentialsProvider} so STS unreachability surfaces in
      *       logs before the chain falls through.</li>
-     *   <li>{@link ContainerCredentialsProvider} — covers ECS task roles and EKS Pod Identity
-     *       (the latter requires the JVM sysprop {@code aws.containerAuthorizationTokenFile} to
-     *       be redirected at the entitled symlink, done in {@code S3DataSourcePlugin}).</li>
-     *   <li>{@link InstanceProfileCredentialsProvider} — EC2 metadata fallback.</li>
+     *   <li>EKS Pod Identity via {@link EsqlContainerCredentialsProvider} when that singleton is
+     *       active; otherwise the stock {@link ContainerCredentialsProvider} for ECS task roles.
+     *       When the Pod Identity env vars are set but the entitled symlink is missing or
+     *       unreadable: if no earlier provider is already in the chain, fails loudly naming the
+     *       file rather than falling through to the stock provider; if IRSA is already present,
+     *       skips the container link. Unlike IRSA (missing symlink → inactive / soft skip), Pod
+     *       Identity treats a present env + missing symlink as a hard misconfiguration for the
+     *       container link — matching the Azure AKS pattern — so we never open the
+     *       entitlement-blocked Kubernetes token path.</li>
+     *   <li>{@link InstanceProfileCredentialsProvider} — EC2 metadata fallback, only when neither
+     *       IRSA nor Pod Identity is active. On EKS those providers are the intended auth path and
+     *       IMDS is typically blocked; appending instance-profile there would turn a failing
+     *       workload-identity call into a ~15s timeout rather than a fast failure.</li>
      * </ol>
      * Env-var and system-property providers are excluded — they are a dev/CI convention and open
      * a JVM-global-state override on servers. Profile-file loading is excluded (file read, blocked
@@ -611,19 +643,49 @@ public class S3StorageProvider implements StorageProvider {
      */
     List<AwsCredentialsProvider> managedIdentityProviders() {
         List<AwsCredentialsProvider> providers = new ArrayList<>(3);
-        if (webIdentityTokenCredentialsProvider != null && webIdentityTokenCredentialsProvider.isActive()) {
+        boolean irsaActive = webIdentityTokenCredentialsProvider != null && webIdentityTokenCredentialsProvider.isActive();
+        boolean podIdentityActive = containerCredentialsProvider != null && containerCredentialsProvider.isActive();
+        if (irsaActive) {
             // Node-level singleton owned by S3DataSourcePlugin; do NOT close it from this instance.
             providers.add(new ErrorLoggingCredentialsProvider(webIdentityTokenCredentialsProvider, LOGGER));
         }
-        // Created per S3StorageProvider, so this instance owns them and must close them in close(). Track each in
-        // ownedManagedIdentityProviders the instant it is created, before the next create() runs — if the second
-        // create() throws, the first is still tracked for cleanup by the constructor's finally block.
-        ContainerCredentialsProvider containerCredentialsProvider = ContainerCredentialsProvider.create();
-        ownedManagedIdentityProviders.add(containerCredentialsProvider);
-        InstanceProfileCredentialsProvider instanceProfileCredentialsProvider = InstanceProfileCredentialsProvider.create();
-        ownedManagedIdentityProviders.add(instanceProfileCredentialsProvider);
-        providers.add(containerCredentialsProvider);
-        providers.add(instanceProfileCredentialsProvider);
+        if (podIdentityActive) {
+            // Node-level singleton owned by S3DataSourcePlugin; do NOT close it from this instance.
+            providers.add(new ErrorLoggingCredentialsProvider(containerCredentialsProvider, LOGGER));
+        } else if (containerCredentialsProvider != null && containerCredentialsProvider.isMisconfigured()) {
+            // Pod Identity env is present but the entitled symlink is missing/unreadable (or the
+            // node Environment was unavailable). Do not fall through to
+            // ContainerCredentialsProvider.create() (entitlement-blocked K8s path). If IRSA is
+            // already in the chain, skip the container link and continue.
+            if (providers.isEmpty()) {
+                throw new IllegalStateException(containerCredentialsProvider.misconfigurationMessage());
+            }
+            LOGGER.warn(
+                "Skipping EKS Pod Identity for S3 data sources: {}; continuing with earlier managed-identity providers",
+                containerCredentialsProvider.misconfigurationMessage()
+            );
+        } else if (containerCredentialsProvider != null && containerCredentialsProvider.isClosedAfterConfiguration()) {
+            // Was successfully configured then closed (plugin shutdown). Do not fall through to
+            // the ECS task-role endpoint, which is unreachable on EKS.
+            if (providers.isEmpty()) {
+                throw new IllegalStateException("EKS Pod Identity credentials provider has been closed");
+            }
+            LOGGER.warn("Skipping closed EKS Pod Identity provider; continuing with earlier managed-identity providers");
+        } else {
+            // ECS task-role (and any other container-credentials shape that does not use a token
+            // file). Created per S3StorageProvider, so this instance owns it.
+            ContainerCredentialsProvider stockContainerCredentialsProvider = ContainerCredentialsProvider.create();
+            ownedManagedIdentityProviders.add(stockContainerCredentialsProvider);
+            providers.add(stockContainerCredentialsProvider);
+        }
+        // Skip IMDS when an EKS workload-identity provider is active: IMDS is usually blocked in
+        // Kubernetes, and with reuseLastProviderEnabled(false) a failing IRSA/Pod Identity call
+        // would otherwise burn ~15s on IMDS retries before surfacing the real error.
+        if (irsaActive == false && podIdentityActive == false) {
+            InstanceProfileCredentialsProvider instanceProfileCredentialsProvider = InstanceProfileCredentialsProvider.create();
+            ownedManagedIdentityProviders.add(instanceProfileCredentialsProvider);
+            providers.add(instanceProfileCredentialsProvider);
+        }
         return providers;
     }
 
@@ -689,7 +751,7 @@ public class S3StorageProvider implements StorageProvider {
         DiscoveredClients dc = resolveClientsForBucket(bucket);
         S3Client sync = dc != null ? dc.sync() : s3Client;
         S3AsyncClient async = dc != null ? dc.async() : s3AsyncClient;
-        return new S3StorageObject(sync, async, asyncReadRetryStrategy, bucket, key, path);
+        return new S3StorageObject(sync, async, asyncReadRetryStrategy, storageIdentity, bucket, key, path);
     }
 
     @Override
@@ -700,7 +762,7 @@ public class S3StorageProvider implements StorageProvider {
         DiscoveredClients dc = resolveClientsForBucket(bucket);
         S3Client sync = dc != null ? dc.sync() : s3Client;
         S3AsyncClient async = dc != null ? dc.async() : s3AsyncClient;
-        return new S3StorageObject(sync, async, asyncReadRetryStrategy, bucket, key, path, length);
+        return new S3StorageObject(sync, async, asyncReadRetryStrategy, storageIdentity, bucket, key, path, length);
     }
 
     @Override
@@ -711,7 +773,7 @@ public class S3StorageProvider implements StorageProvider {
         DiscoveredClients dc = resolveClientsForBucket(bucket);
         S3Client sync = dc != null ? dc.sync() : s3Client;
         S3AsyncClient async = dc != null ? dc.async() : s3AsyncClient;
-        return new S3StorageObject(sync, async, asyncReadRetryStrategy, bucket, key, path, length, lastModified);
+        return new S3StorageObject(sync, async, asyncReadRetryStrategy, storageIdentity, bucket, key, path, length, lastModified);
     }
 
     @Override
@@ -761,6 +823,7 @@ public class S3StorageProvider implements StorageProvider {
                     requestBuilder.continuationToken(continuationToken);
                 }
                 ListObjectsV2Response response = s3Client.listObjectsV2(requestBuilder.build());
+                ExternalPlanningIo.addMetadataGet(0);
                 for (S3Object s3Object : response.contents()) {
                     if (s3Object.key().endsWith(StoragePath.PATH_SEPARATOR)) {
                         continue; // directory placeholder key (console "folder" object)
@@ -780,16 +843,14 @@ public class S3StorageProvider implements StorageProvider {
                 continuationToken = response.nextContinuationToken();
             } while (continuationToken != null);
         } catch (Exception e) {
+            ExternalPlanningIo.addMetadataGet(0);
             // Same typing as the other list sites: a 503/429 must surface as ExternalUnavailableException so the
             // retry layer re-attempts it and the adaptive backoff hears about it.
             ExternalUnavailableException unavailable = mapResolveFailure(prefix, e);
             if (unavailable != null) {
                 throw unavailable;
             }
-            throw new IOException(
-                "Failed to list children in bucket [" + bucket + "] with prefix [" + keyPrefix + "]: " + S3FailureDetail.of(e),
-                e
-            );
+            throw new IOException("Failed to list children in the configured path: " + S3FailureDetail.of(e), e);
         }
         return new StorageChildren(files, directories);
     }
@@ -803,6 +864,11 @@ public class S3StorageProvider implements StorageProvider {
     private static StorageEntry toStorageEntry(S3Object s3Object, String pathPrefix) {
         Instant lastModified = s3Object.lastModified() != null ? s3Object.lastModified() : Instant.EPOCH;
         return new StorageEntry(StoragePath.of(pathPrefix + s3Object.key()), s3Object.size(), lastModified);
+    }
+
+    @Override
+    public boolean listsInKeyOrder() {
+        return true;
     }
 
     @Override
@@ -824,7 +890,7 @@ public class S3StorageProvider implements StorageProvider {
         } catch (NoSuchKeyException e) {
             return false;
         } catch (Exception e) {
-            ExternalCredentialsExpiredException expired = S3FailureDetail.expired(e, "checking existence of [" + path + "]");
+            ExternalCredentialsExpiredException expired = S3FailureDetail.expired(e, "checking object existence");
             if (expired != null) {
                 throw expired;
             }
@@ -842,7 +908,7 @@ public class S3StorageProvider implements StorageProvider {
                 throw unavailable;
             }
             throw new IOException(
-                "Failed to check existence of " + path + ": " + S3FailureDetail.of(e) + credentialHint() + regionHint(),
+                "Failed to check existence of external object: " + S3FailureDetail.of(e) + credentialHint() + regionHint(),
                 e
             );
         }
@@ -857,7 +923,7 @@ public class S3StorageProvider implements StorageProvider {
         } catch (NoSuchKeyException e) {
             return false;
         } catch (Exception e) {
-            ExternalCredentialsExpiredException expired = S3FailureDetail.expired(e, "checking existence of [" + path + "]");
+            ExternalCredentialsExpiredException expired = S3FailureDetail.expired(e, "checking object existence");
             if (expired != null) {
                 throw expired;
             }
@@ -866,9 +932,7 @@ public class S3StorageProvider implements StorageProvider {
                 throw unavailable;
             }
             throw new IOException(
-                "Failed to check existence of "
-                    + path
-                    + " (HEAD denied, range GET also failed): "
+                "Failed to check existence of external object (HEAD denied, range GET also failed): "
                     + S3FailureDetail.of(e)
                     + credentialHint()
                     + regionHint(),
@@ -891,23 +955,11 @@ public class S3StorageProvider implements StorageProvider {
                     s3.awsErrorDetails().sdkHttpResponse().firstMatchingHeader("Retry-After").orElse(null)
                 );
             }
-            return new ExternalUnavailableException(
-                throttling,
-                retryAfterMs,
-                cause,
-                "S3 store unavailable resolving [{}] (HTTP {})",
-                path,
-                s3.statusCode()
-            );
+            Condition condition = throttling ? Condition.STORE_THROTTLED : Condition.STORE_UNAVAILABLE;
+            return new ExternalUnavailableException(condition, path, "HTTP " + s3.statusCode(), "", throttling, retryAfterMs, cause);
         }
         if (S3StorageObject.isSdkClientTransportFailure(cause)) {
-            return new ExternalUnavailableException(
-                false,
-                cause,
-                "S3 store unavailable resolving [{}]: {}",
-                path,
-                S3FailureDetail.of(cause)
-            );
+            return new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, path, S3FailureDetail.of(cause), "", false, 0L, cause);
         }
         return null;
     }
@@ -1113,15 +1165,14 @@ public class S3StorageProvider implements StorageProvider {
                 }
 
                 ListObjectsV2Response response = s3Client.listObjectsV2(requestBuilder.build());
+                ExternalPlanningIo.addMetadataGet(0);
 
                 currentBatch = response.contents().iterator();
                 continuationToken = response.nextContinuationToken();
                 hasMorePages = response.isTruncated();
             } catch (Exception e) {
-                ExternalCredentialsExpiredException expired = S3FailureDetail.expired(
-                    e,
-                    "listing objects in bucket [" + bucket + "] with prefix [" + prefix + "]"
-                );
+                ExternalPlanningIo.addMetadataGet(0);
+                ExternalCredentialsExpiredException expired = S3FailureDetail.expired(e, "listing objects in the configured path");
                 if (expired != null) {
                     throw expired;
                 }
@@ -1141,16 +1192,13 @@ public class S3StorageProvider implements StorageProvider {
                     throw unavailable;
                 }
                 String msg = (e instanceof S3Exception s3e && s3e.statusCode() == 403)
-                    ? "Access denied listing objects in bucket ["
-                        + bucket
-                        + "] with prefix ["
-                        + prefix
-                        + "]. "
+                    ? "Access denied listing objects in the configured path. "
                         + "Verify that the configured credentials have s3:ListBucket permission on this bucket, "
                         + "or use exact file paths instead of glob patterns."
-                    : "Failed to list objects in bucket [" + bucket + "] with prefix [" + prefix + "]";
+                    : "Failed to list objects in the configured path";
                 throw new UncheckedIOException(new IOException(msg + ": " + S3FailureDetail.of(e) + regionHint, e));
             }
         }
     }
+
 }

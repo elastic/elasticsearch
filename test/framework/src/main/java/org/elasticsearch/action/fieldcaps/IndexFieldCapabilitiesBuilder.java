@@ -10,6 +10,7 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 
 import java.util.Collections;
@@ -26,7 +27,11 @@ public class IndexFieldCapabilitiesBuilder {
     private boolean isInference;
     private boolean isDimension;
     private @Nullable TimeSeriesParams.MetricType metricType;
+    private @Nullable Boolean isPassthrough;
     private Map<String, String> meta;
+    private @Nullable String indexAnalyzer;
+    private int indexAnalyzerPositionIncrementGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
+    private boolean indexLocalAnalyzer;
 
     public IndexFieldCapabilitiesBuilder(String name, String type) {
         this.name = name;
@@ -68,8 +73,30 @@ public class IndexFieldCapabilitiesBuilder {
         return this;
     }
 
+    /** Passthrough status; {@code null} (the default) when the field type cannot be a passthrough source. */
+    public IndexFieldCapabilitiesBuilder isPassthrough(@Nullable Boolean isPassthrough) {
+        this.isPassthrough = isPassthrough;
+        return this;
+    }
+
     public IndexFieldCapabilitiesBuilder meta(@Nullable Map<String, String> meta) {
         this.meta = meta != null ? new TreeMap<>(meta) : null;
+        return this;
+    }
+
+    public IndexFieldCapabilitiesBuilder indexAnalyzer(@Nullable String indexAnalyzer) {
+        this.indexAnalyzer = indexAnalyzer;
+        return this;
+    }
+
+    public IndexFieldCapabilitiesBuilder indexAnalyzerPositionIncrementGap(int indexAnalyzerPositionIncrementGap) {
+        this.indexAnalyzerPositionIncrementGap = indexAnalyzerPositionIncrementGap;
+        return this;
+    }
+
+    /** Withheld {@code index.analysis} name. Only meaningful when {@code indexAnalyzer} is null. */
+    public IndexFieldCapabilitiesBuilder indexLocalAnalyzer(boolean indexLocalAnalyzer) {
+        this.indexLocalAnalyzer = indexLocalAnalyzer;
         return this;
     }
 
@@ -83,7 +110,11 @@ public class IndexFieldCapabilitiesBuilder {
             isInference,
             isDimension,
             metricType,
-            meta
+            isPassthrough,
+            meta,
+            indexAnalyzer,
+            indexAnalyzerPositionIncrementGap,
+            indexLocalAnalyzer
         );
     }
 }

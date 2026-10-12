@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -336,61 +337,267 @@ public class PushDownFilterAndLimitIntoUnionAll extends OptimizerRules.Parameter
         return changed ? unionAll.replaceChildren(newChildren) : unionAll;
     }
 
+    /**
+     * Bounds an unbounded {@code Knn} in one {@code UnionAll} branch by appending a {@code Limit} at the branch root, or returns the
+     * branch unchanged if every {@code Knn} in it is already bounded.
+     *
+     * <p>A {@code Knn} carries an {@code implicitK} - how many nearest neighbours to fetch - which {@code PushLimitToKnn} derives from
+     * the nearest enclosing {@code Limit}. {@code implicitK} is not serialized, so it does not survive the trip to a remote node; the
+     * appended {@code Limit} is what lets {@code PushLimitToKnn} re-derive it there. Without one the {@code Knn} arrives with no k and
+     * {@code Knn.postOptimizationVerification} rejects the query.
+     *
+     * <p>The per-path search matches {@link #appendLimitIfNeededForOrderBy}: a {@code Limit} bounds everything below it, a nested
+     * {@code UnionAll} ends our concern, and an {@link AbstractSubqueryJoin} is walked on the left only. Unlike that method the first
+     * match on a path is not enough, because the appended limit has to cover the largest k any unbounded {@code Knn} asked for, so
+     * {@link #maxUnboundedImplicitK} accumulates rather than stopping.
+     *
+     * <p>{@link #maybeAppendLimitToSubquery} calls this once per branch. In
+     * {@code FROM colors, (FROM colors METADATA _score | WHERE knn(rgb_vector, "007800")) METADATA _score | LIMIT 5} only the second
+     * branch holds a {@code Knn}, so only it is rewritten. Its {@code implicitK} is 5, taken from the outer {@code LIMIT}:
+     * <pre>
+     * Project
+     *   Subquery
+     *     Filter[KNN(rgb_vector, ..., implicitK=5)]
+     *       EsRelation[colors]
+     * </pre>
+     * becomes, with a limit of {@code max(5, resultTruncationMaxSize)}:
+     * <pre>
+     * Limit[10000]
+     *   Project
+     *     Subquery
+     *       Filter[KNN(rgb_vector, ..., implicitK=5)]
+     *         EsRelation[colors]
+     * </pre>
+     * The limit pushdown rules then walk it under the {@code Subquery} and {@code PushLimitToKnn} re-reads it on the next pass, so the
+     * optimized branch ends up as:
+     * <pre>
+     * Project
+     *   Subquery
+     *     Limit[10000]
+     *       Filter[KNN(rgb_vector, ..., implicitK=10000)]
+     *         EsRelation[colors]
+     * </pre>
+     *
+     * <p>With nesting, a {@code Knn} written at an outer level does not stay there. In
+     * {@code FROM (FROM (FROM colors METADATA _score | WHERE knn(rgb_vector, "007800")), (FROM colors METADATA _score | WHERE
+     * knn(rgb_vector, "0000ff")) METADATA _score | WHERE knn(rgb_vector, "ff0000")), (FROM colors) METADATA _score | LIMIT 5} there is a
+     * {@code knn} at the middle level and one in each innermost subquery, and the optimized plan is:
+     * <pre>
+     * Limit[5]
+     *   UnionAll                                                                            (outer)
+     *     Project
+     *       Subquery
+     *         UnionAll                                                                      (inner)
+     *           Project
+     *             Subquery
+     *               Limit[10000]
+     *                 Filter[KNN(rgb_vector, [0.0, 120.0, 0.0]) AND KNN(rgb_vector, [-1.0, 0.0, 0.0])]
+     *                   EsRelation[colors]
+     *           Project
+     *             Subquery
+     *               Limit[10000]
+     *                 Filter[KNN(rgb_vector, [0.0, 0.0, -1.0]) AND KNN(rgb_vector, [-1.0, 0.0, 0.0])]
+     *                   EsRelation[colors]
+     *     Project
+     *       Eval
+     *         Subquery
+     *           EsRelation[colors]
+     * </pre>
+     * The middle level's {@code knn} is pushed into both inner branches by {@link #maybePushDownPastUnionAll} before this method runs -
+     * they are earlier steps of the same {@link #rule} invocation - and {@code PushDownAndCombineFilters} merges it with each branch's
+     * own {@code knn} into one {@code Filter}. So by the time this runs both {@code Knn}s on a path sit in a single node,
+     * {@link #maxImplicitK} takes the larger of the two, and one {@code Limit} bounds both; {@code PushLimitToKnn} then re-derives the
+     * same k for each of them from that limit.
+     *
+     * <p>Nothing is appended to the outer union's first branch: the search stops at the inner {@code UnionAll} before reaching any
+     * {@code Knn}, and the inner branches are bounded when the enclosing transformDown reaches that inner {@code UnionAll}. The outer
+     * union's second branch holds no {@code Knn} and is left alone.
+     *
+     * <p>A branch that bounds its own {@code Knn} - {@code (FROM colors METADATA _score | WHERE knn(rgb_vector, "007800") | LIMIT 7)} -
+     * is returned unchanged, because the search stops at that {@code Limit} before reaching the {@code Filter}, and k stays 7:
+     * <pre>
+     * Project
+     *   Subquery
+     *     Limit[7]
+     *       Filter[KNN(rgb_vector, ..., implicitK=7)]
+     *         EsRelation[colors]
+     * </pre>
+     */
     private static LogicalPlan appendLimitIfNeededForKnn(LogicalPlan subquery, LogicalOptimizerContext context) {
-        Holder<Integer> maxImplicitK = new Holder<>(null);
+        Integer k = maxUnboundedImplicitK(subquery);
 
-        boolean foundLimitAfterKnn = subquery.forEachDownMayReturnEarly((plan, hasLimitAfterKnn) -> {
-            if (plan instanceof Limit && maxImplicitK.get() == null) { // found a limit before finding knn
-                hasLimitAfterKnn.set(true);
-                return;
-            }
-
-            // haven't found limit yet, look for knn in the plan
-            plan.forEachExpression(Knn.class, knn -> {
-                Integer k = knn.implicitK();
-                if (k != null) {
-                    Integer currentMax = maxImplicitK.get();
-                    maxImplicitK.set(currentMax == null ? k : Math.max(currentMax, k));
-                }
-            });
-        });
-
-        // there is knn with implicitK and there is no limit after knn, append a limit
-        Integer k = maxImplicitK.get();
-        if (k != null && foundLimitAfterKnn == false) {
-            // check the implicit K against default and maximum implicit limit
+        if (k != null) {
+            // Raise k to the maximum implicit limit when it is lower, so the appended limit never truncates the branch more than an
+            // unbounded one would have been truncated anyway.
             int maxImplicitLimit = context.configuration().resultTruncationMaxSize(false);
             return planWithLimit(subquery, Math.max(k, maxImplicitLimit));
         }
         return subquery;
     }
 
-    private static LogicalPlan appendLimitIfNeededForOrderBy(LogicalPlan subquery, LogicalOptimizerContext context) {
-        Holder<OrderBy> unboundedSort = new Holder<>(null);
-
-        boolean foundLimitAfterSort = subquery.forEachDownMayReturnEarly((plan, hasLimitAfterSort) -> {
-            if (plan instanceof Limit && unboundedSort.get() == null) { // found a limit before finding sort
-                hasLimitAfterSort.set(true);
-                return;
+    /**
+     * The largest {@code implicitK} of any {@code Knn} reachable from {@code plan} without crossing a {@code Limit} - which already
+     * bounds everything below it - or a nested {@code UnionAll} - whose own branches are bounded when the enclosing transformDown
+     * reaches them; {@code null} if there is none. An {@link AbstractSubqueryJoin} is walked on the left only: see
+     * {@link #limitSearchChildren}.
+     *
+     * Each path is cut independently, so one branch's {@code Limit} cannot suppress another branch's {@code Knn}, which would make the
+     * outcome depend on the order the branches happen to be written in.
+     */
+    private static Integer maxUnboundedImplicitK(LogicalPlan plan) {
+        if (plan instanceof Limit || plan instanceof UnionAll) {
+            return null;
+        }
+        Integer max = maxImplicitK(plan);
+        for (LogicalPlan child : limitSearchChildren(plan)) {
+            Integer childMax = maxUnboundedImplicitK(child);
+            if (childMax != null) {
+                max = max == null ? childMax : Math.max(max, childMax);
             }
+        }
+        return max;
+    }
 
-            if (unboundedSort.get() != null) {
-                return; // already found unbounded sort, return early
-            }
-
-            if (plan instanceof OrderBy orderBy) {
-                unboundedSort.set(orderBy);
+    /**
+     * The largest {@code implicitK} of any {@code Knn} in this node's own expressions, or {@code null} if it holds none. Only the node
+     * is inspected, not its children, so callers control the traversal.
+     */
+    private static Integer maxImplicitK(LogicalPlan plan) {
+        Holder<Integer> maxImplicitK = new Holder<>(null);
+        plan.forEachExpression(Knn.class, knn -> {
+            Integer k = knn.implicitK();
+            if (k != null) {
+                Integer currentMax = maxImplicitK.get();
+                maxImplicitK.set(currentMax == null ? k : Math.max(currentMax, k));
             }
         });
+        return maxImplicitK.get();
+    }
 
-        // there is unbounded sort, append a limit right on top of the sort
-        if (unboundedSort.get() != null && foundLimitAfterSort == false) {
-            // append a limit with maximum implicit limit
+    /**
+     * Bounds an unbounded {@code SORT} in one {@code UnionAll} branch by appending a {@code Limit} at the branch root, or returns the
+     * branch unchanged if every sort in it is already bounded.
+     *
+     * <p>For each path down the branch, the search finds the first node that settles the question: a {@code Limit} already bounds
+     * whatever is below it, an {@code OrderBy} below no {@code Limit} is the unbounded sort we have to bound, and a nested
+     * {@code UnionAll} ends our concern - its own branches are handled when the enclosing transformDown reaches it. An
+     * {@link AbstractSubqueryJoin} is walked on the left only: see {@link #limitSearchChildren}.
+     *
+     * <p>Each path is cut independently. Walking the whole subtree with one shared "found a limit" flag would let an unrelated branch
+     * of a nested union abort the search, making the outcome depend on the order the branches happen to be written in.
+     *
+     * <p>Existence is all this needs - the appended limit is always {@code resultTruncationMaxSize}, with no per-node value to combine -
+     * so stopping at the first match on a path loses nothing. Once an {@code OrderBy} is reached without crossing a {@code Limit} the
+     * answer is settled, and a deeper sort cannot change it. That is what separates this from {@link #appendLimitIfNeededForKnn}, which
+     * takes a maximum and so cannot stop early.
+     *
+     * <p>{@link #maybeAppendLimitToSubquery} calls this once per branch, so in
+     * {@code FROM (FROM test | SORT last_name), (FROM languages | SORT language_name)} - where both branches carry an unbounded sort -
+     * both are rewritten, independently and identically. Taking the first:
+     * <pre>
+     * Project
+     *   Eval
+     *     Subquery
+     *       OrderBy[last_name ASC]
+     *         EsRelation[test]
+     * </pre>
+     * becomes:
+     * <pre>
+     * Limit[10000]
+     *   Project
+     *     Eval
+     *       Subquery
+     *         OrderBy[last_name ASC]
+     *           EsRelation[test]
+     * </pre>
+     * The limit goes at the branch root rather than directly on the sort so that the existing pushdown rules can walk it past
+     * {@code Project}/{@code Eval} and under the {@code Subquery}, where {@code ReplaceLimitAndSortAsTopN} fuses the two. Both branches
+     * end up bounded the same way, under the query's implicit default limit:
+     * <pre>
+     * Limit[1000]
+     *   UnionAll
+     *     Project
+     *       Eval
+     *         Subquery
+     *           TopN[[Order[last_name, ASC]], 10000]
+     *             EsRelation[test]
+     *     Project
+     *       Eval
+     *         Subquery
+     *           TopN[[Order[language_name, ASC]], 10000]
+     *             EsRelation[languages]
+     * </pre>
+     *
+     * <p>With nesting, each level is bounded by its own invocation. In
+     * {@code FROM (FROM (FROM test | SORT last_name), (FROM test | SORT first_name) | SORT emp_no), (FROM languages | SORT
+     * language_name)} there is an unbounded sort at all three levels, and the optimized plan carries three separate limits:
+     * <pre>
+     * Limit[1000]
+     *   UnionAll                                              (outer)
+     *     Project
+     *       Eval
+     *         Subquery
+     *           TopN[[Order[emp_no, ASC]], 10000]             (the middle level's own sort)
+     *             UnionAll                                    (inner)
+     *               Project
+     *                 Subquery
+     *                   TopN[[Order[last_name, ASC]], 10000]
+     *                     EsRelation[test]
+     *               Project
+     *                 Subquery
+     *                   TopN[[Order[first_name, ASC]], 10000]
+     *                     EsRelation[test]
+     *     Project
+     *       Eval
+     *         Subquery
+     *           TopN[[Order[language_name, ASC]], 10000]
+     *             EsRelation[languages]
+     * </pre>
+     * Called on the outer union's first branch, the search reaches {@code OrderBy[emp_no]} before the inner {@code UnionAll} and bounds
+     * that branch. It does not descend past the inner {@code UnionAll}, so at that point the two innermost sorts are still unbounded;
+     * they get their own limits when the enclosing transformDown reaches the inner {@code UnionAll} and this is called once per inner
+     * branch. Every one of the three limits is {@code resultTruncationMaxSize} - the value does not shrink with depth.
+     *
+     * <p>A branch that bounds its own sort - {@code (FROM test | SORT last_name | LIMIT 5)} - is returned unchanged, because the search
+     * stops at that {@code Limit} before reaching the {@code OrderBy}.
+     */
+    private static LogicalPlan appendLimitIfNeededForOrderBy(LogicalPlan subquery, LogicalOptimizerContext context) {
+        if (hasUnboundedSort(subquery)) {
             int maxImplicitLimit = context.configuration().resultTruncationMaxSize(false);
             return planWithLimit(subquery, maxImplicitLimit);
         }
 
         return subquery;
+    }
+
+    /**
+     * Whether {@code plan} contains an {@code OrderBy} that is not already under a {@code Limit}, ignoring nested {@code UnionAll}s
+     * (handled by a later transformDown) and the right side of an {@link AbstractSubqueryJoin} (see {@link #limitSearchChildren}).
+     */
+    private static boolean hasUnboundedSort(LogicalPlan plan) {
+        if (plan instanceof Limit || plan instanceof UnionAll) {
+            return false;
+        }
+        if (plan instanceof OrderBy) {
+            return true;
+        }
+        for (LogicalPlan child : limitSearchChildren(plan)) {
+            if (hasUnboundedSort(child)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Children of {@code plan} that this rule may search for a {@code Knn} or unbounded {@code SORT} to bound with a {@code Limit}
+     * at the union-branch root. Skip the RHS of an {@link AbstractSubqueryJoin} because the RHS is an independently executed subquery.
+     */
+    private static List<LogicalPlan> limitSearchChildren(LogicalPlan plan) {
+        if (plan instanceof AbstractSubqueryJoin join) {
+            return List.of(join.left());
+        }
+        return plan.children();
     }
 
     private static Limit planWithLimit(LogicalPlan plan, int limitValue) {

@@ -48,22 +48,22 @@ import java.util.function.Predicate;
  *     <li><b>DESTROYED</b>: when the final reference is released, contexts are closed and the map entry is removed.</li>
  * </ul>
  */
-final class RetainedSearchContextsRegistry {
+public final class RetainedSearchContextsRegistry {
     private static final TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueMinutes(5);
 
     private final ConcurrentHashMap<String, Entry> entriesBySessionId = new ConcurrentHashMap<>();
     private final LongSupplier relativeTimeInMillis;
     private final long keepAliveInMillis;
 
-    RetainedSearchContextsRegistry() {
+    public RetainedSearchContextsRegistry() {
         this(System::currentTimeMillis, DEFAULT_KEEP_ALIVE);
     }
 
-    RetainedSearchContextsRegistry(LongSupplier relativeTimeInMillis) {
+    public RetainedSearchContextsRegistry(LongSupplier relativeTimeInMillis) {
         this(relativeTimeInMillis, DEFAULT_KEEP_ALIVE);
     }
 
-    RetainedSearchContextsRegistry(LongSupplier relativeTimeInMillis, TimeValue keepAlive) {
+    public RetainedSearchContextsRegistry(LongSupplier relativeTimeInMillis, TimeValue keepAlive) {
         this.relativeTimeInMillis = relativeTimeInMillis;
         this.keepAliveInMillis = keepAlive.millis();
     }
@@ -76,7 +76,7 @@ final class RetainedSearchContextsRegistry {
      * @throws IllegalStateException if contexts are already retained for {@code sessionId}. In this case ownership is <b>not</b>
      *                               transferred — the caller remains responsible for closing {@code searchContexts}.
      */
-    Handle register(String sessionId, AcquiredSearchContexts searchContexts, @Nullable Authentication creator) {
+    public Handle register(String sessionId, AcquiredSearchContexts searchContexts, @Nullable Authentication creator) {
         Entry entry = new Entry(searchContexts, creator, relativeTimeInMillis.getAsLong(), e -> entriesBySessionId.remove(sessionId, e));
         if (entriesBySessionId.putIfAbsent(sessionId, entry) != null) {
             throw new IllegalStateException("search contexts already retained for session [" + sessionId + "]");
@@ -89,7 +89,7 @@ final class RetainedSearchContextsRegistry {
         );
     }
 
-    Handle acquire(String sessionId, Predicate<Authentication> canAccess) {
+    public Handle acquire(String sessionId, Predicate<Authentication> canAccess) {
         Entry entry = entriesBySessionId.get(sessionId);
         long nowInMillis = relativeTimeInMillis.getAsLong();
         if (entry == null || canAccess.test(entry.creator) == false || entry.tryAcquire(nowInMillis) == false) {
@@ -98,16 +98,16 @@ final class RetainedSearchContextsRegistry {
         return new Handle(sessionId, entry.searchContexts.globalView(), () -> entry.closeLease(relativeTimeInMillis.getAsLong()), () -> {});
     }
 
-    int retainedSessions() {
+    public int retainedSessions() {
         return entriesBySessionId.size();
     }
 
-    boolean isRetained(String sessionId) {
+    public boolean isRetained(String sessionId) {
         Entry entry = entriesBySessionId.get(sessionId);
         return entry != null && entry.refs.hasReferences();
     }
 
-    void closeRegistration(String sessionId, Predicate<Authentication> canAccess) {
+    public void closeRegistration(String sessionId, Predicate<Authentication> canAccess) {
         Entry entry = entriesBySessionId.get(sessionId);
         // Missing and inaccessible sessions are both no-ops, preserving idempotent release without exposing session existence.
         if (entry != null && canAccess.test(entry.creator)) {
@@ -115,7 +115,7 @@ final class RetainedSearchContextsRegistry {
         }
     }
 
-    void expire() {
+    public void expire() {
         long nowInMillis = relativeTimeInMillis.getAsLong();
         entriesBySessionId.forEach((sessionId, entry) -> {
             if (entry.isExpired(nowInMillis, keepAliveInMillis)) {
@@ -197,7 +197,7 @@ final class RetainedSearchContextsRegistry {
         }
     }
 
-    static final class Handle implements Releasable {
+    public static final class Handle implements Releasable {
         private final String sessionId;
         private final IndexedByShardId<ComputeSearchContext> searchContexts;
         private final Runnable onClose;
@@ -220,11 +220,11 @@ final class RetainedSearchContextsRegistry {
             return sessionId;
         }
 
-        IndexedByShardId<ComputeSearchContext> searchContexts() {
+        public IndexedByShardId<ComputeSearchContext> searchContexts() {
             return searchContexts;
         }
 
-        void finishRegistration() {
+        public void finishRegistration() {
             if (closed.get() == false) {
                 onFinishRegistration.run();
             }

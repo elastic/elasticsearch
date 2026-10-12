@@ -70,6 +70,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.TemplateDecoratorRule;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.common.TestUUIDSourceRule;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -481,6 +482,9 @@ public abstract class ESTestCase extends LuceneTestCase {
     // -----------------------------------------------------------------
 
     @Rule
+    public final TestRule uuidSource = new TestUUIDSourceRule();
+
+    @Rule
     public RuleChain failureAndSuccessEvents = RuleChain.outerRule(new TestRuleAdapter() {
         @Override
         protected void afterIfSuccessful() throws Throwable {
@@ -552,6 +556,9 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @ClassRule
     public static final TestRule TEMPLATE_DECORATOR_RULE = TemplateDecoratorRule.initDefault();
+
+    @ClassRule
+    public static final TestRule SUITE_UUID_SOURCE = new TestUUIDSourceRule();
 
     // setup mock filesystems for this test run. we change PathUtils
     // so that all accesses are plumbed thru any mock wrappers

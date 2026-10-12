@@ -31,6 +31,7 @@ import io.opentelemetry.sdk.trace.samplers.Sampler;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.telemetry.tracing.TraceContext;
@@ -41,12 +42,16 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Handler;
+import java.util.logging.Level;
+import java.util.logging.LogRecord;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.aMapWithSize;
@@ -604,6 +609,39 @@ public class APMTracerTests extends ESTestCase {
         tracer.setAttributes(TRACEABLE1, attributes);
 
         Mockito.verify(recordedSpan).setAllAttributes(attributes);
+    }
+
+    @SuppressForbidden(reason = "OpenTelemetry logs API usage issues via java.util.logging")
+    public void testUntrackedSpans() {
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer apmTracer = buildTracer(settings);
+
+        List<String> usageIssues = new ArrayList<>();
+        Handler handler = new Handler() {
+            @Override
+            public void publish(LogRecord logRecord) {
+                usageIssues.add(logRecord.getMessage());
+            }
+
+            @Override
+            public void flush() {}
+
+            @Override
+            public void close() {}
+        };
+        // OpenTelemetry logs API usage issues at WARNING only once per JVM, but at FINEST every time
+        java.util.logging.Logger usageLogger = java.util.logging.Logger.getLogger("io.opentelemetry.usage");
+        Level previousLevel = usageLogger.getLevel();
+        usageLogger.setLevel(Level.FINEST);
+        usageLogger.addHandler(handler);
+        try {
+            apmTracer.stopTrace(TRACEABLE1); // Stopping a trace that was never started
+        } finally {
+            usageLogger.removeHandler(handler);
+            usageLogger.setLevel(previousLevel);
+        }
+
+        assertThat(usageIssues, empty());
     }
 
     static class SpyAPMTracer extends APMTracer {

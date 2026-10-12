@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
+import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
@@ -78,7 +79,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
-import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
@@ -94,6 +94,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
@@ -105,6 +106,7 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.joni.exception.SyntaxException;
 
 import java.time.Duration;
@@ -397,7 +399,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         List<NamedExpression> metadataFields = List.of(metadataMap.values().toArray(NamedExpression[]::new));
         UnresolvedRelation unresolvedRelation = new UnresolvedRelation(source, table, false, metadataFields, null, command);
         if (subqueries.isEmpty()) {
-            return unresolvedRelation;
+            if (metadataFields.isEmpty()) {
+                return unresolvedRelation;
+            }
+            return new UnresolvedMetadata(source, unresolvedRelation, metadataFields);
         } else {
             // subquery is not supported with time-series indices at the moment
             if (command == SourceCommand.TS) {
@@ -410,13 +415,19 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
             mainQueryAndSubqueries.addAll(subqueries);
 
+            LogicalPlan inner;
             if (mainQueryAndSubqueries.size() == 1) {
                 // if there is only one child, return it directly, no need for UnionAll
-                return table.indexPattern().isEmpty() ? subqueries.get(0).plan() : unresolvedRelation;
+                inner = subqueries.get(0).plan();
             } else {
                 // the output of UnionAll is resolved by analyzer
-                return new UnionAll(source(ctxs.getFirst(), ctxs.getLast()), mainQueryAndSubqueries, List.of());
+                inner = new UnionAll(source(ctxs.getFirst(), ctxs.getLast()), mainQueryAndSubqueries, List.of());
             }
+
+            if (metadataFields.isEmpty()) {
+                return inner;
+            }
+            return new UnresolvedMetadata(source(ctxs.getFirst(), ctxs.getLast()), inner, metadataFields);
         }
     }
 
@@ -1046,7 +1057,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
             metadataFields.add(new UnresolvedAttribute(source, name));
         }
-        return new UnresolvedExternalRelation(source, tablePath, config, metadataFields);
+        // The config is whatever the user typed. Framework keys are stripped here because the unknown-key check
+        // deliberately ignores them, so nothing else would reject one a user supplied -- and a supplied
+        // _definition_version would otherwise address a registered dataset's cache entries.
+        return new UnresolvedExternalRelation(source, tablePath, ConfigKeyValidator.withoutFrameworkKeys(config), metadataFields);
     }
 
     /**
@@ -1306,8 +1320,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @SuppressWarnings("unchecked")
     public PlanFactory visitForkCommand(EsqlBaseParser.ForkCommandContext ctx) {
         List<PlanFactory> subQueries = visitForkSubQueries(ctx.forkSubQueries());
-        if (subQueries.size() > MergePlan.MAX_BRANCHES) {
-            throw new ParsingException(source(ctx), "Fork supports up to " + MergePlan.MAX_BRANCHES + " branches");
+        // Hard ceiling: the setting maxValue. The configured cluster setting or pragma is enforced later in Fork.checkBranchCount.
+        int maxBranches = QueryPragmas.MAX_BRANCH_COUNT_PER_MERGE_MAX;
+        if (subQueries.size() > maxBranches) {
+            throw new ParsingException(source(ctx), "FORK supports up to " + maxBranches + " branches");
         }
 
         return input -> {
@@ -1489,20 +1505,20 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitHighlightCommand(EsqlBaseParser.HighlightCommandContext ctx) {
         Source source = source(ctx);
-        // `prefix = "..."` renames generated highlight columns; default is "highlight_".
-        final String prefix = highlightPrefix(ctx);
-        // TODO: support the bare form by deriving the query from a preceding full-text WHERE, stopping at row-shaping
-        // commands such as STATS, INLINESTATS, and LOOKUP JOIN.
+        String prefix = highlightPrefix(ctx);
         Expression query = ctx.queryExpression == null ? null : expression(ctx.queryExpression);
-        // TODO: support `HIGHLIGHT ON *` and deriving ON fields from the resolved query. Today fields must be listed.
-        List<NamedExpression> fields = ctx.highlightFields.qualifiedName()
-            .stream()
-            .map(qn -> (NamedExpression) visitQualifiedName(qn))
-            .toList();
-        // Recompute generatedFields when fields can be derived after analysis.
-        List<Attribute> generatedFields = Highlight.generatedAttributesFor(source, prefix, fields);
+        List<NamedExpression> fields = ctx.highlightFields == null ? List.of() : visitQualifiedNamePatterns(ctx.highlightFields, ne -> {
+            if (ne instanceof UnresolvedNamePattern up) {
+                throw new ParsingException(ne.source(), "Invalid pattern [{}] in HIGHLIGHT ON, expected field names or [*]", up.pattern());
+            }
+        });
+        if (fields.size() > 1 && fields.stream().anyMatch(f -> f instanceof UnresolvedStar)) {
+            throw new ParsingException(source, "HIGHLIGHT ON [*] cannot be combined with other fields");
+        }
+        boolean derivedFields = fields.isEmpty() || fields.getFirst() instanceof UnresolvedStar;
+        List<Attribute> generatedFields = derivedFields ? List.of() : Highlight.generatedAttributesFor(source, prefix, fields);
         return p -> applyHighlightOptions(
-            new Highlight(source, p, prefix, query, fields, null, generatedFields),
+            new Highlight(source, p, prefix, query, false, derivedFields, fields, null, generatedFields, null, Map.of()),
             ctx.commandNamedParameters()
         );
     }

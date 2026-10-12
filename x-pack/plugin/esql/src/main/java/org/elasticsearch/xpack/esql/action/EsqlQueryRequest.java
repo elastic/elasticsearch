@@ -46,7 +46,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.EsqlQueryRequest implements CompositeIndicesRequest {
 
-    public static TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueDays(5);
+    public static final TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueDays(5);
     public static TimeValue DEFAULT_WAIT_FOR_COMPLETION = TimeValue.timeValueSeconds(1);
 
     private boolean async;
@@ -61,7 +61,8 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private QueryPragmas pragmas = new QueryPragmas(Settings.EMPTY);
     private QueryParams params = new QueryParams();
     private TimeValue waitForCompletionTimeout = DEFAULT_WAIT_FOR_COMPLETION;
-    private TimeValue keepAlive = DEFAULT_KEEP_ALIVE;
+    @Nullable
+    private TimeValue keepAlive = null;
     private boolean keepOnCompletion;
     private boolean onSnapshotBuild = Build.current().isSnapshot();
     private boolean acceptedPragmaRisks = false;
@@ -275,11 +276,12 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         return this;
     }
 
+    @Nullable
     public TimeValue keepAlive() {
         return keepAlive;
     }
 
-    public EsqlQueryRequest keepAlive(TimeValue keepAlive) {
+    public EsqlQueryRequest keepAlive(@Nullable TimeValue keepAlive) {
         this.keepAlive = keepAlive;
         return this;
     }

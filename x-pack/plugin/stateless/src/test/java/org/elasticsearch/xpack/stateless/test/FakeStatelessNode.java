@@ -72,7 +72,6 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -93,6 +92,7 @@ import org.elasticsearch.xpack.stateless.action.NewCommitNotificationResponse;
 import org.elasticsearch.xpack.stateless.action.TransportFetchShardCommitsInUseAction;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.DefaultWarmingRatioProviderFactory;
+import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeoutCalculationService;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
@@ -305,7 +305,8 @@ public class FakeStatelessNode implements Closeable {
                 threadPool,
                 telemetryProvider,
                 clusterSettings,
-                warmingRatioProvider
+                warmingRatioProvider,
+                new SearchRecoveryTimeoutCalculationService(sharedCacheService, threadPool, clusterSettings)
             );
             onlinePrewarmingService = new StatelessOnlinePrewarmingService(
                 nodeSettings,
@@ -372,6 +373,7 @@ public class FakeStatelessNode implements Closeable {
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_NON_RELOCATION_SETTING,
+            SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RESHARD_TARGET_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_CACHE_RATIO_SETTING,
@@ -380,8 +382,6 @@ public class FakeStatelessNode implements Closeable {
             ObjectStoreService.OBJECT_STORE_SLOW_TRANSLOG_UPLOAD_LOG_THRESHOLD_SETTING,
             StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING,
             StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING,
-            StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING,
-            StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING,
             StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING
         );
     }
@@ -391,9 +391,17 @@ public class FakeStatelessNode implements Closeable {
         ThreadPool threadPool,
         TelemetryProvider telemetryProvider,
         ClusterSettings clusterSettings,
-        WarmingRatioProvider warmingRatioProvider
+        WarmingRatioProvider warmingRatioProvider,
+        SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
     ) {
-        return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, clusterSettings, warmingRatioProvider);
+        return new SharedBlobCacheWarmingService(
+            cacheService,
+            threadPool,
+            telemetryProvider,
+            clusterSettings,
+            warmingRatioProvider,
+            searchRecoveryTimeoutCalculationService
+        );
     }
 
     protected RepositoriesService createRepositoryService(NamedXContentRegistry xContentRegistry) {
@@ -404,8 +412,7 @@ public class FakeStatelessNode implements Closeable {
             Map.of(),
             threadPool,
             client,
-            List.of(),
-            SnapshotMetrics.NOOP
+            List.of()
         );
     }
 

@@ -15,8 +15,9 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
+import org.elasticsearch.columnar.ColumnarStringAnyOfQuery;
 import org.elasticsearch.columnar.ColumnarStringAutomatonQuery;
-import org.elasticsearch.columnar.ColumnarStringMatchQuery;
+import org.elasticsearch.columnar.ColumnarStringRangeQuery;
 import org.elasticsearch.columnar.ColumnarStringTermQuery;
 import org.elasticsearch.columnar.ScanBudget;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -26,9 +27,6 @@ import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 
 import java.util.Collection;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.TreeSet;
 
 /**
  * Queries answered by the ColumNAR string column itself rather than by reading a blob for every document.
@@ -57,30 +55,12 @@ final class ColumnarBinaryDocValuesQueries implements BinaryDocValuesQueries {
 
     @Override
     public Query terms(String field, Collection<BytesRef> terms) {
-        final Set<BytesRef> set = new HashSet<>(terms);
-        // What the query is compared by, so two of them cache as one however the caller ordered its terms. The terms
-        // themselves rather than a rendering of them: there may be tens of thousands.
-        return new ColumnarStringMatchQuery(field, set::contains, new TreeSet<>(terms), BUDGET);
+        return new ColumnarStringAnyOfQuery(field, terms, BUDGET);
     }
 
     @Override
     public Query range(String field, @Nullable BytesRef lower, @Nullable BytesRef upper, boolean includeLower, boolean includeUpper) {
-        final BytesRef low = lower == null ? null : BytesRef.deepCopyOf(lower);
-        final BytesRef high = upper == null ? null : BytesRef.deepCopyOf(upper);
-        final String identity = "range=" + (includeLower ? "[" : "{") + low + "," + high + (includeUpper ? "]" : "}");
-        return new ColumnarStringMatchQuery(field, value -> {
-            if (low != null) {
-                final int cmp = value.compareTo(low);
-                if (cmp < 0 || (cmp == 0 && includeLower == false)) {
-                    return false;
-                }
-            }
-            if (high != null) {
-                final int cmp = value.compareTo(high);
-                return cmp < 0 || (cmp == 0 && includeUpper);
-            }
-            return true;
-        }, identity, BUDGET);
+        return new ColumnarStringRangeQuery(field, lower, includeLower, upper, includeUpper, BUDGET);
     }
 
     @Override

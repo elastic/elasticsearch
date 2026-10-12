@@ -93,7 +93,8 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
             true,
             true,
             params.modelSnapshot() != null,
-            true
+            true,
+            false
         );
         createNativeProcess(job, params, processPipes, filesToDelete);
         boolean includeTokensField = job.getAnalysisConfig().getCategorizationFieldName() != null;

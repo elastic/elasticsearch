@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
@@ -45,13 +46,18 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.NodeRoles.nonRemoteClusterClientNode;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 public class DatafeedJobBuilderTests extends ESTestCase {
@@ -262,6 +268,44 @@ public class DatafeedJobBuilderTests extends ESTestCase {
 
         datafeedJobBuilder.build(datafeedTask, datafeedContext, datafeedJobHandler);
         assertBusy(() -> wasHandlerCalled.get());
+    }
+
+    public void testBuildGivenEsqlDatafeedWithoutIndicesAndNoRemoteClusterClientShouldNotRejectAsRemoteIndices() throws Exception {
+        datafeedJobBuilder = new DatafeedJobBuilder(
+            client,
+            xContentRegistry(),
+            auditor,
+            annotationPersister,
+            System::currentTimeMillis,
+            jobResultsPersister,
+            nonRemoteClusterClientNode(),
+            clusterService,
+            CloudCredentialManager.Noop::new,
+            DatafeedSearchTelemetry.NOOP
+        );
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setTimeField("time");
+        Job.Builder jobBuilder = DatafeedRunnerTests.createDatafeedJob();
+        jobBuilder.setDataDescription(dataDescription);
+        jobBuilder.setCreateTime(new Date());
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("datafeed1", jobBuilder.getId()).setEsqlQuery("FROM logs")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .build();
+        DatafeedConfig datafeedWithoutIndices = spy(datafeed);
+        doReturn(null).when(datafeedWithoutIndices).getIndices();
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        DatafeedContext datafeedContext = new DatafeedContext(
+            datafeedWithoutIndices,
+            jobBuilder.build(),
+            new RestartTimeInfo(null, null, false),
+            new DatafeedTimingStats(jobBuilder.getId())
+        );
+
+        datafeedJobBuilder.build(newDatafeedTask("datafeed1"), datafeedContext, ActionListener.wrap(job -> {}, failure::set));
+
+        assertThat(failure.get(), not(instanceOf(NullPointerException.class)));
     }
 
     private static TransportStartDatafeedAction.DatafeedTask newDatafeedTask(String datafeedId) {

@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -45,6 +46,12 @@ public class AsyncExternalSourceOperator extends SourceOperator {
     private static final TransportVersion ESQL_CAPTURED_SOURCE_METADATA = TransportVersion.fromName("esql_captured_source_metadata");
 
     private final AsyncExternalSourceBuffer buffer;
+    /**
+     * This driver's warning sink, where {@link #emitPendingWarnings()} deposits what the producer recorded. Owning the
+     * context rather than reaching for {@code HeaderWarning} is what makes the warnings survive a scan that runs
+     * anywhere but the coordinator; see {@link #emitPendingWarnings()}.
+     */
+    private final DriverContext driverContext;
     /** Node telemetry sink; {@link ExternalSourceMetrics#NOOP} when none is wired (tests, connector factory path). */
     private final ExternalSourceMetrics externalSourceMetrics;
     /** Low-cardinality storage scheme dimension for this scan's histograms; {@code null} when unknown (connector path). */
@@ -60,12 +67,18 @@ public class AsyncExternalSourceOperator extends SourceOperator {
     private long rowsEmitted;
     private long processNanos;
 
-    public AsyncExternalSourceOperator(AsyncExternalSourceBuffer buffer) {
-        this(buffer, ExternalSourceMetrics.NOOP, null);
+    public AsyncExternalSourceOperator(AsyncExternalSourceBuffer buffer, DriverContext driverContext) {
+        this(buffer, driverContext, ExternalSourceMetrics.NOOP, null);
     }
 
-    public AsyncExternalSourceOperator(AsyncExternalSourceBuffer buffer, ExternalSourceMetrics externalSourceMetrics, String scheme) {
-        this.buffer = buffer;
+    public AsyncExternalSourceOperator(
+        AsyncExternalSourceBuffer buffer,
+        DriverContext driverContext,
+        ExternalSourceMetrics externalSourceMetrics,
+        String scheme
+    ) {
+        this.buffer = Objects.requireNonNull(buffer, "buffer");
+        this.driverContext = Objects.requireNonNull(driverContext, "driverContext");
         this.externalSourceMetrics = externalSourceMetrics == null ? ExternalSourceMetrics.NOOP : externalSourceMetrics;
         this.scheme = scheme;
     }
@@ -159,18 +172,20 @@ public class AsyncExternalSourceOperator extends SourceOperator {
     }
 
     /**
-     * Drains the buffer's recorded partial-results warnings and re-emits them via {@link HeaderWarning}.
-     * The driver invokes {@link #close()} on its own thread during teardown — the same thread whose
-     * response headers {@code DriverRunner} collects into the client response. The producer records these
-     * off a forked reader / parse-worker thread whose own response headers are never merged back, so the
-     * re-emission must happen here, on the driver thread, for the warning to reach the client (see #835).
-     * This mirrors how {@link org.elasticsearch.compute.operator.AsyncOperator} flushes a
-     * {@code ResponseHeadersCollector} from its {@code close()}.
+     * Drains the buffer's recorded warnings into this driver's {@link DriverContext} sink. The producer records them
+     * off a forked reader / parse-worker thread, so the hand-off has to happen here: the driver calls {@link #close()}
+     * on its own thread during teardown, before {@code DriverContext#finish} snapshots the sink (see #835).
+     * <p>
+     * The sink is {@link DriverContext#addWarning}, not {@link HeaderWarning}, because a driver's
+     * {@code ThreadContext} response headers only reach the client when the driver happens to run on the coordinator.
+     * {@code DriverCompletionInfo} ships this sink's contents back from whatever node ran the scan and the coordinator
+     * re-emits them once, which is how every other ES|QL warning already travels. A read shipped to a data node
+     * (elastic/esql-planning#1837) otherwise returned the right values with no warning at all.
      */
     private void emitPendingWarnings() {
         String warning;
         while ((warning = buffer.pollWarning()) != null) {
-            HeaderWarning.addWarning(warning);
+            driverContext.addWarning(warning);
         }
     }
 

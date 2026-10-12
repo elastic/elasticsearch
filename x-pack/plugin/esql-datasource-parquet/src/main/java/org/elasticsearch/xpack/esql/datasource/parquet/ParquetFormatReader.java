@@ -2895,7 +2895,14 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     ColumnInfo ci = columnInfos[i];
                     if (ci != null && ci.isRowPosition() == false && ci.maxRepLevel() == 0) {
                         PageReader pageReader = rowGroup.getPageReader(ci.descriptor());
-                        pageColumnReaders[i] = new PageColumnReader(pageReader, ci.descriptor(), ci, allRows, coercionWarnings());
+                        pageColumnReaders[i] = new PageColumnReader(
+                            pageReader,
+                            ci.descriptor(),
+                            ci,
+                            allRows,
+                            coercionWarnings(),
+                            warningSink
+                        );
                     }
                 }
             } else {
@@ -3064,7 +3071,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     rowsToRead,
                     blockFactory,
                     attributes.get(colIndex).name(),
-                    coercionWarnings()
+                    coercionWarnings(),
+                    warningSink
                 );
             }
             // WARNING: the dispatching logic below is duplicated in PageColumnReader#readBatch
@@ -3319,7 +3327,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
          * Reads an INT64 {@code TIMESTAMP(MICROS|NANOS)} column into a {@code DATE_NANOS} block of epoch-nanoseconds.
          * {@code NANOS} passes through; {@code MICROS} is scaled ×1_000. A {@code MICROS} value whose scaled instant
          * would fall outside the representable {@code date_nanos} range (~1677-2262) has no nanosecond representation,
-         * so it is emitted as null (with a single deduplicated response warning) rather than silently wrapping around.
+         * so it is emitted as null (with a single deduplicated warning) rather than silently wrapping around.
          */
         private Block readDateNanosColumn(ColumnReader cr, ColumnInfo info, int rows) {
             LogicalTypeAnnotation logical = info.logicalType();
@@ -3348,7 +3356,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 cr.consume();
             }
             if (anyOverflow) {
-                ParquetColumnDecoding.warnTimestampOutOfRange(info);
+                ParquetColumnDecoding.warnTimestampOutOfRange(info, warningSink);
             }
             return ColumnBlockConversions.longColumn(blockFactory, values, rows, noNulls, false, isNull, false);
         }

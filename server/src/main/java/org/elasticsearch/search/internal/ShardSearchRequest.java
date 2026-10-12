@@ -206,9 +206,8 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         return waitForCheckpoint;
     }
 
-    // Used by ValidateQueryAction, FieldCaps, TermsEnumAction
+    // Used by tests
     public ShardSearchRequest(ShardId shardId, long nowInMillis, AliasFilter aliasFilter) {
-        // TODO fix SplitShardCountSummary
         this(shardId, nowInMillis, aliasFilter, null, SplitShardCountSummary.UNSET);
     }
 

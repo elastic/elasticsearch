@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.execution;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -40,6 +41,8 @@ import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
@@ -71,6 +74,7 @@ public class PlanExecutor {
     private final PromqlFunctionRegistry promqlFunctionRegistry;
     private final Mapper mapper;
     private final Metrics metrics;
+    private final List<QuerySettingDef<?>> applicableSettings;
     private final Verifier verifier;
     private final PlanTelemetryManager planTelemetryManager;
     private final EsqlQueryLog queryLog;
@@ -141,6 +145,7 @@ public class PlanExecutor {
         this.promqlFunctionRegistry = promqlFunctionRegistry;
         this.mapper = new Mapper();
         this.metrics = new Metrics(functionRegistry, crossProjectModeDecider.crossProjectEnabled());
+        this.applicableSettings = QuerySettings.applicableIn(Build.current().isSnapshot(), crossProjectModeDecider.crossProjectEnabled());
         this.verifier = new Verifier(metrics, licenseState, extraCheckers);
         this.planTelemetryManager = new PlanTelemetryManager(meterRegistry);
         this.queryLog = queryLog;
@@ -246,7 +251,7 @@ public class PlanExecutor {
         BooleanSupplier cancellation,
         ActionListener<Versioned<Result>> listener
     ) {
-        final PlanTelemetry planTelemetry = new PlanTelemetry(functionRegistry);
+        final PlanTelemetry planTelemetry = new PlanTelemetry(functionRegistry, applicableSettings);
         // Resolution (glob expansion, footer reads, schema reconciliation) runs on the caller-supplied
         // executor rather than the SEARCH pool, so a wildcard external query cannot starve regular ES
         // searches or other ES|QL queries. The per-query multi-file metadata fan-out is bounded by

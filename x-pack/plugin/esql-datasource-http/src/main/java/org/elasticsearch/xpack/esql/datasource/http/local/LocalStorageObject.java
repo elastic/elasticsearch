@@ -55,7 +55,7 @@ public final class LocalStorageObject extends AbstractMeteredStorageObject {
         // listing's toStoragePath, the query's location). On Windows toAbsolutePath() keeps
         // backslashes and yields a two-slash "file://C:\dir\file" form, whereas the factory
         // normalizes to "file:///C:/dir/file"; the mismatch made object.path() (the stats-capture
-        // key) differ from the planning-side SchemaCacheKey canonicalPath, so
+        // key) differ from the planning-side SchemaCacheKey location, so
         // ExternalSourceCacheService.reconcileSourceStats silently dropped every captured
         // contribution and warm queries re-scanned. On POSIX both forms already coincide.
         this.storagePath = StoragePath.ofLocalPath(filePath);

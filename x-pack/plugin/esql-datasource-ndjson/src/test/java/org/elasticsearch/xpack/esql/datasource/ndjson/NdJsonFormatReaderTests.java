@@ -21,7 +21,9 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.DrainSimulatingStorageObject;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -95,7 +97,7 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         int limit = ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS;
         NdJsonFormatReader reader = new NdJsonFormatReader(null, blockFactory);
         assertEquals(limit, reader.metadata(new BytesObject(flatRecord(limit))).schema().size());
-        expectThrows(IllegalArgumentException.class, () -> reader.metadata(new BytesObject(flatRecord(limit + 1))));
+        expectThrows(ExternalClientException.class, () -> reader.metadata(new BytesObject(flatRecord(limit + 1))));
     }
 
     /** A dataset raises or lowers the cap with {@code schema_max_fields}, and registration refuses one outside 1 to the ceiling. */
@@ -109,7 +111,7 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         FormatReader lowered = new NdJsonFormatReader(null, blockFactory).withConfigTrackingConsumedKeys(
             Map.of(NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, 2)
         ).value();
-        expectThrows(IllegalArgumentException.class, () -> lowered.metadata(new BytesObject(flatRecord(3))));
+        expectThrows(ExternalClientException.class, () -> lowered.metadata(new BytesObject(flatRecord(3))));
 
         expectThrows(
             IllegalArgumentException.class,
@@ -131,10 +133,19 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         Settings settings = Settings.builder().put(ExternalSourceSettings.SCHEMA_MAX_FIELDS.getKey(), 2).build();
         NdJsonFormatReader reader = new NdJsonFormatReader(settings, blockFactory);
         assertEquals(2, reader.metadata(new BytesObject(flatRecord(2))).schema().size());
-        expectThrows(IllegalArgumentException.class, () -> reader.metadata(new BytesObject(flatRecord(3))));
+        expectThrows(ExternalClientException.class, () -> reader.metadata(new BytesObject(flatRecord(3))));
 
         FormatReader overridden = reader.withConfigTrackingConsumedKeys(Map.of(NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, 3)).value();
         assertEquals(3, overridden.metadata(new BytesObject(flatRecord(3))).schema().size());
+    }
+
+    /** A declared schema names the columns it reads, so a file past the field cap is still inferred (breaker-bounded). */
+    public void testDeclaredProvenanceExemptsTheFieldCap() throws IOException {
+        NdJsonFormatReader capped = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
+        FormatReader lowered = capped.withConfigTrackingConsumedKeys(Map.of(NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, 3)).value();
+        expectThrows(ExternalClientException.class, () -> lowered.metadata(new BytesObject(flatRecord(4))));
+        FormatReader declared = lowered.withDeclaredProvenanceBinding(true);
+        assertEquals(4, declared.metadata(new BytesObject(flatRecord(4))).schema().size());
     }
 
     /** A value that is not a number at all is refused with a message naming the key, not the JDK's bare one. */
@@ -155,8 +166,8 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         FormatReader atCeiling = new NdJsonFormatReader(null, blockFactory).withConfigTrackingConsumedKeys(
             Map.of(NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, ceiling)
         ).value();
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
+        ExternalClientException e = expectThrows(
+            ExternalClientException.class,
             () -> atCeiling.metadata(new BytesObject(flatRecord(ceiling + 1)))
         );
         assertThat(e.getMessage(), containsString("the most [schema_max_fields] allows"));
@@ -165,8 +176,8 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         FormatReader below = new NdJsonFormatReader(null, blockFactory).withConfigTrackingConsumedKeys(
             Map.of(NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, 2)
         ).value();
-        e = expectThrows(IllegalArgumentException.class, () -> below.metadata(new BytesObject(flatRecord(3))));
-        assertThat(e.getMessage(), containsString("raise [schema_max_fields]"));
+        e = expectThrows(ExternalClientException.class, () -> below.metadata(new BytesObject(flatRecord(3))));
+        assertThat(e.getMessage(), containsString("raise [esql.external.schema_max_fields] or the dataset's [schema_max_fields]"));
     }
 
     /** The node setting is bounded like the dataset key, so neither can lift the cap past the ceiling. */
@@ -572,6 +583,38 @@ public class NdJsonFormatReaderTests extends ESTestCase {
             "a within-file widen discovered on the no-pre-resolved-schema read path must still warn, got: " + warnings,
             warnings.stream().anyMatch(w -> w.contains("column [a]") && w.contains("[keyword]"))
         );
+    }
+
+    /**
+     * A sample shared by several files takes an even share of the configured lines from each, never fewer than the
+     * floor, and keeps the harvest fingerprint: the data node reads with the unshared configuration, so its statistics
+     * must still match the entry planning seeds from this read.
+     */
+    public void testSchemaSampleShareNarrowsTheSampleButNotTheFingerprint() throws IOException {
+        byte[] bytes = "{\"a\":1}\n".repeat(1_000).getBytes(StandardCharsets.UTF_8);
+        FormatReader configured = new NdJsonFormatReader(null, blockFactory).withConfig(Map.of("schema_sample_size", 800));
+
+        SourceMetadata whole = configured.metadata(new BytesObject(bytes));
+        FormatReader quarterReader = configured.withSchemaSampleShare(4);
+        SourceMetadata quarter = quarterReader.metadata(new BytesObject(bytes));
+        SourceMetadata floored = configured.withSchemaSampleShare(64).metadata(new BytesObject(bytes));
+
+        assertEquals(800, configured.schemaSampleSize());
+        assertEquals(200, quarterReader.schemaSampleSize());
+        assertEquals(800, whole.sampleRows());
+        assertEquals(200, quarter.sampleRows());
+        assertEquals(FormatReader.MIN_SHARED_SCHEMA_SAMPLE_SIZE, floored.sampleRows());
+        Object fingerprint = whole.sourceMetadata().get(ExternalStats.CONFIG_FINGERPRINT_KEY);
+        assertNotNull(fingerprint);
+        assertEquals(fingerprint, quarter.sourceMetadata().get(ExternalStats.CONFIG_FINGERPRINT_KEY));
+    }
+
+    /** Sharing that would not narrow the sample returns the reader itself, which is how the planner tells it does not apply. */
+    public void testSchemaSampleShareWithinTheSampleReturnsTheSameReader() {
+        FormatReader small = new NdJsonFormatReader(null, blockFactory).withConfig(Map.of("schema_sample_size", 50));
+        assertSame(small, small.withSchemaSampleShare(8));
+        FormatReader unshared = new NdJsonFormatReader(null, blockFactory);
+        assertSame(unshared, unshared.withSchemaSampleShare(1));
     }
 
     // -- helpers --

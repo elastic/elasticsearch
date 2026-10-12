@@ -150,6 +150,11 @@ final class ParquetPushedExpressions {
         static final CompiledWildcard FAILED = new CompiledWildcard(null, false, null);
     }
 
+    /**
+     * @param expressions already rewritten by
+     *                    {@link org.elasticsearch.xpack.esql.datasources.pushdown.PushdownLiteralConversion#rewrite}
+     *                    at the {@link ParquetFilterPushdownSupport#pushFilters} entry point (or by tests)
+     */
     ParquetPushedExpressions(List<Expression> expressions) {
         this.expressions = expressions;
     }

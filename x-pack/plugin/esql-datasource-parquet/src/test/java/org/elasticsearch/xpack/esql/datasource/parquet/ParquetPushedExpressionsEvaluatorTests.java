@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownLiteralConversion;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCompare;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
@@ -212,6 +213,31 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
             4,
             reusable,
             new int[] { 2 }
+        );
+    }
+
+    /**
+     * Mixed {@code integer < 5.5} must rewrite to {@code integer <= 5} before late-mat; truncating
+     * via {@code intValue()} on 5.5 would wrongly drop the matching row at 5.
+     */
+    public void testIntegerLessThanDoubleKeepsFive() {
+        int[] values = { 4, 5, 6 };
+        Block block = blockFactory.newIntArrayVector(values, values.length).asBlock();
+        Map<String, Block> blocks = Map.of("i", block);
+        WordMask reusable = new WordMask();
+
+        assertSurvivors(
+            new ParquetPushedExpressions(
+                List.of(
+                    PushdownLiteralConversion.rewrite(
+                        new LessThan(Source.EMPTY, attr("i", DataType.INTEGER), lit(5.5, DataType.DOUBLE), null)
+                    )
+                )
+            ),
+            blocks,
+            3,
+            reusable,
+            new int[] { 0, 1 }
         );
     }
 

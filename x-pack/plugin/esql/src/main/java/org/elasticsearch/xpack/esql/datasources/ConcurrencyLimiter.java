@@ -30,6 +30,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BooleanSupplier;
@@ -60,6 +61,8 @@ class ConcurrencyLimiter implements AdmissionGate {
     private final ReentrantLock asyncLock = new ReentrantLock();
     private final ArrayDeque<AsyncWaiter> asyncWaiters = new ArrayDeque<>();
     private final ArrayList<Runnable> pendingCompletions = new ArrayList<>();
+    private final AtomicInteger undelivered = new AtomicInteger();
+    private boolean pauseGrantDelivery;
 
     private static final long WARN_LOG_INTERVAL_MS = 30_000;
     private static final long WARN_WAIT_THRESHOLD_MS = 5_000;
@@ -104,7 +107,8 @@ class ConcurrencyLimiter implements AdmissionGate {
     /**
      * Acquires a permit, mapping limiter failures onto the exception types the storage retry
      * layer understands. Timeout is node-local admission back-pressure, raised as a retryable
-     * {@link ExternalUnavailableException} ({@code RetryPolicy.execute} retries that type).
+     * {@link ExternalUnavailableException} ({@code RetryPolicy.execute} retries that type) with the
+     * {@link Condition#LOCAL_CAPACITY} condition, so telemetry reports it as a local resource limit rather than as a store outage.
      * {@code throttling=false}: this is a local semaphore, not a remote-store 429/503, so it
      * must not feed the per-bucket adaptive backoff or the throttle budget. Interrupt is a
      * shutdown/cancellation signal, not back-pressure: throw non-retryable so the retry layer
@@ -116,7 +120,7 @@ class ConcurrencyLimiter implements AdmissionGate {
             acquire();
         } catch (TimeoutException e) {
             ExternalUnavailableException ex = new ExternalUnavailableException(
-                Condition.STORE_UNAVAILABLE,
+                Condition.LOCAL_CAPACITY,
                 StoragePath.NONE,
                 "",
                 "",
@@ -146,6 +150,9 @@ class ConcurrencyLimiter implements AdmissionGate {
         // Fair zero-timeout acquire: fails when waiters exist, so lastGrant only moves on a real park.
         if (semaphore.tryAcquire(0, TimeUnit.NANOSECONDS)) {
             return;
+        }
+        if (InlineCompletionDrain.draining()) {
+            throw new TimeoutException("sync acquire from a grant continuation; wait on the ticket instead");
         }
         long startNanos = System.nanoTime();
         AdmissionTracker.Wait wait = tracker.waitStarted(name(), Thread.currentThread().getName());
@@ -246,9 +253,15 @@ class ConcurrencyLimiter implements AdmissionGate {
     }
 
     /**
-     * Async permit ticket. Completes on grant; fails on cancel. Uncontended grants complete
-     * on the caller; contended grants are forked onto {@code executor}. Fair FIFO among
-     * ticket waiters. Leftover sync {@link #acquire} can time out while tickets are queued.
+     * Async permit ticket. Completes on grant; fails on cancel. Grants and failures complete
+     * inline on the releaser so delivery cannot queue behind synchronous {@link #acquire}
+     * waiters on {@code esql_external_io}. {@code executor} is required by callers that start
+     * a GET after the grant; it is not used to deliver the ticket. Fair FIFO among ticket
+     * waiters. Leftover sync {@link #acquire} can time out while tickets are queued.
+     * <p>
+     * When called from a grant continuation, an uncontended grant may complete after this
+     * method returns ({@link InlineCompletionDrain} defers nested deliveries). Do not block
+     * on the ticket from a grant callback.
      */
     SubscribableListener<Void> acquireAsync(BooleanSupplier cancelSignal, Executor executor) {
         SubscribableListener<Void> listener = new SubscribableListener<>();
@@ -271,11 +284,11 @@ class ConcurrencyLimiter implements AdmissionGate {
             if (cancel.getAsBoolean()) {
                 failNow = cancelled();
             } else if (asyncWaiters.isEmpty() && semaphore.tryAcquire()) {
-                AsyncWaiter waiter = new AsyncWaiter(listener, executor, cancel);
-                waiter.completeGrantInline();
+                AsyncWaiter waiter = new AsyncWaiter(listener, cancel);
+                waiter.completeGrant();
                 completions = takePendingCompletions();
             } else {
-                AsyncWaiter waiter = new AsyncWaiter(listener, executor, cancel);
+                AsyncWaiter waiter = new AsyncWaiter(listener, cancel);
                 waiter.tracked = tracker.waitStarted(name(), Thread.currentThread().getName());
                 asyncWaiters.addLast(waiter);
                 grantSparesLocked();
@@ -343,7 +356,38 @@ class ConcurrencyLimiter implements AdmissionGate {
         if (semaphore == null) {
             return 0;
         }
-        return maxPermits() - availablePermits();
+        asyncLock.lock();
+        try {
+            // Permits assigned to a waiter but not yet delivered do not count: the watchdog
+            // must still see Bug C (grant queued, no GET in flight). Admission already took
+            // them from the semaphore so we do not over-grant.
+            return Math.max(0, maxPermits() - semaphore.availablePermits() - undelivered.get());
+        } finally {
+            asyncLock.unlock();
+        }
+    }
+
+    /** Test-only: hold {@code deliverGrant} so tests can observe undelivered permits. */
+    void pauseGrantDelivery() {
+        asyncLock.lock();
+        try {
+            pauseGrantDelivery = true;
+        } finally {
+            asyncLock.unlock();
+        }
+    }
+
+    /** Test-only: pair with {@link #pauseGrantDelivery()}. */
+    void resumeGrantDelivery() {
+        List<Runnable> completions;
+        asyncLock.lock();
+        try {
+            pauseGrantDelivery = false;
+            completions = takePendingCompletions();
+        } finally {
+            asyncLock.unlock();
+        }
+        runCompletions(completions);
     }
 
     private String timeoutMessage() {
@@ -415,7 +459,7 @@ class ConcurrencyLimiter implements AdmissionGate {
     }
 
     private List<Runnable> takePendingCompletions() {
-        if (pendingCompletions.isEmpty()) {
+        if (pauseGrantDelivery || pendingCompletions.isEmpty()) { // test-only seam
             return List.of();
         }
         List<Runnable> batch = new ArrayList<>(pendingCompletions);
@@ -424,29 +468,22 @@ class ConcurrencyLimiter implements AdmissionGate {
     }
 
     private static void runCompletions(List<Runnable> completions) {
-        for (Runnable completion : completions) {
-            completion.run();
-        }
+        InlineCompletionDrain.run(completions);
     }
 
     private final class AsyncWaiter {
         private final SubscribableListener<Void> listener;
-        private final Executor executor;
         private final BooleanSupplier cancel;
         private final AtomicBoolean completed = new AtomicBoolean();
         private AdmissionTracker.Wait tracked = AdmissionTracker.NOOP_WAIT;
 
-        private AsyncWaiter(SubscribableListener<Void> listener, Executor executor, BooleanSupplier cancel) {
+        private AsyncWaiter(SubscribableListener<Void> listener, BooleanSupplier cancel) {
             this.listener = listener;
-            this.executor = executor;
             this.cancel = cancel;
         }
 
         private void completeGrant() {
-            pendingCompletions.add(() -> forkGrant(this::deliverGrant));
-        }
-
-        private void completeGrantInline() {
+            undelivered.incrementAndGet();
             pendingCompletions.add(this::deliverGrant);
         }
 
@@ -454,6 +491,8 @@ class ConcurrencyLimiter implements AdmissionGate {
             if (completed.compareAndSet(false, true) == false) {
                 return;
             }
+            int left = undelivered.decrementAndGet();
+            assert left >= 0 : "undelivered=" + left;
             if (cancel.getAsBoolean()) {
                 tracked.finished();
                 release();
@@ -465,35 +504,12 @@ class ConcurrencyLimiter implements AdmissionGate {
         }
 
         private void fail(Exception e) {
-            pendingCompletions.add(() -> fork(() -> {
+            pendingCompletions.add(() -> {
                 if (completed.compareAndSet(false, true)) {
                     tracked.finished();
                     listener.onFailure(e);
                 }
-            }));
-        }
-
-        private void forkGrant(Runnable task) {
-            try {
-                executor.execute(task);
-            } catch (Exception e) {
-                if (completed.compareAndSet(false, true)) {
-                    tracked.finished();
-                    release();
-                    listener.onFailure(e);
-                }
-            }
-        }
-
-        private void fork(Runnable task) {
-            try {
-                executor.execute(task);
-            } catch (Exception e) {
-                if (completed.compareAndSet(false, true)) {
-                    tracked.finished();
-                    listener.onFailure(e);
-                }
-            }
+            });
         }
     }
 }

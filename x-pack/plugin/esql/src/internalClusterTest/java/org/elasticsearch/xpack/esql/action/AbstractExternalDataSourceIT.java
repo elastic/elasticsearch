@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.BufferedOutputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -412,9 +413,12 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
         return target;
     }
 
-    /** Writes {@code content} to {@code target} as a bzip2-compressed file. */
+    /**
+     * Writes {@code content} to {@code target} as a bzip2-compressed file. The compressor writes its sink a byte at a
+     * time, so the file stream is buffered.
+     */
     protected static Path writeBzip2(Path target, String content) throws IOException {
-        try (OutputStream out = new BZip2CompressorOutputStream(Files.newOutputStream(target))) {
+        try (OutputStream out = new BZip2CompressorOutputStream(new BufferedOutputStream(Files.newOutputStream(target)))) {
             out.write(content.getBytes(StandardCharsets.UTF_8));
         }
         return target;

@@ -17,6 +17,7 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.RollingUpgradePerformer.ClusterAndClients;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -80,6 +81,10 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
 
     protected static IndexVersion getOldClusterIndexVersion() {
         return rollingUpgrade.getOldClusterIndexVersion();
+    }
+
+    public static Version getOldClusterTestVersion() {
+        return Version.fromString(getOldClusterVersion());
     }
 
     /**

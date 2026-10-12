@@ -11448,63 +11448,24 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
     }
 
-    /**
-     * The fallback in {@code cachedStatistics}, which had integration coverage only. A retyping declaration asks
-     * its own overlaid address first; on a miss it asks the schema record's own, and {@code restrictToReadConfig}
-     * decides what may cross from there. Exactly one thing may: a row count whose producer licensed it as
-     * read-independent. Every per-column statistic must be dropped, because an extremum does depend on how the
-     * column was read.
-     * <p>
-     * Both halves are asserted on one seeded record, so the case cannot pass by the fallback returning nothing:
-     * the count crossing proves the fallback ran, and the extremum's absence proves the restriction ran with it.
-     * Reverting the fallback to {@code return null} drops the count and reddens the first assertion.
+    /*
+     * NOT COVERED, deliberately recorded rather than left to be rediscovered: that cachedStatistics applies
+     * restrictToReadConfig to what the fallback finds. Mutating it to `return atOwnRead;` leaves every IT in
+     * this change GREEN, and no unit test here reaches it either.
+     *
+     * Why a unit test could not be built: the restriction only consults the licence when the entry's
+     * fingerprint DIFFERS from the expected read - a matching read returns the stats untouched - so only a
+     * foreign read exercises it. And the licence is not data a caller can plant. Seeding through
+     * reconcileSourceStatsFromContributions parses it into a typed SourceStatsContribution field, and seeding
+     * through reconcileSourceStats re-derives the stored map; with both, the count persists (asserted by a
+     * positive control at the record's own address) while the licence does not, so the foreign read finds a
+     * count it is not permitted to cross to and the case cannot distinguish a missing restriction from a
+     * missing licence.
+     *
+     * What would close it: a producer-level fixture that harvests under FAIL_FAST so the licence is attached
+     * by the code that owns it, or a package-private seam on the statistics store for tests. The restriction's
+     * own contract IS covered - see SourceStatisticsSerializerTests, which pins that a licensed count crosses
+     * a foreign read and that per-column statistics do not.
      */
-    public void testTheFallbackCrossesALicensedCountAndNothingElse() throws Exception {
-        String path = "s3://bucket/data/a.csv";
-        List<Attribute> fileSchema = List.of(attr("x", DataType.LONG), attr("note", DataType.KEYWORD));
-        Map<String, List<Attribute>> schemasByPath = Map.of(path, fileSchema);
-        CountingStorageProvider provider = new CountingStorageProvider(
-            Map.of("s3://bucket/data/", List.of(entry(path, 100))),
-            schemasByPath
-        );
-
-        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
-            ExternalSourceResolver resolver = createResolverWithCache(provider, schemasByPath, cacheService);
-
-            // Cold, undeclared: this is what files the schema record whose own address the fallback asks.
-            PlainActionFuture<ExternalSourceResolution> cold = new PlainActionFuture<>();
-            resolver.resolve(List.of(path), Map.of(path, new HashMap<>()), null, null, null, cold);
-            assertNotNull(cold.actionGet().resolvedSource(path));
-
-            // Seed that address with a LICENSED count and a per-column extremum. The licence is what lets the
-            // count cross a read; nothing licenses the extremum.
-            String ownRead = ReadConfigFingerprint.of(fileSchema, DeclaredReadSpec.NONE);
-            Map<String, Object> seeded = promiseContribution(resolver.formatConfigIdentity(path, Map.of()), ownRead, 500L);
-            seeded.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
-            seeded.put(SourceStatisticsSerializer.STATS_COL_PREFIX + "x.min", 7L);
-            cacheService.reconcileSourceStatsFromContributions(Map.of(path, List.of(seeded)));
-
-            // Warm, with a declaration that retypes x: the overlaid read is not the record's, so the lookup
-            // misses at its own address and falls back.
-            DatasetMapping retyping = new DatasetMapping(
-                new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, Map.of("x", new DatasetFieldMapping("keyword", null)))
-            );
-            PlainActionFuture<ExternalSourceResolution> warm = new PlainActionFuture<>();
-            resolver.resolve(List.of(path), Map.of(path, new HashMap<>()), null, Map.of(path, retyping), null, warm);
-            ExternalSourceResolution.ResolvedSource resolved = warm.actionGet().resolvedSource(path);
-            assertNotNull(resolved);
-
-            Map<String, Object> served = resolved.metadata().sourceMetadata();
-            assertEquals(
-                "a licensed row count must cross to a read the record does not describe: " + served,
-                500L,
-                ((Number) served.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue()
-            );
-            assertNull(
-                "an extremum must NOT cross - it depends on how the column was read: " + served,
-                served.get(SourceStatisticsSerializer.STATS_COL_PREFIX + "x.min")
-            );
-        }
-    }
 
 }

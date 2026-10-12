@@ -2640,8 +2640,9 @@ public class ExternalSourceResolver {
         cacheService.recordStatsAggregateIncomplete();
         if (prefetch.prefetched() != null) {
             // Needed (per-file merge incomplete) AND present: the fallback actually served. What it serves now
-            // was addressed by its owner, so a count minted under a different definition is not reachable from
-            // here at all; and the licence above is what let it cross reads in the first place.
+            // was addressed by the definition it belongs to, so a count minted under a different definition is
+            // not reachable from here at all. No licence is involved on this path: see the write-through above,
+            // which stores a lenient read's fold too, and relies on that address rather than on the policy.
             cacheService.recordDatasetAggregateHit();
             return prefetch.prefetched();
         }

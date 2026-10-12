@@ -15,6 +15,7 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.MergeState;
+import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.Bits;
@@ -298,8 +299,8 @@ public final class CalibrationUtils {
         return new SampledData(queryOrdinals, corpusOrdinals);
     }
 
-    private static FloatVectorValues segmentFloatVectorValues(FieldInfo fieldInfo, MergeState mergeState, int segmentIndex)
-        throws IOException {
+    /** Opens the segment's vectors for {@code fieldInfo} as {@link ByteVectorValues} or {@link FloatVectorValues} per its encoding. */
+    private static KnnVectorValues segmentVectorValues(FieldInfo fieldInfo, MergeState mergeState, int segmentIndex) throws IOException {
         if (mergeState.fieldInfos != null) {
             if (mergeState.fieldInfos[segmentIndex].fieldInfo(fieldInfo.name) == null) {
                 return null;
@@ -309,7 +310,25 @@ public final class CalibrationUtils {
         if (reader == null) {
             return null;
         }
-        return reader.getFloatVectorValues(fieldInfo.name);
+        return fieldInfo.getVectorEncoding() == VectorEncoding.BYTE
+            ? reader.getByteVectorValues(fieldInfo.name)
+            : reader.getFloatVectorValues(fieldInfo.name);
+    }
+
+    /** Copies the vector at {@code ord} into a fresh {@code float[]}, widening byte vectors exactly. */
+    private static float[] copyAsFloats(KnnVectorValues vectors, int ord) throws IOException {
+        if (vectors instanceof FloatVectorValues fvv) {
+            return fvv.vectorValue(ord).clone();
+        }
+        if (vectors instanceof ByteVectorValues bvv) {
+            byte[] bytes = bvv.vectorValue(ord);
+            float[] floats = new float[bytes.length];
+            for (int i = 0; i < bytes.length; i++) {
+                floats[i] = bytes[i];
+            }
+            return floats;
+        }
+        throw new IllegalStateException("unsupported vector values type: " + vectors.getClass().getName());
     }
 
     /**
@@ -326,7 +345,7 @@ public final class CalibrationUtils {
         }
         int total = 0;
         for (int i = 0; i < mergeState.knnVectorsReaders.length; i++) {
-            FloatVectorValues segmentVectors = segmentFloatVectorValues(fieldInfo, mergeState, i);
+            KnnVectorValues segmentVectors = segmentVectorValues(fieldInfo, mergeState, i);
             if (segmentVectors == null) {
                 continue;
             }
@@ -382,18 +401,18 @@ public final class CalibrationUtils {
         List<float[]> result = new ArrayList<>(Math.min(totalSample, totalVectors));
 
         for (int i = 0; i < mergeState.knnVectorsReaders.length; i++) {
-            FloatVectorValues fvv = segmentFloatVectorValues(fieldInfo, mergeState, i);
-            if (fvv == null || fvv.size() == 0) {
+            KnnVectorValues vectors = segmentVectorValues(fieldInfo, mergeState, i);
+            if (vectors == null || vectors.size() == 0) {
                 continue;
             }
-            int segSize = fvv.size();
+            int segSize = vectors.size();
             // Proportional quota: segment contributes in proportion to its share of total vectors.
             int segQuota = Math.max(1, Math.min(segSize, (int) ((long) segSize * totalSample / totalVectors)));
             // Stride gives even coverage across the full ordinal range of this segment.
             int stride = Math.max(1, segSize / segQuota);
 
             for (int ord = 0; ord < segSize && result.size() < totalSample; ord += stride) {
-                result.add(fvv.vectorValue(ord).clone());
+                result.add(copyAsFloats(vectors, ord));
             }
             // fvv goes out of scope; no reference to the segment reader is retained.
         }

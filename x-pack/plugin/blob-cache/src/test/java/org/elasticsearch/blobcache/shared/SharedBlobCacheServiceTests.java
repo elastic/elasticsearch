@@ -39,6 +39,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
@@ -3789,7 +3790,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
     }
 
     private void assertDeferredClaimRacesWithPopulate(boolean populateRunsFirst) throws Exception {
-        withDeferredClaimCacheService(cacheService -> {
+        withCacheServiceOnDirectExecutor(cacheService -> {
             final var entry = cacheService.get(generateCacheKey(), size(12L), 0, irrelevantTimestamp());
             final ByteRange range = ByteRange.of(0, size(1L));
             final List<Runnable> readTasks = new ArrayList<>();
@@ -3828,7 +3829,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
     }
 
     public void testPopulateAndReadDeferredClaimFailsWhenTheOtherClaimerFails() throws Exception {
-        withDeferredClaimCacheService(cacheService -> {
+        withCacheServiceOnDirectExecutor(cacheService -> {
             final var entry = cacheService.get(generateCacheKey(), size(12L), 0, irrelevantTimestamp());
             final ByteRange range = ByteRange.of(0, size(1L));
             final List<Runnable> readTasks = new ArrayList<>();
@@ -3876,7 +3877,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
      * for whoever reads or warms the range next.
      */
     public void testPopulateAndReadDeferredClaimRejected() throws Exception {
-        withDeferredClaimCacheService(cacheService -> {
+        withCacheServiceOnDirectExecutor(cacheService -> {
             final var entry = cacheService.get(generateCacheKey(), size(12L), 0, irrelevantTimestamp());
             final ByteRange range = ByteRange.of(0, size(1L));
             final EsRejectedExecutionException rejection = new EsRejectedExecutionException("simulated", true);
@@ -3906,7 +3907,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
      * The claimed gaps are filled through the executor given for the fills: here it runs tasks inline, so the claim task fills them itself.
      */
     public void testPopulateAndReadClaimTaskFillsTheGapsInlineWhenTheFillExecutorRunsInline() throws Exception {
-        withDeferredClaimCacheService(cacheService -> {
+        withCacheServiceOnDirectExecutor(cacheService -> {
             final var entry = cacheService.get(generateCacheKey(), size(12L), 0, irrelevantTimestamp());
             final ByteRange range = ByteRange.of(0, size(1L));
             final AtomicInteger fills = new AtomicInteger();
@@ -3933,7 +3934,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
      * them to it when it is not the same executor.
      */
     public void testPopulateAndReadClaimTaskDispatchesTheGapsToTheFillExecutor() throws Exception {
-        withDeferredClaimCacheService(cacheService -> {
+        withCacheServiceOnDirectExecutor(cacheService -> {
             final var entry = cacheService.get(generateCacheKey(), size(12L), 0, irrelevantTimestamp());
             final ByteRange range = ByteRange.of(0, size(1L));
             final AtomicInteger fills = new AtomicInteger();
@@ -3956,7 +3957,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
      * Without a claim executor the gaps are claimed by the calling thread, and the fills are dispatched once to the fill executor.
      */
     public void testPopulateAndReadWithoutClaimExecutorClaimsOnTheCallingThread() throws Exception {
-        withDeferredClaimCacheService(cacheService -> {
+        withCacheServiceOnDirectExecutor(cacheService -> {
             final var entry = cacheService.get(generateCacheKey(), size(12L), 0, irrelevantTimestamp());
             final ByteRange range = ByteRange.of(0, size(1L));
             final AtomicInteger fills = new AtomicInteger();
@@ -3976,7 +3977,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
      * the cache file.
      */
     public void testCacheFileClaimsEveryRegionOfAReadThroughItsClaimExecutor() throws Exception {
-        withDeferredClaimCacheService(cacheService -> {
+        withCacheServiceOnDirectExecutor(cacheService -> {
             final List<Runnable> claimTasks = new ArrayList<>();
             final var original = cacheService.getCacheFile(
                 generateCacheKey(),
@@ -4000,8 +4001,14 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
     private static final SharedBlobCacheService.RangeAvailableHandler READ_ALL = (channel, channelPos, relativePos, length) -> length;
 
-    private void withDeferredClaimCacheService(CheckedConsumer<SharedBlobCacheService<TestCacheKey>, Exception> test) throws Exception {
-        final Settings settings = deferredClaimTestSettings(size(1L));
+    private void withCacheServiceOnDirectExecutor(CheckedConsumer<SharedBlobCacheService<TestCacheKey>, Exception> test) throws Exception {
+        final Settings settings = Settings.builder()
+            .put(Node.NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(1L)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
             var cacheService = new SharedBlobCacheService<TestCacheKey>(
@@ -4035,16 +4042,6 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         return (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> {
             throw new AssertionError("should not fill");
         };
-    }
-
-    private static Settings deferredClaimTestSettings(long regionSize) {
-        return Settings.builder()
-            .put(NODE_NAME_SETTING.getKey(), "node")
-            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
-            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
-            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
-            .put("path.home", createTempDir())
-            .build();
     }
 
     private void assertThatNonPositiveRecoveryRangeSizeRejected(Setting<ByteSizeValue> setting) {

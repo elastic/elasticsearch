@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -147,7 +148,8 @@ public class StreamingSegmentatorAdmissionTests extends ESTestCase {
      */
     public void testCancelRemovesPendingFifoHeadAndPromotesNext() throws Exception {
         ExecutorService pool = Executors.newFixedThreadPool(2);
-        StreamingSegmentatorAdmission admission = new StreamingSegmentatorAdmission(1);
+        RecordingTracker tracker = new RecordingTracker();
+        StreamingSegmentatorAdmission admission = new StreamingSegmentatorAdmission(1, tracker);
         Executor asserting = command -> {
             assertFalse("executor.execute must run after the admission monitor is released", Thread.holdsLock(admission));
             pool.execute(command);
@@ -187,6 +189,8 @@ public class StreamingSegmentatorAdmissionTests extends ESTestCase {
                 assertEquals(0, admission.pending());
             }, 5, TimeUnit.SECONDS);
             assertFalse("already-cancelled handle stays cancelled", handles.get(1).cancel());
+            assertEquals(1, tracker.finished.get());
+            assertEquals(0, tracker.outstanding.get());
         } finally {
             pool.shutdownNow();
         }
@@ -215,6 +219,30 @@ public class StreamingSegmentatorAdmissionTests extends ESTestCase {
             assertBusy(() -> assertEquals(0, admission.running()), 5, TimeUnit.SECONDS);
         } finally {
             pool.shutdownNow();
+        }
+    }
+
+    private static final class RecordingTracker implements AdmissionTracker {
+        private final AtomicInteger outstanding = new AtomicInteger();
+        private final AtomicInteger grants = new AtomicInteger();
+        private final AtomicInteger finished = new AtomicInteger();
+
+        @Override
+        public Wait waitStarted(String gate, String waiter) {
+            outstanding.incrementAndGet();
+            return new Wait() {
+                @Override
+                public void granted() {
+                    outstanding.decrementAndGet();
+                    grants.incrementAndGet();
+                }
+
+                @Override
+                public void finished() {
+                    outstanding.decrementAndGet();
+                    finished.incrementAndGet();
+                }
+            };
         }
     }
 }

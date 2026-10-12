@@ -42,7 +42,7 @@ public class PackedValuesBlockHashCircuitBreakerTests extends BlockHashTestCase 
      */
     public void testCircuitBreakerWithManyGroups() {
         CircuitBreaker bytesBreaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofKb(1));
-        BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         // 1000 group keys of BYTES_REF
         List<BlockHash.GroupSpec> groupSpecs = new ArrayList<>();

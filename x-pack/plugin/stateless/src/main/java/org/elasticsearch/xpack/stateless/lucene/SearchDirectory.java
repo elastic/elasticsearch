@@ -133,7 +133,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
 
     /**
      * Whether BCC metadata reads on this shard should stamp {@link SharedBlobCacheService#BACKFILL_IN_PROGRESS_TIMESTAMP} and be backfilled
-     * after parsing. Requires a time-based index and the metadata-read timestamp backfill setting to be enabled.
+     * after parsing. Requires a time-based index and the eviction policy to consider timestamps.
      */
     public boolean timestampBackfillEnabled() {
         return hasTimestampField && cacheService.isMetadataTimestampBackfillEnabled();

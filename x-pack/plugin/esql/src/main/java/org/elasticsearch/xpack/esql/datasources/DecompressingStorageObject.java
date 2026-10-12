@@ -15,6 +15,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.IndexedDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
@@ -45,9 +46,13 @@ final class DecompressingStorageObject implements StorageObject {
     private static final Logger logger = LogManager.getLogger(DecompressingStorageObject.class);
 
     /**
-     * Upper bound on the raw bytes {@link DecompressedStream} reads past the decoder's end-of-stream so the
-     * provider sees the end of the body, plus one byte to tell a longer tail apart. Matches the gzip codec's raw
-     * read buffer: a well-formed object has nothing left, so this only bounds the tail of a malformed one.
+     * Upper bound on leftover GET bytes that a provider {@code close()} still drains so the HTTP
+     * connection returns to the pool, and on the raw bytes {@link DecompressedStream} reads past the
+     * decoder's end-of-stream so the provider sees the end of the body (plus one byte to tell a longer
+     * tail apart). A larger leftover is aborted instead. Matches Hadoop S3A readahead and the gzip
+     * codec's raw read buffer: a well-formed object has nothing left, so the decoder drain only
+     * bounds the tail of a malformed one. Keep in sync with {@code TransientTypingInputStream}
+     * (different package; that class cannot import this package-private field).
      */
     static final int MAX_TRAILING_DRAIN_BYTES = 64 * 1024;
 
@@ -97,7 +102,14 @@ final class DecompressingStorageObject implements StorageObject {
             UncloseableInputStream rawToCodec = new UncloseableInputStream(raw);
             InputStream decompressed = codec.decompress(rawToCodec, breaker);
             InputStream guarded = maxDecompressionRatio > 0
-                ? new LimitGuardInputStream(decompressed, delegate.knownLength(), rawToCodec, maxDecompressionRatio, codec.name())
+                ? new LimitGuardInputStream(
+                    decompressed,
+                    delegate.knownLength(),
+                    rawToCodec,
+                    maxDecompressionRatio,
+                    codec.name(),
+                    delegate.path()
+                )
                 : decompressed;
             return new DecompressedStream(guarded, raw, delegate, codec.name());
         } catch (IOException | RuntimeException e) {
@@ -141,6 +153,14 @@ final class DecompressingStorageObject implements StorageObject {
         // Decompressed size is not the compressed listing/GET length; leave it unknown so a
         // later "forward every SPI default" pass cannot treat the compressed size as expected EOF.
         return READ_TO_END;
+    }
+
+    /**
+     * Compressed delegate size when already known, else {@link StorageObject#READ_TO_END}.
+     * Streaming fill-buffer hint only — not decompressed EOF and not a substitute for {@link #knownLength()}.
+     */
+    long delegateKnownLength() {
+        return delegate.knownLength();
     }
 
     @Override
@@ -381,10 +401,18 @@ final class DecompressingStorageObject implements StorageObject {
         private final UncloseableInputStream raw;
         private final int maxRatio;
         private final String settingKey;
+        private final StoragePath path;
         private long decompressedRead = 0;
         private long limit = INITIAL_LIMIT;
 
-        LimitGuardInputStream(InputStream decompressed, long compressedSize, UncloseableInputStream raw, int maxRatio, String codecName) {
+        LimitGuardInputStream(
+            InputStream decompressed,
+            long compressedSize,
+            UncloseableInputStream raw,
+            int maxRatio,
+            String codecName,
+            StoragePath path
+        ) {
             super(decompressed);
             Check.isTrue(maxRatio > 0, "LimitGuardInputStream requires a positive ratio; use the plain stream for unlimited decompression");
             this.compressedSize = compressedSize;
@@ -393,6 +421,7 @@ final class DecompressingStorageObject implements StorageObject {
             this.settingKey = "zstd".equals(codecName)
                 ? ExternalSourceSettings.MAX_DECOMPRESSION_RATIO_ZSTD.getKey()
                 : ExternalSourceSettings.MAX_DECOMPRESSION_RATIO.getKey();
+            this.path = path;
         }
 
         @Override
@@ -434,15 +463,24 @@ final class DecompressingStorageObject implements StorageObject {
                 }
                 limit = effective * maxRatio;
                 if (decompressedRead > limit) {
-                    throw new ExternalClientException(
-                        "decompression limit exceeded: decompressed {} bytes, limit is {} bytes "
-                            + "(ratio limit {}:1 × compressed bytes); reduce the object's compression ratio "
-                            + "or set [{}] to a higher value or 0 to disable",
-                        decompressedRead,
-                        limit,
-                        maxRatio,
-                        settingKey
+                    ExternalClientException ex = new ExternalClientException(
+                        ExternalException.Condition.MALFORMED_DATA,
+                        path,
+                        "decompression-limit",
+                        ""
                     );
+                    ex.setDetail(
+                        String.format(
+                            java.util.Locale.ROOT,
+                            "decompressed %d bytes, limit is %d bytes (ratio limit %d:1 × compressed bytes); "
+                                + "reduce the object's compression ratio or set [%s] to a higher value or 0 to disable",
+                            decompressedRead,
+                            limit,
+                            maxRatio,
+                            settingKey
+                        )
+                    );
+                    throw ex;
                 }
             }
         }

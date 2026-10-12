@@ -77,11 +77,11 @@ public final class LocalStorageProvider implements StorageProvider {
         Path dirPath = toListablePath(prefix);
 
         if (Files.exists(dirPath) == false) {
-            throw new IOException("Directory does not exist: " + dirPath);
+            throw new IOException("Directory does not exist: " + prefix.objectName());
         }
 
         if (Files.isDirectory(dirPath) == false) {
-            throw new IOException("Path is not a directory: " + dirPath);
+            throw new IOException("Path is not a directory: " + prefix.objectName());
         }
 
         return new LocalStorageIterator(dirPath, recursive);
@@ -93,10 +93,10 @@ public final class LocalStorageProvider implements StorageProvider {
         Path dirPath = toListablePath(prefix);
 
         if (Files.exists(dirPath) == false) {
-            throw new IOException("Directory does not exist: " + dirPath);
+            throw new IOException("Directory does not exist: " + prefix.objectName());
         }
         if (Files.isDirectory(dirPath) == false) {
-            throw new IOException("Path is not a directory: " + dirPath);
+            throw new IOException("Path is not a directory: " + prefix.objectName());
         }
 
         List<StorageEntry> files = new ArrayList<>();
@@ -146,7 +146,7 @@ public final class LocalStorageProvider implements StorageProvider {
     private void validateFileScheme(StoragePath path) {
         String scheme = path.scheme().toLowerCase(Locale.ROOT);
         if (scheme.equals("file") == false) {
-            throw new IllegalArgumentException("LocalStorageProvider only supports file:// scheme, got: " + scheme);
+            throw new IllegalArgumentException("LocalStorageProvider only supports the [file] scheme, got: " + scheme);
         }
     }
 
@@ -159,7 +159,7 @@ public final class LocalStorageProvider implements StorageProvider {
     private static Path toListablePath(StoragePath storagePath) {
         String pathStr = storagePath.localPath();
         if (pathStr == null || pathStr.isEmpty()) {
-            throw new IllegalArgumentException("Path cannot be empty for file:// scheme");
+            throw new IllegalArgumentException("Path cannot be empty for the [file] scheme");
         }
         return PathUtils.get(pathStr);
     }
@@ -173,13 +173,13 @@ public final class LocalStorageProvider implements StorageProvider {
         String pathStr = storagePath.localPath();
 
         if (pathStr == null || pathStr.isEmpty()) {
-            throw new IllegalArgumentException("Path cannot be empty for file:// scheme");
+            throw new IllegalArgumentException("Path cannot be empty for the [file] scheme");
         }
 
         if (storagePath.isPattern()) {
             throw new IllegalArgumentException(
                 "LocalStorageProvider received a glob pattern: ["
-                    + pathStr
+                    + storagePath.objectName()
                     + "]; glob expansion must be performed via listObjects() before resolving a single object"
             );
         }

@@ -700,6 +700,15 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                 },
                 {
                   "names": [
+                    ".significant_events-*"
+                  ],
+                  "privileges": [
+                    "read"
+                  ],
+                  "allow_restricted_indices": false
+                },
+                {
+                  "names": [
                     ".workflows-executions*"
                   ],
                   "privileges": [

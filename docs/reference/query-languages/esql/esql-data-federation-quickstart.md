@@ -289,7 +289,7 @@ The `type`, `year`, and `quarter` columns come from Hive-style partition paths i
 :::
 
 :::{tip}
-If a column has an unexpected type, you can override it with a [dataset mapping](esql-data-federation-datasets.md#declare-a-dataset-mapping).
+If a column has an unexpected type, you can [declare its type explicitly](esql-data-federation-schema.md#declare-a-schema-explicitly).
 :::
 ::::::
 
@@ -725,5 +725,5 @@ Now that you have a working data source and dataset, you can:
 - **Learn about querying external datasets.** To learn how the query engine reads external data, refer to [query external datasets](esql-data-federation-querying.md).
   - For general {{esql}} query tuning, refer to [optimize {{esql}} query performance](esql-query-performance.md).
 - **Connect your own bucket.** To connect a private bucket with credentials or federated identity, refer to [connect external data sources](esql-data-federation-sources.md).
-- **Tune dataset settings.** To override file formats, customize schema inference, or declare explicit column mappings, refer to [select external datasets](esql-data-federation-datasets.md).
+- **Tune dataset behavior.** To configure parsing and file discovery, refer to [dataset settings](esql-data-federation-dataset-settings.md). To control inferred schemas or declare column mappings, refer to [schema inference](esql-data-federation-schema.md).
 - **Query your dataset in {{kib}}.** Datasets work like indices in **Discover**, **Dashboards**, and other apps that use the {{esql}} editor. To find your datasets while writing a query, refer to [browse indices and fields from the editor](docs-content://explore-analyze/discover/try-esql.md#discover-esql-resource-browsers).

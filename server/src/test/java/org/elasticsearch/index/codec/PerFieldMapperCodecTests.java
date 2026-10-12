@@ -14,8 +14,10 @@ import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene104.Lucene104PostingsFormat;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
+import org.elasticsearch.columnar.ColumnarFieldType;
 import org.elasticsearch.columnar.string.DictionaryPolicy;
 import org.elasticsearch.columnar.string.StringColumnOptions;
+import org.elasticsearch.columnar.substrate.ChunkBounds;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -720,6 +722,34 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         assertThat("but by the same format, so one reader serves both", idFormat.getName(), equalTo(otherFormat.getName()));
         assertThat(((ES819TSDBDocValuesFormat) idFormat).binaryBlockCountThreshold(), equalTo(128));
         assertThat(((ES819TSDBDocValuesFormat) otherFormat).binaryBlockCountThreshold(), equalTo(8096));
+    }
+
+    /**
+     * A vectordb index reads its keyword and text columns a few documents at a time, so their chunks are cut at
+     * one block of values rather than the thousands a scanned column is written in. Each field keeps its own
+     * policies: text still has no dictionary, keyword still has one.
+     */
+    public void testVectorDbColumnarStringColumnsUseSmallChunks() throws IOException {
+        assumeTrue("vectordb_columnar must be enabled", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
+        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(
+            IndexMode.VECTORDB_COLUMNAR,
+            randomColumnarEligibleIndexVersion(),
+            true
+        );
+        for (String field : List.of("category", "body")) {
+            assertThat(field, supplier.getDocValuesFormatForField(field), instanceOf(ColumNARDocValuesFormat.class));
+            final StringColumnOptions.Sizes sizes = supplier.resolveStringColumnOptions(field, ColumnarFieldType.STRING).sizes();
+            assertThat(field, sizes.plainChunks(), equalTo(new ChunkBounds(128 * 1024, 128)));
+            assertThat(field, sizes.escapeChunks(), equalTo(new ChunkBounds(32 * 1024, 128)));
+            assertThat(field, sizes.compressedOrdinalBlockSize(), equalTo(512));
+            assertThat(field, sizes.valuesPerBlock(), equalTo(StringColumnOptions.DEFAULT_VALUES_PER_BLOCK));
+        }
+        assertEquals(DictionaryPolicy.NONE, supplier.resolveStringColumnOptions("body", ColumnarFieldType.STRING).dictionary());
+        assertEquals(
+            StringColumnOptions.DEFAULT_DICTIONARY,
+            supplier.resolveStringColumnOptions("category", ColumnarFieldType.STRING).dictionary()
+        );
     }
 
     private static IndexMode randomColumnarMode() {

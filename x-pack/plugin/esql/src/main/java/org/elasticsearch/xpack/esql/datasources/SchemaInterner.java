@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.action.ExternalPlanningReservation;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -32,12 +33,6 @@ import java.util.Map;
  * count is not known at construction.
  */
 public final class SchemaInterner {
-
-    /**
-     * First time a column key is kept. Allowance for a {@link org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute}
-     * plus its {@link org.elasticsearch.xpack.esql.core.expression.NameId}, not a measured deep size.
-     */
-    private static final long COLUMN_BYTES = 128L;
 
     /** First time a shape list is kept: list shell plus one pointer per column. */
     private static final long SHAPE_BASE_BYTES = 32L;
@@ -92,11 +87,16 @@ public final class SchemaInterner {
     }
 
     /**
-     * Bytes of one file's private attribute list: one column allowance per column, plus the list shell.
-     * Charged on a resolve-scoped run for the gather, not on {@code queryHeld}. Not a measured deep size.
+     * Bytes of one file's private attribute list: {@link HeapEstimates#columnBytes} per column, which includes the
+     * column name, plus the list shell. Charged on a resolve-scoped run for the gather, not on {@code queryHeld}.
+     * Not a measured deep size.
      */
-    static long privateListBytes(int columns) {
-        return COLUMN_BYTES * columns + SHAPE_BASE_BYTES + SHAPE_PER_COLUMN_BYTES * columns;
+    static long privateListBytes(List<Attribute> columns) {
+        long bytes = SHAPE_BASE_BYTES + SHAPE_PER_COLUMN_BYTES * columns.size();
+        for (int i = 0; i < columns.size(); i++) {
+            bytes += HeapEstimates.columnBytes(columns.get(i).name().length());
+        }
+        return bytes;
     }
 
     /**
@@ -157,7 +157,7 @@ public final class SchemaInterner {
         if (existing != null) {
             return existing;
         }
-        retain(COLUMN_BYTES);
+        retain(HeapEstimates.columnBytes(raw.name().length()));
         columns.put(key, raw);
         return raw;
     }

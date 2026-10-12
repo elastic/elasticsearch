@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.googlevertexai;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -62,6 +63,11 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
 
     private static final String CHAT_COMPLETION_CHUNK = "chat.completion.chunk";
     private static final String FUNCTION_TYPE = "function";
+
+    /**
+     * Separator in synthesized tool call ids ({@code <name>#<random>}). Not valid in Google function names.
+     */
+    private static final String SYNTHESIZED_TOOL_CALL_ID_SEPARATOR = "#";
 
     private final BiFunction<String, Exception, Exception> errorParser;
 
@@ -137,7 +143,9 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
                         toolCalls.add(
                             new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall(
                                 0, // No explicit ID from VertexAI so we use 0
-                                function.name(), // VertexAI does not provide an id for the function call so we use the name
+                                   // VertexAI does not provide an id for the function call so an id unique across calls is
+                                   // synthesized from the name
+                                function.name() + SYNTHESIZED_TOOL_CALL_ID_SEPARATOR + UUIDs.randomBase64UUID(),
                                 function,
                                 FUNCTION_TYPE
                             )

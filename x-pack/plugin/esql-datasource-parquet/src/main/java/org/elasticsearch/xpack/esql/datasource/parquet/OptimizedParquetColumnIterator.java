@@ -1064,17 +1064,6 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         });
     }
 
-    private static void releaseAbandonedChunks(@Nullable ColumnChunkPrefetcher.PrefetchedChunks chunks) {
-        if (chunks == null) {
-            return;
-        }
-        try {
-            chunks.release().close();
-        } catch (RuntimeException ignored) {
-            // Close/cancel already owns the query failure; leftover bytes surface in ledger asserts.
-        }
-    }
-
     private void enqueueEmptyPrefetch(int ordinal) {
         enqueuePrefetch(
             ordinal,
@@ -3026,12 +3015,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             ColumnChunkPrefetcher.PrefetchedChunks chunks = future.getNow(null);
             if (chunks != null) {
                 chunks.release().close();
-            } else {
-                future.whenComplete((late, error) -> releaseAbandonedChunks(late));
             }
         } catch (CompletionException | CancellationException ignored) {
-            // Cancelled or failed GET produced no chunks.
-            future.whenComplete((late, error) -> releaseAbandonedChunks(late));
+            // Cancelled or failed GET produced no chunks. prefetchCoalesced releases buffers
+            // when complete() loses to cancel.
         }
     }
 
@@ -4734,21 +4721,19 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
 
         void release() {
             // Non-blocking cancellation cleanup: if I/O is still in flight, FutureUtils.cancel()
-            // plus the prefetch wrapper's cancel hook abort the backend GET. A GET that wins
-            // the cancel race still delivers chunks; attach a late release so those buffers
-            // cannot outlive close().
+            // plus the prefetch wrapper's cancel hook abort the backend GET.
             try {
                 ColumnChunkPrefetcher.PrefetchedChunks chunks;
                 try {
                     chunks = future.getNow(null);
                 } catch (CompletionException | CancellationException ignored) {
-                    future.whenComplete((late, error) -> releaseAbandonedChunks(late));
+                    // Future completed exceptionally (or was cancelled) — no chunks were ever produced
+                    // so there is nothing for us to release. Narrowing the catch keeps real bugs in
+                    // release().close() visible to the caller.
                     return;
                 }
                 if (chunks != null) {
                     chunks.release().close();
-                } else {
-                    future.whenComplete((late, error) -> releaseAbandonedChunks(late));
                 }
             } finally {
                 if (hold != null) {

@@ -73,6 +73,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongPredicate;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.xpack.esql.datasource.parquet.OptimizedParquetColumnIterator.ReadinessPhase;
@@ -633,8 +634,14 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
             lessThan((long) parquet.length - ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES)
         );
         CountDownLatch allowGroup1 = new CountDownLatch(1);
-        AtomicBoolean gateGroup1 = new AtomicBoolean();
-        GatedOnDemandStorage storage = new GatedOnDemandStorage(parquet, asyncIo, gateGroup1, allowGroup1);
+        long group2Start = phaseSizes(parquet, 2).startingPos();
+        GatedOnDemandStorage storage = new GatedOnDemandStorage(
+            parquet,
+            asyncIo,
+            new AtomicBoolean(true),
+            allowGroup1,
+            pos -> pos >= group1.startingPos() && pos < group2Start
+        );
         ParquetIoWatermark watermark = new ParquetIoWatermark(1 << 20);
         ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
         Expression filter = new Equals(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 5L, DataType.LONG), null);
@@ -645,23 +652,14 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
             assertBusy(() -> assertTrue(iter.waitForReady().isDone()), 5, TimeUnit.SECONDS);
             long usedWhenReady = watermark.used();
             assertTrue("group 0 must hold a reservation; used=" + usedWhenReady, usedWhenReady >= group0.reservation);
-            gateGroup1.set(true);
             assertNull(iter.tryAdvance());
-            ReadinessPhase phase = opci.readinessPhase();
-            // Look-ahead may finish group 1 before the gate latches, so DECODING is a race with
-            // GROUP_IO_PENDING, not a leaked reservation (#161623).
-            assertTrue(
-                "group 1 GET parks or look-ahead already decoded; was " + phase,
-                phase == ReadinessPhase.GROUP_IO_PENDING || phase == ReadinessPhase.DECODING
-            );
+            assertEquals(ReadinessPhase.GROUP_IO_PENDING, opci.readinessPhase());
             long usedParked = watermark.used();
+            assertTrue("group 1 must hold R1; used=" + usedParked, usedParked >= group1.reservation);
             assertTrue(
                 "no-match must drop R0 before the group-1 GET; used was " + usedWhenReady + " then " + usedParked,
                 usedParked <= usedWhenReady - group0.reservation + group1.reservation
             );
-            if (phase == ReadinessPhase.GROUP_IO_PENDING) {
-                assertTrue("group 1 must hold R1; used=" + usedParked, usedParked >= group1.reservation);
-            }
             assertEquals(0, blockFactory.breaker().getUsed());
             allowGroup1.countDown();
             assertBusy(() -> assertTrue(iter.waitForReady().isDone()), 5, TimeUnit.SECONDS);
@@ -1221,11 +1219,23 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
     private static final class GatedOnDemandStorage extends ImmediateAsyncStorage {
         private final AtomicBoolean gate;
         private final CountDownLatch allow;
+        private final LongPredicate gatedPosition;
 
         private GatedOnDemandStorage(byte[] data, ExecutorService asyncIo, AtomicBoolean gate, CountDownLatch allow) {
+            this(data, asyncIo, gate, allow, pos -> true);
+        }
+
+        private GatedOnDemandStorage(
+            byte[] data,
+            ExecutorService asyncIo,
+            AtomicBoolean gate,
+            CountDownLatch allow,
+            LongPredicate gatedPosition
+        ) {
             super(data, asyncIo);
             this.gate = gate;
             this.allow = allow;
+            this.gatedPosition = gatedPosition;
         }
 
         @Override
@@ -1236,7 +1246,7 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
             Executor executor,
             ActionListener<DirectReadBuffer> listener
         ) {
-            if (gate.get() == false) {
+            if (gate.get() == false || gatedPosition.test(position) == false) {
                 super.readBytesAsync(position, length, factory, executor, listener);
                 return;
             }

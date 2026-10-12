@@ -312,7 +312,6 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
      * An already indexed exemplar must not hide rejected data points when multiple metrics share a failed document.
      */
     public void testExemplarConflictDoesNotSuppressAllDataPointsRejected() throws Exception {
-        assumeTrue("requires metric exemplar ingestion", OTelPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled());
         Exemplar exemplar = OtlpUtils.createLongExemplar(1_000_000L, 42L);
         Metric firstMetric = OtlpUtils.createGaugeMetric(
             "first.metric",
@@ -352,7 +351,6 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
     }
 
     public void testExemplarConflictIsReportedAsDuplicate() throws Exception {
-        assumeTrue("requires metric exemplar ingestion", OTelPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled());
         Exemplar exemplar = OtlpUtils.createLongExemplar(1_000_000L, 42L);
         Metric metric = OtlpUtils.createGaugeMetric(
             "test.metric",

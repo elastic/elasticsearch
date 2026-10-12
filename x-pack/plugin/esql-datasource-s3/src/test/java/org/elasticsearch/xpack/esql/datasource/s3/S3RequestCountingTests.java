@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.mockito.ArgumentCaptor;
@@ -207,6 +208,29 @@ public class S3RequestCountingTests extends ESTestCase {
     }
 
     /**
+     * A restore still running is not a restore: the copy is not available yet, so a GET is still refused. Reading
+     * only whether {@code x-amz-restore} is present accepts the object here and fails at read time instead, with a
+     * message that no longer says to wait.
+     */
+    public void testObjectMetadataRefusesAnObjectWhoseRestoreIsStillRunning() {
+        when(mockS3.headObject(any(HeadObjectRequest.class))).thenReturn(
+            HeadObjectResponse.builder()
+                .contentLength(FILE_SIZE)
+                .lastModified(LAST_MODIFIED)
+                .storageClass("GLACIER")
+                .restore("ongoing-request=\"true\"")
+                .build()
+        );
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        ExternalClientException archived = expectThrows(ExternalClientException.class, obj::headObjectMetadata);
+        assertEquals(ExternalClientException.Condition.OBJECT_ARCHIVED, archived.condition());
+        assertThat(archived.getMessage(), containsString("wait for a restore in progress"));
+
+        verify(mockS3, never()).getObject(any(GetObjectRequest.class));
+    }
+
+    /**
      * An Intelligent-Tiering object names INTELLIGENT_TIERING as its class and carries the archive state in
      * {@code x-amz-archive-status}, so reading the class alone lets it through and the read fails later.
      */
@@ -223,7 +247,9 @@ public class S3RequestCountingTests extends ESTestCase {
         S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
         ExternalClientException archived = expectThrows(ExternalClientException.class, obj::headObjectMetadata);
         assertEquals(ExternalClientException.Condition.OBJECT_ARCHIVED, archived.condition());
-        assertThat(archived.getMessage(), containsString("DEEP_ARCHIVE_ACCESS"));
+        // Both parts, in the one form the refused-GET path also renders: the class alone does not say why this
+        // object is archived, and a separator that drifts from the sibling is the divergence this pins.
+        assertThat(archived.getMessage(), containsString("storage class [INTELLIGENT_TIERING] and access tier [DEEP_ARCHIVE_ACCESS]"));
         assertThat(archived.getMessage(), containsString("restore it"));
     }
 
@@ -235,7 +261,11 @@ public class S3RequestCountingTests extends ESTestCase {
         when(mockS3.headObject(any(HeadObjectRequest.class))).thenThrow(S3Exception.builder().statusCode(429).build());
 
         S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
-        expectThrows(Exception.class, obj::headObjectMetadata);
+        // The mapped condition matters as much as the absent GET: a 429 that stopped arriving as back-pressure
+        // would still satisfy expectThrows(Exception.class) while the retry layer stopped backing off for it.
+        ExternalUnavailableException throttled = expectThrows(ExternalUnavailableException.class, obj::headObjectMetadata);
+        assertEquals(ExternalUnavailableException.Condition.STORE_THROTTLED, throttled.condition());
+        assertTrue(throttled.throttling());
 
         verify(mockS3, never()).getObject(any(GetObjectRequest.class));
     }

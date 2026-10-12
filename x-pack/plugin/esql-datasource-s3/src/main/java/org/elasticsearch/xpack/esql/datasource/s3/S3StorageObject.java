@@ -786,7 +786,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         // Reading the response happens outside the try: these throws are this method's own conclusions about a
         // successful HEAD, and a catch that re-mapped them would turn them into a read failure.
         ExternalPlanningIo.addMetadataGet(0);
-        if (S3FailureDetail.isArchivedHeadResponse(response.storageClassAsString(), response.archiveStatusAsString(), response.restore())) {
+        if (S3FailureDetail.isArchivedHeadResponse(response.storageClass(), response.archiveStatus(), response.restore())) {
             // A HEAD on an archived object succeeds and reports the state in headers, where a GET is refused with
             // InvalidObjectState. Without this the resolve accepts the object and the read fails later, with a
             // message that no longer says to restore it.
@@ -794,9 +794,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 ExternalClientException.Condition.OBJECT_ARCHIVED,
                 path,
                 "",
-                S3FailureDetail.archivedRemedy(
-                    S3FailureDetail.archivedTier(response.storageClassAsString(), response.archiveStatusAsString())
-                )
+                S3FailureDetail.archivedRemedy(S3FailureDetail.archivedTier(response.storageClass(), response.archiveStatus()))
             );
         }
         Long length = response.contentLength();

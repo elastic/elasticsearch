@@ -16,9 +16,11 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -27,16 +29,14 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Every provider that wraps another one must declare {@link StorageProvider#objectMetadata}.
+ * What {@link ForwardingStorageProvider} has to keep true for the five decorators that extend it.
  * <p>
- * The method has a default, and that default resolves through {@code this.newObject}. So a decorator that does not
- * declare it does not inherit the delegate's override — it silently takes the delegate's handle path instead, and
- * the override never runs.
- * <p>
- * Named as strings because two are private nested classes, which the reflection allowed here cannot reach from
- * source.
+ * A method on {@link StorageProvider} with a {@code default} resolves through {@code this}, so a wrapper that does
+ * not declare it does not inherit the delegate's override — it silently takes the delegate's own handle path instead,
+ * and the override never runs. Nothing in the language reports that: the call compiles and the suites pass. The base
+ * exists so there is one place to get it right, and these tests are what hold it there.
  */
-public class StorageProviderMetadataForwardingTests extends ESTestCase {
+public class ForwardingStorageProviderTests extends ESTestCase {
 
     /**
      * The default is what every provider but S3 uses, so it is the majority path through this method.
@@ -109,11 +109,29 @@ public class StorageProviderMetadataForwardingTests extends ESTestCase {
     }
 
     /**
-     * close() is abstract on the base rather than forwarded, so the compiler asks every decorator what owning
-     * the delegate means. Two of them return a pooled provider instead of closing it, and inheriting a forward
-     * would have closed one under the queries still holding it.
+     * The base has to declare every method on the interface, not merely the ten that exist today. A method added to
+     * {@link StorageProvider} with a {@code default} and not added here is inherited by the base exactly as it would
+     * be by a decorator, so all five wrappers silently stop reaching their delegate for it at once — the failure the
+     * base was introduced to make impossible. Asserted over the interface's own method set rather than a list of
+     * names, so adding a method to the interface is what turns this red.
      */
-    public void testCloseIsNotInheritedFromTheBase() throws Exception {
+    public void testTheBaseDeclaresEveryMethodOnTheInterface() throws Exception {
+        List<String> inherited = new ArrayList<>();
+        for (Method method : StorageProvider.class.getMethods()) {
+            Method onBase = ForwardingStorageProvider.class.getMethod(method.getName(), method.getParameterTypes());
+            if (onBase.getDeclaringClass() != ForwardingStorageProvider.class) {
+                inherited.add(method.getName() + Arrays.toString(method.getParameterTypes()));
+            }
+        }
+        assertEquals("the base does not declare these, so every decorator inherits the interface default", List.of(), inherited);
+    }
+
+    /**
+     * close() is the one method the base declares abstract rather than forwarding, so the compiler asks each
+     * decorator what owning the delegate means. Two of them hold a provider borrowed from a pool and have to return
+     * it, and an inherited forward would have closed one under the queries still holding it.
+     */
+    public void testCloseIsAbstractRatherThanForwarded() throws Exception {
         assertTrue(
             "close() must stay abstract on the base",
             Modifier.isAbstract(ForwardingStorageProvider.class.getMethod("close").getModifiers())
@@ -186,8 +204,8 @@ public class StorageProviderMetadataForwardingTests extends ESTestCase {
     }
 
     /**
-     * Declaring the method is not forwarding it: a decorator that declares it and does something other than ask
-     * the delegate passes the gate above. These assert the call arrives.
+     * Declaring a method is not forwarding it: a decorator that declares it and does something other than ask the
+     * delegate passes the declaring-class gate above. These assert the call actually arrives at the delegate.
      */
     public void testEachDecoratorsForwardReachesTheDelegate() throws Exception {
         StoragePath path = StoragePath.of("s3://bucket/file.csv");

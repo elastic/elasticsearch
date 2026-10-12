@@ -254,6 +254,20 @@ public class S3RequestCountingTests extends ESTestCase {
     }
 
     /**
+     * A 404 is the other status the recovery GET is not spent on: a GET would only repeat it. The object is simply
+     * not there, which is already the whole answer, and the recovery exists to learn an error code a 404 has.
+     */
+    public void testObjectMetadataDoesNotRecoverOnANotFound() {
+        when(mockS3.headObject(any(HeadObjectRequest.class))).thenThrow(NoSuchKeyException.builder().message("Not Found").build());
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        ExternalClientException missing = expectThrows(ExternalClientException.class, obj::headObjectMetadata);
+        assertEquals(ExternalClientException.Condition.OBJECT_NOT_FOUND, missing.condition());
+
+        verify(mockS3, never()).getObject(any(GetObjectRequest.class));
+    }
+
+    /**
      * A throttled HEAD must not spend a second request recovering an error body: the retry layer is about to ask
      * again, so a GET per attempt is two requests against a store that asked for fewer.
      */

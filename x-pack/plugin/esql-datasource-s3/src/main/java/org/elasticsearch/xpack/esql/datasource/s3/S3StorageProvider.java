@@ -745,17 +745,20 @@ public class S3StorageProvider implements StorageProvider {
 
     @Override
     public StorageEntry objectMetadata(StoragePath path) throws IOException {
-        validateS3Scheme(path);
-        String bucket = path.host();
-        String key = extractKey(path);
-        DiscoveredClients dc = resolveClientsForBucket(bucket);
-        S3Client sync = dc != null ? dc.sync() : s3Client;
-        S3AsyncClient async = dc != null ? dc.async() : s3AsyncClient;
-        return new S3StorageObject(sync, async, asyncReadRetryStrategy, storageIdentity, bucket, key, path).headObjectMetadata();
+        return objectFor(path).headObjectMetadata();
     }
 
     @Override
     public StorageObject newObject(StoragePath path) {
+        return objectFor(path);
+    }
+
+    /**
+     * What both single-path entry points need before they can talk to the store: the scheme checked, the path split
+     * into bucket and key, and the clients for that bucket resolved, which may differ from the configured pair when
+     * the bucket lives in another region.
+     */
+    private S3StorageObject objectFor(StoragePath path) {
         validateS3Scheme(path);
         String bucket = path.host();
         String key = extractKey(path);

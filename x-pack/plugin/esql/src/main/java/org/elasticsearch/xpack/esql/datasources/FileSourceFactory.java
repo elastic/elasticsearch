@@ -837,7 +837,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
      * Config-bearing pool borrow that does not call {@code createProvider} until the first storage
      * operation. {@link #close()} is a no-op if the factory never ran {@code get()}.
      */
-    private static final class DeferredPoolLease extends ForwardingStorageProvider {
+    static final class DeferredPoolLease extends ForwardingStorageProvider {
         private final Supplier<StorageProvider> supplier;
         private StorageProvider inner;
         private boolean closed;

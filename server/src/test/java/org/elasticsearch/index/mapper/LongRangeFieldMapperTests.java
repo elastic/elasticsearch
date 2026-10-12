@@ -9,10 +9,15 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+
+import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class LongRangeFieldMapperTests extends RangeFieldMapperTests {
 
@@ -51,6 +56,22 @@ public class LongRangeFieldMapperTests extends RangeFieldMapperTests {
         }
 
         return new TestRange<>(rangeType(), from, to, includeFrom, includeTo);
+    }
+
+    @Override
+    protected Tuple<Object, Object> randomInclusiveBounds() {
+        long from = randomLongBetween(Long.MIN_VALUE + 1, Long.MAX_VALUE - 1);
+        long to = randomLongBetween(from, Long.MAX_VALUE - 1);
+        return Tuple.tuple(from, to);
+    }
+
+    public void testFetchManyFromDocValues() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        List<Object> ranges = List.of(Map.of("gte", 10, "lte", 20), Map.of("gt", 1, "lt", 5), Map.of("gte", 10, "lte", 20));
+        assertThat(
+            docValueFields(mapperService, ranges, null),
+            containsInAnyOrder(Map.of("gte", 10L, "lte", 20L), Map.of("gte", 2L, "lte", 4L))
+        );
     }
 
     @Override

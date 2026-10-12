@@ -45,7 +45,7 @@ public class ExternalRelationTelemetryTests extends ESTestCase {
     }
 
     public void testSingleRelationLabelsItsOwnStorageTypeAndFormat() {
-        PlanTelemetry telemetry = new PlanTelemetry(new EsqlFunctionRegistry());
+        PlanTelemetry telemetry = new PlanTelemetry(new EsqlFunctionRegistry(), List.of());
         EsqlSession.recordExternalRelations(relation("s3://bucket/data.parquet", "parquet"), telemetry);
 
         assertThat(telemetry.externalStorageType(), equalTo("s3"));
@@ -58,7 +58,7 @@ public class ExternalRelationTelemetryTests extends ESTestCase {
             List.of(relation("s3://bucket/data.parquet", "parquet"), relation("file:///tmp/local.csv", "csv")),
             List.of()
         );
-        PlanTelemetry telemetry = new PlanTelemetry(new EsqlFunctionRegistry());
+        PlanTelemetry telemetry = new PlanTelemetry(new EsqlFunctionRegistry(), List.of());
         EsqlSession.recordExternalRelations(plan, telemetry);
 
         // Both sources were seen, so neither dimension can collapse to a single value.
@@ -73,7 +73,7 @@ public class ExternalRelationTelemetryTests extends ESTestCase {
             List.of(relation("s3://bucket/data.parquet", "parquet"), relation("file:///tmp/local.csv", "csv")),
             List.of()
         );
-        PlanTelemetry telemetry = new PlanTelemetry(new EsqlFunctionRegistry());
+        PlanTelemetry telemetry = new PlanTelemetry(new EsqlFunctionRegistry(), List.of());
         EsqlSession.recordExternalRelations(plan, telemetry);
 
         RecordingMeterRegistry registry = new RecordingMeterRegistry();

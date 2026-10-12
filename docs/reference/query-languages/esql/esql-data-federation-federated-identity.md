@@ -126,7 +126,7 @@ Note the role ARN that AWS returns. You enter it, along with the audience, in El
 ::::::{step} Grant the role read access
 Attach a permissions policy to the role that grants the minimum access {{es}} needs to read your data.
 
-The following policy allows reading your objects with `s3:GetObject`, and listing the bucket with `s3:ListBucket` and `s3:GetBucketLocation` for prefix or glob queries:
+The following policy allows reading your objects with `s3:GetObject`, and listing the bucket with `s3:ListBucket` for prefix or glob queries:
 
 ```json
 {
@@ -139,7 +139,7 @@ The following policy allows reading your objects with `s3:GetObject`, and listin
     },
     {
       "Effect": "Allow",
-      "Action": [ "s3:ListBucket", "s3:GetBucketLocation" ],
+      "Action": [ "s3:ListBucket" ],
       "Resource": [ "arn:aws:s3:::<bucket-name>" ] <2>
     }
   ]
@@ -301,7 +301,7 @@ POLICY_ARN=$(aws iam create-policy \
     },
     {
       "Effect": "Allow",
-      "Action": [ "s3:ListBucket", "s3:GetBucketLocation" ],
+      "Action": [ "s3:ListBucket" ],
       "Resource": [ "arn:aws:s3:::${BUCKET_NAME}" ]
     }
   ]

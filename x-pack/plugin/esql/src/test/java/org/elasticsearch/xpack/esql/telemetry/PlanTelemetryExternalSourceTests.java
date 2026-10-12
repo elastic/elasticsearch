@@ -11,6 +11,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 
+import java.util.List;
+
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -20,13 +22,13 @@ import static org.hamcrest.Matchers.equalTo;
 public class PlanTelemetryExternalSourceTests extends ESTestCase {
 
     public void testNoExternalRelationGivesNoLabels() {
-        PlanTelemetry telemetry = new PlanTelemetry(new EsqlFunctionRegistry());
+        PlanTelemetry telemetry = new PlanTelemetry(new EsqlFunctionRegistry(), List.of());
         assertNull(telemetry.externalStorageType());
         assertNull(telemetry.externalFormat());
     }
 
     public void testRelationsThatAgreeGiveTheirOwnLabels() {
-        PlanTelemetry telemetry = new PlanTelemetry(new EsqlFunctionRegistry());
+        PlanTelemetry telemetry = new PlanTelemetry(new EsqlFunctionRegistry(), List.of());
         telemetry.externalRelation("s3", "parquet");
         telemetry.externalRelation("s3", "parquet");
         assertThat(telemetry.externalStorageType(), equalTo("s3"));
@@ -34,7 +36,7 @@ public class PlanTelemetryExternalSourceTests extends ESTestCase {
     }
 
     public void testRelationsThatDisagreeOnBothDimensionsAreMixed() {
-        PlanTelemetry telemetry = new PlanTelemetry(new EsqlFunctionRegistry());
+        PlanTelemetry telemetry = new PlanTelemetry(new EsqlFunctionRegistry(), List.of());
         telemetry.externalRelation("s3", "parquet");
         telemetry.externalRelation("local", "csv");
         assertThat(telemetry.externalStorageType(), equalTo(ExternalSourceMetrics.MIXED));
@@ -43,7 +45,7 @@ public class PlanTelemetryExternalSourceTests extends ESTestCase {
 
     /** One storage type across two formats is mixed on the format only, so the type label is still a single value. */
     public void testOneStorageTypeAcrossTwoFormatsIsMixedOnlyOnFormat() {
-        PlanTelemetry telemetry = new PlanTelemetry(new EsqlFunctionRegistry());
+        PlanTelemetry telemetry = new PlanTelemetry(new EsqlFunctionRegistry(), List.of());
         telemetry.externalRelation("s3", "parquet");
         telemetry.externalRelation("s3", "csv");
         assertThat(telemetry.externalStorageType(), equalTo("s3"));

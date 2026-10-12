@@ -51,3 +51,5 @@ Allow expensive queries
 
 {applies_to}`serverless: unavailable` To block these queries, set `search.allow_expensive_queries` to `false` with the [cluster update settings API]({{es-apis}}operation/operation-cluster-put-settings). This requires the `manage` [cluster privilege](/reference/elasticsearch/security-privileges.md#privileges-list-cluster). The setting is dynamic, so the change applies without a restart. While it is `false`, {{es}} rejects the listed queries with an error instead of running them. The default is `true`.
 
+On serverless, you can't change this setting, and {{es}} allows these queries.
+

@@ -110,7 +110,7 @@ public final class ExternalSourceCacheTestAccess {
         List<StatisticsKey> statsVictims = new ArrayList<>();
         service.statisticsCache().forEach((key, record) -> {
             for (SchemaCacheKey victim : victims) {
-                if (key.file().equals(victim)) {
+                if (key.file().equals(victim.withoutSampleDepth())) {
                     statsVictims.add(key);
                 }
             }

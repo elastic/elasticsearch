@@ -148,15 +148,14 @@ public class ExternalListingPassCountIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * A bounded query lists for itself every time, and that is the design rather than a missed optimisation.
+     * A second bounded query over the same dataset must ask the store nothing.
      * <p>
-     * The bounded rail writes to the shared listing cache and never reads it. Reading is the direction no
-     * comparison makes safe: an entry's {@code isTruncated()} means "reached the bound" and not "is a strict
-     * prefix", and an entry wider than this bound carries partition types folded over paths this query would not
-     * have listed — so every serve rule is a proxy with its own boundary, and this suite spent three rounds finding
-     * those boundaries one at a time. Not reading removes the question.
+     * This is the half of the cost a bound used to forfeit: a bounded listing took the uncached rail outright, so
+     * however complete it was it was recomputed on every execution. A bounded listing that drained its whole prefix
+     * is the same artifact as an unbounded one of the same inputs, so it belongs in the shared cache and may be
+     * served back.
      */
-    public void testABoundedRepeatQueryListsAgain() throws Exception {
+    public void testASecondQueryListsNothing() throws Exception {
         String dataset = registerCountingDataset("pass_warm", PADDING_FOLDERS);
         String coordinator = internalCluster().getNodeNames()[0];
 
@@ -168,16 +167,16 @@ public class ExternalListingPassCountIT extends AbstractExternalDataSourceIT {
         }
 
         assertThat(
-            "a bounded query lists for itself rather than being served an entry computed for a different bound",
+            "a repeat query must be served from the listing cache and ask the store nothing",
             CountingStorageProvider.listingPasses(),
-            equalTo(1L)
+            equalTo(0L)
         );
+        assertThat("and visit no keys", CountingStorageProvider.keysVisited(), equalTo(0L));
     }
 
     /**
-     * The positive control for the half that does read: an unbounded query is served from the cache and asks the
-     * store nothing. Without this, the assertion above passes equally well if the cache stopped working entirely.
-     * {@code STATS} takes the unbounded rail, because a dataset-wide aggregate folds every file.
+     * The positive control for the half that reads: an unbounded query is served too. Without this, the assertion
+     * above passes equally well if the cache stopped working for every shape rather than one.
      */
     public void testAnUnboundedRepeatQueryListsNothing() throws Exception {
         String dataset = registerCountingDataset("pass_warm_unbounded", PADDING_FOLDERS);
@@ -190,8 +189,39 @@ public class ExternalListingPassCountIT extends AbstractExternalDataSourceIT {
             assertThat(getValuesList(response).get(0).get(0), equalTo((long) MATCHING_FOLDERS));
         }
 
-        assertThat("a repeat unbounded query must be served from the listing cache", CountingStorageProvider.listingPasses(), equalTo(0L));
-        assertThat("and visit no keys", CountingStorageProvider.keysVisited(), equalTo(0L));
+        assertThat("a repeat aggregate is served from the listing cache", CountingStorageProvider.listingPasses(), equalTo(0L));
+    }
+
+    /**
+     * A bounded query whose filter narrows the listing beyond the glob is not served from the cache.
+     * <p>
+     * The entry's file count is what survived the partition-value filter; the bound stops the drain on files whose
+     * path the glob matched, before that filter runs. With one active those are different numbers, so the count
+     * cannot answer "would my own listing have completed?" and the only safe answer is to list.
+     * <p>
+     * The glob is {@code date=*} rather than the suite's usual {@code date=2024-01-0*}, and that is the whole
+     * reason this test exists separately: {@code walkableGlob} requires the first partition segment to be exactly
+     * {@code key=*}, so under a partially-literal segment no value filter is ever active and the guard is
+     * unreachable. Paired with {@code testASecondQueryListsNothing}, which takes the other branch — either test
+     * alone passes against a rule that always serves or always declines.
+     */
+    public void testAFilteredBoundedQueryIsNotServedFromTheCache() throws Exception {
+        Path dir = writeFixture(PADDING_FOLDERS);
+        String glob = CountingStorageProvider.SCHEME + "://" + dir.toAbsolutePath() + "/date=*/*.csv";
+        String dataset = registerDataset("pass_filtered", glob, Map.of("format", "csv", "schema_resolution", "first_file_wins"));
+        String coordinator = internalCluster().getNodeNames()[0];
+        String filtered = "FROM " + dataset + " | WHERE date == \"2024-01-05\" | LIMIT 0";
+
+        query(coordinator, filtered).close();
+
+        CountingStorageProvider.reset();
+        query(coordinator, filtered).close();
+
+        assertThat(
+            "a value filter makes the entry's count incomparable to this query's bound, so it lists for itself",
+            CountingStorageProvider.listingPasses(),
+            equalTo(1L)
+        );
     }
 
     /**

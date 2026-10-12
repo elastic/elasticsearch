@@ -10,10 +10,71 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.List;
+
 @SuppressWarnings("RegexpMultiline")
 public class StoragePathTests extends ESTestCase {
 
     // -- isPattern --
+
+    /**
+     * {@code literalNamePrefix} is the text a matching key must carry immediately after {@code patternPrefix}.
+     * <p>
+     * It is handed to the store to narrow a listing, so a value that is too <em>long</em> excludes files the
+     * pattern matches — data loss, not a slowdown. Every case below pins it against that: the prefix must never
+     * extend past the first metacharacter of the first patterned segment.
+     */
+    public void testLiteralNamePrefixStopsAtTheFirstMetacharacter() {
+        assertEquals("date=2024-01-0", StoragePath.of("s3://b/data/date=2024-01-0*/*.parquet").literalNamePrefix());
+        assertEquals("part-", StoragePath.of("s3://b/data/part-*.csv").literalNamePrefix());
+        assertEquals("f", StoragePath.of("s3://b/data/f?.csv").literalNamePrefix());
+        assertEquals("log", StoragePath.of("s3://b/data/log[0-9].csv").literalNamePrefix());
+        assertEquals("a", StoragePath.of("s3://b/data/a{x,y}.csv").literalNamePrefix());
+    }
+
+    /** A segment that begins with a metacharacter narrows nothing, so the prefix is empty rather than wrong. */
+    public void testLiteralNamePrefixIsEmptyWhenTheSegmentOpensWithAMetacharacter() {
+        assertEquals("", StoragePath.of("s3://b/data/*.parquet").literalNamePrefix());
+        assertEquals("", StoragePath.of("s3://b/data/*/part.csv").literalNamePrefix());
+        assertEquals("", StoragePath.of("s3://b/data/?x.csv").literalNamePrefix());
+        assertEquals("", StoragePath.of("s3://b/data/[ab]/f.csv").literalNamePrefix());
+    }
+
+    /** A globstar leads, so nothing after it is a property of the first segment. */
+    public void testLiteralNamePrefixIsEmptyUnderALeadingGlobstar() {
+        assertEquals("", StoragePath.of("s3://b/data/" + "**" + "/*.parquet").literalNamePrefix());
+    }
+
+    /** No pattern, nothing to narrow. */
+    public void testLiteralNamePrefixIsEmptyForANonPattern() {
+        assertEquals("", StoragePath.of("s3://b/data/part-0000.csv").literalNamePrefix());
+        assertEquals("", StoragePath.of("s3://b/data/").literalNamePrefix());
+    }
+
+    /**
+     * The prefix and the lead must compose back into something no matching key can fall outside. Checked as a
+     * property rather than per case: appending the lead to the pattern prefix has to be a prefix of the pattern
+     * itself, or the store is being asked for a narrower set than the pattern selects.
+     */
+    public void testPatternPrefixPlusLeadIsAlwaysAPrefixOfThePattern() {
+        List<String> patterns = List.of(
+            "s3://b/data/date=2024-01-0*/*.parquet",
+            "s3://b/data/part-*.csv",
+            "s3://b/data/*.parquet",
+            "s3://b/data/year=*/month=0[1-3]/*.parquet",
+            "s3://b/data/f?.csv",
+            "s3://b/data/a{x,y}.csv",
+            "s3://b/data/" + "**" + "/*.parquet"
+        );
+        for (String pattern : patterns) {
+            StoragePath path = StoragePath.of(pattern);
+            String composed = path.patternPrefix().toString() + path.literalNamePrefix();
+            assertTrue(
+                "[" + composed + "] must be a prefix of [" + pattern + "]; a longer one would exclude matching keys",
+                pattern.startsWith(composed)
+            );
+        }
+    }
 
     public void testIsPatternStar() {
         StoragePath path = StoragePath.of("s3://bucket/data/*.parquet");

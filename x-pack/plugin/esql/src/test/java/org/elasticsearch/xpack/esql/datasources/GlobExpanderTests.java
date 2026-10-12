@@ -5000,6 +5000,34 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
+     * {@code partitionValueFilterActive} is what decides whether a cached entry's file count can be compared to a
+     * bound, so it must answer for the same reason the drain does.
+     * <p>
+     * A filter is only active where the drain would apply one: the first partition segment has to be exactly
+     * {@code key=*} (or a globstar must lead), and there has to be a pruning hint. A partially-literal segment
+     * such as {@code date=2024-01-0*} is not walkable, so no filter narrows the listing and the count the drain
+     * produces is the count the bound was measured against. Pinning both answers, because a predicate that always
+     * said yes would cost the cache on every bounded query and one that always said no would reopen the hole.
+     */
+    public void testPartitionValueFilterIsActiveOnlyWhereTheDrainAppliesOne() {
+        var hint = List.of(hint("date", PartitionFilterHintExtractor.Operator.EQUALS, "2024-01-05"));
+
+        assertTrue(
+            "a fully wildcarded partition segment with a pruning hint is filtered",
+            GlobExpander.partitionValueFilterActive("s3://b/data/date=*/*.csv", hint, HIVE_ON)
+        );
+        assertFalse(
+            "a partially literal segment is not walkable, so nothing narrows the listing past the glob",
+            GlobExpander.partitionValueFilterActive("s3://b/data/date=2024-01-0*/*.csv", hint, HIVE_ON)
+        );
+        assertFalse("no hint, no filter", GlobExpander.partitionValueFilterActive("s3://b/data/date=*/*.csv", null, HIVE_ON));
+        assertFalse(
+            "a non-pattern path lists one object and filters nothing",
+            GlobExpander.partitionValueFilterActive("s3://b/data/part-0000.csv", hint, HIVE_ON)
+        );
+    }
+
+    /**
      * The fan-out must not spend a request on a folder the pattern cannot match.
      * <p>
      * One slot is one {@code listObjects}, and the slot list was built from every directory under the pattern

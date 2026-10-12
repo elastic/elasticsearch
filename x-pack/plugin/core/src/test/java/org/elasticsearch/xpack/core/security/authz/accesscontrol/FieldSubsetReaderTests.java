@@ -1113,7 +1113,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         long estimate = randomLongBetween(1, 1L << 30);
 
         try (Directory directory = newDirectory()) {
-            RandomIndexWriter iw = indexWriterForSyntheticSource(directory);
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new StandardAnalyzer());
             ParsedDocument doc = mapper.parse(source(b -> {
                 b.field("fieldA", "valueA");
                 b.field("fieldB", "valueB");

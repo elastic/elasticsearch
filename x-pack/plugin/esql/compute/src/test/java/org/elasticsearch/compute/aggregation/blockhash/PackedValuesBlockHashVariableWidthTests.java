@@ -197,14 +197,7 @@ public class PackedValuesBlockHashVariableWidthTests extends ESTestCase {
             bb.appendBytesRef(new BytesRef(big));
             try (BytesRefVector brv = bb.build()) {
                 Page page = new Page(brv.asBlock());
-                try (
-                    PackedValuesBlockHash hash = new PackedValuesBlockHash(
-                        specs,
-                        hashFactory,
-                        new NoopCircuitBreaker("test-bytes-builder"),
-                        32
-                    )
-                ) {
+                try (PackedValuesBlockHash hash = new PackedValuesBlockHash(specs, hashFactory, NoopCircuitBreaker.INSTANCE, 32)) {
                     CircuitBreakingException e = expectThrows(CircuitBreakingException.class, () -> hash.add(page, new NoopAddInput()));
                     // Sanity-check the failure came from breaker accounting, not some other path.
                     assertThat(e.getMessage(), is(MockBigArrays.ERROR_MESSAGE));

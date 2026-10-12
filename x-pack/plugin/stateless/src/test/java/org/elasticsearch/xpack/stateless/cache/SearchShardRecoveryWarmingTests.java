@@ -158,12 +158,14 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         @Nullable CountDownLatch blockWarmLatch
     ) {
         ClusterSettings clusterSettings = newClusterSettings(settings);
+        final var cacheService = Mockito.mock(StatelessSharedBlobCacheService.class);
         return new SharedBlobCacheWarmingService(
-            Mockito.mock(StatelessSharedBlobCacheService.class),
+            cacheService,
             threadPool,
             telemetryProvider,
             clusterSettings,
-            new DefaultWarmingRatioProviderFactory().create(clusterSettings)
+            new DefaultWarmingRatioProviderFactory().create(clusterSettings),
+            new SearchRecoveryTimeoutCalculationService(cacheService, threadPool, clusterSettings)
         ) {
             @Override
             protected void warmCache(

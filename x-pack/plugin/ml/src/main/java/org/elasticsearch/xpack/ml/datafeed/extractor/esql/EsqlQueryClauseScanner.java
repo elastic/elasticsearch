@@ -7,8 +7,14 @@
 
 package org.elasticsearch.xpack.ml.datafeed.extractor.esql;
 
+import org.elasticsearch.common.Strings;
+
 /**
  * A deliberately narrow ES|QL lexer for ML datafeed query shaping. It avoids an ML dependency on the ES|QL parser.
+ * <p>
+ * MUST FIX before production: hand-written ES|QL parsing is brittle (misses nested comments, subqueries, FORK, settings,
+ * backtick-quoted fields, ...) and drifts as the ES|QL syntax evolves. Replace with EsqlParser; tracked in
+ * https://github.com/elastic/elasticsearch/issues/161207
  */
 final class EsqlQueryClauseScanner {
 
@@ -19,7 +25,7 @@ final class EsqlQueryClauseScanner {
         boolean hasOuterTimeWhere = false;
         boolean hasOuterTimeSort = false;
         boolean hasOuterStats = false;
-        boolean scanTimeField = timeField != null && timeField.isEmpty() == false;
+        boolean scanTimeField = Strings.hasLength(timeField);
         for (int index = 0, nestingDepth = 0; index < query.length();) {
             char character = query.charAt(index);
             if (character == '"') {

@@ -40,43 +40,80 @@ public final class Messages {
     public static final String DATAFEED_CONFIG_FIELD_REQUIRES_ESQL_QUERY = "{0} can only be set when esql_query is configured";
     public static final String DATAFEED_ESQL_REQUIRES_SOURCE_TIME_FIELD =
         "ES|QL datafeeds require source_time_field; set the indexed timestamp field used for request range filters";
-    public static final String DATAFEED_ESQL_SOURCE_TIME_FIELD_NOT_DATE =
-        "ES|QL datafeed{2} source_time_field [{0}] resolves to type [{1}] on the queried source, but must be date or "
+    private static final String OPTIONAL_DATAFEED_ID = "{OPTIONAL_DATAFEED_ID}";
+    private static final String FOR_DATAFEED_ID = " for datafeed [{2}]";
+
+    private static final String DATAFEED_ESQL_SOURCE_TIME_FIELD_NOT_DATE_WITH_OPTIONAL_ID =
+        "ES|QL datafeed{OPTIONAL_DATAFEED_ID} source_time_field [{0}] resolves to type [{1}] on the queried source, but must be date or "
             + "date_nanos; source_time_field must name the raw indexed timestamp field on the source, not an alias "
             + "produced by STATS, BUCKET, or EVAL.";
-    public static final String DATAFEED_ESQL_SOURCE_TIME_FIELD_UNRESOLVED =
-        "ES|QL datafeed{2} source_time_field [{0}] could not be resolved as a field on the queried source: {1}; "
+    /** Args: {0} source_time_field, {1} resolved type, {2} datafeed id. */
+    public static final String DATAFEED_ESQL_SOURCE_TIME_FIELD_NOT_DATE_WITH_DATAFEED_ID =
+        DATAFEED_ESQL_SOURCE_TIME_FIELD_NOT_DATE_WITH_OPTIONAL_ID.replace(OPTIONAL_DATAFEED_ID, FOR_DATAFEED_ID);
+    /** Args: {0} source_time_field, {1} resolved type. */
+    public static final String DATAFEED_ESQL_SOURCE_TIME_FIELD_NOT_DATE_WITHOUT_DATAFEED_ID =
+        DATAFEED_ESQL_SOURCE_TIME_FIELD_NOT_DATE_WITH_OPTIONAL_ID.replace(OPTIONAL_DATAFEED_ID, "");
+
+    private static final String DATAFEED_ESQL_SOURCE_TIME_FIELD_UNRESOLVED_WITH_OPTIONAL_ID =
+        "ES|QL datafeed{OPTIONAL_DATAFEED_ID} source_time_field [{0}] could not be resolved as a field on the queried source: {1}; "
             + "source_time_field must name the raw indexed timestamp field on the source, not an alias produced by "
             + "STATS, BUCKET, or EVAL.";
+    /** Args: {0} source_time_field, {1} cause, {2} datafeed id. */
+    public static final String DATAFEED_ESQL_SOURCE_TIME_FIELD_UNRESOLVED_WITH_DATAFEED_ID =
+        DATAFEED_ESQL_SOURCE_TIME_FIELD_UNRESOLVED_WITH_OPTIONAL_ID.replace(OPTIONAL_DATAFEED_ID, FOR_DATAFEED_ID);
+    /** Args: {0} source_time_field, {1} cause. */
+    public static final String DATAFEED_ESQL_SOURCE_TIME_FIELD_UNRESOLVED_WITHOUT_DATAFEED_ID =
+        DATAFEED_ESQL_SOURCE_TIME_FIELD_UNRESOLVED_WITH_OPTIONAL_ID.replace(OPTIONAL_DATAFEED_ID, "");
     public static final String DATAFEED_ESQL_REQUIRES_GROUPING_INTERVAL =
         "ES|QL datafeeds require grouping_interval; set a fixed interval equal to the job bucket_span";
     public static final String DATAFEED_ESQL_GROUPING_INTERVAL_MUST_MATCH_BUCKET_SPAN =
         "grouping_interval [{0}] must equal the job bucket_span [{1}]";
-    public static final String DATAFEED_ESQL_EMITTED_TIME_VALIDATION_FAILED =
-        "Job [{0}] ES|QL extraction failed for emitted time field [{1}]: {2}; source window [{3,number,#}, {4,number,#}). {5}";
-    public static final String DATAFEED_ESQL_EMITTED_TIME_PROBLEM_NULL = "value is null";
-    public static final String DATAFEED_ESQL_EMITTED_TIME_PROBLEM_MULTI_VALUED = "value is multi-valued";
-    public static final String DATAFEED_ESQL_EMITTED_TIME_PROBLEM_UNSUPPORTED_TYPE = "value has an unsupported type";
-    public static final String DATAFEED_ESQL_EMITTED_TIME_PROBLEM_BEFORE_WINDOW = "value [{0}] is before the source window start";
-    public static final String DATAFEED_ESQL_EMITTED_TIME_PROBLEM_AT_OR_AFTER_WINDOW_END =
-        "value [{0}] is at or after the source window end";
-    public static final String DATAFEED_ESQL_EMITTED_TIME_CORRECTIVE_NON_NULL =
-        "Ensure the ES|QL query returns a non-null scalar timestamp for every row";
-    public static final String DATAFEED_ESQL_EMITTED_TIME_CORRECTIVE_SCALAR_TIMESTAMP =
-        "Ensure the emitted time field contains exactly one timestamp per row";
-    public static final String DATAFEED_ESQL_EMITTED_TIME_CORRECTIVE_SUPPORTED_TYPE =
-        "Ensure the emitted time field is a date or numeric timestamp";
-    public static final String DATAFEED_ESQL_EMITTED_TIME_CORRECTIVE_WINDOW_ALIGNMENT =
+    private static final String DATAFEED_ESQL_EMITTED_TIME_VALIDATION_FAILED =
+        "Job [{0}] ES|QL extraction failed for emitted time field [{1}]: {PROBLEM}; source window [{2,number,#}, {3,number,#}). "
+            + "{CORRECTIVE}";
+    private static final String EMITTED_TIME_CORRECTIVE_WINDOW_ALIGNMENT =
         "Check grouping alignment so emitted timestamps fall within the queried source range";
+
+    private static String emittedTimeFailure(String problem, String corrective) {
+        return DATAFEED_ESQL_EMITTED_TIME_VALIDATION_FAILED.replace("{PROBLEM}", problem).replace("{CORRECTIVE}", corrective);
+    }
+
+    // Emitted-time failure patterns. Args: {0} job id, {1} emitted time field, {2} window start, {3} window end,
+    // {4} offending value (BEFORE_WINDOW and AT_OR_AFTER_WINDOW_END only).
+    public static final String DATAFEED_ESQL_EMITTED_TIME_VALIDATION_FAILED_WITH_TIME_PROBLEM_NULL = emittedTimeFailure(
+        "value is null",
+        "Ensure the ES|QL query returns a non-null scalar timestamp for every row"
+    );
+    public static final String DATAFEED_ESQL_EMITTED_TIME_VALIDATION_FAILED_WITH_TIME_PROBLEM_MULTI_VALUED = emittedTimeFailure(
+        "value is multi-valued",
+        "Ensure the emitted time field contains exactly one timestamp per row"
+    );
+    public static final String DATAFEED_ESQL_EMITTED_TIME_VALIDATION_FAILED_WITH_TIME_PROBLEM_UNSUPPORTED_TYPE = emittedTimeFailure(
+        "value has an unsupported type",
+        "Ensure the emitted time field is a date or numeric timestamp"
+    );
+    public static final String DATAFEED_ESQL_EMITTED_TIME_VALIDATION_FAILED_WITH_TIME_PROBLEM_BEFORE_WINDOW = emittedTimeFailure(
+        "value [{4}] is before the source window start",
+        EMITTED_TIME_CORRECTIVE_WINDOW_ALIGNMENT
+    );
+    public static final String DATAFEED_ESQL_EMITTED_TIME_VALIDATION_FAILED_WITH_TIME_PROBLEM_AT_OR_AFTER_WINDOW_END = emittedTimeFailure(
+        "value [{4}] is at or after the source window end",
+        EMITTED_TIME_CORRECTIVE_WINDOW_ALIGNMENT
+    );
     public static final String DATAFEED_ESQL_PROBE_UNKNOWN_ERROR = "unknown error";
-    public static final String DATAFEED_ESQL_DATAFEED_CONTEXT_FOR_ID = " for datafeed [{0}]";
     public static final String DATAFEED_ESQL_WARNING_QUERY_CONTEXT_NO_ID = "ES|QL datafeed query";
     public static final String DATAFEED_ESQL_WARNING_QUERY_CONTEXT_WITH_ID = "ES|QL datafeed [{0}] query";
     public static final String DATAFEED_ESQL_EXPECTED_DATE_VALUE = "expected date value";
     public static final String DATAFEED_ESQL_EXPECTED_NUMERIC_TIMESTAMP = "expected numeric timestamp";
-    public static final String DATAFEED_ESQL_MISSING_TIME_COLUMN =
-        "The final ES|QL output{1} is missing the configured job data_description.time_field [{0}]; "
+    private static final String DATAFEED_ESQL_MISSING_TIME_COLUMN_WITH_OPTIONAL_ID =
+        "The final ES|QL output{OPTIONAL_DATAFEED_ID} is missing the configured job data_description.time_field [{0}]; "
             + "project [{0}] in the final ES|QL output.";
+    /** Args: {0} time field, {2} datafeed id. */
+    public static final String DATAFEED_ESQL_MISSING_TIME_COLUMN_WITH_DATAFEED_ID = DATAFEED_ESQL_MISSING_TIME_COLUMN_WITH_OPTIONAL_ID
+        .replace(OPTIONAL_DATAFEED_ID, FOR_DATAFEED_ID);
+    /** Args: {0} time field. */
+    public static final String DATAFEED_ESQL_MISSING_TIME_COLUMN_WITHOUT_DATAFEED_ID = DATAFEED_ESQL_MISSING_TIME_COLUMN_WITH_OPTIONAL_ID
+        .replace(OPTIONAL_DATAFEED_ID, "");
     public static final String DATAFEED_ESQL_OUTER_TIME_WHERE_WARNING =
         "{0} contains an outer WHERE clause on job time field [{1}]; remove the time-field WHERE clause because ML owns the request "
             + "window.";

@@ -49,6 +49,7 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction.TASKS_ORIGIN;
 import static org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam.ParamClassification.IDENTIFIER;
@@ -76,8 +77,7 @@ public class EsqlDataExtractor implements DataExtractor {
     private final DatafeedTimingStatsReporter timingStatsReporter;
     private boolean hasNext = true;
     private volatile boolean isCancelled = false;
-    private final Object cancellationLock = new Object();
-    private Task inFlightQueryTask;
+    private final AtomicReference<Task> inFlightQueryTask = new AtomicReference<>();
 
     public EsqlDataExtractor(Client client, EsqlDataExtractorContext context, DatafeedTimingStatsReporter timingStatsReporter) {
         this.client = Objects.requireNonNull(client);
@@ -99,12 +99,7 @@ public class EsqlDataExtractor implements DataExtractor {
     public void cancel() {
         LOGGER.trace("[{}] Data extractor received cancel request", context.jobId());
         isCancelled = true;
-        Task query;
-        synchronized (cancellationLock) {
-            query = inFlightQueryTask;
-            inFlightQueryTask = null;
-        }
-        cancelQueryTask(query);
+        cancelQueryTask(inFlightQueryTask.getAndSet(null));
     }
 
     @Override
@@ -154,11 +149,12 @@ public class EsqlDataExtractor implements DataExtractor {
         long earliest = sourceSummary.earliestTime();
         long latest = sourceSummary.latestTime();
         long timeSpread = latest - earliest;
-        if (timeSpread <= 0) {
+        assert timeSpread >= 0 : "latest_time must not precede earliest_time";
+        if (timeSpread == 0) {
             // All matching data falls at a single instant; the probe below already covers everything.
             return Math.max(1L, runBoundedAggregationProbe(earliest, latest + 1));
         }
-        assert context.groupingIntervalMillis() > 0 : "ES|QL datafeeds require grouping_interval equal to bucket_span";
+        assert context.groupingIntervalMillis() > 0 : "grouping_interval must be positive";
         long probeSpan = Math.min(timeSpread, context.groupingIntervalMillis());
         long probeEnd = Math.min(earliest + probeSpan, latest + 1);
         long probeOutputRows = runBoundedAggregationProbe(earliest, probeEnd);
@@ -250,16 +246,7 @@ public class EsqlDataExtractor implements DataExtractor {
     }
 
     protected EsqlQueryResponse runEsqlQuery(String orderedQuery, QueryBuilder timeFilter, List<EsqlQueryParam> params) {
-        EsqlQueryRequestBuilder<? extends EsqlQueryRequest, ? extends EsqlQueryResponse> request = EsqlQueryRequestBuilder
-            .newRequestBuilder(client)
-            .query(orderedQuery)
-            .filter(timeFilter)
-            .params(params)
-            .allowPartialResults(false);
-        if (context.projectRouting() != null) {
-            request.projectRouting(context.projectRouting());
-        }
-        return execute(request);
+        return execute(EsqlQueryExecutor.newRequest(client, orderedQuery, timeFilter, params, context.projectRouting()));
     }
 
     private EsqlQueryResponse runEsqlQueryWithSingleRetry(String query, QueryBuilder timeFilter, List<EsqlQueryParam> params) {
@@ -267,28 +254,31 @@ public class EsqlDataExtractor implements DataExtractor {
         try {
             return runEsqlQuery(query, timeFilter, params);
         } catch (NodeClosedException | NodeDisconnectedException | NodeNotConnectedException | UnavailableShardsException e) {
-            return retryAfterNodeChurnFailure(query, timeFilter, params, e);
+            return retryAfterNodeFailure(query, timeFilter, params, e);
         } catch (ElasticsearchException e) {
-            if (isNodeChurnFailure(e) == false) {
+            if (isRetryableNodeFailure(e) == false) {
                 throw e;
             }
-            return retryAfterNodeChurnFailure(query, timeFilter, params, e);
+            return retryAfterNodeFailure(query, timeFilter, params, e);
         }
     }
 
-    private EsqlQueryResponse retryAfterNodeChurnFailure(
+    private EsqlQueryResponse retryAfterNodeFailure(
         String query,
         QueryBuilder timeFilter,
         List<EsqlQueryParam> params,
-        Exception nodeChurnFailure
+        Exception nodeFailure
     ) {
         if (isCancelled) {
-            if (nodeChurnFailure instanceof RuntimeException runtimeException) {
+            if (nodeFailure instanceof RuntimeException runtimeException) {
                 throw runtimeException;
             }
-            throw new ElasticsearchException(nodeChurnFailure);
+            throw new ElasticsearchException(nodeFailure);
         }
-        LOGGER.debug(() -> "[" + context.jobId() + "] ES|QL query failed due to node churn; retrying the same range", nodeChurnFailure);
+        LOGGER.debug(
+            () -> "[" + context.jobId() + "] ES|QL query failed due to a node or shard availability failure; retrying the same range",
+            nodeFailure
+        );
         throwIfCancelled();
         return runEsqlQuery(query, timeFilter, params);
     }
@@ -299,7 +289,7 @@ public class EsqlDataExtractor implements DataExtractor {
         }
     }
 
-    public static boolean isNodeChurnFailure(Exception e) {
+    public static boolean isRetryableNodeFailure(Exception e) {
         Throwable cause = ExceptionsHelper.unwrapCause(e);
         return cause instanceof NodeClosedException
             || cause instanceof NodeDisconnectedException
@@ -333,7 +323,7 @@ public class EsqlDataExtractor implements DataExtractor {
             }
             return executeTracked(nodeClient, request);
         }
-        return ClientHelper.executeWithHeaders(context.headers(), ClientHelper.ML_ORIGIN, client, () -> request.execute().actionGet());
+        return EsqlQueryExecutor.executeSync(client, request, context.headers());
     }
 
     private EsqlQueryResponse executeTracked(
@@ -343,30 +333,22 @@ public class EsqlDataExtractor implements DataExtractor {
         // Stored datafeed headers must reach _query for the same security behavior as classic extractors.
         return ClientHelper.executeWithHeaders(context.headers(), ClientHelper.ML_ORIGIN, client, () -> {
             var future = new PlainActionFuture<EsqlQueryResponse>();
-            // future.actionGet() needs a ref: respondAndRelease decRefs before the async consumer runs.
+            // Unlike the Client#execute future used in execute(), executeAndReturnTask listeners get a response that is released
+            // when the listener returns, so take a reference for the caller, who closes the response.
             ActionListener<EsqlQueryResponse> retainingListener = ActionListener.wrap(response -> {
                 response.incRef();
                 future.onResponse(response);
             }, future::onFailure);
             Task task = executeAndReturnTask(nodeClient, request, retainingListener);
-            boolean cancelledBeforeTracking;
-            synchronized (cancellationLock) {
-                cancelledBeforeTracking = isCancelled;
-                if (cancelledBeforeTracking == false) {
-                    inFlightQueryTask = task;
-                }
-            }
-            if (cancelledBeforeTracking) {
-                cancelQueryTask(task);
+            // Publish before re-checking isCancelled: cancel() sets the flag before draining, so one side always sees the other.
+            inFlightQueryTask.set(task);
+            if (isCancelled) {
+                cancelQueryTask(inFlightQueryTask.getAndSet(null));
             }
             try {
                 return future.actionGet();
             } finally {
-                synchronized (cancellationLock) {
-                    if (inFlightQueryTask == task) {
-                        inFlightQueryTask = null;
-                    }
-                }
+                inFlightQueryTask.compareAndSet(task, null);
             }
         });
     }

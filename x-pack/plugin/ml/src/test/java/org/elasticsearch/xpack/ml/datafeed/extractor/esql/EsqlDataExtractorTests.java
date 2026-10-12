@@ -150,6 +150,25 @@ public class EsqlDataExtractorTests extends ESTestCase {
         assertThat(nodeClient.cancelRequests, equalTo(List.of()));
     }
 
+    public void testExecuteTrackedGivenCancelWhileInFlightShouldCancelTaskExactlyOnce() throws Exception {
+        TrackingNodeClient nodeClient = new TrackingNodeClient(trackingThreadPool);
+        EsqlDataExtractor extractor = new EsqlDataExtractor(nodeClient, context(0L, 1000L), timingStatsReporter);
+        EsqlQueryRequest request = mock(EsqlQueryRequest.class);
+        EsqlQueryRequestBuilder<EsqlQueryRequest, EsqlQueryResponse> builder = new TestEsqlQueryRequestBuilder(request, mock());
+
+        Future<EsqlQueryResponse> result = trackingThreadPool.generic().submit(() -> extractor.execute(builder));
+        assertTrue(nodeClient.queryStarted.await(10, TimeUnit.SECONDS));
+        extractor.cancel();
+        extractor.cancel();
+        assertTrue(nodeClient.cancelRequestReceived.await(10, TimeUnit.SECONDS));
+        assertThat(nodeClient.cancelRequests.size(), equalTo(1));
+
+        nodeClient.queryListener.onResponse(mock(EsqlQueryResponse.class));
+        result.get(10, TimeUnit.SECONDS);
+        extractor.destroy();
+        assertThat(nodeClient.cancelRequests.size(), equalTo(1));
+    }
+
     public void testExecuteTrackedPassesStoredDatafeedHeadersToEsqlQuery() throws Exception {
         TrackingNodeClient nodeClient = new TrackingNodeClient(trackingThreadPool);
         EsqlDataExtractor extractor = new EsqlDataExtractor(

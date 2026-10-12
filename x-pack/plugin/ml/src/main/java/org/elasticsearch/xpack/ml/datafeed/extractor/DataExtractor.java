@@ -19,7 +19,7 @@ public interface DataExtractor {
 
     record Result(SearchInterval searchInterval, Optional<InputStream> data, List<LinkedClusterState> linkedClusterStates, long rowCount) {
 
-        /** {@code rowCount} was not computed for this result. */
+        /** {@code rowCount} value for extractors that do not report the number of extracted rows (e.g. the DSL extractors). */
         public static final long ROW_COUNT_UNKNOWN = -1L;
 
         public Result {

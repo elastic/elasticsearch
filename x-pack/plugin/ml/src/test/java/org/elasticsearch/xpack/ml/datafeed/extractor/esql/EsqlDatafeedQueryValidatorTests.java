@@ -744,8 +744,19 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> EsqlDatafeedQueryValidator.validateEmittedTimeValueInSourceWindow("job-1", TIME_FIELD, null, 100L, 200L)
         );
-        assertThat(e.getMessage(), containsString(Messages.getMessage(Messages.DATAFEED_ESQL_EMITTED_TIME_PROBLEM_NULL)));
-        assertThat(e.getMessage(), containsString(Messages.getMessage(Messages.DATAFEED_ESQL_EMITTED_TIME_CORRECTIVE_NON_NULL)));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                Messages.getMessage(
+                    Messages.DATAFEED_ESQL_EMITTED_TIME_VALIDATION_FAILED_WITH_TIME_PROBLEM_NULL,
+                    "job-1",
+                    TIME_FIELD,
+                    100L,
+                    200L,
+                    null
+                )
+            )
+        );
     }
 
     public void testCheckRequiredColumnsGivenAllPresentSucceeds() {

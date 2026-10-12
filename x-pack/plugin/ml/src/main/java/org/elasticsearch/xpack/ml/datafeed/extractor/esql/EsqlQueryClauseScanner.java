@@ -60,15 +60,7 @@ final class EsqlQueryClauseScanner {
         return new ScanResult(hasOuterLimit, hasOuterTimeWhere, hasOuterTimeSort, hasOuterStats);
     }
 
-    /**
-     * Whether the pipeline contains a depth-zero {@code STATS} command, i.e. the query aggregates rather
-     * than passing source rows through unchanged. {@code EsqlDataExtractor#getSummary()} uses this to
-     * decide whether the raw source doc count is a valid proxy for the query's output-row count
-     * (pass-through queries: yes, one output row per matching doc) or whether output rows must instead be
-     * estimated via a bounded probe of the user's own pipeline (aggregating queries: raw doc count vastly
-     * overcounts output rows, e.g. {@code STATS ... BY BUCKET(@timestamp, 1h)} collapses many docs into one
-     * row per bucket).
-     */
+    /** Whether a depth-zero {@code STATS} command makes source doc count a poor proxy for output rows. */
     static boolean hasAggregation(String query) {
         return scan(query, null).hasOuterStats();
     }
@@ -85,12 +77,7 @@ final class EsqlQueryClauseScanner {
         return query + (endsInLineComment(query) ? "\n" : "") + pipeline;
     }
 
-    /**
-     * Returns the pipeline's leading command — everything up to (not including) the first depth-zero
-     * {@code |} — or the whole query when it has no top-level pipe. Used to derive a probe query against
-     * the same source a FROM-leading ES|QL datafeed query reads from, without depending on the full ES|QL
-     * parser (absent from the ml plugin's main compile classpath).
-     */
+    /** Leading pipeline segment before the first depth-zero {@code |}, or the whole query when unpiped. */
     static String extractLeadingCommand(String query) {
         for (int index = 0, nestingDepth = 0; index < query.length();) {
             char character = query.charAt(index);
@@ -117,13 +104,7 @@ final class EsqlQueryClauseScanner {
         return query;
     }
 
-    /**
-     * Skips leading whitespace and comments, returning the index of the first non-whitespace,
-     * non-comment character (or {@code query.length()} if the query is entirely whitespace/comments).
-     * Shared by callers that need to inspect the keyword a leading command starts with (e.g. checking for
-     * {@code FROM}/{@code TS}) without being fooled by a comment {@link #extractLeadingCommand} would
-     * otherwise include verbatim in its returned substring.
-     */
+    /** Index after leading whitespace and comments (for FROM/TS checks on {@link #extractLeadingCommand} text). */
     static int skipLeadingWhitespaceAndComments(String query) {
         return skipWhitespaceAndComments(query, 0);
     }

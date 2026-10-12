@@ -45,22 +45,10 @@ public class EsqlDatafeedQueryValidator {
     private static final String LIMIT_ZERO = " | LIMIT 0";
     private static final String KEEP_SOURCE_TIME_FIELD_LIMIT_ZERO = " | KEEP ??sourceTimeField | LIMIT 0";
 
-    /**
-     * Message fragment ES|QL uses to report that a queried index does not exist (or is not visible to the caller).
-     * ES|QL does not surface a missing index as {@link IndexNotFoundException}: it rewraps it as a 400
-     * {@code VerificationException} (see {@code IndexResolver}, {@code IndexResolution#notFound} and
-     * {@code EsqlCCSUtils}) whose message contains {@code Unknown index [<pattern>]}, possibly prefixed by the
-     * verifier's {@code Found N problem(s)\nline L:C: } header. The exception class lives in the ES|QL plugin, which
-     * the ML plugin does not depend on, and ES|QL itself matches on this text (see {@code TransportEsqlQueryAction}),
-     * so the 400 status plus this fragment is the available signal.
-     */
+    /** ES|QL reports a missing index as 400 with this fragment; ML cannot depend on the ES|QL verifier type. */
     private static final String ESQL_UNKNOWN_INDEX_MESSAGE = "Unknown index [";
 
-    /**
-     * Whether a failed {@code LIMIT 0} / {@code KEEP} probe means the datafeed's source does not exist <em>yet</em>
-     * (the index may be created later, or the CPS project linked later), so there is nothing to validate against.
-     * Mirrors the DSL datafeed behaviour of accepting a PUT for a not-yet-existing index.
-     */
+    /** Whether a probe failure means the source does not exist yet (index or CPS project may appear later). */
     static boolean isDeferredExistenceFailure(Throwable cause) {
         if (cause instanceof NoMatchingProjectException || cause instanceof IndexNotFoundException) {
             return true;
@@ -83,13 +71,7 @@ public class EsqlDatafeedQueryValidator {
         return (Strings.hasText(summaryCountField) && delayedDataCheckEnabled) ? summaryCountField : null;
     }
 
-    /**
-     * Validates an ESQL datafeed query by executing {@code esqlQuery | LIMIT 0} under the supplied
-     * security headers. This surfaces any query problem — invalid syntax, a query that fails to run,
-     * or missing required output columns ({@code timeField} and, when non-null, {@code summaryCountField}).
-     * Calls {@code listener.onResponse(true)} on success or when the target index does not exist;
-     * calls {@code listener.onFailure} for all other problems.
-     */
+    /** Runs {@code esqlQuery | LIMIT 0} and checks required output columns; tolerates deferred source existence. */
     public void validateQuery(
         Client client,
         Map<String, String> headers,
@@ -125,8 +107,7 @@ public class EsqlDatafeedQueryValidator {
         }, e -> {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
             if (isDeferredExistenceFailure(cause)) {
-                // Deferred-existence cases: the project may be linked later or the index may not
-                // exist yet. Skip the column check — there is nothing to validate against.
+                // Source may not exist yet; skip column checks (same as DSL datafeed PUT).
                 listener.onResponse(Boolean.TRUE);
             } else {
                 listener.onFailure(e);
@@ -137,15 +118,8 @@ public class EsqlDatafeedQueryValidator {
     }
 
     /**
-     * Validates that {@code sourceTimeField} resolves to a {@code date}/{@code date_nanos} column on the
-     * queried source, by running a {@code | KEEP ??sourceTimeField | LIMIT 0} probe against the leading
-     * FROM/TS command of the datafeed's ES|QL query. This deliberately reuses the ES|QL engine itself
-     * (rather than a separate field-caps call) so CPS/remote sources resolve the source_time_field the same
-     * way {@link org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractor#next()} resolves it
-     * when building its {@code RangeQueryBuilder} time filter. Tolerates {@link NoMatchingProjectException}
-     * and a missing index exactly like {@link #validateQuery} (see {@link #isDeferredExistenceFailure}) — the index/project may not
-     * exist yet. Calls {@code listener.onResponse(true)} on success or those tolerated failures, and
-     * {@code listener.onFailure} for an unresolvable column, a wrong column type, or any other problem.
+     * Probes {@code KEEP ??sourceTimeField | LIMIT 0} on the leading FROM/TS command so source_time_field
+     * resolves like {@link EsqlDataExtractor}; tolerates deferred existence like {@link #validateQuery}.
      */
     public void validateSourceTimeField(
         Client client,
@@ -158,9 +132,7 @@ public class EsqlDatafeedQueryValidator {
     ) {
         String sourceCommand = extractLeadingSourceCommand(esqlQuery);
         if (sourceCommand == null) {
-            // Every ES|QL datafeed query is expected to start with FROM or TS (DatafeedConfig requires an
-            // index source); if this narrow scan can't confirm that, don't block PUT on something it cannot
-            // resolve.
+            // Cannot build a source probe without a leading FROM/TS command.
             listener.onResponse(Boolean.TRUE);
             return;
         }
@@ -177,8 +149,7 @@ public class EsqlDatafeedQueryValidator {
         }, e -> {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
             if (isDeferredExistenceFailure(cause)) {
-                // Deferred-existence cases: the project may be linked later or the index may not
-                // exist yet. Skip the column check — there is nothing to validate against.
+                // Source may not exist yet; skip column checks (same as DSL datafeed PUT).
                 listener.onResponse(Boolean.TRUE);
             } else if (cause instanceof ElasticsearchException esException && esException.status() == RestStatus.BAD_REQUEST) {
                 listener.onFailure(sourceTimeFieldUnresolvedException(sourceTimeField, datafeedId, cause));
@@ -190,17 +161,7 @@ public class EsqlDatafeedQueryValidator {
         executeEsqlQueryAsync(client, probeQuery, headers, projectRouting, params, responseListener);
     }
 
-    /**
-     * Narrow scan for the ES|QL pipeline's leading FROM/TS command (everything up to the first depth-zero
-     * pipe), used to build a source_time_field probe query against the same source the datafeed queries.
-     * {@link EsqlQueryClauseScanner#extractLeadingCommand} only skips comments while looking for the next
-     * top-level pipe -- it returns any leading comment together with the command text -- so the FROM/TS
-     * keyword check below skips past a leading comment/whitespace prefix separately, without stripping it
-     * from the returned command (the comment is harmless, and reusing it verbatim keeps the probe query a
-     * faithful echo of the user's leading command).
-     * <p>
-     * Returns {@code null} when the query does not lead with FROM or TS (not expected for datafeeds).
-     */
+    /** Leading FROM/TS segment for source probes; {@code null} if the query does not start with FROM or TS. */
     static String extractLeadingSourceCommand(String esqlQuery) {
         String leading = EsqlQueryClauseScanner.extractLeadingCommand(esqlQuery).strip();
         int commandStart = EsqlQueryClauseScanner.skipLeadingWhitespaceAndComments(leading);
@@ -208,16 +169,8 @@ public class EsqlDatafeedQueryValidator {
     }
 
     /**
-     * Rejects, with a 400, an ES|QL datafeed query whose leading FROM/TS command names a remote cluster source
-     * ({@code cluster:index}, {@code *:index}, {@code cl*:index}, or a quoted {@code "cluster:index"}).
-     * ES|QL datafeeds keep their sources inside the query text rather than in {@code indices}, so the start-time
-     * remote_cluster_client role, remote ML licence and remote version checks (and the node selector) never see
-     * them. Remote sources are rejected until those checks are supported for ES|QL datafeeds.
-     * <p>
-     * Not rejected: the selector syntax {@code index::failures} / {@code index::data}, date math, a colon in a
-     * comment or in text after the source command (for example a {@code METADATA} clause), and the CPS
-     * {@code _origin:} qualifier. When cross-project search is enabled a {@code project:index} prefix is a
-     * project-qualified expression resolved by the CPS rewriter, not a remote cluster, so nothing is rejected.
+     * Rejects remote-cluster sources in the leading FROM/TS command until ES|QL datafeed remote checks exist.
+     * No-op when {@code crossProjectEnabled} (CPS {@code project:index} is not a remote cluster).
      */
     public static void rejectRemoteClusterSources(@Nullable String esqlQuery, boolean crossProjectEnabled) {
         if (esqlQuery == null || crossProjectEnabled) {
@@ -237,12 +190,7 @@ public class EsqlDatafeedQueryValidator {
         }
     }
 
-    /**
-     * Returns the cluster alias of a single index expression, or {@code null} if it is a local expression.
-     * Delegates the {@code cluster:index} split to {@link RemoteClusterAware}, which already treats date math and
-     * the {@code ::} selector separator as non-remote. A leading {@code -} (exclusion) is ignored, and the CPS
-     * {@code _origin} qualifier is not a remote cluster (mirrors {@code TransportStartDatafeedAction#trueRemoteIndices}).
-     */
+    /** Remote cluster alias for one index expression, or {@code null} for local/CPS {@code _origin} sources. */
     @Nullable
     private static String remoteClusterAlias(String indexExpression) {
         String expression = indexExpression.startsWith("-") ? indexExpression.substring(1) : indexExpression;
@@ -309,12 +257,7 @@ public class EsqlDatafeedQueryValidator {
             && text.startsWith("/*", index) == false;
     }
 
-    /**
-     * Whether {@code text} has a FROM or TS command keyword starting at {@code index}, followed by a
-     * whitespace boundary. TS (time-series source) is accepted alongside FROM because
-     * {@link EsqlDataExtractor#fetchSourceRangeSummary} already probes a TS-leading query's source the same
-     * way at runtime, so the PUT-time validator must not silently skip it.
-     */
+    /** Whether {@code text} has a FROM or TS keyword at {@code index} (TS is probed like FROM at runtime). */
     private static boolean isSourceCommand(String text, int index) {
         return matchesCommandKeyword(text, index, "FROM") || matchesCommandKeyword(text, index, "TS");
     }
@@ -327,8 +270,7 @@ public class EsqlDatafeedQueryValidator {
     }
 
     private static void checkSourceTimeFieldType(List<? extends ColumnInfo> columns, String sourceTimeField, @Nullable String datafeedId) {
-        // The KEEP ??sourceTimeField probe either resolves to exactly the one requested column, or fails
-        // execution before a response is produced (handled by the onFailure branch in validateSourceTimeField).
+        // KEEP probe returns the one requested column or fails before a response (validateSourceTimeField onFailure).
         String outputType = columns.isEmpty() ? null : columns.get(0).outputType();
         if (EsqlDatafeedColumnValues.isDateColumnType(outputType) == false) {
             throw new IllegalArgumentException(
@@ -375,14 +317,7 @@ public class EsqlDatafeedQueryValidator {
         }
     }
 
-    /**
-     * Probe run before minting a CPS internal credential: executes {@code esqlQuery | LIMIT 0} under
-     * the caller's credential to confirm access. Does NOT check output columns (that is done by
-     * {@link #validateQuery}). Tolerates {@link NoMatchingProjectException} (a project may be linked
-     * later) and a missing index (it may be created later; see {@link #isDeferredExistenceFailure}).
-     * Calls {@code listener.onResponse(null)} on success or for those tolerated failures, and
-     * {@code listener.onFailure} for all other problems.
-     */
+    /** {@code LIMIT 0} access probe before CPS credential mint; column checks are {@link #validateQuery}. */
     public void validateAccessForMint(
         Client client,
         Map<String, String> headers,
@@ -395,8 +330,7 @@ public class EsqlDatafeedQueryValidator {
         ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> listener.onResponse(null), e -> {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
             if (isDeferredExistenceFailure(cause)) {
-                // Deferred-existence cases: the project may be linked later or the index may not
-                // exist yet. Defer to runtime — consistent with the classic SearchRequest probe.
+                // Source may not exist yet; defer to runtime (classic SearchRequest probe behaviour).
                 listener.onResponse(null);
             } else {
                 listener.onFailure(e);
@@ -597,8 +531,7 @@ public class EsqlDatafeedQueryValidator {
             }
         }
         if (foundTimeField == false || foundSummaryCountField == false) {
-            // Degrades gracefully when datafeedId is null, mirroring warnForConflictingOuterClauses's datafeedContext:
-            // this validator also runs during PUT-time validation before a datafeed ID may exist yet.
+            // datafeedId may be null during PUT-time validation.
             String datafeedContext = datafeedContextSuffix(datafeedId);
             if (foundTimeField == false && foundSummaryCountField == false) {
                 throw new IllegalArgumentException(

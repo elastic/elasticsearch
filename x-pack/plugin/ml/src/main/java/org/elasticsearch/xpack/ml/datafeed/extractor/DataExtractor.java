@@ -19,7 +19,7 @@ public interface DataExtractor {
 
     record Result(SearchInterval searchInterval, Optional<InputStream> data, List<LinkedClusterState> linkedClusterStates, long rowCount) {
 
-        /** {@code rowCount} was not computed for this result (legacy three-argument constructor). */
+        /** {@code rowCount} was not computed for this result. */
         public static final long ROW_COUNT_UNKNOWN = -1L;
 
         public Result {

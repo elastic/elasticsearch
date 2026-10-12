@@ -60,11 +60,8 @@ public class EsqlDataExtractor implements DataExtractor {
     private static final String EPOCH_MILLIS = "epoch_millis";
 
     /**
-     * The row limit this extractor injects into a user's ES|QL query when it has no explicit outer LIMIT
-     * of its own. Once an explicit LIMIT is present in the pipeline (whether the user's or this injected
-     * one), ES|QL applies that LIMIT as its row cap instead of its no-limit default
-     * ({@code esql.query.result_truncation_default_size}, 1000 rows). Chunking logic that detects truncation
-     * must compare against this constant, not the unrelated no-limit default, so the two can never drift apart.
+     * Injected row cap when the user query has no outer LIMIT; chunking truncation checks must use this value,
+     * not {@code esql.query.result_truncation_default_size}.
      */
     public static final long INJECTED_ROW_LIMIT = 10_000L;
 
@@ -124,22 +121,12 @@ public class EsqlDataExtractor implements DataExtractor {
         return context;
     }
 
-    /**
-     * Sizes chunking without running the user's full STATS/BUCKET pipeline over the whole extraction range.
-     * Earliest/latest/raw-doc-count come from a source-level probe (leading FROM/TS only), which uses the same
-     * Lucene point-range fast path as DSL summary aggregations. For pass-through queries the raw doc count is
-     * the output-row count; for aggregating queries (top-level STATS) {@link #estimateAggregatingOutputRows}
-     * extrapolates output-row density from a small bounded probe of the user's pipeline instead.
-     */
+    /** Chunking summary from a leading FROM/TS probe; aggregating queries use {@link #estimateAggregatingOutputRows}. */
     @Override
     public DataSummary getSummary() {
         QueryBuilder timeFilter = buildTimeFilter();
         SourceRangeSummary sourceSummary = fetchSourceRangeSummary(timeFilter);
-        // hasData() (not totalHits() == 0) is the guard: COUNT(*) can be > 0 while MIN/MAX(??timeField) are
-        // null, e.g. when every matching doc is missing a value for the source time field. Mirrors
-        // DataExtractor.DataSummary.hasData() and the DSL equivalent (DataExtractorUtils.getDataSummary()),
-        // where totalHits and null earliest/latest can likewise diverge and callers key off hasData().
-        // estimateAggregatingOutputRows() unboxes earliest/latest, so it must never see this case.
+        // Key off hasData() (null MIN/MAX with positive COUNT(*) is possible); estimateAggregatingOutputRows needs times.
         if (sourceSummary.hasData() == false || EsqlQueryClauseScanner.hasAggregation(context.esqlQuery()) == false) {
             return new DataSummary(sourceSummary.earliestTime(), sourceSummary.latestTime(), sourceSummary.totalHits());
         }
@@ -147,13 +134,7 @@ public class EsqlDataExtractor implements DataExtractor {
         return new DataSummary(sourceSummary.earliestTime(), sourceSummary.latestTime(), estimatedOutputRows);
     }
 
-    /**
-     * Runs {@code FROM <source> | STATS MIN/MAX/COUNT(??timeField)} against just the query's leading FROM
-     * clause (via {@link EsqlQueryClauseScanner#extractLeadingCommand}), under the same time filter the
-     * full query would see. This is independent of the user's pipeline -- in particular of any
-     * STATS/BUCKET aggregation it applies -- so its cost tracks the DSL summary aggregation's cost
-     * (Lucene point-range MIN/MAX + segment doc counts), not the user's query.
-     */
+    /** Source-level MIN/MAX/COUNT probe on {@link EsqlQueryClauseScanner#extractLeadingCommand}, not the user pipeline. */
     private SourceRangeSummary fetchSourceRangeSummary(QueryBuilder timeFilter) {
         String sourceQuery = EsqlQueryClauseScanner.appendGeneratedPipeline(
             EsqlQueryClauseScanner.extractLeadingCommand(context.esqlQuery()).stripTrailing(),
@@ -168,13 +149,7 @@ public class EsqlDataExtractor implements DataExtractor {
         }
     }
 
-    /**
-     * Estimates output rows for an aggregating user query without running it over the full
-     * [earliest, latest) range: runs the user's actual pipeline, bounded to one grouping-interval-sized
-     * (or a default 1h) probe window right after {@code earliestTime}, counts its output rows, and
-     * extrapolates linearly over the full time spread. When the probe window already covers the whole range
-     * (sparse data or a short time spread) the estimate uses the exact probe count instead of extrapolating.
-     */
+    /** Bounded pipeline probe after {@code earliestTime}; extrapolates row density unless the probe spans the range. */
     private long estimateAggregatingOutputRows(SourceRangeSummary sourceSummary) {
         long earliest = sourceSummary.earliestTime();
         long latest = sourceSummary.latestTime();
@@ -189,9 +164,7 @@ public class EsqlDataExtractor implements DataExtractor {
         long probeOutputRows = runBoundedAggregationProbe(earliest, probeEnd);
         long actualProbeSpan = probeEnd - earliest;
         if (probeOutputRows == 0 || actualProbeSpan >= timeSpread) {
-            // Either the probe window already spans the whole range, or the probe window itself produced
-            // no output rows (sparse/bursty data) -- extrapolating a zero density would starve chunking, so
-            // fall back to the exact probe count.
+            // Do not extrapolate zero density (sparse data) or when the probe already covers the range.
             return Math.max(1L, probeOutputRows);
         }
         double density = (double) probeOutputRows / actualProbeSpan;
@@ -335,16 +308,8 @@ public class EsqlDataExtractor implements DataExtractor {
     }
 
     /**
-     * Appends the extractor's generated pipeline to the user's query.
-     * <p>
-     * Anomaly detection drops records that arrive out of time order, so a {@code SORT} on the time field is
-     * always appended. When the user's query has no outer {@code LIMIT}, the safety cap
-     * ({@link #INJECTED_ROW_LIMIT}) is injected <em>after</em> that sort ({@code ... | SORT t ASC | LIMIT n}).
-     * ES|QL pipelines are sequential, so the opposite order ({@code LIMIT n | SORT t ASC}) would keep an
-     * arbitrary {@code n} rows and only then sort them, contradicting the requirement that a capped chunk holds
-     * the earliest rows of its interval.
-     * The planner rewrites {@code SORT + LIMIT} into a single top-N, so the cap does not sort the full result.
-     * A user-supplied outer {@code LIMIT} is left where the user put it, with the time sort after it.
+     * Appends {@code SORT} on the time field and, when missing, {@link #INJECTED_ROW_LIMIT} after sort so capped
+     * chunks keep the earliest rows of the interval.
      */
     static String buildOrderedQuery(String query) {
         String sorted = EsqlQueryClauseScanner.appendGeneratedPipeline(query, TIME_SORT);
@@ -355,11 +320,7 @@ public class EsqlDataExtractor implements DataExtractor {
         return List.of(new EsqlQueryParam("timeField", context.emittedTimeField(), IDENTIFIER));
     }
 
-    /**
-     * Binds {@code ??timeField} to the raw source field name, for probes that run before (or without) the
-     * user's pipeline -- e.g. {@link #fetchSourceRangeSummary} -- where any rename the pipeline applies
-     * (such as a BUCKET(...) AS alias) has not happened yet.
-     */
+    /** Binds {@code ??timeField} to {@link EsqlDataExtractorContext#sourceTimeField()} for pre-pipeline probes. */
     private List<EsqlQueryParam> sourceTimeFieldParam() {
         return List.of(new EsqlQueryParam("timeField", context.sourceTimeField(), IDENTIFIER));
     }
@@ -382,12 +343,7 @@ public class EsqlDataExtractor implements DataExtractor {
         // Stored datafeed headers must reach _query for the same security behavior as classic extractors.
         return ClientHelper.executeWithHeaders(context.headers(), ClientHelper.ML_ORIGIN, client, () -> {
             var future = new PlainActionFuture<EsqlQueryResponse>();
-            // TransportEsqlQueryAction#doExecute wraps the terminal listener with ActionListener::respondAndRelease,
-            // which decRefs the response as soon as onResponse() returns, on the assumption that a synchronous
-            // consumer already read it (or took its own reference) before returning. PlainActionFuture#onResponse
-            // only stores the reference for a later actionGet() call and does not take a reference of its own, so
-            // without incRef-ing here the response is already closed (ref count 0) by the time future.actionGet()
-            // hands it back below, and response.response()/response() throws IllegalStateException("closed").
+            // future.actionGet() needs a ref: respondAndRelease decRefs before the async consumer runs.
             ActionListener<EsqlQueryResponse> retainingListener = ActionListener.wrap(response -> {
                 response.incRef();
                 future.onResponse(response);
@@ -461,8 +417,7 @@ public class EsqlDataExtractor implements DataExtractor {
         String requiredSummaryCountField
     ) throws IOException {
         List<? extends ColumnInfo> columns = response.columns();
-        // datafeedId isn't threaded through EsqlDataExtractorContext (extraction runtime path); the message
-        // degrades gracefully to the datafeed-agnostic wording in that case.
+        // Runtime extraction has no datafeed id for column-check messages.
         EsqlDatafeedQueryValidator.checkRequiredColumns(columns, emittedTimeField, requiredSummaryCountField, null);
         List<List<Object>> materializedRows = new ArrayList<>();
         for (Iterable<Object> row : response.rows()) {

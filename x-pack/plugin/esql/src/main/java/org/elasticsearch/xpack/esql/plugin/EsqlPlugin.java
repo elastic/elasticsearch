@@ -557,6 +557,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             ExternalSourceSettings.MAX_DECOMPRESSION_RATIO_ZSTD,
             formatReaderRegistry::setMaxDecompressionRatioZstd
         );
+        clusterSettings.initializeAndWatchIfRegistered(
+            ExternalSourceSettings.ADMISSION_RESCUE_ENABLED,
+            dataSourceModule::setAdmissionRescueEnabled
+        );
 
         // Build the format metadata the dataset CRUD validator uses to (a) accept format-specific
         // fields (e.g. CSV's "delimiter") so they persist in cluster state and reach the format reader
@@ -727,6 +731,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 EsqlFlags.ESQL_REMOTE_FETCH_TOPN,
                 EsqlFlags.ESQL_MAX_BRANCH_COUNT,
                 EsqlFlags.ESQL_MAX_BRANCH_LEVEL,
+                EsqlFlags.ESQL_MAX_BRANCH_COUNT_PER_MERGE,
                 RemoteFetchService.MAX_WORKERS_SETTING,
                 ViewService.MAX_VIEWS_COUNT_SETTING,
                 ViewService.MAX_VIEW_LENGTH_SETTING,

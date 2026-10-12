@@ -24,8 +24,10 @@ import java.util.Iterator;
 public interface CloseableIterator<T> extends Iterator<T>, Closeable {
 
     /**
-     * Returns a listener that completes when {@link #hasNext()} can be called without blocking on
-     * upstream production. The default — appropriate for synchronous iterators — completes immediately.
+     * Returns a listener that completes when {@link #tryAdvance()} will not join I/O. The default
+     * completes immediately. Drain loops treat {@code tryAdvance() == null} as EOF only when a
+     * following {@link #waitForReady()} is still done. They must not call {@link #hasNext()}:
+     * {@code hasNext()} may start and await the next GET even after this listener was done.
      */
     default SubscribableListener<Void> waitForReady() {
         return SubscribableListener.newSucceeded(null);
@@ -37,6 +39,11 @@ public interface CloseableIterator<T> extends Iterator<T>, Closeable {
      * is exhausted). Callers distinguish "not yet" from "EOF" via {@link #waitForReady()}: a
      * {@code null} return paired with an immediately-done {@code waitForReady()} means EOF;
      * a {@code null} paired with a non-done listener means more data may arrive.
+     *
+     * <p>A page may arrive in the race between {@code tryAdvance()} returning null and the
+     * recheck of {@code waitForReady()}. Drain loops take a second {@code tryAdvance()} in that
+     * window. They must not call {@link #hasNext()}: {@code hasNext()} may start and await the
+     * next unit of I/O even after {@code waitForReady()} was done.
      *
      * <p>The default delegates to {@link #hasNext()}/{@link #next()} and is therefore blocking
      * for iterators whose {@code hasNext()} blocks. Async iterators should override this to

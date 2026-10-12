@@ -12,8 +12,9 @@ package org.elasticsearch.lucene.queries;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
+import org.elasticsearch.columnar.ColumnarStringAnyOfQuery;
 import org.elasticsearch.columnar.ColumnarStringAutomatonQuery;
-import org.elasticsearch.columnar.ColumnarStringMatchQuery;
+import org.elasticsearch.columnar.ColumnarStringRangeQuery;
 import org.elasticsearch.columnar.ColumnarStringTermQuery;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.test.ESTestCase;
@@ -37,8 +38,8 @@ public class BinaryDocValuesQueriesTests extends ESTestCase {
     private static List<Shape> shapes() {
         return List.of(
             new Shape("term", q -> q.term(FIELD, new BytesRef("a")), ColumnarStringTermQuery.class),
-            new Shape("terms", q -> q.terms(FIELD, List.of(new BytesRef("a"), new BytesRef("b"))), ColumnarStringMatchQuery.class),
-            new Shape("range", q -> q.range(FIELD, new BytesRef("a"), new BytesRef("b"), true, false), ColumnarStringMatchQuery.class),
+            new Shape("terms", q -> q.terms(FIELD, List.of(new BytesRef("a"), new BytesRef("b"))), ColumnarStringAnyOfQuery.class),
+            new Shape("range", q -> q.range(FIELD, new BytesRef("a"), new BytesRef("b"), true, false), ColumnarStringRangeQuery.class),
             // A prefix is a run the column can bisect, so it never becomes an automaton.
             new Shape("prefix", q -> q.prefix(FIELD, "a", false), ColumnarStringTermQuery.class),
             new Shape("prefix ci", q -> q.prefix(FIELD, "a", true), ColumnarStringAutomatonQuery.class),

@@ -1683,7 +1683,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             String[] names = pendingAbsentWarnings;
             pendingAbsentWarnings = null;
             for (String name : names) {
-                sink.accept(SkipWarnings.absentDeclaredColumnMessage(name));
+                sink.accept(SkipWarnings.absentColumnMessage(name));
             }
         }
 

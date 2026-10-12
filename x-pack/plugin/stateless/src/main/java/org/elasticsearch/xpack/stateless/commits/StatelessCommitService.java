@@ -940,7 +940,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         ),
                         e
                     );
-                    cleanup();
+                    cleanup(false);
                     return;
                 }
                 // Copies to split targets and search-node notification are dispatched after markBccUploaded
@@ -961,7 +961,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         copyPermit = objectStoreService.acquireCopyPermit();
                     } catch (Exception e) {
                         // Service is already shutting down; treat the same as a closed shard.
-                        cleanup();
+                        cleanup(true);
                         return;
                     }
                     // Serialise copies via a per-shard single-slot runner so that
@@ -991,7 +991,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                                         break;
                                     } catch (Exception e) {
                                         if (commitState.isClosed()) {
-                                            cleanup();
+                                            cleanup(true);
                                             return;
                                         }
                                         final long delayMs = retryDelayMs;
@@ -1014,7 +1014,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                                     }
                                 }
                                 if (commitState.isClosed()) {
-                                    cleanup();
+                                    cleanup(true);
                                     return;
                                 }
                             }
@@ -1100,7 +1100,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     }
                 } finally {
                     // Upload failed: the VBCC never made it to recentlyUploadedVbccs so close it directly.
-                    cleanup();
+                    cleanup(false);
                 }
             }
 
@@ -1114,11 +1114,15 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 return true;
             }
 
-            private void cleanup() {
-                assert commitState.recentlyUploadedVbccs.containsKey(virtualBcc.primaryTermAndGeneration().generation()) == false;
-                // production fallback for assertion failure
-                commitState.recentlyUploadedVbccs.remove(virtualBcc.primaryTermAndGeneration().generation());
-                IOUtils.closeWhileHandlingException(virtualBcc);
+            private void cleanup(boolean published) {
+                final long gen = virtualBcc.primaryTermAndGeneration().generation();
+                VirtualBatchedCompoundCommit vbcc = commitState.recentlyUploadedVbccs.remove(gen);
+                if (vbcc != null) {
+                    assert published;
+                    IOUtils.closeWhileHandlingException(vbcc);
+                } else if (published == false) {
+                    IOUtils.closeWhileHandlingException(virtualBcc);
+                }
                 blobReference.decRef();
             }
         };

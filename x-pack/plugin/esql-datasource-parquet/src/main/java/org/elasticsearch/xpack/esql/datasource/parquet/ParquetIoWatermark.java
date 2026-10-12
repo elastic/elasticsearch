@@ -127,10 +127,10 @@ final class ParquetIoWatermark implements AdmissionGate {
     }
 
     /**
-     * Drops {@code lease} as the node-wide overshoot owner if it currently holds that slot.
-     * Does not release bytes; those already returned from {@link DirectReadBuffer#close()}.
-     * No-op when another lease is the owner. Signals waiters. Call after budget {@code finish()}
-     * has released the budget lock.
+     * Drops {@code lease} as the node-wide overshoot owner if it currently holds that slot,
+     * unpins it, and re-runs the grant loop even when {@code lease} is not the owner. Does not
+     * release bytes; those already returned from {@link DirectReadBuffer#close()}. Call after
+     * budget {@code finish()} has released the budget lock.
      */
     void clearOwner(RowGroupIo lease) {
         budget.clearOwner(lease);
@@ -149,6 +149,11 @@ final class ParquetIoWatermark implements AdmissionGate {
     @Override
     public RescueResult rescueHead(@Nullable Executor delivery) {
         return budget.rescueHeadOverCap(delivery);
+    }
+
+    @Override
+    public void failCancelledWaiters() {
+        budget.failCancelledWaiters();
     }
 
     @Override
@@ -293,8 +298,29 @@ final class ParquetIoWatermark implements AdmissionGate {
             inner.drop(bytes);
         }
 
+        /**
+         * Grows or drops leftover estimate so {@link #remaining()} equals {@code target}.
+         * Never grows past {@link #bytes()}; a drop re-runs the grant loop.
+         */
+        synchronized void retarget(long target) {
+            if (counted.get() == false) {
+                return;
+            }
+            long want = Math.max(0L, Math.min(target, inner.bytes()));
+            long current = inner.remaining();
+            if (want > current) {
+                inner.grow(want - current);
+            } else if (want < current) {
+                inner.drop(current - want);
+            }
+        }
+
         synchronized long remaining() {
             return inner.remaining();
+        }
+
+        long bytes() {
+            return inner.bytes();
         }
 
         /**

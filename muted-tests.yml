@@ -653,3 +653,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessCommitNotificationsIT
   method: testVbccRemainsServableUntilSearchTierNotificationCompletes
   issue: https://github.com/elastic/elasticsearch/issues/161667
+- class: org.elasticsearch.xpack.esql.datasource.s3.S3EndpointRedirectTests
+  method: testAsyncReadDoesNotFollowRedirectAwayFromTheEndpoint
+  issue: https://github.com/elastic/elasticsearch/issues/161727

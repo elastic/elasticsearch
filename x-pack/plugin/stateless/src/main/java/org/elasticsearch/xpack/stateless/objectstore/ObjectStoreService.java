@@ -1777,7 +1777,9 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                             virtualBatchedCompoundCommit.getBlobName(),
                             totalSizeInBytes,
                             (offset, length) -> {
-                                // the repository calls this once per part, right before it starts uploading that part
+                                // The repository records the following metric before it starts uploading a part during a BCC-upload
+                                // attempt. Note that a retry to upload the BCC in `BatchedCompoundCommitUploadTask` will end up recording
+                                // again for the same part.
                                 bccMultipartUploadPartStartLatencyHistogram.record(
                                     TimeUnit.NANOSECONDS.toMillis(threadPool.relativeTimeInNanos() - uploadStartNanos),
                                     Map.of("multipart", length < totalSizeInBytes)

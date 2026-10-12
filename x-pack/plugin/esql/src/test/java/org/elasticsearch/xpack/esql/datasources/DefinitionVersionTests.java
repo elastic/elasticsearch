@@ -526,48 +526,74 @@ public class DefinitionVersionTests extends ESTestCase {
     }
 
     /**
-     * The delimiting property, stated against the VERSIONS rather than against the encoder's internals - which is
-     * why the three cases this replaces are gone. Each of those forged a string against the old token stream
-     * ({@code "age1:t7:keyword..."}), so under a different encoding they passed for no reason at all.
-     * <p>
-     * Here the inputs are hostile in an encoder-agnostic way: a quote, a brace, a colon, a NUL and a newline, in
-     * both a setting key and a declared column name, shaped to close one field and open another. Whatever encodes
-     * the pre-image, two different definitions must not meet.
+     * Main's own value-forgery guard, restored unchanged. A value that embeds a separator must not encode as two
+     * settings. It is the only one of these inputs that goes red under a {@code k=v\u0000} join, so dropping it
+     * for the cases below would have cost a discrimination rather than consolidated one.
      */
-    public void testHostileNamesCannotCollapseTwoDefinitionsIntoOne() {
+    public void testASettingValueCannotForgeAFieldBoundary() {
         DataSource src = source(Map.of("endpoint", "https://s3.example"));
-        String hostile = "a\":1,\"b\":{\"type\":\"long\"}\u0000:\n";
-
         Map<String, Object> twoSettings = new LinkedHashMap<>();
         twoSettings.put("a", "1");
         twoSettings.put("b", "2");
+        Map<String, Object> oneForgedSetting = Map.of("a", "1\u0000b=2");
+
         assertNotEquals(
-            "a hostile setting key must not merge two settings into one",
-            DefinitionVersion.ofDataset(dataset("s3://b/*.csv", twoSettings), src),
-            DefinitionVersion.ofDataset(dataset("s3://b/*.csv", Map.of(hostile, "2")), src)
+            "a value that embeds a separator must not encode as two settings",
+            DefinitionVersion.of(dataset("s3://b/*.csv", twoSettings), src),
+            DefinitionVersion.of(dataset("s3://b/*.csv", oneForgedSetting), src)
         );
-        // The same forgery against a pre-image that delimited with NOTHING: key-then-value concatenated,
-        // "a"+"1"+"b"+"2" against "a1b"+"2". A JSON-shaped name cannot reach that encoding, and this one cannot
-        // reach JSON, so both shapes are needed for the case to outlive an encoder swap in either direction.
+    }
+
+    /**
+     * The delimiting property, stated against the VERSIONS rather than against the encoder's internals.
+     * <p>
+     * A forgery only discriminates if it collides under some encoding this code could plausibly be given, and it
+     * can only collide if it is shaped against the very definition it is compared with. So each pair here names
+     * its target encoding: one shaped to close a field and open another in unescaped JSON, one concatenated for a
+     * pre-image that delimits with nothing, and one value carrying the separator a map's {@code toString} uses.
+     * No single shape covers the others - a JSON-shaped name cannot reach a delimiter-free encoding, and neither
+     * reaches a value-level join - which is why all three stay.
+     */
+    public void testHostileNamesCannotCollapseTwoDefinitionsIntoOne() {
+        DataSource src = source(Map.of("endpoint", "https://s3.example"));
+        Map<String, Object> twoSettings = new LinkedHashMap<>();
+        twoSettings.put("a", "1");
+        twoSettings.put("b", "2");
+
         assertNotEquals(
-            "a setting key must not merge two settings under a delimiter-free pre-image either",
+            "a setting key must not close its own field and open a second one",
+            DefinitionVersion.ofDataset(dataset("s3://b/*.csv", twoSettings), src),
+            DefinitionVersion.ofDataset(dataset("s3://b/*.csv", Map.of("a\":\"1\",\"b", "2")), src)
+        );
+        assertNotEquals(
+            "nor merge two settings where the pre-image delimits with nothing",
             DefinitionVersion.ofDataset(dataset("s3://b/*.csv", twoSettings), src),
             DefinitionVersion.ofDataset(dataset("s3://b/*.csv", Map.of("a1b", "2")), src)
+        );
+        assertNotEquals(
+            "nor may a VALUE supply the separator that joins two settings",
+            DefinitionVersion.ofDataset(dataset("s3://b/*.csv", twoSettings), src),
+            DefinitionVersion.ofDataset(dataset("s3://b/*.csv", Map.of("a", "1, b=2")), src)
         );
 
         Map<String, DatasetFieldMapping> twoColumns = new LinkedHashMap<>();
         twoColumns.put("age", new DatasetFieldMapping("keyword", null));
         twoColumns.put("zz", new DatasetFieldMapping("long", null));
         assertNotEquals(
-            "a hostile declared column name must not merge two columns into one",
+            "a declared column name must not close its own field and open a second one",
             DefinitionVersion.ofDataset(mapped(declaring(DatasetMapping.Dynamic.TRUE, twoColumns)), src),
             DefinitionVersion.ofDataset(
-                mapped(declaring(DatasetMapping.Dynamic.TRUE, Map.of(hostile, new DatasetFieldMapping("long", null)))),
+                mapped(
+                    declaring(
+                        DatasetMapping.Dynamic.TRUE,
+                        Map.of("age\":{\"type\":\"keyword\"},\"zz", new DatasetFieldMapping("long", null))
+                    )
+                ),
                 src
             )
         );
         assertNotEquals(
-            "nor under a delimiter-free one",
+            "nor merge two columns where the pre-image delimits with nothing",
             DefinitionVersion.ofDataset(mapped(declaring(DatasetMapping.Dynamic.TRUE, twoColumns)), src),
             DefinitionVersion.ofDataset(
                 mapped(declaring(DatasetMapping.Dynamic.TRUE, Map.of("agekeywordzz", new DatasetFieldMapping("long", null)))),
@@ -594,26 +620,33 @@ public class DefinitionVersionTests extends ESTestCase {
     }
 
     /**
-     * The memo's bound, which is otherwise a javadoc sentence with no executor. Past the bound an entry is
-     * evicted, and eviction must cost a recomputation and never a wrong answer - so every definition still gets
-     * its own version, and they are all still distinct.
+     * Eviction must cost a recomputation and never a wrong answer. Past the memo's bound an entry is dropped, so
+     * a definition memoized earlier must still answer with the value it answered with then - not with another
+     * definition's, which is the shape a keying defect would take.
+     * <p>
+     * It does not execute the bound itself. {@code MEMO} is private static and its size cannot be observed from
+     * here, and the bound is a literal builder argument whose loss would cost memory rather than answers.
      */
-    public void testExceedingTheMemoBoundCostsRecomputationAndNotCorrectness() {
+    public void testEvictionCostsRecomputationAndNotCorrectness() {
         DataSource src = source(Map.of("endpoint", "https://s3.example"));
         int past = 2048; // comfortably past MEMO_ENTRIES
-        Set<String> versions = new HashSet<>();
         List<Dataset> definitions = new ArrayList<>(past);
         for (int i = 0; i < past; i++) {
             definitions.add(dataset("parts_" + i, "s3://b/" + i + "/*.csv", Map.of("format", "csv")));
         }
+        // Read before the rest of the definitions evict it, so the comparison afterwards is against a value this
+        // test actually saw rather than against membership in the set of everything it collected.
+        String firstBeforeEviction = DefinitionVersion.ofDataset(definitions.get(0), src);
+
+        Set<String> versions = new HashSet<>();
         for (Dataset d : definitions) {
             versions.add(DefinitionVersion.ofDataset(d, src));
         }
         assertEquals("every definition must get its own version however small the memo is", past, versions.size());
-        // And a definition evicted long ago must still answer with the same value it did before.
-        assertTrue(
-            "a recomputation after eviction must agree with the memoized value",
-            versions.contains(DefinitionVersion.ofDataset(definitions.get(0), src))
+        assertEquals(
+            "a recomputation after eviction must return the same value, not another definition's",
+            firstBeforeEviction,
+            DefinitionVersion.ofDataset(definitions.get(0), src)
         );
     }
 

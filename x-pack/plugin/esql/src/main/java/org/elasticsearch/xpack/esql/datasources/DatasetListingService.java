@@ -212,6 +212,28 @@ public final class DatasetListingService {
     }
 
     /**
+     * Whether a listing this bounded rail produced may be published into the shared cache.
+     * <p>
+     * Every other reader of that cache wants the whole pattern, and takes an entry without comparing anything. A
+     * bounded drain applies the value filter itself; an unbounded one first tries the partition walk, and where
+     * the walk withdraws it re-lists with that filter suppressed — the unfiltered superset. So for a pattern the
+     * walk would try, the two rails can produce different file sets for one key, and publishing the bounded one
+     * hands an unbounded query a listing narrower than its own: under {@code first_file_wins} it would take its
+     * schema from a different file, so the answer would depend on which query ran first.
+     * <p>
+     * Declining to publish costs the next unbounded query a listing it could have had. It does not cost the
+     * bounded rail its own cache: a pattern with no partition-value hints -- the shape the bound exists for --
+     * never walks, so it still publishes and still reads.
+     */
+    private static boolean publishable(
+        String path,
+        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        Map<String, Object> config
+    ) {
+        return GlobExpander.wouldWalk(path, hints, config) == false;
+    }
+
+    /**
      * Whether {@code cached} answers a listing bounded by {@code extents} — that is, whether a query running this
      * bound would have produced the same complete listing rather than stopping short of it.
      * <p>
@@ -262,7 +284,9 @@ public final class DatasetListingService {
             return cached;
         }
         FileList listing = expand(path, provider, hints, config, storagePath, extents, memory, cancelled);
-        cacheService.putListingIfComplete(listingKey, listing);
+        if (publishable(path, hints, config)) {
+            cacheService.putListingIfComplete(listingKey, listing);
+        }
         return listing;
     }
 
@@ -335,7 +359,9 @@ public final class DatasetListingService {
             concurrency,
             executor,
             listener.delegateFailureAndWrap((l, listing) -> {
-                cacheService.putListingIfComplete(listingKey, listing);
+                if (publishable(path, hints, config)) {
+                    cacheService.putListingIfComplete(listingKey, listing);
+                }
                 l.onResponse(listing);
             })
         );

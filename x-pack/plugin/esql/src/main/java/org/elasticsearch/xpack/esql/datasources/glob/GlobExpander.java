@@ -927,9 +927,9 @@ public final class GlobExpander {
         // A rejected walk (type mismatch, stray file) must re-list the superset. Re-applying the value filter
         // would prune again and undo the rejection.
         boolean suppressValueFilter = false;
-        if (extents.boundsFileSet() == false && walkableGlob(glob) && walkableStrategy(partitionConfig)) {
+        if (extents.boundsFileSet() == false && wouldWalk(glob, hints, partitionConfig)) {
             List<PartitionFilterHint> partitionHints = partitionPruningHints(hints);
-            if (partitionHints.isEmpty() == false) {
+            {
                 PartitionPruningWalk.WalkResult walk = PartitionPruningWalk.tryWalk(
                     provider,
                     prefix,
@@ -2389,6 +2389,35 @@ public final class GlobExpander {
      * A keyed glob may descend an unhinted leading {@code key=*} when a hinted key of that glob is still pending;
      * a {@code **} glob still withdraws at the first unhinted level.
      */
+    /**
+     * Whether an unbounded drain of this pattern would try the partition walk — and so might withdraw from it and
+     * return the unfiltered superset, where a bounded drain applies the value filter and keeps a subset.
+     * <p>
+     * It is the gate at the walk itself, lifted out so the two callers cannot drift: the walk, and the bounded
+     * rail's refusal to publish a listing into the shared cache where the two rails can disagree. Only the
+     * bound-independent half is here; the caller adds its own.
+     */
+    static boolean wouldWalk(String glob, @Nullable List<PartitionFilterHint> hints, PartitionConfig partitionConfig) {
+        return walkableGlob(glob) && walkableStrategy(partitionConfig) && partitionPruningHints(hints).isEmpty() == false;
+    }
+
+    /**
+     * As {@link #wouldWalk}, for a caller holding the dataset's raw path and settings rather than one resolved
+     * pattern. A comma list walks if any of its segments would, which is the conservative direction.
+     */
+    public static boolean wouldWalk(String path, @Nullable List<PartitionFilterHint> hints, @Nullable Map<String, Object> config) {
+        PartitionConfig partitionConfig = PartitionConfig.fromConfig(config);
+        for (String segment : commaSegments(path)) {
+            // The EFFECTIVE pattern, because that is what the drain is handed: a single-value equality is spliced
+            // into the glob, and the literal segment it leaves is not walkable, so those two rails cannot diverge.
+            StoragePath parsed = StoragePath.of(effectivePattern(segment, hints, partitionConfig));
+            if (parsed.isPattern() && wouldWalk(parsed.globPart(), hints, partitionConfig)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static boolean walkableGlob(String glob) {
         if (globstarLeads(glob)) {
             return true;

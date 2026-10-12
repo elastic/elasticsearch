@@ -5086,7 +5086,7 @@ public class GlobExpanderTests extends ESTestCase {
      * {@code m=abc} holds a {@code _SUCCESS}, not a {@code .csv}: it widens the column to text for the walk, which
      * withdraws, while the drain never sees it and trusts its own prune.
      *
-     * <p>So the superset is two files and the bounded listing is one, and both counted two. Served, the bounded
+     * <p>So the superset is two files and the bounded listing is one, and both drains counted two. Served, the bounded
      * query would read a file its own filter excludes and — under {@code first_file_wins}, where the schema comes
      * from the first path — infer its schema from a different file than it would cold. Recording no count is what
      * stops it: the entry still serves a query that wants the whole pattern, and a bounded one re-lists.

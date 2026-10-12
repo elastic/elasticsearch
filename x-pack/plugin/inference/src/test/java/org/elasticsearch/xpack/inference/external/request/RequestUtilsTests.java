@@ -12,16 +12,22 @@ import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.apiKey;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.bearerToken;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthApiKeyHeader;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.decorateWithAuthHeader;
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.jsonEntity;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class RequestUtilsTests extends ESTestCase {
@@ -58,5 +64,23 @@ public class RequestUtilsTests extends ESTestCase {
 
         assertThat(httpPost.getFirstHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
         assertThat(httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is(Strings.format("Bearer %s", SECRET)));
+    }
+
+    public void testJsonEntity_WritesTheSerializedObject() {
+        ToXContentObject object = (builder, params) -> builder.startObject().field("key", "value").endObject();
+
+        var entity = jsonEntity(object);
+
+        assertThat(new String(entity, StandardCharsets.UTF_8), is("""
+            {"key":"value"}"""));
+    }
+
+    public void testJsonEntity_WhenSerializationFails_Throws() {
+        ToXContentObject object = (builder, params) -> { throw new IOException("boom"); };
+
+        var exception = expectThrows(UncheckedIOException.class, () -> jsonEntity(object));
+
+        assertThat(exception.getMessage(), containsString("Failed to serialize ["));
+        assertThat(exception.getCause().getMessage(), is("boom"));
     }
 }

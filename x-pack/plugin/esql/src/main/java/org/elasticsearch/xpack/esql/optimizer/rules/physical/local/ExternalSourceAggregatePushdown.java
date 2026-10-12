@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.datasources.ColumnStatTypeSupport;
 import org.elasticsearch.xpack.esql.datasources.MergedSplitStats;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
+import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownLiteralConversion;
 import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownPredicates;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -474,6 +475,8 @@ public final class ExternalSourceAggregatePushdown {
         boolean implicitNullsForAbsentColumn
     ) {
         List<? extends ExternalSplit> splits = externalExec.splits();
+        // Rewrite mixed literals once for all splits — classifyExpression would redo it per call.
+        Expression rewrittenFilter = PushdownLiteralConversion.rewrite(filterCondition);
 
         if (splits.isEmpty() || splits.size() == 1) {
             org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats = null;
@@ -494,8 +497,8 @@ public final class ExternalSourceAggregatePushdown {
             if (stats == null) {
                 return null;
             }
-            SplitFilterClassifier.SplitMatch result = SplitFilterClassifier.classifyExpression(
-                filterCondition,
+            SplitFilterClassifier.SplitMatch result = SplitFilterClassifier.classifyRewritten(
+                rewrittenFilter,
                 stats,
                 implicitNullsForAbsentColumn
             );
@@ -516,8 +519,8 @@ public final class ExternalSourceAggregatePushdown {
             // The classifier compares the filter literal against the split's stats. Those stats are normalized
             // to the reconciled query type at split construction (FileSplitProvider), so the compare is in one
             // unit -- no reconciliation is needed or done here.
-            SplitFilterClassifier.SplitMatch result = SplitFilterClassifier.classifyExpression(
-                filterCondition,
+            SplitFilterClassifier.SplitMatch result = SplitFilterClassifier.classifyRewritten(
+                rewrittenFilter,
                 stats,
                 implicitNullsForAbsentColumn
             );

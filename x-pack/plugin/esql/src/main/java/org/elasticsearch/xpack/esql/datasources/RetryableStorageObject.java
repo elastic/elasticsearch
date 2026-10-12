@@ -118,7 +118,9 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
             // providers surface breaker trips through this path) double-surfacing as both storage.errors and
             // breaker.tripped. The backoff was spent regardless of the fault type, so the read-stall is always
             // recorded.
-            if (failure instanceof IOException || failure instanceof ExternalUnavailableException) {
+            // A permit timeout (LOCAL_CAPACITY) is this node's own admission limit, not a store fault, so it stays out of
+            // storage.errors / storage.throttled, which describe the store. Its backoff is still a real read stall.
+            if (isStorageFault(failure)) {
                 retryCounters.addError();
                 if (RetryPolicy.isThrottlingError(failure)) {
                     retryCounters.addThrottled();
@@ -130,6 +132,13 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
             // isThrottlingError (not itself guarded), so a throw here must never strand the listener.
             logger.trace("telemetry: recordTerminalFailure failed", e);
         }
+    }
+
+    private static boolean isStorageFault(Throwable failure) {
+        if (failure instanceof ExternalUnavailableException unavailable) {
+            return unavailable.condition() != Condition.LOCAL_CAPACITY;
+        }
+        return failure instanceof IOException;
     }
 
     RetryableStorageObject(StorageObject delegate, RetryPolicy retryPolicy) {

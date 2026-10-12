@@ -2395,7 +2395,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         Index unrelatedIndex = new Index(randomAlphaOfLength(10), randomUUID());
         DataStream.DataStreamIndices failureIndices = DataStream.DataStreamIndices.failureIndicesBuilder(List.of(failureIndex)).build();
 
-        // Time series data stream without a lifecycle: backing indices get the default lifecycle only when enabled
+        // Time series data stream without a lifecycle: backing indices get the minimum lifecycle only when enabled
         DataStream timeSeries = DataStream.builder("tsds", List.of(backingIndex))
             .setIndexMode(IndexMode.TIME_SERIES)
             .setFailureIndices(failureIndices)
@@ -2403,7 +2403,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThat(timeSeries.getEffectiveLifecycleForIndex(backingIndex, true), equalTo(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE));
         assertThat(timeSeries.getEffectiveLifecycleForIndex(backingIndex, false), nullValue());
 
-        // Non time series data stream without a lifecycle never gets the default lifecycle
+        // Non time series data stream without a lifecycle never gets the minimum lifecycle
         DataStream standard = DataStream.builder("ds", List.of(backingIndex))
             .setIndexMode(randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB, null))
             .build();
@@ -2434,12 +2434,12 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             Arrays.stream(IndexMode.values()).filter(mode -> mode != IndexMode.TIME_SERIES).toArray(IndexMode[]::new)
         );
 
-        // A time series data stream without a lifecycle gets the default lifecycle only when enabled
+        // A time series data stream without a lifecycle gets the minimum lifecycle only when enabled
         DataStream timeSeriesWithoutLifecycle = DataStream.builder("tsds", indices).setIndexMode(IndexMode.TIME_SERIES).build();
         assertThat(timeSeriesWithoutLifecycle.getEffectiveDataLifecycle(true), equalTo(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE));
         assertThat(timeSeriesWithoutLifecycle.getEffectiveDataLifecycle(false), nullValue());
 
-        // A non time series data stream without a lifecycle never gets the default lifecycle
+        // A non time series data stream without a lifecycle never gets the minimum lifecycle
         DataStream nonTimeSeriesWithoutLifecycle = DataStream.builder("ds", indices)
             .setIndexMode(randomBoolean() ? nonTimeSeriesIndexMode : null)
             .build();

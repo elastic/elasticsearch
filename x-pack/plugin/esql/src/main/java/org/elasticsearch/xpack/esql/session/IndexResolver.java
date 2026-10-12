@@ -631,22 +631,18 @@ public class IndexResolver {
 
     /** Like {@link #conflictingTypes}, walks every index response since {@code fcs} is deduplicated by mapping hash. */
     private static List<IndexAnalyzerGroup> analyzerGroups(String fullName, FieldCapabilitiesResponse fieldCapsResponse) {
-        record AnalyzerKey(@Nullable String name, boolean indexLocal, int positionIncrementGap) {}
-        Map<AnalyzerKey, Set<String>> indicesByAnalyzer = new LinkedHashMap<>();
+        Map<String, IndexAnalyzerGroup.Analyzer> analyzerByIndex = new LinkedHashMap<>();
         for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
             IndexFieldCapabilities fc = ir.get().get(fullName);
             if (fc != null) {
                 // IndexFieldCapabilities already normalizes the gap to the default when the name is null.
-                indicesByAnalyzer.computeIfAbsent(
-                    new AnalyzerKey(fc.indexAnalyzer(), fc.indexLocalAnalyzer(), fc.indexAnalyzerPositionIncrementGap()),
-                    k -> new TreeSet<>()
-                ).add(ir.getIndexName());
+                analyzerByIndex.put(
+                    ir.getIndexName(),
+                    new IndexAnalyzerGroup.Analyzer(fc.indexAnalyzer(), fc.indexLocalAnalyzer(), fc.indexAnalyzerPositionIncrementGap())
+                );
             }
         }
-        return indicesByAnalyzer.entrySet()
-            .stream()
-            .map(e -> new IndexAnalyzerGroup(e.getKey().name(), e.getKey().indexLocal(), e.getKey().positionIncrementGap(), e.getValue()))
-            .toList();
+        return IndexAnalyzerGroup.byAnalyzer(analyzerByIndex);
     }
 
     // Visible for testing.

@@ -1023,7 +1023,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         }
     }
 
-    private static void attachHoldToFuture(
+    private void attachHoldToFuture(
         CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future,
         ParquetIoWatermark.AdmitHold hold,
         long decodeBytes
@@ -1031,13 +1031,29 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         attachHoldToFuture(future, hold, decodeBytes, true);
     }
 
-    private static void attachHoldToFuture(
+    private void attachHoldToFuture(
         CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future,
         ParquetIoWatermark.AdmitHold hold,
         long decodeBytes,
         boolean dropOnError
     ) {
+        attachHoldToFuture(future, hold, decodeBytes, dropOnError, () -> closed.get() || ticketAbandoned.get());
+    }
+
+    private static void attachHoldToFuture(
+        CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future,
+        ParquetIoWatermark.AdmitHold hold,
+        long decodeBytes,
+        boolean dropOnError,
+        BooleanSupplier abandoned
+    ) {
         future.whenComplete((chunks, error) -> {
+            if (abandoned.getAsBoolean()) {
+                // Close/abandon always drops; dropOnError=false is only for a live Phase-2 retry.
+                // Do not release chunks here — DirectReadBuffer.close() is not idempotent.
+                hold.drop();
+                return;
+            }
             if (error != null || chunks == null) {
                 if (dropOnError) {
                     hold.drop();
@@ -3001,7 +3017,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 chunks.release().close();
             }
         } catch (CompletionException | CancellationException ignored) {
-            // Cancelled or failed GET produced no chunks.
+            // Cancelled or failed GET produced no chunks. prefetchCoalesced releases buffers
+            // when complete() loses to cancel.
         }
     }
 
@@ -4456,14 +4473,18 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         }
         CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> inFlightPhase2 = phase2Future;
         phase2Future = null;
-        releasePhase2Future(inFlightPhase2);
         readinessPhase = ReadinessPhase.DONE;
         signalReady();
         try {
-            releaseHeldIo(true);
+            releasePhase2Future(inFlightPhase2);
         } finally {
-            finishRemainingLeases();
-            reader.close();
+            try {
+                releaseHeldIo(true);
+            } finally {
+                dropCurrentGroupHold();
+                finishRemainingLeases();
+                reader.close();
+            }
         }
     }
 

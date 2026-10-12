@@ -122,6 +122,7 @@ public class RestPutDatasetAction extends BaseRestHandler implements RestRequest
             EsqlDataSourcesCapabilities.DATASET_REGION,
             EsqlDataSourcesCapabilities.DATASET_TEXT_TYPE_NOT_DECLARABLE,
             EsqlDataSourcesCapabilities.DATASET_ID_NOT_DECLARABLE,
+            EsqlDataSourcesCapabilities.DATASET_RENAME_FROM,
             EsqlDataSourcesCapabilities.DATA_SOURCE_DESCRIPTION_LENGTH_LIMIT
         );
     }

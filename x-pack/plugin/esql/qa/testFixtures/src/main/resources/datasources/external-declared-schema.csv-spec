@@ -39,6 +39,25 @@ id:long | name:keyword | pay:long
 10003   | "Parto"      | 61805
 ;
 
+// The same read declared with `path`, the former spelling of `rename_from`. Both are accepted and mean the same
+// thing, so this case and the one above must agree column for column -- a divergence means one spelling started
+// binding differently. Deliberately NOT gated on the rename_from capability: `path` is understood by every version,
+// which is the point of keeping it, and gating it would stop a mixed cluster from checking the half that has to
+// keep working. Its own dataset name because a name carries its declaration.
+sharedStrictDeclaredSchemaRenamesWithFormerSpelling
+required_capability: dataset_in_from_command
+dataset: shared_declared_strict_former: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "name": {"type": "keyword", "path": "first_name"}, "pay": {"type": "long", "path": "salary"}}}}
+
+FROM shared_declared_strict_former
+| SORT id
+| LIMIT 3;
+
+id:long | name:keyword | pay:long
+10001   | "Georgi"     | 57305
+10002   | "Bezalel"    | 56371
+10003   | "Parto"      | 61805
+;
+
 // A declaration binds BY NAME even with no `path` on any column, on every format: binding is keyed on schema
 // provenance, not on whether a path was written (esql-planning#1307). The declaration is deliberately NOT in file
 // order -- the file leads with birth_date -- so binding by declaration POSITION would serve the wrong column's

@@ -534,7 +534,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         return new ChunkedDataExtractorContext(
             jobId,
             scrollSize,
-            timeAligner.alignToCeil(start),
+            timeAligner.alignToFloor(start),
             timeAligner.alignToFloor(end),
             chunkSpan,
             timeAligner,
@@ -696,7 +696,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
 
     public void testEsqlWindowShouldAlignToDeclaredGroupingInterval() throws IOException {
         final long groupingInterval = 60_000L;
-        final long alignedStart = 180_000L;
+        final long alignedStart = 120_000L;
         final long alignedEnd = 300_000L;
         ChunkedDataExtractorContext context = createEsqlContext(125_000L, 305_000L, groupingInterval);
         assertThat(context.start(), equalTo(alignedStart));

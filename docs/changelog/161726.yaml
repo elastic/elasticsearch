@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 161726
+summary: Fix case-insensitive empty term query on wildcard fields
+type: bug

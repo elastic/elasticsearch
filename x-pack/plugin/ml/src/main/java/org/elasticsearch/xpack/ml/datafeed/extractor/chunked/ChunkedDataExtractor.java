@@ -44,6 +44,13 @@ public class ChunkedDataExtractor implements DataExtractor {
     /** Let us set a minimum chunk span of 1 minute */
     private static final long MIN_CHUNK_SPAN = 60000L;
 
+    /**
+     * Target row count per chunk for ES|QL datafeeds, used to size the initial chunk span when it is not specified.
+     * It is deliberately small so that non-uniform (bursty) data distributions still leave headroom before the
+     * extractor's row limit is reached.
+     */
+    private static final long DEFAULT_ESQL_CHUNK_DOCS = 500L;
+
     private final DataExtractorFactory dataExtractorFactory;
     private final ChunkedDataExtractorContext context;
     private long currentStart;
@@ -104,7 +111,11 @@ public class ChunkedDataExtractor implements DataExtractor {
             throw e;
         }
         if (dataSummary.hasData()) {
-            currentStart = context.timeAligner().alignToFloor(dataSummary.earliestTime());
+            long earliestTime = context.timeAligner().alignToFloor(dataSummary.earliestTime());
+            // For ES|QL datafeeds the query may transform the time field (e.g. DATE_TRUNC), so the summary's
+            // MIN(??timeField) can be earlier than the window just queried: never rewind currentStart. Unlike DSL,
+            // jump currentStart forward to earliestTime so an unbounded range does not walk every empty chunk.
+            currentStart = context.hasEsqlQuery() ? Math.max(currentStart, earliestTime) : earliestTime;
             currentEnd = currentStart;
 
             if (context.chunkSpan() != null) {
@@ -112,6 +123,14 @@ public class ChunkedDataExtractor implements DataExtractor {
             } else if (context.hasAggregations()) {
                 // This heuristic is a direct copy of the manual chunking config auto-creation done in {@link DatafeedConfig}
                 chunkSpan = DatafeedConfig.DEFAULT_AGGREGATION_CHUNKING_BUCKETS * context.histogramInterval();
+            } else if (context.hasEsqlQuery()) {
+                long timeSpread = dataSummary.latestTime() - dataSummary.earliestTime();
+                if (timeSpread <= 0) {
+                    chunkSpan = context.end() - currentEnd;
+                } else {
+                    // Target roughly DEFAULT_ESQL_CHUNK_DOCS rows per chunk assuming data is evenly distributed over time.
+                    chunkSpan = Math.max(MIN_CHUNK_SPAN, DEFAULT_ESQL_CHUNK_DOCS * timeSpread / dataSummary.totalHits());
+                }
             } else {
                 long timeSpread = dataSummary.latestTime() - dataSummary.earliestTime();
                 if (timeSpread <= 0) {

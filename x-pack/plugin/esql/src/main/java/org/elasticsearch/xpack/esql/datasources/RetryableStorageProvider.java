@@ -112,6 +112,11 @@ class RetryableStorageProvider implements StorageProvider {
     }
 
     @Override
+    public boolean listsInKeyOrder() {
+        return delegate.listsInKeyOrder();
+    }
+
+    @Override
     public void close() throws IOException {
         delegate.close();
     }

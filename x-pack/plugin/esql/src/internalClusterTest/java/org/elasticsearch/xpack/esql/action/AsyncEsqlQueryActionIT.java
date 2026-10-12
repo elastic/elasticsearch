@@ -74,6 +74,7 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(3000, 4000)))
             .build();
     }
@@ -392,7 +393,6 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
                )
             """).waitForCompletionTimeout(TimeValue.timeValueNanos(1))
             .keepOnCompletion(randomBoolean())
-            .allowPartialResults(false)
             .keepAlive(TimeValue.timeValueMinutes(between(1, 5)));
         final String asyncId;
         try {
@@ -555,7 +555,6 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
             // small interval so that we can return quickly on submission
             .waitForCompletionTimeout(TimeValue.timeValueMillis(between(1, 10)))
             .keepOnCompletion(randomBoolean())
-            .allowPartialResults(false)
             // large interval so that the tasks won't be cancelled until it has started
             .keepAlive(TimeValue.timeValueMinutes(between(1, 5)));
         final String asyncId;

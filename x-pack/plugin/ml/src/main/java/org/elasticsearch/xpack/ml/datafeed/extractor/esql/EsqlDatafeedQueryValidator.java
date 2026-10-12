@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
-import org.elasticsearch.xpack.core.ml.job.messages.Messages.EsqlEmittedTimeProblem;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.time.DateTimeException;
@@ -274,7 +273,7 @@ public class EsqlDatafeedQueryValidator {
             throw new IllegalArgumentException(
                 Messages.getMessage(
                     Messages.DATAFEED_ESQL_SOURCE_TIME_FIELD_NOT_DATE,
-                    Messages.esqlDatafeedSubject(datafeedId),
+                    esqlDatafeedSubject(datafeedId),
                     sourceTimeField,
                     outputType
                 )
@@ -290,7 +289,7 @@ public class EsqlDatafeedQueryValidator {
         String causeMessage = cause == null ? Messages.getMessage(Messages.DATAFEED_ESQL_PROBE_UNKNOWN_ERROR) : cause.getMessage();
         String message = Messages.getMessage(
             Messages.DATAFEED_ESQL_SOURCE_TIME_FIELD_UNRESOLVED,
-            Messages.esqlDatafeedSubject(datafeedId),
+            esqlDatafeedSubject(datafeedId),
             sourceTimeField,
             causeMessage
         );
@@ -302,7 +301,7 @@ public class EsqlDatafeedQueryValidator {
      */
     static void warnForConflictingOuterClauses(@Nullable String datafeedId, String esqlQuery, String timeField) {
         EsqlQueryClauseScanner.ScanResult scan = EsqlQueryClauseScanner.scan(esqlQuery, timeField);
-        String queryContext = Messages.esqlDatafeedSubject(datafeedId);
+        String queryContext = esqlDatafeedSubject(datafeedId);
         if (scan.hasOuterTimeWhere()) {
             HeaderWarning.addWarning(Messages.getMessage(Messages.DATAFEED_ESQL_OUTER_TIME_WHERE_WARNING, queryContext, timeField));
         }
@@ -391,33 +390,40 @@ public class EsqlDatafeedQueryValidator {
     ) {
         var context = new EmittedTimeContext(jobId, emittedTimeField, sourceWindowStart, sourceWindowEnd);
         if (rawValue == null) {
-            throw context.failure(EsqlEmittedTimeProblem.NULL, null, null);
+            throw context.failure(Messages.DATAFEED_ESQL_EMITTED_TIME_NULL, null, null);
         }
         if (rawValue instanceof List<?>) {
-            throw context.failure(EsqlEmittedTimeProblem.MULTI_VALUED, null, null);
+            throw context.failure(Messages.DATAFEED_ESQL_EMITTED_TIME_MULTI_VALUED, null, null);
         }
         final long emittedTimeMillis;
         try {
             emittedTimeMillis = EsqlDatafeedColumnValues.toEpochMillis(rawValue, emittedTimeIsDate);
         } catch (IllegalArgumentException | DateTimeException e) {
-            throw context.failure(EsqlEmittedTimeProblem.UNSUPPORTED_TYPE, null, e);
+            throw context.failure(Messages.DATAFEED_ESQL_EMITTED_TIME_UNSUPPORTED_TYPE, null, e);
         }
         if (emittedTimeMillis < sourceWindowStart) {
-            throw context.failure(EsqlEmittedTimeProblem.BEFORE_WINDOW, emittedTimeMillis, null);
+            throw context.failure(Messages.DATAFEED_ESQL_EMITTED_TIME_BEFORE_WINDOW, emittedTimeMillis, null);
         }
         if (emittedTimeMillis >= sourceWindowEnd) {
-            throw context.failure(EsqlEmittedTimeProblem.AT_OR_AFTER_WINDOW_END, emittedTimeMillis, null);
+            throw context.failure(Messages.DATAFEED_ESQL_EMITTED_TIME_AT_OR_AFTER_WINDOW_END, emittedTimeMillis, null);
         }
         return emittedTimeMillis;
     }
 
     private record EmittedTimeContext(String jobId, String emittedTimeField, long sourceWindowStart, long sourceWindowEnd) {
-        IllegalArgumentException failure(EsqlEmittedTimeProblem problem, @Nullable Long offendingValue, @Nullable Throwable cause) {
+        IllegalArgumentException failure(String messagePattern, @Nullable Long offendingValue, @Nullable Throwable cause) {
             return new IllegalArgumentException(
-                problem.format(jobId, emittedTimeField, sourceWindowStart, sourceWindowEnd, offendingValue),
+                Messages.getMessage(messagePattern, jobId, emittedTimeField, sourceWindowStart, sourceWindowEnd, offendingValue),
                 cause
             );
         }
+    }
+
+    /** The ES|QL datafeed subject, with the datafeed id when known (PUT-time validation may not have one). */
+    static String esqlDatafeedSubject(@Nullable String datafeedId) {
+        return datafeedId == null
+            ? Messages.DATAFEED_ESQL_SUBJECT
+            : Messages.getMessage(Messages.DATAFEED_ESQL_SUBJECT_WITH_ID, datafeedId);
     }
 
     private static int indexOfColumn(List<? extends ColumnInfo> columns, String columnName) {
@@ -441,7 +447,7 @@ public class EsqlDatafeedQueryValidator {
     }
 
     private static String missingTimeColumnMessage(String timeField, @Nullable String datafeedId) {
-        return Messages.getMessage(Messages.DATAFEED_ESQL_MISSING_TIME_COLUMN, Messages.esqlDatafeedSubject(datafeedId), timeField);
+        return Messages.getMessage(Messages.DATAFEED_ESQL_MISSING_TIME_COLUMN, esqlDatafeedSubject(datafeedId), timeField);
     }
 
     static void checkRequiredColumns(

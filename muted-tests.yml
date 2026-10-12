@@ -165,9 +165,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecK8sTimeseriesIT
   method: test {csv-spec:k8s-timeseries.firstAndLastWithNullSort}
   issue: https://github.com/elastic/elasticsearch/issues/153565
-- class: org.elasticsearch.xpack.esql.CsvFlattenedKeywordIT
-  method: test {csv-spec:scoring.testMatchAndQueryStringFunctionsWithScore}
-  issue: https://github.com/elastic/elasticsearch/issues/153614
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:inlinestats.afterWhere}
   issue: https://github.com/elastic/elasticsearch/issues/152591
@@ -580,23 +577,11 @@ tests:
 - class: org.elasticsearch.xpack.search.AsyncSearchActionIT
   method: testRemoveAsyncIndex
   issue: https://github.com/elastic/elasticsearch/issues/161316
-- class: org.elasticsearch.xpack.esql.action.ExternalSchemaDiscoveryBoundIT
-  method: testReadingQueryAfterSchemaDiscoverySeesEveryFile
-  issue: https://github.com/elastic/elasticsearch/issues/161359
-- class: org.elasticsearch.xpack.esql.action.ExternalSchemaDiscoveryBoundIT
-  method: testReadingQueryAfterSchemaDiscoveryOnDeclaredDatasetSeesEveryFile
-  issue: https://github.com/elastic/elasticsearch/issues/161360
-- class: org.elasticsearch.xpack.esql.action.ExternalSchemaDiscoveryBoundIT
-  method: testRepeatedSchemaDiscoveryAnswersTheSameSchema
-  issue: https://github.com/elastic/elasticsearch/issues/161361
 - class: org.elasticsearch.xpack.esql.qa.csv.TsvFormatSpecIT
   issue: https://github.com/elastic/elasticsearch/issues/161394
 - class: org.elasticsearch.integration.FieldLevelSecurityTests
   method: testPercolatorConstantKeywordQueryDependsOnIndexingUsersFls
   issue: https://github.com/elastic/elasticsearch/issues/161396
-- class: org.elasticsearch.xpack.esql.action.ExternalPartitionSpecPruningIT
-  method: testAwsHiveHourlySecondsRangeInsideOneHour
-  issue: https://github.com/elastic/elasticsearch/issues/161409
 - class: org.elasticsearch.xpack.esql.qa.parquet.ClickBenchParquetSpecIT
   issue: https://github.com/elastic/elasticsearch/issues/161413
 - class: org.elasticsearch.columnar.substrate.MonotonicTableTests
@@ -663,3 +648,15 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {yaml=aggregations/terms/Basic test}
   issue: https://github.com/elastic/elasticsearch/issues/161650
+- class: org.elasticsearch.xpack.esql.action.SubqueryIT
+  method: testNestedSubqueryOuterLimitWithQueuedLeaves
+  issue: https://github.com/elastic/elasticsearch/issues/161662
+- class: org.elasticsearch.xpack.esql.qa.csv.CsvCompressedFormatSpecIT
+  method: test {csv-spec:csv-multifile-resolution.omittedSalaryStats [csv.gz/S3]}
+  issue: https://github.com/elastic/elasticsearch/issues/161664
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.aggregateSalaryStats [ndjson.gz/S3]}
+  issue: https://github.com/elastic/elasticsearch/issues/161666
+- class: org.elasticsearch.xpack.stateless.commits.StatelessCommitNotificationsIT
+  method: testVbccRemainsServableUntilSearchTierNotificationCompletes
+  issue: https://github.com/elastic/elasticsearch/issues/161667

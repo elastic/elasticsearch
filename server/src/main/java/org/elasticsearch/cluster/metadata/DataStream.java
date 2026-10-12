@@ -843,10 +843,24 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      */
     @Nullable
     public DataStreamLifecycle getEffectiveDataLifecycle(boolean minimumLifecycleEnabled) {
-        if (lifecycle == null && minimumLifecycleEnabled && indexMode == IndexMode.TIME_SERIES) {
+        if (isMinimumLifecycleApplicable(minimumLifecycleEnabled)) {
             return DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE;
         }
         return lifecycle;
+    }
+
+    /**
+     * Returns true if the minimum lifecycle is applicable for this data stream.
+     */
+    public boolean isMinimumLifecycleApplicable(boolean minimumLifecycleEnabled) {
+        return lifecycle == null && minimumLifecycleEnabled && indexMode == IndexMode.TIME_SERIES;
+    }
+
+    /**
+     * Returns true if the minimum lifecycle is applicable for this index.
+     */
+    public boolean isMinimumLifecycleApplicable(String index, boolean minimumLifecycleEnabled) {
+        return backingIndices.containsIndex(index) && isMinimumLifecycleApplicable(minimumLifecycleEnabled);
     }
 
     /**

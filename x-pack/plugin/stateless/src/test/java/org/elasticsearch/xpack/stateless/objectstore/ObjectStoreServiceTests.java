@@ -1395,6 +1395,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
     public void testBccMultipartUploadRecordsBccMultipartUploadPartStartLatency() throws Exception {
         final var time = new AtomicLong(0);
         final var meterRegistry = new RecordingMeterRegistry();
+        final boolean isMultipart = randomBoolean();
         final var waitForUploadLatch = new CountDownLatch(1);
 
         try (
@@ -1447,10 +1448,13 @@ public class ObjectStoreServiceTests extends ESTestCase {
                             boolean failIfAlreadyExists,
                             Executor executor
                         ) throws IOException {
-                            // get 3 parts and advance the clock by 10, 20 and 30 milliseconds
-                            for (int part = 1; part <= 3; part++) {
+                            // a single upload asks for the whole blob (i.e., `blobSize`) at once while a multipart upload asks for
+                            // one part at a time advancing the clock by 10, 20 and 30 milliseconds before each request
+                            final int parts = isMultipart ? 3 : 1;
+
+                            for (int part = 1; part <= parts; part++) {
                                 time.addAndGet(TimeUnit.MILLISECONDS.toNanos(10L * part));
-                                provider.apply(0, blobSize).close();
+                                provider.apply(0, isMultipart ? blobSize / parts : blobSize).close();
                             }
                         }
                     };
@@ -1468,8 +1472,15 @@ public class ObjectStoreServiceTests extends ESTestCase {
 
             final var measurements = meterRegistry.getRecorder()
                 .getMeasurements(InstrumentType.LONG_HISTOGRAM, "es.stateless.bcc_multipart_upload.part_start.latency.histogram");
-            // time spent before the start of the upload is 10, 10 + 20 (=30), and 10 + 20 + 30 (=60) milliseconds
-            assertThat(measurements.stream().map(Measurement::getLong).toList(), equalTo(List.of(10L, 30L, 60L)));
+            // time since the start of the upload is 10, 10 + 20 (=30), and 10 + 20 + 30 (=60) milliseconds
+            assertThat(
+                measurements.stream().map(Measurement::getLong).toList(),
+                equalTo(isMultipart ? List.of(10L, 30L, 60L) : List.of(10L))
+            );
+            assertThat(
+                measurements.stream().map(m -> m.attributes().get("multipart")).toList(),
+                equalTo(isMultipart ? List.of(true, true, true) : List.of(false))
+            );
         }
     }
 

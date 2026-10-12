@@ -1777,7 +1777,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                             (offset, length) -> {
                                 // the repository calls this once per part, right before it starts uploading that part
                                 bccMultipartUploadPartStartLatencyHistogram.record(
-                                    TimeUnit.NANOSECONDS.toMillis(threadPool.relativeTimeInNanos() - uploadStartNanos)
+                                    TimeUnit.NANOSECONDS.toMillis(threadPool.relativeTimeInNanos() - uploadStartNanos),
+                                    Map.of("multipart", length < totalSizeInBytes)
                                 );
                                 return new LocalIOInputStream(virtualBatchedCompoundCommit.getFrozenInputStreamForUpload(offset, length));
                             },

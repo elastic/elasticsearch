@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -1415,6 +1416,9 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
         }
 
         @Override
+        public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+        @Override
         public boolean supportsNativeAsync() {
             return true;
         }
@@ -1512,6 +1516,9 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
     private static StorageObject createAsyncRangeReadStorageObject(byte[] data, ExecutorService pool, AtomicInteger asyncReadCount) {
         return new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -1575,6 +1582,9 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
     private static StorageObject createHungAsyncStorageObject(byte[] data, AtomicInteger streamReads) {
         return new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -1628,6 +1638,9 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
 
     private static StorageObject createRangeReadCountingStorageObject(byte[] data, RangeReadObserver observer) {
         return new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;

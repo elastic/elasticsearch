@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -2543,6 +2544,10 @@ public final class StreamingParallelParsingCoordinator {
         InputStreamStorageObject(InputStream stream) {
             this.stream = stream;
         }
+
+        /** A caller-supplied stream produces no storage I/O, so there are no counters to attach. */
+        @Override
+        public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
 
         @Override
         public InputStream newStream() {

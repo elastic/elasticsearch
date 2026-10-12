@@ -158,7 +158,7 @@ PUT /_query/dataset/vpc_flow_text
 
 When a mapping exposes the file column as `@timestamp`, bind `@timestamp` and omit the unit because
 the column is already a date. If the mapping renames a source column with `rename_from`, the partition spec
-must use the mapped field name. For example, when `@timestamp` has `path=start`, use
+must use the mapped field name. For example, when `@timestamp` is renamed from `start`, use
 `year(@timestamp)`. The `PUT` request rejects `year(start)`.
 
 A spec saved before the mapping rename continues to reference `start`, so it cannot prune filters on

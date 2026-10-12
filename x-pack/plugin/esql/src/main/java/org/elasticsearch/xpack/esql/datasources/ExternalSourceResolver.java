@@ -3868,7 +3868,7 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Physical names of the file-backed read columns. A declared {@code path} rename is applied so
+     * Physical names of the file-backed read columns. A declared {@code rename_from} is applied so
      * cache publication and footer-stat maps, which are physical-keyed, address the same columns
      * as the logical read schema.
      */
@@ -4728,7 +4728,7 @@ public class ExternalSourceResolver {
 
     /**
      * Declared-type columns as the physical file names {@link #aggregateFileStatistics} sees on
-     * each file's schema. {@link #declaredTypeColumnsOf} is logical; a {@code path} rename is
+     * each file's schema. {@link #declaredTypeColumnsOf} is logical; a {@code rename_from} is
      * applied here so membership matches the harvest. {@link DeclaredReadSpec} keeps the logical
      * set; {@link FileSourceFactory} physicalizes that copy at read time.
      */
@@ -4750,7 +4750,7 @@ public class ExternalSourceResolver {
 
     /**
      * The typed read-instructions a declared mapping produces for the data node: the logical&rarr;physical column
-     * renames of a {@code path} move and per-column date parse-patterns (keyed by
+     * renames declared with {@code rename_from} and per-column date parse-patterns (keyed by
      * logical column name). {@link DeclaredReadSpec#NONE} when there is no mapping or it declares none of these. Built
      * once per path in {@link #resolve} and carried on the {@code ResolvedSource}.
      */
@@ -4788,7 +4788,7 @@ public class ExternalSourceResolver {
      * {@link #rejectStrictColumnarUncoercibleTypes} reads the footer (cached) to validate the declared types against
      * the file's own — a coercible pair (e.g. {@code int64} declared {@code datetime}) is coerced by the reader at
      * decode time, an uncoercible one fails loud rather than yielding silent nulls. Both the user-facing output and the
-     * per-file schema carry the declared <b>logical</b> names (identity column mapping); a {@code path} rename is
+     * per-file schema carry the declared <b>logical</b> names (identity column mapping); a {@code rename_from} is
      * applied to physical only at
      * the reader boundary via {@link PhysicalNames}, so the operator and reconciliation stay in logical space.
      */
@@ -4808,7 +4808,7 @@ public class ExternalSourceResolver {
         StorageEntry storageEntry = new StorageEntry(storagePath, meta.length(), Instant.ofEpochMilli(meta.mtimeMillis()));
         FileList singletonList = GlobExpander.detectedFileListOf(List.of(storageEntry), path, PartitionConfig.fromConfig(config));
         pendingListingWarnings.addAll(singletonList.listingWarnings());
-        // Declared mapping is the whole schema, in LOGICAL names; a `path` rename is applied at the reader, so the
+        // Declared mapping is the whole schema, in LOGICAL names; a `rename_from` is applied at the reader, so the
         // operator (and file schema) work purely in logical names.
         DeclaredSchemaResolver.checkDeclaredWidth(declaredMapping, schemaMaxFields(config));
         List<Attribute> logicalSchema = DeclaredSchemaResolver.declaredAttributes(declaredMapping);
@@ -5143,7 +5143,7 @@ public class ExternalSourceResolver {
                 return;
             }
 
-            // Declared mapping is the whole schema, in LOGICAL names; a `path` rename is applied at the reader, so the
+            // Declared mapping is the whole schema, in LOGICAL names; a `rename_from` is applied at the reader, so the
             // operator (and file schema) work purely in logical names.
             DeclaredSchemaResolver.checkDeclaredWidth(declaredMapping, schemaMaxFields(config));
             List<Attribute> logicalSchema = DeclaredSchemaResolver.declaredAttributes(declaredMapping);
@@ -5326,7 +5326,7 @@ public class ExternalSourceResolver {
      * partition column is path-derived (the partition value is the same for every row of a file) and needs no declaring;
      * declaring one either conflicts with the declared schema's by-name binding (strict) or overlays/retypes the partition
      * attribute against the value the injector stamps with the partition's own type (non-strict) — a silent misbind
-     * either way. Checks both the declared logical name and its {@code path} physical, since the shadowed physical
+     * either way. Checks both the declared logical name and the file column it is renamed from, since the shadowed physical
      * column is the partition value too. No-op when the dataset is not partitioned.
      */
     private static void rejectDeclaredPartitionCollision(PartitionMetadata partitionMetadata, DatasetMapping declaredMapping) {
@@ -5614,7 +5614,7 @@ public class ExternalSourceResolver {
             );
         }
         // S1 boundary: the warm-aggregate _stats.* map on sourceMetadata is keyed PHYSICAL and holds INFERRED-type values;
-        // the declared overlay renames/retypes the plan afterwards. Rekey renames (a pure `path` move changes no value, so
+        // the declared overlay renames/retypes the plan afterwards. Rekey renames (a pure rename changes no value, so
         // the rekeyed stats stay exactly correct — warm serving survives the rename) and poison extrema + drop counts for
         // retyped / declared-date-format columns (the read-time coercion nulls failing cells and re-represents values, so
         // no pre-coercion stat matches a scan). row_count/file_count/size_bytes stay: COUNT(*) stays warm.
@@ -5681,7 +5681,7 @@ public class ExternalSourceResolver {
                 // type checked above. Under first_file_wins every fileSchema is the anchor's, so a later file's drift
                 // is left to the readers: its inferredTypes snapshot exists only for some query shapes or a warm
                 // cache, and checking it would make the outcome depend on those rather than on whether the column
-                // is read. Names are physical on both sides here (pre-overlay), matching the declared `path` physicals.
+                // is read. Names are physical on both sides here (pre-overlay), matching the declared file columns.
                 rejectUncoercibleFileTypedRetypes(
                     attributesToTypeMap(info.fileSchema().attributes()),
                     inferred.sourceType(),
@@ -5877,7 +5877,7 @@ public class ExternalSourceResolver {
                 // loudly rather than ignore a mapping the user declared.
                 if (declaredReadSpec.isEmpty() == false) {
                     throw new IllegalArgumentException(
-                        "declared mappings with column types, [path] renames, or a column [format] "
+                        "declared mappings with column types, column renames, or a column [format] "
                             + "are not supported for this source type"
                     );
                 }

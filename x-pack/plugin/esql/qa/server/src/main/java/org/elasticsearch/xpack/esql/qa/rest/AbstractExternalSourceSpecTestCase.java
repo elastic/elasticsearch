@@ -1118,13 +1118,13 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
     /**
      * Whether any declaration in this case names its source column with {@code rename_from} rather than the older
-     * {@code path}. Matched on the raw WITH JSON because that is what the PUT body carries, and the two spellings are
-     * interchangeable everywhere below it — so by the time a declaration is parsed, which one was written is gone.
+     * {@code path}. Answered from the directive's parse rather than its text, like {@link #declaresMappings()}, so an
+     * unrelated key or value spelled the same way does not skip the case.
      */
     private boolean declaresRenameFrom() {
         if (declaresRenameFromMemo == null) {
             declaresRenameFromMemo = testCase.datasetSources.stream()
-                .anyMatch(source -> source.withJson() != null && source.withJson().contains("\"rename_from\""));
+                .anyMatch(source -> DatasetRegistry.declaresRenameFrom(source.withJson()));
         }
         return declaresRenameFromMemo;
     }

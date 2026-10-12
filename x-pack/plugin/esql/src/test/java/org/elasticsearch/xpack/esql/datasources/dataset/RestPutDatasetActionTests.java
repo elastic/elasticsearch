@@ -49,6 +49,15 @@ public class RestPutDatasetActionTests extends ESTestCase {
         );
     }
 
+    /**
+     * Same reasoning for the capability gating every csv-spec case that declares a rename with the current
+     * {@code rename_from} spelling. Drop it from this set and the spec harness's {@code assumeTrue} silently skips
+     * those cases on every cluster, since an unknown capability reads as unsupported.
+     */
+    public void testRenameFromCapabilityIsAdvertised() {
+        assertThat(new RestPutDatasetAction(Set.of()).supportedCapabilities(), hasItem(EsqlDataSourcesCapabilities.DATASET_RENAME_FROM));
+    }
+
     /** Same reasoning for the capability gating the description length rejection pin. */
     public void testDescriptionLengthLimitCapabilityIsAdvertised() {
         assertThat(

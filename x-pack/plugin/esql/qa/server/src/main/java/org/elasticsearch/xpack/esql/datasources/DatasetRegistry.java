@@ -117,6 +117,8 @@ public final class DatasetRegistry {
      * nothing.
      */
     static final String MAPPINGS = "mappings";
+    private static final String PROPERTIES = "properties";
+    private static final String RENAME_FROM = "rename_from";
 
     /**
      * The two shapes a directive's {@code WITH {...}} JSON contributes to the PUT body: the format {@code settings},
@@ -177,6 +179,30 @@ public final class DatasetRegistry {
      */
     public static boolean declaresSetting(String withJson, String setting) {
         return parseUnchecked(withJson).settings().containsKey(setting);
+    }
+
+    /**
+     * Whether a {@code dataset:} directive declares a column rename under the current {@code rename_from} spelling,
+     * rather than its former spelling {@code path}. Answers from the same parse {@link #parseDirectiveOptions}
+     * performs, and looks only at a declared column's own keys — so a format setting of the same name, a value that
+     * merely equals the name, or a column literally called {@code rename_from} does not read as a rename.
+     * <p>
+     * Only the current spelling is reported, because only it needs gating: a node that predates it rejects the key as
+     * an unknown field and answers 400, while {@code path} is understood by every version.
+     */
+    public static boolean declaresRenameFrom(String withJson) {
+        Map<String, Object> mappings = parseUnchecked(withJson).mappings();
+        if (mappings == null) {
+            return false;
+        }
+        if (mappings.get(PROPERTIES) instanceof Map<?, ?> columns) {
+            for (Object column : columns.values()) {
+                if (column instanceof Map<?, ?> field && field.containsKey(RENAME_FROM)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**

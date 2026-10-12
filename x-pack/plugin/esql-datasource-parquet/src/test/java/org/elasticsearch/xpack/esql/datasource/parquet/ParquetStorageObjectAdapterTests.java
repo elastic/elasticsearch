@@ -41,6 +41,8 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.datasources.DrainSimulatingStorageObject;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -75,7 +77,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
 
     @Before
     public void initBreaker() {
-        breaker = new NoopCircuitBreaker("test");
+        breaker = NoopCircuitBreaker.INSTANCE;
     }
 
     public void testNullStorageObjectThrowsException() {
@@ -126,14 +128,192 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             assertEquals(0, limited.getUsed());
             byte[] buf = new byte[64];
             stream.readFully(buf);
-            assertEquals(data.length, watermark.used());
-            assertEquals(data.length, limited.getUsed());
+            assertEquals(HeapFootprint.byteArrayBytes(data.length), watermark.used());
+            assertEquals(HeapFootprint.byteArrayBytes(data.length), limited.getUsed());
             stream.readFully(buf);
-            assertEquals(data.length, watermark.used());
-            assertEquals(data.length, limited.getUsed());
+            assertEquals(HeapFootprint.byteArrayBytes(data.length), watermark.used());
+            assertEquals(HeapFootprint.byteArrayBytes(data.length), limited.getUsed());
         }
         assertEquals(0, watermark.used());
         assertEquals(0, limited.getUsed());
+    }
+
+    public void testReleaseIdleWindowsRefundsOnceAndReallocatesOnRead() throws IOException {
+        byte[] data = new byte[ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 1024];
+        randomBytes(data);
+        LimitedBreaker limited = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
+        ParquetIoWatermark watermark = new ParquetIoWatermark(64 * 1024 * 1024);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(
+            createRangeReadStorageObject(data),
+            footerByteCache,
+            limited,
+            watermark
+        );
+        long windowCharge = HeapFootprint.byteArrayBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE);
+        SeekableInputStream stream = adapter.newStream();
+        try {
+            assertEquals(1, adapter.trackedStreamCount());
+            byte[] first = new byte[64];
+            stream.readFully(first);
+            assertEquals(windowCharge, limited.getUsed());
+            assertEquals(windowCharge, watermark.used());
+            for (int i = 0; i < first.length; i++) {
+                assertEquals(data[i], first[i]);
+            }
+
+            adapter.releaseIdleWindows();
+            assertEquals(0, limited.getUsed());
+            assertEquals(0, watermark.used());
+            assertEquals(1, adapter.trackedStreamCount());
+
+            adapter.releaseIdleWindows();
+            assertEquals(0, limited.getUsed());
+            assertEquals(0, watermark.used());
+
+            stream.seek(4096);
+            byte[] afterSeek = new byte[32];
+            stream.readFully(afterSeek);
+            assertEquals(windowCharge, limited.getUsed());
+            assertEquals(windowCharge, watermark.used());
+            for (int i = 0; i < afterSeek.length; i++) {
+                assertEquals(data[4096 + i], afterSeek[i]);
+            }
+
+            adapter.releaseIdleWindows();
+            assertEquals(0, limited.getUsed());
+            assertEquals(0, watermark.used());
+
+            byte[] second = new byte[64];
+            stream.readFully(second);
+            assertEquals(windowCharge, limited.getUsed());
+            assertEquals(windowCharge, watermark.used());
+            for (int i = 0; i < second.length; i++) {
+                assertEquals("stale window after release at " + i, data[4096 + 32 + i], second[i]);
+            }
+        } finally {
+            stream.close();
+        }
+        assertEquals(0, limited.getUsed());
+        assertEquals(0, watermark.used());
+        assertEquals(0, adapter.trackedStreamCount());
+    }
+
+    public void testReleaseIdleWindowsNoopWhenNeverAllocatedAndAfterClose() throws IOException {
+        byte[] data = new byte[2048];
+        randomBytes(data);
+        LimitedBreaker limited = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
+        ParquetIoWatermark watermark = new ParquetIoWatermark(64 * 1024 * 1024);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(
+            createRangeReadStorageObject(data),
+            footerByteCache,
+            limited,
+            watermark
+        );
+        try (SeekableInputStream stream = adapter.newStream()) {
+            assertEquals(1, adapter.trackedStreamCount());
+            adapter.releaseIdleWindows();
+            assertEquals(0, limited.getUsed());
+            assertEquals(0, watermark.used());
+            assertEquals(1, adapter.trackedStreamCount());
+        }
+        assertEquals(0, adapter.trackedStreamCount());
+        adapter.releaseIdleWindows();
+        assertEquals(0, limited.getUsed());
+        assertEquals(0, watermark.used());
+    }
+
+    public void testCloseAfterReleaseIdleWindowsDoesNotDoubleRefund() throws IOException {
+        byte[] data = new byte[ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 1024];
+        randomBytes(data);
+        LimitedBreaker limited = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
+        ParquetIoWatermark watermark = new ParquetIoWatermark(64 * 1024 * 1024);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(
+            createRangeReadStorageObject(data),
+            footerByteCache,
+            limited,
+            watermark
+        );
+        try (SeekableInputStream stream = adapter.newStream()) {
+            stream.readFully(new byte[8]);
+            adapter.releaseIdleWindows();
+            assertEquals(0, limited.getUsed());
+            assertEquals(0, watermark.used());
+        }
+        assertEquals(0, limited.getUsed());
+        assertEquals(0, watermark.used());
+        assertEquals(0, adapter.trackedStreamCount());
+    }
+
+    public void testReleaseIdleWindowsReallocCircuitBreaksWithoutWatermarkCharge() throws IOException {
+        byte[] data = new byte[ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 1024];
+        randomBytes(data);
+        long windowCharge = HeapFootprint.byteArrayBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE);
+        LimitedBreaker limited = new LimitedBreaker("test", ByteSizeValue.ofBytes(windowCharge + 1024));
+        ParquetIoWatermark watermark = new ParquetIoWatermark(64 * 1024 * 1024);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(
+            createRangeReadStorageObject(data),
+            footerByteCache,
+            limited,
+            watermark
+        );
+        SeekableInputStream stream = adapter.newStream();
+        try {
+            stream.readFully(new byte[8]);
+            assertEquals(windowCharge, limited.getUsed());
+            assertEquals(windowCharge, watermark.used());
+            adapter.releaseIdleWindows();
+            assertEquals(0, limited.getUsed());
+            assertEquals(0, watermark.used());
+            limited.addEstimateBytesAndMaybeBreak(windowCharge, "filler");
+            expectThrows(CircuitBreakingException.class, () -> stream.readFully(new byte[8]));
+            assertEquals(windowCharge, limited.getUsed());
+            assertEquals(0, watermark.used());
+        } finally {
+            stream.close();
+        }
+        assertEquals(windowCharge, limited.getUsed());
+        assertEquals(0, watermark.used());
+        assertEquals(0, adapter.trackedStreamCount());
+    }
+
+    public void testReleaseIdleWindowsRefundsTwoOpenStreams() throws IOException {
+        byte[] data = new byte[ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 1024];
+        randomBytes(data);
+        long windowCharge = HeapFootprint.byteArrayBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE);
+        LimitedBreaker limited = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
+        ParquetIoWatermark watermark = new ParquetIoWatermark(64 * 1024 * 1024);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(
+            createRangeReadStorageObject(data),
+            footerByteCache,
+            limited,
+            watermark
+        );
+        SeekableInputStream first = adapter.newStream();
+        SeekableInputStream second = adapter.newStream();
+        try {
+            first.readFully(new byte[8]);
+            second.readFully(new byte[8]);
+            assertEquals(2, adapter.trackedStreamCount());
+            assertEquals(2 * windowCharge, limited.getUsed());
+            assertEquals(2 * windowCharge, watermark.used());
+            adapter.releaseIdleWindows();
+            assertEquals(0, limited.getUsed());
+            assertEquals(0, watermark.used());
+            first.close();
+            first = null;
+            assertEquals(1, adapter.trackedStreamCount());
+            adapter.releaseIdleWindows();
+            assertEquals(0, limited.getUsed());
+            assertEquals(0, watermark.used());
+        } finally {
+            if (first != null) {
+                first.close();
+            }
+            second.close();
+        }
+        assertEquals(0, limited.getUsed());
+        assertEquals(0, watermark.used());
+        assertEquals(0, adapter.trackedStreamCount());
     }
 
     /**
@@ -183,6 +363,9 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
 
     private static StorageObject incompleteWindowStorage(StorageObject raw) {
         return new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
@@ -281,7 +464,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             try (SeekableInputStream stream = adapter.newStream()) {
                 assertEquals(0, parent.getUsed());
                 stream.readFully(new byte[data.length]);
-                assertEquals(data.length, parent.getUsed());
+                assertEquals(HeapFootprint.byteArrayBytes(data.length), parent.getUsed());
             }
             assertEquals(0, parent.getUsed());
         } finally {
@@ -299,7 +482,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         try (SeekableInputStream stream = adapter.newStream()) {
             assertEquals(0, limited.getUsed());
             stream.readFully(new byte[data.length]);
-            assertEquals(data.length, limited.getUsed());
+            assertEquals(HeapFootprint.byteArrayBytes(data.length), limited.getUsed());
         }
         assertEquals(0, limited.getUsed());
     }
@@ -318,7 +501,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             assertEquals(0, limited.getUsed());
             byte[] buf = new byte[data.length];
             stream.readFully(buf);
-            assertEquals(data.length, limited.getUsed());
+            assertEquals(HeapFootprint.byteArrayBytes(data.length), limited.getUsed());
             assertArrayEquals(data, buf);
         }
         assertEquals(0, limited.getUsed());
@@ -333,7 +516,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         try (SeekableInputStream stream = adapter.newStream()) {
             assertEquals(0, limited.getUsed());
             assertEquals(data[0] & 0xFF, stream.read());
-            assertEquals(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE, limited.getUsed());
+            assertEquals(HeapFootprint.byteArrayBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE), limited.getUsed());
         }
         assertEquals(0, limited.getUsed());
     }
@@ -375,11 +558,11 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         try (SeekableInputStream stream = adapter.newStream()) {
             assertEquals(0, limited.getUsed());
             assertEquals(data[0] & 0xFF, stream.read());
-            assertEquals(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE, limited.getUsed());
-            assertEquals(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE, watermark.used());
+            assertEquals(HeapFootprint.byteArrayBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE), limited.getUsed());
+            assertEquals(HeapFootprint.byteArrayBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE), watermark.used());
             stream.readFully(new byte[ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 63]);
-            assertEquals(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE, limited.getUsed());
-            assertEquals(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE, watermark.used());
+            assertEquals(HeapFootprint.byteArrayBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE), limited.getUsed());
+            assertEquals(HeapFootprint.byteArrayBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE), watermark.used());
         }
         assertEquals(0, limited.getUsed());
         assertEquals(0, watermark.used());
@@ -403,8 +586,8 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             stream.seek(200);
             stream.readFully(new byte[200]);
             assertEquals(0, rangeReadCount.get());
-            assertEquals(data.length, limited.getUsed());
-            assertEquals(data.length, watermark.used());
+            assertEquals(HeapFootprint.byteArrayBytes(data.length), limited.getUsed());
+            assertEquals(HeapFootprint.byteArrayBytes(data.length), watermark.used());
         }
         assertEquals(0, limited.getUsed());
         assertEquals(0, watermark.used());
@@ -425,8 +608,8 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             stream.seek(tailStart);
             stream.readFully(tail);
             assertEquals(1, rangeReadCount.get());
-            assertEquals(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE, limited.getUsed());
-            assertEquals(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE, watermark.used());
+            assertEquals(HeapFootprint.byteArrayBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE), limited.getUsed());
+            assertEquals(HeapFootprint.byteArrayBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE), watermark.used());
         }
         assertEquals(0, limited.getUsed());
         assertEquals(0, watermark.used());
@@ -435,8 +618,8 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             stream.seek(tailStart);
             stream.readFully(new byte[1024]);
             assertEquals(1, rangeReadCount.get());
-            assertEquals(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE, limited.getUsed());
-            assertEquals(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE, watermark.used());
+            assertEquals(HeapFootprint.byteArrayBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE), limited.getUsed());
+            assertEquals(HeapFootprint.byteArrayBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE), watermark.used());
         }
         assertEquals(0, limited.getUsed());
         assertEquals(0, watermark.used());
@@ -452,8 +635,8 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(failing, footerByteCache, limited, watermark);
         try (SeekableInputStream stream = adapter.newStream()) {
             expectThrows(IOException.class, () -> stream.readFully(new byte[1024]));
-            assertEquals(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE, limited.getUsed());
-            assertEquals(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE, watermark.used());
+            assertEquals(HeapFootprint.byteArrayBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE), limited.getUsed());
+            assertEquals(HeapFootprint.byteArrayBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE), watermark.used());
         }
         assertEquals(0, limited.getUsed());
         assertEquals(0, watermark.used());
@@ -845,6 +1028,9 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         byte[] data = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
         StorageObject rangeOnlyStorageObject = new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -906,6 +1092,9 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         randomBytes(data);
         final int[] rangeReadCount = { 0 };
         StorageObject countingStorageObject = new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
@@ -973,6 +1162,9 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
 
         StorageObject countingStorageObject = new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -1038,6 +1230,9 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         final int[] rangeReadCount = { 0 };
 
         StorageObject rangeOnlyCounting = new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
@@ -1125,6 +1320,9 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         final int[] maxRequestedLength = { 0 };
 
         StorageObject measuringStorageObject = new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
@@ -1256,6 +1454,9 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
 
         StorageObject countingStorageObject = new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -1327,6 +1528,9 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
 
     private StorageObject createStorageObject(byte[] data) {
         return new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
@@ -1671,6 +1875,9 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
 
         StorageObject obj = new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -1844,6 +2051,9 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
 
     private StorageObject createCountingStorageObject(byte[] data, StoragePath path, Instant lastModified, int[] counter) {
         return new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
@@ -2098,6 +2308,9 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
     private StorageObject createRecordingRangeReadStorageObject(byte[] data, List<long[]> rangeGets) {
         return new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -2139,6 +2352,9 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
 
     private StorageObject createCountingRangeReadStorageObject(byte[] data, AtomicInteger counter) {
         return new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
@@ -2226,6 +2442,9 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
     private StorageObject createRangeReadStorageObject(byte[] data) {
         return new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -2270,4 +2489,22 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         assert enabled = true;
         return enabled;
     }
+
+    /**
+     * Split windows snap to the two region-friendly sizes: a range that fits the default gets the default, any larger
+     * range gets the cap. An in-between window (say 6 MiB) would be humongous and occupy 8 MiB of heap at 4 MiB and
+     * 8 MiB G1 regions anyway.
+     */
+    public void testForRangeWindowSnapsToRegionFriendlySizes() {
+        int defaultWindow = ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE;
+        int maxWindow = ParquetStorageObjectAdapter.MAX_WINDOW_SIZE;
+        assertEquals(HeapFootprint.regionFriendlyLength(4 * 1024 * 1024), defaultWindow);
+        assertEquals(HeapFootprint.regionFriendlyLength(8 * 1024 * 1024), maxWindow);
+        assertEquals(defaultWindow, ParquetStorageObjectAdapter.windowSizeForRange(0));
+        assertEquals(defaultWindow, ParquetStorageObjectAdapter.windowSizeForRange(randomLongBetween(1, defaultWindow)));
+        assertEquals(maxWindow, ParquetStorageObjectAdapter.windowSizeForRange(defaultWindow + 1L));
+        assertEquals(maxWindow, ParquetStorageObjectAdapter.windowSizeForRange(randomLongBetween(defaultWindow + 1L, maxWindow)));
+        assertEquals(maxWindow, ParquetStorageObjectAdapter.windowSizeForRange(randomLongBetween(maxWindow, Long.MAX_VALUE)));
+    }
+
 }

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.test.ESTestCase;
@@ -17,9 +18,12 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.SplitDiscoveryPhase;
+import org.elasticsearch.xpack.esql.datasources.glob.PlanningMemory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -109,7 +113,17 @@ public class DataNodeComputeHandlerExternalErrorTests extends ESTestCase {
 
         ElasticsearchException e = expectThrows(
             ElasticsearchException.class,
-            () -> SplitDiscoveryPhase.resolveExternalSplits(exec, Map.of(sourceType, factory))
+            () -> SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+                exec,
+                Map.of(sourceType, factory),
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                () -> false,
+                List.of(),
+                FormatReader.NO_LIMIT,
+                PlanningMemory.NONE,
+                0,
+                TransportVersion.current()
+            )
         );
 
         assertThat(e.getMessage(), containsString("*.parquet"));

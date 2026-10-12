@@ -206,7 +206,7 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
     }
 
     public void testResolutionIoFoldThenPlanningFold() {
-        ExternalPlanningReservation reservation = new ExternalPlanningReservation(new NoopCircuitBreaker("test"));
+        ExternalPlanningReservation reservation = new ExternalPlanningReservation(NoopCircuitBreaker.INSTANCE);
         try (var ignored = ExternalPlanningIo.activate(reservation.planningIo())) {
             ExternalPlanningIo.addMetadataGet(93);
             ExternalPlanningIo.addStreamBytes(7);

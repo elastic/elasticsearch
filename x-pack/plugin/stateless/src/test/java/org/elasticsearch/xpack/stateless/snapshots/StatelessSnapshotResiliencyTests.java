@@ -1213,7 +1213,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         clusterService.getClusterSettings(),
                         mock(SearchCommitPrefetcher.PrefetchExecutor.class), // prefetch is disabled
                         new SearchCommitPrefetcherDynamicSettings(clusterService.getClusterSettings()),
-                        new NoopCircuitBreaker("stateless_reader_heap"),
+                        NoopCircuitBreaker.INSTANCE,
                         StatelessReaderHeapMetrics.NOOP,
                         new ReshardSearchFilters(Settings.EMPTY)
                     );

@@ -928,7 +928,8 @@ public final class GlobExpander {
                     matcher,
                     nameFilter,
                     partitionHints,
-                    maxDiscoveredFiles
+                    maxDiscoveredFiles,
+                    glob
                 );
                 // An all-pruned walk keeps one inference-anchor file from a pruned folder. The row filter still
                 // yields zero matching rows; the resolver needs the file to infer schema. A probe miss falls
@@ -2292,8 +2293,8 @@ public final class GlobExpander {
     /**
      * Whether {@code glob} is a shape the partition walk can narrow: a leading {@code **}, or a leading Hive
      * {@code key=*} segment. {@code year=*}/{@code city=*} is the keyed form a multi-value hint no longer rewrites.
-     * A deeper unhinted {@code key=*} ({@code year=*}/{@code city=*} when only {@code city} is filtered) is not
-     * this: the walk still probes the first level and withdraws rather than listing every parent.
+     * A keyed glob may descend an unhinted leading {@code key=*} when a hinted key of that glob is still pending;
+     * a {@code **} glob still withdraws at the first unhinted level.
      */
     private static boolean walkableGlob(String glob) {
         if (globstarLeads(glob)) {

@@ -42,6 +42,8 @@ A data source's credentials are masked when its definition is read back, and at 
 
 Dataset operations are authorized by the standard {{es}} [index privileges](../../elasticsearch/security-privileges.md#privileges-list-indices), so a role that already administers or reads the matching index names covers datasets with no additional grant.
 
+These privileges control what users can do in {{es}}. What a data source can read in external storage is controlled by your cloud provider. Refer to [grant read access to your data](esql-data-federation-sources.md#grant-read-access).
+
 | Operation | Privilege | Type |
 |---|---|---|
 | Query a dataset | `read` | Index, on the dataset name |

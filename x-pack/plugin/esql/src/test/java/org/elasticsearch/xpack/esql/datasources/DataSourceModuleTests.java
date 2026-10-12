@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -86,7 +87,7 @@ public class DataSourceModuleTests extends ESTestCase {
 
     @Before
     public void initBlockFactory() {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
     /**
@@ -348,6 +349,9 @@ public class DataSourceModuleTests extends ESTestCase {
                 throw new IllegalArgumentException("Length mismatch for path [" + path + "]: " + length + " vs " + payload.length);
             }
             return new StorageObject() {
+                @Override
+                public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
                 @Override
                 public StorageIdentity storageIdentity() {
                     return AbstractTestStorageObject.NOOP;

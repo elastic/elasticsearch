@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 161288
+summary: Park Parquet scans on `waitForReady`
+type: enhancement

@@ -128,12 +128,12 @@ public class EsqlQueryLogTests extends ESTestCase {
 
                 // Checks values for all planning timespans
                 for (TimeSpanMarker timeSpan : warnQuery.queryProfile().timeSpanMarkers()) {
-                    String tookValue = msg.get(ELASTICSEARCH_QUERYLOG_PREFIX + timeSpan.name() + ELASTICSEARCH_QUERYLOG_TOOK_SUFFIX);
+                    String tookValue = msg.get(ELASTICSEARCH_QUERYLOG_PREFIX + "." + timeSpan.name() + ELASTICSEARCH_QUERYLOG_TOOK_SUFFIX);
                     assertNotNull(tookValue);
                     Long timeSpanTook = Long.valueOf(tookValue);
                     long timeSpanTookMillisExpected = timeSpanTook / 1_000_000;
                     String tookValueMillis = msg.get(
-                        ELASTICSEARCH_QUERYLOG_PREFIX + timeSpan.name() + ELASTICSEARCH_QUERYLOG_TOOK_MILLIS_SUFFIX
+                        ELASTICSEARCH_QUERYLOG_PREFIX + "." + timeSpan.name() + ELASTICSEARCH_QUERYLOG_TOOK_MILLIS_SUFFIX
                     );
                     assertNotNull(tookValueMillis);
                     long timeSpanTookMillis = Long.valueOf(tookValueMillis);

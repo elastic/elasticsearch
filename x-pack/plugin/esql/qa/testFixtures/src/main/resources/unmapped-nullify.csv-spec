@@ -1056,6 +1056,31 @@ book_no:keyword | author:text                                        | does_not_
 2847            | Colleen Faulkner                                   | null                      | null
 ;
 
+// A nullified field never matches, so only the mapped-field leg of the disjunction contributes rows.
+fullTextFunctionsOnNullifiedField
+required_capability: optional_fields_nullify_tech_preview
+required_capability: match_function
+required_capability: match_phrase_function
+required_capability: match_operator_colon
+required_capability: full_text_functions_accept_null_field
+
+SET unmapped_fields="nullify"\;
+FROM books
+| WHERE MATCH(does_not_exist_field, "Faulkner")
+    OR MATCH_PHRASE(does_not_exist_field, "William Faulkner")
+    OR does_not_exist_field:"Faulkner"
+    OR MATCH(author, "Faulkner")
+| KEEP book_no, author
+| SORT book_no
+| LIMIT 3
+;
+
+book_no:keyword | author:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+;
+
 tsImplicitTimestampSortBasicWithMissing
 required_capability: ts_command_v0
 required_capability: ts_implicit_timestamp_sort

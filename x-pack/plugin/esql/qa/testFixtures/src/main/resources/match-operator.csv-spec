@@ -1150,6 +1150,71 @@ content:text
 [This is a brown dog, extra]
 ;
 
+matchOnTextWithRowNegated
+
+required_capability: match_operator_colon
+required_capability: fn_match_runtime_filter
+
+ROW content = to_text(["This is a brown fox", "This is a brown dog", "This dog is really brown"])
+| MV_EXPAND content
+| WHERE NOT content:"dog"
+;
+
+content:text
+This is a brown fox
+;
+
+matchOnRuntimeTextAfterRename
+
+required_capability: match_operator_colon
+required_capability: fn_match_runtime_filter
+
+ROW content = to_text(["This is a brown fox", "This is a brown dog"])
+| MV_EXPAND content
+| RENAME content AS renamed
+| WHERE renamed:"fox"
+;
+
+renamed:text
+This is a brown fox
+;
+
+matchOnRuntimeTextAfterStats
+
+required_capability: match_operator_colon
+required_capability: fn_match_runtime_anywhere
+
+FROM books
+| STATS max_year = max(year) BY book_no
+| EVAL b = to_text(book_no)
+| WHERE b:"2130"
+| KEEP book_no, max_year
+;
+
+book_no:keyword | max_year:integer
+2130            | 2002
+;
+
+matchOnRuntimeTextAfterFork
+
+required_capability: match_operator_colon
+required_capability: fork_v9
+required_capability: fn_match_runtime_anywhere
+
+ROW content = to_text(["This is a brown fox", "This is a brown dog"])
+| MV_EXPAND content
+| FORK (WHERE true)
+       (WHERE true)
+| WHERE content:"fox"
+| KEEP content, _fork
+| SORT _fork
+;
+
+content:text        | _fork:keyword
+This is a brown fox | fork1
+This is a brown fox | fork2
+;
+
 matchOnRuntimeKeyword
 
 required_capability: match_operator_colon

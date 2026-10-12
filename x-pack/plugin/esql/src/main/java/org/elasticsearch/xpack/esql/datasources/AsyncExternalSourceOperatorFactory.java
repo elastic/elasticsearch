@@ -1525,6 +1525,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         return objectPath == null ? null : objectPath.objectName();
     }
 
+    /** Whether planning installed a numeric or {@code BYTES_REF} TopN threshold supplier for this factory. */
+    private boolean thresholdInstalled() {
+        return thresholdSupplier != null || minCompetitiveSupplier != null;
+    }
+
     /**
      * The shared TopN threshold for this factory's readers, built on first use and torn down by
      * {@link #closeDynamicThreshold()} once the last operator hold is released. Returns {@code null}
@@ -1540,7 +1545,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     @Nullable
     private DynamicThreshold dynamicThreshold() {
         DynamicThreshold threshold = cachedThreshold;
-        if (threshold != null || (thresholdSupplier == null && minCompetitiveSupplier == null)) {
+        if (threshold != null || thresholdInstalled() == false) {
             return threshold;
         }
         synchronized (this) {
@@ -1587,13 +1592,21 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
     /**
      * Whether the readers can stop opening units: the TopN threshold reports no further
-     * candidates, or the pushed/observed LIMIT is exhausted. Package-private so tests can issue a
-     * probe after the last operator hold was released (see {@link #dynamicThreshold()}).
+     * candidates, the pushed/observed LIMIT is exhausted, or a threshold is installed but can no
+     * longer be built because the last operator hold is gone. In that last case the threshold and
+     * the storage lease have been closed and no consumer is left, so a probe that outlived its
+     * operator must stop rather than fall through to a limiter that may still report "keep going".
+     * Package-private so tests can issue a probe after the last operator hold was released (see
+     * {@link #dynamicThreshold()}).
      */
     boolean noFurtherCandidates() {
-        DynamicThreshold threshold = dynamicThreshold();
-        if (threshold != null && threshold.noFurtherCandidates()) {
-            return true;
+        if (thresholdInstalled()) {
+            DynamicThreshold threshold = dynamicThreshold();
+            // With a supplier installed, dynamicThreshold() only yields null once the holds are gone (and it has
+            // logged the late caller).
+            if (threshold == null || threshold.noFurtherCandidates()) {
+                return true;
+            }
         }
         Limiter limiter = sourceLimiter != null ? sourceLimiter : observedLimiter;
         return limiter != null && limiter.remaining() == 0;

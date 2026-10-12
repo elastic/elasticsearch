@@ -130,9 +130,9 @@ public class AsyncExternalSourceOperatorFactoryThresholdTests extends ESTestCase
         operator.close();
         assertThat(breaker.getUsed(), equalTo(0L));
 
-        // A probe arriving after that must not charge anything again. It falls through to the (absent) limiter, so it
-        // reports no further candidates; only the breaker assertion distinguishes the guard from an orphan rebuild.
-        assertFalse(factory.noFurtherCandidates());
+        // A probe arriving after that must not charge anything again, and with no consumer left it must tell the
+        // caller to stop rather than fall through to the (absent) limiter and report "keep going".
+        assertTrue(factory.noFurtherCandidates());
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 

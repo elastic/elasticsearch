@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 158868
-pr: 161111
-summary: Skip data nodes once received rows satisfy LIMIT
-type: bug

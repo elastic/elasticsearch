@@ -455,8 +455,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         this.slowTranslogUploadLogThresholdMillis = OBJECT_STORE_SLOW_TRANSLOG_UPLOAD_LOG_THRESHOLD_SETTING.get(settings).getMillis();
         this.bccMultipartUploadQueueLatencyHistogram = meterRegistry.registerLongHistogram(
             "es.stateless.bcc_multipart_upload.queue.latency.histogram",
-            "time a upload-part task waits (during multi-part uploads) before running that includes the queueing in both the" +
-                " runner and the SHARD_WRITE thread pool (only applicable to S3 and GCP)",
+            "time a upload-part task waits (during multi-part uploads) before running that includes the queueing in both the"
+                + " runner and the SHARD_WRITE thread pool (only applicable to S3 and GCP)",
             "milliseconds"
         );
     }

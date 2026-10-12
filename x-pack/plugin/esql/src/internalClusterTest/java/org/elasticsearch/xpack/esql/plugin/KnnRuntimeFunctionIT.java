@@ -18,7 +18,6 @@ import static org.hamcrest.CoreMatchers.containsString;
  */
 public class KnnRuntimeFunctionIT extends AbstractEsqlIntegTestCase {
     public void testKnnRuntimeNonUnitQueryVector() {
-        assumeTrue("requires query pragmas", canUseQueryPragmas());
         assumeTrue("requires runtime search support", EsqlCapabilities.Cap.KNN_RUNTIME_FIELD.isEnabled());
 
         var query = """
@@ -36,7 +35,6 @@ public class KnnRuntimeFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testKnnRuntimeZeroMagnitudeQueryVector() {
-        assumeTrue("requires query pragmas", canUseQueryPragmas());
         assumeTrue("requires runtime search support", EsqlCapabilities.Cap.KNN_RUNTIME_FIELD.isEnabled());
 
         var query = """

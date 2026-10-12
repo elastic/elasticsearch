@@ -90,9 +90,8 @@ public class Knn extends SingleFieldFullTextFunction
         ConfigurationFunction {
 
     /**
-     * Marks nodes that run KNN's runtime search (over a non-index-mapped field or expression) by default, rather than
-     * only behind the now-removed snapshot build + pragma gate. Older nodes have the runtime evaluators but keep them
-     * disabled, so they mis-plan such a query; the {@code Verifier} uses this to fail fast with a 4xx when any
+     * Marks nodes that support KNN over a non-index-mapped field or expression.
+     * The {@code LogicalVerifier} uses this to fail fast with a 4xx when any
      * participating node (including a CCS remote) predates the release.
      */
     public static final TransportVersion ESQL_KNN_RUNTIME_FIELD = TransportVersion.fromName("esql_knn_runtime_field");

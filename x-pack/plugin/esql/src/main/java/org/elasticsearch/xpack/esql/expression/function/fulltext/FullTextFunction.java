@@ -232,8 +232,6 @@ public abstract class FullTextFunction extends Function
      * Whether this function can search an expression at all, as opposed to {@link #isRuntimeSearch()}, which says
      * whether the call in hand does. A function that cannot has no alternative to offer when it is rejected for
      * needing the index, so error messages naming that restriction only qualify it for functions that can.
-     * <p>
-     * Not necessarily constant per class: {@code KNN} answers from its configuration.
      */
     public abstract boolean supportsRuntimeSearch();
 

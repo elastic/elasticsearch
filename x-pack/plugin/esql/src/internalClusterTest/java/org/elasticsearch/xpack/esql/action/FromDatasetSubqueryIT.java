@@ -1663,6 +1663,25 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
         }
     }
 
+    /**
+     * The request filter and a runtime MATCH both filter the same dataset reads, so only rows passing both remain:
+     * the range drops Alice (emp_no 1) and the match drops the Sales rows.
+     */
+    public void testMatchOnDatasetWithRequestFilter() {
+        registerEmployees();
+        registerEmployeesAlt();
+        for (String condition : List.of("MATCH(department, \"Engineering\")", "MATCH(TO_TEXT(department), \"engineering\")")) {
+            var request = syncEsqlQueryRequest("FROM (FROM employees), (FROM employees_alt) | WHERE " + condition + """
+                 | KEEP emp_no
+                 | SORT emp_no
+                """);
+            request.filter(QueryBuilders.rangeQuery("emp_no").gte(2));
+            try (var response = run(request, TIMEOUT)) {
+                assertThat(condition, getValuesList(response), equalTo(List.of(List.of(2), List.of(10))));
+            }
+        }
+    }
+
     public void testForkAfterSubqueryOnDatasetsWithRequestFilter() {
         registerEmployees();
         registerEmployeesAlt();

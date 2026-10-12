@@ -135,6 +135,34 @@ public class ExternalParquetHivePartitionedIT extends AbstractExternalDataSource
     }
 
     /**
+     * Runtime full-text search over a path-derived partition column. Partition pruning does not understand MATCH,
+     * so every partition is scanned and the match filters the rows; a COUNT(*) over the match must likewise be
+     * computed from the scan rather than served from file stats.
+     */
+    public void testMatchOnPartitionColumn() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+
+        Path root = createTempDir().resolve("hive_parquet_match");
+        writeSingleColumnIdParquet(root.resolve("p=a"), 3); // ids 0,1,2
+        writeSingleColumnIdParquet(root.resolve("p=b"), 2); // ids 0,1
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String glob = StoragePath.fileUri(root) + "/**/*.parquet";
+        String dataset = registerDataset("hive_parquet_match", glob, Map.of("partition_detection", "hive"));
+
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | WHERE MATCH(p, \"b\") | KEEP p, id | SORT id"))) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of("b", 0), List.of("b", 1))));
+        }
+        try (
+            var response = run(syncEsqlQueryRequest("FROM " + dataset + " | WHERE MATCH_PHRASE(TO_TEXT(p), \"B\") | KEEP p, id | SORT id"))
+        ) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of("b", 0), List.of("b", 1))));
+        }
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | WHERE p : \"a\" | STATS c = COUNT(*)"))) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(3L))));
+        }
+    }
+
+    /**
      * Immune-path regression pin for the partitioned-text {@code COUNT(*)} fix.
      * A bare {@code COUNT(*)} over a Hive-partitioned <em>Parquet</em> dataset is served from footer/stripe
      * row-count stats via {@code ComputeService.canSkipSplitDiscovery} → {@code resolveCount} with no scan

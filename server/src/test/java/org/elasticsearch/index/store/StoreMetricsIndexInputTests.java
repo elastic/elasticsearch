@@ -26,6 +26,7 @@ import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.util.Arrays;
+import java.util.function.IntFunction;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static org.mockito.ArgumentMatchers.any;
@@ -40,6 +41,8 @@ import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.withSettings;
 
 public class StoreMetricsIndexInputTests extends ESTestCase {
+
+    private static final IntFunction<MemorySegment> NO_COPY = len -> { throw new AssertionError("unexpected copy into scratch"); };
 
     public void testReadByteUpdatesMetrics() throws Exception {
         PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
@@ -225,14 +228,15 @@ public class StoreMetricsIndexInputTests extends ESTestCase {
     public void testWithByteBufferSliceDelegatesToDAI() throws IOException {
         PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
         IndexInput mockInput = mock(IndexInput.class, withSettings().extraInterfaces(DirectAccessInput.class));
-        when(((DirectAccessInput) mockInput).withMemorySegmentSlice(anyLong(), anyLong(), any())).thenReturn(true);
+        when(((DirectAccessInput) mockInput).withMemorySegmentSlice(anyLong(), anyLong(), any(), any())).thenReturn(true);
 
         IndexInput decorated = StoreMetricsIndexInput.create("test", mockInput, metricHolder);
         assertThat(decorated, Matchers.instanceOf(DirectAccessInput.class));
 
+        IntFunction<MemorySegment> scratch = len -> Arena.ofAuto().allocate(len);
         CheckedConsumer<MemorySegment, IOException> action = ms -> {};
-        assertTrue(((DirectAccessInput) decorated).withMemorySegmentSlice(42L, 128L, action));
-        verify((DirectAccessInput) mockInput).withMemorySegmentSlice(eq(42L), eq(128L), eq(action));
+        assertTrue(((DirectAccessInput) decorated).withMemorySegmentSlice(42L, 128L, scratch, action));
+        verify((DirectAccessInput) mockInput).withMemorySegmentSlice(eq(42L), eq(128L), eq(scratch), eq(action));
     }
 
     // Verifies that withMemorySegmentSlice returns false when the wrapped input implements neither DirectAccessInput nor
@@ -243,7 +247,7 @@ public class StoreMetricsIndexInputTests extends ESTestCase {
         IndexInput decorated = StoreMetricsIndexInput.create("test", mockInput, metricHolder);
 
         assertThat(decorated, Matchers.instanceOf(DirectAccessInput.class));
-        assertFalse(((DirectAccessInput) decorated).withMemorySegmentSlice(0L, 10L, ms -> fail("action should not be called")));
+        assertFalse(((DirectAccessInput) decorated).withMemorySegmentSlice(0L, 10L, NO_COPY, ms -> fail("action should not be called")));
     }
 
     // Verifies that the bulk withSliceAddresses delegates to the wrapped input when it implements DirectAccessInput.
@@ -371,7 +375,9 @@ public class StoreMetricsIndexInputTests extends ESTestCase {
             writeFile(dir, "data", data);
             PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
             try (IndexInput in = StoreMetricsIndexInput.create("data", dir.openInput("data", IOContext.DEFAULT), metricHolder)) {
-                assertFalse(((DirectAccessInput) in).withMemorySegmentSlice(16, 64, segment -> fail("action should not be called")));
+                assertFalse(
+                    ((DirectAccessInput) in).withMemorySegmentSlice(16, 64, NO_COPY, segment -> fail("action should not be called"))
+                );
                 assertEquals(0, metricHolder.instance().getBytesRead());
 
                 in.seek(16);

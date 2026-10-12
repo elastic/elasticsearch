@@ -72,6 +72,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING;
@@ -108,6 +109,8 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
+
+    private static final IntFunction<MemorySegment> NO_COPY = len -> { throw new AssertionError("unexpected copy into scratch"); };
 
     private ThreadPool threadPool;
 
@@ -850,7 +853,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             assertArrayEquals(input, output);
 
             // Now verify withMemorySegmentSlice provides the correct data
-            boolean available = indexInput.withMemorySegmentSlice(0, input.length, seg -> {
+            boolean available = indexInput.withMemorySegmentSlice(0, input.length, NO_COPY, seg -> {
                 assertTrue(seg.isReadOnly());
                 assertEquals(input.length, seg.byteSize());
                 byte[] sliceBytes = new byte[input.length];
@@ -863,7 +866,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             if (input.length > 10) {
                 int subOffset = randomIntBetween(1, input.length / 2);
                 int subLength = randomIntBetween(1, input.length - subOffset);
-                boolean subAvailable = indexInput.withMemorySegmentSlice(subOffset, subLength, seg -> {
+                boolean subAvailable = indexInput.withMemorySegmentSlice(subOffset, subLength, NO_COPY, seg -> {
                     byte[] subBytes = new byte[subLength];
                     MemorySegment.ofArray(subBytes).copyFrom(seg);
                     assertArrayEquals(Arrays.copyOfRange(input, subOffset, subOffset + subLength), subBytes);
@@ -926,7 +929,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             );
 
             // withMemorySegmentSlice(0, sliceLength) on the slice should return data starting at sliceOffset
-            boolean available = blobSlice.withMemorySegmentSlice(0, sliceLength, seg -> {
+            boolean available = blobSlice.withMemorySegmentSlice(0, sliceLength, NO_COPY, seg -> {
                 byte[] sliceBytes = new byte[sliceLength];
                 MemorySegment.ofArray(sliceBytes).copyFrom(seg);
                 assertArrayEquals(Arrays.copyOfRange(input, sliceOffset, sliceOffset + sliceLength), sliceBytes);
@@ -976,7 +979,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             assertArrayEquals(input, output);
 
             // withMemorySegmentSlice should return false when mmap is not enabled
-            boolean available = indexInput.withMemorySegmentSlice(0, input.length, seg -> {
+            boolean available = indexInput.withMemorySegmentSlice(0, input.length, NO_COPY, seg -> {
                 fail("action should not be invoked when mmap is not enabled");
             });
             assertFalse(available);
@@ -1035,7 +1038,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             assertArrayEquals(inputA, outputA);
 
             // Verify buffer is available before eviction
-            boolean availableBefore = indexInputA.withMemorySegmentSlice(0, inputA.length, seg -> {
+            boolean availableBefore = indexInputA.withMemorySegmentSlice(0, inputA.length, NO_COPY, seg -> {
                 byte[] sliceBytes = new byte[inputA.length];
                 MemorySegment.ofArray(sliceBytes).copyFrom(seg);
                 assertArrayEquals(inputA, sliceBytes);
@@ -1073,7 +1076,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             }
 
             // After eviction, withMemorySegmentSlice should return false for file A
-            boolean availableAfter = indexInputA.withMemorySegmentSlice(0, inputA.length, seg -> {
+            boolean availableAfter = indexInputA.withMemorySegmentSlice(0, inputA.length, NO_COPY, seg -> {
                 fail("action should not be invoked after eviction");
             });
             assertFalse("expected buffer to be unavailable after eviction", availableAfter);

@@ -68,6 +68,7 @@ public class ReopeningIndexInputDirectAccessTests extends ESTestCase {
     private static final int SMALL_RANGE_LENGTH = 64;
 
     private static final long[] RANGE_OFFSETS = new long[] { 0, RANGE_LENGTH, 4L * RANGE_LENGTH, FILE_LENGTH - RANGE_LENGTH };
+    private static final IntFunction<MemorySegment> NO_COPY = len -> { throw new AssertionError("unexpected copy into scratch"); };
 
     public void testZeroCopyFromLocalMmapFile() throws Exception {
         try (var node = newNode()) {
@@ -358,7 +359,7 @@ public class ReopeningIndexInputDirectAccessTests extends ESTestCase {
 
     private static void assertSegmentSlice(DirectAccessInput input, byte[] expected, long offset, int length) throws IOException {
         var invoked = new AtomicBoolean();
-        var available = input.withMemorySegmentSlice(offset, length, segment -> {
+        var available = input.withMemorySegmentSlice(offset, length, NO_COPY, segment -> {
             invoked.set(true);
             assertArrayEquals(Arrays.copyOfRange(expected, (int) offset, (int) offset + length), toByteArray(segment.asSlice(0, length)));
         });
@@ -368,7 +369,7 @@ public class ReopeningIndexInputDirectAccessTests extends ESTestCase {
 
     private static void assertNoSegmentSlice(DirectAccessInput input, int length) throws IOException {
         var invoked = new AtomicBoolean();
-        var available = input.withMemorySegmentSlice((long) 0, length, segment -> invoked.set(true));
+        var available = input.withMemorySegmentSlice((long) 0, length, NO_COPY, segment -> invoked.set(true));
         assertThat(available, equalTo(false));
         assertThat("action must not be invoked when no segment is available", invoked.get(), equalTo(false));
     }

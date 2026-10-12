@@ -33,6 +33,7 @@ import java.lang.foreign.MemorySegment;
 import java.nio.ByteBuffer;
 import java.nio.file.NoSuchFileException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.IntFunction;
 
 public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput implements DirectAccessInput, SelfAccountingIndexInput {
 
@@ -182,7 +183,12 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput imple
     }
 
     @Override
-    public boolean withMemorySegmentSlice(long offset, long length, CheckedConsumer<MemorySegment, IOException> action) throws IOException {
+    public boolean withMemorySegmentSlice(
+        long offset,
+        long length,
+        IntFunction<MemorySegment> scratch,
+        CheckedConsumer<MemorySegment, IOException> action
+    ) throws IOException {
         return cacheFileReader.withMemorySegmentSlice(this.offset + offset, Math.toIntExact(length), action);
     }
 

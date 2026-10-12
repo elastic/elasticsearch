@@ -42,6 +42,7 @@ import java.lang.foreign.ValueLayout;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.function.IntFunction;
 
 import static org.elasticsearch.core.IOUtils.WINDOWS;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService.resolveSnapshotCache;
@@ -53,6 +54,7 @@ import static org.hamcrest.Matchers.not;
 public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
 
     private static final ShardId SHARD_ID = new ShardId(new Index("_index_name", "_index_id"), 0);
+    private static final IntFunction<MemorySegment> NO_COPY = len -> { throw new AssertionError("unexpected copy into scratch"); };
 
     public void testRandomReads() throws IOException {
         final String fileName = randomAlphaOfLength(5) + randomFileExtension();
@@ -231,7 +233,7 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
 
             // Test withMemorySegmentSlice on the root input (offset == 0)
             int readLen = randomIntBetween(1, Math.min(64, fileData.length));
-            assertTrue(((FrozenIndexInput) indexInput).withMemorySegmentSlice(0, readLen, ms -> {
+            assertTrue(((FrozenIndexInput) indexInput).withMemorySegmentSlice(0, readLen, NO_COPY, ms -> {
                 for (int i = 0; i < readLen; i++) {
                     assertEquals(fileData[i], ms.get(ValueLayout.JAVA_BYTE, i));
                 }
@@ -245,7 +247,7 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
 
             // withMemorySegmentSlice on the slice: FrozenIndexInput adds this.offset to the requested offset
             int sliceReadLen = randomIntBetween(1, Math.min(64, sliceLength));
-            assertTrue(((FrozenIndexInput) sliceInput).withMemorySegmentSlice(0, sliceReadLen, ms -> {
+            assertTrue(((FrozenIndexInput) sliceInput).withMemorySegmentSlice(0, sliceReadLen, NO_COPY, ms -> {
                 for (int i = 0; i < sliceReadLen; i++) {
                     assertEquals(
                         "byte mismatch at slice-relative offset " + i,

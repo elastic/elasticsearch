@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.foreign.MemorySegment;
 import java.nio.ByteBuffer;
+import java.util.function.IntFunction;
 
 public final class FrozenIndexInput extends MetadataCachingIndexInput implements DirectAccessInput {
 
@@ -109,7 +110,12 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput implements
     }
 
     @Override
-    public boolean withMemorySegmentSlice(long offset, long length, CheckedConsumer<MemorySegment, IOException> action) throws IOException {
+    public boolean withMemorySegmentSlice(
+        long offset,
+        long length,
+        IntFunction<MemorySegment> scratch,
+        CheckedConsumer<MemorySegment, IOException> action
+    ) throws IOException {
         return cacheFile.withMemorySegmentSlice(offset + this.offset, Math.toIntExact(length), action);
     }
 

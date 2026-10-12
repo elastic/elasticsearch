@@ -24,6 +24,7 @@ import java.lang.foreign.MemorySegment;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.IntFunction;
 
 public class StoreMetricsIndexInput extends FilterIndexInput implements DirectAccessInput {
     final PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder;
@@ -96,9 +97,14 @@ public class StoreMetricsIndexInput extends FilterIndexInput implements DirectAc
     }
 
     @Override
-    public boolean withMemorySegmentSlice(long offset, long length, CheckedConsumer<MemorySegment, IOException> action) throws IOException {
+    public boolean withMemorySegmentSlice(
+        long offset,
+        long length,
+        IntFunction<MemorySegment> scratch,
+        CheckedConsumer<MemorySegment, IOException> action
+    ) throws IOException {
         if (in instanceof DirectAccessInput dai) {
-            return dai.withMemorySegmentSlice(offset, length, action);
+            return dai.withMemorySegmentSlice(offset, length, scratch, action);
         }
         // An mmap'd input exposes its bytes as a MemorySegmentAccessInput, not a DirectAccessInput. Returning false for
         // it here would send IndexInputUtils#withSlice, which only sees this wrapper, down its copy-to-heap fallback.

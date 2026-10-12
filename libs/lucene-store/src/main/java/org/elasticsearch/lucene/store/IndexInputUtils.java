@@ -85,7 +85,7 @@ public final class IndexInputUtils {
             long offset = in.getFilePointer();
             @SuppressWarnings("unchecked")
             R[] result = (R[]) new Object[1];
-            boolean available = dai.withMemorySegmentSlice(offset, length, seg -> result[0] = action.apply(seg));
+            boolean available = dai.withMemorySegmentSlice(offset, length, scratchSupplier, seg -> result[0] = action.apply(seg));
             if (available) {
                 in.seek(offset + length);
                 return result[0];
@@ -125,7 +125,7 @@ public final class IndexInputUtils {
         if (in instanceof DirectAccessInput dai) {
             long offset = in.getFilePointer();
             float[] result = new float[1];
-            boolean available = dai.withMemorySegmentSlice(offset, length, seg -> result[0] = action.applyAsFloat(seg));
+            boolean available = dai.withMemorySegmentSlice(offset, length, scratchSupplier, seg -> result[0] = action.applyAsFloat(seg));
             if (available) {
                 in.seek(offset + length);
                 return result[0];
@@ -165,7 +165,7 @@ public final class IndexInputUtils {
         }
         if (in instanceof DirectAccessInput dai) {
             long offset = in.getFilePointer();
-            boolean available = dai.withMemorySegmentSlice(offset, length, action);
+            boolean available = dai.withMemorySegmentSlice(offset, length, scratchSupplier, action);
             if (available) {
                 in.seek(offset + length);
                 return;

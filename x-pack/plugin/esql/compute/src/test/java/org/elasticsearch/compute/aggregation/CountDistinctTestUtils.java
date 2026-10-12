@@ -31,10 +31,11 @@ final class CountDistinctTestUtils {
 
     /**
      * Asserts a {@code COUNT_DISTINCT} result against the true number of distinct values. HLL++ is approximate,
-     * so the result may be off by up to 10%. That gives small groups no slack, yet even below the precision
+     * so the result may be off by up to 10%. That gives small inputs no slack, yet even below the precision
      * threshold linear counting counts two distinct values once if their hashes share the leading bits it keeps.
-     * So a result outside the tolerance must be exactly the number of distinct encoded hashes, computed here
-     * independently of HLL++. Anything else is a real bug.
+     * For a small input linear counting's estimate equals the number of distinct encoded hashes, so a result
+     * outside the tolerance must be exactly that number, computed here without running HLL++. Larger inputs
+     * always fall within the tolerance unless something is broken, so they never reach this exact check.
      *
      * @param hashes the hashes of the distinct values, computed the way {@link HllStates} hashes each type
      */

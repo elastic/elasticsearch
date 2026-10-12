@@ -97,6 +97,7 @@ public class S3RequestCountingTests extends ESTestCase {
     /**
      * A refused HEAD carries no response body, so it has no S3 error code and cannot say which action was denied.
      * One range GET recovers the body, which is what makes the three denial conditions distinguishable. Asserting
+     * only that something threw would pass without the recovery, so this pins the mapped condition and the code.
      */
     public void testObjectMetadataDenialRecoversTheErrorCode() {
         when(mockS3.headObject(any(HeadObjectRequest.class))).thenThrow(
@@ -258,7 +259,11 @@ public class S3RequestCountingTests extends ESTestCase {
      * not there, which is already the whole answer, and the recovery exists to learn an error code a 404 has.
      */
     public void testObjectMetadataDoesNotRecoverOnANotFound() {
-        when(mockS3.headObject(any(HeadObjectRequest.class))).thenThrow(NoSuchKeyException.builder().message("Not Found").build());
+        // statusCode must be set explicitly: the builder leaves it 0, which fails the guard's >= 400 arm before
+        // the 404 exclusion this test is named for is ever reached, and the test would pass for the wrong reason.
+        when(mockS3.headObject(any(HeadObjectRequest.class))).thenThrow(
+            NoSuchKeyException.builder().statusCode(404).message("Not Found").build()
+        );
 
         S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
         ExternalClientException missing = expectThrows(ExternalClientException.class, obj::headObjectMetadata);

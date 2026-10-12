@@ -768,8 +768,10 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 && ExternalUnavailableException.isRetryableStatus(s3e.statusCode()) == false
                 && S3FailureDetail.lacksErrorCode(s3e)) {
                 // A HEAD carries no body, so no error code, and the conditions this layer distinguishes are read
-                // from one. A range GET recovers it. 404 is excluded because a GET would only repeat it, and a
-                // retryable status because the retry layer is about to ask again -- spending a second request per
+                // from one. A range GET recovers it. 404 is excluded as a cost choice rather than for want of
+                // anything to learn -- a GET can distinguish a missing key from a missing bucket, which a bodyless
+                // HEAD cannot -- because not-found is already the whole answer the resolve needs. A retryable
+                // status is excluded because the retry layer is about to ask again, and a second request per
                 // attempt against a store that answered 429 is the opposite of what it asked for.
                 probeObjectViaRangeGet();
                 if (Boolean.FALSE.equals(cachedExists)) {

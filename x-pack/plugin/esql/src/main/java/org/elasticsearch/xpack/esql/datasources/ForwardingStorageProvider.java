@@ -30,6 +30,11 @@ import java.util.List;
  * correct but undecorated. What it changes is which mistake is silent, and it puts the overrides that do decorate
  * together in one class where their absence is visible.
  * <p>
+ * The repo's sibling bases for this pattern are named {@code Filter*} — {@link
+ * org.elasticsearch.common.blobstore.support.FilterBlobContainer} is the closest. This one is not, because it
+ * differs where the name would mislead: those forward {@code close()}, and this deliberately leaves it abstract,
+ * since two of its subclasses hold a provider borrowed from a pool and have to return it rather than close it.
+ * <p>
  * {@link #delegate()} is a method rather than a field so a decorator can resolve its delegate lazily.
  */
 public abstract class ForwardingStorageProvider implements StorageProvider {

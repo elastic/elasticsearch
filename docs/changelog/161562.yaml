@@ -14,15 +14,20 @@ breaking:
     a warning. Under `skip_row` the file's rows are dropped, and under `null_field` the column is
     nulled as before. Separately, a column whose values the query's type can hold is now converted
     per value rather than nulled, so queries that returned nulls for a widened or narrowed column
-    now return its values. Separately again, the column-count cap now bounds every read of a
-    Parquet or NDJSON file. A dataset that declared its columns previously lifted the cap, so the
-    same wide file was refused when its types were inferred and read when they were declared.
+    now return its values. Separately again, the column-count cap now bounds every schema a read
+    resolves. A dataset that declared its columns previously lifted the cap outright, so the same
+    wide file was refused when its types were inferred and read when they were declared. A declared
+    read that still resolves a schema from the file is now held to the cap like any other: a
+    headerless CSV or TSV, whose width can only be learned by synthesizing one, and a Parquet or
+    NDJSON file whose schema the read builds.
   impact: >-
     Queries over external datasets whose files disagree with the query's column types, or whose
     files drift from the first file under first-file-wins schema resolution, may now fail where
     they returned nulls and a warning. Setting the dataset's error mode to `null_field` keeps the
-    previous null-filling behaviour. A query over a Parquet or NDJSON file with more columns than
-    `esql.external.schema_max_fields` allows, on a dataset that declares its columns, is now
-    refused; raise that setting or the dataset's `schema_max_fields` to read it. Affects
-    deployments where ES|QL federation is enabled.
+    previous null-filling behaviour. A query over a headerless CSV or TSV file, or a Parquet or
+    NDJSON file, with more columns than `esql.external.schema_max_fields` allows, on a dataset that
+    declares its columns, is now refused; raise that setting or the dataset's `schema_max_fields`
+    to read it. A header-bearing file is unaffected, because its header is read to locate the
+    declared columns rather than to resolve a schema. Affects deployments where ES|QL federation
+    is enabled.
   notable: false

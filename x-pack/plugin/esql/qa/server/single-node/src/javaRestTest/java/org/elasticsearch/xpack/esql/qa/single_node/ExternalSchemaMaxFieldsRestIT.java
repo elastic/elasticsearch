@@ -230,8 +230,10 @@ public class ExternalSchemaMaxFieldsRestIT extends ESRestTestCase {
     }
 
     /**
-     * A declared schema names the columns it reads, so a file one column over the cap is read normally: the cap bounds
-     * what inference materialises. Single files and a glob whose files differ in width are both read.
+     * A file one column over the cap is read normally when the dataset names the columns it reads. The cap bounds the
+     * schema a read resolves, and this read resolves none: the header is split to locate {@code c5} and {@code c1000},
+     * which is bounded separately, so the file's own width does not decide whether a two-column schema can be read.
+     * Single files and a glob whose files differ in width are both read.
      */
     public void testDeclaredSchemaOverWideFileIsRead() throws IOException {
         Map<String, Object> mappings = Map.of(
@@ -291,10 +293,11 @@ public class ExternalSchemaMaxFieldsRestIT extends ESRestTestCase {
     }
 
     /**
-     * A declared Parquet dataset is not held to the width of its files, the same as the text formats: one declared
-     * column over a file wider than a cap of one reads, both for a single file and for a glob whose files are all wider
-     * than the cap, so the outcome does not depend on which file the planner reads. A file one column over the default
-     * cap reads the same way.
+     * A Parquet dataset that names its columns is not held to the width of its files, the same as the text formats, and
+     * for the same reason: the read resolves no schema from the footer, so there is no schema for the cap to bound. One
+     * named column over a file wider than a cap of one reads, both for a single file and for a glob whose files are all
+     * wider than the cap, so the outcome does not depend on which file the planner reads. A file one column over the
+     * default cap reads the same way.
      */
     public void testDeclaredParquetIsNotHeldToTheFileWidth() throws IOException {
         Map<String, Object> mappings = Map.of("dynamic", "false", "properties", Map.of("emp_no", Map.of("type", "integer")));

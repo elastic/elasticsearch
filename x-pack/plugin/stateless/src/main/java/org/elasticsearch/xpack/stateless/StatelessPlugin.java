@@ -925,7 +925,8 @@ public class StatelessPlugin extends Plugin
                 settings,
                 objectStoreService,
                 consistencyService,
-                projectResolver.get().supportsMultipleProjects()
+                projectResolver.get().supportsMultipleProjects(),
+                meterRegistry
             )
         );
         setAndGet(this.translogReplicatorMetrics, new TranslogRecoveryMetrics(meterRegistry));

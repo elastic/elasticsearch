@@ -45,6 +45,8 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.OperationListener;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.telemetry.metric.LongHistogram;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
@@ -54,6 +56,7 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Set;
@@ -71,6 +74,32 @@ import static org.elasticsearch.core.TimeValue.timeValueMillis;
 public class TranslogReplicator extends AbstractLifecycleComponent {
 
     private static final Logger logger = LogManager.getLogger(TranslogReplicator.class);
+
+    public static final String TRANSLOG_UPLOAD_ATTEMPTS_HISTOGRAM = "es.stateless.translog.upload.attempts.histogram";
+    public static final String TRANSLOG_UPLOAD_TOTAL_DURATION_HISTOGRAM = "es.stateless.translog.upload.total_duration.histogram";
+
+    // 1 to 1_000_000 milliseconds (= ~16 min)
+    private static final List<Long> TRANSLOG_UPLOAD_DURATION_BUCKET_BOUNDARIES = List.of(
+        1L,
+        5L,
+        10L,
+        25L,
+        50L,
+        100L,
+        250L,
+        500L,
+        1_000L,
+        2_500L,
+        5_000L,
+        10_000L,
+        30_000L,
+        60_000L,
+        120_000L,
+        300_000L,
+        600_000L,
+        900_000L,
+        1_000_000L
+    );
 
     public static final Setting<TimeValue> FLUSH_RETRY_INITIAL_DELAY_SETTING = Setting.timeSetting(
         "stateless.translog.flush.retry.initial_delay",
@@ -109,6 +138,8 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
     private final TimeValue flushRetryInitialDelay;
     private final TimeValue flushInterval;
     private final ByteSizeValue flushSizeThreshold;
+    private final LongHistogram translogUploadAttemptsHistogram;
+    private final LongHistogram translogUploadTotalDurationHistogram;
 
     public TranslogReplicator(
         final ThreadPool threadPool,
@@ -117,6 +148,17 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         final StatelessClusterConsistencyService consistencyService,
         final boolean supportsMultipleProjects
     ) {
+        this(threadPool, settings, objectStoreService, consistencyService, supportsMultipleProjects, MeterRegistry.NOOP);
+    }
+
+    public TranslogReplicator(
+        final ThreadPool threadPool,
+        final Settings settings,
+        final ObjectStoreService objectStoreService,
+        final StatelessClusterConsistencyService consistencyService,
+        final boolean supportsMultipleProjects,
+        final MeterRegistry meterRegistry
+    ) {
         this(threadPool, settings, objectStoreService, consistencyService, supportsMultipleProjects, shardId -> {
             final Metadata metadata = consistencyService.state().metadata();
             IndexMetadata index = metadata.lookupProject(shardId.getIndex()).map(pm -> pm.index(shardId.getIndex())).orElse(null);
@@ -124,7 +166,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                 return Long.MIN_VALUE;
             }
             return index.primaryTerm(shardId.getId());
-        });
+        }, meterRegistry);
     }
 
     public TranslogReplicator(
@@ -135,6 +177,26 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         final boolean supportsMultipleProjects,
         final ToLongFunction<ShardId> currentPrimaryTerm
     ) {
+        this(
+            threadPool,
+            settings,
+            objectStoreService,
+            consistencyService,
+            supportsMultipleProjects,
+            currentPrimaryTerm,
+            MeterRegistry.NOOP
+        );
+    }
+
+    public TranslogReplicator(
+        final ThreadPool threadPool,
+        final Settings settings,
+        final ObjectStoreService objectStoreService,
+        final StatelessClusterConsistencyService consistencyService,
+        final boolean supportsMultipleProjects,
+        final ToLongFunction<ShardId> currentPrimaryTerm,
+        final MeterRegistry meterRegistry
+    ) {
         this.threadPool = threadPool;
         this.executor = threadPool.generic();
         this.objectStoreService = objectStoreService;
@@ -144,6 +206,17 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         this.consistencyService = consistencyService;
         this.supportsMultipleProjects = supportsMultipleProjects;
         this.currentPrimaryTerm = currentPrimaryTerm;
+        this.translogUploadAttemptsHistogram = meterRegistry.registerLongHistogram(
+            TRANSLOG_UPLOAD_ATTEMPTS_HISTOGRAM,
+            "number of attempts it took to upload the translog to the object store",
+            "count"
+        );
+        this.translogUploadTotalDurationHistogram = meterRegistry.registerLongHistogram(
+            TRANSLOG_UPLOAD_TOTAL_DURATION_HISTOGRAM,
+            "total time (includes time spent on failed attempts) until the translog is uploaded to the object store",
+            "milliseconds",
+            TRANSLOG_UPLOAD_DURATION_BUCKET_BOUNDARIES
+        );
     }
 
     public void setBigArrays(BigArrays bigArrays) {
@@ -403,6 +476,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         private final BlobTranslogFileImpl translogFile;
         private final RefCounted bytesToClose;
         private int uploadTryNumber = 0;
+        private long firstAttemptStartMillis;
         private volatile boolean isUploaded = false;
 
         private UploadTranslogTask(CompoundTranslog translog, ActionListener<UploadTranslogTask> listener) {
@@ -427,7 +501,9 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
         @Override
         public void tryAction(ActionListener<UploadTranslogTask> listener) {
-            ++uploadTryNumber;
+            if (++uploadTryNumber == 1) {
+                firstAttemptStartMillis = threadPool.relativeTimeInMillis();
+            }
             // Retain the bytes to ensure that a cancel call does not corrupt them before upload
             if (bytesToClose.tryIncRef()) {
                 logger.trace(() -> format("attempt [%s] to upload translog file [%s]", uploadTryNumber, translog.metadata().name()));
@@ -436,6 +512,8 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                     translog.bytes().data(),
                     ActionListener.releaseAfter(ActionListener.wrap(unused -> {
                         logger.debug(() -> format("uploaded translog file [%s]", translog.metadata().name()));
+                        translogUploadAttemptsHistogram.record(uploadTryNumber);
+                        translogUploadTotalDurationHistogram.record(threadPool.relativeTimeInMillis() - firstAttemptStartMillis);
                         listener.onResponse(this);
 
                     }, e -> {

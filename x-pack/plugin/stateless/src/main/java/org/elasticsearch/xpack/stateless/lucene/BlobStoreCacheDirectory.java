@@ -348,7 +348,7 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
     }
 
     /**
-     * @return the executor on which cache misses of this directory's reads claim their gaps, or {@code null} to claim them on the reading
+     * @return the executor on which cache misses of this directory's reads claim their gaps, or {@code null} to claim them on the calling
      * thread
      */
     @Nullable

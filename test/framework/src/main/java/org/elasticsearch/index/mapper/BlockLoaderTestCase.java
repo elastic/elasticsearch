@@ -30,6 +30,7 @@ import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -71,7 +72,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     public static List<Object[]> args() {
         List<Object[]> args = new ArrayList<>();
 
-        List<IndexMode> modes = List.of(IndexMode.STANDARD, IndexMode.COLUMNAR);
+        List<IndexMode> modes = List.of(IndexMode.STANDARD, IndexMode.COLUMNAR, IndexMode.LOGSDB);
 
         for (IndexMode indexMode : modes) {
             for (SourceFieldMapper.Mode sourceMode : SOURCE_MODES) {
@@ -253,7 +254,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         var specification = buildSpecification(customDataSourceHandlers, params.indexMode);
 
         var mapping = new MappingGenerator(specification).generate(template);
-        runner.document(new DocumentGenerator(specification).generate(template, mapping));
+        runner.document(decorateWithRequiredFields(new DocumentGenerator(specification).generate(template, mapping)));
 
         runner.fieldName(getFieldNameToLoad(fieldName, getFieldValue(runner.mapDoc(), fieldName)));
 
@@ -263,6 +264,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
             new TestContext(false, false)
         );
 
+        decorateMappingWithRequiredFields(mapping);
         var settings = getSettingsForParams();
         var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
         runner.mapperService(createMapperService(settings.build(), mappingXContent));
@@ -270,7 +272,22 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     }
 
     protected BlockLoaderTestRunner configureRunner(BlockLoaderTestRunner runner, Settings.Builder settings, Mapping mapping) {
+        if (this.params.indexMode() == IndexMode.LOGSDB) {
+            // When index mode is LOGSDB then the BlockLoader return multivalue
+            // fields in the natural order (or in general the order selected by the codec)
+            // and do not reshuffle in original order, so the matcher mustn't check the order.
+            runner.matcher(BlockLoaderTestCase::matchInAnyOrder);
+        }
         return runner;
+    }
+
+    private static void matchInAnyOrder(Object expected, Object actual) {
+        if (expected instanceof Collection<?> expectedCasted) {
+            Collection<?> actualCasted = (Collection<?>) actual;
+            assertThat(actualCasted, Matchers.containsInAnyOrder(expectedCasted.toArray()));
+        } else {
+            assertThat(actual, BlockLoaderTestRunner.PrettyEqual.prettyEqualTo(expected));
+        }
     }
 
     public void testBlockLoaderForFieldInObject() throws IOException {
@@ -312,7 +329,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
 
         var specification = buildSpecification(customDataSourceHandlers, params.indexMode);
         var mapping = new MappingGenerator(specification).generate(template);
-        runner.document(new DocumentGenerator(specification).generate(template, mapping));
+        runner.document(decorateWithRequiredFields(new DocumentGenerator(specification).generate(template, mapping)));
 
         TestContext testContext = new TestContext(false, false);
 
@@ -327,6 +344,8 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
             testContext = new TestContext(true, false);
         }
 
+        decorateMappingWithRequiredFields(mapping);
+
         var settings = getSettingsForParams();
         var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
         runner.mapperService(createMapperService(settings.build(), mappingXContent));
@@ -340,6 +359,26 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         );
 
         configureRunner(runner, settings, mapping).run(expected);
+    }
+
+    protected Map<String, Object> decorateWithRequiredFields(Map<String, Object> document) {
+        return decorateWithRequiredFields(document, params.indexMode);
+    }
+
+    public static Map<String, Object> decorateWithRequiredFields(Map<String, Object> document, IndexMode indexMode) {
+        if (indexMode == IndexMode.LOGSDB) {
+            document.put("@timestamp", randomMillisUpToYear9999());
+        }
+        return document;
+    }
+
+    @SuppressWarnings("unchecked")
+    protected void decorateMappingWithRequiredFields(Mapping mapping) {
+        if (params.indexMode == IndexMode.LOGSDB) {
+            var docMapping = (Map<String, Object>) mapping.raw().get("_doc");
+            var mappingProperties = (Map<String, Object>) docMapping.get("properties");
+            mappingProperties.put("@timestamp", Map.of("type", "date"));
+        }
     }
 
     protected boolean supportsMultiField() {
@@ -419,7 +458,15 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         @SuppressWarnings("unchecked")
         var fieldMapping = (Map<String, Object>) ((Map<String, Object>) mapping.lookup().get("parent").get("fields")).get("mf");
 
-        runner.document(new DocumentGenerator(specification).generate(template, mapping));
+        if (params.indexMode == IndexMode.LOGSDB) {
+            @SuppressWarnings("unchecked")
+            var docMapping = (Map<String, Object>) mapping.raw().get("_doc");
+            @SuppressWarnings("unchecked")
+            var mappingProperties = (Map<String, Object>) docMapping.get("properties");
+            mappingProperties.put("@timestamp", Map.of("type", "date"));
+        }
+
+        runner.document(decorateWithRequiredFields(new DocumentGenerator(specification).generate(template, mapping)));
 
         Object expected = expected(fieldMapping, getFieldValue(runner.mapDoc(), "parent"), new TestContext(false, true));
         var settings = getSettingsForParams();

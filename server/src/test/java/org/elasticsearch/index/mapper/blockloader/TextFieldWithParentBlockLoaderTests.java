@@ -60,7 +60,7 @@ public class TextFieldWithParentBlockLoaderTests extends MapperServiceTestCase {
         var mapping = new MappingGenerator(specification).generate(template);
         var fieldMapping = mapping.lookup().get("parent");
 
-        runner.document(new DocumentGenerator(specification).generate(template, mapping));
+        runner.document(BlockLoaderTestCase.decorateWithRequiredFields(new DocumentGenerator(specification).generate(template, mapping), params.indexMode()));
         var fieldValue = runner.mapDoc().get("parent");
 
         Object expected = expected(fieldMapping, fieldValue, new BlockLoaderTestCase.TestContext(false, true));

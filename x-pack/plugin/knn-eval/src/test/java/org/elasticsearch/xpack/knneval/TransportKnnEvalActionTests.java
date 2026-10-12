@@ -589,7 +589,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         RecordingClient client = new RecordingClient();
         Exception e = evaluationFailure(client, clusterService(true), "missing-*");
         assertThat(e, instanceOf(IllegalArgumentException.class));
-        assertThat(e.getMessage(), equalTo("[_knn_eval] found no indices to evaluate"));
+        assertThat(e.getMessage(), equalTo("[_knn_eval] found no matching indices to evaluate"));
         assertFalse(client.fieldMappingsRequested);
     }
 

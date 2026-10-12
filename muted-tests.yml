@@ -232,6 +232,9 @@ tests:
 - class: org.elasticsearch.xpack.core.security.authc.AuthenticationSerializationTests
   method: testWriteToWithCrossClusterAccessThrowsOnUnsupportedVersion
   issue: https://github.com/elastic/elasticsearch/issues/161631
+- class: org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoaderTests
+  method: testObjectAndDottedNameInParentKeptInIgnoredSource
+  issue: https://github.com/elastic/elasticsearch/issues/161649
 
 # Examples:
 #

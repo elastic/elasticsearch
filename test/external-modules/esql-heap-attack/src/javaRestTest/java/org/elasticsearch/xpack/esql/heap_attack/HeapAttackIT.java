@@ -505,7 +505,13 @@ public class HeapAttackIT extends HeapAttackTestCase {
     public void testHugeMvConcat() throws IOException {
         // One doc whose f00 holds 300k values; joined with a ~1kb delimiter that is one huge string.
         initMvLongsIndex(1, 1, 300000, false);
-        assertCircuitBreaks(attempt -> mvConcat(attempt * 999));
+        // Lower the request breaker so the join trips it well before the node runs out of memory.
+        try {
+            setRequestBreakerLimit("20%");
+            assertCircuitBreaks(attempt -> mvConcat(attempt * 999));
+        } finally {
+            setRequestBreakerLimit(null);
+        }
     }
 
     private Map<String, Object> mvConcat(int delimiterLength) throws IOException {

@@ -330,6 +330,10 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 return maximumTimestamp;
             }
 
+            public IndexMode getTemplateIndexMode() {
+                return templateIndexMode;
+            }
+
             public String getIndexModeName() {
                 return templateIndexMode.getName();
             }

@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.FilterClient;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.transform.Transform;
@@ -34,13 +35,19 @@ import org.elasticsearch.xpack.transform.Transform;
  */
 public class TransformTraceHeaderClient extends FilterClient {
 
+    /**
+     * {@code TaskManager} rejects a request whose task headers exceed {@code http.max_header_size} (16kb by default), and
+     * the cluster name is the only unbounded input. 32 characters fits an Elastic Cloud cluster id in full.
+     */
+    static final int MAX_PRODUCT_ORIGIN_LENGTH = 32;
+
     private final String opaqueId;
     private final String productOrigin;
     private final boolean enabled;
 
     /**
      * @param opaqueId      value for {@code X-Opaque-Id}, typically {@code "<nodeId>:transform:<transformId>"}
-     * @param productOrigin value for {@code X-elastic-product-origin}, typically the cluster name
+     * @param productOrigin value for {@code X-elastic-product-origin}, typically the (truncated) cluster name
      * @param enabled       when {@code false} the headers are not injected and requests pass through unchanged
      */
     TransformTraceHeaderClient(Client in, String opaqueId, String productOrigin, boolean enabled) {
@@ -53,11 +60,12 @@ public class TransformTraceHeaderClient extends FilterClient {
     /**
      * Wraps {@code in} so that every request it dispatches is stamped with the transform's trace headers, unless
      * {@link Transform#TRACE_HEADERS_ENABLED_SETTING} is disabled on this node. The opaque id is
-     * {@code "<nodeId>:transform:<id>"} and the product origin is the cluster name.
+     * {@code "<nodeId>:transform:<id>"} and the product origin is the cluster name, truncated to
+     * {@link #MAX_PRODUCT_ORIGIN_LENGTH} characters.
      */
     public static Client create(Client in, ClusterService clusterService, String transformId) {
         String opaqueId = clusterService.localNode().getId() + ":transform:" + transformId;
-        String productOrigin = clusterService.getClusterName().value();
+        String productOrigin = Strings.substring(clusterService.getClusterName().value(), 0, MAX_PRODUCT_ORIGIN_LENGTH);
         boolean enabled = Transform.TRACE_HEADERS_ENABLED_SETTING.get(clusterService.getSettings());
         return new TransformTraceHeaderClient(in, opaqueId, productOrigin, enabled);
     }

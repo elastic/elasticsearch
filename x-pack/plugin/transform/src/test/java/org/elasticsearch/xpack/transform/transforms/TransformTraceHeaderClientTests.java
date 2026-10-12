@@ -13,7 +13,10 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 
@@ -117,5 +120,45 @@ public class TransformTraceHeaderClientTests extends ESTestCase {
             assertNull(capturedOpaqueId.get());
             assertNull(capturedProductOrigin.get());
         }
+    }
+
+    public void testLongClusterNameIsTruncated() throws Exception {
+        String clusterName = randomAlphaOfLength(randomIntBetween(TransformTraceHeaderClient.MAX_PRODUCT_ORIGIN_LENGTH + 1, 1_000));
+        assertEquals(
+            clusterName.substring(0, TransformTraceHeaderClient.MAX_PRODUCT_ORIGIN_LENGTH),
+            productOriginFromClusterName(clusterName)
+        );
+    }
+
+    public void testShortClusterNameIsNotTruncated() throws Exception {
+        String clusterName = randomAlphaOfLength(randomIntBetween(1, TransformTraceHeaderClient.MAX_PRODUCT_ORIGIN_LENGTH));
+        assertEquals(clusterName, productOriginFromClusterName(clusterName));
+    }
+
+    private String productOriginFromClusterName(String clusterName) {
+        AtomicReference<String> capturedProductOrigin = new AtomicReference<>();
+        try (
+            var threadPool = createThreadPool();
+            var clusterService = ClusterServiceUtils.createClusterService(
+                threadPool,
+                Settings.builder().put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName).build()
+            )
+        ) {
+            var delegate = new NoOpClient(threadPool) {
+                @Override
+                protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                    ActionType<Response> action,
+                    Request request,
+                    ActionListener<Response> listener
+                ) {
+                    capturedProductOrigin.set(threadPool().getThreadContext().getHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER));
+                    listener.onResponse(null);
+                }
+            };
+
+            TransformTraceHeaderClient.create(delegate, clusterService, "my-transform")
+                .execute(TransportSearchAction.TYPE, new SearchRequest(), ActionListener.noop());
+        }
+        return capturedProductOrigin.get();
     }
 }

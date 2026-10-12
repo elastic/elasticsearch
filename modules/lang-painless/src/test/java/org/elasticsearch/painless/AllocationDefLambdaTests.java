@@ -16,6 +16,10 @@ import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptedMetricAggContexts;
+import org.elasticsearch.script.SignificantTermsHeuristicScoreScript;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -585,25 +589,51 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
     // ---- bytecode must show exactly the expected static and instance lambdas. A second table does the same for every method
     // ---- reference form, at every depth, with the references also passed through user functions as values.
 
-    /** How a cell is compiled: tracking off, a limit, metrics, both, and the same four in a cancellation-aware context. */
+    /**
+     * The script class a cell compiles for: the test script, the init script, which supports cancellation and whose execute is
+     * void, and the significant terms heuristic script, whose execute takes the params map and returns a double.
+     */
+    private enum Context {
+        TEST(PainlessTestScript.CONTEXT, PainlessTestScript.class, false),
+        INIT(ScriptedMetricAggContexts.InitScript.CONTEXT, ScriptedMetricAggContexts.InitScript.class, true),
+        SIGNIFICANT(SignificantTermsHeuristicScoreScript.CONTEXT, SignificantTermsHeuristicScoreScript.class, false);
+
+        final ScriptContext<?> scriptContext;
+        final Class<?> scriptClass;
+        final boolean cancellation;
+
+        Context(ScriptContext<?> scriptContext, Class<?> scriptClass, boolean cancellation) {
+            this.scriptContext = scriptContext;
+            this.scriptClass = scriptClass;
+            this.cancellation = cancellation;
+        }
+    }
+
+    /** How a cell is compiled: tracking off, a limit, metrics, or both, for each script context. */
     private enum Mode {
-        OFF(false, false, false),
-        LIMIT(true, false, false),
-        METRICS(false, true, false),
-        BOTH(true, true, false),
-        CANCEL_OFF(false, false, true),
-        CANCEL_LIMIT(true, false, true),
-        CANCEL_METRICS(false, true, true),
-        CANCEL_BOTH(true, true, true);
+        OFF(false, false, Context.TEST),
+        LIMIT(true, false, Context.TEST),
+        METRICS(false, true, Context.TEST),
+        BOTH(true, true, Context.TEST),
+        CANCEL_OFF(false, false, Context.INIT),
+        CANCEL_LIMIT(true, false, Context.INIT),
+        CANCEL_METRICS(false, true, Context.INIT),
+        CANCEL_BOTH(true, true, Context.INIT),
+        PARAMS_OFF(false, false, Context.SIGNIFICANT),
+        PARAMS_LIMIT(true, false, Context.SIGNIFICANT),
+        PARAMS_METRICS(false, true, Context.SIGNIFICANT),
+        PARAMS_BOTH(true, true, Context.SIGNIFICANT);
 
         final boolean limit;
         final boolean metrics;
+        final Context context;
         final boolean cancellation;
 
-        Mode(boolean limit, boolean metrics, boolean cancellation) {
+        Mode(boolean limit, boolean metrics, Context context) {
             this.limit = limit;
             this.metrics = metrics;
-            this.cancellation = cancellation;
+            this.context = context;
+            this.cancellation = context.cancellation;
         }
 
         boolean tracking() {
@@ -623,7 +653,11 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
      * return turned into {@code out.add(...)} for lambdas that cannot return the value. {@code chain} lists the lambdas from
      * the outside in: T typed, D def, F a typed lambda that calls a user function, which always captures the script.
      */
-    private record Wrapper(String name, String functions, String setup, String expression, String chain) {}
+    private record Wrapper(String name, String functions, String setup, String expression, String chain, boolean intParameter) {
+        Wrapper(String name, String functions, String setup, String expression, String chain) {
+            this(name, functions, setup, expression, chain, false);
+        }
+    }
 
     /**
      * What a lambda body does. {@code body} and {@code neutral} share {@code setup}, capture the same locals and return the
@@ -638,8 +672,28 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
         String neutral,
         String neutralExpected,
         long delta,
-        Need need
-    ) {}
+        Need need,
+        boolean parameterReceiver
+    ) {
+        Body(
+            String name,
+            String functions,
+            String setup,
+            String body,
+            String expected,
+            String neutral,
+            String neutralExpected,
+            long delta,
+            Need need
+        ) {
+            this(name, functions, setup, body, expected, neutral, neutralExpected, delta, need, false);
+        }
+
+        /** The charge of a cell: a reference on a primitive parameter also captures the script, one more slot. */
+        long delta(Wrapper wrapper) {
+            return delta + (parameterReceiver && wrapper.intParameter ? SCRIPT_CAPTURE_SLOT : 0);
+        }
+    }
 
     private static final List<Wrapper> WRAPPERS = List.of(
         new Wrapper("typed", "", "SETUP", "Optional.of(1).map(x -> { BODY }).get()", "T"),
@@ -655,7 +709,7 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
             "out[0]",
             "D"
         ),
-        new Wrapper("def int parameter", "", "SETUP def o1 = Optional.of(1);", "o1.map((int x) -> { BODY }).get()", "D"),
+        new Wrapper("def int parameter", "", "SETUP def o1 = Optional.of(1);", "o1.map((int x) -> { BODY }).get()", "D", true),
         new Wrapper("binary operator", "", "SETUP", "[1].stream().reduce(0, (acc, x) -> { BODY })", "T"),
         new Wrapper("consumer", "", "SETUP List out = new ArrayList(); [1].forEach(x -> { STORE });", "out[0]", "T"),
         new Wrapper("predicate", "", "SETUP List out = new ArrayList(); [1].removeIf(x -> { STORE return false; });", "out[0]", "T"),
@@ -667,7 +721,7 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
             "fr(x -> { BODY }).apply(1)",
             "T"
         ),
-        new Wrapper("typed int parameter", "", "SETUP", "Optional.of(1).map((int x) -> { BODY }).get()", "T"),
+        new Wrapper("typed int parameter", "", "SETUP", "Optional.of(1).map((int x) -> { BODY }).get()", "T", true),
         new Wrapper("typed in typed", "", "SETUP", "Optional.of(1).map(x -> Optional.of(x).map(y -> { BODY }).get()).get()", "TT"),
         new Wrapper(
             "def in typed",
@@ -730,6 +784,18 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
 
     private static final List<Body> BODIES = List.of(
         new Body("plain", "", "", "return x + 1;", "2", "return x;", "1", 0, Need.NEVER),
+        new Body(
+            "bound reference on the parameter",
+            "",
+            "",
+            "return Optional.empty().orElseGet(x::toString);",
+            "1",
+            "return Optional.empty().orElseGet(x::hashCode);",
+            "1",
+            AllocationEstimators.toStringBytes((Object) 1),
+            Need.NEVER,
+            true
+        ),
         new Body(
             "reference to a user function",
             "def g(def s) { return s.substring(0, 3); } def h(def s) { return s; } ",
@@ -1361,23 +1427,51 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
     private static final List<RefContext> REF_CONTEXTS = List.of(
         new RefContext("typed receiver", "", "", "RECEIVER TAIL", "REF", ""),
         new RefContext("def receiver", "", "def r = RECEIVER;", "r TAIL", "REF", ""),
-        new RefContext("typed receiver in typed lambda", "", "", "Optional.of(1).map(q -> RECEIVER TAIL).get()", "REF", "T"),
-        new RefContext("def receiver in typed lambda", "", "def r = RECEIVER;", "Optional.of(1).map(q -> r TAIL).get()", "REF", "T"),
-        new RefContext("typed receiver in def lambda", "", "def o9 = Optional.of(1);", "o9.map(q -> RECEIVER TAIL).get()", "REF", "D"),
+        new RefContext(
+            "typed receiver in typed lambda",
+            "",
+            "",
+            "Optional.of(1).map(q -> { LOOP return RECEIVER TAIL; }).get()",
+            "REF",
+            "T"
+        ),
+        new RefContext(
+            "def receiver in typed lambda",
+            "",
+            "def r = RECEIVER;",
+            "Optional.of(1).map(q -> { LOOP return r TAIL; }).get()",
+            "REF",
+            "T"
+        ),
+        new RefContext(
+            "typed receiver in def lambda",
+            "",
+            "def o9 = Optional.of(1);",
+            "o9.map(q -> { LOOP return RECEIVER TAIL; }).get()",
+            "REF",
+            "D"
+        ),
         new RefContext(
             "def receiver in def lambda",
             "",
             "def r = RECEIVER; def o9 = Optional.of(1);",
-            "o9.map(q -> r TAIL).get()",
+            "o9.map(q -> { LOOP return r TAIL; }).get()",
             "REF",
             "D"
         ),
-        new RefContext("typed receiver in a supplier lambda", "", "", "Optional.empty().orElseGet(() -> RECEIVER TAIL)", "REF", "T"),
+        new RefContext(
+            "typed receiver in a supplier lambda",
+            "",
+            "",
+            "Optional.empty().orElseGet(() -> { LOOP return RECEIVER TAIL; })",
+            "REF",
+            "T"
+        ),
         new RefContext(
             "def receiver in a def supplier lambda",
             "",
             "def r = RECEIVER; def o9 = Optional.empty();",
-            "o9.orElseGet(() -> r TAIL)",
+            "o9.orElseGet(() -> { LOOP return r TAIL; })",
             "REF",
             "D"
         ),
@@ -1385,7 +1479,7 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
             "typed receiver in def lambda in typed lambda",
             "",
             "",
-            "Optional.of(1).map(p -> { def o8 = Optional.of(p); return o8.map(q -> RECEIVER TAIL).get(); }).get()",
+            "Optional.of(1).map(p -> { def o8 = Optional.of(p); return o8.map(q -> { LOOP return RECEIVER TAIL; }).get(); }).get()",
             "REF",
             "TD"
         ),
@@ -1393,7 +1487,7 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
             "def receiver in typed lambda in def lambda",
             "",
             "def r = RECEIVER; def o9 = Optional.of(1);",
-            "o9.map(p -> Optional.of(p).map(q -> r TAIL).get()).get()",
+            "o9.map(p -> Optional.of(p).map(q -> { LOOP return r TAIL; }).get()).get()",
             "REF",
             "DT"
         ),
@@ -1401,7 +1495,7 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
             "in a user function called from a typed lambda",
             "def fx(def params) { REFSETUP return RECEIVER TAIL; } ",
             "",
-            "Optional.of(1).map(q -> fx(params)).get()",
+            "Optional.of(1).map(q -> { LOOP return fx(params); }).get()",
             "REF",
             "F"
         ),
@@ -1410,7 +1504,7 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
             "passed through a user function inside a typed lambda",
             ESCAPE_FUNCTIONS,
             "",
-            "Optional.of(1).map(q -> RECEIVER TAIL).get()",
+            "Optional.of(1).map(q -> { LOOP return RECEIVER TAIL; }).get()",
             "ESCAPE(REF)",
             "F"
         )
@@ -1421,21 +1515,29 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
     /** A charging cell kept for the limit check: its neutral twin's cost is the limit that must let the twin pass and trip it. */
     private record TripCell(String label, String charged, String neutral, String neutralExpected, long neutralBytes) {}
 
-    private static final String CANCEL_LIMIT_KEY = "script.painless.max_allocation_bytes.context."
-        + ScriptedMetricAggContexts.InitScript.CONTEXT.name
-        + ".limit";
+    /** An engine for a mode, with the registry its metrics land in when the mode records them. */
+    private record MatrixEngine(PainlessScriptEngine engine, RecordingMeterRegistry registry) {}
 
-    /** One engine per mode, serving the test context and the cancellation-aware init script context with the same allowlist. */
-    private PainlessScriptEngine matrixEngine(Mode mode) {
+    private static String limitKey(Context context) {
+        return "script.painless.max_allocation_bytes.context." + context.scriptContext.name + ".limit";
+    }
+
+    /** One engine per mode, serving all three script contexts with the same allowlist. */
+    private MatrixEngine matrixEngine(Mode mode) {
         return matrixEngine(mode, mode.limit ? "1mb" : MAX_ALLOCATION_BYTES_DISABLED);
     }
 
     /** The limit is an engine setting, so a cell that needs a particular limit needs its own engine. */
-    private PainlessScriptEngine matrixEngine(Mode mode, String limit) {
-        Settings settings = Settings.builder().put(LIMIT_KEY, limit).put(CANCEL_LIMIT_KEY, limit).build();
-        Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>(scriptContexts());
-        contexts.put(ScriptedMetricAggContexts.InitScript.CONTEXT, contexts.get(PainlessTestScript.CONTEXT));
-        return new PainlessScriptEngine(settings, contexts, () -> AllocationMetrics.NOOP, mode.metrics);
+    private MatrixEngine matrixEngine(Mode mode, String limit) {
+        Settings.Builder settings = Settings.builder();
+        Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
+        for (Context context : Context.values()) {
+            settings.put(limitKey(context), limit);
+            contexts.put(context.scriptContext, scriptContexts().get(PainlessTestScript.CONTEXT));
+        }
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        AllocationMetrics metrics = new AllocationMetrics(registry);
+        return new MatrixEngine(new PainlessScriptEngine(settings.build(), contexts, () -> metrics, mode.metrics), registry);
     }
 
     private static Map<String, Object> matrixParams() throws IOException {
@@ -1447,9 +1549,16 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
         );
     }
 
-    /** The init script context's execute is void, so a cell there leaves its value in {@code state.r}. */
+    /**
+     * How a cell hands back its value. The init script's execute is void, so the value goes into {@code state.r}; the
+     * significant terms script's execute returns a double, so the value goes into the params map it was given.
+     */
     private static String matrixResult(Mode mode, String expression) {
-        return (mode.cancellation ? "state.r = " : "return ") + expression + ";";
+        return switch (mode.context) {
+            case TEST -> "return " + expression + ";";
+            case INIT -> "state.r = " + expression + ";";
+            case SIGNIFICANT -> "params.r = " + expression + "; return 0;";
+        };
     }
 
     private static String matrixSource(Mode mode, Wrapper wrapper, Body body, String code) {
@@ -1461,7 +1570,16 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
         return functions + setup + " " + matrixResult(mode, wrapper.expression.replace("BODY", code));
     }
 
+    /** Spins enough inside a lambda for the throttled cancel check to fire there; it allocates nothing. */
+    private static final String POLL_LOOP = "int k0 = 0; while (k0 < "
+        + (WriterConstants.CANCELLATION_POLL_INTERVAL + 100)
+        + ") { ++k0; } ";
+
     private static String refSource(Mode mode, RefContext context, Ref ref, boolean charged) {
+        return refSource(mode, context, ref, charged, false);
+    }
+
+    private static String refSource(Mode mode, RefContext context, Ref ref, boolean charged, boolean loop) {
         String reference = context.refWrap.replace("ESCAPE", ref.escape).replace("REF", charged ? ref.charged : ref.neutral);
         String tail = (charged ? ref.chargedTail : ref.neutralTail).replace("REF", reference);
         boolean setupInFunction = context.functions.contains("REFSETUP");
@@ -1469,40 +1587,88 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
             .replace("RECEIVER", ref.receiver)
             .replace("TAIL", tail);
         String setup = (setupInFunction ? "" : ref.setup) + " " + context.setup.replace("RECEIVER", ref.receiver);
-        String expression = context.expression.replace("RECEIVER", ref.receiver).replace("TAIL", tail);
+        String expression = context.expression.replace("LOOP", loop ? POLL_LOOP : "")
+            .replace("RECEIVER", ref.receiver)
+            .replace("TAIL", tail);
         return functions + setup + " " + matrixResult(mode, expression);
     }
 
-    private static Outcome runMatrixCell(PainlessScriptEngine engine, Mode mode, String source, Map<String, Object> params, String label) {
+    private static Outcome runMatrixCellOrFail(
+        PainlessScriptEngine engine,
+        Mode mode,
+        String source,
+        Map<String, Object> params,
+        String label
+    ) {
         try {
-            return runMatrixCell(engine, mode, source, params);
+            return runMatrixCell(engine, mode, source, params, (Runnable) null);
         } catch (RuntimeException e) {
             throw new AssertionError(label, e);
         }
     }
 
-    private static Outcome runMatrixCell(PainlessScriptEngine engine, Mode mode, String source, Map<String, Object> params) {
-        if (mode.cancellation) {
-            ScriptedMetricAggContexts.InitScript.Factory factory = engine.compile(
-                "test",
-                source,
-                ScriptedMetricAggContexts.InitScript.CONTEXT,
-                Map.of()
-            );
-            ScriptedMetricAggContexts.InitScript script = factory.newInstance(params, new HashMap<>());
-            script.execute();
-            return new Outcome(((Map<?, ?>) script.getState()).get("r"), ((PainlessScript) script).getAllocBytes());
+    /** Compiles and runs one source for its mode's context; {@code cancel} is installed first when the context supports it. */
+    private static Outcome runMatrixCell(
+        PainlessScriptEngine engine,
+        Mode mode,
+        String source,
+        Map<String, Object> params,
+        Runnable cancel
+    ) {
+        switch (mode.context) {
+            case INIT -> {
+                ScriptedMetricAggContexts.InitScript.Factory factory = engine.compile(
+                    "test",
+                    source,
+                    ScriptedMetricAggContexts.InitScript.CONTEXT,
+                    Map.of()
+                );
+                ScriptedMetricAggContexts.InitScript script = factory.newInstance(params, new HashMap<>());
+                if (cancel != null) {
+                    script._setCancellationCheck(cancel);
+                }
+                script.execute();
+                return new Outcome(((Map<?, ?>) script.getState()).get("r"), ((PainlessScript) script).getAllocBytes());
+            }
+            case SIGNIFICANT -> {
+                SignificantTermsHeuristicScoreScript.Factory factory = engine.compile(
+                    "test",
+                    source,
+                    SignificantTermsHeuristicScoreScript.CONTEXT,
+                    Map.of()
+                );
+                SignificantTermsHeuristicScoreScript script = factory.newInstance();
+                Map<String, Object> mutableParams = new HashMap<>(params);
+                script.execute(mutableParams);
+                return new Outcome(mutableParams.get("r"), ((PainlessScript) script).getAllocBytes());
+            }
+            default -> {
+                PainlessTestScript script = engine.compile("test", source, PainlessTestScript.CONTEXT, Map.of()).newInstance(params);
+                return new Outcome(script.execute(), ((PainlessScript) script).getAllocBytes());
+            }
         }
-        PainlessTestScript script = engine.compile("test", source, PainlessTestScript.CONTEXT, Map.of()).newInstance(params);
-        return new Outcome(script.execute(), ((PainlessScript) script).getAllocBytes());
+    }
+
+    /** Executions the mode's context has recorded across every bucket. The counters are cumulative, so the latest reading counts. */
+    private static long recordedExecutions(MatrixEngine engine, Mode mode) {
+        engine.registry.getRecorder().collect();
+        long total = 0;
+        for (int bucket = 0; bucket < AllocationMetrics.BUCKET_COUNT; ++bucket) {
+            List<Measurement> measurements = engine.registry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_ASYNC_COUNTER, AllocationMetrics.metricName(mode.context.scriptContext.name, bucket));
+            total += measurements.isEmpty() ? 0L : measurements.get(measurements.size() - 1).getLong();
+        }
+        return total;
     }
 
     /**
-     * Runs a charged source and its neutral twin and records any wrong value, wrong charge difference, or anything counted
-     * with tracking off. A charging cell under a limit mode is kept for the limit check.
+     * Runs a charged source and its neutral twin and records any wrong value, wrong charge difference, anything counted with
+     * tracking off, or an execution the metrics missed or double counted. A charging cell under a limit mode is kept for the
+     * limit check. In a cancellation context the charged source also runs with a cancel check installed, see
+     * {@link #checkCancellation}.
      */
     private static void checkMatrixCell(
-        PainlessScriptEngine engine,
+        MatrixEngine engine,
         Mode mode,
         Map<String, Object> params,
         List<String> problems,
@@ -1512,10 +1678,12 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
         String expected,
         String neutral,
         String neutralExpected,
-        long delta
+        long delta,
+        String loopedCharged
     ) {
-        Outcome got = runMatrixCell(engine, mode, charged, params, label);
-        Outcome base = runMatrixCell(engine, mode, neutral, params, "neutral " + label);
+        long recordedBefore = mode.metrics ? recordedExecutions(engine, mode) : 0;
+        Outcome got = runMatrixCellOrFail(engine.engine, mode, charged, params, label);
+        Outcome base = runMatrixCellOrFail(engine.engine, mode, neutral, params, "neutral " + label);
         if (expected.equals(String.valueOf(got.value)) == false) {
             problems.add("value " + label + " expected " + expected + " got " + got.value);
         }
@@ -1529,8 +1697,67 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
         if (mode.tracking() == false && (got.bytes != 0 || base.bytes != 0)) {
             problems.add("counted with tracking off " + label + " got " + got.bytes + " and " + base.bytes);
         }
+        if (mode.metrics) {
+            long recorded = recordedExecutions(engine, mode) - recordedBefore;
+            if (recorded != 2) {
+                problems.add("metrics recorded " + recorded + " executions instead of 2 " + label);
+            }
+        }
         if (delta > 0 && mode.limit && mode.metrics == false) {
             trips.add(new TripCell(label, charged, neutral, neutralExpected, base.bytes));
+        }
+        if (mode.cancellation) {
+            checkCancellation(engine.engine, mode, params, problems, label, charged, expected, got, loopedCharged);
+        }
+    }
+
+    /**
+     * With a cancel check installed the cell runs as before. The check is throttled, firing once per thousand polls, so a
+     * variant with a loop inside the innermost lambda ({@code loopedCharged}, null when the cell has no lambda) polls enough
+     * for it to fire there: with a counting check it still runs as before and has polled, and with a cancelling check the
+     * script must stop with that cancellation and nothing else.
+     */
+    private static void checkCancellation(
+        PainlessScriptEngine engine,
+        Mode mode,
+        Map<String, Object> params,
+        List<String> problems,
+        String label,
+        String charged,
+        String expected,
+        Outcome plain,
+        String loopedCharged
+    ) {
+        int[] polls = new int[1];
+        Outcome counted = runMatrixCell(engine, mode, charged, params, () -> polls[0]++);
+        if (expected.equals(String.valueOf(counted.value)) == false || counted.bytes != plain.bytes) {
+            problems.add(
+                "with a cancel check " + label + " got " + counted.value + " and " + counted.bytes + " bytes, expected " + plain.bytes
+            );
+        }
+        if (loopedCharged == null) {
+            return;
+        }
+        Outcome looped = runMatrixCell(engine, mode, loopedCharged, params, () -> polls[0]++);
+        if (expected.equals(String.valueOf(looped.value)) == false || looped.bytes != plain.bytes) {
+            problems.add(
+                "looped with a cancel check " + label + " got " + looped.value + " and " + looped.bytes + " bytes, expected " + plain.bytes
+            );
+        }
+        if (polls[0] < 1) {
+            problems.add("never polled inside the lambda " + label);
+        }
+        try {
+            runMatrixCell(engine, mode, loopedCharged, params, () -> { throw new IllegalStateException("cancelled"); });
+            problems.add("not cancelled inside the lambda " + label);
+        } catch (ScriptException e) {
+            boolean cancelled = false;
+            for (Throwable t = e; t != null; t = t.getCause()) {
+                cancelled |= t instanceof IllegalStateException && "cancelled".equals(t.getMessage());
+            }
+            if (cancelled == false) {
+                problems.add("wrong error under cancellation " + label + ": " + e);
+            }
         }
     }
 
@@ -1545,14 +1772,20 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
             byCost.computeIfAbsent(Math.max(1L, cell.neutralBytes), k -> new ArrayList<>()).add(cell);
         }
         for (Map.Entry<Long, List<TripCell>> group : byCost.entrySet()) {
-            PainlessScriptEngine engine = matrixEngine(mode, group.getKey() + "b");
+            PainlessScriptEngine engine = matrixEngine(mode, group.getKey() + "b").engine;
             for (TripCell cell : group.getValue()) {
-                Outcome base = runMatrixCell(engine, mode, cell.neutral, params, "neutral at its own cost as the limit " + cell.label);
+                Outcome base = runMatrixCellOrFail(
+                    engine,
+                    mode,
+                    cell.neutral,
+                    params,
+                    "neutral at its own cost as the limit " + cell.label
+                );
                 if (cell.neutralExpected.equals(String.valueOf(base.value)) == false) {
                     problems.add("neutral value at the limit " + cell.label + " expected " + cell.neutralExpected + " got " + base.value);
                 }
                 try {
-                    runMatrixCell(engine, mode, cell.charged, params);
+                    runMatrixCell(engine, mode, cell.charged, params, (Runnable) null);
                     problems.add("no trip at limit " + group.getKey() + " " + cell.label);
                 } catch (ScriptException e) {
                     boolean tripped = false;
@@ -1571,8 +1804,7 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
         CompilerSettings settings = new CompilerSettings();
         settings.setMaxAllocationBytes(mode.limit ? 1024 * 1024L : -1L);
         settings.setAllocationMetricsEnabled(mode.metrics);
-        Class<?> scriptClass = mode.cancellation ? ScriptedMetricAggContexts.InitScript.class : PainlessTestScript.class;
-        return Debugger.toString(scriptClass, source, settings, scriptContexts().get(PainlessTestScript.CONTEXT));
+        return Debugger.toString(mode.context.scriptClass, source, settings, scriptContexts().get(PainlessTestScript.CONTEXT));
     }
 
     /**
@@ -1659,7 +1891,7 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
         Map<String, Object> params = matrixParams();
         List<String> problems = new ArrayList<>();
         for (Mode mode : Mode.values()) {
-            PainlessScriptEngine engine = matrixEngine(mode);
+            MatrixEngine engine = matrixEngine(mode);
             List<TripCell> trips = new ArrayList<>();
             for (Wrapper wrapper : WRAPPERS) {
                 for (Body body : BODIES) {
@@ -1677,7 +1909,8 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
                         body.expected,
                         neutral,
                         body.neutralExpected,
-                        body.delta
+                        body.delta(wrapper),
+                        matrixSource(mode, wrapper, body, POLL_LOOP + body.body)
                     );
                 }
             }
@@ -1690,7 +1923,7 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
         Map<String, Object> params = matrixParams();
         List<String> problems = new ArrayList<>();
         for (Mode mode : Mode.values()) {
-            PainlessScriptEngine engine = matrixEngine(mode);
+            MatrixEngine engine = matrixEngine(mode);
             List<TripCell> trips = new ArrayList<>();
             for (RefContext context : REF_CONTEXTS) {
                 for (Ref ref : REFS) {
@@ -1708,7 +1941,8 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
                         ref.expected,
                         neutral,
                         ref.neutralExpected,
-                        ref.delta
+                        ref.delta,
+                        context.chain.isEmpty() ? null : refSource(mode, context, ref, true, true)
                     );
                 }
             }

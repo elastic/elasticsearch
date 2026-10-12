@@ -45,6 +45,7 @@ final class DictionaryFileList implements FileList {
     @Nullable
     private final FileSetFingerprint fileSetFingerprint;
     private final List<String> listingWarnings;
+    private final long estimatedBytes;
 
     DictionaryFileList(
         String basePath,
@@ -74,6 +75,7 @@ final class DictionaryFileList implements FileList {
         this.fileCount = fileCount;
         this.fileSetFingerprint = fileSetFingerprint;
         this.listingWarnings = listingWarnings == null || listingWarnings.isEmpty() ? List.of() : List.copyOf(listingWarnings);
+        this.estimatedBytes = computeEstimatedBytes();
     }
 
     @Override
@@ -136,8 +138,18 @@ final class DictionaryFileList implements FileList {
         return fileCount == 0;
     }
 
+    /**
+     * Computed once at construction. The shared {@code Cache} runs its weigher twice on every hit that is not
+     * already at the LRU head - {@code Cache.promote} sends an existing entry through {@code relinkAtHead}, whose
+     * {@code unlink} subtracts {@code weigher.applyAsLong} and whose {@code linkAtHead} adds it back - and this
+     * weight is not a constant: it walks the dictionary. A listing is immutable, so one computation is exact.
+     */
     @Override
     public long estimatedBytes() {
+        return estimatedBytes;
+    }
+
+    private long computeEstimatedBytes() {
         // object header + reference fields
         long bytes = 64;
         // basePath String: object header (40B) + char data

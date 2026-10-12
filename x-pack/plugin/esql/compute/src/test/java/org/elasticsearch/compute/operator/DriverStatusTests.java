@@ -33,6 +33,7 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
             "test",
             "elasticsearch",
             "node-1",
+            "elasticsearch[node-1][esql_worker][T#1]",
             123413220000L,
             123413243214L,
             123213L,
@@ -55,6 +56,7 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
               "description" : "test",
               "cluster_name" : "elasticsearch",
               "node_name" : "node-1",
+              "thread_name" : "elasticsearch[node-1][esql_worker][T#1]",
               "started" : "1973-11-29T09:27:00.000Z",
               "last_updated" : "1973-11-29T09:27:23.214Z",
               "cpu_nanos" : 123213,
@@ -125,6 +127,7 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
             randomIdentifier(),
             randomIdentifier(),
             randomIdentifier(),
+            randomIdentifier(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
@@ -160,6 +163,7 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
         var description = instance.description();
         var clusterName = instance.clusterName();
         var nodeName = instance.nodeName();
+        var threadName = instance.threadName();
         long started = instance.started();
         long lastUpdated = instance.lastUpdated();
         long cpuNanos = instance.cpuNanos();
@@ -168,19 +172,20 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
         var completedOperators = instance.completedOperators();
         var activeOperators = instance.activeOperators();
         var sleeps = instance.sleeps();
-        switch (between(0, 11)) {
+        switch (between(0, 12)) {
             case 0 -> sessionId = randomValueOtherThan(sessionId, ESTestCase::randomIdentifier);
             case 1 -> description = randomValueOtherThan(description, ESTestCase::randomIdentifier);
             case 2 -> clusterName = randomValueOtherThan(clusterName, ESTestCase::randomIdentifier);
             case 3 -> nodeName = randomValueOtherThan(nodeName, ESTestCase::randomIdentifier);
-            case 4 -> started = randomValueOtherThan(started, ESTestCase::randomNonNegativeLong);
-            case 5 -> lastUpdated = randomValueOtherThan(lastUpdated, ESTestCase::randomNonNegativeLong);
-            case 6 -> cpuNanos = randomValueOtherThan(cpuNanos, ESTestCase::randomNonNegativeLong);
-            case 7 -> iterations = randomValueOtherThan(iterations, ESTestCase::randomNonNegativeLong);
-            case 8 -> status = randomValueOtherThan(status, this::randomStatus);
-            case 9 -> completedOperators = randomValueOtherThan(completedOperators, DriverStatusTests::randomOperatorStatuses);
-            case 10 -> activeOperators = randomValueOtherThan(activeOperators, DriverStatusTests::randomOperatorStatuses);
-            case 11 -> sleeps = randomValueOtherThan(sleeps, DriverSleepsTests::randomDriverSleeps);
+            case 4 -> threadName = randomValueOtherThan(threadName, ESTestCase::randomIdentifier);
+            case 5 -> started = randomValueOtherThan(started, ESTestCase::randomNonNegativeLong);
+            case 6 -> lastUpdated = randomValueOtherThan(lastUpdated, ESTestCase::randomNonNegativeLong);
+            case 7 -> cpuNanos = randomValueOtherThan(cpuNanos, ESTestCase::randomNonNegativeLong);
+            case 8 -> iterations = randomValueOtherThan(iterations, ESTestCase::randomNonNegativeLong);
+            case 9 -> status = randomValueOtherThan(status, this::randomStatus);
+            case 10 -> completedOperators = randomValueOtherThan(completedOperators, DriverStatusTests::randomOperatorStatuses);
+            case 11 -> activeOperators = randomValueOtherThan(activeOperators, DriverStatusTests::randomOperatorStatuses);
+            case 12 -> sleeps = randomValueOtherThan(sleeps, DriverSleepsTests::randomDriverSleeps);
             default -> throw new UnsupportedOperationException();
         }
         return new DriverStatus(
@@ -188,6 +193,7 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
             description,
             clusterName,
             nodeName,
+            threadName,
             started,
             lastUpdated,
             cpuNanos,

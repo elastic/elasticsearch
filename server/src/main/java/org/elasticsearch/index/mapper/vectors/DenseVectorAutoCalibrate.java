@@ -1,0 +1,87 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.index.mapper.vectors;
+
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibrationProfile;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.function.Predicate;
+
+/** Parsed {@code auto_calibrate} index option: the resolved profile plus the value the user originally supplied. */
+public record DenseVectorAutoCalibrate(@Nullable Object originalValue, IvfAutoCalibrationProfile profile) implements ToXContentFragment {
+    public static final NodeFeature AUTO_CALIBRATE_PROFILES = new NodeFeature("mapper.dense_vector.auto_calibrate_profiles");
+    static final String NAME = "auto_calibrate";
+    static final DenseVectorAutoCalibrate DEFAULT = new DenseVectorAutoCalibrate(null, IvfAutoCalibrationProfile.DISABLED);
+
+    public static IvfAutoCalibrationProfile defaultEnabledProfile(IndexVersion indexVersion) {
+        return indexVersion.onOrAfter(IndexVersions.DISK_BBQ_AUTO_CALIBRATE_DEFAULT_ISO_SIZING)
+            ? IvfAutoCalibrationProfile.ISO_SIZING
+            : IvfAutoCalibrationProfile.QUALITY;
+    }
+
+    static DenseVectorAutoCalibrate defaultAutoCalibrate(IndexVersion indexVersion) {
+        return DEFAULT;
+    }
+
+    /** Accepts a boolean, a boolean string, or a profile name. */
+    public static DenseVectorAutoCalibrate parse(
+        @Nullable Object node,
+        IndexVersion indexVersion,
+        Predicate<NodeFeature> clusterSupportsFeature,
+        String fieldName
+    ) {
+        if (node == null) {
+            return defaultAutoCalibrate(indexVersion);
+        }
+
+        String value = node.toString();
+        IvfAutoCalibrationProfile profile;
+        if (Booleans.isBoolean(value)) {
+            profile = Booleans.parseBoolean(value) ? defaultEnabledProfile(indexVersion) : IvfAutoCalibrationProfile.DISABLED;
+        } else if (clusterSupportsFeature.test(AUTO_CALIBRATE_PROFILES) == false) {
+            throw new IllegalArgumentException("'" + NAME + "' must be a boolean for field [" + fieldName + "]");
+        } else {
+            profile = IvfAutoCalibrationProfile.fromString(value)
+                .orElseThrow(
+                    () -> new IllegalArgumentException(
+                        "'"
+                            + NAME
+                            + "' must be a boolean or one of "
+                            + Arrays.toString(IvfAutoCalibrationProfile.values())
+                            + " for field ["
+                            + fieldName
+                            + "]"
+                    )
+                );
+        }
+
+        return new DenseVectorAutoCalibrate(node, profile);
+    }
+
+    boolean enabled() {
+        return profile != IvfAutoCalibrationProfile.DISABLED;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (originalValue != null) {
+            builder.field(NAME, originalValue);
+        }
+        return builder;
+    }
+}

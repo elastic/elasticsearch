@@ -541,7 +541,7 @@ public class S3StorageProvider implements StorageProvider {
             // Custom endpoint (MinIO, Scaleway, …): cross-region flag is a no-op for non-AWS stores.
             // Seed with us-east-1; if the store validates the signing region it will respond with
             // AuthorizationHeaderMalformed and the provider will discover the correct region via HeadBucket
-            // and retry once (see elastic/esql-planning#1747 step 1).
+            // and retry once.
             builder.region(Region.US_EAST_1);
         }
 
@@ -864,6 +864,11 @@ public class S3StorageProvider implements StorageProvider {
     private static StorageEntry toStorageEntry(S3Object s3Object, String pathPrefix) {
         Instant lastModified = s3Object.lastModified() != null ? s3Object.lastModified() : Instant.EPOCH;
         return new StorageEntry(StoragePath.of(pathPrefix + s3Object.key()), s3Object.size(), lastModified);
+    }
+
+    @Override
+    public boolean listsInKeyOrder() {
+        return true;
     }
 
     @Override

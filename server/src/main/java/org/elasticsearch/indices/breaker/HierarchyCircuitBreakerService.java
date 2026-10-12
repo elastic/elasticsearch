@@ -581,7 +581,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         MemoryUsage overLimit(MemoryUsage memoryUsed);
     }
 
-    static class G1OverLimitStrategy implements OverLimitStrategy {
+    public static class G1OverLimitStrategy implements OverLimitStrategy {
         private static final int FILLER_ARRAY_HEADER_ALLOWANCE_BYTES = 64;
 
         private final long g1RegionSize;
@@ -661,7 +661,10 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             return (int) (g1RegionSize >> 2) - FILLER_ARRAY_HEADER_ALLOWANCE_BYTES;
         }
 
-        static long fallbackRegionSize(JvmInfo jvmInfo) {
+        /**
+         * G1 region size to assume when the JVM does not report one, derived from the heap size the way G1 picks it.
+         */
+        public static long fallbackRegionSize(JvmInfo jvmInfo) {
             // mimic JDK calculation based on JDK 14 source:
             // https://hg.openjdk.java.net/jdk/jdk14/file/6c954123ee8d/src/hotspot/share/gc/g1/heapRegion.cpp#l65
             // notice that newer JDKs will have a slight variant only considering max-heap:

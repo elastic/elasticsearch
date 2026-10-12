@@ -905,7 +905,7 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
 
         return controller.newSearchPhaseResults(
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            NoopCircuitBreaker.INSTANCE,
             () -> false,
             SearchProgressListener.NOOP,
             mockSearchPhaseContext.getRequest(),

@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.internal.AbstractDependenciesTask
+
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-java-rest-test'
@@ -30,8 +32,9 @@ restResources {
   }
 }
 
-tasks.named("dependencyLicenses").configure {
+tasks.withType(AbstractDependenciesTask).configureEach {
   mapping from: /owasp-java-html-sanitizer.*/, to: 'owasp-java-html-sanitizer'
+  mapping from: /httpclient|httpcore/, to: 'httpclient'
 }
 
 dependencies {
@@ -51,8 +54,8 @@ dependencies {
   runtimeOnly 'com.google.guava:failureaccess:1.0.1'
   api 'com.sun.mail:jakarta.mail:1.6.8'
   api 'com.sun.activation:jakarta.activation:1.2.1'
-  compileOnly "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-  compileOnly "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  implementation "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  implementation "org.apache.httpcomponents:httpcore:${versions.httpcore}"
 
   testImplementation 'org.subethamail:subethasmtp:3.1.7'
   // needed for subethasmtp, has @GuardedBy annotation

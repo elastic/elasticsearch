@@ -21,6 +21,8 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -47,6 +49,7 @@ import java.util.TreeSet;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sampler;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.significantText;
+import static org.hamcrest.Matchers.containsString;
 
 public class SignificantTextAggregatorTests extends AggregatorTestCase {
     @Override
@@ -122,6 +125,33 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
     /**
      * Uses the significant text aggregation to find the keywords in text fields and include/exclude selected terms
      */
+    /** The include/exclude regex is bounded by {@code index.max_regex_length} here too, as in the terms aggregation. */
+    public void testIncludeExcludeRegexLengthLimit() throws IOException {
+        TextFieldType textFieldType = new TextFieldType("text", randomBoolean(), false);
+        int maxRegexLength = IndexSettings.MAX_REGEX_LENGTH_SETTING.getDefault(Settings.EMPTY);
+        String tooLong = "a".repeat(maxRegexLength + 1);
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new StandardAnalyzer()))) {
+            indexDocuments(w);
+            try (DirectoryReader reader = DirectoryReader.open(w)) {
+                for (IncludeExclude includeExclude : List.of(
+                    new IncludeExclude(tooLong, null, null, null),
+                    new IncludeExclude(null, tooLong, null, null)
+                )) {
+                    SignificantTextAggregationBuilder sigAgg = new SignificantTextAggregationBuilder("sig_text", "text").includeExclude(
+                        includeExclude
+                    );
+                    SamplerAggregationBuilder aggBuilder = new SamplerAggregationBuilder("sampler").subAggregation(sigAgg);
+                    IllegalArgumentException e = expectThrows(
+                        IllegalArgumentException.class,
+                        () -> searchAndReduce(reader, new AggTestConfig(aggBuilder, textFieldType))
+                    );
+                    assertThat(e.getMessage(), containsString("The length of regex [" + tooLong.length() + "]"));
+                    assertThat(e.getMessage(), containsString("allowed maximum of [" + maxRegexLength + "]"));
+                }
+            }
+        }
+    }
+
     public void testIncludeExcludes() throws IOException {
         TextFieldType textFieldType = new TextFieldType("text", randomBoolean(), false);
 

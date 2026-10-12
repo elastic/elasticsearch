@@ -1,0 +1,107 @@
+setup:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: GET
+          path: /_search
+          capabilities: [ regexp_query_charged ]
+      reason: "the regexp query builds its automaton through the charged compiler since 9.6"
+
+  # One copy of one shard, so the node that builds the automaton is the one whose breaker is read below.
+  - do:
+      indices.create:
+        index: test_regexp
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              str:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test_regexp
+        refresh: true
+        body:
+          - { index: { _id: "1" } }
+          - { str: bar }
+          - { index: { _id: "2" } }
+          - { str: xxx }
+
+---
+teardown:
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            indices.breaker.request.limit: null
+
+---
+"a regexp query whose build is predicted to exceed the request breaker is refused, and the reservation is released":
+  # The compiler reserves an upper bound on each step of the build on the request breaker before running it. With the
+  # breaker's limit lowered, a pattern whose predicted size is above it is refused before anything is built, the
+  # breaker's trip count moves, and nothing stays reserved once the request has failed. The pattern is sized so that the
+  # test node could build it even uncharged, so a regression in the charging fails the status assertion below.
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            indices.breaker.request.limit: "100mb"
+
+  - do:
+      search_shards:
+        index: test_regexp
+  - set: { shards.0.0.node: node_id }
+
+  - do:
+      catch: /circuit_breaking_exception/
+      search:
+        rest_total_hits_as_int: true
+        index: test_regexp
+        body:
+          query:
+            regexp:
+              str:
+                value: "x?{2000}"
+  - match: { status: 429 }
+  - match: { error.root_cause.0.type: circuit_breaking_exception }
+  - match: { error.root_cause.0.reason: "/.*Data\\stoo\\slarge,\\sdata\\sfor\\s\\[regexp\\].*/" }
+
+  - do:
+      nodes.stats:
+        node_id: $node_id
+        metric: [ breaker ]
+  - gte:   { nodes.$node_id.breakers.request.tripped: 1 }
+  - match: { nodes.$node_id.breakers.request.estimated_size_in_bytes: 0 }
+
+  # Under the same limit, the same shape at a size whose prediction fits builds and matches, as does a long bounded repeat.
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_regexp
+        body:
+          query:
+            regexp:
+              str:
+                value: "x?{300}"
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "2" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_regexp
+        body:
+          query:
+            regexp:
+              str:
+                value: ".{0,10000}"
+  - match: { hits.total: 2 }
+
+  - do:
+      nodes.stats:
+        node_id: $node_id
+        metric: [ breaker ]
+  - match: { nodes.$node_id.breakers.request.estimated_size_in_bytes: 0 }

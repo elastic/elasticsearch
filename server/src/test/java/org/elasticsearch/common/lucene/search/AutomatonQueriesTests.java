@@ -197,6 +197,17 @@ public class AutomatonQueriesTests extends ESTestCase {
         assertEquals("all reserved memory should be released after a successful build", 0, breaker.getUsed());
     }
 
+    public void testToRegexpAutomatonWithoutBreakerMatchesLucene() {
+        Term term = new Term("field", "a{3}b?c*|[x-z]+");
+        Automaton dfa = AutomatonQueries.toRegexpAutomaton(term, RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, null);
+        Automaton lucene = Operations.determinize(
+            new RegExp(term.text(), RegExp.ALL, 0).toAutomaton(),
+            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
+        );
+        assertTrue(dfa.isDeterministic());
+        assertTrue(AutomatonTestUtil.sameLanguage(lucene, dfa));
+    }
+
     public void testToRegexpAutomatonTripsBreakerForHugeRepetitionBeforeBuild() {
         CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(500));
         Term term = new Term("field", "a{10000000}");

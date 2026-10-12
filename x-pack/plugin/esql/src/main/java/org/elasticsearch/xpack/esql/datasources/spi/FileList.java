@@ -153,9 +153,11 @@ public interface FileList {
     long estimatedBytes();
 
     /**
-     * {@link #globMatchCount()} where the number is not known, because no drain produced this listing: the
-     * enumerable-keys probe, the partition walk, the schema-inference anchor and a comma list all build a file
-     * list without counting glob matches. Every flat drain and every prefix fan-out records one, bounded or not.
+     * {@link #globMatchCount()} where the listing cannot say how many files the glob selected — either nothing
+     * drained the pattern (an enumerable-keys probe, a partition walk, a schema-inference anchor, a comma list,
+     * an empty result) or the drain deliberately skipped a narrowing that another query's drain will apply, so
+     * its count is not the number that would stop that drain. Enumerating the producers here went stale twice;
+     * what the value means is the durable half.
      */
     int UNKNOWN_GLOB_MATCH_COUNT = -1;
 

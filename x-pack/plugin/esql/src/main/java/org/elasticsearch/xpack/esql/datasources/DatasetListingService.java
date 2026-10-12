@@ -215,10 +215,9 @@ public final class DatasetListingService {
      * Whether {@code cached} answers a listing bounded by {@code extents} — that is, whether a query running this
      * bound would have produced the same complete listing rather than stopping short of it.
      * <p>
-     * An entry with no recorded glob-match count cannot say, so it is declined. That is not a bounded-versus-
-     * unbounded distinction — every drain records one either way — but a listing built without a drain at all: the
-     * enumerable-keys probe, the partition walk, a schema-inference anchor, a comma list. Declining those is the
-     * conservative direction: it costs a listing, never an answer.
+     * An entry with no recorded glob-match count cannot say, so it is declined — which is the conservative
+     * direction: it costs a listing, never an answer. It is not a bounded-versus-unbounded distinction; see
+     * {@link FileList#UNKNOWN_GLOB_MATCH_COUNT} for when a listing has no count to offer.
      */
     private static boolean servesThisBound(@Nullable FileList cached, ListingExtents extents) {
         if (cached == null || cached.globMatchCount() == FileList.UNKNOWN_GLOB_MATCH_COUNT) {

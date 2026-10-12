@@ -5075,33 +5075,38 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * A listing the partition walk withdrew from, and a bounded listing of the same inputs, agree — so the first
-     * may be served to the second.
+     * A listing the partition walk withdrew from records no glob-match count, so it can never be served to a
+     * bounded query — whose own listing of the same inputs is a strict subset of it.
      *
-     * <p>The walk descends only the folders a multi-value hint keeps, which here are {@code k=1} and {@code k=2},
-     * where the column reads as a number; across every folder at that level it is text, because of {@code k=abc}.
-     * The walk will not narrow a partition column's type, so it withdraws and the pattern is listed flat with the
-     * value filter suppressed. That listing is the unfiltered superset, and it records a glob-match count, so it
-     * reaches the shared cache and is below any ordinary bound — which is to say nothing stops it being served to
-     * a query running a bound.
+     * <p>When the walk withdraws, the pattern is re-listed flat with the value filter deliberately suppressed, so
+     * that listing is the unfiltered superset. A bounded query never walks: it applies the filter in the drain and
+     * keeps the subset. Whether the two agree turns on a difference in what the two trust checks look at — the walk
+     * types a partition column from the <em>folder names</em> it enumerated, the drain from the <em>files</em> it
+     * matched — so a {@code key=value} folder holding no matching file is visible only to the walk. Here
+     * {@code m=abc} holds a {@code _SUCCESS}, not a {@code .csv}: it widens the column to text for the walk, which
+     * withdraws, while the drain never sees it and trusts its own prune.
      *
-     * <p>Which is safe only while a bounded query, which never walks and applies the filter in the drain, reaches
-     * the same answer. It does: {@code valueFilterTrusted} refuses the same narrowing for the same reason, and the
-     * filtered-out files go back. Both arms are asserted together, file for file, because the failure this guards
-     * against is the two coming apart — then a bounded query's schema would depend on whether an unbounded one
-     * ran first, which is the defect this whole area exists to prevent.
+     * <p>So the superset is two files and the bounded listing is one, and both counted two. Served, the bounded
+     * query would read a file its own filter excludes and — under {@code first_file_wins}, where the schema comes
+     * from the first path — infer its schema from a different file than it would cold. Recording no count is what
+     * stops it: the entry still serves a query that wants the whole pattern, and a bounded one re-lists.
      */
-    public void testAWalkRejectedListingAgreesWithABoundedOne() throws Exception {
+    public void testAWalkRejectedListingIsNotServableToABoundedQuery() throws Exception {
         List<StorageEntry> files = List.of(
-            entry("s3://bucket/logs/k=1/a.csv", 10),
-            entry("s3://bucket/logs/k=2/b.csv", 10),
-            entry("s3://bucket/logs/k=abc/c.csv", 10)
+            entry("s3://bucket/logs/k=1/m=1/a.csv", 10),
+            entry("s3://bucket/logs/k=2/m=abc/_SUCCESS", 0),
+            entry("s3://bucket/logs/k=3/m=2/c.csv", 10)
         );
-        var hints = List.of(hint("k", PartitionFilterHintExtractor.Operator.IN, 1, 2));
+        // The data-column conjunct keeps the walk descending to the second level, where the placeholder sits.
+        var hints = List.of(
+            hint("k", PartitionFilterHintExtractor.Operator.IN, 1, 2),
+            hint("status", PartitionFilterHintExtractor.Operator.EQUALS, "ok")
+        );
+        String glob = "s3://bucket/logs/k=*/m=*/*.csv";
 
-        FileList withdrawn = GlobExpander.expand("s3://bucket/logs/k=*/*.csv", new TreeStubProvider(files), hints, HIVE_ON, MAX, MAX);
+        FileList withdrawn = GlobExpander.expand(glob, new TreeStubProvider(files), hints, HIVE_ON, MAX, MAX);
         FileList bounded = expandSync(
-            "s3://bucket/logs/k=*/*.csv",
+            glob,
             new TreeStubProvider(files),
             hints,
             HIVE_ON,
@@ -5113,15 +5118,15 @@ public class GlobExpanderTests extends ESTestCase {
             () -> false
         );
 
-        assertEquals("the withdrawn walk re-lists the superset the filter would have pruned", 3, withdrawn.fileCount());
-        assertEquals("and records what the glob selected, so it can be cached and served", 3, withdrawn.globMatchCount());
-        assertEquals("the bounded listing reaches the same file set", paths(withdrawn), paths(bounded));
+        assertEquals("the withdrawn walk re-lists the superset the filter would have pruned", 2, withdrawn.fileCount());
+        assertEquals("while a bounded query's own listing keeps only what its filter selects", 1, bounded.fileCount());
+        assertNotEquals("the two disagree, which is the whole reason the count must not be recorded", paths(withdrawn), paths(bounded));
         assertEquals(
-            "and the same count, so serving one for the other changes nothing",
-            withdrawn.globMatchCount(),
-            bounded.globMatchCount()
+            "so the superset records no count and cannot be served to a bounded query",
+            FileList.UNKNOWN_GLOB_MATCH_COUNT,
+            withdrawn.globMatchCount()
         );
-        assertFalse("neither stopped on the bound", bounded.isTruncated());
+        assertFalse("and it is still cacheable for a query that wants the whole pattern", withdrawn.isTruncated());
     }
 
     /**

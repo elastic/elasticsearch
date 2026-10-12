@@ -1126,6 +1126,7 @@ public final class GlobExpander {
             fileHints,
             excludedCount,
             globKeptCount,
+            suppressValueFilter,
             excludedExample,
             excludedExampleEntry,
             truncated,
@@ -1156,6 +1157,7 @@ public final class GlobExpander {
         List<PartitionFilterHint> fileHints,
         int excludedCount,
         int globKeptCount,
+        boolean valueFilterSuppressed,
         @Nullable String excludedExample,
         @Nullable String excludedExampleEntry,
         boolean truncated,
@@ -1266,9 +1268,17 @@ public final class GlobExpander {
         PartitionMetadata partitionMetadata = detectPartitions(matched, partitionConfig, listingWarnings::add);
 
         // globKeptCount, not matched.size(): the count the bound was measured against, before the value filter, the
-        // closed-range narrowing and the _file.* hints above dropped entries from the result. A reader deciding
-        // whether its own bounded listing would have completed needs that number and cannot recover it from here.
-        return new GenericFileList(matched, pattern, partitionMetadata, listingWarnings, truncated, false, globKeptCount);
+        // closed-range narrowing and the _file.* hints each dropped from it. See FileList#globMatchCount.
+        //
+        // Except when this drain SUPPRESSED the value filter, which happens only after the partition walk withdrew.
+        // Then this listing is the unfiltered superset while a bounded query's own drain applies the filter and keeps
+        // a subset -- the two trust checks judge different populations, so they can disagree: the walk types a
+        // partition column from the FOLDER NAMES it enumerated, the drain from the FILES it matched, and a key=value
+        // folder holding no matching file (a console placeholder, a _SUCCESS, another format) is visible only to the
+        // walk. Recording no count keeps the entry cacheable for a query that wants the whole pattern and refuses it
+        // to a bounded one, which re-lists -- the conservative direction servesThisBound documents.
+        int recordedCount = valueFilterSuppressed ? FileList.UNKNOWN_GLOB_MATCH_COUNT : globKeptCount;
+        return new GenericFileList(matched, pattern, partitionMetadata, listingWarnings, truncated, false, recordedCount);
     }
 
     private static FileList emptyListing(String pattern, @Nullable String exclusionNotice, boolean truncated) {
@@ -2080,6 +2090,8 @@ public final class GlobExpander {
                         fileHints,
                         merged.excludedCount(),
                         merged.globKeptCount(),
+                        // The fan-out rail never withdraws a walk, so it never suppresses the filter.
+                        false,
                         merged.excludedExample(),
                         merged.excludedExampleEntry(),
                         false,

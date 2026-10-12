@@ -1,0 +1,30 @@
+# Compares PromQL compliance with Prometheus between a pull request and its merge base. The pull request pipeline
+# triggers it for PRs labelled :StorageEngine/PromQL, and the build bot posts the report as a PR comment.
+env:
+  PROMCHECK_VER: "0.5.4"
+  PROMCHECK_TEST_INSTANCE_TIMEOUT: "900"
+steps:
+  - label: validate-prometheus-compliance
+    key: validate-prometheus-compliance
+    command: |
+      if ! command -v uv >/dev/null 2>&1; then
+        curl -LsSf https://astral.sh/uv/install.sh | env UV_NO_MODIFY_PATH=1 sh
+        export PATH="$${HOME}/.local/bin:$${PATH}"
+      fi
+      .buildkite/scripts/validate-prometheus-compliance.sh promql_test_queries-grafana
+    timeout_in_minutes: 120
+    retry:
+      automatic:
+        - exit_status: -1
+          limit: 2
+        - exit_status: 137
+          limit: 2
+    artifact_paths:
+      - "/tmp/validate-prometheus-compliance-output/*"
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2404
+      machineType: n1-standard-8
+      docker: "true"
+      diskType: pd-ssd
+      buildDirectory: /dev/shm/bk

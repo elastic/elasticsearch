@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 154011
-pr: 158573
-summary: Fix nested fields conflicting with object fields
-type: bug

@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
@@ -300,6 +301,7 @@ public class LocalExecutionPlanner {
     private final UserAgentParserRegistry userAgentParserRegistry;
     private final IpLocationService ipLocationService;
     private final ProjectResolver projectResolver;
+    private final ProjectMetadata projectMetadata;
     private final AbstractPhysicalOperationProviders physicalOperationProviders;
     private final OperatorFactoryRegistry operatorFactoryRegistry;
     @Nullable
@@ -308,6 +310,8 @@ public class LocalExecutionPlanner {
     private final Executor parallelWorkerExecutor;
     private final int esqlWorkerPoolSize;
     private final MatcherWatchdog grokMatcherWatchdog;
+    /** The oldest transport version in this node's cluster, which decides how external text files bind; see FileSourceFactory. */
+    private final TransportVersion minTransportVersion;
 
     public LocalExecutionPlanner(
         String sessionId,
@@ -325,12 +329,14 @@ public class LocalExecutionPlanner {
         UserAgentParserRegistry userAgentParserRegistry,
         IpLocationService ipLocationService,
         ProjectResolver projectResolver,
+        ProjectMetadata projectMetadata,
         AbstractPhysicalOperationProviders physicalOperationProviders,
         OperatorFactoryRegistry operatorFactoryRegistry,
         @Nullable RemoteFetchService remoteFetchService,
         @Nullable Executor parallelWorkerExecutor,
         int esqlWorkerPoolSize,
-        MatcherWatchdog grokMatcherWatchdog
+        MatcherWatchdog grokMatcherWatchdog,
+        TransportVersion minTransportVersion
     ) {
 
         this.sessionId = sessionId;
@@ -348,6 +354,7 @@ public class LocalExecutionPlanner {
         this.userAgentParserRegistry = userAgentParserRegistry;
         this.ipLocationService = ipLocationService;
         this.projectResolver = projectResolver;
+        this.projectMetadata = projectMetadata;
         this.physicalOperationProviders = physicalOperationProviders;
         this.operatorFactoryRegistry = operatorFactoryRegistry;
         this.remoteFetchService = remoteFetchService;
@@ -357,6 +364,7 @@ public class LocalExecutionPlanner {
         // by every GROK matcher this planner builds — MatcherWatchdog.Default is a stateless, immutable
         // wrapper around a single timeout value.
         this.grokMatcherWatchdog = grokMatcherWatchdog;
+        this.minTransportVersion = minTransportVersion;
     }
 
     /**
@@ -2077,7 +2085,12 @@ public class LocalExecutionPlanner {
         MetricsInfoOperator.MetricFieldLookup fieldLookup = createMetricFieldLookup(context.shardContexts);
 
         return sourceWithMetadata.with(
-            new MetricsInfoOperator.Factory(fieldLookup, metadataSourceChannel, indexChannel),
+            new MetricsInfoOperator.Factory(
+                fieldLookup,
+                createDataStreamLookup(context.shardContexts),
+                metadataSourceChannel,
+                indexChannel
+            ),
             layoutBuilder.build()
         );
     }
@@ -2183,7 +2196,10 @@ public class LocalExecutionPlanner {
 
         MetricsInfoOperator.MetricFieldLookup fieldLookup = createMetricFieldLookup(context.shardContexts);
 
-        return sourceWithMetadata.with(new TsInfoOperator.Factory(fieldLookup, metadataSourceChannel, indexChannel), layoutBuilder.build());
+        return sourceWithMetadata.with(
+            new TsInfoOperator.Factory(fieldLookup, createDataStreamLookup(context.shardContexts), metadataSourceChannel, indexChannel),
+            layoutBuilder.build()
+        );
     }
 
     /**
@@ -2210,6 +2226,29 @@ public class LocalExecutionPlanner {
         layout.append(attributes);
         LocalSourceOperator.PageSupplier empty = () -> null;
         return PhysicalOperation.fromSource(new LocalSourceFactory(() -> new LocalSourceOperator(empty)), layout.build());
+    }
+
+    private Map<String, String> createDataStreamLookup(IndexedByShardId<? extends ShardContext> shardContexts) {
+        Map<String, String> dataStreamsByIndex = new HashMap<>();
+        for (ShardContext shard : shardContexts.iterable()) {
+            String indexName = RemoteClusterAware.buildRemoteIndexName(clusterAlias, shard.indexSettings().getIndex().getName());
+            dataStreamsByIndex.computeIfAbsent(indexName, name -> resolveDataStreamName(projectMetadata, name));
+        }
+        return Map.copyOf(dataStreamsByIndex);
+    }
+
+    /**
+     * Resolves the parent data stream from the local project's metadata while preserving the query's cluster qualifier.
+     * Returns {@code null} for missing or standalone indices so the lookup stores only data-stream membership.
+     */
+    @Nullable
+    static String resolveDataStreamName(ProjectMetadata projectMetadata, String indexName) {
+        var split = RemoteClusterAware.splitIndexName(indexName);
+        var index = projectMetadata.getIndicesLookup().get(split.indexExpression());
+        if (index == null || index.getParentDataStream() == null) {
+            return null;
+        }
+        return RemoteClusterAware.buildRemoteIndexName(split.clusterAlias(), index.getParentDataStream().getName());
     }
 
     private MetricsInfoOperator.MetricFieldLookup createMetricFieldLookup(IndexedByShardId<? extends ShardContext> shardContexts) {
@@ -2362,6 +2401,7 @@ public class LocalExecutionPlanner {
             .maxRecordBytes(Math.toIntExact(context.queryPragmas().maxRecordSize().getBytes()))
             .parallelism(instanceCount)
             .deferredExtraction(externalSource.deferredExtraction())
+            .minTransportVersion(minTransportVersion)
             .build();
 
         SourceOperator.SourceOperatorFactory factory = operatorFactoryRegistry.factory(operatorContext);

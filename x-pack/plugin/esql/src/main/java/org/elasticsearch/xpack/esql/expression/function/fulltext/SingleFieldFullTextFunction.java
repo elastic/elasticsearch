@@ -19,15 +19,13 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
-import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AnalyzedTextExpression;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.expression.NameId;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -38,15 +36,13 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
-import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.AliasBindings;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -349,8 +345,8 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
             return null;
         }
 
-        Map<NameId, Expression> aliases = aliasBindings(plan);
-        Expression resolved = resolveThroughAliases(aliases, column);
+        AttributeMap<Expression> aliases = AliasBindings.of(plan);
+        Expression resolved = aliases.resolve(column, column);
         if (resolved instanceof Attribute == false) {
             return null;
         }
@@ -362,11 +358,11 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
                 return;
             }
             // Branches are name-aligned by the time the merge resolves, so the name is what identifies the same
-            // column across them; only the branch that wins the merge shares the output attribute's id.
+            // column across them. The merge gives its output new ids, so no branch column shares the merged column's id.
             for (LogicalPlan branch : fork.children()) {
                 for (Attribute branchColumn : branch.output()) {
                     if (branchColumn.name().equals(merged.name())
-                        && resolveThroughAliases(aliases, branchColumn) instanceof FieldAttribute mapped
+                        && aliases.resolve(branchColumn, branchColumn) instanceof FieldAttribute mapped
                         && mapped.dataType() == TEXT) {
                         mappedField.set(mapped);
                         return;
@@ -375,42 +371,6 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
             }
         });
         return mappedField.get() == null ? null : new ForkTextColumn(column, mappedField.get());
-    }
-
-    /**
-     * Every {@code EVAL} and {@code RENAME} binding in {@code plan}, keyed by the id of the attribute it defines, so
-     * that a column can be followed back to whatever produces it. Ids are unique across a plan, so a single map
-     * covers both the columns above a {@code FORK} and those inside its branches.
-     */
-    private static Map<NameId, Expression> aliasBindings(LogicalPlan plan) {
-        Map<NameId, Expression> bindings = new HashMap<>();
-        plan.forEachDown(p -> {
-            if (p instanceof Eval eval) {
-                for (Alias alias : eval.fields()) {
-                    bindings.put(alias.id(), alias.child());
-                }
-            } else if (p instanceof Project project) {
-                for (NamedExpression projection : project.projections()) {
-                    if (projection instanceof Alias alias) {
-                        bindings.put(alias.id(), alias.child());
-                    }
-                }
-            }
-        });
-        return bindings;
-    }
-
-    private static Expression resolveThroughAliases(Map<NameId, Expression> aliases, Expression expression) {
-        Expression current = expression;
-        // A binding never defines the attribute it resolves to, so no chain can be longer than the map itself.
-        for (int hops = aliases.size(); hops > 0 && current instanceof Attribute attribute; hops--) {
-            Expression bound = aliases.get(attribute.id());
-            if (bound == null) {
-                break;
-            }
-            current = bound;
-        }
-        return current;
     }
 
     @Override

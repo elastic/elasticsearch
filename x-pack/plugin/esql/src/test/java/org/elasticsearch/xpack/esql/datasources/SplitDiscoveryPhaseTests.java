@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -354,6 +356,59 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         assertTrue(
             "a filter above a LIMIT must not prune the source on the physical path either",
             recorder.lastContext.filterHints().isEmpty()
+        );
+    }
+
+    /**
+     * The minimum transport version of the cluster must reach the split provider, which uses it to keep header-dependent files whole
+     * when an older node could not read a split of them. The overloads that do not take a version assume the current one.
+     */
+    public void testMinTransportVersionReachesTheProvider() {
+        TransportVersion minimum = TransportVersionUtils.randomVersionNotSupporting(
+            FileSplitProvider.ESQL_EXTERNAL_TEXT_HEADER_EVERY_SPLIT
+        );
+        ExternalSourceExec exec = createExternalSourceExec(createFileList(2), "parquet");
+        RecordingSplitProvider recorder = new RecordingSplitProvider();
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(recorder));
+
+        SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+            exec,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            List.of(),
+            FormatReader.NO_LIMIT,
+            null,
+            0,
+            minimum
+        );
+        assertEquals("the cluster minimum is handed to the provider", minimum, recorder.lastContext.minTransportVersion());
+
+        // The coordinator plans through the async path, so that one has to carry the version as well.
+        recorder = new RecordingSplitProvider();
+        PlainActionFuture<SplitDiscoveryPhase.Result> future = new PlainActionFuture<>();
+        SplitDiscoveryPhase.resolveExternalSplitsWithStatsAsync(
+            exec,
+            Map.of("parquet", testFactory(recorder)),
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            List.of(),
+            FormatReader.NO_LIMIT,
+            PlanningMemory.NONE,
+            0,
+            minimum,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            future
+        );
+        future.actionGet(30, TimeUnit.SECONDS);
+        assertEquals("async: the cluster minimum is handed to the provider", minimum, recorder.lastContext.minTransportVersion());
+
+        recorder = new RecordingSplitProvider();
+        SplitDiscoveryPhase.resolveExternalSplits(exec, Map.of("parquet", testFactory(recorder)));
+        assertEquals(
+            "callers that do not know the cluster minimum assume the current version",
+            TransportVersion.current(),
+            recorder.lastContext.minTransportVersion()
         );
     }
 

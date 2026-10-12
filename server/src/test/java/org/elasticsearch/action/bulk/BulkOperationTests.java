@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
-import org.elasticsearch.cluster.desirednodes.VersionConflictException;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
@@ -58,6 +57,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.shard.ShardId;
@@ -653,10 +653,11 @@ public class BulkOperationTests extends ESTestCase {
         bulkRequest.add(new IndexRequest(fsDataStreamName).id("3").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
 
         final Exception expectedException = randomFrom(
-            new VersionConflictException("test"),
+            new VersionConflictEngineException(new ShardId(ds2BackingIndex1.getIndex(), 0), "3", "test"),
             new EsRejectedExecutionException("test"),
             new CircuitBreakingException("test", randomFrom(CircuitBreaker.Durability.values())),
-            new ClusterBlockException(Set.of(MetadataIndexStateService.createIndexClosingBlock())),
+            new ClusterBlockException(Set.of(NoMasterBlockService.NO_MASTER_BLOCK_WRITES)),
+            new ClusterBlockException(Set.of(IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)),
             new BulkOperation429Exception("test")
         );
 
@@ -664,26 +665,47 @@ public class BulkOperationTests extends ESTestCase {
             thatFailsDocuments(Map.of(new IndexAndId(ds2BackingIndex1.getIndex().getName(), "3"), () -> expectedException))
         );
 
-        BulkResponse bulkItemResponses = safeAwait(
-            l -> newBulkOperation(
-                clusterState,
-                client,
-                bulkRequest,
-                new AtomicArray<>(bulkRequest.numberOfActions()),
-                mockObserver(clusterState),
-                l,
-                new FailureStoreDocumentConverter(),
-                DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings()),
-                false
-            ).run()
-        );
+        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, l).run());
         assertThat(bulkItemResponses.hasFailures(), is(true));
         BulkItemResponse failedItem = Arrays.stream(bulkItemResponses.getItems())
             .filter(BulkItemResponse::isFailed)
             .findFirst()
-            .orElseThrow(() -> new AssertionError("Could not find redirected item"));
+            .orElseThrow(() -> new AssertionError("Could not find failed item"));
         assertThat(failedItem.getFailure().getCause(), is(equalTo(expectedException)));
         assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN));
+    }
+
+    /**
+     * Non-retryable cluster blocks such as an index write block are a permanent condition of the target index and not backpressure, so
+     * the affected documents must be redirected to the failure store. This also holds when the exception mixes a permanent block with a
+     * backpressure block, because retrying cannot succeed while the permanent block remains.
+     */
+    public void testFailingDocumentRedirectsToFailureStoreOnNonRetryableClusterBlock() throws Exception {
+        // Requests that go to two separate shards
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(new IndexRequest(fsDataStreamName).id("1").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
+        bulkRequest.add(new IndexRequest(fsDataStreamName).id("3").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
+
+        final ClusterBlockException blockException = randomFrom(
+            new ClusterBlockException(Set.of(IndexMetadata.INDEX_WRITE_BLOCK)),
+            new ClusterBlockException(Set.of(IndexMetadata.INDEX_READ_ONLY_BLOCK)),
+            new ClusterBlockException(Set.of(MetadataIndexStateService.INDEX_CLOSED_BLOCK)),
+            new ClusterBlockException(Set.of(MetadataIndexStateService.createIndexClosingBlock())),
+            new ClusterBlockException(Set.of(IndexMetadata.INDEX_WRITE_BLOCK, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)),
+            new ClusterBlockException(Set.of(IndexMetadata.INDEX_WRITE_BLOCK, NoMasterBlockService.NO_MASTER_BLOCK_WRITES))
+        );
+
+        NodeClient client = getNodeClient(
+            thatFailsDocuments(Map.of(new IndexAndId(ds2BackingIndex1.getIndex().getName(), "3"), () -> blockException))
+        );
+
+        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, l).run());
+        assertThat(bulkItemResponses.hasFailures(), is(false));
+        BulkItemResponse redirectedItem = Arrays.stream(bulkItemResponses.getItems())
+            .filter(item -> item.getIndex().equals(ds2FailureStore1.getIndex().getName()))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("Could not find redirected item"));
+        assertThat(redirectedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.USED));
     }
 
     public void testFailingDocumentRedirectsToFailureStoreWhenEnabledByClusterSetting() {

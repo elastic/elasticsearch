@@ -301,10 +301,27 @@ public class Knn extends SingleFieldFullTextFunction
         Translatable translatable = super.translatable(pushdownPredicates);
         // We need to check whether filter expressions are translatable as well
         for (Expression filterExpression : filterExpressions()) {
-            translatable = translatable.merge(TranslationAware.translatable(filterExpression, pushdownPredicates));
+            Translatable filter = TranslationAware.translatable(filterExpression, pushdownPredicates);
+            if (filter == Translatable.YES && prefilterReachesLucene(filterExpression) == false) {
+                return Translatable.NO;
+            }
+            translatable = translatable.merge(filter);
         }
 
         return translatable;
+    }
+
+    /**
+     * Does this prefilter make it into the query this function will be pushed as? A prefilter only reaches Lucene
+     * through the query builder {@code QueryBuilderResolver} resolves on the coordinator, which translates the
+     * prefilters {@link LucenePushdownPredicates#DEFAULT} allows - it has no shard to ask. A filter this node can
+     * push but that one could not is absent from that builder, and a knn searching for the nearest {@code k}
+     * without it has already dropped the documents the filter keeps: running the filter again above the search
+     * cannot bring them back. Report such a prefilter as out of reach, so the whole predicate stays in the compute
+     * engine and the search sees every document.
+     */
+    private static boolean prefilterReachesLucene(Expression filterExpression) {
+        return TranslationAware.translatable(filterExpression, LucenePushdownPredicates.DEFAULT) == Translatable.YES;
     }
 
     /**

@@ -1,0 +1,5 @@
+area: Infra/Core
+issues: []
+pr: 161345
+summary: Validate LZ4 transport block decompression to its declared length
+type: bug

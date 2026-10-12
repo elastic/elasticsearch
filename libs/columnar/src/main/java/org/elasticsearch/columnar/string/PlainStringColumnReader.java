@@ -17,6 +17,8 @@ import org.elasticsearch.columnar.substrate.ColumnInputs;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 
 import java.io.IOException;
+import java.util.NavigableSet;
+import java.util.Set;
 import java.util.function.Predicate;
 
 /**
@@ -185,6 +187,12 @@ public final class PlainStringColumnReader extends StringColumnReader {
         return matched;
     }
 
+    /** A null's code is below a repeat's and every length's, so every other code is a value. */
+    @Override
+    protected SlotWindow nonNullSlots() {
+        return new SlotWindow(values.codes(), PlainValues.REPEAT, Long.MAX_VALUE);
+    }
+
     /**
      * The slots whose value is {@code [min, max]} bytes long, compared on the stored codes. A null's code is
      * below every length's, so no range holds one; a repeat's code says nothing of its length, so it takes the
@@ -207,6 +215,100 @@ public final class PlainStringColumnReader extends StringColumnReader {
                 }
             }
         };
+    }
+
+    @Override
+    protected DocIdSetIterator unorderedRangeMatches(BytesRef lower, boolean includeLower, BytesRef upper, boolean includeUpper)
+        throws IOException {
+        final ColumnIterator presence = iterator();
+        final LastSeen lastSeen = new LastSeen();
+        return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(presence) {
+            @Override
+            public boolean matches() throws IOException {
+                return matchesRangeRank(presence.rank(), lower, includeLower, upper, includeUpper, lastSeen);
+            }
+
+            @Override
+            public float matchCost() {
+                return 10f;
+            }
+        });
+    }
+
+    private boolean matchesRangeRank(
+        int rank,
+        BytesRef lower,
+        boolean includeLower,
+        BytesRef upper,
+        boolean includeUpper,
+        LastSeen lastSeen
+    ) throws IOException {
+        final long first = firstValueAddress(rank);
+        final long count = valueCount(rank);
+        if (count == 1) {
+            if (isNullSlot(first)) {
+                return false;
+            }
+            final long identity = values.read(first, scratch);
+            if (identity == lastSeen.identity && scratch.length == lastSeen.length) {
+                return lastSeen.matched;
+            }
+            final boolean matched = inRange(scratch, lower, includeLower, upper, includeUpper);
+            lastSeen.identity = identity;
+            lastSeen.length = scratch.length;
+            lastSeen.matched = matched;
+            return matched;
+        }
+        for (long i = 0; i < count; i++) {
+            final BytesRef v = valueAt(first + i);
+            if (v != null && inRange(v, lower, includeLower, upper, includeUpper)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    protected DocIdSetIterator unorderedAnyOfMatches(NavigableSet<BytesRef> terms, Set<BytesRef> membership) throws IOException {
+        final ColumnIterator presence = iterator();
+        final LastSeen lastSeen = new LastSeen();
+        return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(presence) {
+            @Override
+            public boolean matches() throws IOException {
+                return matchesAnyOfRank(presence.rank(), membership, lastSeen);
+            }
+
+            @Override
+            public float matchCost() {
+                return 10f;
+            }
+        });
+    }
+
+    private boolean matchesAnyOfRank(int rank, Set<BytesRef> terms, LastSeen lastSeen) throws IOException {
+        final long first = firstValueAddress(rank);
+        final long count = valueCount(rank);
+        if (count == 1) {
+            if (isNullSlot(first)) {
+                return false;
+            }
+            final long identity = values.read(first, scratch);
+            if (identity == lastSeen.identity && scratch.length == lastSeen.length) {
+                return lastSeen.matched;
+            }
+            final boolean matched = terms.contains(scratch);
+            lastSeen.identity = identity;
+            lastSeen.length = scratch.length;
+            lastSeen.matched = matched;
+            return matched;
+        }
+        for (long i = 0; i < count; i++) {
+            final BytesRef v = valueAt(first + i);
+            if (v != null && terms.contains(v)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -257,7 +359,7 @@ public final class PlainStringColumnReader extends StringColumnReader {
             for (int i = 0; i < values; i++) {
                 pageValues[i] = pageDictionary[pageOrdinals[i]];
             }
-            sink.appendValues(pageValues, values, pageValueCounts, docCount);
+            appendGathered(sink, values, pageValueCounts, docCount);
             return true;
         }
         sink.appendOrdinals(pageOrdinals, values, pageValueCounts, docCount, pageDictionary, slots);
@@ -299,7 +401,7 @@ public final class PlainStringColumnReader extends StringColumnReader {
             for (int i = 0; i < count; i++) {
                 pageValues[i] = pageDictionary[pageOrdinals[i]];
             }
-            sink.appendValues(pageValues, count, counts, docCount);
+            appendGathered(sink, count, counts, docCount);
             return true;
         }
         sink.appendOrdinals(pageOrdinals, count, counts, docCount, pageDictionary, slots);
@@ -307,38 +409,17 @@ public final class PlainStringColumnReader extends StringColumnReader {
     }
 
     /**
-     * The same page, without a dictionary being built for it. A page handed over as values never reads the one
-     * the method above builds, and building it hashes every value and probes a table for it. So a column whose
-     * values do not repeat is read this way instead: runs are still collapsed, which costs no bytes to find,
-     * but nothing is hashed.
-     *
-     * <p>Only the way the values are found changes. What the sink is given is what it would have been given.
+     * The same page for a column whose values do not repeat, where a dictionary would be built and never read. Each
+     * value is handed to the sink where the column holds it, so nothing is gathered or hashed.
      */
     private boolean appendSingleValuedPageAsValues(int count, int[] counts, int docCount, StringBlockSink sink) throws IOException {
-        growPageValues(count);
-        pageBytesLength = 0;
-        int runs = 0;
-        long previous = -1;
-        int previousLength = -1;
-        int previousRun = -1;
-        for (int i = 0; i < count; i++) {
-            final long identity = values.read(pageRanks[i], scratch);
-            if (previousRun < 0 || identity != previous || scratch.length != previousLength) {
-                // The run before is compared by its bytes before a new one is started.
-                if (previousRun < 0 || pageSlotHolds(previousRun, scratch) == false) {
-                    appendToPage(runs, scratch);
-                    previousRun = runs++;
-                }
-                previous = identity;
-                previousLength = scratch.length;
+        try (StringBlockSink.Values out = sink.values(count, counts, docCount)) {
+            for (int i = 0; i < count; i++) {
+                values.get(pageRanks[i], scratch);
+                out.append(scratch);
             }
-            pageOrdinals[i] = previousRun;
+            out.finish();
         }
-        point(pageDictionary, runs);
-        for (int i = 0; i < count; i++) {
-            pageValues[i] = pageDictionary[pageOrdinals[i]];
-        }
-        sink.appendValues(pageValues, count, counts, docCount);
         return true;
     }
 }

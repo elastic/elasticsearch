@@ -5086,7 +5086,12 @@ public class ExternalSourceResolverTests extends ESTestCase {
                         (Boolean) stamped
                     );
                 }
-                if (resolution.equals("first_file_wins") == false) {
+                if (resolution.equals("first_file_wins")) {
+                    // The anchor pins the schema and the files after it have nothing recorded on a cold cache, so the
+                    // read is planned as though a value may fail. Both arms get that same answer, which is what this
+                    // test is about; the cost of it is named in the PR body rather than being a defect.
+                    assertTrue(resolution + ", declared=" + declared + ": the files after the anchor are unexamined", stamped);
+                } else {
                     assertFalse(
                         resolution + ", declared=" + declared + ": every file holds long and is read as long, so no " + "value can fail",
                         stamped

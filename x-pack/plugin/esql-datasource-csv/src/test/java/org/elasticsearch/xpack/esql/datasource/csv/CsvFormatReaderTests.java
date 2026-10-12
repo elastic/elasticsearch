@@ -492,15 +492,17 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * At the ceiling raising the cap is refused, so the refusal points at declaring the columns, which lifts the cap for
-     * header-bearing and headerless files alike. Below it, the refusal points at raising the cap.
+     * Below the ceiling the refusal points at raising the cap. At the ceiling raising it is refused too, and declaring
+     * the columns no longer lifts the width cap either, so the refusal says the file is wider than any schema that can
+     * be read rather than offering a remedy that does not work (esql-planning#2076).
      */
     public void testColumnCapMessageAtTheCeiling() {
         int ceiling = ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS;
         ExternalClientException e = expectThrows(ExternalClientException.class, () -> CsvFormatReader.checkColumnCap(ceiling + 1, ceiling));
-        assertThat(e.getMessage(), containsString("dynamic: false"));
-        assertThat(CsvFormatReader.columnCapMessage(ceiling - 1), not(containsString("dynamic: false")));
+        assertThat(e.getMessage(), containsString("wider than any schema that can be read"));
+        assertThat(e.getMessage(), not(containsString("dynamic: false")));
         assertThat(CsvFormatReader.columnCapMessage(ceiling - 1), containsString("raise [esql.external.schema_max_fields]"));
+        assertThat(CsvFormatReader.columnCapMessage(ceiling - 1), not(containsString("wider than any schema")));
     }
 
     private static String header(int columns) {

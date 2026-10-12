@@ -32,9 +32,10 @@ package org.elasticsearch.xpack.esql.datasources;
  * refused is decided from the two types alone &mdash; what the file holds and what the query reads it as &mdash;
  * because a conversion can fail or not fail for reasons that have nothing to do with who supplied the target type.
  * It once also drove per-value coercion, the error mode's reach, which statistics a column may publish, filter
- * pushdown and the column-count cap, which made the same bytes read two different ways depending on whether the
- * dataset happened to carry a mapping. Those reads are gone; see esql-planning#2076 for what replaced them, and do
- * not add another.
+ * pushdown and the column-count cap every reader applied, which made the same bytes read two different ways depending
+ * on whether the dataset happened to carry a mapping. Those reads are gone; see esql-planning#2076 for what replaced
+ * them, and do not add another. One cap decision remains outside the readers: the strict rail's coercibility probe
+ * raises the column cap at resolution time for a declared dataset.
  * <p>
  * Under {@code dynamic:true} the schema is {@code INFERRED} (read from the file); under {@code dynamic:false} it is
  * a {@code DECLARED} claim. One exception, in the resolver: a {@code dynamic:true} text source whose declaration

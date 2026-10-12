@@ -2704,7 +2704,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
         // The breaker bounds the names as they are split, so a header of millions of columns trips part-way rather than
         // after it is allocated; the cap counts only non-empty names, so a header of bare delimiters is bounded by the
-        // breaker alone. A declared schema is not capped by the file's width, only charged (see effectiveMaxFields).
+        // breaker alone. The width cap applies whatever the schema's provenance (see effectiveMaxFields).
         try (HeaderBudget budget = newHeaderBudget()) {
             return List.of(headerColumnNames(headerLine, splitFieldsForOptions(headerLine, options, effectiveMaxFields(), budget)));
         }
@@ -3040,17 +3040,20 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * The cap on a file's columns for this reader. A declared schema names the columns it reads, so it is not capped
-     * by how many the file has; its header is bounded by the breaker through {@link HeaderBudget} instead.
+     * The cap on a file's columns for this reader. It used to be lifted when the schema was declared, so the same wide
+     * file was refused when its types were inferred and read when they were declared - one file, two outcomes, decided
+     * by how the dataset was written down rather than by anything about the file (esql-planning#2076). The header is
+     * charged to the breaker through {@link HeaderBudget} either way; the cap bounds the width on top of that.
      */
     private int effectiveMaxFields() {
-        return declaredProvenanceBinding ? Integer.MAX_VALUE : schemaMaxFields;
+        return schemaMaxFields;
     }
 
     /**
      * Charges the circuit breaker for the names and attributes a headerless file's schema synthesizes, one per column of
-     * the widest sampled row. The callers cap them at {@link #effectiveMaxFields}, so a declared dataset, which is not
-     * capped by the file's width, is bounded by this charge alone. Release the result once the schema is built.
+     * the widest sampled row. The callers cap them at {@link #effectiveMaxFields}, which bounds the width whatever the
+     * schema's provenance, so this charge bounds the memory and the cap bounds the count. Release the result once the
+     * schema is built.
      */
     private Releasable chargeSyntheticColumns(int columns) {
         long bytes = (long) columns * HeapEstimates.columnBytes(options.columnPrefix().length() + SYNTHETIC_INDEX_DIGITS);
@@ -3062,8 +3065,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
     /**
      * Charges the circuit breaker for the scratch a split builds to bind a pinned schema against the {@code columns} header
      * names, read from the file's start or passed down from chunk 0: two arrays of the names and the duplicate-name set.
-     * The names themselves are charged by whoever holds them. A declared read is not capped by the file's width, so this
-     * is all that bounds the binding. Release the result once the binding is built.
+     * The names themselves are charged by whoever holds them, and the width cap bounds the count whatever the schema's
+     * provenance, so this charge bounds the memory. Release the result once the binding is built.
      */
     private Releasable chargeHeaderBinding(int columns) {
         long bytes = (long) columns * (2 * Long.BYTES + HeaderBudget.SET_ENTRY_BYTES);
@@ -3139,8 +3142,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * The refusal for a schema over {@code maxFields}. Below the ceiling the user can raise the cap. At the ceiling
-     * raising it is rejected too, so suggest declaring the columns, which lifts the cap.
+     * The refusal for a schema over {@code maxFields}. Below the ceiling the user can raise the cap; at the ceiling
+     * raising it is rejected too, and declaring the dataset's columns no longer lifts it either, so say the file is
+     * wider than any schema that can be read instead of offering a remedy that does not work (esql-planning#2076).
      */
     static String columnCapMessage(int maxFields) {
         if (maxFields >= ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS) {
@@ -3148,7 +3152,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 + maxFields
                 + "] columns, the most ["
                 + CONFIG_SCHEMA_MAX_FIELDS
-                + "] allows; declare the dataset's columns with [dynamic: false] to skip inference";
+                + "] allows; the file is wider than any schema that can be read, even when the dataset declares its columns";
         }
         return "schema inference found more than ["
             + maxFields

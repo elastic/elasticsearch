@@ -307,6 +307,7 @@ public final class SchemaReconciliation {
         FileLabels label = new FileLabels(fileMetadata.keySet());
 
         Map<StoragePath, FileSchemaInfo> perFileInfo = new LinkedHashMap<>();
+        Map<List<Attribute>, Map<String, DataType>> typeMaps = new HashMap<>();
 
         for (Map.Entry<StoragePath, SourceMetadata> entry : fileMetadata.entrySet()) {
             StoragePath filePath = entry.getKey();
@@ -336,7 +337,8 @@ public final class SchemaReconciliation {
             // Recording them keeps null meaning "never examined" rather than "examined by a rail that
             // did not bother to write it down", which is what made the read decision depend on whether a
             // declaration happened to exist (esql-planning#2076).
-            perFileInfo.put(filePath, new FileSchemaInfo(interner.intern(canonical), mapping, stats, typeMap(canonical)));
+            List<Attribute> interned = interner.intern(canonical);
+            perFileInfo.put(filePath, new FileSchemaInfo(interned, mapping, stats, sharedTypeMap(typeMaps, interned)));
         }
 
         return new Result(new ExternalSchema(refSchema), Map.copyOf(perFileInfo));
@@ -611,6 +613,7 @@ public final class SchemaReconciliation {
         }
 
         Map<StoragePath, FileSchemaInfo> perFileInfo = new LinkedHashMap<>();
+        Map<List<Attribute>, Map<String, DataType>> typeMaps = new HashMap<>();
         for (Map.Entry<StoragePath, SourceMetadata> entry : fileMetadata.entrySet()) {
             StoragePath filePath = entry.getKey();
             SourceMetadata meta = entry.getValue();
@@ -619,7 +622,7 @@ public final class SchemaReconciliation {
             // file's schema to merge them, so they are known for every file and every format, not only for the
             // text formats that pin. Recording them unconditionally keeps null meaning "never examined"
             // (esql-planning#2076).
-            Map<String, DataType> inferredTypes = typeMap(fileSchema);
+            Map<String, DataType> inferredTypes = sharedTypeMap(typeMaps, fileSchema);
             if (readsColumnsAtReconciledType(meta.sourceType())) {
                 // Text readers parse each token at the pinned read type, so pin every widened column
                 // to its reconciled type. The reader then reads at the wider type directly (raw text
@@ -733,6 +736,17 @@ public final class SchemaReconciliation {
             types.put(attr.name(), attr.dataType());
         }
         return types;
+    }
+
+    /**
+     * One shared, immutable type map per DISTINCT schema shape, rather than one per file. The shapes themselves are
+     * already interned and charged, so a per-file map would be the only structure in {@link FileSchemaInfo} that grows
+     * with the file count outside the planning reservation - every file of a strict glob has the same schema by
+     * definition, so that is one map for the whole read rather than one per file. The key is the interned list, so
+     * files sharing a shape share its map. Immutable because it is now shared: nothing may retype one file's entry.
+     */
+    private static Map<String, DataType> sharedTypeMap(Map<List<Attribute>, Map<String, DataType>> cache, List<Attribute> canonical) {
+        return cache.computeIfAbsent(canonical, schema -> Collections.unmodifiableMap(typeMap(schema)));
     }
 
     /**

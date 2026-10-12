@@ -646,8 +646,8 @@ public final class StreamingParallelParsingCoordinator {
         /**
          * Heap charged to {@link #breaker} for what chunk 0 leaves held for the rest of the read: the schema
          * {@link #bindInferredSchema} binds and the {@link #fileHeaderColumns}, when the planner bound a schema. Their
-         * builders release their own charge on return, and a declared read is not capped by the file's width, so without
-         * this the breaker would bound them only while they are built. {@link #RETAINED_SCHEMA_CLOSED_MARKER} once
+         * builders release their own charge on return, so without this the breaker would bound them only while they
+         * are built. {@link #RETAINED_SCHEMA_CLOSED_MARKER} once
          * {@link #close()} has refunded it.
          */
         private final AtomicLong retainedSchemaBytes = new AtomicLong();

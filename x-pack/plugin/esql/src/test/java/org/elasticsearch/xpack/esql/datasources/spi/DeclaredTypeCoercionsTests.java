@@ -86,8 +86,10 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
      * pair an inferred column may widen through must already be a supported pair, or giving both columns the
      * {@code supports} licence would silently REFUSE a read that works today.
      * <p>
-     * Enumerated over the whole {@link DataType} space rather than over the four promotions by name, so a promotion
-     * added to {@code TypeWidening} without a matching {@code supports} arm fails here instead of narrowing a read.
+     * Enumerated over every pair {@code EsqlDataTypeConverter.commonType} admits rather than over the promotions by
+     * name, so a widening it starts admitting without a matching {@code supports} arm fails here instead of narrowing
+     * a read. It does NOT quantify {@code TypeWidening}: {@code widenOrdered} promotes {@code DATETIME} to
+     * {@code DATE_NANOS}, which {@code commonType} returns null for, so that one promotion is not covered here.
      */
     public void testEveryLosslessWideningIsAlsoACoerciblePair() {
         List<String> gaps = new ArrayList<>();

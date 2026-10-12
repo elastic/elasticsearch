@@ -34,8 +34,8 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.reindex.ReindexPlugin;
-import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.elasticsearch.xpack.esql.view.ViewService;
 

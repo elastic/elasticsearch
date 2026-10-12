@@ -1560,6 +1560,16 @@ public final class RestoreService implements ClusterStateApplier {
         }
     }
 
+    // Older nodes cannot safely handle callbacks and cleanup for shard IDs removed by a restore.
+    static void ensureClusterSupportsRestoreWithDifferentShardCounts(FeatureService featureService, ClusterState state, Snapshot snapshot) {
+        if (featureService.clusterHasFeature(state, RecoveryFeatures.RESTORE_WITH_DIFFERENT_SHARD_COUNTS) == false) {
+            throw new SnapshotRestoreException(
+                snapshot,
+                "cannot restore with a different shard count because not every node supports it yet"
+            );
+        }
+    }
+
     /**
      * Validates a restore over an already-open index: the caller has explicitly authorized restoring over {@code expectedIndex} while it
      * stays open, so this replaces the ordinary closed-index validation rather than extending it. Preserves the same close-index safety
@@ -1573,7 +1583,6 @@ public final class RestoreService implements ClusterStateApplier {
         ClusterState currentState,
         ProjectId projectId,
         IndexMetadata currentIndexMetadata,
-        IndexMetadata snapshotIndexMetadata,
         Index expectedIndex,
         boolean partial
     ) {
@@ -1594,20 +1603,7 @@ public final class RestoreService implements ClusterStateApplier {
                 "cannot restore partial index [" + expectedIndex.getName() + "] because such index already exists"
             );
         }
-        if (currentIndexMetadata.getNumberOfShards() != snapshotIndexMetadata.getNumberOfShards()) {
-            throw new SnapshotRestoreException(
-                snapshot,
-                "cannot restore index ["
-                    + expectedIndex.getName()
-                    + "] with ["
-                    + currentIndexMetadata.getNumberOfShards()
-                    + "] shards from a snapshot of index ["
-                    + snapshotIndexMetadata.getIndex().getName()
-                    + "] with ["
-                    + snapshotIndexMetadata.getNumberOfShards()
-                    + "] shards"
-            );
-        }
+
         final ProjectState projectState = currentState.projectState(projectId);
         final Set<Index> indexAsSet = Set.of(expectedIndex);
         final Set<Index> reshardingIndices = IndexReshardService.reshardingIndices(projectState, indexAsSet);
@@ -2048,6 +2044,7 @@ public final class RestoreService implements ClusterStateApplier {
             );
 
             final Map<ShardId, ShardRestoreStatus> shards = new HashMap<>();
+            final List<IndexMetadata> restoredIndices = new ArrayList<>();
 
             final IndexVersion minIndexCompatibilityVersion = currentState.getNodes().getMinSupportedIndexVersion();
             final IndexVersion minReadOnlyIndexCompatibilityVersion = currentState.getNodes().getMinReadOnlySupportedIndexVersion();
@@ -2109,11 +2106,6 @@ public final class RestoreService implements ClusterStateApplier {
                         snapshotIndexMetadata,
                         renamedIndexName
                     );
-                    shardLimitValidator.validateShardLimit(
-                        snapshotIndexMetadata.getSettings(),
-                        currentState.nodes(),
-                        currentState.metadata()
-                    );
 
                     final IndexMetadata.Builder indexMdBuilder = restoreToCreateNewIndex(snapshotIndexMetadata, renamedIndexName);
                     if (request.includeAliases() == false
@@ -2131,6 +2123,9 @@ public final class RestoreService implements ClusterStateApplier {
                     rtBuilder.addAsNewRestore(updatedIndexMetadata, recoverySource, ignoreShards);
                     blocks.addBlocks(projectId, updatedIndexMetadata);
                 } else {
+                    if (currentIndexMetadata.getNumberOfShards() != snapshotIndexMetadata.getNumberOfShards()) {
+                        ensureClusterSupportsRestoreWithDifferentShardCounts(featureService, currentState, snapshot);
+                    }
                     final Index openIndexTarget = openIndexTargets.get(renamedIndexName);
                     final IndexMetadata.Builder indexMdBuilder;
                     if (openIndexTarget != null) {
@@ -2141,14 +2136,13 @@ public final class RestoreService implements ClusterStateApplier {
                             currentState,
                             projectId,
                             currentIndexMetadata,
-                            snapshotIndexMetadata,
                             openIndexTarget,
                             partial
                         );
                         indexMdBuilder = restoreOverExistingIndex(snapshotIndexMetadata, currentIndexMetadata);
                     } else {
                         // Index exists and it's closed - open it in metadata and start recovery
-                        validateExistingClosedIndex(currentIndexMetadata, snapshotIndexMetadata, renamedIndexName, partial);
+                        validateExistingClosedIndex(currentIndexMetadata, renamedIndexName, partial);
                         indexMdBuilder = restoreOverExistingIndex(snapshotIndexMetadata, currentIndexMetadata);
                     }
 
@@ -2169,6 +2163,7 @@ public final class RestoreService implements ClusterStateApplier {
                     blocks.updateBlocks(projectId, updatedIndexMetadata);
                 }
 
+                restoredIndices.add(updatedIndexMetadata);
                 mdBuilder.getProject(projectId).put(updatedIndexMetadata, true);
                 final Index renamedIndex = updatedIndexMetadata.getIndex();
                 for (int shard = 0; shard < snapshotIndexMetadata.getNumberOfShards(); shard++) {
@@ -2185,6 +2180,7 @@ public final class RestoreService implements ClusterStateApplier {
                 }
             }
 
+            shardLimitValidator.validateShardLimitOnRestore(currentState.nodes(), currentState.metadata(), projectId, restoredIndices);
             final ClusterState.Builder builder = ClusterState.builder(currentState);
             final RestoreInProgress.Entry restoreEntry;
             if (shards.isEmpty() == false) {
@@ -2444,12 +2440,7 @@ public final class RestoreService implements ClusterStateApplier {
             }
         }
 
-        private void validateExistingClosedIndex(
-            IndexMetadata currentIndexMetadata,
-            IndexMetadata snapshotIndexMetadata,
-            String renamedIndex,
-            boolean partial
-        ) {
+        private void validateExistingClosedIndex(IndexMetadata currentIndexMetadata, String renamedIndex, boolean partial) {
             // Index exist - checking that it's closed. An open destination is only reached when the caller opted into restoring over it
             // (validateExistingOpenIndexForRestore handles that case), so it never reaches this method.
             if (currentIndexMetadata.getState() != IndexMetadata.State.CLOSE) {
@@ -2467,21 +2458,6 @@ public final class RestoreService implements ClusterStateApplier {
                 throw new SnapshotRestoreException(
                     snapshot,
                     "cannot restore partial index [" + renamedIndex + "] because such index already exists"
-                );
-            }
-            // Make sure that the number of shards is the same. That's the only thing that we cannot change
-            if (currentIndexMetadata.getNumberOfShards() != snapshotIndexMetadata.getNumberOfShards()) {
-                throw new SnapshotRestoreException(
-                    snapshot,
-                    "cannot restore index ["
-                        + renamedIndex
-                        + "] with ["
-                        + currentIndexMetadata.getNumberOfShards()
-                        + "] shards from a snapshot of index ["
-                        + snapshotIndexMetadata.getIndex().getName()
-                        + "] with ["
-                        + snapshotIndexMetadata.getNumberOfShards()
-                        + "] shards"
                 );
             }
         }
@@ -2648,7 +2624,8 @@ public final class RestoreService implements ClusterStateApplier {
             .eventIngestedRange(IndexLongFieldRange.NO_SHARDS);
     }
 
-    private static IndexMetadata.Builder restoreOverExistingIndex(IndexMetadata snapshotIndexMetadata, IndexMetadata currentIndexMetadata) {
+    // Package-private for testing the primary-term floor across successive restores.
+    static IndexMetadata.Builder restoreOverExistingIndex(IndexMetadata snapshotIndexMetadata, IndexMetadata currentIndexMetadata) {
         final IndexMetadata.Builder indexMdBuilder = IndexMetadata.builder(snapshotIndexMetadata)
             .state(IndexMetadata.State.OPEN)
             .version(Math.max(snapshotIndexMetadata.getVersion(), 1 + currentIndexMetadata.getVersion()))
@@ -2665,8 +2642,14 @@ public final class RestoreService implements ClusterStateApplier {
                     .put(IndexMetadata.SETTING_INDEX_UUID, currentIndexMetadata.getIndexUUID())
                     .put(IndexMetadata.SETTING_HISTORY_UUID, UUIDs.randomBase64UUID())
             );
+        // Carry the terms of removed shards forward too. A later restore or reshard can reuse their IDs under the same index UUID,
+        // and must not reuse a primary term (and therefore an object-store namespace) from before this restore.
+        long maxCurrentPrimaryTerm = 0;
+        for (int shard = 0; shard < currentIndexMetadata.getNumberOfShards(); shard++) {
+            maxCurrentPrimaryTerm = Math.max(maxCurrentPrimaryTerm, currentIndexMetadata.primaryTerm(shard));
+        }
         for (int shard = 0; shard < snapshotIndexMetadata.getNumberOfShards(); shard++) {
-            indexMdBuilder.primaryTerm(shard, Math.max(snapshotIndexMetadata.primaryTerm(shard), currentIndexMetadata.primaryTerm(shard)));
+            indexMdBuilder.primaryTerm(shard, Math.max(snapshotIndexMetadata.primaryTerm(shard), maxCurrentPrimaryTerm));
         }
         return indexMdBuilder;
     }

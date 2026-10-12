@@ -35,8 +35,8 @@
  *     <li>{@link org.elasticsearch.xpack.esql.dsltranslate.RequestFilterRewriter} — the dataset <em>policy</em> over
  *     that mechanism: it targets external leaves, and gates the rewrite. An unsupported clause never fails the query:
  *     the translatable conjuncts are applied and the rest are dropped with a warning naming each one, so a dropped
- *     clause widens what matches rather than narrowing it. It is version-gated, because the translated predicate can
- *     contain expressions older nodes cannot deserialize.</li>
+ *     clause widens what matches rather than narrowing it. The rewrite is version-gated on its own existence, and
+ *     each function the translated predicate may contain is gated separately against its own pin.</li>
  *     <li>{@link org.elasticsearch.xpack.esql.dsltranslate.ViewRequestFilterRewriter} — the view <em>policy</em> over
  *     that same mechanism: it targets the output boundary of each logical view subplan (the view-branch children of
  *     {@link org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll} nodes), so the filter applies to the view's

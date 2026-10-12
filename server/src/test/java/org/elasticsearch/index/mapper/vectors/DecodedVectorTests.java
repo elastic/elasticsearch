@@ -260,7 +260,7 @@ public class DecodedVectorTests extends ESTestCase {
 
         float[] expectedFloats = expectedFloatsFromBytes(expectedBytes);
         assertArrayEquals(expectedFloats, decoded.toFloatArray(), 0f);
-        assertEquals(toIntObjectList(expectedBytes), decoded.toValueList());
+        assertEquals(toByteObjectList(expectedBytes), decoded.toValueList());
     }
 
     private static void assertFloatVector(DecodedVector decoded, float[] expectedFloats, float delta) {
@@ -302,10 +302,10 @@ public class DecodedVectorTests extends ESTestCase {
         return buffer.array();
     }
 
-    private static List<Object> toIntObjectList(byte[] bytes) {
+    private static List<Object> toByteObjectList(byte[] bytes) {
         List<Object> list = new ArrayList<>(bytes.length);
         for (byte b : bytes) {
-            list.add((int) b);
+            list.add(b);
         }
         return list;
     }

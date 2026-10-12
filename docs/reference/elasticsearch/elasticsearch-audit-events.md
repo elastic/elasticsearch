@@ -547,7 +547,7 @@ $$$event-put-user-managed-service-account$$$
     "0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.
     action":"put_user_managed_service_account", "request.id":"az9a1Db5QrebDMacQ8yGKc",
     "put":{"user_managed_service_account":{"namespace":"my-app","service":"worker",
-    "roles":["role1","role2"],"enabled":true}}}
+    "roles":["role1","role2"],"enabled":true,"description":"Deploys my-app"}}}
     ```
     % NOTCONSOLE
 
@@ -875,8 +875,10 @@ The object for an API key update will differ in that it will not include a `name
 
     ```js
     `{"type": <string>, "user": {"name": <string>, "has_password": <boolean>},
-    "has_access_token": <boolean>}`
+    "has_access_token": <boolean>, "has_service_account_token": <boolean>}` <1>
     ```
+
+    1. {applies_to}`stack: ga 9.6+` `has_service_account_token` is present when the API key is created with the `_user_managed_service_account` grant type.
     % NOTCONSOLE
 
 `apikeys`

@@ -198,7 +198,7 @@ public class ReplaceSparklineAggregate extends OptimizerRules.ParameterizedOptim
             firstPhaseAggregates.add(toPartialAlias);
         }
 
-        Alias dateBucketAlias = new Alias(source, "$$timestamp", dateBucket);
+        Alias dateBucketAlias = new Alias(source, Attribute.rawTemporaryName("sparkline", "timestamp"), dateBucket);
         Eval dateBucketEval = new Eval(source, plan.child(), List.of(dateBucketAlias));
         Attribute dateBucketAttr = dateBucketAlias.toAttribute();
 

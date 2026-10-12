@@ -1,0 +1,4 @@
+FROM (FROM salaries_int), (FROM salaries_long)
+| KEEP salary
+| FORK (WHERE true) (WHERE true)
+| KEEP salary

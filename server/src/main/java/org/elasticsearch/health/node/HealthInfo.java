@@ -68,7 +68,7 @@ public record HealthInfo(
                 ? input.readOptionalWriteable(FileSettingsHealthInfo::new)
                 : INDETERMINATE,
             input.getTransportVersion().supports(DLM_FROZEN_TRANSITIONS_HEALTH_INFO)
-                ? input.readOptionalWriteable(DlmFrozenTransitionsHealthInfo::new)
+                ? input.readOptionalWriteable(DlmFrozenTransitionsHealthInfo::readFrom)
                 : null
         );
     }

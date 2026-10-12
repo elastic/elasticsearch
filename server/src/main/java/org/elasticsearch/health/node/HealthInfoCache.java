@@ -81,9 +81,9 @@ public class HealthInfoCache implements ClusterStateListener {
             if (fileSettingsHealthInfo != null) {
                 this.fileSettingsHealthInfo = fileSettingsHealthInfo;
             }
-        }
-        if (latestDlmFrozenTransitionsHealthInfo != null) {
-            this.dlmFrozenTransitionsHealthInfo = latestDlmFrozenTransitionsHealthInfo;
+            if (latestDlmFrozenTransitionsHealthInfo != null) {
+                this.dlmFrozenTransitionsHealthInfo = latestDlmFrozenTransitionsHealthInfo;
+            }
         }
     }
 

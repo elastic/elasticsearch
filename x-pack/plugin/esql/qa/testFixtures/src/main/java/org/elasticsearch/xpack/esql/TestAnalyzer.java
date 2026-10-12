@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -53,6 +54,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -581,6 +583,14 @@ public class TestAnalyzer {
     }
 
     /**
+     * Add an inference resolution with the similarity measure used by the endpoint.
+     */
+    public TestAnalyzer addInferenceResolution(String inferenceId, TaskType taskType, SimilarityMeasure similarity) {
+        this.inferenceResolution.withResolvedInference(new ResolvedInference(inferenceId, taskType, similarity));
+        return this;
+    }
+
+    /**
      * Add an error in inference resolution.
      */
     public TestAnalyzer addInferenceResolutionError(String inferenceId, String reason) {
@@ -719,7 +729,7 @@ public class TestAnalyzer {
             viewBranchKeys.add(namedSubquery.name());
         }
         if (subplans.size() == 1) {
-            return namedSubqueries.get(0).child();
+            return subplans.values().iterator().next();
         } else {
             return new ViewUnionAll(ur.source(), subplans, viewBranchKeys, List.of());
         }
@@ -991,7 +1001,8 @@ public class TestAnalyzer {
             unmappedResolution,
             timestampBounds,
             TEST_IP_LOCATION_RESOLUTION,
-            false
+            false,
+            EsqlFlags.DEFAULTS
         );
     }
 

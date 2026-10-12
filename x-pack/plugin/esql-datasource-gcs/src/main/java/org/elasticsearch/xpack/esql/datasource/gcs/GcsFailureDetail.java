@@ -30,7 +30,7 @@ final class GcsFailureDetail {
             String reason = gcs.getReason();
             return reason == null || reason.isEmpty() ? "HTTP " + gcs.getCode() : "HTTP " + gcs.getCode() + " " + reason;
         }
-        // Falls back to the class name so a null-message fault reads as its type rather than as the literal "null".
-        return cause.getMessage() != null ? cause.getMessage() : cause.getClass().getSimpleName();
+        // Use the class name for non-StorageException causes: getMessage() may embed a full storage URI.
+        return cause.getClass().getSimpleName();
     }
 }

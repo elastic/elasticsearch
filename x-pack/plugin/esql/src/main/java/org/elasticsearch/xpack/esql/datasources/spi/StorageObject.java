@@ -40,6 +40,23 @@ public interface StorageObject {
      */
     int TRANSFER_BUFFER_SIZE = 8192;
 
+    /**
+     * Identifies the storage configuration (endpoint, credential identity) this object was obtained
+     * from. Two objects with the same identity, path, and length may share a footer cache entry;
+     * objects with different identities must not.
+     * <p>
+     * Credential-scoped providers (S3, GCS, Azure, HTTP) must return an identity derived from their
+     * endpoint and credential settings. Providers with no per-data-source configuration (local files,
+     * Arrow Flight) declare their own private singleton, never one shared with another provider type.
+     * Objects whose content is not addressable by path (in-memory chunks, single-use streams) return an
+     * identity equal only to itself.
+     * <p>
+     * <b>Decorator implementations must explicitly override this and return
+     * {@code delegate.storageIdentity()}</b>; there is deliberately no default, so a new decorator
+     * cannot silently fall back to an identity that bypasses its delegate's credential scope.
+     */
+    StorageIdentity storageIdentity();
+
     // === SYNC API (required) ===
 
     /**
@@ -283,6 +300,23 @@ public interface StorageObject {
     }
 
     /**
+     * Async start with optional permit barge. Default ignores {@code barge} and delegates to
+     * {@link #startReadBytesAsync(long, long, DirectBufferFactory, Executor, ActionListener)}.
+     * Limiters honor {@code barge}: untimed try-acquire so a retry continuation never parks.
+     * Wrappers that sit between retry and the limiter must forward {@code barge}.
+     */
+    default Releasable startReadBytesAsync(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener,
+        boolean barge
+    ) {
+        return startReadBytesAsync(position, length, factory, executor, listener);
+    }
+
+    /**
      * Async byte read into a caller-provided ByteBuffer.
      * <p>
      * Avoids per-call allocation by reading directly into the target buffer.
@@ -435,4 +469,20 @@ public interface StorageObject {
      * to the wrapped object so the metrics attach to the underlying store, not the wrapper layer.
      */
     default void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+    /**
+     * Binds {@code io} to the query-budget scheduler that will grant this object's GETs.
+     * The default is a no-op for objects with no query budget.
+     */
+    default void bindRowGroup(RowGroupIo io) {}
+
+    /**
+     * Timeout in milliseconds exposed by query-budget decorators for permit-acquire waits.
+     * Parquet coalesced PER_GET byte admission no longer reads this; that path uses tickets.
+     * Decorators that wrap a query budget still return {@link QueryAdmission#DEFAULT_ACQUIRE_TIMEOUT_MS}
+     * (or the budget acquire timeout) so tests and any remaining permit-wait callers can observe it.
+     */
+    default long admissionWaitTimeoutMs() {
+        return QueryAdmission.DEFAULT_ACQUIRE_TIMEOUT_MS;
+    }
 }

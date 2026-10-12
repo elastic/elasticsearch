@@ -1,0 +1,129 @@
+name: Trigger bug analysis
+
+on:
+  issues:
+    types: [labeled, unlabeled]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  trigger-bug-analysis:
+    name: Trigger Buildkite bug analysis pipeline
+    if: |
+      github.repository == 'elastic/elasticsearch' &&
+      contains(github.event.issue.labels.*.name, '>bug') &&
+      !contains(github.event.issue.labels.*.name, 'low-risk') &&
+      !contains(github.event.issue.labels.*.name, 'medium-risk') &&
+      !contains(github.event.issue.labels.*.name, 'blocker') &&
+      (
+        github.event.label.name == '>bug' ||
+        startsWith(github.event.label.name, 'Team:') ||
+        github.event.label.name == 'needs:triage' ||
+        github.event.label.name == 'needs:risk' ||
+        github.event.label.name == 'needs:reproduction'
+      )
+    concurrency:
+      group: bug-analysis-${{ github.event.issue.number }}
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if analysis was already triggered
+        id: check-processed
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const reactionContent = 'eyes';
+
+            const reactions = await github.paginate(
+              github.rest.reactions.listForIssue,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+              }
+            );
+
+            const alreadyReacted = reactions.some(
+              (reaction) =>
+                reaction.content === reactionContent &&
+                (
+                  reaction.user?.login === 'github-actions[bot]' ||
+                  reaction.user?.type === 'Bot'
+                )
+            );
+
+            if (alreadyReacted) {
+              core.info(`Issue #${issue.number} already has a :${reactionContent}: reaction from a bot; skipping analysis`);
+            }
+
+            core.setOutput('alreadyProcessed', alreadyReacted);
+
+      - name: Determine team-based triage config
+        id: team-config
+        if: steps.check-processed.outputs.alreadyProcessed != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Labels that want full risk-label reconciliation based on the
+            // analysis result. Every other team gets blocker-only escalation.
+            const TRIAGE_LABEL_OPTIN = [];
+
+            const issueLabels = context.payload.issue.labels.map((label) => label.name);
+            const labelUpdateOptedIn = issueLabels.some((label) => TRIAGE_LABEL_OPTIN.includes(label));
+            const triageMode = labelUpdateOptedIn ? 'full' : 'blocker-only';
+
+            core.setOutput('triageMode', triageMode);
+
+      - name: Trigger Buildkite pipeline
+        if: steps.check-processed.outputs.alreadyProcessed != 'true'
+        env:
+          BUILDKITE_API_TOKEN: ${{ secrets.BUILDKITE_API_TOKEN }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ARCHIMEDES_TRIAGE_MODE: ${{ steps.team-config.outputs.triageMode }}
+        run: |
+          set -euo pipefail
+
+          BODY=$(jq -n \
+            --arg url "$ISSUE_URL" \
+            --arg title "$ISSUE_TITLE" \
+            --arg num "$ISSUE_NUMBER" \
+            --arg triageMode "$ARCHIMEDES_TRIAGE_MODE" \
+            '{
+              branch:  "main",
+              commit:  "HEAD",
+              message: ("Bug analysis for #" + $num + ": " + $title),
+              env: {
+                ISSUE_URL: $url,
+                WORKFLOW: "bug-analysis",
+                ARCHIMEDES_TRIAGE_MODE: $triageMode
+              }
+            }')
+
+          curl --fail --silent --show-error \
+            --request POST \
+            --url "https://api.buildkite.com/v2/organizations/elastic/pipelines/elasticsearch-agentic-workflow/builds" \
+            --header "Authorization: Bearer ${BUILDKITE_API_TOKEN}" \
+            --header "Content-Type: application/json" \
+            --data "$BODY"
+
+      - name: "Mark issue as processed (:eyes: reaction)"
+        if: steps.check-processed.outputs.alreadyProcessed != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const reactionContent = 'eyes';
+
+            await github.rest.reactions.createForIssue({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              content: reactionContent,
+            });
+
+            core.info(`Added :${reactionContent}: reaction to issue #${issue.number}`);

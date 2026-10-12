@@ -26,11 +26,15 @@ import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.After;
@@ -124,7 +128,8 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
 
         ColumnChunkPrefetcher.PrefetchedChunks prefetched = ColumnChunkPrefetcher.fetchSync(storage, block, null, breaker);
         try {
-            assertEquals(160L, breaker.getUsed());
+            // col_a and col_b coalesce into one 160-byte read [100, 260)
+            assertEquals(HeapFootprint.byteArrayBytes(160), breaker.getUsed());
             NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> result = prefetched.chunks();
             assertThat(result.size(), greaterThanOrEqualTo(2));
 
@@ -178,6 +183,11 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
         }
 
         StorageObject storage = new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(fileData);
@@ -262,6 +272,11 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
         byte[] fileData = new byte[10000];
         StorageObject storage = new StorageObject() {
             @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(fileData);
             }
@@ -336,6 +351,11 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
     public void testPrefetchFailureCompletesExceptionally() {
         StorageObject failingStorage = new StorageObject() {
             @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
             public InputStream newStream() throws IOException {
                 throw new IOException("Simulated failure");
             }
@@ -386,6 +406,11 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
         CountDownLatch started = new CountDownLatch(1);
         CompletableFuture<Void> backendGet = new CompletableFuture<>();
         StorageObject storage = new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(new byte[1000]);
@@ -471,11 +496,19 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
         assertThat(exception, instanceOf(ExternalClientException.class));
         assertFalse(exception instanceof IllegalArgumentException);
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(exception)));
-        assertSame(injected, exception.getCause());
+        assertNull("the IO failure must not be chained to prevent caused_by leaks", exception.getCause());
     }
 
     public void testFetchSyncExternalUnavailableStays503() {
-        ExternalUnavailableException injected = new ExternalUnavailableException("store 503", new IOException("pool"));
+        ExternalUnavailableException injected = new ExternalUnavailableException(
+            Condition.STORE_UNAVAILABLE,
+            StoragePath.NONE,
+            "",
+            "",
+            false,
+            0L,
+            new IOException("pool")
+        );
         BlockMetaData block = createBlockWithColumns(new ColMeta("id", 100, 50));
 
         ExternalUnavailableException exception = expectThrows(
@@ -618,7 +651,7 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
             try {
                 assertEquals(1, fetched.chunks().size());
                 assertNotNull(fetched.chunks().get(1000L));
-                assertEquals(32L, breaker.getUsed());
+                assertEquals(HeapFootprint.byteArrayBytes(32), breaker.getUsed());
             } finally {
                 fetched.release().close();
             }
@@ -632,7 +665,7 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
             new ColMeta("col_b", 700, 300),
             new ColMeta("col_c", 1100, 200)
         );
-        assertThat(ColumnChunkPrefetcher.computePrefetchBytes(block, null), equalTo(1200L));
+        assertThat(ColumnChunkPrefetcher.computePrefetchBytes(block, null), equalTo(HeapFootprint.byteArrayBytes(1200)));
     }
 
     public void testComputePrefetchBytesWithProjection() {
@@ -642,7 +675,10 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
             new ColMeta("col_b", 700, 300),
             new ColMeta("col_c", 1100, 200)
         );
-        assertThat(ColumnChunkPrefetcher.computePrefetchBytes(block, Set.of("col_a", "col_c")), equalTo(1200L));
+        assertThat(
+            ColumnChunkPrefetcher.computePrefetchBytes(block, Set.of("col_a", "col_c")),
+            equalTo(HeapFootprint.byteArrayBytes(1200))
+        );
     }
 
     public void testComputePrefetchBytesNoMatchingProjection() {
@@ -652,12 +688,12 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
 
     public void testComputePrefetchBytesNullProjection() {
         BlockMetaData block = createBlockWithColumns(new ColMeta("col_a", 100, 500));
-        assertThat(ColumnChunkPrefetcher.computePrefetchBytes(block, null), equalTo(500L));
+        assertThat(ColumnChunkPrefetcher.computePrefetchBytes(block, null), equalTo(HeapFootprint.byteArrayBytes(500)));
     }
 
     public void testComputePrefetchBytesSkipsZeroSizeColumns() {
         BlockMetaData block = createBlockWithColumns(new ColMeta("col_a", 100, 500), new ColMeta("col_b", 700, 0));
-        assertThat(ColumnChunkPrefetcher.computePrefetchBytes(block, null), equalTo(500L));
+        assertThat(ColumnChunkPrefetcher.computePrefetchBytes(block, null), equalTo(HeapFootprint.byteArrayBytes(500)));
     }
 
     public void testComputePrefetchBytesIncludesCoalescingGaps() {
@@ -666,13 +702,56 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
         BlockMetaData block = createBlockWithColumns(new ColMeta("col_a", 0, 100), new ColMeta("col_b", 200, 100));
         long prefetchBytes = ColumnChunkPrefetcher.computePrefetchBytes(block, null);
         // Merged range: [0, 300) = 300 bytes (includes the 100-byte gap)
-        assertThat(prefetchBytes, equalTo(300L));
+        assertThat(prefetchBytes, equalTo(HeapFootprint.byteArrayBytes(300)));
+    }
+
+    /**
+     * The look-ahead estimate is the heap the merged buffers occupy, not their payload: a range just over half a G1
+     * region is humongous and rounds up to whole regions, so admitting its payload would overshoot the watermark cap
+     * by the rounding once the buffer allocates. Two ranges separated by more than the coalescing gap stay two
+     * buffers, each rounded on its own.
+     */
+    public void testComputePrefetchBytesSumsPerBufferFootprint() {
+        long gap = CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP;
+        int chunk = 3 * 1024 * 1024;
+        BlockMetaData block = createBlockWithColumns(new ColMeta("col_a", 0, chunk), new ColMeta("col_b", chunk + gap + 1, chunk));
+        long expected = 2 * HeapFootprint.byteArrayBytes(chunk);
+        assertThat(ColumnChunkPrefetcher.computePrefetchBytes(block, null), equalTo(expected));
+        assertThat(ColumnChunkPrefetcher.computePrefetchBytes(block, Set.of("col_a")), equalTo(HeapFootprint.byteArrayBytes(chunk)));
     }
 
     public void testComputePrefetchBytesEmptyBlock() {
         BlockMetaData block = new BlockMetaData();
         block.setRowCount(0);
         assertThat(ColumnChunkPrefetcher.computePrefetchBytes(block, null), equalTo(0L));
+    }
+
+    public void testDecodeWorkingSetIncludesUncompressedAndValueWidth() {
+        BlockMetaData block = createBlockWithColumns(new ColMeta("col_a", 100, 500));
+        long dest = HeapFootprint.byteArrayBytes(500);
+        long values = 100L * 8L;
+        assertThat(ParquetDecodeWorkingSet.estimateBytes(block, null), equalTo(dest + values));
+        assertThat(ParquetDecodeWorkingSet.estimateBytes(block, Set.of("nonexistent")), equalTo(0L));
+        long io = ColumnChunkPrefetcher.computePrefetchBytes(block, null);
+        assertThat(ParquetDecodeWorkingSet.admitBytes(block, null), equalTo(io + dest + values));
+        assertTrue("ticket must exceed I/O-only footprint", ParquetDecodeWorkingSet.admitBytes(block, null) > io);
+    }
+
+    public void testDecodeWorkingSetFloorsDestFromCompressedWhenUncompressedMissing() {
+        BlockMetaData block = createBlockWithColumns(new ColMeta("col_a", 100, 0L, 500, 0L, Set.of(Encoding.PLAIN)));
+        assertEquals(0L, block.getColumns().getFirst().getTotalUncompressedSize());
+        assertEquals(500L, block.getColumns().getFirst().getTotalSize());
+        long dest = HeapFootprint.byteArrayBytes(500);
+        long values = 100L * 8L;
+        assertThat(ParquetDecodeWorkingSet.estimateBytes(block, null), equalTo(dest + values));
+    }
+
+    public void testDecodeWorkingSetIncludesDictionaryCopy() {
+        BlockMetaData block = createBlockWithColumns(new ColMeta("col", 100, 50, 200, Set.of(Encoding.RLE_DICTIONARY, Encoding.PLAIN)));
+        long dest = HeapFootprint.byteArrayBytes(200);
+        long dict = HeapFootprint.byteArrayBytes(50);
+        long values = 100L * 8L;
+        assertThat(ParquetDecodeWorkingSet.estimateBytes(block, null), equalTo(dest + dict + values));
     }
 
     public void testDictionaryPageRangeUnsetOffsetUsesStartingPos() {
@@ -769,9 +848,20 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
 
     // --- helpers ---
 
-    private record ColMeta(String name, long firstDataPageOffset, long dictionaryPageOffset, long totalSize, Set<Encoding> encodings) {
+    private record ColMeta(
+        String name,
+        long firstDataPageOffset,
+        long dictionaryPageOffset,
+        long totalSize,
+        long totalUncompressedSize,
+        Set<Encoding> encodings
+    ) {
         ColMeta(String name, long startPos, long totalSize) {
-            this(name, startPos, 0L, totalSize, Set.of(Encoding.PLAIN));
+            this(name, startPos, 0L, totalSize, totalSize, Set.of(Encoding.PLAIN));
+        }
+
+        ColMeta(String name, long firstDataPageOffset, long dictionaryPageOffset, long totalSize, Set<Encoding> encodings) {
+            this(name, firstDataPageOffset, dictionaryPageOffset, totalSize, totalSize, encodings);
         }
     }
 
@@ -790,7 +880,7 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
         };
     }
 
-    private static class TestStorageObject implements StorageObject {
+    private static class TestStorageObject extends AbstractTestStorageObject {
         @Override
         public InputStream newStream(long position, long length) throws IOException {
             return new ByteArrayInputStream(new byte[(int) length]);
@@ -834,7 +924,7 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
                 col.dictionaryPageOffset,
                 100,
                 col.totalSize,
-                col.totalSize
+                col.totalUncompressedSize
             );
             block.addColumn(chunk);
         }
@@ -843,6 +933,11 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
 
     private StorageObject createStorageObject(byte[] data) {
         return new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(data);

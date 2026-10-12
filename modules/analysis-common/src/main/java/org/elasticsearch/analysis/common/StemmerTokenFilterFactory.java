@@ -90,11 +90,14 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final String language;
 
+    private final Object sharingKey;
+
     StemmerTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) throws IOException {
         super(name);
         this.language = Strings.capitalize(settings.get("language", settings.get("name", "porter")));
         // check that we have a valid language by trying to create a TokenStream
         create(EMPTY_TOKEN_STREAM).close();
+        this.sharingKey = new Key(language);
     }
 
     @Override
@@ -299,4 +302,10 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
         return new SnowballFilter(tokenStream, language);
     }
 
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(String language) {}
 }

@@ -62,12 +62,15 @@ public abstract class AbstractColumnarBinaryLayoutTestCase extends MapperService
      * How a field's values are framed on disk, with the mapping that gets them written that way. A columnar index
      * writes {@link BinaryDocValuesFormat#ARRAY_ORDER_INLINE_NULL} for a field that keeps array order and
      * {@link BinaryDocValuesFormat#SEPARATE_COUNT} for one that cannot hold an array to begin with; turning the
-     * ColumNAR codec on replaces both with {@link BinaryDocValuesFormat#COLUMNAR_PAYLOAD}.
+     * ColumNAR codec on replaces both with {@link BinaryDocValuesFormat#COLUMNAR_PAYLOAD}, except that a field type
+     * which {@link #writesPlain() writes plain values} writes {@link BinaryDocValuesFormat#PLAIN} for one that cannot
+     * hold an array.
      */
     protected enum Layout {
         SEPARATE_COUNT(BinaryDocValuesFormat.SEPARATE_COUNT, false, false),
         ARRAY_ORDER_INLINE_NULL(BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL, true, false),
-        COLUMNAR_PAYLOAD(BinaryDocValuesFormat.COLUMNAR_PAYLOAD, true, true);
+        COLUMNAR_PAYLOAD(BinaryDocValuesFormat.COLUMNAR_PAYLOAD, true, true),
+        PLAIN(BinaryDocValuesFormat.PLAIN, false, true);
 
         private final BinaryDocValuesFormat format;
         private final boolean multiValue;
@@ -158,6 +161,19 @@ public abstract class AbstractColumnarBinaryLayoutTestCase extends MapperService
     }
 
     /**
+     * Whether the ColumNAR codec writes this field type's single-valued fields as {@link BinaryDocValuesFormat#PLAIN}
+     * rather than as {@link BinaryDocValuesFormat#COLUMNAR_PAYLOAD}.
+     */
+    protected boolean writesPlain() {
+        return false;
+    }
+
+    /** Whether this build writes {@code layout} for this field type, so it can be reached and read back here. */
+    private boolean reaches(Layout layout) {
+        return layout.isAvailable() && (layout != Layout.PLAIN || writesPlain());
+    }
+
+    /**
      * The documents the query tests run over. A layout that keeps array order is given arrays with a null, a
      * repeat and an all-null document in them, since those are what the layouts frame differently; the
      * single-valued layout is given the same values one to a document.
@@ -190,11 +206,11 @@ public abstract class AbstractColumnarBinaryLayoutTestCase extends MapperService
     public void testEveryLayoutIsCovered() throws IOException {
         final EnumSet<BinaryDocValuesFormat> covered = EnumSet.noneOf(BinaryDocValuesFormat.class);
         for (Layout layout : Layout.values()) {
-            if (layout.isAvailable()) {
+            if (reaches(layout)) {
                 assertEquals(layout.toString(), layout.format, binaryFormatOf(mapperService(layout, false).fieldType(FIELD)));
             }
-            // A layout this build does not write counts as covered: it cannot be reached here and cannot be written in
-            // production either, so the mapping that would reach it is checked wherever the build does write it.
+            // A layout this build or field type does not write counts as covered: it cannot be reached here and cannot
+            // be written in production either, so the mapping that would reach it is checked wherever it is written.
             covered.add(layout.format);
         }
         assertEquals("every layout needs a mapping that reaches it", EnumSet.allOf(BinaryDocValuesFormat.class), covered);
@@ -228,7 +244,7 @@ public abstract class AbstractColumnarBinaryLayoutTestCase extends MapperService
         assumeTrue("field type confirms phrases from positions, not from its values", confirmsPhrasesFromValues());
         int ran = 0;
         for (Layout layout : Layout.values()) {
-            if (layout.isAvailable() == false) {
+            if (reaches(layout) == false) {
                 continue;
             }
             final MapperService mapperService = mapperService(layout, true);
@@ -293,7 +309,7 @@ public abstract class AbstractColumnarBinaryLayoutTestCase extends MapperService
     protected void forEachLayoutIndex(boolean indexed, IndexBody body) throws IOException {
         int ran = 0;
         for (Layout layout : Layout.values()) {
-            if (layout.isAvailable() == false) {
+            if (reaches(layout) == false) {
                 continue;
             }
             final MapperService mapperService = mapperService(layout, indexed);
@@ -335,7 +351,7 @@ public abstract class AbstractColumnarBinaryLayoutTestCase extends MapperService
     protected void forEachLayout(LayoutBody body) throws IOException {
         int ran = 0;
         for (Layout layout : Layout.values()) {
-            if (layout.isAvailable() == false) {
+            if (reaches(layout) == false) {
                 continue;
             }
             final MapperService mapperService = mapperService(layout, false);

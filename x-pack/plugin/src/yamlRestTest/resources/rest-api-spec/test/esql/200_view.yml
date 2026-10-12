@@ -251,6 +251,16 @@ setup:
   - match: { views.0.name: "dogs" }
 
 ---
+"reserved-view-can-not-be-created-via-api":
+  - do:
+      catch: /\[view\] unknown field \[reserved\]/
+      esql.put_view:
+        name: dogs
+        body:
+          query: 'FROM test | WHERE animal == "dog"'
+          reserved: true
+
+---
 "invalid-views":
   - do:
       catch: /invalid view name/
@@ -637,9 +647,15 @@ setup:
           query: 'FROM bad_view | LIMIT 10'
 
 ---
-"view-with-wildcard-matching-view":
-  - skip:
-      features: warnings
+"query-with-wildcard-matching-view":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [views_match_wildcards]
+      test_runner_features: [capabilities, warnings]
+      reason: "wildcards_match_views query setting introduced"
 
   - do:
       esql.put_view:
@@ -659,7 +675,7 @@ setup:
         - "No limit defined, adding default limit of [1000]"
       esql.query:
         body:
-          query: 'FROM v_* | STATS count = COUNT() BY animal | SORT animal'
+          query: 'SET wildcards_match_views=true; FROM v_* | STATS count = COUNT() BY animal | SORT animal'
 
   - length: { values: 2 }
   - match: { values.0: [1, "cat"] }

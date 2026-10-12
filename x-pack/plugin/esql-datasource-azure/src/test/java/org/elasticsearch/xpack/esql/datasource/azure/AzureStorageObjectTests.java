@@ -26,6 +26,7 @@ import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -265,7 +266,13 @@ public class AzureStorageObjectTests extends ESTestCase {
             }
             ExternalObjectChangedException thrown = expectThrows(ExternalObjectChangedException.class, () -> obj.newStream(1, 2));
             assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(thrown));
-            assertThat(thrown.getMessage(), org.hamcrest.Matchers.containsString(path.toString()));
+            // The storage path is intentionally absent from scan-time exception messages so that
+            // users without read_dataset_metadata cannot learn bucket/key names from error responses.
+            assertThat(
+                thrown.getMessage(),
+                org.hamcrest.Matchers.containsString("External data object [blob.csv.gz] was modified during read")
+            );
+            assertThat(thrown.getMessage(), org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString(path.toString())));
         } finally {
             server.stop(0);
         }
@@ -324,9 +331,9 @@ public class AzureStorageObjectTests extends ESTestCase {
             StoragePath path = StoragePath.of("wasbs://devstoreaccount1.blob.core.windows.net/container/blob.parquet");
             AzureStorageObject obj = new AzureStorageObject(blobClient, "container", "blob.parquet", path);
 
-            // length() throws IOException because the blob does not exist; that's fine — we only
-            // care that no metrics counter incremented.
-            expectThrows(IOException.class, obj::length);
+            // length() throws ExternalClientException (OBJECT_NOT_FOUND) because the blob does not exist;
+            // that's fine — we only care that no metrics counter incremented.
+            expectThrows(ExternalClientException.class, obj::length);
             assertFalse(obj.exists());
             assertNull(obj.lastModified());
 

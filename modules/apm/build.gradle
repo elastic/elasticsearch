@@ -44,7 +44,6 @@ dependencies {
   runtimeOnly "io.opentelemetry:opentelemetry-exporter-common:${otelVersion}"
   runtimeOnly "io.opentelemetry:opentelemetry-exporter-otlp-common:${otelVersion}"
   runtimeOnly "io.opentelemetry:opentelemetry-sdk-extension-autoconfigure-spi:${otelVersion}"
-  runtimeOnly "co.elastic.apm:elastic-apm-agent-java8:1.55.6"
 
   testImplementation "io.opentelemetry:opentelemetry-sdk-testing:${otelVersion}"
 }

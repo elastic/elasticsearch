@@ -418,6 +418,8 @@ public class SecurityTests extends ESTestCase {
             new ServiceAccountId("foo", "bar"),
             List.of("role"),
             true,
+            null,
+            AuthenticationTestHelper.builder().build(),
             WriteRequest.RefreshPolicy.WAIT_UNTIL,
             future
         );

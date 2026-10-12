@@ -115,7 +115,7 @@ public interface StorageProviderFactory {
                 }
                 Configured<C> resolved = configFactory.apply(config);
                 StorageProvider provider = resolved.value() != null ? providerCtor.apply(resolved.value()) : defaultProvider.get();
-                return new Configured<>(provider, resolved.consumedKeys());
+                return new Configured<>(provider, resolved.consumedKeys(), resolved.identity(), resolved.secretIdentity());
             }
         };
     }

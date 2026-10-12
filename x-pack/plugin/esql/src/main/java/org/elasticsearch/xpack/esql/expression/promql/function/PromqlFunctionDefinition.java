@@ -68,6 +68,16 @@ public final class PromqlFunctionDefinition {
     }
 
     /**
+     * Constructor reference for a unary function whose non-finite behavior is selectable, i.e. a constructor of the
+     * form {@code (source, field, allowNonFinite)}. Used by {@link Builder#unaryNonFiniteValueTransformation} to build
+     * the PromQL variant of math functions that must follow IEEE-754 semantics.
+     */
+    @FunctionalInterface
+    public interface NonFiniteUnaryBuilder {
+        Expression build(Source source, Expression field, boolean allowNonFinite);
+    }
+
+    /**
      * Describes whether a PromQL function supports counter metric types.
      * <p>
      * This is an ES|QL implementation detail — in real PromQL, all functions work with any numeric type.
@@ -309,6 +319,11 @@ public final class PromqlFunctionDefinition {
     public static final PromqlParamInfo SCALAR = PromqlParamInfo.child("s", PromqlDataType.SCALAR, "Scalar value.");
     public static final PromqlParamInfo QUANTILE = PromqlParamInfo.of("φ", PromqlDataType.SCALAR, "Quantile value (0 ≤ φ ≤ 1).");
     public static final PromqlParamInfo K = PromqlParamInfo.of("k", PromqlDataType.SCALAR, "Number of series to keep.");
+    public static final PromqlParamInfo RATIO = PromqlParamInfo.of(
+        "r",
+        PromqlDataType.SCALAR,
+        "Ratio of series to keep (-1 ≤ r ≤ 1); the absolute value selects the share, " + "a negative r inverts the selection."
+    );
     public static final PromqlParamInfo TO_NEAREST = PromqlParamInfo.optional(
         "to_nearest",
         PromqlDataType.SCALAR,
@@ -353,18 +368,17 @@ public final class PromqlFunctionDefinition {
         "Accepts additional {{es}} field types (for example `keyword`, `ip`, and `date`) and returns counter inputs "
             + "unchanged rather than rejecting or converting them.";
     public static final String COUNT_NOTE = "Returns a `long` integer count rather than a floating-point value.";
-    public static final String LOG_DOMAIN_NOTE =
-        "For an input of zero or a negative number, {{es}} returns `null` and emits a warning, rather than the "
-            + "`-Inf` (for zero) or `NaN` (for negatives) that Prometheus returns.";
-    public static final String DOMAIN_PLUS_MINUS_ONE_NOTE =
-        "For inputs outside the range [-1, 1], {{es}} returns `null` and emits a warning, rather than the `NaN` that "
-            + "Prometheus returns.";
-    public static final String OVERFLOW_NOTE =
-        "On numeric overflow for large-magnitude inputs, {{es}} returns `null` and emits a warning, rather than the "
-            + "`±Inf` that Prometheus returns.";
-    public static final String QUANTILE_NOTE =
+    public static final String QUANTILE_APPROXIMATION_NOTE =
         "Computed using the {{es}} t-digest percentile aggregation, so results are approximate and may differ slightly "
             + "from Prometheus's exact linear interpolation, particularly for small sample sets.";
+    /**
+     * Extends {@link #QUANTILE_APPROXIMATION_NOTE} for the quantiles that rank non-finite samples rather than
+     * discarding them. Only accurate for a quantile backed by the non-finite-preserving aggregator.
+     */
+    public static final String QUANTILE_NOTE = QUANTILE_APPROXIMATION_NOTE
+        + " Non-finite values are ranked as `NaN` < `-Inf` < finite < `+Inf`, the same order Prometheus sorts by. A "
+        + "rank landing exactly on a sample returns that sample, whereas Prometheus still averages in the neighbouring "
+        + "sample weighted by zero, so it returns `NaN` wherever that neighbour is an infinity.";
 
     /**
      * Stack (versioned Elasticsearch) releases that PromQL function documentation can reference. Kept as a small closed
@@ -521,6 +535,16 @@ public final class PromqlFunctionDefinition {
             return this;
         }
 
+        /**
+         * Registers a unary math function whose PromQL variant must preserve non-finite results ({@code NaN}/{@code ±Inf})
+         * rather than reject them to {@code null}. The input is coerced to {@code double} so the function evaluates with
+         * IEEE-754 semantics regardless of the metric's stored type (e.g. {@code sqrt(-x)} yields {@code NaN} even for a
+         * {@code long}/{@code integer} metric), and the function is constructed with its non-finite-preserving flag set.
+         */
+        public PromqlFunctionDefinition.Builder unaryNonFiniteValueTransformation(NonFiniteUnaryBuilder ctorRef) {
+            return unaryValueTransformation((source, field) -> ctorRef.build(source, new ToDouble(source, field), true));
+        }
+
         public PromqlFunctionDefinition.Builder binaryValueTransformation(
             PromqlParamInfo p,
             FunctionDefinition.BinaryBuilder<? extends Expression> ctorRef
@@ -667,6 +691,24 @@ public final class PromqlFunctionDefinition {
             return this;
         }
 
+        /**
+         * Across-series reduction that retains an approximate ratio of elements via hash sampling.
+         * Like the metadata-manipulation functions this is not lowered through the generic {@link FunctionBuilder}:
+         * the translator emits a {@link org.elasticsearch.xpack.esql.plan.logical.Filter} over the internal
+         * {@link org.elasticsearch.xpack.esql.expression.promql.function.HashOffset} sampling offset directly
+         * (see {@code TranslatePromqlToEsqlPlan}), since it needs the collapsed child plan and its grouping
+         * columns, which the {@link PromqlFunctionRegistry.PromqlContext} does not carry.
+         */
+        public PromqlFunctionDefinition.Builder acrossSeriesBinaryRatioReduce(PromqlParamInfo ratioParam) {
+            this.functionType = FunctionType.ACROSS_SERIES_REDUCTION;
+            this.arity = PromqlFunctionArity.TWO;
+            this.builder = (source, target, ctx, extraParams) -> {
+                throw new UnsupportedOperationException("limit_ratio is translated directly, not built via the generic function builder");
+            };
+            this.params = List.of(ratioParam, INSTANT_VECTOR);
+            return this;
+        }
+
         public PromqlFunctionDefinition.Builder histogramUnary(BiFunction<Source, Expression, ? extends Expression> ctorRef) {
             this.functionType = FunctionType.HISTOGRAM;
             this.arity = PromqlFunctionArity.ONE;
@@ -786,9 +828,9 @@ public final class PromqlFunctionDefinition {
          * <p>
          * Unlike the other function families, these are not lowered through the generic {@link FunctionBuilder}: they resolve
          * into a dedicated logical node and are translated directly (see {@code ResolvePromqlFunctions} and
-         * {@code TranslatePromqlToEsqlPlan}). This method therefore only records the metadata - arity, parameters, and whether
-         * the trailing source-label parameter repeats - and installs a builder that fails fast if the generic path is ever
-         * invoked for one of these functions.
+         * {@code MetadataManipulationFunction#translate}). This method therefore only records the metadata - arity, parameters,
+         * and whether the trailing source-label parameter repeats - and installs a builder that fails fast if the generic path
+         * is ever invoked for one of these functions.
          *
          * @param arity    accepted argument-count range ({@code label_replace} is fixed at 5; {@code label_join} is 3..N)
          * @param variadic whether the trailing parameter repeats an unbounded number of times ({@code label_join} sources)

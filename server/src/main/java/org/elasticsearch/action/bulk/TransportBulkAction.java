@@ -36,7 +36,7 @@ import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -108,7 +108,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
     private final FailureStoreMetrics failureStoreMetrics;
     private final DataStreamFailureStoreSettings dataStreamFailureStoreSettings;
     private final TimeSeriesEligibleWriteWindowLocator timeSeriesEligibleWriteWindowLocator;
-    private final DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings;
+    private final DataStreamLifecycleSettings dataStreamLifecycleSettings;
     private volatile boolean pastTsdbIndexCreationEnabled;
     private final BatchIndexingEnabled batchIndexingEnabled;
 
@@ -128,7 +128,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
         FeatureService featureService,
         TimeSeriesEligibleWriteWindowLocator timeSeriesEligibleWriteWindowLocator,
-        DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings
+        DataStreamLifecycleSettings dataStreamLifecycleSettings
     ) {
         this(
             threadPool,
@@ -146,7 +146,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             dataStreamFailureStoreSettings,
             featureService,
             timeSeriesEligibleWriteWindowLocator,
-            dataStreamGlobalRetentionSettings
+            dataStreamLifecycleSettings
         );
     }
 
@@ -166,7 +166,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
         FeatureService featureService,
         TimeSeriesEligibleWriteWindowLocator timeSeriesEligibleWriteWindowLocator,
-        DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings
+        DataStreamLifecycleSettings dataStreamLifecycleSettings
     ) {
         super(
             TYPE,
@@ -189,7 +189,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         this.rolloverClient = new OriginSettingClient(client, LAZY_ROLLOVER_ORIGIN);
         this.failureStoreMetrics = failureStoreMetrics;
         this.timeSeriesEligibleWriteWindowLocator = timeSeriesEligibleWriteWindowLocator;
-        this.dataStreamGlobalRetentionSettings = dataStreamGlobalRetentionSettings;
+        this.dataStreamLifecycleSettings = dataStreamLifecycleSettings;
         this.pastTsdbIndexCreationEnabled = PAST_TSDB_INDEX_CREATION_ENABLED_SETTING.get(clusterService.getSettings());
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         clusterSettings.addSettingsUpdateConsumer(PAST_TSDB_INDEX_CREATION_ENABLED_SETTING, this::setPastTsdbIndexCreationEnabled);
@@ -473,7 +473,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             ignored -> timeSeriesEligibleWriteWindowLocator.getEligibleWriteWindowStart(
                 dataStream,
                 projectMetadata,
-                dataStreamGlobalRetentionSettings.get(),
+                dataStreamLifecycleSettings.getGlobalRetention(),
                 absoluteStartTimeMillis
             )
         );

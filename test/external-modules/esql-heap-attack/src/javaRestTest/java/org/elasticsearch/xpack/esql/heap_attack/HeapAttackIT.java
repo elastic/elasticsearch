@@ -557,6 +557,14 @@ public class HeapAttackIT extends ESRestTestCase {
         return responseAsMap(query(query.toString(), null));
     }
 
+    private void setRequestBreakerLimit(String limit) throws IOException {
+        Request request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity(
+            "{\"persistent\": {\"indices.breaker.request.limit\": " + (limit == null ? "null" : "\"" + limit + "\"") + "}}"
+        );
+        adminClient().performRequest(request);
+    }
+
     /**
      * Chains many TO_BASE64 calls so the encoded value grows ~1.33x per level into a single huge
      * string.

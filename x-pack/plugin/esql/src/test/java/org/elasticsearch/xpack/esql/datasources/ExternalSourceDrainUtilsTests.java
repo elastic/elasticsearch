@@ -180,6 +180,65 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
         buffer.finish(true);
     }
 
+    public void testDrainPagesAsyncRevokesOvershootWhenBufferIsFull() throws Exception {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1);
+        Page first = createTestPage(1, 10);
+        Page second = createTestPage(1, 10);
+        AtomicInteger revoked = new AtomicInteger();
+        CloseableIterator<Page> pages = new CloseableIterator<>() {
+            private int index;
+
+            @Override
+            public Page tryAdvance() {
+                if (index == 0) {
+                    index++;
+                    return first;
+                }
+                if (index == 1) {
+                    index++;
+                    return second;
+                }
+                return null;
+            }
+
+            @Override
+            public boolean hasNext() {
+                return index < 2;
+            }
+
+            @Override
+            public Page next() {
+                Page page = tryAdvance();
+                if (page == null) {
+                    throw new NoSuchElementException();
+                }
+                return page;
+            }
+
+            @Override
+            public void revokeOvershootOnPark() {
+                revoked.incrementAndGet();
+            }
+
+            @Override
+            public void close() {}
+        };
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        ExternalSourceDrainUtils.drainPagesAsync(pages, buffer, exec, ActionListener.wrap(v -> latch.countDown(), e -> {
+            error.set(e);
+            latch.countDown();
+        }));
+
+        assertBusy(() -> assertEquals("full buffer must revoke look-ahead before parking", 1, revoked.get()));
+        assertEquals(1, buffer.size());
+        buffer.pollPage().releaseBlocks();
+        assertTrue(latch.await(10, TimeUnit.SECONDS));
+        assertNull(error.get());
+        buffer.finish(true);
+    }
+
     public void testDrainPagesAsyncSimple() throws Exception {
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
         List<Page> pages = List.of(createTestPage(1, 10), createTestPage(1, 10), createTestPage(1, 10));

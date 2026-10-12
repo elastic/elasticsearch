@@ -1819,13 +1819,11 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
             }
         }
 
-        if (logger.isDebugEnabled()) {
-            for (var openPit : openPITs) {
-                logger.debug(
-                    "Opened PIT with id: [{}]",
-                    new PointInTimeBuilder(openPit.v1().get()).getSearchContextId(this.writableRegistry()).toString().replace("},", "\n")
-                );
-            }
+        for (var openPit : openPITs) {
+            logger.debug(
+                "Opened PIT with id: [{}]",
+                new PointInTimeBuilder(openPit.v1().get()).getSearchContextId(this.writableRegistry()).toString().replace("},", "\n")
+            );
         }
 
         // Run a force merge so only the open PITs are retaining the previous commits
@@ -1935,39 +1933,19 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         }
         ensureGreen(indexName);
 
-        // prevent a race between the above `ensureGreen` and the below PIT searches used for keeping accurate state (PIT IDs):
-        // the above `ensureGreen` guarantees `firstSearchNode` has applied the cluster state, but the source only stops serving its PIT
-        // contexts asynchronously after that. If a PIT search below runs before the source has stopped serving, it still succeeds on
-        // `firstSearchNode` and the PIT ID state we keep is stale and keeps pointing to `firstSearchNode`, so the later closePITs never
-        // reaches the copy on `newSearchNode` and the BCCs it pins are never deleted.
-        // This affects every scenario where the source relinquishes the shard, so we must wait for it before re-querying the PITs below.
-        switch (testScenario) {
-            case SUCCESSFUL_RELOCATION, FAIL_SOURCE -> {
-                // the source node is still alive: wait until it has marked all its PIT contexts for the shard as relocating, so the
-                // searches below are redirected to `newSearchNode` and the PIT ids are re-encoded to their new location.
-                var sourceSearchService = internalCluster().getInstance(SearchService.class, firstSearchNode);
-                assertBusy(
-                    () -> assertTrue(sourceSearchService.getActivePITContexts(shardId).stream().allMatch(PitReaderContext::isRelocating))
-                );
-            }
-            case STOP_SOURCE_NODE ->
-                // the source node is stopped: wait until it has fully left the cluster so the searches below cannot be routed to it and
-                // are served (and re-encoded) by `newSearchNode` instead.
-                assertBusy(
-                    () -> assertFalse(
-                        internalCluster().clusterService(newSearchNode)
-                            .state()
-                            .nodes()
-                            .getNodes()
-                            .values()
-                            .stream()
-                            .anyMatch(node -> node.getName().equals(firstSearchNode))
-                    )
-                );
-            // FAIL_TARGET and STOP_TARGET_NODE keep (or revert) the shard on `firstSearchNode`, so there is no stale source copy to guard
-            // against here.
-            case FAIL_TARGET, STOP_TARGET_NODE -> {
-            }
+        // Prevent a race between the above `ensureGreen` and the PIT re-queries below (which capture the up-to-date PIT ids). While the
+        // source node is still alive, `ensureGreen` does not guarantee it has stopped serving its PIT contexts for this shard: on a
+        // successful relocation it marks them as relocating asynchronously, and on a source failure it frees them asynchronously when it
+        // applies the shard-removed cluster state (`failSearchShard` only waits for the master to record the failure). If a PIT re-query
+        // runs before that, it is still served by `firstSearchNode`, so the PIT id we keep stays pinned to it and the later closePITs
+        // never reaches the copy on `newSearchNode`, leaking the BCCs it pins. For FAIL_SOURCE the freed contexts leave the active set, so
+        // `allMatch(isRelocating)` holds once the set is empty. STOP_SOURCE_NODE needs no such wait: once the node has left, the PIT is
+        // retryable and the coordinator transparently re-routes (and re-encodes) it to `newSearchNode`.
+        if (testScenario == PITRetentionTestScenarios.SUCCESSFUL_RELOCATION || testScenario == PITRetentionTestScenarios.FAIL_SOURCE) {
+            var sourceSearchService = internalCluster().getInstance(SearchService.class, firstSearchNode);
+            assertBusy(
+                () -> assertTrue(sourceSearchService.getActivePITContexts(shardId).stream().allMatch(PitReaderContext::isRelocating))
+            );
         }
 
         // in case of a successful relocation and when source node fails or is stopped, we should be able to continue PIT searches
@@ -2005,7 +1983,15 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         logger.info("Closing PITs");
         closePITs(openPITs);
 
-        assertBusy(() -> assertThat(shardCommitsContainer.listBlobs(operationPurpose).keySet(), is(equalTo(Set.of(latestUploadedBlob)))));
+        // Final convergence: once the PITs are closed, every commit except the latest uploaded one should be deleted. The newest BCCs
+        // created while the target search shard was still recovering (e.g. the flush and force-merge above) are not pinned by any PIT, but
+        // the target pessimistically registered them for its recovery under its node id. Those registrations are only released once the
+        // target, now started, replies to a "new commit notification". Rather than waiting for the periodic shard inactivity monitor to
+        // emit that notification, we drive the monitor's poll directly on the indexing node on every assertBusy iteration.
+        assertBusy(() -> {
+            commitService.updateCommitUseTrackingForInactiveShards(() -> Long.MAX_VALUE);
+            assertThat(shardCommitsContainer.listBlobs(operationPurpose).keySet(), is(equalTo(Set.of(latestUploadedBlob))));
+        }, 30, TimeUnit.SECONDS);
     }
 
     private static void failSearchShard(String indexName, String searchNode) {

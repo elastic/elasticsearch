@@ -107,6 +107,8 @@ dependencies {
   heapPressureTestImplementation project(':test:test-clusters')
   // The pausable field the heap pressure tests use to hold requests in flight.
   clusterModules project(':test:external-modules:test-pausable-field')
+  // Mapping-level keyword runtime fields need a script engine.
+  clusterModules project(':modules:lang-painless')
 }
 
 // log4j-core registers both the PluginProcessor and GraalVmProcessor on the processor path; we only want the former

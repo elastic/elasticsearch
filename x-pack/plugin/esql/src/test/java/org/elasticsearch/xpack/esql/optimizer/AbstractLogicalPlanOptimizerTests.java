@@ -222,6 +222,11 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
      * for the golden-test equivalent of this same pattern).
      */
     protected LogicalPlan datasetPlan(String query, String datasetName, String resource, List<Attribute> schema) {
+        return optimize(analyzedDatasetPlan(query, datasetName, resource, schema));
+    }
+
+    /** Like {@link #datasetPlan} but stops after analysis, for tests that apply a single rule to the plan. */
+    protected LogicalPlan analyzedDatasetPlan(String query, String datasetName, String resource, List<Attribute> schema) {
         assumeTrue("requires FROM <dataset> capability", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
         String dataSourceName = datasetName + "_ds";
         ProjectMetadata datasetMetadata = ProjectMetadata.builder(ProjectId.DEFAULT)
@@ -236,7 +241,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
             datasetMetadata,
             TestIndexNameExpressionResolver.newInstance()
         );
-        return optimize(analyzer().externalSourceResolution(resource, schema, FileList.UNRESOLVED).buildAnalyzer().analyze(rewritten));
+        return analyzer().externalSourceResolution(resource, schema, FileList.UNRESOLVED).buildAnalyzer().analyze(rewritten);
     }
 
     protected LogicalPlan planAirports(String query) {

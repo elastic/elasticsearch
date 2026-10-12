@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.apache.lucene.search.KnnCollector;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.IOSupplier;
 import org.apache.lucene.util.ThreadInterruptedException;
@@ -55,6 +56,12 @@ public final class IVFSegmentScan {
     private int inFlight;
     private long inFlightSize;
     private float expectedScored;
+    private float pauseFraction = Float.POSITIVE_INFINITY;
+    // per claimed posting, in claim order: where it starts in the budget, its size and best score
+    private long[] starts = new long[16];
+    private int[] sizes = new int[16];
+    private float[] maxScores = new float[16];
+    private int claimed;
 
     /**
      * A scan shared by {@code parts} searches of one segment (sizing how far ahead posting lists are prefetched); parts must
@@ -83,11 +90,21 @@ public final class IVFSegmentScan {
 
     /** Builds the plan with {@code planner} unless already open. Returns false if the segment has nothing to search. */
     synchronized boolean openIfNeeded(IOSupplier<Plan> planner) throws IOException {
-        if (plan == null && empty == false) {
-            plan = planner.get();
+        if (plan == null && empty == false && failed == false) {
+            try {
+                plan = planner.get();
+            } catch (IOException | RuntimeException e) {
+                fail();
+                throw e;
+            }
             empty = plan == null;
         }
-        return empty == false;
+        return empty == false && failed == false;
+    }
+
+    /** True once no part will claim another posting list, so a part starting now need not prepare to visit any. */
+    synchronized boolean isDone() {
+        return failed || phase == Phase.DONE;
     }
 
     /** The docs the search may score, shared read-only by every visitor of this segment. */
@@ -103,8 +120,8 @@ public final class IVFSegmentScan {
     }
 
     /**
-     * Moves {@code visitor} onto the next posting list if the search should still visit one. Returns the posting's size,
-     * to pass back to {@link #complete}, or -1 when the search is done.
+     * Moves {@code visitor} onto the next posting list if the search should still visit one. Returns a ticket to pass back
+     * to {@link #complete}, or -1 when the search is done or paused.
      */
     synchronized int claim(PostingVisitor visitor, KnnCollector collector) throws IOException {
         Decision decision;
@@ -126,20 +143,69 @@ public final class IVFSegmentScan {
             fail();
             throw e;
         }
+        if (claimed == sizes.length) {
+            starts = ArrayUtil.growExact(starts, claimed * 2);
+            sizes = ArrayUtil.growExact(sizes, claimed * 2);
+            maxScores = ArrayUtil.growExact(maxScores, claimed * 2);
+        }
+        starts[claimed] = charged;
+        sizes[claimed] = size;
         if (phase == Phase.BUDGET) {
             charged += size;
         }
         inFlight++;
         inFlightSize += size;
-        return size;
+        return claimed++;
     }
 
-    /** Records that a claimed posting of {@code size} entries was visited and scored {@code scoredDocs} docs. */
-    synchronized void complete(int size, int scoredDocs) {
+    /** Records that the posting of {@code ticket} was visited, scoring {@code scoredDocs} docs, the best {@code maxScore}. */
+    synchronized void complete(int ticket, int scoredDocs, float maxScore) {
+        maxScores[ticket] = maxScore;
         inFlight--;
-        inFlightSize -= size;
+        inFlightSize -= sizes[ticket];
         scored += scoredDocs;
         notifyAll();
+    }
+
+    /** Pauses the budget phase once {@code fraction} of the budget is claimed; parts then stop until {@link #resume}. */
+    public synchronized void pauseAt(float fraction) {
+        pauseFraction = fraction;
+    }
+
+    public synchronized void resume() {
+        pauseFraction = Float.POSITIVE_INFINITY;
+    }
+
+    /** Ends the search of this segment: no part claims another posting list. */
+    public synchronized void stop() {
+        phase = Phase.DONE;
+    }
+
+    /** The visit budget not yet claimed, in posting entries; 0 if the segment has nothing (more) to search. */
+    public synchronized long remainingBudget() {
+        return plan == null || phase != Phase.BUDGET ? 0 : Math.max(0, plan.budget() - charged);
+    }
+
+    /**
+     * Whether a paused search is still worth continuing: true unless at least {@code kLeaf} docs were scored and none of the
+     * postings claimed in the last {@code window} of the budget, widened to at least the last {@code minPostings}, has a
+     * best score of at least {@code bar}. A posting whose best score is unknown counts as worth continuing for.
+     */
+    public synchronized boolean worthContinuing(float window, int minPostings, float bar, int kLeaf) {
+        if (plan == null || phase != Phase.BUDGET || scored < kLeaf) {
+            return true;
+        }
+        long windowStart = (long) (charged - window * plan.budget());
+        int first = claimed;
+        while (first > 0 && (starts[first - 1] >= windowStart || claimed - first < minPostings)) {
+            first--;
+        }
+        for (int i = first; i < claimed; i++) {
+            if (Float.isNaN(maxScores[i]) || maxScores[i] >= bar) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Stops every part: a part failed, so the search fails and the others should not keep scanning. */
@@ -161,7 +227,7 @@ public final class IVFSegmentScan {
         // filtering? E.g. keep exploring until we hit an expected number of parent documents vs. child vectors?
         if (phase == Phase.BUDGET) {
             if (plan.postings().hasNext() && charged < plan.budget()) {
-                return Decision.CLAIM;
+                return charged < pauseFraction * plan.budget() ? Decision.CLAIM : Decision.STOP;
             }
             Decision fill = plan.postings().hasNext() ? scoredBelow(collector.k(), collector) : Decision.STOP;
             if (fill != Decision.STOP) {

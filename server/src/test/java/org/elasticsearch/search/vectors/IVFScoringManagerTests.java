@@ -73,15 +73,16 @@ public class IVFScoringManagerTests extends ESTestCase {
 
     /** With slices on, a shard returns exactly what one-task-per-leaf search returns. */
     public void testSlicedSearchMatchesPerLeafSearch() throws IOException {
-        int dims = randomIntBetween(8, 64);
+        int dims = randomIntBetween(8, 32);
         IndexWriterConfig config = newIndexWriterConfig().setCodec(
             TestUtil.alwaysKnnVectorsFormat(new ES950DiskBBQVectorsFormat(64, randomIntBetween(2, 8)))
-        ).setMergePolicy(NoMergePolicy.INSTANCE);
+        ).setMergePolicy(NoMergePolicy.INSTANCE).setMaxBufferedDocs(50_000).setRAMBufferSizeMB(256);
         ExecutorService executor = Executors.newFixedThreadPool(4);
         try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, config)) {
             int segments = randomIntBetween(1, 6);
             for (int s = 0; s < segments; s++) {
-                int docs = s == 0 ? randomIntBetween(2_000, 6_000) : randomIntBetween(10, 1_500);
+                // the first segment is big enough that a visit ratio of 0.3+ splits it (work > MAX_WORK_PER_SLICE)
+                int docs = s == 0 ? randomIntBetween(15_000, 20_000) : randomIntBetween(10, 1_500);
                 for (int i = 0; i < docs; i++) {
                     Document doc = new Document();
                     doc.add(
@@ -100,15 +101,9 @@ public class IVFScoringManagerTests extends ESTestCase {
                 for (int q = 0; q < 10; q++) {
                     float[] vector = VectorTestUtils.randomNormalizedFloatVector(dims);
                     Query filter = randomBoolean() ? null : new TermQuery(new Term("tag", "a"));
-                    float visitRatio = randomBoolean() ? 0f : randomFloatBetween(0.01f, 0.3f, true);
+                    float visitRatio = randomFrom(0f, 0.05f, 0.3f, 0.5f);
                     int k = randomIntBetween(1, 50);
-                    TopDocs perLeaf = search(reader, executor, false, vector, k, filter, visitRatio);
-                    TopDocs sliced = search(reader, executor, true, vector, k, filter, visitRatio);
-                    assertEquals(perLeaf.scoreDocs.length, sliced.scoreDocs.length);
-                    for (int i = 0; i < perLeaf.scoreDocs.length; i++) {
-                        assertEquals(perLeaf.scoreDocs[i].doc, sliced.scoreDocs[i].doc);
-                        assertEquals(perLeaf.scoreDocs[i].score, sliced.scoreDocs[i].score, 0f);
-                    }
+                    assertSlicedMatchesPerLeaf(reader, executor, vector, k, filter, visitRatio);
                 }
             }
         } finally {
@@ -116,33 +111,151 @@ public class IVFScoringManagerTests extends ESTestCase {
         }
     }
 
-    private static TopDocs search(
-        DirectoryReader reader,
-        ExecutorService executor,
-        boolean slices,
-        float[] vector,
-        int k,
-        Query filter,
-        float visitRatio
-    ) throws IOException {
-        ContextIndexSearcher searcher = new ContextIndexSearcher(
-            reader,
-            IndexSearcher.getDefaultSimilarity(),
-            IndexSearcher.getDefaultQueryCache(),
-            IndexSearcher.getDefaultQueryCachingPolicy(),
-            randomBoolean(),
-            executor,
-            4,
-            1
-        );
-        searcher.setIvfSlicesEnabled(slices);
+    /**
+     * A segment holding nothing near the query stops after the first round, and re-entry decisions don't depend on threads:
+     * the same hits and work with and without an executor.
+     */
+    public void testReentryStopsLeavesWithNothingCompetitiveAndIsDeterministic() throws IOException {
+        int dims = 16;
+        float[] target = VectorTestUtils.randomNormalizedFloatVector(dims);
+        // a plain config: the randomized one may flush more segments than the two this test builds
+        IndexWriterConfig config = new IndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(new ES950DiskBBQVectorsFormat(64, 4)))
+            .setMergePolicy(NoMergePolicy.INSTANCE)
+            .setRAMBufferSizeMB(256);
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, config)) {
+            for (float sign : new float[] { 1f, -1f }) { // one segment around the target, one around its opposite
+                for (int i = 0; i < 4_000; i++) {
+                    Document doc = new Document();
+                    doc.add(new KnnFloatVectorField("v", near(target, sign), VectorSimilarityFunction.DOT_PRODUCT));
+                    writer.addDocument(doc);
+                }
+                writer.flush();
+            }
+            try (DirectoryReader reader = DirectoryReader.open(writer)) {
+                assertEquals(2, reader.leaves().size());
+                IVFKnnFloatVectorQuery full = query(target, 10, null, 0.5f);
+                searchWith(reader, executor, true, false, full, 10);
+                IVFKnnFloatVectorQuery reentered = query(target, 10, null, 0.5f);
+                TopDocs concurrent = searchWith(reader, executor, true, true, reentered, 10);
+                IVFKnnFloatVectorQuery sequential = query(target, 10, null, 0.5f);
+                TopDocs alone = searchWith(reader, null, true, true, sequential, 10);
+
+                assertTrue(reentered.totalVectorOps() + " < " + full.totalVectorOps(), reentered.totalVectorOps() < full.totalVectorOps());
+                assertEquals(reentered.totalVectorOps(), sequential.totalVectorOps());
+                assertEquals(concurrent.scoreDocs.length, alone.scoreDocs.length);
+                for (int i = 0; i < concurrent.scoreDocs.length; i++) {
+                    assertEquals(concurrent.scoreDocs[i].doc, alone.scoreDocs[i].doc);
+                    assertEquals(concurrent.scoreDocs[i].score, alone.scoreDocs[i].score, 0f);
+                }
+            }
+        } finally {
+            terminate(executor);
+        }
+    }
+
+    /**
+     * A field can hold segments of other formats (e.g. flat ones written before its index options changed to bbq_disk).
+     * Only DiskBBQ segments may be split: other formats ignore the shared scan, so each part would search the whole segment.
+     */
+    public void testSegmentsOfOtherFormatsAreNotSplit() throws IOException {
+        int dims = randomIntBetween(8, 32);
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try (Directory dir = newDirectory()) {
+            // plain configs: the randomized one may flush more segments than the two this test builds
+            IndexWriterConfig flatConfig = new IndexWriterConfig().setCodec(TestUtil.getDefaultCodec()).setRAMBufferSizeMB(256);
+            IndexWriterConfig ivfConfig = new IndexWriterConfig().setCodec(
+                TestUtil.alwaysKnnVectorsFormat(new ES950DiskBBQVectorsFormat(64, 4))
+            ).setMergePolicy(NoMergePolicy.INSTANCE).setRAMBufferSizeMB(256);
+            for (IndexWriterConfig config : List.of(flatConfig, ivfConfig)) {
+                try (IndexWriter writer = new IndexWriter(dir, config)) {
+                    for (int i = 0; i < 20_000; i++) {
+                        Document doc = new Document();
+                        doc.add(
+                            new KnnFloatVectorField(
+                                "v",
+                                VectorTestUtils.randomNormalizedFloatVector(dims),
+                                VectorSimilarityFunction.DOT_PRODUCT
+                            )
+                        );
+                        writer.addDocument(doc);
+                    }
+                }
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                assertEquals(2, reader.leaves().size());
+                assertSlicedMatchesPerLeaf(reader, executor, VectorTestUtils.randomNormalizedFloatVector(dims), 10, null, 0.5f);
+            }
+        } finally {
+            terminate(executor);
+        }
+    }
+
+    private static IVFKnnFloatVectorQuery query(float[] vector, int k, Query filter, float visitRatio) {
         TestIvfQueryConfigResolver resolver = new TestIvfQueryConfigResolver(
             CentroidIndexFormat.FLAT,
             QuantEncoding.ONE_BIT_4BIT_QUERY,
             false,
             1.0f
         );
-        return searcher.search(new IVFKnnFloatVectorQuery("v", vector, k, k, filter, visitRatio, resolver), k);
+        return new IVFKnnFloatVectorQuery("v", vector, k, k, filter, visitRatio, resolver);
+    }
+
+    /** Searches with the ContextIndexSearcher Elasticsearch uses; a null executor runs every slice on the caller. */
+    private static TopDocs searchWith(DirectoryReader reader, ExecutorService executor, boolean slices, boolean reentry, Query query, int k)
+        throws IOException {
+        IndexSearcher plain = new IndexSearcher(reader);
+        ContextIndexSearcher searcher = executor == null
+            ? new ContextIndexSearcher(reader, plain.getSimilarity(), plain.getQueryCache(), plain.getQueryCachingPolicy(), false)
+            : new ContextIndexSearcher(
+                reader,
+                plain.getSimilarity(),
+                plain.getQueryCache(),
+                plain.getQueryCachingPolicy(),
+                randomBoolean(),
+                executor,
+                4,
+                1
+            );
+        searcher.setIvfSlicesEnabled(slices);
+        searcher.setIvfReentryEnabled(reentry);
+        return searcher.search(query, k);
+    }
+
+    /** A unit vector close to {@code sign * target}. */
+    private static float[] near(float[] target, float sign) {
+        float[] noise = VectorTestUtils.randomNormalizedFloatVector(target.length);
+        float[] v = new float[target.length];
+        double norm = 0;
+        for (int i = 0; i < v.length; i++) {
+            v[i] = sign * target[i] + 0.3f * noise[i];
+            norm += v[i] * v[i];
+        }
+        for (int i = 0; i < v.length; i++) {
+            v[i] /= (float) Math.sqrt(norm);
+        }
+        return v;
+    }
+
+    /** Searches with slices on or off, and checks both paths return the same hits for the same work. */
+    private static void assertSlicedMatchesPerLeaf(
+        DirectoryReader reader,
+        ExecutorService executor,
+        float[] vector,
+        int k,
+        Query filter,
+        float visitRatio
+    ) throws IOException {
+        IVFKnnFloatVectorQuery perLeafQuery = query(vector, k, filter, visitRatio);
+        TopDocs perLeaf = searchWith(reader, executor, false, false, perLeafQuery, k);
+        IVFKnnFloatVectorQuery slicedQuery = query(vector, k, filter, visitRatio);
+        TopDocs sliced = searchWith(reader, executor, true, false, slicedQuery, k);
+        assertEquals("vector ops", perLeafQuery.totalVectorOps(), slicedQuery.totalVectorOps());
+        assertEquals(perLeaf.scoreDocs.length, sliced.scoreDocs.length);
+        for (int i = 0; i < perLeaf.scoreDocs.length; i++) {
+            assertEquals(perLeaf.scoreDocs[i].doc, sliced.scoreDocs[i].doc);
+            assertEquals(perLeaf.scoreDocs[i].score, sliced.scoreDocs[i].score, 0f);
+        }
     }
 
     private static void assertSlices(long[] work, boolean[] splittable, int[][] expected) {

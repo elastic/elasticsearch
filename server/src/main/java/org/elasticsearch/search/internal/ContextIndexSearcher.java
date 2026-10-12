@@ -83,6 +83,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     @Nullable
     private CircuitBreaker circuitBreaker;
     private boolean ivfSlicesEnabled;
+    private boolean ivfReentryEnabled;
 
     private final AtomicReference<LeafExecutionAccounting> leafExecutionAccounting = new AtomicReference<>();
 
@@ -190,6 +191,18 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     /** Whether DiskBBQ (IVF) kNN queries on {@code searcher} slice their work across segments and within large segments. */
     public static boolean ivfSlicesEnabled(IndexSearcher searcher) {
         return searcher instanceof ContextIndexSearcher cis && cis.ivfSlicesEnabled;
+    }
+
+    public void setIvfReentryEnabled(boolean ivfReentryEnabled) {
+        this.ivfReentryEnabled = ivfReentryEnabled;
+    }
+
+    /**
+     * Whether sliced DiskBBQ (IVF) kNN queries on {@code searcher} re-enter optimistically: scan part of each segment's
+     * budget, then continue only segments still producing competitive hits.
+     */
+    public static boolean ivfReentryEnabled(IndexSearcher searcher) {
+        return searcher instanceof ContextIndexSearcher cis && cis.ivfReentryEnabled;
     }
 
     /**

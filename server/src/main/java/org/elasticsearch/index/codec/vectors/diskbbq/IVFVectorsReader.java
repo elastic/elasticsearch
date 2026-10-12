@@ -376,6 +376,14 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     }
 
     /**
+     * Whether a search of {@code field} scans posting lists, so that parts of it can share an {@link IVFSegmentScan}; segments
+     * without centroids are searched by the raw delegate instead.
+     */
+    public boolean searchesPostings(String field) {
+        return hasIvfStructure(field);
+    }
+
+    /**
      * Returns true if this field has an IVF structure (centroids), false if it should fall back to the raw delegate.
      */
     private boolean hasIvfStructure(String field) {
@@ -449,28 +457,32 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         // the plan gets its own vector values: parts of a shared scan visit postings while the plan's iterator runs
         if (scan.openIfNeeded(
             () -> planScan(fieldInfo, entry, queryTarget, knnCollector, acceptDocs, esAcceptDocs, vectorValues(fieldInfo), scan.parts())
-        ) == false) {
-            return; // no vectors in this segment / slice
+        ) == false || scan.isDone()) {
+            return; // no vectors in this segment / slice, or other parts already finished it
         }
+        // parts share the plan's materialized filter, but take live docs on their own thread
+        Bits visitorBits = shared != null && acceptDocs instanceof ESAcceptDocs.BitsAcceptDocs ? acceptDocs.bits() : scan.acceptBits();
         PostingVisitor visitor = getPostingVisitor(
             fieldInfo,
             values,
             entry.postingListSlice(ivfClusters),
             queryTarget,
-            scan.acceptBits(),
+            visitorBits,
             entry.centroidSlice(ivfCentroids),
             esAcceptDocs
         );
-        int size;
-        while ((size = scan.claim(visitor, knnCollector)) >= 0) {
+        int ticket;
+        while ((ticket = scan.claim(visitor, knnCollector)) >= 0) {
             int scoredDocs = 0;
+            float maxScore = Float.NaN;
             try {
                 scoredDocs = visitor.visit(knnCollector);
+                maxScore = visitor.lastVisitMaxScore();
             } catch (Throwable t) {
                 scan.fail();
                 throw t;
             } finally {
-                scan.complete(size, scoredDocs);
+                scan.complete(ticket, scoredDocs, maxScore);
             }
             if (knnCollector.getSearchStrategy() != null) {
                 knnCollector.getSearchStrategy().nextVectorsBlock();
@@ -823,6 +835,11 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     public interface PostingVisitor {
         /** returns the number of documents in the posting list */
         int resetPostingsScorer(PostingMetadata metadata) throws IOException;
+
+        /** The best score of the last visited posting list, or NaN if this visitor does not track it. */
+        default float lastVisitMaxScore() {
+            return Float.NaN;
+        }
 
         /** returns the number of scored documents */
         int visit(KnnCollector collector) throws IOException;

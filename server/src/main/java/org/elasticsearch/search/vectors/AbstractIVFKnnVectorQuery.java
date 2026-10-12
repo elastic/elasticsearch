@@ -211,14 +211,15 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             final boolean usePrecondition = resolved != null && resolved.usePrecondition();
             leafSearches.add(new IVFScoringManager.LeafSearch(context, knnCollectorManagerForSegment, usePrecondition));
         }
+        int mergeK = leafSearches.isEmpty() ? k : IvfSegmentConfig.shardMergeBudget(k, maxRescoreOversampleAcrossLeaves);
+        int reentryMergeK = ContextIndexSearcher.ivfReentryEnabled(indexSearcher) ? mergeK : 0;
         TopDocs[] perLeafResults = slices
-            ? new IVFScoringManager(this, filterWeight, visitRatio, leafSearches).search(taskExecutor)
+            ? new IVFScoringManager(this, filterWeight, visitRatio, leafSearches, reentryMergeK).search(taskExecutor)
             : searchLeaves(taskExecutor, filterWeight, visitRatio, leafSearches);
         if (postFilterDelegate) {
             this.rawPerLeafResults = perLeafResults;
         }
 
-        int mergeK = leafSearches.isEmpty() ? k : IvfSegmentConfig.shardMergeBudget(k, maxRescoreOversampleAcrossLeaves);
         TopDocs topK = mergeLeafResults(mergeK, perLeafResults);
         vectorOpsCount = (int) topK.totalHits.value();
         if (topK.scoreDocs.length == 0) {
@@ -333,24 +334,22 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         boolean usePrecondition
     ) throws IOException;
 
-    /** A leaf's query vector ({@code float[]} or {@code byte[]}, as this query's) and the docs it may match, shared by its parts. */
-    record LeafInput(Object target, AcceptDocs acceptDocs) {}
-
     /** Whether a leaf's search may be split into parts sharing one scan; only the plain float and byte queries can. */
     boolean canSplitLeaves() {
         return false;
     }
 
-    /**
-     * Prepares a leaf's {@link LeafInput} once for all its parts, or returns null if the filter matches nothing in the leaf.
-     * Only called when {@link #canSplitLeaves()}.
-     */
-    LeafInput leafInput(LeafReaderContext ctx, Weight filterWeight, boolean usePrecondition) throws IOException {
-        throw new UnsupportedOperationException();
+    /** Searches one part of a leaf: the codec search with the part's own collector, through the leaf's shared scan. */
+    @FunctionalInterface
+    interface PartSearch {
+        void search(KnnCollector collector) throws IOException;
     }
 
-    /** Runs the codec search for one part of a leaf. Only called when {@link #canSplitLeaves()}. */
-    void searchNearestVectors(LeafReader reader, LeafInput input, KnnCollector collector) throws IOException {
+    /**
+     * Prepares the search of {@code ctx}'s parts once, e.g. its preconditioned query vector. Each part's search builds its
+     * own accepted docs, on the part's thread. Only called when {@link #canSplitLeaves()}.
+     */
+    PartSearch partSearch(LeafReaderContext ctx, Weight filterWeight, boolean usePrecondition) throws IOException {
         throw new UnsupportedOperationException();
     }
 
@@ -450,7 +449,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         if (rawPerLeafResults == null) {
             return new ScoreDoc[leaves.size()][];
         }
-        // rewrite() queues exactly one task per leaf, in leaf order, so entry i is leaf i's result
+        // rewrite() produces exactly one result per leaf, in leaf order, so entry i is leaf i's result
         assert rawPerLeafResults.length == leaves.size()
             : "expected one TopDocs per leaf, got " + rawPerLeafResults.length + " for " + leaves.size() + " leaves";
         ScoreDoc[][] perLeafCandidates = new ScoreDoc[leaves.size()][];

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.vectors;
 
+import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnFloatVectorField;
@@ -29,6 +30,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.index.codec.vectors.cluster.BulkNeighborQueue;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFSegmentScan;
 import org.elasticsearch.index.codec.vectors.diskbbq.es95.ES950DiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -53,9 +55,10 @@ public class IVFSegmentScanConcurrencyTests extends ESTestCase {
     public void testPartsMatchASinglePart() throws Exception {
         int dims = randomIntBetween(8, 64);
         float[] repeated = randomVector(dims);
-        IndexWriterConfig config = newIndexWriterConfig().setCodec(
-            TestUtil.alwaysKnnVectorsFormat(new ES950DiskBBQVectorsFormat(64, randomIntBetween(2, 4)))
-        );
+        KnnVectorsFormat format = randomBoolean()
+            ? new ES950DiskBBQVectorsFormat(64, randomIntBetween(2, 4))
+            : new ESNextDiskBBQVectorsFormat(64, randomIntBetween(2, 4), null);
+        IndexWriterConfig config = newIndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(format));
         ExecutorService threads = Executors.newFixedThreadPool(8);
         try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, config)) {
             int numDocs = randomIntBetween(3_000, 8_000);
@@ -80,11 +83,17 @@ public class IVFSegmentScanConcurrencyTests extends ESTestCase {
                     float[] query = randomBoolean() ? repeated : randomVector(dims);
                     Bits accept = randomAcceptBits(leaf);
                     float visitRatio = randomBoolean() ? 0f : randomFloatBetween(0.01f, 0.3f, true);
+                    Result alone = merge(runParts(threads, leaf, query, accept, visitRatio, null, 1, -1));
                     Result one = searchInParts(threads, leaf, query, accept, visitRatio, 1, -1);
                     Result many = searchInParts(threads, leaf, query, accept, visitRatio, randomIntBetween(2, 8), -1);
+                    // a scan shared by one part decides "collector full" by counting; a search on its own asks its collector
+                    assertEquals("visited", alone.visited, one.visited);
+                    assertArrayEquals("docs", alone.docs, one.docs);
+                    assertArrayEquals("scores", alone.scores, one.scores, 0f);
                     assertEquals("visited", one.visited, many.visited);
                     assertArrayEquals("docs", one.docs, many.docs);
                     assertArrayEquals("scores", one.scores, many.scores, 0f);
+                    assertPauseAndResumeChangeNothing(threads, leaf, query, accept, visitRatio, one);
                 }
             }
         } finally {
@@ -117,6 +126,39 @@ public class IVFSegmentScanConcurrencyTests extends ESTestCase {
 
     private record Result(long visited, int[] docs, float[] scores) {}
 
+    /**
+     * Re-entry pauses a scan between rounds: pausing and resuming must change nothing, and whether a paused scan is worth
+     * continuing must not depend on how many parts ran its first round.
+     */
+    private static void assertPauseAndResumeChangeNothing(
+        ExecutorService threads,
+        LeafReader leaf,
+        float[] query,
+        Bits accept,
+        float visitRatio,
+        Result unpaused
+    ) throws Exception {
+        float pauseAt = randomFrom(0.3f, 0.6f, 0.9f);
+        int parts = randomIntBetween(1, 8);
+        IVFSegmentScan paused = new IVFSegmentScan(parts);
+        paused.pauseAt(pauseAt);
+        List<MaxScoreTopKnnCollector> collectors = new ArrayList<>(runParts(threads, leaf, query, accept, visitRatio, paused, parts, -1));
+
+        IVFSegmentScan pausedAlone = new IVFSegmentScan(1);
+        pausedAlone.pauseAt(pauseAt);
+        runParts(threads, leaf, query, accept, visitRatio, pausedAlone, 1, -1);
+        float bar = unpaused.scores.length == 0 ? 0f : unpaused.scores[unpaused.scores.length / 2];
+        assertEquals(pausedAlone.remainingBudget(), paused.remainingBudget());
+        assertEquals(pausedAlone.worthContinuing(0.1f, 10, bar, K), paused.worthContinuing(0.1f, 10, bar, K));
+
+        paused.resume();
+        collectors.addAll(runParts(threads, leaf, query, accept, visitRatio, paused, parts, -1));
+        Result resumed = merge(collectors);
+        assertEquals("visited", unpaused.visited, resumed.visited);
+        assertArrayEquals("docs", unpaused.docs, resumed.docs);
+        assertArrayEquals("scores", unpaused.scores, resumed.scores, 0f);
+    }
+
     /** Searches one leaf with {@code parts} threads sharing a scan; {@code failingPart} >= 0 makes that part throw. */
     private static Result searchInParts(
         ExecutorService threads,
@@ -127,7 +169,23 @@ public class IVFSegmentScanConcurrencyTests extends ESTestCase {
         int parts,
         int failingPart
     ) throws Exception {
-        IVFSegmentScan scan = new IVFSegmentScan(parts);
+        return merge(runParts(threads, leaf, query, accept, visitRatio, new IVFSegmentScan(parts), parts, failingPart));
+    }
+
+    /**
+     * Runs {@code parts} searches of one leaf through {@code scan} (null: one search on its own), each on its own thread,
+     * and returns their collectors.
+     */
+    private static List<MaxScoreTopKnnCollector> runParts(
+        ExecutorService threads,
+        LeafReader leaf,
+        float[] query,
+        Bits accept,
+        float visitRatio,
+        IVFSegmentScan scan,
+        int parts,
+        int failingPart
+    ) throws Exception {
         List<MaxScoreTopKnnCollector> collectors = new ArrayList<>();
         List<Future<?>> futures = new ArrayList<>();
         for (int p = 0; p < parts; p++) {
@@ -151,6 +209,11 @@ public class IVFSegmentScanConcurrencyTests extends ESTestCase {
         if (failure != null) {
             throw failure;
         }
+        return collectors;
+    }
+
+    /** The exact top hits of all collectors, and their total visited count. */
+    private static Result merge(List<MaxScoreTopKnnCollector> collectors) {
         BulkNeighborQueue merged = BulkNeighborQueue.forMerging(K);
         long visited = 0;
         for (MaxScoreTopKnnCollector collector : collectors) {

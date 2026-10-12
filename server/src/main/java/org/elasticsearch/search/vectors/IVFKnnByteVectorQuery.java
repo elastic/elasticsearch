@@ -16,7 +16,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
@@ -171,14 +170,14 @@ public class IVFKnnByteVectorQuery extends AbstractIVFKnnVectorQuery {
     }
 
     @Override
-    LeafInput leafInput(LeafReaderContext ctx, Weight filterWeight, boolean usePrecondition) throws IOException {
-        AcceptDocs acceptDocs = leafAcceptDocs(ctx, filterWeight);
-        return acceptDocs == null ? null : new LeafInput(segmentQuery(ctx, usePrecondition), acceptDocs);
-    }
-
-    @Override
-    void searchNearestVectors(LeafReader reader, LeafInput input, KnnCollector collector) throws IOException {
-        reader.searchNearestVectors(field, (byte[]) input.target(), collector, input.acceptDocs());
+    PartSearch partSearch(LeafReaderContext ctx, Weight filterWeight, boolean usePrecondition) throws IOException {
+        byte[] leafQuery = segmentQuery(ctx, usePrecondition);
+        return collector -> {
+            AcceptDocs acceptDocs = leafAcceptDocs(ctx, filterWeight);
+            if (acceptDocs != null) {
+                ctx.reader().searchNearestVectors(field, leafQuery, collector, acceptDocs);
+            }
+        };
     }
 
     @Override

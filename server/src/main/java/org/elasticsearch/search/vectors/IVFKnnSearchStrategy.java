@@ -62,6 +62,7 @@ public class IVFKnnSearchStrategy extends KnnSearchStrategy {
         return segmentScan;
     }
 
+    // equality is about what is searched; the shared floor and scan only coordinate how a search runs
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

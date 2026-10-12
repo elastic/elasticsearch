@@ -770,7 +770,8 @@ public class KnnSearcher {
 
     /**
      * A plain {@link IndexSearcher}, or, when {@code -Dbench.ivf_slices} is set, the {@link ContextIndexSearcher} Elasticsearch
-     * searches with, with DiskBBQ slices turned on or off; comparing slices must use the same searcher in both arms.
+     * searches with, with DiskBBQ slices (and, with {@code -Dbench.ivf_reentry}, optimistic re-entry) turned on or off;
+     * comparing slices must use the same searcher in both arms.
      */
     private static IndexSearcher newSearcher(DirectoryReader reader, ExecutorService executor) throws IOException {
         String slices = System.getProperty("bench.ivf_slices");
@@ -791,7 +792,12 @@ public class KnnSearcher {
                 1
             );
         searcher.setIvfSlicesEnabled(Boolean.parseBoolean(slices));
-        logger.info("searching with ContextIndexSearcher, ivf slices enabled: {}", Boolean.parseBoolean(slices));
+        searcher.setIvfReentryEnabled(Boolean.getBoolean("bench.ivf_reentry"));
+        logger.info(
+            "searching with ContextIndexSearcher, ivf slices: {}, re-entry: {}",
+            Boolean.parseBoolean(slices),
+            Boolean.getBoolean("bench.ivf_reentry")
+        );
         return searcher;
     }
 

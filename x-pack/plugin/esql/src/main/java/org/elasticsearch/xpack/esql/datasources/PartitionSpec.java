@@ -1417,7 +1417,12 @@ public final class PartitionSpec {
         }
     }
 
-    private static void warnRenameSource(String column, Map<String, String> renameSourceToLogical, Set<String> warned, Consumer<String> sink) {
+    private static void warnRenameSource(
+        String column,
+        Map<String, String> renameSourceToLogical,
+        Set<String> warned,
+        Consumer<String> sink
+    ) {
         String logical = renameSourceToLogical.get(column);
         if (logical == null || warned.add(column) == false) {
             return;

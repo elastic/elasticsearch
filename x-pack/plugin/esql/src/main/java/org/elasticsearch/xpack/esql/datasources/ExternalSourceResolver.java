@@ -2069,7 +2069,7 @@ public class ExternalSourceResolver {
             detected,
             hints,
             declaredColumnTypes(declaredMapping),
-            PartitionSpec.pathToLogical(declaredMapping),
+            PartitionSpec.renameSourceToLogical(declaredMapping),
             pendingListingWarnings::add
         );
         if (mixed) {

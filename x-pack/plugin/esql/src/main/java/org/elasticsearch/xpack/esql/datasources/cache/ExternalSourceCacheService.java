@@ -565,7 +565,7 @@ public class ExternalSourceCacheService implements Closeable {
      * <p>
      * For the caller that cannot use {@link #getOrComputeListingAsync} because its own listing is bounded. A bounded
      * request may still be <em>served</em> from here, because every entry is a listing of the whole pattern -
-     * {@link #refuseTruncated} is the one way in and holds that - which is a superset of the prefix the caller asked
+     * {@link #refuseTruncated} holds that on both store paths - which is a superset of the prefix the caller asked
      * for and therefore a correct answer to it. Whether a superset is the <em>same</em> answer is the caller's
      * question, not this one's: a listing wider than the bound carries partition types folded over more paths, so
      * {@code DatasetListingService#boundedListingAsync} declines one.
@@ -589,20 +589,38 @@ public class ExternalSourceCacheService implements Closeable {
      */
     public void putListingIfComplete(ListingCacheKey key, FileList listing) {
         if (enabled && listing != null && listing.isTruncated() == false) {
-            listingStore.put(key, listing);
+            admit(key, listing);
         }
+    }
+
+    /**
+     * The only call site of {@code listingStore.put}, and it re-checks rather than trusting its caller.
+     * <p>
+     * A predicate re-tested at each writer is the shape that let one writer of three go unchecked in the first
+     * place, so the test lives here and the writers hand it a listing instead of deciding for themselves. One
+     * writer cannot reach this: {@link #getOrComputeListing} stores through {@code Cache.computeIfAbsent}, which
+     * puts the loader's value itself, so that path's gate has to sit inside the loader — see
+     * {@link #refuseTruncated}. Two store sites, one predicate; a third writer added later inherits it only if it
+     * comes through here, which is why nothing else in this class may call {@code put}.
+     */
+    private void admit(ListingCacheKey key, FileList listing) {
+        listingStore.put(key, refuseTruncated(key, listing));
     }
 
     /**
      * Returns {@code listing} if it is a listing of the whole pattern, and throws otherwise.
      * <p>
-     * The one gate on {@code listingStore}, and it is positioned <em>before</em> the store rather than on the value
-     * a writer hands back. Entries are keyed by the path and its filters, never by how much of it the query that
-     * computed one needed, so a truncated listing in here is served to every later query as though it were the
-     * dataset, with nothing in it to say otherwise. A check that runs after the put fails only the query that
-     * computed the entry while every query behind it reads a fraction of the dataset and believes it read all of
-     * it - which is why the two refusals this replaced, in {@code DatasetListingService}, could not hold the
-     * invariant they named.
+     * Positioned <em>before</em> the store rather than on the value a writer hands back. Entries are keyed by the
+     * path and its filters, never by how much of it the query that computed one needed, so a truncated listing in
+     * here is served to every later query as though it were the dataset, with nothing in it to say otherwise. A
+     * check that runs after the put fails only the query that computed the entry while every query behind it reads
+     * a fraction of the dataset and believes it read all of it - which is why the two refusals this replaced, in
+     * {@code DatasetListingService}, could not hold the invariant they named.
+     * <p>
+     * It is the predicate, not the gate: {@link #admit} holds the only {@code put} and calls this, and
+     * {@link #getOrComputeListing} calls it from inside its loader because {@code Cache.computeIfAbsent} does its
+     * own storing. Making a prefix unassignable where a complete listing is required would collapse the two into
+     * one, and needs a type rather than a check.
      * <p>
      * A refusal rather than an assertion: assertions are off in production. Unreachable from the rails that exist
      * today - all of them either list the whole pattern or filter first, in {@link #putListingIfComplete} - and
@@ -671,12 +689,16 @@ public class ExternalSourceCacheService implements Closeable {
         // Catch a synchronous throw from compute so neither the in-flight entry nor the listener is orphaned.
         try {
             compute.accept(ActionListener.wrap(result -> {
-                if (result.isTruncated()) {
+                try {
+                    admit(key, result);
+                } catch (Exception e) {
+                    // The in-flight entry is removed on the way through, so letting this propagate would leave the
+                    // key registered with a future nobody completes and wedge every later query behind a leader
+                    // that has already finished.
                     inFlightListings.remove(key, newFuture);
-                    newFuture.onFailure(truncatedListing(key));
+                    newFuture.onFailure(e);
                     return;
                 }
-                listingStore.put(key, result);
                 inFlightListings.remove(key, newFuture);
                 newFuture.onResponse(result);
             }, e -> {

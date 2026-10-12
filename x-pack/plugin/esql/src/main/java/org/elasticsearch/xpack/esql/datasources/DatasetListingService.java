@@ -223,8 +223,17 @@ public final class DatasetListingService {
      * is the same artifact whoever asked for it. {@link ExternalSourceCacheService#putListingIfComplete} is what
      * keeps an incomplete one out.
      * <p>
-     * An entry is served only when it holds no more files than the bound, which is a narrower rule than "the entry
-     * is complete" and the difference is not about correctness. A listing carries the partition columns and types
+     * An entry is served only when it holds <em>fewer</em> files than the bound, which is a narrower rule than "the
+     * entry is complete" and the difference is not about correctness.
+     * <p>
+     * Strictly fewer, and the equality case is the reason. {@code isTruncated()} is set by {@code kept >= maxFiles},
+     * so it means "reached the bound" rather than "is a strict prefix": a dataset holding exactly the bound's number
+     * of matches lists completely and is still flagged truncated. Serving such a dataset a cached entry of the same
+     * width therefore hands it an <em>un</em>truncated listing where its own listing would have been truncated, and
+     * the flag is read downstream for partition-column nullability, for whether split discovery must list again, and
+     * for what phase two reserves. At equality the two answers differ on all three, so the warm path declines and
+     * lists for itself. The alternative - spending one more {@code hasNext()} page so the flag could mean "is a
+     * prefix" exactly - buys a request on every bounded listing to sharpen one boundary case. A listing carries the partition columns and types
      * {@code detectPartitions} folded out of the paths it held, so an entry listing more files than this bound was
      * typed over more paths than this query's own listing would have been. Both answers are defensible — the wider
      * one is strictly better informed — but they can differ, and then the schema a query reports depends on whether
@@ -252,7 +261,7 @@ public final class DatasetListingService {
     ) throws Exception {
         ListingCacheKey listingKey = listingCacheKey(path, storagePath, storageIdentity, secretIdentity, hints, config);
         FileList cached = cacheService.getListingIfPresent(listingKey);
-        if (cached != null && cached.fileCount() <= extents.maxFiles()) {
+        if (cached != null && cached.fileCount() < extents.maxFiles()) {
             GlobExpander.checkDiscoveredFilesLimit(cached.fileCount(), maxDiscoveredFiles.getAsInt());
             memory.reserve(cached.fileCount() * FileList.LISTING_BYTES_PER_ENTRY);
             return cached;
@@ -279,7 +288,7 @@ public final class DatasetListingService {
     ) {
         ListingCacheKey listingKey = listingCacheKey(path, storagePath, storageIdentity, secretIdentity, hints, config);
         FileList cached = cacheService.getListingIfPresent(listingKey);
-        if (cached != null && cached.fileCount() <= extents.maxFiles()) {
+        if (cached != null && cached.fileCount() < extents.maxFiles()) {
             try {
                 // Caps are not part of the listing key; see cachedListing. A hit allocated nothing in the walk, so
                 // it reserves what the walk would have, for the reasons cachedListing gives at length.

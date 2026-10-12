@@ -129,7 +129,29 @@ public final class CountingStorageProvider implements StorageProvider {
 
     @Override
     public StorageChildren listChildren(StoragePath prefix, int limit) throws IOException {
-        return delegate.listChildren(toFileScheme(prefix), limit);
+        StorageChildren children = delegate.listChildren(toFileScheme(prefix), limit);
+        if (children == null) {
+            return null;
+        }
+        // Hand both halves back under the scheme the query asked for, exactly as listObjects does. A directory
+        // returned under the delegate's scheme does not begin with the listing prefix the caller holds, so every
+        // consumer that relativises a child against that prefix silently takes its can't-relativise fallback: the
+        // prefix fan-out then cannot tell which folders the glob matches, and entry matching falls back to the last
+        // path component. Both read as working, which is what makes this worth stating rather than just fixing.
+        List<StorageEntry> files = new ArrayList<>(children.files().size());
+        for (StorageEntry file : children.files()) {
+            files.add(new StorageEntry(toCountScheme(file.path()), file.length(), file.lastModified()));
+        }
+        List<StoragePath> directories = new ArrayList<>(children.directories().size());
+        for (StoragePath directory : children.directories()) {
+            directories.add(toCountScheme(directory));
+        }
+        return new StorageChildren(files, directories);
+    }
+
+    /** Inverse of {@link #toFileScheme}: re-labels a delegate path as one of this provider's. */
+    private static StoragePath toCountScheme(StoragePath path) {
+        return StoragePath.of(SCHEME + "://" + path.localPath());
     }
 
     @Override

@@ -461,10 +461,9 @@ public class CsvFormatReaderTests extends ESTestCase {
         // Tight breaker: the same header trips it part-way through the split, as a 429, with nothing left reserved.
         BigArrays tight = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofKb(256)).withCircuitBreaking();
         CircuitBreaker tightBreaker = tight.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        CsvFormatReader tightReader = new CsvFormatReader(BlockFactory.builder(tight).breaker(tightBreaker).build())
-            .withSchemaMaxFields(columns)
-            .withDeclaredProvenanceBinding(true)
-            .withSchema(declared);
+        CsvFormatReader tightReader = new CsvFormatReader(BlockFactory.builder(tight).breaker(tightBreaker).build()).withSchemaMaxFields(
+            columns
+        ).withDeclaredProvenanceBinding(true).withSchema(declared);
         CircuitBreakingException e = expectThrows(
             CircuitBreakingException.class,
             () -> tightReader.read(createStorageObject(csv), context).close()

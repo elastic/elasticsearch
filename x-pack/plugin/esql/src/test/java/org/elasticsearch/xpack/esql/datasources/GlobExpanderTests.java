@@ -5000,6 +5000,82 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
+     * The fan-out must not spend a request on a folder the pattern cannot match.
+     * <p>
+     * One slot is one {@code listObjects}, and the slot list was built from every directory under the pattern
+     * prefix. Because {@code patternPrefix} cuts at the last {@code /} before the first metacharacter, a selective
+     * glob roots at the parent of every sibling partition the dataset has, so the enumeration cost was a property
+     * of the dataset rather than of the query: twelve years listed to answer about one.
+     * <p>
+     * Pinned as an exact set rather than a count, so a failure names the prefixes that should not have been read.
+     */
+    public void testFanOutDoesNotListAFolderTheGlobCannotMatch() throws Exception {
+        TreeStubProvider provider = new TreeStubProvider(wideHiveTree(12, 12, 8));
+
+        @SuppressWarnings("RegexpMultiline")
+        String pattern = "s3://bucket/data/year=2024/**/*.parquet";
+        FileList result = expandSync(
+            pattern,
+            provider,
+            null,
+            HIVE_ON,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            4,
+            () -> false
+        );
+
+        // 12 months x 8 files, plus year=2024/mid.parquet, which the globstar also matches.
+        assertEquals(12 * 8 + 1, result.fileCount());
+        for (String prefix : provider.listedPrefixes) {
+            assertThat("a prefix outside the matched year must never be listed", prefix, containsString("year=2024"));
+        }
+    }
+
+    /**
+     * A bound is not reached by keys the glob cannot match, and a listing that drained its prefix without reaching
+     * it is not truncated.
+     * <p>
+     * Both halves are the same defect seen from the two sides that matter. The count: a bound spent on non-matching
+     * keys returns fewer matches than the dataset holds, or none. The flag: {@code isTruncated()} decides whether
+     * an empty result can be believed and whether the listing may be cached, so a complete listing reporting itself
+     * as a prefix forfeits both. The fixture makes the two populations differ by construction — one matching file
+     * among eight hundred keys under the same prefix, with a bound far below the key count and far above the match
+     * count.
+     */
+    public void testABoundCountsMatchesSoAFullDrainIsNotTruncated() throws Exception {
+        List<StorageEntry> entries = new ArrayList<>();
+        for (int y = 0; y < 8; y++) {
+            for (int f = 0; f < 100; f++) {
+                entries.add(entry(String.format(Locale.ROOT, "s3://bucket/data/year=%04d/f%04d.csv", 2016 + y, f), 100));
+            }
+        }
+        entries.add(entry("s3://bucket/data/year=2024/only.parquet", 100));
+        TreeStubProvider provider = new TreeStubProvider(entries);
+
+        @SuppressWarnings("RegexpMultiline")
+        String pattern = "s3://bucket/data/**/*.parquet";
+        FileList result = expandSync(
+            pattern,
+            provider,
+            null,
+            HIVE_ON,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            10,
+            1,
+            () -> false
+        );
+
+        assertEquals("the one matching file, found past 800 keys the bound must not have counted", 1, result.fileCount());
+        assertEquals("s3://bucket/data/year=2024/only.parquet", result.path(0).toString());
+        assertFalse("a drain that exhausted its prefix below the bound is the whole pattern, not a prefix of it", result.isTruncated());
+    }
+
+    /**
      * Verifies that the fan-out drains each derived prefix independently (sequentially). Each prefix issues its
      * own {@code listObjects} call; the total across all prefixes is greater than one.
      */

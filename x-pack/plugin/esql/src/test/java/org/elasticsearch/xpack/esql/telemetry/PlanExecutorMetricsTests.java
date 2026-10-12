@@ -18,17 +18,21 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilitiesBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
@@ -53,6 +57,7 @@ import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse;
+import org.elasticsearch.xpack.esql.action.ExternalPlanningReservation;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCapabilities;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
@@ -88,6 +93,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
@@ -114,6 +120,14 @@ public class PlanExecutorMetricsTests extends ESTestCase {
     );
 
     private static TransportActionServices createTransportActionServices(UsageService usageService, CrossProjectModeDecider cpsDecider) {
+        return createTransportActionServices(usageService, cpsDecider, new BlockFactoryProvider(PlannerUtils.NON_BREAKING_BLOCK_FACTORY));
+    }
+
+    private static TransportActionServices createTransportActionServices(
+        UsageService usageService,
+        CrossProjectModeDecider cpsDecider,
+        BlockFactoryProvider blockFactoryProvider
+    ) {
         ClusterService clusterService = createMockClusterService();
         return new TransportActionServices(
             createMockTransportService(),
@@ -126,7 +140,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             new InferenceService(mock(Client.class), clusterService),
             UserAgentParserRegistry.NOOP,
             IpLocationService.NOOP,
-            new BlockFactoryProvider(PlannerUtils.NON_BREAKING_BLOCK_FACTORY),
+            blockFactoryProvider,
             new PlannerSettings.Holder(clusterService),
             cpsDecider
         );
@@ -285,6 +299,76 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             assertEquals(2, planExecutor.metrics().stats().get("queries._all.total"));
             assertEquals(1, planExecutor.metrics().stats().get("features.stats"));
         }
+    }
+
+    /**
+     * {@link PlanExecutor#esql} owns the query's external-planning reservation: it binds one to the execution info and
+     * closes it when the session completes, on success, on failure, and when the session throws synchronously, so no
+     * transport action has to. The plan runner stands in for resolution and compute by charging the query-scoped
+     * reservation and a {@link ExternalPlanningReservation.Run} it leaves open, so a missing release of either shows up
+     * on a real request breaker.
+     */
+    public void testExternalPlanningReservationReleasedOnSuccessAndFailure() throws Exception {
+        CircuitBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofMb(1));
+        BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
+        TransportActionServices services = createTransportActionServices(
+            new UsageService(),
+            CrossProjectModeDecider.NOOP,
+            new BlockFactoryProvider(blockFactory)
+        );
+        long baseline = breaker.getUsed();
+        long queryCharge = randomLongBetween(1, 64 * 1024);
+        long runCharge = randomLongBetween(1, 64 * 1024);
+
+        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
+            var planExecutor = buildPlanExecutor(mockIndexResolver(), dataSourceModule);
+            var request = new EsqlQueryRequest();
+            request.query("from test | stats m = max(foo)");
+            request.allowPartialResults(false);
+
+            for (Outcome outcome : Outcome.values()) {
+                var executionInfo = createEsqlExecutionInfo(randomBoolean());
+                AtomicReference<ExternalPlanningReservation.Run> openRun = new AtomicReference<>();
+                EsqlSession.PlanRunner runPhase = (role, p, configuration, foldContext, planTimeProfile, r) -> {
+                    ExternalPlanningReservation reservation = executionInfo.externalPlanning();
+                    reservation.chargeQuery(queryCharge);
+                    // Left open on purpose: closing the query reservation must refund a run its owner never closed.
+                    ExternalPlanningReservation.Run run = reservation.openRun();
+                    run.charge(runCharge);
+                    openRun.set(run);
+                    assertEquals(baseline + queryCharge + runCharge, breaker.getUsed());
+                    switch (outcome) {
+                        case SUCCESS -> r.onResponse(createPlanRunnerResult(configuration, executionInfo));
+                        case FAILURE -> r.onFailure(new IllegalStateException("simulated compute failure"));
+                        case THROW -> throw new IllegalStateException("simulated synchronous failure");
+                    }
+                };
+                PlainActionFuture<Versioned<Result>> future = new PlainActionFuture<>();
+                executeEsql(planExecutor, services, request, executionInfo, runPhase, future);
+                switch (outcome) {
+                    case SUCCESS -> future.actionGet();
+                    case FAILURE, THROW -> expectThrows(IllegalStateException.class, future::actionGet);
+                }
+
+                ExternalPlanningReservation reservation = executionInfo.externalPlanning();
+                assertNotNull(reservation);
+                assertNotNull("plan runner did not run for " + outcome, openRun.get());
+                assertEquals(0L, reservation.queryHeld());
+                assertEquals(0L, openRun.get().held());
+                assertEquals(baseline, breaker.getUsed());
+                expectThrows(IllegalStateException.class, reservation::openRun);
+
+                // A second close, e.g. from a caller that still releases it itself, must not refund again.
+                reservation.close();
+                assertEquals(baseline, breaker.getUsed());
+            }
+        }
+    }
+
+    private enum Outcome {
+        SUCCESS,
+        FAILURE,
+        THROW
     }
 
     public void testSettingsMetric() throws Exception {
@@ -732,6 +816,6 @@ public class PlanExecutorMetricsTests extends ESTestCase {
     }
 
     private BlockFactory blockFactory() {
-        return BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        return BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 }

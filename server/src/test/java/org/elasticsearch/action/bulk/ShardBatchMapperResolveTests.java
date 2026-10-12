@@ -30,6 +30,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper.BatchMapperResolution;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.sourcebatch.SourceSchema;
@@ -69,6 +70,36 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
         BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schemaOf("host"), ms.mappingLookup(), indexSettings);
         assertNotNull(resolution);
         assertTrue(resolution.columnMappers()[0] instanceof KeywordFieldMapper);
+    }
+
+    /** Settings of a {@code columnar_stored} index, optionally forcing the stored-field layout of {@code _ignored_source}. */
+    private static Settings columnarStoredSettings(boolean docValuesFormat) {
+        return Settings.builder()
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+            .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), docValuesFormat)
+            .build();
+    }
+
+    public void testColumnarStoredSourceIsSupported() throws IOException {
+        Settings settings = columnarStoredSettings(true);
+        MapperService ms = columnarMapperService(settings, mapping(b -> b.startObject("host").field("type", "keyword").endObject()));
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(
+            schemaOf("host"),
+            ms.mappingLookup(),
+            columnarIndexSettings(settings)
+        );
+        assertNotNull(resolution);
+        assertTrue(resolution.columnMappers()[0] instanceof KeywordFieldMapper);
+    }
+
+    /**
+     * Without the time-series doc values format {@code _ignored_source} is a stored field, but the batch path writes the
+     * {@code columnar_stored} blob as doc values. Batching it would make the blob unreadable, so the batch has to fall back.
+     */
+    public void testColumnarStoredSourceWithStoredIgnoredSourceFallsBack() throws IOException {
+        Settings settings = columnarStoredSettings(false);
+        MapperService ms = columnarMapperService(settings, mapping(b -> b.startObject("host").field("type", "keyword").endObject()));
+        assertNull(ShardBatchMapper.resolveMappers(schemaOf("host"), ms.mappingLookup(), columnarIndexSettings(settings)));
     }
 
     public void testNumberMapperIsSupported() throws IOException {

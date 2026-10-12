@@ -164,7 +164,7 @@ curl -X PUT "${ELASTICSEARCH_URL}/_query/data_source/prod_s3_static" \
 
 ::::
 
-**Step 2.** [Create a dataset](esql-data-federation-datasets.md) that points at your files, for example `s3://amzn-s3-demo-bucket/some/sample.parquet` in **Parquet** format.
+**Step 2.** [Create a dataset](esql-data-federation-manage-datasets.md) that points at your files, for example `s3://amzn-s3-demo-bucket/some/sample.parquet` in **Parquet** format.
 
 You can now query the remote data with {{esql}}.
 ::::::
@@ -236,6 +236,8 @@ aws iam create-access-key --user-name "${IAM_USER}"
 
 ## Next steps
 
+Continue with the following dataset and security tasks:
+
 - [Query your data](esql-data-federation-querying.md) with `FROM`, including metadata columns and current limitations.
-- [Create and manage datasets](esql-data-federation-datasets.md) to add more datasets over this data source, and configure file formats and settings.
+- [Create and manage datasets](esql-data-federation-manage-datasets.md) over this data source, then review [file formats](esql-data-federation-file-formats.md) and [dataset settings](esql-data-federation-dataset-settings.md).
 - [Manage credentials and privileges](esql-data-federation-security.md) to control who can access your data sources and datasets.

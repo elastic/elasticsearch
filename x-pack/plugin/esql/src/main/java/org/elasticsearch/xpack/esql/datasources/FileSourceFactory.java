@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -135,6 +136,14 @@ final class FileSourceFactory implements ExternalSourceFactory {
         // identity through the storage participant, and its credentials the secret identity that participant derives.
         inert.add(ExternalSourceResolver.DATASOURCE_CONFIG_KEY);
         COORDINATOR_IDENTITY_INERT_KEYS = Set.copyOf(inert);
+    }
+
+    /**
+     * Whether a headered text file binds as a node before {@code esql_external_text_header_every_split} does, because
+     * such a node may be in the cluster and read part of the query.
+     */
+    static boolean bindsHeaderByProvenance(TransportVersion minTransportVersion) {
+        return minTransportVersion.supports(FileSplitProvider.ESQL_EXTERNAL_TEXT_HEADER_EVERY_SPLIT) == false;
     }
 
     /**
@@ -509,7 +518,8 @@ final class FileSourceFactory implements ExternalSourceFactory {
      * listing: the storage object is built with those values (so {@code length()} serves the cached
      * value without I/O) and the existence probe is skipped, so no synchronous HEAD/range round-trip
      * runs on the executor before the async footer read. When {@code hint} is null the object is
-     * created bare and its existence is verified up front, matching the synchronous path.
+     * created bare and its existence is verified up front, matching the synchronous path. The hint's
+     * {@link ListingHint#schemaSampleShare()} is handed to the reader (see {@link FormatReader#withSchemaSampleShare}).
      */
     @Override
     public void resolveMetadataAsync(
@@ -538,11 +548,11 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     settings,
                     ExternalSourceResolver.storageConfig(config)
                 ).value();
-                reader = readerForListedObject(location, storagePath.objectName(), config);
             } else {
                 provider = storageRegistry.provider(storagePath);
-                reader = readerForListedObject(location, storagePath.objectName(), config);
             }
+            int schemaSampleShare = hint != null ? hint.schemaSampleShare() : 1;
+            reader = readerForListedObject(location, storagePath.objectName(), config).withSchemaSampleShare(schemaSampleShare);
 
             if (hint != null) {
                 storageObject = provider.newObject(storagePath, hint.length(), Instant.ofEpochMilli(hint.lastModifiedMillis()));
@@ -642,7 +652,11 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     .withDeclaredTypeColumns(physicalDeclaredTypeColumns(context.declaredReadSpec()))
                     // Keyed on provenance, not renames: a DECLARED schema binds by name even with no `path`, and an
                     // INFERRED (dynamic) schema must never re-bind at the reader (its positions already came from the file).
-                    .withDeclaredProvenanceBinding(context.declaredReadSpec().provenance() == SchemaProvenance.DECLARED);
+                    .withDeclaredProvenanceBinding(context.declaredReadSpec().provenance() == SchemaProvenance.DECLARED)
+                    // A node that predates header binding on every split may read a sibling split of this query (the
+                    // coordinator keeps such files whole, but an older coordinator does not): bind a headered file as it
+                    // does, so one result never mixes rows bound by name with rows bound by position.
+                    .withHeaderBindingByProvenance(bindsHeaderByProvenance(context.minTransportVersion()));
                 ErrorPolicy errorPolicy = resolveErrorPolicy(config, format);
 
                 Map<String, Object> partitionValues = Map.of();
@@ -806,7 +820,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
 
     /** Metadata/config for one listed object: dataset reader plus this object's wrap. */
     private FormatReader readerForListedObject(String location, String objectName, Map<String, Object> config) {
-        return formatRegistry.wrapForObject(unwrappedDatasetReader(location, config).withConfig(config), objectName);
+        return formatRegistry.readerForListedObject(location, objectName, config);
     }
 
     private static String datasetResource(SourceOperatorContext context) {
@@ -883,6 +897,11 @@ final class FileSourceFactory implements ExternalSourceFactory {
         @Override
         public boolean supportsStableMetadata() {
             return inner().supportsStableMetadata();
+        }
+
+        @Override
+        public boolean listsInKeyOrder() {
+            return inner().listsInKeyOrder();
         }
 
         @Override

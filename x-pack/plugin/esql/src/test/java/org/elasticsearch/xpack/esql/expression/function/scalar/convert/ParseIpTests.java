@@ -146,13 +146,13 @@ public class ParseIpTests extends ESTestCase {
     }
 
     private void success(BiFunction<BytesRef, BreakingBytesRefBuilder, BytesRef> fn, BytesRef expected) {
-        try (BreakingBytesRefBuilder scratch = ParseIp.buildScratch(new NoopCircuitBreaker("request"))) {
+        try (BreakingBytesRefBuilder scratch = ParseIp.buildScratch(NoopCircuitBreaker.INSTANCE)) {
             assertThat(fn.apply(new BytesRef(str), scratch), equalTo(expected));
         }
     }
 
     private void failure(BiFunction<BytesRef, BreakingBytesRefBuilder, BytesRef> fn) {
-        try (BreakingBytesRefBuilder scratch = ParseIp.buildScratch(new NoopCircuitBreaker("request"))) {
+        try (BreakingBytesRefBuilder scratch = ParseIp.buildScratch(NoopCircuitBreaker.INSTANCE)) {
             Exception thrown = expectThrows(IllegalArgumentException.class, () -> fn.apply(new BytesRef(str), scratch));
             assertThat(thrown.getMessage(), equalTo("'" + str + "' is not an IP string literal."));
         }

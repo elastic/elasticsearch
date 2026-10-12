@@ -1506,6 +1506,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         if (indexMode == IndexMode.LOOKUP) {
             return LifecycleManagedBy.UNMANAGED;
         }
+        assert ilmPolicy == null || Strings.hasText(ilmPolicy);
         boolean lifecycleEnabled = dataStreamLifecycle != null && dataStreamLifecycle.enabled();
         if (ilmPolicy != null && lifecycleEnabled) {
             // when both ILM and data stream lifecycle are configured, choose depending on the configured preference for this backing index

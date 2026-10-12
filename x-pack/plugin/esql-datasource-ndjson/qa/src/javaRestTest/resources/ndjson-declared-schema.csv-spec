@@ -48,8 +48,7 @@ id:long | languages:long | langs:long
 
 // Sampled-out declared column: spin_id is absent from the first record (the only one visible with
 // schema_sample_size:1), yet present in the second record with the value "B001".
-// Before the fix: rejected with "declared columns not found in the source: [spin_id]".
-// After the fix: the column is accepted, the reader looks it up by name, and the second record
+// The column is accepted, the reader looks it up by name, and the second record
 // returns its value while the first returns null, so COUNT(*) = 2 and COUNT(spin_id) = 1.
 overlayDeclaredSampledOutColumnOnNdjson
 required_capability: dataset_in_from_command

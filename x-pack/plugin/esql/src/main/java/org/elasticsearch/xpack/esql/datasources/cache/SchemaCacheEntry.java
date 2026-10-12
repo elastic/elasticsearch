@@ -21,36 +21,150 @@ import org.elasticsearch.xpack.esql.datasources.spi.WidenedColumn;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Cache entry for schema inference results. Stores raw schema data (names, types,
  * nullabilities) instead of Attribute objects to avoid NameId sharing across queries.
  * Each call to {@link #toAttributes()} reconstructs fresh ReferenceAttribute instances
  * with fresh NameIds, ensuring safe concurrent use.
+ * <p>
+ * A class rather than a record so that {@link #estimatedBytes()} can be computed once. The shared
+ * {@code Cache} runs its weigher TWICE on every hit that is not already at the LRU head:
+ * {@code Cache.promote} sends an existing entry through {@code relinkAtHead}, whose {@code unlink}
+ * subtracts {@code weigher.applyAsLong} from the running weight and whose {@code linkAtHead} adds it
+ * back. The weight here is not a constant - it walks every column name, every warning, and both
+ * metadata maps including the nested per-stripe maps - so recomputing it was the dominant cost of a warm
+ * schema hit. The entry is immutable, so one computation in the constructor is exact; the enrichment
+ * helper {@link #withSafeMetadata} builds a new entry and recomputes there.
  */
-public record SchemaCacheEntry(
-    String[] columnNames,
-    DataType[] columnTypes,
-    Nullability[] columnNullabilities,
-    boolean[] columnSynthetics,
-    String sourceType,
-    String location,
-    Map<String, Object> safeMetadata,
-    Map<String, Object> connectorConfig,
-    long cachedAtMillis,
-    List<String> warnings,
-    List<WidenedColumn> widenedColumns
-) {
-    public SchemaCacheEntry {
+public final class SchemaCacheEntry {
+
+    private final String[] columnNames;
+    private final DataType[] columnTypes;
+    private final Nullability[] columnNullabilities;
+    private final boolean[] columnSynthetics;
+    private final String sourceType;
+    private final String location;
+    private final Map<String, Object> safeMetadata;
+    private final Map<String, Object> connectorConfig;
+    private final List<String> warnings;
+    private final List<WidenedColumn> widenedColumns;
+    private final long estimatedBytes;
+
+    public SchemaCacheEntry(
+        String[] columnNames,
+        DataType[] columnTypes,
+        Nullability[] columnNullabilities,
+        boolean[] columnSynthetics,
+        String sourceType,
+        String location,
+        Map<String, Object> safeMetadata,
+        Map<String, Object> connectorConfig,
+        List<String> warnings,
+        List<WidenedColumn> widenedColumns
+    ) {
         if (columnNames.length != columnTypes.length
             || columnNames.length != columnNullabilities.length
             || columnNames.length != columnSynthetics.length) {
             throw new IllegalArgumentException("All column arrays must have the same length");
         }
-        safeMetadata = safeMetadata != null ? Map.copyOf(safeMetadata) : Map.of();
-        connectorConfig = connectorConfig != null ? Map.copyOf(connectorConfig) : Map.of();
-        warnings = warnings != null ? List.copyOf(warnings) : List.of();
-        widenedColumns = widenedColumns != null ? List.copyOf(widenedColumns) : List.of();
+        this.columnNames = columnNames;
+        this.columnTypes = columnTypes;
+        this.columnNullabilities = columnNullabilities;
+        this.columnSynthetics = columnSynthetics;
+        this.sourceType = sourceType;
+        this.location = location;
+        this.safeMetadata = safeMetadata != null ? Map.copyOf(safeMetadata) : Map.of();
+        this.connectorConfig = connectorConfig != null ? Map.copyOf(connectorConfig) : Map.of();
+        this.warnings = warnings != null ? List.copyOf(warnings) : List.of();
+        this.widenedColumns = widenedColumns != null ? List.copyOf(widenedColumns) : List.of();
+        this.estimatedBytes = computeEstimatedBytes();
+    }
+
+    public String[] columnNames() {
+        return columnNames;
+    }
+
+    public DataType[] columnTypes() {
+        return columnTypes;
+    }
+
+    public Nullability[] columnNullabilities() {
+        return columnNullabilities;
+    }
+
+    public boolean[] columnSynthetics() {
+        return columnSynthetics;
+    }
+
+    public String sourceType() {
+        return sourceType;
+    }
+
+    public String location() {
+        return location;
+    }
+
+    public Map<String, Object> safeMetadata() {
+        return safeMetadata;
+    }
+
+    public Map<String, Object> connectorConfig() {
+        return connectorConfig;
+    }
+
+    public List<String> warnings() {
+        return warnings;
+    }
+
+    /** Columns the reader widened within one file; cached for the same reason the schema is. */
+    public List<WidenedColumn> widenedColumns() {
+        return widenedColumns;
+    }
+
+    /**
+     * Component-wise, which compares the four arrays by reference and not by content - the semantics a
+     * component-wise {@code Objects.equals} gives. Two entries holding equal column names in different arrays
+     * are therefore unequal.
+     * <p>
+     * Nothing in production or test compares two entries. This is written out so that the comparison is a
+     * decision on the page rather than a property of a declaration form.
+     */
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o instanceof SchemaCacheEntry other) {
+            return columnNames == other.columnNames
+                && columnTypes == other.columnTypes
+                && columnNullabilities == other.columnNullabilities
+                && columnSynthetics == other.columnSynthetics
+                && Objects.equals(sourceType, other.sourceType)
+                && Objects.equals(location, other.location)
+                && Objects.equals(safeMetadata, other.safeMetadata)
+                && Objects.equals(connectorConfig, other.connectorConfig)
+                && Objects.equals(warnings, other.warnings)
+                && Objects.equals(widenedColumns, other.widenedColumns);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+            System.identityHashCode(columnNames),
+            System.identityHashCode(columnTypes),
+            System.identityHashCode(columnNullabilities),
+            System.identityHashCode(columnSynthetics),
+            sourceType,
+            location,
+            safeMetadata,
+            connectorConfig,
+            warnings,
+            widenedColumns
+        );
     }
 
     /**
@@ -68,7 +182,6 @@ public record SchemaCacheEntry(
             location,
             metadata,
             connectorConfig,
-            cachedAtMillis,
             warnings,
             widenedColumns
         );
@@ -118,7 +231,6 @@ public record SchemaCacheEntry(
             location,
             metadata,
             connectorConfig,
-            System.currentTimeMillis(),
             warnings,
             widenedColumns
         );
@@ -152,7 +264,12 @@ public record SchemaCacheEntry(
         return from(meta.schema(), meta.sourceType(), meta.location(), enrichedMeta, meta.config(), meta.warnings(), meta.widenedColumns());
     }
 
+    /** The weight computed once at construction; see the class javadoc for why this is not computed per call. */
     public long estimatedBytes() {
+        return estimatedBytes;
+    }
+
+    private long computeEstimatedBytes() {
         // object header + reference fields
         long bytes = 64;
         for (String name : columnNames) {

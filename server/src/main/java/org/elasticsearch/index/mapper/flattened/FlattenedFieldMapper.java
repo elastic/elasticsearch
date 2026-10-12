@@ -1738,6 +1738,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         return builder.depthLimit.get();
     }
 
+    @Override
     public boolean isPassthrough() {
         return passthrough;
     }

@@ -37,7 +37,7 @@ import java.util.stream.IntStream;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 
-@TestLogging(value = "org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageMonitor:DEBUG", reason = "debug log for test")
+@TestLogging(value = "org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageMonitor:TRACE", reason = "trace log for test")
 public class EstimatedHeapUsageMonitorTests extends ESTestCase {
 
     private long totalBytesPerNode;
@@ -62,7 +62,7 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
                 new MockLog.SeenEventExpectation(
                     "don't reroute due to global block",
                     EstimatedHeapUsageMonitor.class.getCanonicalName(),
-                    Level.DEBUG,
+                    Level.TRACE,
                     "skipping monitor as the cluster state is not recovered yet"
                 )
             );
@@ -79,7 +79,7 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
                 new MockLog.SeenEventExpectation(
                     "don't reroute due to threshold disabled",
                     EstimatedHeapUsageMonitor.class.getCanonicalName(),
-                    Level.DEBUG,
+                    Level.TRACE,
                     "skipping monitor as the estimated heap usage threshold is disabled"
                 )
             );

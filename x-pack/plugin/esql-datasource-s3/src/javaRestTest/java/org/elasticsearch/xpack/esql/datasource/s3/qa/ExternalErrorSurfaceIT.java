@@ -12,18 +12,21 @@ import fixture.aws.DynamicRegionSupplier;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 import org.junit.BeforeClass;
@@ -49,6 +52,8 @@ import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Sweeps the whole user-visible error surface of external datasets — every misconfiguration we can
@@ -134,6 +139,13 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
     private static final String GLOB_A = "glob/a.csv";
     private static final String GLOB_B = "glob/b.csv";
     private static final String GLOB_INCOMPATIBLE = "glob/c.csv";
+    private static final String KMS_ENCRYPTED_CSV = "data/kms_encrypted.csv";
+    private static final String ARCHIVED_CSV = "data/archived.csv";
+
+    /** What S3 answers when a key policy explicitly denies the reading principal {@code kms:Decrypt} on an SSE-KMS object. */
+    private static final String KMS_DENIAL = "User: arn:aws:sts::123456789012:assumed-role/reader/session is not authorized to perform: "
+        + "kms:Decrypt on resource: arn:aws:kms:us-east-1:123456789012:key/11111111-2222-3333-4444-555555555555 with an explicit "
+        + "deny in a resource-based policy";
 
     @BeforeClass
     public static void seedFixture() {
@@ -154,6 +166,9 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         seed(GLOB_B, "id,city\n2,Berlin\n");
         // Same column count, different names — forces schema reconciliation across the glob.
         seed(GLOB_INCOMPATIBLE, "ident,town\n3,Prague\n");
+        // Readable bytes the store refuses to serve: denied by the key policy of the KMS key it is encrypted with, and archived.
+        seed(KMS_ENCRYPTED_CSV, "id,city\n1,Vienna\n");
+        s3HttpFixture.seedBlob(ARCHIVED_CSV, "id,city\n1,Vienna\n".getBytes(StandardCharsets.UTF_8), "GLACIER");
     }
 
     private static void seed(String key, String content) {
@@ -207,8 +222,10 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         Set.of("tsv object does not exist", "object key does not exist"),
         Set.of("tsv object is empty", "zero-byte object"),
         Set.of("tsv declared as parquet", "explicit format contradicts the bytes (parquet declared, CSV content)"),
-        // The store answers all three with an identical 403 AccessDenied, so the message cannot tell them apart
-        // from the response alone. Naming the configured auth mode would ("…AccessDenied, data source uses
+        // The fixture answers all three with an identical 403 AccessDenied, so the message cannot tell them apart
+        // from the response alone. (Real S3 answers a wrong key with InvalidAccessKeyId or SignatureDoesNotMatch,
+        // which the read path names separately; unit tests cover it, as the fixture cannot send them.) Naming the configured auth mode
+        // would ("…AccessDenied, data source uses
         // auth=anonymous"), but that is local knowledge the storage object does not currently carry. The tsv
         // reported_case probe joins them for the same reason the other tsv probes join their equivalents above:
         // it is the wrong-credentials condition under a second name, kept visible in the report.
@@ -260,6 +277,8 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         entry("endpoint refuses connections", 503),
         entry("wrong access key", 400),
         entry("anonymous access against an authenticated endpoint", 400),
+        entry("object encrypted with a key the credentials cannot decrypt", 400),
+        entry("object in an archive storage class", 400),
         entry("no extension and no explicit format", 400),
         entry("unknown extension and no explicit format", 400),
         entry("explicit format contradicts the bytes (parquet declared, CSV content)", 400),
@@ -334,6 +353,8 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         entry("endpoint refuses connections", "external_unavailable_exception"),
         entry("wrong access key", "external_client_exception"),
         entry("anonymous access against an authenticated endpoint", "external_client_exception"),
+        entry("object encrypted with a key the credentials cannot decrypt", "external_client_exception"),
+        entry("object in an archive storage class", "external_client_exception"),
         entry("no extension and no explicit format", "validation_exception"),
         entry("unknown extension and no explicit format", "validation_exception"),
         entry("explicit format contradicts the bytes (parquet declared, CSV content)", "illegal_argument_exception"),
@@ -415,6 +436,96 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         logger.info("external error surface report written to {}", report.toAbsolutePath());
 
         assertMatrixInvariants();
+    }
+
+    /**
+     * esql-planning#2119: when an IAM policy refuses the read, S3's error message names the principal Elasticsearch
+     * authenticated as and the resource it was refused — account id, role, session, key id. The response must report
+     * the condition and the store's error code, and carry that sentence nowhere: not in {@code reason}, not in any
+     * {@code caused_by} level, not in {@code root_cause} or {@code suppressed}. The whole body is checked, on the
+     * literal {@code arn:aws:} rather than the sentence, so a reworded AWS message still trips it.
+     */
+    public void testIamDenialIsNotRelayedToTheCaller() throws IOException {
+        String key = "data/iam_denied.csv";
+        seed(key, "id,city\n1,Vienna\n");
+        s3HttpFixture.denyKey(key, KMS_DENIAL);
+        putDataSource("iam_denied_ds", staticCredentialSettings());
+        putDataset("iam_denied", "iam_denied_ds", s3(key), Map.of("region", regionSupplier.get()), null);
+
+        ResponseException e = expectThrows(ResponseException.class, () -> runEsql("FROM iam_denied | LIMIT 10"));
+
+        assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
+        String raw = EntityUtils.toString(e.getResponse().getEntity(), StandardCharsets.UTF_8);
+        assertThat(raw, not(containsString("arn:aws:")));
+        assertThat(raw, not(containsString("assumed-role")));
+        Map<String, Object> body = XContentHelper.convertToMap(JsonXContent.jsonXContent, raw, false);
+        Map<?, ?> error = (Map<?, ?>) body.get("error");
+        String reason = str(error.get("reason"));
+        assertThat(reason, containsString("HTTP 403"));
+        assertThat(reason, containsString("AccessDenied"));
+        // esql-planning#2117: the refused permission is what the user can act on; the credentials are not at fault.
+        assertThat(reason, containsString("[kms:Decrypt]"));
+        assertThat(reason, containsString("KMS key"));
+        assertThat(reason, not(containsString("access_key")));
+        for (String cause : flattenCauses(error)) {
+            assertThat(cause, not(containsString("arn:aws:")));
+        }
+    }
+
+    /**
+     * The same denial on the read path rather than at resolution: a first query warms the schema cache, so the second
+     * resolves without touching the object and the 403 arrives when the data node reads it.
+     */
+    public void testIamDenialOnTheReadPathIsNotRelayedToTheCaller() throws IOException {
+        String key = "data/iam_denied_on_read.csv";
+        seed(key, "id,city\n1,Vienna\n");
+        putDataSource("iam_denied_read_ds", staticCredentialSettings());
+        putDataset("iam_denied_read", "iam_denied_read_ds", s3(key), Map.of("region", regionSupplier.get()), null);
+        runEsql("FROM iam_denied_read | LIMIT 10");
+        s3HttpFixture.denyKey(
+            key,
+            "User: arn:aws:sts::123456789012:assumed-role/reader/session is not authorized to perform: s3:GetObject on resource: "
+                + "arn:aws:s3:::bucket/data/iam_denied_on_read.csv with an explicit deny in an identity-based policy"
+        );
+
+        ResponseException e = expectThrows(ResponseException.class, () -> runEsql("FROM iam_denied_read | LIMIT 10"));
+
+        assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
+        String raw = EntityUtils.toString(e.getResponse().getEntity(), StandardCharsets.UTF_8);
+        assertThat(raw, not(containsString("arn:aws:")));
+        assertThat(raw, not(containsString("assumed-role")));
+        Map<String, Object> body = XContentHelper.convertToMap(JsonXContent.jsonXContent, raw, false);
+        String reason = str(((Map<?, ?>) body.get("error")).get("reason"));
+        assertThat(reason, containsString("403"));
+        assertThat(reason, containsString("[s3:GetObject]"));
+        assertThat(reason, not(containsString("access_key")));
+    }
+
+    /**
+     * esql-planning#2097: an object in an archive storage class cannot be read until it is restored, and S3 answers the
+     * GET with 403 {@code InvalidObjectState}. That is reported as an archived object, naming the storage class the
+     * error body carries, and as the client-class 400 it is on every rail -- not as denied credentials, nor a 500.
+     */
+    public void testArchivedObjectNamesItsStorageClass() throws IOException {
+        String key = "data/archived_named.csv";
+        s3HttpFixture.seedBlob(key, "id,city\n1,Vienna\n".getBytes(StandardCharsets.UTF_8), "DEEP_ARCHIVE");
+        putDataSource("archived_ds", staticCredentialSettings());
+        putDataset("archived_named", "archived_ds", s3(key), Map.of("region", regionSupplier.get()), null);
+
+        ResponseException e = expectThrows(ResponseException.class, () -> runEsql("FROM archived_named | LIMIT 10"));
+
+        assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
+        Map<String, Object> body = XContentHelper.convertToMap(
+            JsonXContent.jsonXContent,
+            EntityUtils.toString(e.getResponse().getEntity(), StandardCharsets.UTF_8),
+            false
+        );
+        String reason = str(((Map<?, ?>) body.get("error")).get("reason"));
+        assertThat(reason, containsString("is archived"));
+        assertThat(reason, containsString("storage class [DEEP_ARCHIVE]"));
+        assertThat(reason, containsString("restore it"));
+        assertThat(reason, not(containsString("access_key")));
+        assertThat(reason, not(containsString("Access denied")));
     }
 
     // -------- the reported case ------------------------------------------------------------------
@@ -514,6 +625,15 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         );
         queryProbe(
             "addressing",
+            "object in an archive storage class",
+            "say the object is archived, name its storage class and say it must be restored",
+            "archived",
+            "good_ds",
+            s3(ARCHIVED_CSV),
+            null
+        );
+        queryProbe(
+            "addressing",
             "unsupported URI scheme",
             "name the scheme and list the supported ones",
             "bad_scheme",
@@ -590,7 +710,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         queryProbe(
             "credentials",
             "anonymous access against an authenticated endpoint",
-            "say anonymous access was refused and name the setting that selects credentials",
+            "say the store refused the read, without assuming which auth mode the data source uses",
             "anonymous",
             "anonymous_ds",
             s3(GOOD_CSV),
@@ -598,6 +718,15 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
                 "anonymous_ds",
                 Map.of("auth", "anonymous", "region", regionSupplier.get(), "endpoint", s3HttpFixture.getAddress())
             )
+        );
+        queryProbe(
+            "credentials",
+            "object encrypted with a key the credentials cannot decrypt",
+            "name the refused kms:Decrypt permission and say the object is KMS-encrypted, not blame the credentials",
+            "kms_denied",
+            "good_ds",
+            s3(KMS_ENCRYPTED_CSV),
+            () -> s3HttpFixture.denyKey(KMS_ENCRYPTED_CSV, KMS_DENIAL)
         );
     }
 

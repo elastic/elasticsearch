@@ -60,7 +60,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class ColumnarKeywordFunctionTests extends ESTestCase {
 
     private static final String FIELD = "kw";
-    private static final CircuitBreaker NOOP = new NoopCircuitBreaker("test");
+    private static final CircuitBreaker NOOP = NoopCircuitBreaker.INSTANCE;
 
     /**
      * The extreme value of each document, which a dictionary column decides over ordinals rather than by comparing

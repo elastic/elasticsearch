@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
@@ -275,6 +276,11 @@ public class ComputeService {
         this.formatReaderRegistry = formatReaderRegistry;
     }
 
+    /** The minimum transport version of the nodes that may read the splits planned here. */
+    private TransportVersion minTransportVersion() {
+        return clusterService.state().getMinTransportVersion();
+    }
+
     PlannerSettings.Holder plannerSettings() {
         return plannerSettings;
     }
@@ -337,6 +343,11 @@ public class ComputeService {
     /**
      * Starts Phase-2 split discovery without joining. Completes {@code listener} with the rewritten plan.
      * The inbound thread returns immediately; object-store IO runs on {@code esql_external_io}.
+     * <p>
+     * Production {@code FROM | LIMIT} is wrapped in {@code FragmentExec}, so this walk sees no
+     * {@link org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec} and is a no-op for demand.
+     * The row limit reaches discovery on the fragment path via
+     * {@link org.elasticsearch.xpack.esql.datasources.SplitDiscoveryPhase#guardedRelations}.
      */
     void startSplitDiscovery(
         PhysicalPlan plan,
@@ -366,6 +377,8 @@ public class ComputeService {
                     List.of(),
                     FormatReader.NO_LIMIT,
                     discoveryMemory(run),
+                    configuration.pragmas().taskConcurrency(),
+                    minTransportVersion(),
                     ioExecutor,
                     ActionListener.wrap(result -> {
                         try {
@@ -391,11 +404,6 @@ public class ComputeService {
     }
 
     /**
-     * Adds the post-prune external scan accounting to the query profile. The counts are captured
-     * before split coalescing, so {@code splits_scanned} reflects the pre-coalesce discovered split
-     * count rather than the smaller post-coalesce count.
-     */
-    /**
      * Raises what split discovery found onto the response.
      * <p>
      * A partition value the dataset's own type cannot hold reads null in the rows a query gets back, and the node
@@ -409,6 +417,11 @@ public class ComputeService {
         }
     }
 
+    /**
+     * Adds the post-prune external scan accounting to the query profile. The counts are captured
+     * before split coalescing, so {@code splits_scanned} reflects the pre-coalesce discovered split
+     * count rather than the smaller post-coalesce count.
+     */
     private static void recordExternalScanStats(EsqlExecutionInfo execInfo, SplitDiscoveryPhase.Result result) {
         raiseDiscoveryWarnings(result);
         if (execInfo != null && result.splitsScanned() > 0) {
@@ -416,6 +429,9 @@ public class ComputeService {
         }
         if (execInfo != null && result.cpuNanos() > 0) {
             execInfo.queryProfile().addSplitDiscoveryCpuNanos(result.cpuNanos());
+        }
+        if (execInfo != null && result.splitDiscoveryProbes() > 0) {
+            execInfo.queryProfile().addSplitDiscoveryProbes(result.splitDiscoveryProbes());
         }
         if (execInfo != null) {
             execInfo.queryProfile().foldPlanningIo(execInfo.externalPlanning());
@@ -651,6 +667,7 @@ public class ComputeService {
             execInfo,
             isCancelled,
             run,
+            configuration.pragmas().taskConcurrency(),
             ActionListener.wrap(rewritten -> {
                 if (SplitCoalescer.shouldCoalesce(splits.size())) {
                     List<ExternalSplit> coalesced = SplitCoalescer.coalesce(splits, externalCoalesceFloor(configuration));
@@ -789,6 +806,9 @@ public class ComputeService {
      * Behaviour therefore does not belong here. A rule added to this and not to the async twin is a rule no query
      * runs, which has already happened once on this path: the bounded first attempt was written here first and had
      * to be threaded through the async entry before any query got faster.
+     * <p>
+     * {@code minTransportVersion} is the async twin's {@link #minTransportVersion()}: the oldest node that may read the
+     * splits, so the same split shapes are planned as a query would get.
      */
     static PhysicalPlan discoverSplitsFromFragments(
         PhysicalPlan plan,
@@ -796,7 +816,8 @@ public class ComputeService {
         int maxRecordBytes,
         EsqlExecutionInfo execInfo,
         BooleanSupplier isCancelled,
-        OperatorFactoryRegistry operatorFactoryRegistry
+        OperatorFactoryRegistry operatorFactoryRegistry,
+        TransportVersion minTransportVersion
     ) {
         if (operatorFactoryRegistry == null) {
             return plan;
@@ -820,7 +841,9 @@ public class ComputeService {
                         guarded.filters(),
                         guarded.rowLimit(),
                         // No reservation reaches the synchronous path, which only tests take.
-                        PlanningMemory.NONE
+                        PlanningMemory.NONE,
+                        0,
+                        minTransportVersion
                     );
                 }
                 if (result.plan() instanceof ExternalSourceExec withSplits) {
@@ -849,6 +872,7 @@ public class ComputeService {
         EsqlExecutionInfo execInfo,
         BooleanSupplier isCancelled,
         ExternalPlanningReservation.Run run,
+        int taskConcurrency,
         ActionListener<PhysicalPlan> listener
     ) {
         if (operatorFactoryRegistry == null) {
@@ -880,6 +904,7 @@ public class ComputeService {
             execInfo,
             isCancelled,
             run,
+            taskConcurrency,
             ioExecutor,
             ActionListener.wrap(ignored -> listener.onResponse(rewriteSettledFragments(plan, settled)), listener::onFailure)
         );
@@ -894,6 +919,7 @@ public class ComputeService {
         EsqlExecutionInfo execInfo,
         BooleanSupplier isCancelled,
         ExternalPlanningReservation.Run run,
+        int taskConcurrency,
         Executor ioExecutor,
         ActionListener<Void> listener
     ) {
@@ -917,6 +943,8 @@ public class ComputeService {
                 work.guarded().filters(),
                 work.guarded().rowLimit(),
                 discoveryMemory(run),
+                taskConcurrency,
+                minTransportVersion(),
                 ioExecutor,
                 ActionListener.wrap(result -> {
                     try {
@@ -939,6 +967,7 @@ public class ComputeService {
                         execInfo,
                         isCancelled,
                         run,
+                        taskConcurrency,
                         ioExecutor,
                         listener
                     );
@@ -1403,7 +1432,7 @@ public class ComputeService {
             );
             updateShardCountForCoordinatorOnlyQuery(execInfo);
             try (var computeListener = new ComputeListener(cancelQueryOnFailure, listener.map(completionInfo -> {
-                updateExecutionInfoAfterCoordinatorOnlyQuery(execInfo);
+                updateExecutionInfoAfterCoordinatorOnlyQuery(execInfo, exchangeSinkSupplier == null);
                 return new Result(resolvedPlan.output(), collectedPages, null, configuration, completionInfo, execInfo, null);
             }))) {
                 runCompute(
@@ -1474,10 +1503,12 @@ public class ComputeService {
         });
         exchangeService.addExchangeSourceHandler(sessionId, exchangeSource);
         try (var computeListener = new ComputeListener(cancelQueryOnFailure, listener.delegateFailureAndWrap((l, completionInfo) -> {
-            if (streamPublisher == null || streamPublisher.rowsPublished() == 0) {
-                failIfAllShardsFailed(execInfo, collectedPages);
+            // A non-null sink means this executePlan is one FORK / UNION ALL / FROM-subquery branch. Skip the query-wide all-targets check
+            // and markEndQuery; the root merge listener runs both after every branch has reported.
+            if (exchangeSinkSupplier == null) {
+                failIfAllShardsFailedUnlessStreamed(execInfo, collectedPages, streamPublisher);
+                execInfo.markEndQuery();
             }
-            execInfo.markEndQuery();
             l.onResponse(new Result(outputAttributes, collectedPages, null, configuration, completionInfo, execInfo, null));
         }))) {
             try (Releasable ignored = exchangeSource.addEmptySink()) {
@@ -1491,16 +1522,15 @@ public class ComputeService {
                                 execInfo.swapCluster(LOCAL_CLUSTER, (k, v) -> {
                                     var tookTime = execInfo.queryProfile().total().timeSinceStarted();
                                     var builder = new EsqlExecutionInfo.Cluster.Builder(v).setTook(tookTime);
-                                    if (execInfo.isMainPlan() && v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
-                                        final Integer failedShards = execInfo.getCluster(LOCAL_CLUSTER).getFailedShards();
-                                        // Set the local cluster status (including the final driver) to partial if the query was stopped
-                                        // or encountered resolution or execution failures.
-                                        var status = localClusterWasInterrupted.get()
-                                            || (failedShards != null && failedShards > 0)
-                                            || v.getFailures().isEmpty() == false
-                                                ? EsqlExecutionInfo.Cluster.Status.PARTIAL
-                                                : EsqlExecutionInfo.Cluster.Status.SUCCESSFUL;
-                                        builder.setStatus(status);
+                                    if (execInfo.isMainPlan()) {
+                                        // Later merge branches can add failures after an earlier leaf set SUCCESSFUL; promote to PARTIAL
+                                        // and never demote PARTIAL. receivedResults is false: this is coordinator finalization, not a
+                                        // data-node/remote compute report. Passing true would promote a planning-time SKIPPED (no local
+                                        // indices to search) to PARTIAL.
+                                        boolean failed = localClusterWasInterrupted.get()
+                                            || (v.getFailedShards() != null && v.getFailedShards() > 0)
+                                            || v.getFailures().isEmpty() == false;
+                                        applyClusterStatusAfterBranch(builder, v, failed, false);
                                     }
                                     return builder.build();
                                 });
@@ -1548,15 +1578,19 @@ public class ComputeService {
                             cancelQueryOnFailure,
                             ActionListener.wrap(r -> {
                                 localClusterWasInterrupted.set(execInfo.isStopped());
-                                execInfo.swapCluster(
-                                    LOCAL_CLUSTER,
-                                    (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTotalShards(r.getTotalShards())
-                                        .setSuccessfulShards(r.getSuccessfulShards())
-                                        .setSkippedShards(r.getSkippedShards())
-                                        .setFailedShards(r.getFailedShards())
-                                        .addFailures(r.failures)
-                                        .build()
-                                );
+                                execInfo.swapCluster(LOCAL_CLUSTER, (k, v) -> {
+                                    var builder = new EsqlExecutionInfo.Cluster.Builder(v);
+                                    applyShardCounts(
+                                        builder,
+                                        v,
+                                        r.getTotalShards(),
+                                        r.getSuccessfulShards(),
+                                        r.getSkippedShards(),
+                                        r.getFailedShards(),
+                                        exchangeSinkSupplier != null
+                                    );
+                                    return builder.addFailures(r.failures).build();
+                                });
                                 dataNodesListener.onResponse(r.getCompletionInfo());
                             }, e -> {
                                 if (configuration.allowPartialResults() && EsqlCCSUtils.canAllowPartial(e)) {
@@ -1602,6 +1636,7 @@ public class ComputeService {
                         cluster,
                         cancelQueryOnFailure,
                         execInfo,
+                        exchangeSinkSupplier != null,
                         computeListener.acquireCompute().delegateResponse((l, ex) -> {
                             /*
                              * At various points, when collecting failures before sending a response, we manually check
@@ -1647,7 +1682,9 @@ public class ComputeService {
         listener = ActionListener.runBefore(listener, () -> exchangeService.removeExchangeSourceHandler(sessionId));
         exchangeService.addExchangeSourceHandler(sessionId, exchangeSource);
         try (var computeListener = new ComputeListener(cancelQueryOnFailure, listener.delegateFailureAndWrap((l, completionInfo) -> {
-            execInfo.markEndQuery();
+            if (exchangeSinkSupplier == null) {
+                execInfo.markEndQuery();
+            }
             l.onResponse(new Result(outputAttributes, collectedPages, null, configuration, completionInfo, execInfo, null));
         }))) {
             // Run the coordinator plan
@@ -1708,21 +1745,162 @@ public class ComputeService {
         }
     }
 
-    // For queries like: FROM logs* | LIMIT 0 (including cross-cluster LIMIT 0 queries)
-    private static void updateExecutionInfoAfterCoordinatorOnlyQuery(EsqlExecutionInfo execInfo) {
-        execInfo.markEndQuery();
+    // For queries like: FROM logs* | LIMIT 0 (including cross-cluster LIMIT 0 queries).
+    // Merge leaves share one EsqlExecutionInfo; only the root (or a standalone plan) should stop query timers.
+    private static void updateExecutionInfoAfterCoordinatorOnlyQuery(EsqlExecutionInfo execInfo, boolean finalizeQuery) {
+        if (finalizeQuery) {
+            execInfo.markEndQuery();
+        }
         if ((execInfo.isCrossClusterSearch() || execInfo.includeExecutionMetadata() == ALWAYS) && execInfo.isMainPlan()) {
             assert execInfo.queryProfile().planning().timeTook() != null
                 : "Planning took time should be set on EsqlExecutionInfo but is null";
             for (String clusterAlias : execInfo.clusterAliases()) {
                 execInfo.swapCluster(clusterAlias, (k, v) -> {
-                    var builder = new EsqlExecutionInfo.Cluster.Builder(v).setTook(execInfo.overallTook());
+                    var builder = new EsqlExecutionInfo.Cluster.Builder(v);
+                    if (finalizeQuery) {
+                        builder.setTook(execInfo.overallTook());
+                    } else if (v.getTook() == null) {
+                        builder.setTook(execInfo.queryProfile().total().timeSinceStarted());
+                    }
                     if (v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
                         builder.setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
                     }
                     return builder.build();
                 });
             }
+        }
+    }
+
+    /**
+     * Adds {@code incoming} shard counts onto {@code existing} when {@code accumulate} is true (FORK / UNION ALL / FROM-subquery branches
+     * sharing one {@link EsqlExecutionInfo}); otherwise replaces them. Merge branches must add so the query-wide
+     * {@link #failIfAllShardsFailed} sees every branch's targets, not the last writer.
+     */
+    static void applyShardCounts(
+        EsqlExecutionInfo.Cluster.Builder builder,
+        EsqlExecutionInfo.Cluster existing,
+        int totalShards,
+        int successfulShards,
+        int skippedShards,
+        int failedShards,
+        boolean accumulate
+    ) {
+        if (accumulate) {
+            builder.setTotalShards(zeroIfNull(existing.getTotalShards()) + totalShards)
+                .setSuccessfulShards(zeroIfNull(existing.getSuccessfulShards()) + successfulShards)
+                .setSkippedShards(zeroIfNull(existing.getSkippedShards()) + skippedShards)
+                .setFailedShards(zeroIfNull(existing.getFailedShards()) + failedShards);
+        } else {
+            builder.setTotalShards(totalShards)
+                .setSuccessfulShards(successfulShards)
+                .setSkippedShards(skippedShards)
+                .setFailedShards(failedShards);
+        }
+    }
+
+    private static int zeroIfNull(Integer value) {
+        return value == null ? 0 : value;
+    }
+
+    /**
+     * Updates cluster status after one merge branch reports or fails. Merge branches share one {@link EsqlExecutionInfo}.
+     * <p>
+     * A later failing branch can promote {@code SUCCESSFUL} to {@code PARTIAL}. A later report (a successful response, or a failure that
+     * produced results) promotes runtime {@code SKIPPED} to {@code PARTIAL} — the earlier skip still prevents the cluster from being fully
+     * {@code SUCCESSFUL}. {@code PARTIAL} and {@code FAILED} are never demoted.
+     * <p>
+     * {@code receivedResults} is true when this branch produced a {@link ComputeResponse} or fetched pages. Coordinator finalization must
+     * pass {@code false} so a planning-time {@code SKIPPED} is not promoted. A first-branch failure with no results and no prior shard
+     * counts stays {@code SKIPPED}.
+     * <p>
+     * Promotions are not gated on {@code allow_partial_results}. A later failure reaches this method only after the caller already chose
+     * to continue — via {@code skip_unavailable}/{@link EsqlExecutionInfo#shouldSkipOnFailure} or {@code allow_partial_results}. Those
+     * gates are independent: CCS with {@code skip_unavailable=true} still records {@code PARTIAL} when {@code allow_partial_results} is
+     * false.
+     */
+    static void applyClusterStatusAfterBranch(
+        EsqlExecutionInfo.Cluster.Builder builder,
+        EsqlExecutionInfo.Cluster existing,
+        boolean failed,
+        boolean receivedResults
+    ) {
+        switch (existing.getStatus()) {
+            case RUNNING -> {
+                if (failed == false) {
+                    builder.setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
+                } else if (receivedResults || hasAccumulatedResults(existing)) {
+                    builder.setStatus(EsqlExecutionInfo.Cluster.Status.PARTIAL);
+                } else {
+                    builder.setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED);
+                }
+            }
+            case SUCCESSFUL -> {
+                if (failed) {
+                    builder.setStatus(EsqlExecutionInfo.Cluster.Status.PARTIAL);
+                }
+            }
+            case SKIPPED -> {
+                // Runtime SKIPPED is not terminal for shared execInfo: a later branch can still dispatch (planning-time
+                // initialClusterStatuses stays RUNNING). Promote so successful shard counts are not reported under SKIPPED.
+                // Planning-time SKIPPED already has a failure recorded; that must not count as a later report.
+                // Another empty skip stays SKIPPED.
+                if (failed == false || receivedResults || hasAccumulatedShards(existing)) {
+                    builder.setStatus(EsqlExecutionInfo.Cluster.Status.PARTIAL);
+                }
+            }
+            case PARTIAL, FAILED -> {
+                // already terminal or partial; later branches must not demote
+            }
+        }
+    }
+
+    /**
+     * Records a skippable remote-cluster failure for one merge branch. Status is chosen from the cluster already stored in
+     * {@code executionInfo} plus whether this branch produced results, so a later empty failure cannot overwrite an earlier successful
+     * branch with {@code SKIPPED}.
+     */
+    static void markClusterAfterRuntimeBranchFailure(
+        EsqlExecutionInfo executionInfo,
+        String clusterAlias,
+        boolean receivedResults,
+        Exception e
+    ) {
+        executionInfo.swapCluster(clusterAlias, (k, v) -> {
+            var builder = new EsqlExecutionInfo.Cluster.Builder(v).setTook(executionInfo.queryProfile().total().timeSinceStarted())
+                .setTotalShards(zeroIfNull(v.getTotalShards()))
+                .setSuccessfulShards(zeroIfNull(v.getSuccessfulShards()))
+                .setSkippedShards(zeroIfNull(v.getSkippedShards()))
+                .setFailedShards(zeroIfNull(v.getFailedShards()));
+            if (e != null) {
+                builder.addFailures(List.of(new ShardSearchFailure(e)));
+            }
+            applyClusterStatusAfterBranch(builder, v, true, receivedResults);
+            return builder.build();
+        });
+    }
+
+    private static boolean hasAccumulatedResults(EsqlExecutionInfo.Cluster existing) {
+        return hasAccumulatedShards(existing) || existing.getFailures().isEmpty() == false;
+    }
+
+    private static boolean hasAccumulatedShards(EsqlExecutionInfo.Cluster existing) {
+        return zeroIfNull(existing.getTotalShards()) > 0
+            || zeroIfNull(existing.getSuccessfulShards()) > 0
+            || zeroIfNull(existing.getSkippedShards()) > 0
+            || zeroIfNull(existing.getFailedShards()) > 0;
+    }
+
+    /**
+     * Runs {@link #failIfAllShardsFailed} unless this query already streamed rows to the client. Streaming roots never fill
+     * {@code collectedPages}; an empty list would otherwise look like "no results" and fail a query that already published rows.
+     */
+    static void failIfAllShardsFailedUnlessStreamed(
+        EsqlExecutionInfo execInfo,
+        List<Page> collectedPages,
+        @Nullable PageStreamPublisher streamPublisher
+    ) {
+        if (streamPublisher == null || streamPublisher.rowsPublished() == 0) {
+            failIfAllShardsFailed(execInfo, collectedPages);
         }
     }
 
@@ -1829,12 +2007,14 @@ public class ComputeService {
                 userAgentParserRegistry,
                 ipLocationService,
                 projectResolver,
+                projectResolver.getProjectMetadata(clusterService.state()),
                 physicalOperationProviders,
                 operatorFactoryRegistry,
                 remoteFetchService,
                 parallelWorkerExecutor,
                 esqlWorkerPoolSize,
-                grokMatcherWatchdog.get()
+                grokMatcherWatchdog.get(),
+                clusterService.state().getMinTransportVersion()
             );
 
             LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);

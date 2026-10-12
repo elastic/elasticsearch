@@ -8,10 +8,17 @@
 package org.elasticsearch.xpack.ml.action.datafeed;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
@@ -20,6 +27,8 @@ import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunnerTests;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
@@ -31,8 +40,11 @@ import java.util.Set;
 
 import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT;
 import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutorTests.addJobTask;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -41,6 +53,51 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 
 public class TransportStartDatafeedActionTests extends ESTestCase {
+
+    public void testEsqlDatafeedWhenFlagOnShouldAllowStart() {
+        // ESQL_DATAFEEDS_FEATURE_FLAG is on in snapshot/test JVMs and fixed for the process lifetime, so the
+        // flag-off rejection path (Messages.DATAFEED_ESQL_START_DISABLED) is covered in DatafeedEsqlGatesTests;
+        // on a release build, verify with -Des.esql_datafeeds_feature_flag_enabled=false.
+        assumeTrue("Only relevant when the ES|QL datafeeds feature flag is on", MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled());
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("esql-datafeed", "job").setEsqlQuery("FROM logs")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .build();
+        // Does not throw: the feature flag is on and the cluster is fully upgraded.
+        TransportStartDatafeedAction.validateEsqlDatafeedEnabled(datafeed, currentCompatibleClusterState());
+    }
+
+    public void testStoredEsqlDatafeedOnMixedVersionClusterShouldRejectStart() {
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("esql-datafeed", "job").setEsqlQuery("FROM logs")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .build();
+        ClusterState state = ClusterState.builder(new ClusterName("test"))
+            .putCompatibilityVersions(
+                "older-node",
+                TransportVersion.fromName("histogram_blocks_multivalue_support"),
+                SystemIndices.SERVER_SYSTEM_MAPPINGS_VERSIONS
+            )
+            .build();
+
+        ElasticsearchStatusException exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> TransportStartDatafeedAction.validateEsqlDatafeedEnabled(datafeed, state)
+        );
+        assertThat(exception.getMessage(), containsString("cluster upgrade is in progress"));
+        assertThat(exception.getMessage(), containsString("before restoring or starting it"));
+    }
+
+    public void testClassicDatafeedAlwaysAllowedToStart() {
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("classic-datafeed", "job").setIndices(List.of("logs")).build();
+        TransportStartDatafeedAction.validateEsqlDatafeedEnabled(datafeed, ClusterState.builder(new ClusterName("test")).build());
+    }
+
+    private static ClusterState currentCompatibleClusterState() {
+        return ClusterState.builder(new ClusterName("test"))
+            .putCompatibilityVersions("current-node", TransportVersion.current(), SystemIndices.SERVER_SYSTEM_MAPPINGS_VERSIONS)
+            .build();
+    }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
@@ -128,6 +185,45 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
             NoSuchRemoteClusterException.class,
             () -> RemoteClusterLicenseChecker.remoteClusterAliases(Set.of(), List.of("_origin:foo"))
         );
+    }
+
+    public void testStartEsqlDatafeedWithCrossProjectEnabledSkipsIndicesOptions() {
+        assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+
+        DatafeedConfig esqlDatafeed = new DatafeedConfig.Builder("esql-datafeed", "job_id").setEsqlQuery("FROM logs")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .build();
+
+        CrossProjectModeDecider decider = new CrossProjectModeDecider(
+            Settings.builder().put("serverless.cross_project.enabled", true).build()
+        );
+
+        StartDatafeedAction.DatafeedParams params = spy(new StartDatafeedAction.DatafeedParams("esql-datafeed", 0L));
+        DatafeedConfig effectiveDatafeed = DatafeedConfig.withCrossProjectModeIfEnabled(
+            esqlDatafeed,
+            decider,
+            esqlDatafeed.getCloudInternalCredential() != null
+        );
+        TransportStartDatafeedAction.setIndicesOptionsIfPresent(params, effectiveDatafeed);
+
+        assertThat(effectiveDatafeed, sameInstance(esqlDatafeed));
+        assertThat(effectiveDatafeed.getIndicesOptions(), nullValue());
+        assertThat(TransportStartDatafeedAction.isCrossProjectMode(effectiveDatafeed), is(false));
+        verify(params, never()).setIndicesOptions(any());
+        assertThat(params.getIndicesOptions(), sameInstance(SearchRequest.DEFAULT_INDICES_OPTIONS));
+    }
+
+    public void testStartClassicDatafeedSetsIndicesOptions() {
+        DatafeedConfig classicDatafeed = new DatafeedConfig.Builder("classic-datafeed", "job_id").setIndices(List.of("logs"))
+            .setIndicesOptions(org.elasticsearch.action.support.IndicesOptions.STRICT_EXPAND_OPEN)
+            .build();
+        StartDatafeedAction.DatafeedParams params = spy(new StartDatafeedAction.DatafeedParams("classic-datafeed", 0L));
+
+        TransportStartDatafeedAction.setIndicesOptionsIfPresent(params, classicDatafeed);
+
+        verify(params).setIndicesOptions(org.elasticsearch.action.support.IndicesOptions.STRICT_EXPAND_OPEN);
+        assertThat(params.getIndicesOptions(), sameInstance(org.elasticsearch.action.support.IndicesOptions.STRICT_EXPAND_OPEN));
     }
 
     public static TransportStartDatafeedAction.DatafeedTask createDatafeedTask(

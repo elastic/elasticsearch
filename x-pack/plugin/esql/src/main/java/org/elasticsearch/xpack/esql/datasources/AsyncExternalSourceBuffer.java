@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.SuppressedFailures;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -282,37 +283,47 @@ public final class AsyncExternalSourceBuffer {
 
     /**
      * Add a page to the buffer. Called by the background reader thread.
+     * Always consumes {@code page}: the caller must not {@link Page#releaseBlocks()} after this
+     * returns or throws. A throw after the page is queued (for example from a
+     * {@link #waitForReading()} listener) does not return ownership.
      */
     public void addPage(Page page) {
-        if (failure != null) {
-            // Reject the page without touching buffer state, so the trailing invariantsHold()
-            // call is intentionally bypassed: nothing was mutated for it to check.
-            page.releaseBlocks();
-            return;
-        }
-        long pageBytes = page.ramBytesUsedByBlocks();
-        bytesInBuffer.addAndGet(pageBytes);
-        queue.add(page);
-        queueSize.incrementAndGet();
-        // Always notify: the conditional guard on prevBytes==0 previously caused a lost-wakeup race
-        // when a consumer drained and blocked on notEmptyFuture between our getAndAdd and queue.add.
-        // notifyNotEmpty() is a no-op when no listener is registered, so unconditional fire is cheap.
-        notifyNotEmpty();
-        if (noMoreInputs.get()) {
-            // O(N) but acceptable because it only occurs with finish(), and the queue size should be very small.
-            if (queue.removeIf(p -> p == page)) {
-                page.releaseBlocks();
-                queueSize.decrementAndGet();
-                long afterRemove = bytesInBuffer.addAndGet(-pageBytes);
-                if (afterRemove < maxBufferBytes) {
-                    notifyNotFull();
-                }
-                if (queueSize.get() == 0) {
-                    completionFuture.onResponse(null);
+        Page owned = page;
+        try {
+            if (failure != null) {
+                // Reject the page without touching buffer state, so the trailing invariantsHold()
+                // call is intentionally bypassed: nothing was mutated for it to check.
+                return;
+            }
+            long pageBytes = page.ramBytesUsedByBlocks();
+            bytesInBuffer.addAndGet(pageBytes);
+            queue.add(page);
+            owned = null;
+            queueSize.incrementAndGet();
+            // Always notify: the conditional guard on prevBytes==0 previously caused a lost-wakeup race
+            // when a consumer drained and blocked on notEmptyFuture between our getAndAdd and queue.add.
+            // notifyNotEmpty() is a no-op when no listener is registered, so unconditional fire is cheap.
+            notifyNotEmpty();
+            if (noMoreInputs.get()) {
+                // O(N) but acceptable because it only occurs with finish(), and the queue size should be very small.
+                if (queue.removeIf(p -> p == page)) {
+                    page.releaseBlocks();
+                    queueSize.decrementAndGet();
+                    long afterRemove = bytesInBuffer.addAndGet(-pageBytes);
+                    if (afterRemove < maxBufferBytes) {
+                        notifyNotFull();
+                    }
+                    if (queueSize.get() == 0) {
+                        completionFuture.onResponse(null);
+                    }
                 }
             }
+            assert invariantsHold() : "buffer invariants violated after addPage";
+        } finally {
+            if (owned != null) {
+                owned.releaseBlocks();
+            }
         }
-        assert invariantsHold() : "buffer invariants violated after addPage";
     }
 
     /**
@@ -483,7 +494,7 @@ public final class AsyncExternalSourceBuffer {
                 // Classify the loser before suppressing so storage-URI messages in raw SDK
                 // exceptions cannot surface through the suppressed[] array on the wire.
                 if (rawFirstFailure != t) {
-                    failure.addSuppressed((t instanceof Error) ? t : ExternalFailures.classifySuppressed(t));
+                    SuppressedFailures.attach(failure, (t instanceof Error) ? t : ExternalFailures.classifySuppressed(t));
                 }
                 return;
             }

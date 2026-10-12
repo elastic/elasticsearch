@@ -220,7 +220,7 @@ public class ParquetByteHintTests extends ESTestCase {
 
     private static BlockFactory factory(CountingBreaker breaker) {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breaker.service());
-        return BlockFactory.builder(bigArrays).breaker(new NoopCircuitBreaker("test-factory")).build();
+        return BlockFactory.builder(bigArrays).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
     private static StorageObject storageObject(byte[] data) {

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.plugins.internal;
 
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.ParsedDocument;
 
 /**
@@ -26,7 +27,9 @@ public interface DocumentSizeReporter {
     default void onParsingCompleted(ParsedDocument parsedDocument) {}
 
     /**
-     * An action to be performed upon finished indexing.
+     * An action to be performed upon finished indexing. The origin tells where the operation originates from, this allows implementations
+     * to treat operations that are re-applied from the translog differently from operations that are ingested for the first time (for
+     * instance to avoid reporting the same ingest twice).
      */
-    default void onIndexingCompleted(ParsedDocument parsedDocument) {}
+    default void onIndexingCompleted(ParsedDocument parsedDocument, Engine.Operation.Origin origin) {}
 }

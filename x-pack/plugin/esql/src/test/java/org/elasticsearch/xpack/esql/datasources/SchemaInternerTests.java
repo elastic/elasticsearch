@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -144,10 +146,10 @@ public class SchemaInternerTests extends ESTestCase {
     }
 
     /**
-     * CI csv/tsv spec suites failed with request-breaker leftover {@code 64}. That is this schema-object
-     * shell when {@link SchemaInterner#intern(List)} runs after column/shape costs already filled the listing
-     * credit. The charge is {@code esql-external-planning}; {@link ExternalPlanningReservation#close()} must
-     * return it. HeaderBudget's {@code SET_ENTRY_BYTES} is also 64 but is part of a larger per-column
+     * CI csv/tsv spec leftover {@code 64} is this interned schema-object shell once column/shape
+     * costs filled the listing credit. {@code PlanExecutor.bindPlanningReservation} wraps the session
+     * listener with {@link ActionListener#releaseBefore}; this test uses that wrap so a missing close
+     * leaks the 64 bytes. HeaderBudget {@code SET_ENTRY_BYTES} is also 64 but rides a larger per-column
      * formula, so it cannot be the always-exactly-64 leftover.
      */
     public void testInternedSchemaShellIsSixtyFourPlanningBytesAndCloseRefundsThem() {
@@ -160,11 +162,14 @@ public class SchemaInternerTests extends ESTestCase {
         List<Attribute> canonical = interner.canonicalize(List.of(attribute("a", DataType.KEYWORD, Nullability.FALSE, false)));
         assertThat(reservation.queryHeld(), equalTo(0L));
 
+        PlainActionFuture<Void> done = new PlainActionFuture<>();
+        ActionListener<Void> session = ActionListener.releaseBefore(reservation, done);
         interner.intern(canonical);
         assertThat(reservation.queryHeld(), equalTo(64L));
         assertThat(breaker.getUsed(), equalTo(baseline + 64L));
 
-        reservation.close();
+        session.onResponse(null);
+        done.actionGet();
         assertThat(reservation.queryHeld(), equalTo(0L));
         assertThat(breaker.getUsed(), equalTo(baseline));
     }

@@ -166,7 +166,7 @@ public interface FileList {
      * the file set when it does ({@code SplitDiscoveryContext#withScanFileSet}).
      * <p>
      * One invariant is absolute: a truncated list is never written to the shared listing cache, where a later query
-     * would find it and read a fraction of the dataset while believing it read all of it. It is held in one place,
+     * would find it and read a fraction of the dataset while believing it read all of it. One predicate holds it,
      * on the way into the store — {@code ExternalSourceCacheService#refuseTruncated} — so a new call site asking for
      * a bound inherits it rather than having to establish it. A correctness invariant, not an optimisation.
      */

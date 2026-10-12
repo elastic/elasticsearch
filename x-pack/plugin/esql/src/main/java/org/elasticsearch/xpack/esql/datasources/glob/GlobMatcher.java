@@ -123,7 +123,10 @@ final class GlobMatcher {
      * {@code true} here is permission to look rather than a promise of a match.
      */
     boolean couldContainMatch(String relativeDirectory) {
-        if (relativeDirectory == null) {
+        if (relativeDirectory == null || relativeDirectory.isEmpty()) {
+            // The listing prefix itself, which every match sits under. Not a special case for the caller's
+            // convenience: split("") yields one empty name, and a segment beginning with a literal cannot match it,
+            // so without this the root answers that it contains nothing.
             return true;
         }
         List<String> path = split(relativeDirectory);

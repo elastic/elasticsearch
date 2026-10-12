@@ -633,12 +633,7 @@ public class ExternalSourceCacheService implements Closeable {
         return listing;
     }
 
-    /**
-     * The refusal {@link #refuseTruncated} throws, as a value, for the async writer. That one cannot let it
-     * propagate out of its success callback: the in-flight entry is removed on the way through, so a throw from
-     * inside the callback would leave the key registered with a future nobody completes and wedge every later
-     * query on it behind a leader that has already finished.
-     */
+    /** The refusal {@link #refuseTruncated} throws, as a value, so both store paths raise the same failure. */
     private static IllegalStateException truncatedListing(ListingCacheKey key) {
         return new IllegalStateException("a truncated listing must never enter the shared listing cache: " + key.prefixAndGlob());
     }
@@ -689,16 +684,7 @@ public class ExternalSourceCacheService implements Closeable {
         // Catch a synchronous throw from compute so neither the in-flight entry nor the listener is orphaned.
         try {
             compute.accept(ActionListener.wrap(result -> {
-                try {
-                    admit(key, result);
-                } catch (Exception e) {
-                    // The in-flight entry is removed on the way through, so letting this propagate would leave the
-                    // key registered with a future nobody completes and wedge every later query behind a leader
-                    // that has already finished.
-                    inFlightListings.remove(key, newFuture);
-                    newFuture.onFailure(e);
-                    return;
-                }
+                admit(key, result);
                 inFlightListings.remove(key, newFuture);
                 newFuture.onResponse(result);
             }, e -> {

@@ -5010,10 +5010,21 @@ public class GlobExpanderTests extends ESTestCase {
      * Pinned as an exact set rather than a count, so a failure names the prefixes that should not have been read.
      */
     public void testFanOutDoesNotListAFolderTheGlobCannotMatch() throws Exception {
-        TreeStubProvider provider = new TreeStubProvider(wideHiveTree(12, 12, 8));
+        // The wildcard sits INSIDE a segment, so patternPrefix cuts above every date folder and the slot list is
+        // built from all of them. A pattern like year=2024/**/*.parquet would not discriminate: its prefix is
+        // already year=2024/, so every child satisfies the globstar and the filter is never asked to exclude
+        // anything - the test would pass with the filter deleted.
+        List<StorageEntry> entries = new ArrayList<>();
+        for (int d = 0; d < 1200; d++) {
+            entries.add(entry(String.format(Locale.ROOT, "s3://bucket/data/date=2023-%06d/part.parquet", d), 100));
+        }
+        for (int d = 1; d <= 9; d++) {
+            entries.add(entry(String.format(Locale.ROOT, "s3://bucket/data/date=2024-01-%02d/part.parquet", d), 100));
+        }
+        TreeStubProvider provider = new TreeStubProvider(entries);
 
         @SuppressWarnings("RegexpMultiline")
-        String pattern = "s3://bucket/data/year=2024/**/*.parquet";
+        String pattern = "s3://bucket/data/date=2024-01-0*/*.parquet";
         FileList result = expandSync(
             pattern,
             provider,
@@ -5027,10 +5038,12 @@ public class GlobExpanderTests extends ESTestCase {
             () -> false
         );
 
-        // 12 months x 8 files, plus year=2024/mid.parquet, which the globstar also matches.
-        assertEquals(12 * 8 + 1, result.fileCount());
+        assertEquals(9, result.fileCount());
+        // The count is the assertion: one listObjects per slot, so slots must follow the matching set. Without the
+        // filter this is 1209.
+        assertEquals("one listing per matching folder and none for the 1200 it cannot match", 9, provider.listedPrefixes.size());
         for (String prefix : provider.listedPrefixes) {
-            assertThat("a prefix outside the matched year must never be listed", prefix, containsString("year=2024"));
+            assertThat("and the ones it did list are the matched dates", prefix, containsString("date=2024-01-0"));
         }
     }
 
@@ -5073,6 +5086,10 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("the one matching file, found past 800 keys the bound must not have counted", 1, result.fileCount());
         assertEquals("s3://bucket/data/year=2024/only.parquet", result.path(0).toString());
         assertFalse("a drain that exhausted its prefix below the bound is the whole pattern, not a prefix of it", result.isTruncated());
+        // The load-bearing assertion. A bound counting keys returns empty-truncated here, and the expander then
+        // re-lists unbounded and produces the same three answers above from the retry - so without this the test
+        // passes against the defect it is named for. One pass means the first, bounded listing answered.
+        assertEquals("the bounded listing must answer, not be thrown away and retried", 1, provider.listedPrefixes.size());
     }
 
     /**

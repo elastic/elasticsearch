@@ -1774,7 +1774,7 @@ public final class GlobExpander {
         if (relative.endsWith("/")) {
             relative = relative.substring(0, relative.length() - 1);
         }
-        return relative.isEmpty() || matcher.couldContainMatch(relative);
+        return matcher.couldContainMatch(relative);
     }
 
     /**

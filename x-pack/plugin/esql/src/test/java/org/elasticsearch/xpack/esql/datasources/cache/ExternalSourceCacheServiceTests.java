@@ -3071,7 +3071,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     // --- dataset-level aggregate (warm COUNT(*) survival independent of per-file entries) ---
 
     private static DatasetAggregateKey datasetKey() {
-        return DatasetAggregateKey.ofDefinition("s3://bucket/data/*.csv", new FileSetFingerprint(111, 222), DATASET_VERSION);
+        return DatasetAggregateKey.of("s3://bucket/data/*.csv", new FileSetFingerprint(111, 222), DATASET_VERSION);
     }
 
     public void testDatasetAggregateRoundtrip() {
@@ -3237,7 +3237,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 for (int i = 0; i < pathsPerGlob; i++) {
                     paths.put("s3://bucket/g" + g + "/f" + i + ".csv", (long) i);
                 }
-                DatasetAggregateKey key = DatasetAggregateKey.ofDefinition(
+                DatasetAggregateKey key = DatasetAggregateKey.of(
                     "s3://bucket/g" + g + "/*.csv",
                     new FileSetFingerprint(g, g),
                     DATASET_VERSION
@@ -3260,7 +3260,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         // reconcile would enrich the entry and overwrite the whole-set 100 with the contribution's 42.
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String glob = "s3://bucket/data/*.csv";
-            DatasetAggregateKey key = DatasetAggregateKey.ofDefinition(glob, new FileSetFingerprint(1, 2), DATASET_VERSION);
+            DatasetAggregateKey key = DatasetAggregateKey.of(glob, new FileSetFingerprint(1, 2), DATASET_VERSION);
             service.putDatasetAggregate(key, 100L);
 
             Map<String, Object> strayContribution = new LinkedHashMap<>();
@@ -3495,10 +3495,10 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             String pathA = "s3://bucket/data/a.csv";
             String pathB = "s3://bucket/data/b.csv";
             Map<String, Long> paths = Map.of(pathA, 1000L, pathB, 2000L);
-            DatasetAggregateKey oldest = DatasetAggregateKey.ofDefinition("g0", new FileSetFingerprint(0, 0), DATASET_VERSION);
+            DatasetAggregateKey oldest = DatasetAggregateKey.of("g0", new FileSetFingerprint(0, 0), DATASET_VERSION);
             service.registerPendingDatasetAggregate(oldest, paths, 2, "fp", Map.of(), "csv", "g0");
             for (int i = 1; i <= 64; i++) {
-                DatasetAggregateKey k = DatasetAggregateKey.ofDefinition("g" + i, new FileSetFingerprint(i, i), DATASET_VERSION);
+                DatasetAggregateKey k = DatasetAggregateKey.of("g" + i, new FileSetFingerprint(i, i), DATASET_VERSION);
                 service.registerPendingDatasetAggregate(k, paths, 2, "fp", Map.of(), "csv", "g" + i);
             }
 
@@ -3507,7 +3507,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             );
 
             assertNull("evicted oldest promise must not materialize", service.getDatasetAggregate(oldest));
-            DatasetAggregateKey newest = DatasetAggregateKey.ofDefinition("g64", new FileSetFingerprint(64, 64), DATASET_VERSION);
+            DatasetAggregateKey newest = DatasetAggregateKey.of("g64", new FileSetFingerprint(64, 64), DATASET_VERSION);
             Map<String, Object> served = service.getDatasetAggregate(newest);
             assertNotNull("surviving promise must materialize", served);
             assertEquals(300L, served.get(SourceStatisticsSerializer.STATS_ROW_COUNT));

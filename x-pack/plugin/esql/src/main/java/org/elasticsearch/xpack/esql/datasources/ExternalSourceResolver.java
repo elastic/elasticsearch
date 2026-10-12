@@ -83,6 +83,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -2497,7 +2498,7 @@ public class ExternalSourceResolver {
      * for a reader-overridden resolve. Package-private for testing.
      */
     @Nullable
-    DatasetAggregateKey datasetAggregateKey(FileList listing, Map<String, Object> config, String storageIdentity, String secretIdentity) {
+    DatasetAggregateKey datasetAggregateKey(FileList listing, Map<String, Object> config) {
         if (listing == null || listing.fileSetFingerprint() == null || listing.fileCount() < 2) {
             return null;
         }
@@ -2505,19 +2506,15 @@ public class ExternalSourceResolver {
         if (format == null) {
             return null;
         }
-        // A registered dataset's fold belongs to its definition, so an edit moves the address. A bare FROM over a
-        // URI has no definition to move - but it still performs one read over one file set, and this tier is what
-        // survives per-file eviction, so it keeps the identity-owned address this tier has always had. Refusing it
-        // a key would have re-scanned every warm COUNT(*) over a glob once the per-file records aged out.
+        // A dataset-level fold belongs to one definition entire, so an edit to it moves this address. Only the
+        // legacy EXTERNAL command reaches here without a definition - a registered dataset always carries one -
+        // and that command is being removed, so such a query keeps the per-file rail rather than being given an
+        // address with nothing behind it to move when anything changes.
         Object datasetVersion = config == null ? null : config.get(DefinitionVersion.DATASET_CONFIG_KEY);
         if (datasetVersion instanceof String version && version.isEmpty() == false) {
-            return DatasetAggregateKey.ofDefinition(listing.originalPattern(), listing.fileSetFingerprint(), version);
+            return DatasetAggregateKey.of(listing.originalPattern(), listing.fileSetFingerprint(), version);
         }
-        return DatasetAggregateKey.ofIdentity(
-            listing.originalPattern(),
-            listing.fileSetFingerprint(),
-            datasetIdentity(listing.path(0).objectName(), storageIdentity, secretIdentity, storageConfig(config))
-        );
+        return null;
     }
 
     /**
@@ -2570,14 +2567,8 @@ public class ExternalSourceResolver {
      */
     record DatasetAggregatePrefetch(@Nullable DatasetAggregateKey key, @Nullable Map<String, Object> prefetched) {}
 
-    private DatasetAggregatePrefetch prefetchDatasetAggregate(
-        FileList listing,
-        Map<String, Object> config,
-        boolean cacheable,
-        String storageIdentity,
-        String secretIdentity
-    ) {
-        DatasetAggregateKey key = cacheable ? datasetAggregateKey(listing, config, storageIdentity, secretIdentity) : null;
+    private DatasetAggregatePrefetch prefetchDatasetAggregate(FileList listing, Map<String, Object> config, boolean cacheable) {
+        DatasetAggregateKey key = cacheable ? datasetAggregateKey(listing, config) : null;
         return new DatasetAggregatePrefetch(key, key != null ? cacheService.getDatasetAggregate(key) : null);
     }
 
@@ -2727,7 +2718,7 @@ public class ExternalSourceResolver {
         String formatForStats = datasetFormat != null ? datasetFormat : registeredFormatName(fileList.path(0), config);
         boolean implicitNulls = foldsAbsentColumnAsImplicitNull(formatForStats);
         RunningFileStatsFold fold = RunningFileStatsFold.reconciliation(implicitNulls);
-        DatasetAggregatePrefetch datasetPrefetch = prefetchDatasetAggregate(fileList, config, cacheable, storageIdentity, secretIdentity);
+        DatasetAggregatePrefetch datasetPrefetch = prefetchDatasetAggregate(fileList, config, cacheable);
         // Each file's private toAttributes() list stays reachable until gatherPerFile's completion drops
         // its list. That is after this listener returns, so overlay and the next path's listing still run
         // under the charge. queryHeld keeps the listing credit and the unique-schema overflow until query
@@ -3448,7 +3439,25 @@ public class ExternalSourceResolver {
         if (cacheService == null || publishesScanDerivedStatistics(entry) == false) {
             return null;
         }
-        return cacheService.getStatistics(StatisticsKey.of(schemaKey, readConfig));
+        Map<String, Object> atThisRead = cacheService.getStatistics(StatisticsKey.of(schemaKey, readConfig));
+        if (atThisRead != null) {
+            return atThisRead;
+        }
+        // Nothing at this read's own address. The record's address may still hold a count this read may have:
+        // a physical record count that its producer licensed as read-independent, which under fail_fast is the
+        // same number for every declaration. Addressing by the overlaid read alone made a declaration over an
+        // already-measured corpus re-scan it to re-derive a number that was already stored and already known to
+        // be identical - so the fallback is what keeps that sharing, and it is the only thing it can share:
+        // restrictToReadConfig drops every per-column statistic, and drops the count too unless it was licensed.
+        //
+        // The restriction is applied HERE rather than relied on downstream, because only one serve path runs that
+        // gate itself. Second ask only when the first missed, so a warm read still books one lookup.
+        String ownAddress = readConfigStampOf(entry);
+        if (Objects.equals(ownAddress, readConfig)) {
+            return null; // the record's address IS this read's; there is no second place to look
+        }
+        Map<String, Object> atOwnRead = cacheService.getStatistics(StatisticsKey.of(schemaKey, ownAddress));
+        return atOwnRead == null ? null : SourceStatisticsSerializer.restrictToReadConfig(atOwnRead, readConfig);
     }
 
     /**

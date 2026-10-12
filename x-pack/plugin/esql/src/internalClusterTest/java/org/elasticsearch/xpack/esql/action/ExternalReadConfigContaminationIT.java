@@ -183,26 +183,24 @@ public class ExternalReadConfigContaminationIT extends AbstractExternalDataSourc
     }
 
     /**
-     * The other direction, so the fix cannot be an over-restriction: under FAIL_FAST the physical record count is
-     * the same number for every declaration, and the licence saying so survives the multi-file fold.
+     * The other direction, so the fix cannot be an over-restriction. Under the default FAIL_FAST policy the
+     * physical record count is the same number for every declaration, and the producers stamp a licence saying so.
+     * That licence must survive the multi-file fold as an AND, and the declared read must still be served the count
+     * without re-reading.
      * <p>
-     * What the licence does not do is carry one dataset's fold to another. A dataset-level fold is addressed by the
-     * definition it belongs to, so these two - same files, same settings, different mapping - hold separate folds
-     * and the second pays one cold scan to measure its own. The cost is asserted rather than implied: one scan per
-     * definition, not one per query.
+     * This is NOT red on the parent - it passes there - so read it as a guard against the fix taking too much. It
+     * caught exactly that: addressing statistics by the overlaid read alone left this cold, because the licensed
+     * count sits at the record's OWN address and nothing asked for it any more. The fallback in
+     * {@code cachedStatistics} is what keeps it, and this assertion is why that fallback exists.
      */
-    public void testLicensedCountCrossesReadsWithinADatasetButNotBetweenDatasets() throws Exception {
+    public void testLicensedCountStillCrossesTheMultiFileFold() throws Exception {
         String uris = writeTwoFileFixture(false);
         String inferred = register("lic_inferred", uris, null, false);
         String declared = register("lic_declared", uris, mappingTsWithDialect(), false);
 
         assertScanRows(inferred, 2L * ROWS);
         assertScanRows(inferred, 0L);
-        // A different definition: its own fold has not been measured yet, so this scan measures it.
-        assertScanRows(declared, 2L * ROWS);
-        // And having measured it, the declared read warms - which is what shows the licence still works across the
-        // reads of one definition, since the extrema remain configuration-bound either way.
-        assertScanRows(declared, 0L);
+        assertScanRows(declared, 0L); // the licensed count crosses; only the extrema are configuration-bound
     }
 
     /**
@@ -237,24 +235,23 @@ public class ExternalReadConfigContaminationIT extends AbstractExternalDataSourc
     }
 
     /**
-     * The SINGLE-FILE case of the same cost, where no dataset-level fold exists to be blamed for it. A dataset tier
-     * needs at least two files, so this isolates the per-file half: a retyping read asks only its own overlaid
-     * address, and the licensed row count the reconcile files at the record's OWN address is no longer read by it.
+     * The SINGLE-FILE case, where no dataset-level fold exists to be credited or blamed. A dataset tier needs at
+     * least two files, so this isolates the per-file half: a retyping read asks its own overlaid address first, and
+     * on a miss falls back to the record's own, where the licensed physical row count sits.
      * <p>
-     * The bound is what this pins. One scan per definition, then warm - not one scan per query, and not a
-     * permanently cold dataset. Its multi-file sibling cannot show which half caused it, because both halves are
-     * in play there.
+     * So a declaration over an already-measured file is served its count without re-reading it. Only the extrema
+     * are configuration-bound, and those are covered by the dialect cases above.
      */
-    public void testASingleFileRetypingReadPaysOneScanThenWarms() throws Exception {
+    public void testASingleFileRetypingReadIsServedTheLicensedCount() throws Exception {
         String uri = writeOneFileFixture();
         String plain = register("single_plain", uri, null, false);
         String declared = register("single_declared", uri, mappingTsWithDialect(), false);
 
         assertScanRows(plain, ROWS);
         assertScanRows(plain, 0L);
-        // A different definition over the same file: its own address holds nothing yet, so this scan measures it.
-        assertScanRows(declared, ROWS);
-        // And having measured it, the declared read warms - one scan, not one per query.
+        // A different definition over the same file. Its own address holds nothing, but the record's does, and
+        // under fail_fast that count is the same number for every declaration.
+        assertScanRows(declared, 0L);
         assertScanRows(declared, 0L);
     }
 

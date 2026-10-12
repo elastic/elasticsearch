@@ -41,7 +41,6 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.After;
 import org.junit.Before;
@@ -72,8 +71,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
-
-    private static final FeatureFlag METRIC_EXEMPLARS_FEATURE_FLAG = new FeatureFlag("metric_exemplars");
 
     private OtlpHttpMetricExporter exporter;
     private SdkMeterProvider meterProvider;
@@ -246,7 +243,6 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
     }
 
     public void testExemplars() throws Exception {
-        assumeTrue("requires metric exemplar ingestion", METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled());
         long dataPointTimestamp = Clock.getDefault().now();
         long exemplarTimestamp = dataPointTimestamp - TimeUnit.MILLISECONDS.toNanos(1);
         SpanContext spanContext = SpanContext.create(

@@ -28,6 +28,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -44,7 +45,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xpack.prometheus.PrometheusPlugin;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.prometheus.proto.RemoteWrite;
 import org.elasticsearch.xpack.prometheus.proto.RemoteWrite.Exemplar;
 import org.elasticsearch.xpack.prometheus.proto.RemoteWrite.Label;
@@ -86,6 +87,7 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
     private final Client client;
     private final ThreadPool threadPool;
     private final long maxExpandedContentLength;
+    private volatile boolean exemplarIngestionEnabled;
 
     @Inject
     public PrometheusRemoteWriteTransportAction(
@@ -93,12 +95,15 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
         ActionFilters actionFilters,
         ThreadPool threadPool,
         Client client,
+        ClusterService clusterService,
         Settings settings
     ) {
         super(NAME, transportService, actionFilters, in -> TransportAction.localOnly(), threadPool.executor(ThreadPool.Names.WRITE));
         this.client = client;
         this.threadPool = threadPool;
         this.maxExpandedContentLength = HttpTransportSettings.SETTING_HTTP_MAX_PROTOBUF_EXPANDED_CONTENT_LENGTH.get(settings).getBytes();
+        clusterService.getClusterSettings()
+            .initializeAndWatch(XPackSettings.METRIC_EXEMPLARS_ENABLED, enabled -> exemplarIngestionEnabled = enabled);
     }
 
     @Override
@@ -108,7 +113,7 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
             request.releaseBody();
 
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
-            boolean exemplarIngestionEnabled = PrometheusPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled();
+            boolean exemplarIngestionEnabled = this.exemplarIngestionEnabled;
             // Exemplars without a timestamp are stamped with the time the request was received. A re-sent request (e.g. after a
             // 429) therefore assigns a new timestamp to such exemplars, so they are indexed again instead of being rejected as
             // duplicates. We accept this limitation.

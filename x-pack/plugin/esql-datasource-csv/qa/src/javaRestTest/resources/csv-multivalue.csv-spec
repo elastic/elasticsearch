@@ -270,4 +270,52 @@ emp_no:integer
 10002
 ;
 
+// A STATS BY key derived with + from other external integral keys is evaluated on the row, so it is null (with the
+// usual multi-value warning) where an input column holds a bracket list. The optimizer used to drop such a key from
+// the aggregate and recompute it per group, returning one number per list element (9995 / 10013 here). The exact
+// warnings pin the row-level evaluation; a regex would only permit them. Sister shapes live in
+// external-multivalue.csv-spec.
+derivedGroupingKeyOverMultivalueColumn
+required_capability: dataset_in_from_command
+required_capability: fix_derived_external_grouping_multivalue
+dataset: employees_brackets: "{{employees}}" WITH {"multi_value_syntax": "brackets"}
+
+FROM employees_brackets
+| WHERE emp_no == 10002
+| EVAL s = emp_no + salary_change.int
+| STATS c = COUNT(*) BY emp_no, salary_change.int, s
+| SORT salary_change.int
+;
+warning:Line 3:12: evaluation of [emp_no + salary_change.int] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:12: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+c:long | emp_no:integer | salary_change.int:integer | s:integer
+1      | 10002          | -7                        | null
+1      | 10002          | 11                        | null
+;
+
+// The derived key also adds groups: 10037 (single salary_change.int -7) and 10078 (list [-7, 9, 12]) share languages
+// 2 and the element -7, yet the row-level s separates them into (-7, -5) and (-7, null). Recomputing s per group
+// collapsed those two rows into one group.
+derivedGroupingKeyOverMultivalueColumnKeepsGroups
+required_capability: dataset_in_from_command
+required_capability: fix_derived_external_grouping_multivalue
+dataset: employees_brackets: "{{employees}}" WITH {"multi_value_syntax": "brackets"}
+
+FROM employees_brackets
+| WHERE emp_no IN (10037, 10078)
+| EVAL s = languages + salary_change.int
+| STATS c = COUNT(*) BY languages, salary_change.int, s
+| SORT salary_change.int, s
+;
+warning:Line 3:12: evaluation of [languages + salary_change.int] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:12: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+c:long | languages:integer | salary_change.int:integer | s:integer
+1      | 2                 | -7                        | -5
+1      | 2                 | -7                        | null
+1      | 2                 | 9                         | null
+1      | 2                 | 12                        | null
+;
+
 // TRANGE and TBUCKET require @timestamp; RENAME hire_date to @timestamp for these tests.

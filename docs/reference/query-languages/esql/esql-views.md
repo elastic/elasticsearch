@@ -226,7 +226,21 @@ Results from all sources (indices, views, subqueries) are unioned into a single 
 
 A view definition can reference another view. This is called a nested view. ES|QL allows nesting to a depth of 10.
 
-When multiple views are referenced within the same index pattern, each view executes independently (in parallel if possible), similar to subqueries and [`FORK`](/reference/query-languages/esql/commands/fork.md). Views, subqueries, and `FORK` share a maximum branch count of 8. For example, a single index pattern could reference four views and four subqueries, but adding one more would exceed the limit and the query will fail.
+When multiple views are referenced within the same index pattern, each view executes independently (in parallel if possible), similar to subqueries and [`FORK`](/reference/query-languages/esql/commands/fork.md).
+
+::::{applies-switch}
+
+:::{applies-item} { "stack": "preview 9.6+", "serverless": "preview" }
+[Query compaction](#query-compaction) flattens nested view branches into one merge only when the result has at most 20 branches by default (`esql.query.max_branch_count`). If flattening would exceed that cap, {{esql}} keeps the nested plan instead of failing the query. The same setting also caps the total number of leaf branches in the query.
+:::
+
+:::{applies-item} stack: preview 9.4-9.5
+Views, subqueries, and `FORK` share a maximum branch count of 8. For example, a single index pattern could reference four views and four subqueries, but adding one more would exceed the limit and the query will fail.
+:::
+
+::::
+
+### Combining branching and nesting [combining-branching-and-nesting]
 
 Branching and nesting are allowed in combination as long as there is never more than one branch point. This means nested branching has restrictions:
 
@@ -235,7 +249,7 @@ Branching and nesting are allowed in combination as long as there is never more 
 
 ### Query compaction
 
-When a view definition itself contains branches (subqueries or references to other views), those inner branches would normally create a second level of branching, which ES|QL does not allow. Query compaction solves this by flattening the inner branches into the outer branch set, producing a single-level plan.
+When a view definition itself contains branches (subqueries or references to other views), those inner branches would normally create a second level of branching, which ES|QL does not allow. Query compaction solves this by flattening the inner branches into the outer branch set, producing a single-level plan when the flattened width is within `esql.query.max_branch_count` (20 by default). If flattening would exceed that cap, compaction is skipped and the nested plan is kept.
 
 The following example shows how compaction works. Two views are each defined as a pair of subqueries:
 

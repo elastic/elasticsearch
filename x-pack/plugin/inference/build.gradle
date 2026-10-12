@@ -33,11 +33,6 @@ dependencies {
   implementation project(path: ':libs:logging')
   compileOnly project(":server")
   compileOnly project(path: xpackModule('core'))
-  implementation "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-  implementation "org.apache.httpcomponents:httpcore:${versions.httpcore}"
-  implementation "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
-  implementation "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
-
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(':server')))
   internalClusterTestImplementation(testArtifact(project(':server'), 'internalClusterTest'))
@@ -176,7 +171,6 @@ dependencies {
 }
 
 tasks.withType(AbstractDependenciesTask).configureEach {
-  mapping from: /httpclient|httpcore.*|httpasyncclient/, to: 'httpclient'
   mapping from: /azure-.*/, to: 'azure'
   mapping from: /google-auth-.*/, to: 'google-auth'
   mapping from: /google-http-.*/, to: 'google-http'
@@ -472,6 +466,48 @@ tasks.named("thirdPartyAudit").configure {
 
   // Optional/platform-specific and transitive dependencies not on audit classpath
   ignoreMissingClasses(
+    // optional Apache HttpClient 4 transport of google-http-client; inference uses the default NetHttpTransport
+    'org.apache.http.ConnectionReuseStrategy',
+    'org.apache.http.Header',
+    'org.apache.http.HttpEntity',
+    'org.apache.http.HttpEntityEnclosingRequest',
+    'org.apache.http.HttpHost',
+    'org.apache.http.HttpRequest',
+    'org.apache.http.HttpResponse',
+    'org.apache.http.HttpVersion',
+    'org.apache.http.RequestLine',
+    'org.apache.http.StatusLine',
+    'org.apache.http.client.AuthenticationHandler',
+    'org.apache.http.client.HttpClient',
+    'org.apache.http.client.HttpRequestRetryHandler',
+    'org.apache.http.client.RedirectHandler',
+    'org.apache.http.client.RequestDirector',
+    'org.apache.http.client.UserTokenHandler',
+    'org.apache.http.client.methods.HttpEntityEnclosingRequestBase',
+    'org.apache.http.client.methods.HttpRequestBase',
+    'org.apache.http.config.Registry',
+    'org.apache.http.config.RegistryBuilder',
+    'org.apache.http.conn.ClientConnectionManager',
+    'org.apache.http.conn.ConnectionKeepAliveStrategy',
+    'org.apache.http.conn.params.ConnManagerParams',
+    'org.apache.http.conn.params.ConnRouteParams',
+    'org.apache.http.conn.routing.HttpRoutePlanner',
+    'org.apache.http.conn.scheme.PlainSocketFactory',
+    'org.apache.http.conn.scheme.SchemeRegistry',
+    'org.apache.http.conn.socket.PlainConnectionSocketFactory',
+    'org.apache.http.conn.ssl.SSLSocketFactory',
+    'org.apache.http.conn.ssl.X509HostnameVerifier',
+    'org.apache.http.entity.AbstractHttpEntity',
+    'org.apache.http.impl.client.DefaultHttpClient',
+    'org.apache.http.impl.client.HttpClientBuilder',
+    'org.apache.http.impl.conn.PoolingHttpClientConnectionManager',
+    'org.apache.http.params.HttpConnectionParams',
+    'org.apache.http.params.HttpParams',
+    'org.apache.http.params.HttpProtocolParams',
+    'org.apache.http.protocol.HttpContext',
+    'org.apache.http.protocol.HttpProcessor',
+    'org.apache.http.protocol.HttpRequestExecutor',
+
     // from reactory-netty metric collection
     'io.micrometer.context.ContextAccessor',
     'io.micrometer.context.ContextRegistry',

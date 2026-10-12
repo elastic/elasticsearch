@@ -27,8 +27,10 @@ import java.util.List;
  * (see {@code PartitionMetadata#coversFileCount}). A second, narrower bound would have described a listing that
  * cannot be built, so it is gone rather than documented.
  * <p>
- * {@link Integer#MAX_VALUE} is unbounded. A bounded listing sets {@link FileList#isTruncated()}, which states what
- * a reader handed a prefix of a dataset owes it.
+ * {@link Integer#MAX_VALUE} is unbounded. Only a listing that <em>reaches</em> this number sets
+ * {@link FileList#isTruncated()}, which states what a reader handed a prefix of a dataset owes it. Asking for a
+ * bound is not the same as getting a prefix — for a glob selective enough to be worth bounding, the usual outcome
+ * is a complete listing, cacheable and believable when empty.
  */
 public record ListingExtents(int maxFiles) {
 

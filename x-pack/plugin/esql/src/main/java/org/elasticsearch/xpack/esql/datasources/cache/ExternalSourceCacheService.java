@@ -557,19 +557,21 @@ public class ExternalSourceCacheService implements Closeable {
         if (enabled == false) {
             return loader.load(key);
         }
-        return listingStore.cache().computeIfAbsent(key, loader);
+        return listingStore.cache().computeIfAbsent(key, k -> refuseTruncated(k, loader.load(k)));
     }
 
     /**
-     * A complete cached listing for {@code key}, or {@code null} when the cache holds none.
+     * A cached listing of the whole pattern for {@code key}, or {@code null} when the cache holds none.
      * <p>
      * For the caller that cannot use {@link #getOrComputeListingAsync} because its own listing is bounded. A bounded
-     * request may still be <em>served</em> from this cache: everything in here is a complete listing of the whole
-     * pattern (see {@link #putListingIfComplete}), which is a superset of the prefix the caller asked for and
-     * therefore a correct answer to it. Only the reverse direction is unsafe, and that is what the put guards.
+     * request may still be <em>served</em> from here, because every entry is a listing of the whole pattern -
+     * {@link #refuseTruncated} is the one way in and holds that - which is a superset of the prefix the caller asked
+     * for and therefore a correct answer to it. Whether a superset is the <em>same</em> answer is the caller's
+     * question, not this one's: a listing wider than the bound carries partition types folded over more paths, so
+     * {@code DatasetListingService#boundedListingAsync} declines one.
      * <p>
      * No in-flight coalescing, deliberately. A waiter would have to be handed the leader's result, and the key does
-     * not say whether the leader asked for a bound — so a bounded leader could hand a prefix of the dataset to a
+     * not say whether the leader asked for a bound - so a bounded leader could hand a prefix of the dataset to a
      * query that needs all of it. Two cold bounded queries each list, exactly as they did before this cache was
      * reachable from a bounded path at all.
      */
@@ -581,15 +583,46 @@ public class ExternalSourceCacheService implements Closeable {
     /**
      * Stores {@code listing} under {@code key} if it is a listing of the whole pattern, and drops it otherwise.
      * <p>
-     * The refusal is the point. Cache entries are keyed by the path and its filters, never by how much of it the
-     * query that computed it needed, so a truncated listing stored here would be served to a later query as though
-     * it were the dataset, with nothing in it to say otherwise. A bounded listing that nonetheless drained its whole
-     * prefix is not truncated and is just as complete as an unbounded one, which is what makes it worth offering.
+     * For the bounded rail, where a truncated listing is the expected outcome rather than a fault: it is dropped
+     * silently, and only the query that computed it is served. Every other writer reaches
+     * {@link #refuseTruncated} directly, because a truncated listing there is a bug.
      */
     public void putListingIfComplete(ListingCacheKey key, FileList listing) {
         if (enabled && listing != null && listing.isTruncated() == false) {
             listingStore.put(key, listing);
         }
+    }
+
+    /**
+     * Returns {@code listing} if it is a listing of the whole pattern, and throws otherwise.
+     * <p>
+     * The one gate on {@code listingStore}, and it is positioned <em>before</em> the store rather than on the value
+     * a writer hands back. Entries are keyed by the path and its filters, never by how much of it the query that
+     * computed one needed, so a truncated listing in here is served to every later query as though it were the
+     * dataset, with nothing in it to say otherwise. A check that runs after the put fails only the query that
+     * computed the entry while every query behind it reads a fraction of the dataset and believes it read all of
+     * it - which is why the two refusals this replaced, in {@code DatasetListingService}, could not hold the
+     * invariant they named.
+     * <p>
+     * A refusal rather than an assertion: assertions are off in production. Unreachable from the rails that exist
+     * today - all of them either list the whole pattern or filter first, in {@link #putListingIfComplete} - and
+     * that is exactly the state in which a new call site asking for a bound would otherwise inherit the hole.
+     */
+    private static FileList refuseTruncated(ListingCacheKey key, FileList listing) {
+        if (listing.isTruncated()) {
+            throw truncatedListing(key);
+        }
+        return listing;
+    }
+
+    /**
+     * The refusal {@link #refuseTruncated} throws, as a value, for the async writer. That one cannot let it
+     * propagate out of its success callback: the in-flight entry is removed on the way through, so a throw from
+     * inside the callback would leave the key registered with a future nobody completes and wedge every later
+     * query on it behind a leader that has already finished.
+     */
+    private static IllegalStateException truncatedListing(ListingCacheKey key) {
+        return new IllegalStateException("a truncated listing must never enter the shared listing cache: " + key.prefixAndGlob());
     }
 
     /**
@@ -638,6 +671,11 @@ public class ExternalSourceCacheService implements Closeable {
         // Catch a synchronous throw from compute so neither the in-flight entry nor the listener is orphaned.
         try {
             compute.accept(ActionListener.wrap(result -> {
+                if (result.isTruncated()) {
+                    inFlightListings.remove(key, newFuture);
+                    newFuture.onFailure(truncatedListing(key));
+                    return;
+                }
                 listingStore.put(key, result);
                 inFlightListings.remove(key, newFuture);
                 newFuture.onResponse(result);

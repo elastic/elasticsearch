@@ -157,20 +157,18 @@ public interface FileList {
      * list is a prefix of the files the pattern (and any partition filters) matches and {@link #fileCount()} is
      * a floor, not a total.
      * <p>
-     * Only resolution ever asks for a bound. Under inferred {@code first_file_wins} and a declared mapping
-     * that prefix is of the files this query's filters keep, large enough for one file to define the schema
-     * (or, for a declaration, to count files and derive partition columns). Turning a truncated listing into
-     * the query's own file set is split discovery's job
-     * ({@code FileSplitProvider#overTheQuerysFileSet}), and everything resolution derived per file from the bounded
-     * listing — partition values, per-file read schemas — moves with the file set when it does
-     * ({@code SplitDiscoveryContext#withScanFileSet}).
+     * Resolution asks for a bound under inferred {@code first_file_wins} and a declared mapping, where that prefix
+     * is of the files this query's filters keep, large enough for one file to define the schema (or, for a
+     * declaration, to count files and derive partition columns). Split discovery asks for one too, as a first
+     * attempt it abandons when the prefix turns out not to cover the query. Turning a truncated listing into the
+     * query's own file set is split discovery's job ({@code FileSplitProvider#overTheQuerysFileSet}), and everything
+     * resolution derived per file from the bounded listing — partition values, per-file read schemas — moves with
+     * the file set when it does ({@code SplitDiscoveryContext#withScanFileSet}).
      * <p>
-     * One invariant is absolute, and nothing downstream catches its breach: a truncated list is never written to the
-     * shared listing cache, where a later query would find it and read a fraction of the dataset while believing
-     * it read all of it. That is {@code ExternalSourceResolver#listingExtentsFor}'s to keep — the cache itself
-     * does not check, the expander honours whatever extents it is handed, and omitting the fingerprint and
-     * refusing to compact do not prevent caching. A new call site asking for a bound must establish it for
-     * itself. A correctness invariant, not an optimisation.
+     * One invariant is absolute: a truncated list is never written to the shared listing cache, where a later query
+     * would find it and read a fraction of the dataset while believing it read all of it. It is held in one place,
+     * on the way into the store — {@code ExternalSourceCacheService#refuseTruncated} — so a new call site asking for
+     * a bound inherits it rather than having to establish it. A correctness invariant, not an optimisation.
      */
     default boolean isTruncated() {
         return false;

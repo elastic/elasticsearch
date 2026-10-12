@@ -315,7 +315,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final boolean indexDisabledByDefault;
         private final float postFilterSelectivityThreshold;
 
-        //whether every node in the cluster can apply an {@code auto_calibrate} change on an existing field.
+        // whether every node in the cluster can apply an {@code auto_calibrate} change on an existing field.
         private boolean clusterSupportsUpdatableAutoCalibrate = true;
 
         public Builder(

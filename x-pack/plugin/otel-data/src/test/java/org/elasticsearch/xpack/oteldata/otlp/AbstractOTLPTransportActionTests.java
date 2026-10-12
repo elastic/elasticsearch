@@ -203,6 +203,61 @@ public abstract class AbstractOTLPTransportActionTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Redirected 1 documents to the failure store.\n"));
     }
 
+    /**
+     * Version conflicts happen when a client retries a request that was already indexed.
+     * They should be reported as a warning without counting them as rejected items.
+     */
+    public void testConflictsReportedAsWarning() throws Exception {
+        String dataStream = dataStreamName();
+        OTLPActionResponse response = executeRequest(
+            createRequestWithData(),
+            new BulkResponse(new BulkItemResponse[] { bulkItemFailure(dataStream, RestStatus.CONFLICT, "version conflict") }, 0)
+        );
+
+        byte[] responseBytes = response.getResponse().array();
+        assertThat(parseHasPartialSuccess(responseBytes), equalTo(true));
+        assertThat(parseRejectedCount(responseBytes), equalTo(0L));
+        assertThat(
+            parseErrorMessage(responseBytes),
+            equalTo("Skipped 1 duplicate documents that were already indexed with the same id.\n")
+        );
+    }
+
+    public void testConflictMixedWithFailure() throws Exception {
+        String dataStream = dataStreamName();
+        OTLPActionResponse response = executeRequest(
+            createRequestWithData(),
+            new BulkResponse(
+                new BulkItemResponse[] {
+                    bulkItemFailure(dataStream, RestStatus.CONFLICT, "version conflict"),
+                    bulkItemFailure(dataStream, RestStatus.BAD_REQUEST, "bad request") },
+                0
+            )
+        );
+
+        byte[] responseBytes = response.getResponse().array();
+        assertThat(parseRejectedCount(responseBytes), equalTo(1L));
+        String errorMessage = parseErrorMessage(responseBytes);
+        assertThat(errorMessage, containsString("Index [" + dataStream + "] returned status [BAD_REQUEST]"));
+        assertThat(errorMessage, containsString("Skipped 1 duplicate documents that were already indexed with the same id.\n"));
+        assertThat(errorMessage, not(containsString("CONFLICT")));
+    }
+
+    public void testConflictWith429() {
+        String dataStream = dataStreamName();
+        Exception e = executeRequestExpectingFailure(
+            createRequestWithData(),
+            new BulkResponse(
+                new BulkItemResponse[] {
+                    bulkItemFailure(dataStream, RestStatus.CONFLICT, "version conflict"),
+                    bulkItemFailure(dataStream, RestStatus.TOO_MANY_REQUESTS, "too many requests") },
+                0
+            )
+        );
+
+        assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.TOO_MANY_REQUESTS));
+    }
+
     public void testBulkError() {
         assertExceptionStatus(new IllegalArgumentException("bazinga"), RestStatus.BAD_REQUEST);
         assertExceptionStatus(new IllegalStateException("bazinga"), RestStatus.INTERNAL_SERVER_ERROR);

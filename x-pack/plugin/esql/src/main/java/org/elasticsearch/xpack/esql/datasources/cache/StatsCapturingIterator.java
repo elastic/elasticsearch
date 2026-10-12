@@ -82,6 +82,11 @@ public final class StatsCapturingIterator implements CloseableIterator<Page>, Co
     }
 
     @Override
+    public void revokeOvershootOnPark() {
+        delegate.revokeOvershootOnPark();
+    }
+
+    @Override
     public Page tryAdvance() {
         return delegate.tryAdvance();
     }

@@ -63,6 +63,19 @@ import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
  *     with the number of attributes. Our overview cluster once spent four hours hot
  *     on a single core running {@code | DROP lost.*} against 705,000 fields.
  * </p>
+ *
+ * <p>
+ *     {@code dissect_chain} chains {@link #DISSECT_STAGES} {@code DISSECT}s, each appending one column to the
+ *     full output. Generating plan nodes used to rebuild {@code output()} on every call by recursing into
+ *     their child, so every pass that visits each node cost {@code O(fields * stages²)}; they now cache it.
+ *     Measured with {@link #fullPipeline} using {@code -wi 2 -i 3 -f 1}, ms/op, cached / uncached:
+ * </p>
+ * <pre>
+ *    fields     cached      uncached   (ratio)
+ *    1 000        15.4         622.9    (~40x)
+ *    10 000       88.2        3804.4    (~43x)
+ *    100 000    1731.3       62062.0    (~36x)
+ * </pre>
  */
 @Fork(1)
 @Warmup(iterations = 3, time = 2, timeUnit = TimeUnit.SECONDS)
@@ -85,8 +98,13 @@ public class AnalysisBenchmark {
     /**
      * Which query shape to benchmark.
      */
-    @Param({ "from", "sort", "drop_sort" })
+    @Param({ "from", "sort", "drop_sort", "dissect_chain" })
     public String query;
+
+    /**
+     * Number of chained {@code DISSECT} commands in the {@code dissect_chain} shape.
+     */
+    private static final int DISSECT_STAGES = 100;
 
     private static final Map<String, String> QUERIES = Map.ofEntries(
         // comment to make the formatter kinder
@@ -116,8 +134,18 @@ public class AnalysisBenchmark {
               AND dropped_data_points IS NOT NULL
             | DROP otel.*
             | SORT @timestamp ASC
-            | LIMIT 1""")
+            | LIMIT 1"""),
+        // A long chain of DISSECTs, each appending one column to the full fieldCount-wide output.
+        Map.entry("dissect_chain", dissectChainQuery(DISSECT_STAGES))
     );
+
+    private static String dissectChainQuery(int stages) {
+        StringBuilder query = new StringBuilder("FROM test");
+        for (int i = 0; i < stages; i++) {
+            query.append(" | DISSECT service_name \"%{k").append(i).append("}\"");
+        }
+        return query.append(" | LIMIT 1").toString();
+    }
 
     private String queryText;
     private Analyzer analyzer;

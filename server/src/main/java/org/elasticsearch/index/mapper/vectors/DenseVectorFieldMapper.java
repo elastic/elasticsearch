@@ -78,6 +78,8 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MapperFeatures;
+import org.elasticsearch.index.mapper.MapperMergeContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MappingParser;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
@@ -313,6 +315,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final boolean indexDisabledByDefault;
         private final float postFilterSelectivityThreshold;
 
+        //whether every node in the cluster can apply an {@code auto_calibrate} change on an existing field.
+        private boolean clusterSupportsUpdatableAutoCalibrate = true;
+
         public Builder(
             String name,
             IndexVersion indexVersionCreated,
@@ -480,6 +485,34 @@ public class DenseVectorFieldMapper extends FieldMapper {
             });
 
             this.indexDisabledByDefault = indexDisabledByDefault;
+        }
+
+        Builder clusterSupportsUpdatableAutoCalibrate(boolean clusterSupportsUpdatableAutoCalibrate) {
+            this.clusterSupportsUpdatableAutoCalibrate = clusterSupportsUpdatableAutoCalibrate;
+            return this;
+        }
+
+        /**
+         * {@code auto_calibrate} can only be changed on an existing field once every node knows how to apply the change: a node
+         * that predates {@link MapperFeatures#BBQ_DISK_UPDATABLE_AUTO_CALIBRATE} treats it as an immutable parameter and would
+         * reject the mapping when it received it.
+         */
+        @Override
+        protected void mergeFromBuilder(FieldMapper.Builder incoming, Conflicts conflicts, MapperMergeContext mergeContext) {
+            Builder that = (Builder) incoming;
+            if (that.clusterSupportsUpdatableAutoCalibrate == false
+                && autoCalibrate(indexOptions.getValue()) != autoCalibrate(that.indexOptions.getValue())) {
+                throw new IllegalArgumentException(
+                    "cannot update [auto_calibrate] on [index_options] of field ["
+                        + leafName()
+                        + "] until all nodes in the cluster support updating it"
+                );
+            }
+            super.mergeFromBuilder(incoming, conflicts, mergeContext);
+        }
+
+        private static boolean autoCalibrate(DenseVectorIndexOptions options) {
+            return options instanceof BBQIVFIndexOptions bbqIvf && bbqIvf.autoCalibrate();
         }
 
         private boolean isVectorIndexTypeAllowedByProviders(VectorIndexType indexType) {
@@ -3375,7 +3408,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             c.getVectorsFormatProviders(),
             c.getIndexSettings().isIndexDisabledByDefault(),
             c.getIndexSettings().getPostFilterSelectivityThreshold()
-        ),
+        ).clusterSupportsUpdatableAutoCalibrate(c.clusterHasFeature(MapperFeatures.BBQ_DISK_UPDATABLE_AUTO_CALIBRATE)),
         notInMultiFields(CONTENT_TYPE)
     );
 

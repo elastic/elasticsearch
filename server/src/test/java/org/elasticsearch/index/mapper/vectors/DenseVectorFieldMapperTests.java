@@ -1161,6 +1161,51 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         }
     }
 
+    /**
+     * In a mixed cluster a node that predates updatable {@code auto_calibrate} would reject the mapping, so changing
+     * the value on an existing field is refused in both directions until every node supports it. Only the change itself
+     * is gated: setting the value when the field is created, and updating other parameters, are not.
+     */
+    public void testBbqDiskAutoCalibrateUpdateRequiresClusterFeature() throws IOException {
+        for (boolean from : new boolean[] { false, true }) {
+            boolean to = from == false;
+            // the cluster does not (yet) support any node feature
+            MapperService mapperService = new TestMapperServiceBuilder().clusterSupportsFeature(f -> false).build();
+            // creating the field with either value is always allowed
+            merge(mapperService, fieldMapping(bbqDiskMapping(from, false, 2)));
+
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> merge(mapperService, fieldMapping(bbqDiskMapping(to, false, 2)))
+            );
+            assertThat(e.getMessage(), containsString("cannot update [auto_calibrate]"));
+            assertThat(e.getMessage(), containsString("until all nodes in the cluster support updating it"));
+            assertEquals(
+                from,
+                ((DenseVectorFieldMapper.BBQIVFIndexOptions) denseVectorFieldType(mapperService).getIndexOptions()).autoCalibrate()
+            );
+
+            // re-sending the current value is not a change
+            merge(mapperService, fieldMapping(bbqDiskMapping(from, false, 2)));
+            // nor is updating another parameter while leaving auto_calibrate alone
+            merge(mapperService, fieldMapping(bbqDiskMapping(from, false, 4)));
+        }
+    }
+
+    /** Once every node supports the feature the same update goes through, in both directions. */
+    public void testBbqDiskAutoCalibrateUpdateAllowedWhenClusterSupportsFeature() throws IOException {
+        for (boolean from : new boolean[] { false, true }) {
+            boolean to = from == false;
+            MapperService mapperService = new TestMapperServiceBuilder().clusterSupportsFeature(f -> true).build();
+            merge(mapperService, fieldMapping(bbqDiskMapping(from, false, 2)));
+            merge(mapperService, fieldMapping(bbqDiskMapping(to, false, 2)));
+            assertEquals(
+                to,
+                ((DenseVectorFieldMapper.BBQIVFIndexOptions) denseVectorFieldType(mapperService).getIndexOptions()).autoCalibrate()
+            );
+        }
+    }
+
     public void testRescoreVectorForNonQuantized() {
         for (String indexType : List.of("hnsw", "flat")) {
             Exception e = expectThrows(

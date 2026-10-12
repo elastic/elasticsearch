@@ -570,7 +570,8 @@ public class SchemaReconciliationTests extends ESTestCase {
         assertThat(result.perFileInfo().get(f1).fileSchema().get(0).dataType(), equalTo(DataType.DOUBLE));
         assertThat(result.perFileInfo().get(f1).inferredTypes(), equalTo(Map.of("val", DataType.LONG)));
         assertThat(result.perFileInfo().get(f2).fileSchema().get(0).dataType(), equalTo(DataType.DOUBLE));
-        assertThat(result.perFileInfo().get(f2).inferredTypes(), nullValue());
+        // Not pinned, but it was opened, so its own types are recorded: null is reserved for a file nobody read.
+        assertThat(result.perFileInfo().get(f2).inferredTypes(), equalTo(Map.of("val", DataType.DOUBLE)));
     }
 
     public void testUnionByNameColumnOrdering() {
@@ -1349,9 +1350,10 @@ public class SchemaReconciliationTests extends ESTestCase {
             assertThat(result.perFileInfo().get(f1).fileSchema().get(0).dataType(), equalTo(DataType.LONG));
             assertThat(result.perFileInfo().get(f1).mapping().cast(0), nullValue());
             // The pinned file carries its pre-pin (inferred) types so the resolve-side stats boundary can identify the
-            // pinned column and safe-miss its read-schema-blind cached stats. The already-LONG file is not pinned.
+            // pinned column and safe-miss its read-schema-blind cached stats. The already-LONG file is not pinned, but
+            // it was opened, so its own types are recorded too: null means a file nobody read (esql-planning#2076).
             assertThat(result.perFileInfo().get(f1).inferredTypes(), equalTo(Map.of("c", DataType.INTEGER)));
-            assertThat(result.perFileInfo().get(f2).inferredTypes(), nullValue());
+            assertThat(result.perFileInfo().get(f2).inferredTypes(), equalTo(Map.of("c", DataType.LONG)));
         }
     }
 
@@ -1387,8 +1389,9 @@ public class SchemaReconciliationTests extends ESTestCase {
         assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.DATE_NANOS));
         assertThat(result.perFileInfo().get(f1).fileSchema().get(0).dataType(), equalTo(DataType.DATETIME));
         assertThat(result.perFileInfo().get(f1).mapping().cast(0), equalTo(DataType.DATE_NANOS));
-        // DATE_NANOS is a cast, not a pin, so nothing retyped the read schema: no inferredTypes snapshot.
-        assertThat(result.perFileInfo().get(f1).inferredTypes(), nullValue());
+        // DATE_NANOS is a cast, not a pin, so nothing retyped the read schema. The file's own types are still
+        // recorded, because it was opened; the pinned delta (inferred != fileSchema) is empty rather than absent.
+        assertThat(result.perFileInfo().get(f1).inferredTypes(), equalTo(Map.of("c", DataType.DATETIME)));
     }
 
     public void testUnionByNameColumnarSourceWidenToKeywordKeepsCast() {
@@ -1408,8 +1411,9 @@ public class SchemaReconciliationTests extends ESTestCase {
         assertThat(result.perFileInfo().get(f1).fileSchema().get(0).dataType(), equalTo(DataType.INTEGER));
         assertThat(result.perFileInfo().get(f1).mapping().cast(0), equalTo(DataType.KEYWORD));
         // Columnar formats read the physically-typed value and cast afterwards; nothing pins the read schema, so the
-        // stats boundary is the split-level read-time normalize, not this resolve-side pin path: no inferredTypes here.
-        assertThat(result.perFileInfo().get(f1).inferredTypes(), nullValue());
+        // stats boundary is the split-level read-time normalize rather than this resolve-side pin path. The file's own
+        // footer types are recorded all the same, because it was opened.
+        assertThat(result.perFileInfo().get(f1).inferredTypes(), equalTo(Map.of("c", DataType.INTEGER)));
 
         // these files disagree on a type, so the widening notice is expected
         assertThat(warnings, hasItem(containsString("Columns whose type differs between files are read as [keyword]")));
@@ -1457,9 +1461,9 @@ public class SchemaReconciliationTests extends ESTestCase {
         assertThat(result.perFileInfo().get(csv).fileSchema().get(0).dataType(), equalTo(DataType.LONG));
         assertThat(result.perFileInfo().get(csv).mapping().cast(0), nullValue());
         assertThat(result.perFileInfo().get(csv).inferredTypes(), equalTo(Map.of("val", DataType.INTEGER)));
-        // Parquet file: already LONG, self-typed read, no pin, no snapshot.
+        // Parquet file: already LONG, self-typed read, no pin - but opened, so its own types are recorded.
         assertThat(result.perFileInfo().get(parquet).fileSchema().get(0).dataType(), equalTo(DataType.LONG));
-        assertThat(result.perFileInfo().get(parquet).inferredTypes(), nullValue());
+        assertThat(result.perFileInfo().get(parquet).inferredTypes(), equalTo(Map.of("val", DataType.LONG)));
     }
 
     // === Warning helpers ===

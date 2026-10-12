@@ -97,7 +97,8 @@ public class CsvDeclaredHeaderMultiChunkTests extends ESTestCase {
             new ReferenceAttribute(Source.EMPTY, null, "c1100", DataType.LONG),
             new ReferenceAttribute(Source.EMPTY, null, "c5", DataType.LONG)
         );
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withSchemaMaxFields(columns)
+            .withConfig(Map.of("header_row", true))
             .withDeclaredProvenanceBinding(true)
             .withSchema(declared);
 
@@ -145,8 +146,9 @@ public class CsvDeclaredHeaderMultiChunkTests extends ESTestCase {
     }
 
     /**
-     * A declared read is not capped by the file's width, so every chunk after the first charges the scratch it builds to
-     * bind the declaration against the header names chunk 0 passed down, and releases it once bound.
+     * Every chunk after the first charges the scratch it builds to bind the declaration against the header names
+     * chunk 0 passed down, and releases it once bound. The cap is raised to the file's width because declaring the
+     * columns no longer lifts it (esql-planning#2076).
      */
     public void testLaterChunksChargeTheDeclaredHeaderBinding() throws Exception {
         int columns = ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS * 5;
@@ -180,7 +182,8 @@ public class CsvDeclaredHeaderMultiChunkTests extends ESTestCase {
         };
         BlockFactory charged = new BlockFactory(breaker, BigArrays.NON_RECYCLING_INSTANCE);
         List<Attribute> declared = List.of(new ReferenceAttribute(Source.EMPTY, null, "c4000", DataType.LONG));
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(charged).withConfig(Map.of("header_row", true))
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(charged).withSchemaMaxFields(columns)
+            .withConfig(Map.of("header_row", true))
             .withDeclaredProvenanceBinding(true)
             .withSchema(declared);
 

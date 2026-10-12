@@ -356,18 +356,24 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * A declared dataset names the columns it reads, so a headerless file wider than the cap is not refused, the same as a
-     * header-bearing one. The streaming read still infers a headerless schema from the first chunk ({@code metadata()}),
-     * and that inference must agree with the plain read, which binds the declared columns without inferring. The
-     * synthesized columns stay bounded by the breaker ({@link #testHeaderlessSyntheticColumnsAreChargedAndReleased}).
+     * A headerless file wider than the cap is refused whether or not the dataset declares its columns. Declaring them
+     * used to lift the cap, so the same file was refused when its types were inferred and read when they were declared
+     * (esql-planning#2076). Raising the cap reads it, and the streaming read's headerless inference then agrees with
+     * the plain read, which binds the declared columns without inferring. The synthesized columns stay bounded by the
+     * breaker ({@link #testHeaderlessSyntheticColumnsAreChargedAndReleased}).
      */
-    public void testDeclaredHeaderlessSchemaWiderThanCapIsAllowed() throws Exception {
-        int cap = 3;
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withSchemaMaxFields(cap)
+    public void testDeclaredHeaderlessSchemaWiderThanTheCapIsRefusedToo() throws Exception {
+        String csv = "1,2,3,4\n5,6,7,8\n";
+        CsvFormatReader capped = (CsvFormatReader) new CsvFormatReader(blockFactory).withSchemaMaxFields(3)
             .withDeclaredProvenanceBinding(true)
             .withConfigTrackingConsumedKeys(Map.of("header_row", false))
             .value();
-        String csv = "1,2,3,4\n5,6,7,8\n";
+        expectThrows(ExternalClientException.class, () -> capped.schema(createStorageObject(csv)));
+
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withSchemaMaxFields(4)
+            .withDeclaredProvenanceBinding(true)
+            .withConfigTrackingConsumedKeys(Map.of("header_row", false))
+            .value();
         assertEquals(4, reader.schema(createStorageObject(csv)).size());
         List<Attribute> declared = List.of(
             new ReferenceAttribute(Source.EMPTY, null, "column1", DataType.INTEGER),
@@ -425,7 +431,11 @@ public class CsvFormatReaderTests extends ESTestCase {
         expectThrows(ExternalClientException.class, () -> lowered.schema(createStorageObject(header(3) + "\n1,2,3\n")));
     }
 
-    /** A declared schema is not capped by the file's width, but the names split from a wide header are charged. */
+    /**
+     * The names split from a wide header are charged to the breaker and released. The cap has to be raised to reach
+     * the header at all now: declaring the columns no longer lifts it (esql-planning#2076), so this sets the cap wide
+     * and tests the charge, which is what it is for.
+     */
     public void testDeclaredBindingChargesWideHeaderToTheBreakerAndReleasesIt() throws Exception {
         int columns = 5_000;
         String csv = header(columns) + "\n" + "1,".repeat(columns - 1) + "1\n";
@@ -434,7 +444,7 @@ public class CsvFormatReaderTests extends ESTestCase {
 
         // Roomy breaker: the declared column binds although the file is far past the schema cap, and nothing stays charged.
         CircuitBreaker[] roomy = new CircuitBreaker[1];
-        CsvFormatReader reader = new CsvFormatReader(trackingBlockFactory(roomy)).withSchemaMaxFields(10)
+        CsvFormatReader reader = new CsvFormatReader(trackingBlockFactory(roomy)).withSchemaMaxFields(columns)
             .withDeclaredProvenanceBinding(true)
             .withSchema(declared);
         int rows = 0;
@@ -452,6 +462,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         BigArrays tight = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofKb(256)).withCircuitBreaking();
         CircuitBreaker tightBreaker = tight.breakerService().getBreaker(CircuitBreaker.REQUEST);
         CsvFormatReader tightReader = new CsvFormatReader(BlockFactory.builder(tight).breaker(tightBreaker).build())
+            .withSchemaMaxFields(columns)
             .withDeclaredProvenanceBinding(true)
             .withSchema(declared);
         CircuitBreakingException e = expectThrows(

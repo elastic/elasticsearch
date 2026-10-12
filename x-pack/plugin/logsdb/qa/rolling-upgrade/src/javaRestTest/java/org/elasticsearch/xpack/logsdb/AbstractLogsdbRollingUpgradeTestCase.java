@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.logsdb;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -175,10 +176,13 @@ public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCas
      * and end on a fully upgraded one.
      * <p>
      * Skipped when the old cluster version is unknown, as when these tests run in serverless. There the old and new nodes can
-     * report the same version and build hash, so they cannot be told apart.
+     * report the same version and build hash, so they cannot be told apart. The same holds when the old cluster is the current
+     * version, whose bwc cluster is built from the same commit as the new one. Detached refs ({@code tests.bwc.refspec.main})
+     * build the old cluster from a different commit, so they are still checked.
      */
     private static void assertAllNodesVersion(boolean oldVersion) throws IOException {
-        if (RollingUpgradePerformer.getOldClusterVersion() == null && isOldClusterDetachedVersion() == false) {
+        String oldClusterVersion = RollingUpgradePerformer.getOldClusterVersion();
+        if (isOldClusterDetachedVersion() == false && (oldClusterVersion == null || oldClusterVersion.equals(Build.current().version()))) {
             return;
         }
         Map<String, Object> nodes = ObjectPath.evaluate(entityAsMap(client().performRequest(new Request("GET", "/_nodes"))), "nodes");

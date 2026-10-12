@@ -391,6 +391,35 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
         assertEquals(baseline, breaker.getUsed());
     }
 
+    /**
+     * Uncompacted {@code GenericFileList} weighs a 64-byte object header above the per-entry floor.
+     * That remainder rides {@code listingPlanningCharge} as {@code esql-external-planning} and must
+     * return on {@link ExternalPlanningReservation#close()}. Compact listings weigh less than the
+     * floor, so they do not produce this extra 64.
+     */
+    public void testGenericFileListObjectHeaderIsSixtyFourBytesAndCloseRefundsTheListingCharge() {
+        FileList listing = GlobExpander.fileListOf(
+            List.of(
+                new StorageEntry(StoragePath.of("s3://bucket/data/f1.parquet"), 100, Instant.EPOCH),
+                new StorageEntry(StoragePath.of("s3://bucket/data/f2.parquet"), 200, Instant.EPOCH)
+            ),
+            "s3://bucket/data/*.parquet"
+        );
+        assertEquals(64L, listing.planningBytes() - listing.fileCount() * FileList.LISTING_BYTES_PER_ENTRY);
+
+        CircuitBreaker breaker = requestBreaker("1mb");
+        long baseline = breaker.getUsed();
+        ExternalPlanningReservation reservation = new ExternalPlanningReservation(breaker);
+        long charge = ExternalSourceResolver.listingPlanningCharge(listing);
+        reservation.chargeQuery(charge);
+        assertEquals(charge, reservation.queryHeld());
+        assertEquals(baseline + charge, breaker.getUsed());
+
+        reservation.close();
+        assertEquals(0L, reservation.queryHeld());
+        assertEquals(baseline, breaker.getUsed());
+    }
+
     /** No hive columns and no {@code _file.*} metadata: the survivor map is {@code Map.of()}, so only shells are billed. */
     public void testNoRetainedKeysBillsShellsOnly() {
         FileList files = resolvedFiles(4);

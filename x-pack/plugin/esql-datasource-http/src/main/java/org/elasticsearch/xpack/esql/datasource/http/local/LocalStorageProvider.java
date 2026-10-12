@@ -98,9 +98,7 @@ public final class LocalStorageProvider implements StorageProvider {
         if (namePrefix.isEmpty()) {
             return all;
         }
-        String dirPrefix = prefix.toString().endsWith(StoragePath.PATH_SEPARATOR)
-            ? prefix.toString()
-            : prefix + StoragePath.PATH_SEPARATOR;
+        String dirPrefix = prefix.toString().endsWith(StoragePath.PATH_SEPARATOR) ? prefix.toString() : prefix + StoragePath.PATH_SEPARATOR;
         return new NamePrefixFilteringIterator(all, dirPrefix + namePrefix);
     }
 

@@ -138,6 +138,12 @@ final class S3FailureDetail {
     }
 
     @Nullable
+    /** True when the response carried no error code, as a bodyless HEAD response cannot. */
+    static boolean lacksErrorCode(S3Exception s3) {
+        String code = errorCode(s3);
+        return code == null || code.isEmpty();
+    }
+
     private static String errorCode(S3Exception s3) {
         return s3.awsErrorDetails() != null ? s3.awsErrorDetails().errorCode() : null;
     }

@@ -65,7 +65,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.WidenedColumn;
@@ -1293,8 +1292,7 @@ public class ExternalSourceResolver {
                 // them into sourceMetadata() but does not override statistics(), so they are unreachable afterwards.
                 harvestedStatistics = metadata.statistics().orElse(null);
                 extMetadata = wrapAsExternalSourceMetadata(metadata, fileConfig, declaredReadSpecOf(declaredMapping));
-                StorageObject object = provider.newObject(storagePath);
-                storageEntry = new StorageEntry(storagePath, object.length(), object.lastModified());
+                storageEntry = provider.objectMetadata(storagePath);
             }
             extMetadata = withSourceType(extMetadata, datasetFormat);
 

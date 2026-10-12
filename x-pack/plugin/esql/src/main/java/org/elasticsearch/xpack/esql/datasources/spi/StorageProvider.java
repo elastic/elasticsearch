@@ -62,13 +62,10 @@ public interface StorageProvider extends Closeable {
      * object. The default asks for a handle and reads both from it, which is what every caller did before this
      * method existed, so a provider that does not override it behaves exactly as it did.
      * <p>
-     * A provider whose store answers metadata without transferring the object should override it. S3 does:
-     * {@code HeadObject} needs the same {@code s3:GetObject} as a range GET, so the two cost one request either
-     * way, but only the GET establishes the generation pin that a subsequent ranged read validates against — and
-     * a caller that is not going to read the object has no use for that pin.
+     * A provider whose store answers metadata without transferring the object overrides it; S3 does.
      * <p>
-     * A decorator MUST forward this to its delegate. The default resolves through {@code this.newObject}, so a
-     * decorator that inherits it silently takes the delegate's handle path instead of the delegate's override.
+     * A decorator forwards this to its delegate. The default resolves through {@code this.newObject}, so a
+     * decorator that inherits it takes the delegate's handle path rather than the delegate's override.
      */
     default StorageEntry objectMetadata(StoragePath path) throws IOException {
         StorageObject object = newObject(path);

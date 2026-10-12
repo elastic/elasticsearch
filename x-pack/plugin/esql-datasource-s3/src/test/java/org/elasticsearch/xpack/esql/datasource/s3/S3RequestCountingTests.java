@@ -24,6 +24,7 @@ import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -33,6 +34,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
@@ -94,8 +96,6 @@ public class S3RequestCountingTests extends ESTestCase {
     /**
      * A refused HEAD carries no response body, so it has no S3 error code and cannot say which action was denied.
      * One range GET recovers the body, which is what makes the three denial conditions distinguishable. Asserting
-     * the mapped condition AND the code matters: a 403 that reached the caller with the code stripped would still
-     * satisfy expectThrows(Exception.class) while telling an operator nothing it could act on.
      */
     public void testObjectMetadataDenialRecoversTheErrorCode() {
         when(mockS3.headObject(any(HeadObjectRequest.class))).thenThrow(
@@ -118,6 +118,67 @@ public class S3RequestCountingTests extends ESTestCase {
         verify(mockS3, times(1)).getObject(any(GetObjectRequest.class));
     }
 
+    /**
+     * An expired session token is identified by error code, and a HEAD carries none, so recovering the body is
+     * what keeps the type. Without it the resolve path reports "HTTP 400" and the typed 400 the resolver
+     * unwraps is lost.
+     */
+    public void testObjectMetadataRecoversAnExpiredTokenDeliveredAsA400() {
+        when(mockS3.headObject(any(HeadObjectRequest.class))).thenThrow(S3Exception.builder().statusCode(400).build());
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(
+            S3Exception.builder()
+                .statusCode(400)
+                .awsErrorDetails(AwsErrorDetails.builder().errorCode("ExpiredToken").errorMessage("token expired").build())
+                .build()
+        );
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        expectThrows(ExternalCredentialsExpiredException.class, obj::headObjectMetadata);
+    }
+
+    /**
+     * A refused HEAD followed by a GET that answers NoSuchKey means the object is not there.
+     * probeObjectViaRangeGet records that rather than throwing, so without an explicit check the method returns
+     * length 0 and an EPOCH timestamp, and the resolve path caches that as the file's metadata.
+     */
+    public void testObjectMetadataOnAMissingObjectDoesNotReportAnEmptyOne() {
+        when(mockS3.headObject(any(HeadObjectRequest.class))).thenThrow(S3Exception.builder().statusCode(403).build());
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(NoSuchKeyException.builder().message("Not Found").build());
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        ExternalClientException missing = expectThrows(ExternalClientException.class, obj::headObjectMetadata);
+        assertEquals(ExternalClientException.Condition.OBJECT_NOT_FOUND, missing.condition());
+    }
+
+    /** A HeadObject response without a Content-Length cannot answer the length the caller asked for. */
+    public void testObjectMetadataWithoutContentLengthFails() {
+        when(mockS3.headObject(any(HeadObjectRequest.class))).thenReturn(HeadObjectResponse.builder().lastModified(LAST_MODIFIED).build());
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        expectThrows(IOException.class, obj::headObjectMetadata);
+    }
+
+    /**
+     * Through the provider, which is what the resolve path calls. The object-level tests above cannot see the
+     * override being wired: deleting it leaves the interface default in place, which answers from a range GET.
+     */
+    public void testProviderObjectMetadataIsOneHeadAndNoGet() throws IOException {
+        when(mockS3.headObject(any(HeadObjectRequest.class))).thenReturn(
+            HeadObjectResponse.builder().contentLength(FILE_SIZE).lastModified(LAST_MODIFIED).build()
+        );
+        S3StorageProvider provider = new S3StorageProvider(S3Configuration.fromMap(Map.of("auth", "anonymous")), mockS3);
+
+        StorageEntry metadata = provider.objectMetadata(PATH);
+
+        assertEquals(FILE_SIZE, metadata.length());
+        assertEquals(LAST_MODIFIED, metadata.lastModified());
+        verify(mockS3, times(1)).headObject(any(HeadObjectRequest.class));
+        verify(mockS3, never()).getObject(any(GetObjectRequest.class));
+    }
+
+    /**
+     * length() is answered by a first-byte range GET, not a HEAD.
+     */
     public void testLengthTriggersOneRangeGet() throws IOException {
         stubFirstByteResponse();
         S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);

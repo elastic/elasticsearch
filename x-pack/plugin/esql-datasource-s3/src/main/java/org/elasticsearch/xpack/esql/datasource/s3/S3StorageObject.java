@@ -761,10 +761,6 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
      * Deliberately not {@link #probeObject}, which this leaves untouched: that path serves callers who go on to
      * read, so it uses a range GET and latches the generation in {@code pinnedEtag} for later ranged reads to
      * validate against. This one establishes no pin, because its caller has nothing to validate.
-     * <p>
-     * No range-GET fallback on a refusal either. {@code HeadObject} and {@code GetObject} are both authorized by
-     * {@code s3:GetObject}, so a 403 here means a GET would be refused too, and retrying only spends a second
-     * request to be told the same thing.
      */
     StorageEntry headObjectMetadata() throws IOException {
         try {
@@ -785,13 +781,20 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             if (mapped instanceof ExternalCredentialsExpiredException expired) {
                 throw expired;
             }
-            if (e instanceof S3Exception s3e && s3e.statusCode() == 403) {
-                // A refusal arrives with no response body, so it carries no S3 error code and cannot say WHICH
-                // action was denied: GetObject, an anonymous request, or kms:Decrypt on the object's key. All
-                // three would collapse into one unactionable message. Spend a range GET to recover the body and
-                // its code. Paid only when the query is already failing, so the single-request success path above
-                // is unaffected.
+            if (e instanceof S3Exception s3e
+                && s3e.statusCode() >= 400
+                && s3e.statusCode() < 500
+                && s3e.statusCode() != 404
+                && S3FailureDetail.lacksErrorCode(s3e)) {
+                // A HEAD carries no body, so no error code, and every condition this layer distinguishes is read
+                // from one. A range GET recovers it. 404 is excluded: a GET would only repeat it.
                 probeObjectViaRangeGet();
+                if (Boolean.FALSE.equals(cachedExists)) {
+                    // The GET answered NoSuchKey, which probeObjectViaRangeGet records rather than throws. Without
+                    // this the method returns length 0 and an EPOCH timestamp for an object that is not there, and
+                    // the resolve path caches that as the file's metadata.
+                    throw new ExternalClientException(ExternalClientException.Condition.OBJECT_NOT_FOUND, path, "", "");
+                }
                 return new StorageEntry(path, cachedLength, cachedLastModified);
             }
             throw throwReadFailure("Failed to read object metadata for", e);
@@ -826,9 +829,8 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 throw archived;
             }
             if (e instanceof S3Exception s3e && s3e.statusCode() == 403) {
-                // Never a retry of a denial: probeObject throws on its own 403 rather than trying HEAD, so a
-                // first GET that was refused cannot reach here. What does reach here is a first GET that failed
-                // for an unrelated reason, or one that succeeded without a Content-Range.
+                // Not a retry of a denial: probeObject throws on its own 403, so only an unrelated GET failure
+                // or a missing Content-Range reaches here.
                 probeObjectViaRangeGet();
             } else {
                 throw throwReadFailure("HeadObject request failed for", e);

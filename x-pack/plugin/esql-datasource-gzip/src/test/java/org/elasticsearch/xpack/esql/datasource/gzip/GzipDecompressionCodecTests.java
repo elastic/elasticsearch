@@ -111,6 +111,39 @@ public class GzipDecompressionCodecTests extends ESTestCase {
         }
     }
 
+    /** A transport failure where the next member would start must surface, not look like a clean end of a truncated object. */
+    public void testTransportFailureAtMemberBoundaryIsNotSilentEof() throws IOException {
+        byte[] first = gzip("first-member\n".getBytes(StandardCharsets.UTF_8));
+        InputStream raw = new FilterInputStream(new ByteArrayInputStream(first)) {
+            @Override
+            public int available() {
+                return 0;
+            }
+
+            @Override
+            public int read() throws IOException {
+                int b = super.read();
+                if (b < 0) {
+                    throw new IOException("s3-reset");
+                }
+                return b;
+            }
+
+            @Override
+            public int read(byte[] b, int off, int len) throws IOException {
+                int n = super.read(b, off, len);
+                if (n < 0) {
+                    throw new IOException("s3-reset");
+                }
+                return n;
+            }
+        };
+        try (InputStream decompressed = new GzipDecompressionCodec().decompress(raw)) {
+            IOException e = expectThrows(IOException.class, decompressed::readAllBytes);
+            assertEquals("s3-reset", e.getMessage());
+        }
+    }
+
     /**
      * Raw stream whose bulk reads never cross a member boundary and whose {@code available()} is always 0, like a
      * network stream with an empty socket buffer. This is what made the JDK decoder stop after the first member.

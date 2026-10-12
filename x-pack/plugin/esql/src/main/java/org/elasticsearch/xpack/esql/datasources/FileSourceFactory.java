@@ -202,7 +202,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
     private final ExternalSourceMetrics externalSourceMetrics;
     /**
      * Per-node gate bounding concurrent stream-only-compressed segmentators on the shared {@code esql_external_io}
-     * pool so their per-chunk parser tasks always have a free thread (elastic/esql-planning #1093, item 4). This
+     * pool so their per-chunk parser tasks always have a free thread. This
      * factory is a per-node singleton (built once in {@link DataSourceModule}) and every read resolves to the same
      * node-level pool, so one controller here is shared across all queries/operators — no external registry needed.
      */

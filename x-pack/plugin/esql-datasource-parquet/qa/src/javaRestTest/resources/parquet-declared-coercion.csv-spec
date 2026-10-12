@@ -65,3 +65,26 @@ id:long | worked:date
 10002   | 1970-01-04T19:22:02.887Z
 10003   | 1970-01-03T07:38:16.405Z
 ;
+
+// Declaring `date` on an INT32 column is an epoch-millis reinterpret unless the file itself says DATE. uint32 is
+// physically INT32 and renders ESQL long, so it reaches the same long->datetime coercion a bare INT64 reaches, and
+// reads the same way; the reader used to scale every INT32 by 86_400_000 as if the annotation had been DATE. That
+// put the three small rows here in 2106, 2243 and 2517, and -- because the same arm read the INT32 signed -- threw
+// the two rows above Integer.MAX_VALUE to years -3,543,530 and -805,623. {{uint32_pushdown}}'s u32 column straddles
+// Integer.MAX_VALUE on purpose, so the case pins the unsigned widening as well as the scale.
+declaredDatetimeOverUint32ReadsEpochMillis
+required_capability: dataset_in_from_command
+required_capability: parquet_declared_datetime_is_epoch_millis_unless_date
+dataset: uint32_declared_date: "{{uint32_pushdown}}" WITH {"mappings": {"dynamic": "false", "properties": {"ts": {"type": "date", "path": "u32"}}}}
+
+FROM uint32_declared_date
+| SORT ts
+;
+
+ts:date
+1970-01-01T00:00:50.000Z
+1970-01-01T00:01:40.000Z
+1970-01-01T00:03:20.000Z
+1970-02-04T17:20:00.000Z
+1970-02-16T07:06:40.000Z
+;

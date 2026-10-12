@@ -495,6 +495,7 @@ required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
 required_capability: external_source_file_order_options
 required_capability: external_dataset_messages
+required_capability: external_source_converts_undeclared_columns
 dataset: employees_multifile_ubn_ffw: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "first_file_wins", "file_sort_by": "name"}
 
 FROM employees_multifile_ubn_ffw
@@ -513,6 +514,7 @@ required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
 required_capability: external_source_file_order_options
 required_capability: external_dataset_messages
+required_capability: external_source_converts_undeclared_columns
 dataset: employees_multifile_ubn_ffw: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "first_file_wins", "file_sort_by": "name"}
 
 FROM employees_multifile_ubn_ffw
@@ -527,6 +529,7 @@ required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
 required_capability: external_source_file_order_options
 required_capability: external_dataset_messages
+required_capability: external_source_converts_undeclared_columns
 dataset: employees_multifile_ubn_ffw: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "first_file_wins", "file_sort_by": "name"}
 
 FROM employees_multifile_ubn_ffw

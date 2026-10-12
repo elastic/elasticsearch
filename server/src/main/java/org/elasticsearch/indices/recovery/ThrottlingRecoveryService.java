@@ -348,7 +348,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
 
     /// Returns the current max number of incoming relocation recoveries this node may run concurrently, i.e. an upper bound
     /// on how many of the relocations assigned to this node in the cluster state actually make progress at the same time.
-    public synchronized int maxConcurrentRelocationRecoveries() {
+    public int maxConcurrentRelocationRecoveries() {
         return recoveriesThrottle.effectiveMaxConcurrentRelocationRecoveries;
     }
 
@@ -645,7 +645,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
 
         /// Effective max concurrent relocation recoveries, derived from [#effectiveMaxConcurrentRecoveries] and
         /// [DataNodeRecoveryThrottlingSettings#INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING].
-        private int effectiveMaxConcurrentRelocationRecoveries;
+        private volatile int effectiveMaxConcurrentRelocationRecoveries;
 
         /// The number of concurrent recoveries currently running, including recoveries from unassigned + relocations. Must
         /// not exceed [#effectiveMaxConcurrentRecoveries].

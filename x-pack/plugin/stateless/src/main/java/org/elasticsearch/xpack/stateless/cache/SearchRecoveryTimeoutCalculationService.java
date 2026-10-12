@@ -11,7 +11,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.TimeValue;
@@ -19,10 +18,9 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.function.IntSupplier;
+import java.util.function.Predicate;
 
 /// Computes how long search shard recovery should await offline warming (internal replicated-files path only), see
 /// [#searchRecoveryTimeout].
@@ -215,39 +213,29 @@ public class SearchRecoveryTimeoutCalculationService {
     /// Counts the search shards on nodes marked for removal that may still relocate to `targetNodeId`: those that have
     /// not started relocating yet, plus those already relocating to `targetNodeId`.
     private static int countPendingRelocationsOffShuttingDownNodes(ClusterState state, String targetNodeId) {
-        int count = 0;
-        for (RoutingNode node : shuttingDownNodes(state)) {
-            for (ShardRouting r : node) {
-                if (r.isPromotableToPrimary() == false && (r.relocating() == false || targetNodeId.equals(r.relocatingNodeId()))) {
-                    count++;
-                }
-            }
-        }
-        return count;
+        return countSearchShardsOnShuttingDownNodes(state, r -> r.relocating() == false || targetNodeId.equals(r.relocatingNodeId()));
     }
 
     /// Counts the search shards relocating from nodes marked for removal to `targetNodeId`.
     private static int countRelocationsFromShuttingDownNodesTo(ClusterState state, String targetNodeId) {
+        return countSearchShardsOnShuttingDownNodes(state, r -> r.relocating() && targetNodeId.equals(r.relocatingNodeId()));
+    }
+
+    /// Counts the search shards on nodes marked for removal that match `predicate`.
+    private static int countSearchShardsOnShuttingDownNodes(ClusterState state, Predicate<ShardRouting> predicate) {
+        final var nodeShutdowns = state.metadata().nodeShutdowns();
         int count = 0;
-        for (RoutingNode node : shuttingDownNodes(state)) {
-            for (ShardRouting r : node.relocating()) {
-                if (r.isPromotableToPrimary() == false && targetNodeId.equals(r.relocatingNodeId())) {
+        for (String nodeId : nodeShutdowns.getAll().keySet()) {
+            final var routingNode = state.getRoutingNodes().node(nodeId);
+            if (routingNode == null || nodeShutdowns.isNodeMarkedForRemoval(nodeId) == false) {
+                continue;
+            }
+            for (ShardRouting shard : routingNode) {
+                if (shard.isPromotableToPrimary() == false && predicate.test(shard)) {
                     count++;
                 }
             }
         }
         return count;
-    }
-
-    private static List<RoutingNode> shuttingDownNodes(ClusterState state) {
-        final var nodeShutdowns = state.metadata().nodeShutdowns();
-        final List<RoutingNode> nodes = new ArrayList<>();
-        for (String nodeId : nodeShutdowns.getAll().keySet()) {
-            final var node = state.getRoutingNodes().node(nodeId);
-            if (node != null && nodeShutdowns.isNodeMarkedForRemoval(nodeId)) {
-                nodes.add(node);
-            }
-        }
-        return nodes;
     }
 }

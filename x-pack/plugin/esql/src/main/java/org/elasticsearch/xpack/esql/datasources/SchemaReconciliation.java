@@ -337,8 +337,10 @@ public final class SchemaReconciliation {
             // Recording them keeps null meaning "never examined" rather than "examined by a rail that
             // did not bother to write it down", which is what made the read decision depend on whether a
             // declaration happened to exist (esql-planning#2076).
-            List<Attribute> interned = interner.intern(canonical);
-            perFileInfo.put(filePath, new FileSchemaInfo(interned, mapping, stats, sharedTypeMap(typeMaps, interned)));
+            perFileInfo.put(
+                filePath,
+                new FileSchemaInfo(interner.intern(canonical), mapping, stats, sharedTypeMap(typeMaps, canonical))
+            );
         }
 
         return new Result(new ExternalSchema(refSchema), Map.copyOf(perFileInfo));

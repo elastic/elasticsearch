@@ -27,7 +27,7 @@ public class ExistsQuery extends Query {
 
     @Override
     protected QueryBuilder asBuilder() {
-        return new Builder(name);
+        return new MappedOnlyExistsQueryBuilder(name);
     }
 
     /**
@@ -50,8 +50,8 @@ public class ExistsQuery extends Query {
      * as missing. It keeps the {@code exists} wire format, so a node that receives it over the wire runs a
      * plain {@link ExistsQueryBuilder}.
      */
-    public static class Builder extends ExistsQueryBuilder {
-        Builder(String fieldName) {
+    private static class MappedOnlyExistsQueryBuilder extends ExistsQueryBuilder {
+        MappedOnlyExistsQueryBuilder(String fieldName) {
             super(fieldName);
         }
 

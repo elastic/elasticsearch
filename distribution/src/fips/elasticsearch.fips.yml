@@ -1,0 +1,30 @@
+#
+# ---------------------------------- FIPS 140 ----------------------------------
+#
+# This distribution runs Elasticsearch in FIPS 140 mode. The bundled Bouncy
+# Castle FIPS provider is the only provider used for cryptographic operations
+# (see jvm.options.d/fips.options and fips_java.security). Security
+# auto-configuration and the certutil tool generate BCFKS keystores, which this
+# provider can open, in place of PKCS#12. Do not disable this setting unless you
+# also remove the FIPS JVM options.
+#
+xpack.security.fips_mode.enabled: true
+#
+# Refuse to start unless the Bouncy Castle FIPS JCE and JSSE providers are
+# registered in the JVM. Without this, a missing or overridden
+# fips_java.security would leave the node running on the JDK's own providers
+# while still reporting FIPS mode.
+#
+xpack.security.fips_mode.required_providers: [BCFIPS, BCJSSE]
+#
+# FIPS mode requires a Platinum, Enterprise or Trial license. A node with a
+# self-generated Basic license refuses to form a cluster on restart, so start
+# with a Trial license and install a suitable license before it expires.
+#
+xpack.license.self_generated.type: trial
+#
+# PBKDF2 is the only FIPS-compliant family of stored password hashes. This is
+# already the default when FIPS mode is enabled; it is set explicitly here so
+# that it is not lost if the setting is edited.
+#
+xpack.security.authc.password_hashing.algorithm: pbkdf2_stretch

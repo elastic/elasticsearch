@@ -14,11 +14,11 @@ import java.nio.file.Path
 
 apply plugin: 'elasticsearch.internal-distribution-archive-setup'
 
-CopySpec archiveFiles(String distributionType, String os, String architecture, boolean isTestDistro) {
+CopySpec archiveFiles(String distributionType, String os, String architecture, boolean isTestDistro, boolean isFips = false) {
   return copySpec {
     into("elasticsearch-${version}") {
       into('lib') {
-        with libFiles(os, architecture)
+        with isFips ? fipsLibFiles(os, architecture) : libFiles(os, architecture)
       }
       into('config') {
         dirPermissions {
@@ -27,7 +27,7 @@ CopySpec archiveFiles(String distributionType, String os, String architecture, b
         filePermissions {
           unix 0660
         }
-        with configFiles(distributionType, isTestDistro)
+        with isFips ? fipsConfigFiles(distributionType, architecture) : configFiles(distributionType, isTestDistro)
         from {
           dirPermissions {
             unix 0750
@@ -36,7 +36,7 @@ CopySpec archiveFiles(String distributionType, String os, String architecture, b
         }
       }
       into('bin') {
-        with binFiles(distributionType, isTestDistro)
+        with isFips ? fipsBinFiles(distributionType) : binFiles(distributionType, isTestDistro)
       }
       into("darwin".equals(os) ? 'jdk.app' : 'jdk') {
         if (isTestDistro == false) {
@@ -126,6 +126,21 @@ distribution_archives {
     archiveClassifier = 'linux-x86_64'
     content {
       archiveFiles('tar', 'linux', 'x64', false)
+    }
+  }
+
+  // FIPS 140 variants of the Linux archives: the same content plus the BC FIPS provider and the configuration to run with it
+  linuxAarch64FipsTar {
+    archiveClassifier = 'linux-aarch64-fips'
+    content {
+      archiveFiles('tar', 'linux', 'aarch64', false, true)
+    }
+  }
+
+  linuxFipsTar {
+    archiveClassifier = 'linux-x86_64-fips'
+    content {
+      archiveFiles('tar', 'linux', 'x64', false, true)
     }
   }
 }

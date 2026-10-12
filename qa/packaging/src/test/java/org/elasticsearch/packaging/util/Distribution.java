@@ -20,6 +20,7 @@ public class Distribution {
     public final boolean hasJdk;
     public final String baseVersion;
     public final String version;
+    private final boolean fips;
 
     public Distribution(Path path) {
         this.path = path;
@@ -44,6 +45,15 @@ public class Distribution {
         this.hasJdk = filename.contains("no-jdk") == false;
         this.baseVersion = filename.split("-", 3)[1];
         this.version = filename.contains("-SNAPSHOT") ? this.baseVersion + "-SNAPSHOT" : this.baseVersion;
+        // Classifier is linux-x86_64-fips / linux-aarch64-fips, so the archive name ends in -fips.tar.gz.
+        this.fips = this.packaging == Packaging.TAR && filename.contains("-fips.tar.gz");
+    }
+
+    /**
+     * @return whether this is the FIPS 140 Linux tar, whose security auto-configuration writes BCFKS keystores.
+     */
+    public boolean isFips() {
+        return fips;
     }
 
     public boolean isArchive() {

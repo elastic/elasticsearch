@@ -55,6 +55,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
     private final Property<Boolean> bundledJdk;
     private final Property<Boolean> failIfUnavailable;
     private final Property<Boolean> preferArchive;
+    private final Property<Boolean> fips;
     private final ConfigurableFileCollection extracted;
     private boolean frozen = false;
 
@@ -77,6 +78,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         this.bundledJdk = objectFactory.property(Boolean.class);
         this.failIfUnavailable = objectFactory.property(Boolean.class).convention(true);
         this.preferArchive = objectFactory.property(Boolean.class).convention(false);
+        this.fips = objectFactory.property(Boolean.class).convention(false);
         this.extracted = extractedConfiguration;
     }
 
@@ -163,6 +165,18 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         this.preferArchive.set(preferArchive);
     }
 
+    /**
+     * Whether this distribution is the FIPS 140 Linux tar: the stock archive plus the Bouncy Castle FIPS
+     * provider and the configuration that makes security auto-configuration write BCFKS keystores.
+     */
+    public boolean getFips() {
+        return fips.get();
+    }
+
+    public void setFips(boolean fips) {
+        this.fips.set(fips);
+    }
+
     public void setArchitecture(Architecture architecture) {
         this.architecture.set(architecture);
     }
@@ -228,6 +242,9 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
     // internal, make this distribution's configuration unmodifiable
     void finalizeValues() {
         if (getType() == ElasticsearchDistributionTypes.INTEG_TEST_ZIP) {
+            if (fips.get()) {
+                throw new IllegalArgumentException("fips can only be set on a linux archive distribution [" + name + "]");
+            }
             if (platform.getOrNull() != null) {
                 throw new IllegalArgumentException(
                     "platform cannot be set on elasticsearch distribution [" + name + "] of type [integ_test_zip]"
@@ -271,9 +288,14 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
             bundledJdk.set(true);
         }
 
+        if (fips.get() && (getType() != ElasticsearchDistributionTypes.ARCHIVE || platform.getOrNull() != Platform.LINUX)) {
+            throw new IllegalArgumentException("fips can only be set on a linux archive distribution [" + name + "]");
+        }
+
         version.finalizeValue();
         platform.finalizeValue();
         type.finalizeValue();
         bundledJdk.finalizeValue();
+        fips.finalizeValue();
     }
 }

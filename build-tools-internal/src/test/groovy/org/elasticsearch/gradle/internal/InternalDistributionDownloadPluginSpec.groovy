@@ -44,6 +44,8 @@ class InternalDistributionDownloadPluginSpec extends AbstractProjectBuilderPlugi
         Project packagesProject = buildProject("packages", distributionProject)
         Project bwcProject = buildProject("bwc", distributionProject)
         buildProject("linux-tar", archivesProject)
+        buildProject("linux-fips-tar", archivesProject)
+        buildProject("linux-aarch64-fips-tar", archivesProject)
         ["rpm", "no-jdk-rpm", "deb", "no-jdk-deb"].each { String packageProjectName ->
             Project packageProject = buildProject(packageProjectName, packagesProject)
             packageProject.configurations.create("default")
@@ -87,6 +89,25 @@ class InternalDistributionDownloadPluginSpec extends AbstractProjectBuilderPlugi
         "local-build" | VersionProperties.elasticsearch | false           | ":distribution:archives:linux-tar" | "default"
         "bwc"         | "9.0.3"                       | false           | ":distribution:bwc:minor1"         | "expanded-linux-tar"
         "detached"    | "9.2.0"                       | true            | ":distribution:bwc:main"           | "expanded-linux-tar"
+    }
+
+    @Unroll
+    def "local-build resolution maps a FIPS linux #architecture archive to #expectedPath"() {
+        given:
+        ElasticsearchDistribution distribution = archiveDistribution("fipsDistro", VersionProperties.elasticsearch, false, true, architecture)
+        DistributionResolution resolution = DistributionDownloadPlugin.getRegistrationsContainer(consumer).find { it.name == "local-build" }
+
+        when:
+        ProjectDependency dependency = (ProjectDependency) resolution.resolver.resolve(consumer, distribution).defaultNotation
+
+        then:
+        dependency.path == expectedPath
+        dependency.targetConfiguration == "default"
+
+        where:
+        architecture          || expectedPath
+        Architecture.X64      || ":distribution:archives:linux-fips-tar"
+        Architecture.AARCH64  || ":distribution:archives:linux-aarch64-fips-tar"
     }
 
     @Unroll
@@ -135,10 +156,17 @@ class InternalDistributionDownloadPluginSpec extends AbstractProjectBuilderPlugi
         "9.0.3" | InternalElasticsearchDistributionTypes.DEB || ":distribution:bwc:minor1" | "deb"
     }
 
-    private ElasticsearchDistribution archiveDistribution(String name, String version, boolean detachedVersion) {
+    private ElasticsearchDistribution archiveDistribution(
+        String name,
+        String version,
+        boolean detachedVersion,
+        boolean fips = false,
+        Architecture architecture = Architecture.X64
+    ) {
         return distribution(name, version, detachedVersion, ElasticsearchDistributionTypes.ARCHIVE, true) {
             it.platform = ElasticsearchDistribution.Platform.LINUX
-            it.architecture = Architecture.X64
+            it.architecture = architecture
+            it.fips = fips
         }
     }
 

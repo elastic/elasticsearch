@@ -88,6 +88,8 @@ public class DistroTestPlugin implements Plugin<Project> {
         Map<ElasticsearchDistributionType, TaskProvider<?>> lifecycleTasks = lifecycleTasks(project, "destructiveDistroTest");
         Map<String, TaskProvider<?>> versionTasks = versionTasks(project, "destructiveDistroUpgradeTest", buildParams.getBwcVersions());
         TaskProvider<Task> destructiveDistroTest = project.getTasks().register("destructiveDistroTest");
+        // Separate from .archives so the stock archive packaging job does not also build and test the FIPS tar.
+        TaskProvider<Task> fipsArchivesTest = project.getTasks().register("destructiveDistroTest.fips-archives");
 
         Configuration examplePluginConfiguration = configureExamplePlugin(project);
         FileCollection examplePluginFileCollection = examplePluginConfiguration;
@@ -113,8 +115,12 @@ public class DistroTestPlugin implements Plugin<Project> {
                 linuxTestTasks.computeIfAbsent(type, k -> new ArrayList<>()).add(destructiveTask);
             }
             destructiveDistroTest.configure(t -> t.dependsOn(destructiveTask));
-            TaskProvider<?> lifecycleTask = lifecycleTasks.get(type);
-            lifecycleTask.configure(t -> t.dependsOn(destructiveTask));
+            if (distribution.getFips()) {
+                fipsArchivesTest.configure(t -> t.dependsOn(destructiveTask));
+            } else {
+                TaskProvider<?> lifecycleTask = lifecycleTasks.get(type);
+                lifecycleTask.configure(t -> t.dependsOn(destructiveTask));
+            }
 
             if ((type == DEB || type == RPM) && distribution.getBundledJdk()) {
                 for (Version version : buildParams.getBwcVersions().getIndexCompatible()) {
@@ -214,6 +220,9 @@ public class DistroTestPlugin implements Plugin<Project> {
                     createDistro(distributions, architecture, ARCHIVE, platform, true, VersionProperties.getElasticsearch())
                 );
             }
+            currentDistros.add(
+                createDistro(distributions, architecture, ARCHIVE, Platform.LINUX, true, VersionProperties.getElasticsearch(), true)
+            );
         }
 
         return currentDistros;
@@ -227,7 +236,19 @@ public class DistroTestPlugin implements Plugin<Project> {
         boolean bundledJdk,
         String version
     ) {
-        String name = distroId(type, platform, bundledJdk, architecture) + "-" + version;
+        return createDistro(distributions, architecture, type, platform, bundledJdk, version, false);
+    }
+
+    private static ElasticsearchDistribution createDistro(
+        NamedDomainObjectContainer<ElasticsearchDistribution> distributions,
+        Architecture architecture,
+        ElasticsearchDistributionType type,
+        Platform platform,
+        boolean bundledJdk,
+        String version,
+        boolean fips
+    ) {
+        String name = distroId(type, platform, bundledJdk, architecture, fips) + "-" + version;
         boolean isDocker = type.isDocker();
         ElasticsearchDistribution distro = distributions.create(name, d -> {
             d.setArchitecture(architecture);
@@ -240,6 +261,7 @@ public class DistroTestPlugin implements Plugin<Project> {
             }
             d.setVersion(version);
             d.setPreferArchive(true);
+            d.setFips(fips);
         });
 
         // Allow us to gracefully omit building Docker distributions if Docker is not available on the system.
@@ -251,17 +273,25 @@ public class DistroTestPlugin implements Plugin<Project> {
         return distro;
     }
 
-    private static String distroId(ElasticsearchDistributionType type, Platform platform, boolean bundledJdk, Architecture architecture) {
+    private static String distroId(
+        ElasticsearchDistributionType type,
+        Platform platform,
+        boolean bundledJdk,
+        Architecture architecture,
+        boolean fips
+    ) {
         return "default-"
             + (type == ARCHIVE ? platform + "-" : "")
             + type.getName()
+            + (fips ? "-fips" : "")
             + (bundledJdk ? "" : "-no-jdk")
             + (architecture == Architecture.X64 ? "" : "-" + architecture.toString().toLowerCase());
     }
 
     private static String destructiveDistroTestTaskName(ElasticsearchDistribution distro) {
         ElasticsearchDistributionType type = distro.getType();
-        return "destructiveDistroTest." + distroId(type, distro.getPlatform(), distro.getBundledJdk(), distro.getArchitecture());
+        return "destructiveDistroTest."
+            + distroId(type, distro.getPlatform(), distro.getBundledJdk(), distro.getArchitecture(), distro.getFips());
     }
 
     private static String destructiveDistroUpgradeTestTaskName(ElasticsearchDistribution distro, String bwcVersion) {
@@ -269,7 +299,7 @@ public class DistroTestPlugin implements Plugin<Project> {
         return "destructiveDistroUpgradeTest.v"
             + bwcVersion
             + "."
-            + distroId(type, distro.getPlatform(), distro.getBundledJdk(), distro.getArchitecture());
+            + distroId(type, distro.getPlatform(), distro.getBundledJdk(), distro.getArchitecture(), distro.getFips());
     }
 
     private static void addDistributionSysprop(Test task, String sysprop, Supplier<String> valueSupplier) {

@@ -8,6 +8,7 @@
  */
 
 
+import org.apache.tools.ant.filters.ConcatFilter
 import org.apache.tools.ant.filters.FixCrLfFilter
 import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.VersionProperties
@@ -310,7 +311,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
    *             Properties to expand when copying packaging files             *
    *****************************************************************************/
   configurations {
-    ['libs', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsServerLauncher', 'libsServerLauncherNativeX64', 'libsServerLauncherNativeAarch64', 'libsWindowsServiceCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole', 'libsNative', 'libsEntitlementAgent'].each {
+    ['libs', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsServerLauncher', 'libsServerLauncherNativeX64', 'libsServerLauncherNativeAarch64', 'libsWindowsServiceCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole', 'libsNative', 'libsEntitlementAgent', 'libsFips'].each {
       create(it) {
         canBeConsumed = false
         canBeResolved = true
@@ -365,6 +366,58 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     libsNative project(path: ':libs:native:native-libraries', configuration: 'nativeLibs')
     libsEntitlementAgent project(':libs:entitlement:agent')
     libsEntitlementBridge project(':libs:entitlement:bridge')
+
+    // The Bouncy Castle FIPS 140-3 provider, placed in lib by the FIPS distributions. Keep these versions in step with
+    // elasticsearch.fips.gradle (FIPS test clusters) and distribution/docker/build.gradle (the cloud_ess_fips image).
+    libsFips 'org.bouncycastle:bc-fips:2.0.2'
+    libsFips 'org.bouncycastle:bctls-fips:2.0.24'
+    libsFips 'org.bouncycastle:bcutil-fips:2.0.7'
+  }
+
+  /*****************************************************************************
+   *                    Files specific to the FIPS distributions               *
+   *****************************************************************************/
+
+  // In approved-only mode the JDK's own PKCS#12 CA bundle cannot be opened, so each FIPS distribution ships the bundled JDK's
+  // cacerts converted to BCFKS, using the BC FIPS provider that the distribution itself ships. The store password must be at
+  // least 14 characters for the provider to accept it; it protects nothing secret, this is a bundle of public certificates.
+  ['x64', 'aarch64'].each { String architecture ->
+    tasks.register("buildFipsCacerts_${architecture}", Exec) {
+      def jdk = project.jdks."bundled_linux_${architecture}"
+      def output = layout.buildDirectory.file("fips-cacerts/${architecture}/cacerts.bcfks").get().asFile
+      dependsOn jdk
+      inputs.files(configurations.libsFips).withPropertyName('bcFipsJars').withNormalizer(ClasspathNormalizer)
+      inputs.property('jdkVersion', jdk.version)
+      outputs.file(output).withPropertyName('cacerts')
+      executable = "${buildParams.runtimeJavaHome.get()}/bin/keytool"
+      // keytool reports every imported alias on stderr; only surface its output when the conversion fails
+      def keytoolOutput = new ByteArrayOutputStream()
+      standardOutput = keytoolOutput
+      errorOutput = keytoolOutput
+      ignoreExitValue = true
+      doLast {
+        if (executionResult.get().exitValue != 0) {
+          throw new GradleException("keytool failed to convert cacerts to BCFKS:\n${keytoolOutput}")
+        }
+      }
+      doFirst {
+        delete(output)
+        output.parentFile.mkdirs()
+        File jdkHome = new File(jdk.binJavaPath.toString()).parentFile.parentFile
+        File bcFipsJar = configurations.libsFips.files.find { it.name.startsWith('bc-fips-') }
+        args '-importkeystore',
+          '-noprompt',
+          '-srckeystore', new File(jdkHome, 'lib/security/cacerts').path,
+          '-srcstoretype', 'PKCS12',
+          '-srcstorepass', 'changeit', // the JDK's cacerts has no integrity password, but keytool insists on being given one
+          '-destkeystore', output.path,
+          '-deststoretype', 'BCFKS',
+          '-deststorepass', 'passwordcacert',
+          '-providerclass', 'org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider',
+          '-providerpath', bcFipsJar.path,
+          '-destprovidername', 'BCFIPS'
+      }
+    }
   }
 
   project.ext {
@@ -488,6 +541,56 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         }
         from buildDefaultLog4jConfigTaskProvider
         from isTestDistro ? integTestConfigFiles : defaultConfigFiles
+      }
+    }
+
+    /*****************************************************************************
+     *                         FIPS distribution variants                        *
+     *                                                                           *
+     * A FIPS distribution is the default distribution plus: the BC FIPS jars in *
+     * lib, a java.security overlay and jvm.options.d file that restrict the     *
+     * server JVM to those providers in approved-only mode, a BCFKS trust store, *
+     * the equivalent CLI_JAVA_OPTS for the command line tools, and FIPS mode    *
+     * settings in elasticsearch.yml so that security auto-configuration         *
+     * generates BCFKS keystores on first start.                                 *
+     *****************************************************************************/
+    fipsLibFiles = { os, architecture ->
+      copySpec {
+        with libFiles(os, architecture)
+        from(configurations.libsFips)
+      }
+    }
+
+    fipsConfigFiles = { distributionType, architecture ->
+      copySpec {
+        with copySpec {
+          from '../src/config'
+          exclude 'log4j2.properties' // this is handled separately below
+          filter("tokens": expansionsForDistribution(distributionType, false), ReplaceTokens.class)
+          filesMatching('elasticsearch.yml') {
+            filter(ConcatFilter, append: file('../src/fips/elasticsearch.fips.yml'))
+          }
+        }
+        from buildDefaultLog4jConfigTaskProvider
+        from defaultConfigFiles
+        // Package java.security replacement. The FIPS test suites keep the older file in
+        // build-tools-internal, because those suites still run on JDKs before the bundled one.
+        from '../src/fips/fips_java.security'
+        from tasks.named("buildFipsCacerts_${architecture}")
+        into('jvm.options.d') {
+          from '../src/fips/fips.options'
+        }
+      }
+    }
+
+    // The CLI tools (and the server launcher, which runs security auto-configuration) run with the same FIPS provider
+    // configuration as the server, by way of CLI_JAVA_OPTS set at the end of elasticsearch-env.
+    fipsBinFiles = { distributionType ->
+      copySpec {
+        with binFiles(distributionType, false)
+        filesMatching('elasticsearch-env') {
+          filter(ConcatFilter, append: file('../src/fips/elasticsearch-env.fips'))
+        }
       }
     }
 

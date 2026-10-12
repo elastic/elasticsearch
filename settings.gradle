@@ -68,6 +68,8 @@ List projects = [
   'distribution:archives:darwin-aarch64-tar',
   'distribution:archives:linux-aarch64-tar',
   'distribution:archives:linux-tar',
+  'distribution:archives:linux-aarch64-fips-tar',
+  'distribution:archives:linux-fips-tar',
   'distribution:docker',
   'distribution:docker:cloud-ess-docker-export',
   'distribution:docker:cloud-ess-docker-aarch64-export',

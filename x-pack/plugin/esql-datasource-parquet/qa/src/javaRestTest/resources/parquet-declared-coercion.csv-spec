@@ -87,4 +87,44 @@ ts:date
 1970-01-01T00:03:20.000Z
 1970-02-04T17:20:00.000Z
 1970-02-16T07:06:40.000Z
+// A TIMESTAMP(NANOS) column declared `date` narrows nanos to millis, and it does so below the epoch too: `date`
+// represents a pre-1970 instant exactly, and the 1970 floor the narrowing used to borrow belongs to the date_nanos
+// source type. The undeclared read of this very column renders the same instant, so declaring the conventional
+// dashboard type used to be strictly worse than declaring nothing -- one pre-1970 row failed the whole query.
+// {{pre_epoch_nanos}} carries epoch-nanosecond longs, one before and one after 1970.
+declaredDatetimeOverPreEpochTimestampNarrowsNotFails
+required_capability: dataset_in_from_command
+required_capability: dataset_declared_date_narrows_below_the_epoch
+dataset: pre_epoch_declared_date: "{{pre_epoch_nanos}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "integer"}, "ts": {"type": "date"}}}}
+
+FROM pre_epoch_declared_date
+| SORT id
+;
+
+id:integer | ts:date
+1          | 1965-03-04T12:00:00.000Z
+2          | 2024-01-01T00:00:00.000Z
+;
+
+// The control for the case above, and the reason it is a defect rather than a limit of the type: the same column
+// with no declaration at all renders the same pre-1970 instant. date_nanos reaches back to 1677, so nothing about
+// the file or the data was ever out of range -- only the narrowing borrowed a floor from the wrong type.
+// Rendered through TO_STRING because the csv-spec harness parses an expected date_nanos literal through a
+// converter that refuses anything before 1970 -- the same borrowed floor, in the test machinery this time.
+// TO_STRING renders a date_nanos at millisecond precision, which is why these read .000Z rather than .000000000Z;
+// the instant is what this case is about, and it is the same one the declared read above produces.
+declaredNothingOverPreEpochTimestampReadsTheSameInstant
+required_capability: dataset_in_from_command
+required_capability: dataset_declared_date_narrows_below_the_epoch
+dataset: pre_epoch_undeclared: "{{pre_epoch_nanos}}"
+
+FROM pre_epoch_undeclared
+| SORT id
+| EVAL rendered = TO_STRING(ts)
+| KEEP id, rendered
+;
+
+id:integer | rendered:keyword
+1          | 1965-03-04T12:00:00.000Z
+2          | 2024-01-01T00:00:00.000Z
 ;

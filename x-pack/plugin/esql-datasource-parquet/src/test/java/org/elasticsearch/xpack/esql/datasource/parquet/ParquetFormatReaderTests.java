@@ -6089,6 +6089,29 @@ public class ParquetFormatReaderTests extends ESTestCase {
         for (boolean optimized : List.of(true, false)) {
             ParquetFormatReader r = (ParquetFormatReader) new ParquetFormatReader(blockFactory, optimized).withDeclaredTypeColumns(
                 Set.of(column)
+     * A {@code TIMESTAMP(MICROS)} column — Arrow's and Spark's default timestamp unit — infers {@code date_nanos}, so
+     * declaring it {@code date} narrows through {@code castBlock}. A value before 1970 is an ordinary instant for
+     * {@code date}, and it must read rather than fail the whole column: the 1970 floor belongs to the source type.
+     * Both decode engines take the same route here (the pair is not fused), so the assertion covers both.
+     */
+    public void testPreEpochMicrosTimestampDeclaredDatetimeReads() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("ts")
+            .named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group early = factory.newGroup();
+            early.add("ts", -152_366_400_000_000L); // 1965-03-04T12:00:00Z
+            Group late = factory.newGroup();
+            late.add("ts", 1_704_067_200_000_000L); // 2024-01-01T00:00:00Z
+            return List.of(early, late);
+        });
+        StorageObject storageObject = createStorageObject(parquetData);
+        List<Attribute> asDatetime = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
+        for (boolean optimized : List.of(true, false)) {
+            ParquetFormatReader r = (ParquetFormatReader) new ParquetFormatReader(blockFactory, optimized).withDeclaredTypeColumns(
+                Set.of("ts")
             );
             try (
                 CloseableIterator<Page> it = r.readRange(
@@ -6137,6 +6160,14 @@ public class ParquetFormatReaderTests extends ESTestCase {
             )
         ) {
             return fr.getFooter();
+        }
+                    new RangeReadContext(List.of("ts"), 10, 0, parquetData.length, asDatetime, ErrorPolicy.STRICT)
+                )
+            ) {
+                LongBlock l = (LongBlock) it.next().getBlock(0);
+                assertEquals("optimized=" + optimized, -152_366_400_000L, l.getLong(0));
+                assertEquals("optimized=" + optimized, 1_704_067_200_000L, l.getLong(1));
+            }
         }
     }
 

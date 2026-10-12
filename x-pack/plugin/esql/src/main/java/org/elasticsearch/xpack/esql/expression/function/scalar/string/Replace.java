@@ -191,16 +191,19 @@ public class Replace extends EsqlScalarFunction {
         var newStrEval = toEvaluator.apply(newStr);
 
         if (regex.foldable() && regex.dataType() == DataType.KEYWORD) {
-            Pattern regexPattern;
-            try {
-                regexPattern = Pattern.compile(BytesRefs.toString(regex.fold(toEvaluator.foldCtx())));
-            } catch (PatternSyntaxException pse) {
-                // TODO this is not right (inconsistent). See also https://github.com/elastic/elasticsearch/issues/100038
-                // this should generate a header warning and return null (as do the rest of this functionality in evaluators),
-                // but for the moment we let the exception through
-                throw pse;
+            String regexString = BytesRefs.toString(regex.fold(toEvaluator.foldCtx()));
+            if (regexString != null) {
+                Pattern regexPattern;
+                try {
+                    regexPattern = Pattern.compile(regexString);
+                } catch (PatternSyntaxException pse) {
+                    // TODO this is not right (inconsistent). See also https://github.com/elastic/elasticsearch/issues/100038
+                    // this should generate a header warning and return null (as do the rest of this functionality in evaluators),
+                    // but for the moment we let the exception through
+                    throw pse;
+                }
+                return new ReplaceConstantEvaluator.Factory(source(), strEval, regexPattern, newStrEval);
             }
-            return new ReplaceConstantEvaluator.Factory(source(), strEval, regexPattern, newStrEval);
         }
 
         var regexEval = toEvaluator.apply(regex);

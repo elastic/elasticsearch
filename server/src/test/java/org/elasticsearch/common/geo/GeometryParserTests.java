@@ -18,6 +18,7 @@ import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.utils.StandardValidator;
+import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -27,6 +28,8 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.List;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * Tests for {@link GeometryParser}
@@ -228,6 +231,18 @@ public class GeometryParserTests extends ESTestCase {
             new GeometryCollection<>(List.of(expectedPoint, expectedPoint, expectedPoint, expectedPoint, expectedLine, expectedPolygon))
         );
         expectThrows(ElasticsearchParseException.class, () -> testBasics(parser, "not a geometry", null));
+    }
+
+    public void testParseGeometryTooDeeplyNested() {
+        // the value handed to parseGeometry does not come from a parser, so nothing else bounds its nesting
+        GeometryParser parser = new GeometryParser(true, randomBoolean(), randomBoolean());
+        Object value = List.of(0.0, 0.0);
+        for (int i = 0; i < WellKnownText.MAX_NESTED_DEPTH + 1; i++) {
+            value = List.of(value);
+        }
+        final Object deeplyNested = value;
+        ElasticsearchParseException ex = expectThrows(ElasticsearchParseException.class, () -> parser.parseGeometry(deeplyNested));
+        assertThat(ex.getMessage(), containsString("maximum nested depth of [" + WellKnownText.MAX_NESTED_DEPTH + "] exceeded"));
     }
 
     private void testBasics(GeometryParser parser, Object value, Geometry expected) {

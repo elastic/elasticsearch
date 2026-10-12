@@ -11,6 +11,7 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -32,12 +33,14 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -49,6 +52,7 @@ import org.elasticsearch.test.transport.MockTransportService;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -59,6 +63,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFail
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -83,6 +88,71 @@ public class PointInTimeIT extends ESIntegTestCase {
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(SearchService.KEEPALIVE_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(randomIntBetween(100, 500)))
             .build();
+    }
+
+    public void testInconsistentPointInTimeIdIsRejected() {
+        final DiscoveryNode dataNode = clusterService().state().nodes().getDataNodes().values().iterator().next();
+        final Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("index.routing.allocation.include._name", dataNode.getName()) // force all shards onto 1 node
+            .build();
+        final String index1 = randomIndexName();
+        final String index2 = randomIndexName();
+        createIndex(index1, settings);
+        createIndex(index2, settings);
+        ensureGreen(index1, index2);
+        prepareIndex(index1).setId("1").setSource("value", "doc-1").get();
+        prepareIndex(index2).setId("2").setSource("value", "doc-2").get();
+        refresh(index1, index2);
+
+        BytesReference pit1 = openPointInTime(new String[] { index1 }, TimeValue.timeValueMinutes(2)).getPointInTimeId();
+        BytesReference pit2 = openPointInTime(new String[] { index2 }, TimeValue.timeValueMinutes(2)).getPointInTimeId();
+        try {
+            assertHitCount(prepareSearch().setPointInTime(new PointInTimeBuilder(pit1)), 1);
+            assertHitCount(prepareSearch().setPointInTime(new PointInTimeBuilder(pit2)), 1);
+
+            SearchContextId context1 = SearchContextId.decode(writableRegistry(), pit1);
+            SearchContextId context2 = SearchContextId.decode(writableRegistry(), pit2);
+            assertThat(context1.shards(), aMapWithSize(1));
+            assertThat(context2.shards(), aMapWithSize(1));
+            Map.Entry<ShardId, SearchContextIdForNode> entry1 = context1.shards().entrySet().iterator().next();
+            Map.Entry<ShardId, SearchContextIdForNode> entry2 = context2.shards().entrySet().iterator().next();
+            assertThat(entry2.getValue().getNode(), equalTo(entry1.getValue().getNode()));
+            // Pair index1's shard with index2's reader. A real point-in-time id never does this;
+            // searching it must fail rather than run against the other reader.
+            SearchAsyncActionTests.TestSearchPhaseResult phaseResult = new SearchAsyncActionTests.TestSearchPhaseResult(
+                entry2.getValue().getSearchContextId(),
+                dataNode
+            );
+            phaseResult.setSearchShardTarget(
+                new SearchShardTarget(entry2.getValue().getNode(), entry1.getKey(), entry2.getValue().getClusterAlias())
+            );
+
+            BytesReference forged = SearchContextId.encode(
+                List.of(phaseResult),
+                context1.aliasFilter(),
+                TransportVersion.current(),
+                ShardSearchFailure.EMPTY_ARRAY
+            );
+
+            SearchPhaseExecutionException failure = expectThrows(
+                SearchPhaseExecutionException.class,
+                prepareSearch().setAllowPartialSearchResults(randomBoolean()).setPointInTime(new PointInTimeBuilder(forged))
+            );
+            assertThat(failure.shardFailures().length, equalTo(1));
+            Throwable cause = ExceptionsHelper.unwrapCause(failure.shardFailures()[0].getCause());
+            assertThat(cause, instanceOf(IllegalArgumentException.class));
+            assertThat(cause.getMessage(), equalTo("search context id is not valid"));
+            assertThat(failure.toString(), not(containsString(index2)));
+            assertThat(failure.toString(), not(containsString("doc-2")));
+
+            assertHitCount(prepareSearch().setPointInTime(new PointInTimeBuilder(pit1)), 1);
+            assertHitCount(prepareSearch().setPointInTime(new PointInTimeBuilder(pit2)), 1);
+        } finally {
+            closePointInTime(pit1);
+            closePointInTime(pit2);
+        }
     }
 
     public void testBasic() {

@@ -117,7 +117,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     public record ScoreSort(Order.OrderDirection direction) implements Sort {
         @Override
         public SortBuilder<?> sortBuilder() {
-            return new ScoreSortBuilder();
+            return new ScoreSortBuilder().order(Direction.from(direction).asOrder());
         }
 
         @Override

@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.aggregations.AggregationsPlugin;
 import org.elasticsearch.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -38,6 +39,7 @@ import org.elasticsearch.search.aggregations.pipeline.BucketScriptPipelineAggreg
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -64,6 +66,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
 public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<DatafeedUpdate> {
@@ -402,7 +405,7 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
     @Override
     protected DatafeedUpdate mutateInstance(DatafeedUpdate instance) throws IOException {
         DatafeedUpdate.Builder builder = new DatafeedUpdate.Builder(instance);
-        switch (between(1, 12)) {
+        switch (between(1, 13)) {
             case 1:
                 builder.setId(instance.getId() + DatafeedConfigTests.randomValidDatafeedId());
                 break;
@@ -522,9 +525,63 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
                     builder.setRuntimeMappings(field);
                 }
                 break;
+            case 13:
+                if (instance.getMaxConsecutiveExtractionFailures() == null) {
+                    builder.setMaxConsecutiveExtractionFailures(randomFrom(-1, 10));
+                } else if (instance.getMaxConsecutiveExtractionFailures() == -1) {
+                    builder.setMaxConsecutiveExtractionFailures(10);
+                } else {
+                    builder.setMaxConsecutiveExtractionFailures(instance.getMaxConsecutiveExtractionFailures() + 100);
+                }
+                break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
         return builder.build();
+    }
+
+    public void testMaxConsecutiveExtractionFailuresIsOnTheWireBeforeRemovedTransportVersion() throws IOException {
+        TransportVersion beforeRemoved = TransportVersionUtils.getPreviousVersion(
+            DatafeedConfig.DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES_REMOVED
+        );
+        assertTrue(beforeRemoved.supports(DatafeedConfig.DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES));
+        DatafeedUpdate update = new DatafeedUpdate.Builder("foo").setMaxConsecutiveExtractionFailures(randomIntBetween(1, 100)).build();
+
+        DatafeedUpdate deserialized = copyInstance(update, beforeRemoved);
+
+        assertThat(deserialized.getMaxConsecutiveExtractionFailures(), equalTo(update.getMaxConsecutiveExtractionFailures()));
+    }
+
+    public void testMaxConsecutiveExtractionFailuresIsNotOnTheWireFromRemovedTransportVersion() throws IOException {
+        TransportVersion removed = DatafeedConfig.DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES_REMOVED;
+        DatafeedUpdate withField = new DatafeedUpdate.Builder("foo").setMaxConsecutiveExtractionFailures(randomIntBetween(1, 100)).build();
+        DatafeedUpdate withoutField = new DatafeedUpdate.Builder("foo").build();
+
+        // main and 9.5 read nothing for this field from this version on, so it must not contribute any bytes
+        assertThat(serialize(withField, removed), equalTo(serialize(withoutField, removed)));
+        assertThat(copyInstance(withField, removed).getMaxConsecutiveExtractionFailures(), is(nullValue()));
+    }
+
+    private static BytesReference serialize(DatafeedUpdate update, TransportVersion version) throws IOException {
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setTransportVersion(version);
+            update.writeTo(output);
+            return output.bytes();
+        }
+    }
+
+    public void testApplyMaxConsecutiveExtractionFailures() {
+        DatafeedConfig datafeed = new DatafeedConfig.Builder(DatafeedConfigTests.createRandomizedDatafeedConfig("foo"))
+            .setMaxConsecutiveExtractionFailures(null)
+            .build();
+        assertThat(datafeed.getMaxConsecutiveExtractionFailures(), is(nullValue()));
+
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setMaxConsecutiveExtractionFailures(25).build();
+        DatafeedConfig updated = update.apply(datafeed, Collections.emptyMap(), clusterState);
+        assertThat(updated.getMaxConsecutiveExtractionFailures(), equalTo(25));
+
+        DatafeedUpdate disable = new DatafeedUpdate.Builder(datafeed.getId()).setMaxConsecutiveExtractionFailures(-1).build();
+        DatafeedConfig disabled = disable.apply(updated, Collections.emptyMap(), clusterState);
+        assertThat(disabled.getMaxConsecutiveExtractionFailures(), equalTo(-1));
     }
 }

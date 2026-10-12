@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.transform.action;
 
 import org.elasticsearch.action.search.SearchShardsGroup;
 import org.elasticsearch.action.search.SearchShardsResponse;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.TransportRequestOptions;
 
 import java.util.List;
 import java.util.Map;
@@ -130,5 +132,26 @@ public class TransportGetCheckpointActionTests extends ESTestCase {
             Set.of(SHARD_A_0, SHARD_A_1, SHARD_B_0)
         );
         assertThat(filteredNodesAndShards, is(equalTo(expectedFilteredNodesAndShards)));
+    }
+
+    public void testCheckpointNodeTransportOptions_AppliesTimeoutOnSender() {
+        TimeValue timeout = TimeValue.timeValueSeconds(30);
+        TransportRequestOptions options = TransportGetCheckpointAction.checkpointNodeTransportOptions(timeout);
+        assertThat(options.timeout(), equalTo(timeout));
+        assertThat(options.type(), equalTo(TransportRequestOptions.Type.REG));
+    }
+
+    public void testCheckpointNodeTransportOptions_HonorsLongRequestTimeout() {
+        TimeValue timeout = TimeValue.timeValueHours(12);
+        assertThat(TransportGetCheckpointAction.checkpointNodeTransportOptions(timeout).timeout(), equalTo(timeout));
+    }
+
+    public void testCheckpointNodeTransportOptions_HonorsShortRequestTimeout() {
+        TimeValue timeout = TimeValue.timeValueSeconds(5);
+        assertThat(TransportGetCheckpointAction.checkpointNodeTransportOptions(timeout).timeout(), equalTo(timeout));
+    }
+
+    public void testCheckpointNodeTransportOptions_NullTimeoutLeavesEmpty() {
+        assertThat(TransportGetCheckpointAction.checkpointNodeTransportOptions(null), equalTo(TransportRequestOptions.EMPTY));
     }
 }

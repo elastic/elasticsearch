@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
@@ -21,7 +22,12 @@ public class TransportGetConnectorAction extends HandledTransportAction<GetConne
     protected final ConnectorIndexService connectorIndexService;
 
     @Inject
-    public TransportGetConnectorAction(TransportService transportService, ActionFilters actionFilters, Client client) {
+    public TransportGetConnectorAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ActionFilters actionFilters,
+        Client client
+    ) {
         super(
             GetConnectorAction.NAME,
             transportService,
@@ -29,7 +35,7 @@ public class TransportGetConnectorAction extends HandledTransportAction<GetConne
             GetConnectorAction.Request::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.connectorIndexService = new ConnectorIndexService(client);
+        this.connectorIndexService = new ConnectorIndexService(client, clusterService.getClusterSettings());
     }
 
     @Override

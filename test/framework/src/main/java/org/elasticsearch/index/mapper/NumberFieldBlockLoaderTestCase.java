@@ -9,17 +9,22 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.datageneration.Mapping;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+
+import static org.hamcrest.MatcherAssert.assertThat;
 
 public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends BlockLoaderTestCase {
     private static final Set<String> STORED_FIELD_TYPES = Set.of(
@@ -235,7 +240,7 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
 
         String value = "\u1a90";
 
-        runner.document(Map.of("field", value));
+        runner.document(decorateWithRequiredFields(new HashMap<>(Map.of("field", value))));
         runner.fieldName("field");
 
         var fieldMapping = new HashMap<String, Object>();
@@ -245,13 +250,16 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
             fieldMapping.put("scaling_factor", "1");
         }
 
-        var mapping = new Mapping(Map.of("_doc", Map.of("properties", Map.of("field", fieldMapping))), Map.of("field", fieldMapping));
+        var mapping = new Mapping(Map.of("_doc",
+                                    Map.of("properties", new HashMap<>(Map.of("field", fieldMapping)))
+                                    ), Map.of("field", fieldMapping));
+        decorateMappingWithRequiredFields(mapping);
 
         Object expected = expected(mapping.lookup().get("field"), value, new TestContext(false, false));
 
         var settings = getSettingsForParams();
         runner.mapperService(createMapperService(settings.build(), XContentFactory.jsonBuilder().map(mapping.raw())));
-        runner.run(expected);
+        configureRunner(runner, settings, mapping).run(expected);
     }
 
     public void testBlockLoaderNonLatinDigit_parseFromSource() throws IOException {
@@ -261,7 +269,7 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
 
         String value = "\u1a90";
 
-        runner.document(Map.of("field", value));
+        runner.document(decorateWithRequiredFields(new HashMap<>(Map.of("field", value))));
         runner.fieldName("field");
 
         var fieldMapping = new HashMap<String, Object>();
@@ -272,7 +280,8 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
             fieldMapping.put("scaling_factor", "1");
         }
 
-        var mapping = new Mapping(Map.of("_doc", Map.of("properties", Map.of("field", fieldMapping))), Map.of("field", fieldMapping));
+        var mapping = new Mapping(new HashMap<>(Map.of("_doc", new HashMap<>(Map.of("properties", new HashMap<>(Map.of("field", fieldMapping)))))), Map.of("field", fieldMapping));
+        decorateMappingWithRequiredFields(mapping);
 
         Object expected = expected(mapping.lookup().get("field"), value, new TestContext(false, false));
 

@@ -633,9 +633,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.EsqlAsyncSecurityIT
   method: testViewReferencingAliasAuthorized
   issue: https://github.com/elastic/elasticsearch/issues/161627
-- class: org.elasticsearch.rest.ChunkedZipResponseIT
-  method: testRandomZipResponse
-  issue: https://github.com/elastic/elasticsearch/issues/161628
 - class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/161633

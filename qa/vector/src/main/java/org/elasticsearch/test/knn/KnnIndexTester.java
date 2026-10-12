@@ -276,11 +276,11 @@ public class KnnIndexTester {
         return INDEX_DIR + "/" + args.docVectors().getFirst().getFileName() + "-" + String.join("-", suffix) + ".index";
     }
 
-    static Codec createCodec(TestConfiguration args, @Nullable ExecutorService exec) {
+    static Codec createCodec(TestConfiguration args, ExecutorService mergeExec, ExecutorService quantExec) {
         final KnnVectorsFormat format;
         Integer quantizeBits = args.quantizeBits();
         DenseVectorFieldMapper.ElementType elementType = args.vectorEncoding().elementType;
-        int mergeWorkers = exec != null ? args.numMergeWorkers() : 1;
+        int mergeWorkers = mergeExec != null ? args.numMergeWorkers() : 1;
 
         format = switch (args.indexType()) {
             case IVF -> {
@@ -306,8 +306,9 @@ public class KnnIndexTester {
                         centroidsPerParentCluster,
                         elementType,
                         false,
-                        exec,
+                        mergeExec,
                         mergeWorkers,
+                        quantExec,
                         flatVectorThreshold,
                         sliceField,
                         IvfFlushConfigSource.empty(),
@@ -317,7 +318,7 @@ public class KnnIndexTester {
                 } else {
                     var encoding = resolveQuantEncoding(quantizeBits, args.queryQuantizeBits());
                     IvfMergeConfigResolver mergeConfigResolver = args.autoCalibrate()
-                        ? IvfAutoCalibration.mergeConfigResolver(args.ivfClusterSize())
+                        ? IvfAutoCalibration.mergeConfigResolver(args.ivfClusterSize(), args.autoCalibrationProfile())
                         : IvfMergeConfigResolver.useCodecDefault();
                     yield new ESNextDiskBBQVectorsFormat(
                         encoding,
@@ -325,7 +326,7 @@ public class KnnIndexTester {
                         centroidsPerParentCluster,
                         elementType,
                         args.onDiskRescore(),
-                        exec,
+                        mergeExec,
                         mergeWorkers,
                         args.doPrecondition(),
                         args.preconditioningBlockDims(),
@@ -357,7 +358,7 @@ public class KnnIndexTester {
                     args.hnswEfConstruction(),
                     elementType,
                     mergeWorkers,
-                    exec,
+                    mergeExec,
                     args.flatVectorThreshold(),
                     false
                 );
@@ -367,7 +368,7 @@ public class KnnIndexTester {
                     elementType,
                     false,
                     mergeWorkers,
-                    exec,
+                    mergeExec,
                     args.flatVectorThreshold(),
                     false
                 );
@@ -378,7 +379,7 @@ public class KnnIndexTester {
                     quantizeBits,
                     false,
                     mergeWorkers,
-                    exec,
+                    mergeExec,
                     args.flatVectorThreshold(),
                     false
                 );
@@ -526,14 +527,14 @@ public class KnnIndexTester {
             Arrays.setAll(results, i -> new Results(indexPathName, indexType, testConfiguration.numDocs()));
             logger.info("Running with Java: " + Runtime.version());
             logger.info("Running KNN index tester with arguments: " + testConfiguration);
-            final ExecutorService exec;
-            if (testConfiguration.numMergeWorkers() > 1) {
-                exec = Executors.newFixedThreadPool(testConfiguration.numMergeWorkers(), new NamedThreadFactory("vector-merge"));
-            } else {
-                exec = null;
-            }
+            ExecutorService mergeExec = testConfiguration.numMergeWorkers() > 1
+                ? Executors.newFixedThreadPool(testConfiguration.numMergeWorkers(), new NamedThreadFactory("vector-merge"))
+                : null;
+            ExecutorService quantExec = testConfiguration.numQuantizerWorkers() > 1
+                ? Executors.newFixedThreadPool(testConfiguration.numQuantizerWorkers(), new NamedThreadFactory("quantization"))
+                : null;
             try {
-                Codec codec = createCodec(testConfiguration, exec);
+                Codec codec = createCodec(testConfiguration, mergeExec, quantExec);
                 Path indexPath = PathUtils.get(indexPathName);
                 MergePolicy mergePolicy = getMergePolicy(testConfiguration);
 
@@ -552,8 +553,11 @@ public class KnnIndexTester {
                 formattedResults.queryResults.addAll(List.of(results));
                 formattedResults.indexResults.add(indexResults);
             } finally {
-                if (exec != null) {
-                    exec.shutdown();
+                if (mergeExec != null) {
+                    mergeExec.shutdown();
+                }
+                if (quantExec != null) {
+                    quantExec.shutdown();
                 }
             }
         }
@@ -914,7 +918,7 @@ public class KnnIndexTester {
     /**
      * Logs a concise per-segment summary of the auto-calibrated IVF configuration: quantization
      * encoding, rescore oversample factor, and whether preconditioning is active. Only meaningful
-     * when {@code auto_calibrate} is {@code true} and the index type is IVF.
+     * when auto-calibration is enabled and the index type is IVF.
      */
     static void logAutoCalibrationSegmentReport(Path indexPath, Directory sharedDir) throws IOException {
         Directory dir = sharedDir != null ? sharedDir : KnnIndexer.getDirectory(indexPath);

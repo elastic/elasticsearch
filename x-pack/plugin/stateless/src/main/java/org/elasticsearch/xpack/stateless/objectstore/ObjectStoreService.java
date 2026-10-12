@@ -67,6 +67,8 @@ import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.telemetry.metric.LongHistogram;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
@@ -103,6 +105,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -402,12 +405,27 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
 
     private final long slowTranslogUploadLogThresholdMillis;
 
+    private final LongHistogram bccMultipartUploadPartStartLatencyHistogram;
+
+    // TODO: We have it here because it is used by the `elasticsearch-serverless` repository in `ProjectLifeCycleServiceTests.java`
+    // but we can remove when we do the change in `elasticsearch-serverless`
     public ObjectStoreService(
         Settings settings,
         RepositoriesService repositoriesService,
         ThreadPool threadPool,
         ClusterService clusterService,
         ProjectResolver projectResolver
+    ) {
+        this(settings, repositoriesService, threadPool, clusterService, projectResolver, MeterRegistry.NOOP);
+    }
+
+    public ObjectStoreService(
+        Settings settings,
+        RepositoriesService repositoriesService,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        ProjectResolver projectResolver,
+        MeterRegistry meterRegistry
     ) {
         this.settings = settings;
         this.repositoriesService = repositoriesService;
@@ -433,6 +451,11 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         this.concurrentMultipartUploads = OBJECT_STORE_CONCURRENT_MULTIPART_UPLOADS.get(settings);
         this.cacheSearchRecoveryBcc = CACHE_SEARCH_RECOVERY_BCC_ENABLED_SETTING.get(settings);
         this.slowTranslogUploadLogThresholdMillis = OBJECT_STORE_SLOW_TRANSLOG_UPLOAD_LOG_THRESHOLD_SETTING.get(settings).getMillis();
+        this.bccMultipartUploadPartStartLatencyHistogram = meterRegistry.registerLongHistogram(
+            "es.stateless.bcc_multipart_upload.part_start.latency.histogram",
+            "time from the start of a concurrent multipart upload of a BCC until the repository client requests the data of each part",
+            "milliseconds"
+        );
     }
 
     @Override
@@ -1746,13 +1769,18 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 } else {
                     virtualBatchedCompoundCommit.mustIncRef();
                     try {
+                        final long uploadStartNanos = threadPool.relativeTimeInNanos();
                         blobContainer.writeBlobAtomic(
                             OperationPurpose.INDICES,
                             virtualBatchedCompoundCommit.getBlobName(),
                             totalSizeInBytes,
-                            (offset, length) -> new LocalIOInputStream(
-                                virtualBatchedCompoundCommit.getFrozenInputStreamForUpload(offset, length)
-                            ),
+                            (offset, length) -> {
+                                // the repository calls this once per part, right before it starts uploading that part
+                                bccMultipartUploadPartStartLatencyHistogram.record(
+                                    TimeUnit.NANOSECONDS.toMillis(threadPool.relativeTimeInNanos() - uploadStartNanos)
+                                );
+                                return new LocalIOInputStream(virtualBatchedCompoundCommit.getFrozenInputStreamForUpload(offset, length));
+                            },
                             false,
                             // Ensure that one large upload doesn't starve other uploads
                             new ThrottledTaskRunner(

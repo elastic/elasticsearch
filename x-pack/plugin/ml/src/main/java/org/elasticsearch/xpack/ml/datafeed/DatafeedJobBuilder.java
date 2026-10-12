@@ -101,9 +101,10 @@ public class DatafeedJobBuilder {
         final ParentTaskAssigningClient parentTaskAssigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(), task);
         final DatafeedConfig datafeedConfig = context.datafeedConfig();
         final Job job = context.job();
+        final long bucketSpanMs = job.getAnalysisConfig().getBucketSpan().millis();
         final long latestFinalBucketEndMs = context.restartTimeInfo().getLatestFinalBucketTimeMs() == null
             ? -1
-            : context.restartTimeInfo().getLatestFinalBucketTimeMs() + job.getAnalysisConfig().getBucketSpan().millis() - 1;
+            : context.restartTimeInfo().getLatestFinalBucketTimeMs() + bucketSpanMs - 1;
         final long latestRecordTimeMs = context.restartTimeInfo().getLatestRecordTimeMs() == null
             ? -1
             : context.restartTimeInfo().getLatestRecordTimeMs();
@@ -162,6 +163,8 @@ public class DatafeedJobBuilder {
                 ccsStabilizationCycles,
                 java.time.Duration.ofMillis(ccsStabilizationFloorMs)
             );
+            boolean isEsqlDatafeed = datafeedConfig.getEsqlQuery() != null;
+            long groupingIntervalMs = isEsqlDatafeed ? effectiveDatafeedConfig.getGroupingInterval().millis() : 0L;
             DatafeedJob datafeedJob = new DatafeedJob(
                 datafeedConfig.getId(),
                 effectiveDatafeedConfig.getProjectRouting(),
@@ -182,7 +185,10 @@ public class DatafeedJobBuilder {
                 latestRecordTimeMs,
                 context.restartTimeInfo().haveSeenDataPreviously(),
                 delayedDataCheckFreq,
-                crossClusterSearchStats
+                bucketSpanMs,
+                isEsqlDatafeed,
+                crossClusterSearchStats,
+                groupingIntervalMs
             );
 
             listener.onResponse(datafeedJob);

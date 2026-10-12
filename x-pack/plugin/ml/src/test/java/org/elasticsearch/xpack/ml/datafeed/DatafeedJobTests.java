@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
@@ -1187,6 +1188,127 @@ public class DatafeedJobTests extends ESTestCase {
         when(postDataFuture.actionGet()).thenReturn(new PostDataAction.Response(dataCounts));
     }
 
+    public void testEsqlRealtimeAdvanceTimeShouldNotExceedGroupingAlignedExtractionEnd() throws Exception {
+        long groupingIntervalMs = TimeValue.timeValueHours(1).millis();
+        long frequencyMs = TimeValue.timeValueMinutes(1).millis();
+        long queryDelayMs = 0L;
+        currentTime = groupingIntervalMs + frequencyMs * 23;
+        when(dataExtractor.hasNext()).thenReturn(false);
+        when(dataExtractor.getEndTime()).thenReturn(Intervals.alignToFloor(currentTime, groupingIntervalMs));
+        when(flushJobFuture.actionGet()).thenReturn(new FlushJobAction.Response(true, Instant.ofEpochMilli(0)));
+        when(client.execute(same(FlushJobAction.INSTANCE), flushJobRequests.capture())).thenReturn(flushJobFuture);
+
+        DatafeedJob datafeedJob = createEsqlDatafeedJob(frequencyMs, queryDelayMs, groupingIntervalMs, -1);
+        expectThrows(DatafeedJob.EmptyDataCountException.class, datafeedJob::runRealtime);
+
+        long frequencyAlignedEnd = (currentTime / frequencyMs) * frequencyMs;
+        long expectedAdvanceTime = Intervals.alignToFloor(frequencyAlignedEnd, groupingIntervalMs);
+        assertThat(flushJobRequests.getValue().getAdvanceTime(), equalTo(String.valueOf(expectedAdvanceTime)));
+        assertThat(expectedAdvanceTime, lessThan(frequencyAlignedEnd));
+    }
+
+    public void testEsqlLookbackFromUnalignedStartShouldSkipToBucketStartContainingIt() throws Exception {
+        long hour = TimeValue.timeValueHours(1).millis();
+        long unalignedStart = 9 * hour + 14 * 60_000L + 53_000L;
+        when(dataExtractor.hasNext()).thenReturn(false);
+        when(dataExtractor.getEndTime()).thenReturn(12 * hour);
+        when(flushJobFuture.actionGet()).thenReturn(new FlushJobAction.Response(true, Instant.ofEpochMilli(9 * hour)));
+        when(client.execute(same(FlushJobAction.INSTANCE), flushJobRequests.capture())).thenReturn(flushJobFuture);
+
+        DatafeedJob datafeedJob = createEsqlDatafeedJob(60_000L, 0L, hour, hour);
+        expectThrows(DatafeedJob.EmptyDataCountException.class, () -> datafeedJob.runLookBack(unalignedStart, 12 * hour));
+
+        assertThat(flushJobRequests.getAllValues().get(0).getSkipTime(), equalTo(String.valueOf(9 * hour)));
+        verify(dataExtractorFactory).newExtractor(9 * hour, 12 * hour);
+    }
+
+    public void testEsqlRealtimeWithFrequencyShorterThanGroupingIntervalShouldNotReportNoData() throws Exception {
+        long groupingIntervalMs = TimeValue.timeValueHours(2).millis();
+        long frequencyMs = TimeValue.timeValueMinutes(10).millis();
+        when(dataExtractor.hasNext()).thenReturn(false);
+        when(dataExtractor.getEndTime()).thenAnswer(invocation -> Intervals.alignToFloor(currentTime, groupingIntervalMs));
+
+        DatafeedJob datafeedJob = createEsqlDatafeedJob(frequencyMs, 0L, groupingIntervalMs, groupingIntervalMs);
+        ProblemTracker problemTracker = new ProblemTracker(auditor, jobId, datafeedJob.numberOfSearchesIn24Hours());
+
+        int skippedCycles = 0;
+        int emptyCycles = 0;
+        for (int cycle = 1; cycle <= 12; cycle++) {
+            currentTime = groupingIntervalMs + cycle * frequencyMs;
+            try {
+                datafeedJob.runRealtime();
+                problemTracker.reportNonEmptyDataCount();
+            } catch (DatafeedJob.EmptyDataCountException e) {
+                emptyCycles++;
+                problemTracker.reportEmptyDataCount();
+            } catch (DatafeedJob.NoCompleteBucketException e) {
+                skippedCycles++;
+            }
+        }
+
+        verify(auditor, never()).warning(eq(jobId), any());
+        assertThat(skippedCycles, equalTo(11));
+        assertThat(emptyCycles, equalTo(1));
+        verify(dataExtractorFactory, times(1)).newExtractor(anyLong(), anyLong());
+        verify(client, times(1)).execute(same(FlushJobAction.INSTANCE), any());
+    }
+
+    public void testEsqlRealtimeShouldExtractOnFirstCycleAfterGroupingIntervalCompletes() throws Exception {
+        long groupingIntervalMs = TimeValue.timeValueHours(2).millis();
+        long frequencyMs = TimeValue.timeValueMinutes(10).millis();
+        when(dataExtractor.getEndTime()).thenReturn(2 * groupingIntervalMs);
+
+        DatafeedJob datafeedJob = createEsqlDatafeedJob(frequencyMs, 0L, groupingIntervalMs, groupingIntervalMs);
+
+        currentTime = 2 * groupingIntervalMs - frequencyMs;
+        expectThrows(DatafeedJob.NoCompleteBucketException.class, datafeedJob::runRealtime);
+        verify(dataExtractorFactory, never()).newExtractor(anyLong(), anyLong());
+        verify(client, never()).execute(same(FlushJobAction.INSTANCE), any());
+
+        currentTime = 2 * groupingIntervalMs;
+        datafeedJob.runRealtime();
+
+        verify(dataExtractorFactory).newExtractor(groupingIntervalMs, 2 * groupingIntervalMs);
+        assertThat(flushJobRequests.getValue().getAdvanceTime(), equalTo(String.valueOf(2 * groupingIntervalMs)));
+    }
+
+    public void testEsqlLookbackWithoutCompleteGroupingIntervalShouldStillReportEmptyData() throws Exception {
+        long groupingIntervalMs = TimeValue.timeValueHours(2).millis();
+        when(dataExtractor.hasNext()).thenReturn(false);
+        when(dataExtractor.getEndTime()).thenReturn(groupingIntervalMs);
+        when(flushJobFuture.actionGet()).thenReturn(new FlushJobAction.Response(true, Instant.ofEpochMilli(0)));
+
+        DatafeedJob lookbackOnlyJob = createEsqlDatafeedJob(60_000L, 0L, groupingIntervalMs, -1);
+        expectThrows(
+            DatafeedJob.EmptyDataCountException.class,
+            () -> lookbackOnlyJob.runLookBack(groupingIntervalMs, groupingIntervalMs + 3_600_000L)
+        );
+
+        currentTime = groupingIntervalMs + 3_600_000L;
+        DatafeedJob continuousLookbackJob = createEsqlDatafeedJob(60_000L, 0L, groupingIntervalMs, -1);
+        expectThrows(DatafeedJob.EmptyDataCountException.class, () -> continuousLookbackJob.runLookBack(groupingIntervalMs, null));
+
+        verify(client, times(2)).execute(same(FlushJobAction.INSTANCE), any());
+    }
+
+    private DatafeedJob createEsqlDatafeedJob(long frequencyMs, long queryDelayMs, long groupingIntervalMs, long latestRecordTimeMs) {
+        return createDatafeedJob(
+            frequencyMs,
+            queryDelayMs,
+            -1,
+            latestRecordTimeMs,
+            true,
+            DELAYED_DATA_CHECK_FREQ.get(Settings.EMPTY).millis(),
+            new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime)),
+            "datafeed-" + jobId,
+            null,
+            null,
+            true,
+            groupingIntervalMs,
+            7_200_000L
+        );
+    }
+
     private DatafeedJob createDatafeedJob(
         long frequencyMs,
         long queryDelayMs,
@@ -1308,6 +1430,38 @@ public class DatafeedJobTests extends ESTestCase {
         String projectRouting,
         String cloudCredentialId
     ) {
+        return createDatafeedJob(
+            frequencyMs,
+            queryDelayMs,
+            latestFinalBucketEndTimeMs,
+            latestRecordTimeMs,
+            haveSeenDataPreviously,
+            delayedDataFreq,
+            crossClusterSearchStats,
+            datafeedId,
+            projectRouting,
+            cloudCredentialId,
+            false,
+            0L,
+            7_200_000L
+        );
+    }
+
+    private DatafeedJob createDatafeedJob(
+        long frequencyMs,
+        long queryDelayMs,
+        long latestFinalBucketEndTimeMs,
+        long latestRecordTimeMs,
+        boolean haveSeenDataPreviously,
+        long delayedDataFreq,
+        CrossClusterSearchStats crossClusterSearchStats,
+        String datafeedId,
+        String projectRouting,
+        String cloudCredentialId,
+        boolean isEsqlDatafeed,
+        long groupingIntervalMs,
+        long bucketSpanMs
+    ) {
         Supplier<Long> currentTimeSupplier = () -> currentTime;
         return new DatafeedJob(
             datafeedId,
@@ -1329,7 +1483,10 @@ public class DatafeedJobTests extends ESTestCase {
             latestRecordTimeMs,
             haveSeenDataPreviously,
             delayedDataFreq,
-            crossClusterSearchStats
+            bucketSpanMs,
+            isEsqlDatafeed,
+            crossClusterSearchStats,
+            groupingIntervalMs
         );
     }
 

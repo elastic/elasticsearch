@@ -141,7 +141,7 @@ public class ReopeningIndexInputDirectAccessTests extends ESTestCase {
                 // declined despite the delegate being able to serve it
                 assertNoSegmentSlice(input, SMALL_RANGE_LENGTH);
 
-                // ... and the caller still gets the right bytes, via the heap-copy fallback
+                // ... and the caller still gets the right bytes, via the copying fallback
                 var scratch = new RecordingScratch();
                 input.seek(0L);
                 assertArrayEquals(
@@ -241,7 +241,7 @@ public class ReopeningIndexInputDirectAccessTests extends ESTestCase {
 
     /**
      * Reads through the whole production wrapper chain that {@link org.elasticsearch.index.store.Store} builds, which is where the
-     * zero-copy access has to survive in order to reach the vector scorers, and checks that the heap-copy fallback is taken for a plain
+     * zero-copy access has to survive in order to reach the vector scorers, and checks that the copying fallback is taken for a plain
      * delegate and skipped for an mmap one.
      */
     public void testZeroCopyThroughStoreDirectory() throws Exception {
@@ -258,7 +258,7 @@ public class ReopeningIndexInputDirectAccessTests extends ESTestCase {
                     Arrays.copyOfRange(mmapBytes, 0, RANGE_LENGTH),
                     IndexInputUtils.withSlice(input, RANGE_LENGTH, scratch, ReopeningIndexInputDirectAccessTests::toByteArray)
                 );
-                assertThat("heap-copy fallback was taken for an mmap delegate", scratch.used.get(), equalTo(false));
+                assertThat("copying fallback was taken for an mmap delegate", scratch.used.get(), equalTo(false));
 
                 assertSliceAddressesThroughUtils(input, mmapBytes, true);
             }
@@ -269,22 +269,22 @@ public class ReopeningIndexInputDirectAccessTests extends ESTestCase {
                     Arrays.copyOfRange(plainBytes, 0, RANGE_LENGTH),
                     IndexInputUtils.withSlice(input, RANGE_LENGTH, scratch, ReopeningIndexInputDirectAccessTests::toByteArray)
                 );
-                assertThat("heap-copy fallback should be taken for a plain delegate", scratch.used.get(), equalTo(true));
+                assertThat("copying fallback should be taken for a plain delegate", scratch.used.get(), equalTo(true));
 
                 assertSliceAddressesThroughUtils(input, plainBytes, false);
             }
         }
     }
 
-    /** Records whether the heap-copy fallback of {@link IndexInputUtils#withSlice} was reached. */
-    private static class RecordingScratch implements IntFunction<byte[]> {
+    /** Records whether the copying fallback of {@link IndexInputUtils#withSlice} was reached. */
+    private static class RecordingScratch implements IntFunction<MemorySegment> {
 
         private final AtomicBoolean used = new AtomicBoolean();
 
         @Override
-        public byte[] apply(int length) {
+        public MemorySegment apply(int length) {
             used.set(true);
-            return new byte[length];
+            return Arena.ofAuto().allocate(length);
         }
     }
 

@@ -294,7 +294,7 @@ public class StoreMetricsIndexInputTests extends ESTestCase {
                 in.seek(offset);
 
                 byte[] read = IndexInputUtils.withSlice(in, length, len -> {
-                    throw new AssertionError("copied to a heap buffer instead of using a segment slice");
+                    throw new AssertionError("copied to a scratch buffer instead of using a segment slice");
                 }, segment -> segment.toArray(ValueLayout.JAVA_BYTE));
 
                 assertArrayEquals(Arrays.copyOfRange(data, offset, offset + length), read);
@@ -319,7 +319,7 @@ public class StoreMetricsIndexInputTests extends ESTestCase {
                 in.seek(offset);
 
                 byte[] read = IndexInputUtils.withSlice(in, length, len -> {
-                    throw new AssertionError("copied to a heap buffer instead of using a segment slice");
+                    throw new AssertionError("copied to a scratch buffer instead of using a segment slice");
                 }, segment -> segment.toArray(ValueLayout.JAVA_BYTE));
 
                 int start = sliceOffset + offset;
@@ -378,7 +378,7 @@ public class StoreMetricsIndexInputTests extends ESTestCase {
                 boolean[] copied = new boolean[1];
                 byte[] read = IndexInputUtils.withSlice(in, 64, len -> {
                     copied[0] = true;
-                    return new byte[len];
+                    return Arena.ofAuto().allocate(len);
                 }, segment -> segment.toArray(ValueLayout.JAVA_BYTE));
 
                 assertTrue(copied[0]);

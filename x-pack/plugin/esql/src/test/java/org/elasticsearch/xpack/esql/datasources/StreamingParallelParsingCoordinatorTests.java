@@ -3130,8 +3130,10 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         ) {
             executor.shutdown();
             assertTrue(executor.awaitTermination(10, TimeUnit.SECONDS));
-            ExternalClientException ex = expectThrows(ExternalClientException.class, iterator::hasNext);
-            assertThat(ExceptionsHelper.stackTrace(ex), Matchers.containsString(CircuitBreakingException.class.getSimpleName()));
+            // A breaker trip during schema inference is a resource failure: it surfaces as the breaker's own 429, not as
+            // a malformed-data ExternalClientException.
+            CircuitBreakingException ex = expectThrows(CircuitBreakingException.class, iterator::hasNext);
+            assertEquals(RestStatus.TOO_MANY_REQUESTS, ex.status());
             assertEquals(HeapFootprint.byteArrayBytes(reader.minimumSegmentSize()), breaker.getUsed());
         } finally {
             executor.shutdownNow();

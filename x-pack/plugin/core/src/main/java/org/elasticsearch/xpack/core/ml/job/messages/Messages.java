@@ -207,7 +207,7 @@ public final class Messages {
     public static final String JOB_AUDIT_DATAFEED_STOPPED_CONSECUTIVE_EXTRACTION_FAILURES =
         "Datafeed auto-stopped after {0} consecutive real-time extraction failures. Last error: {1}. "
             + "Job remains open. Fix the source problem, then start the datafeed. "
-            + "To change the threshold, set max_consecutive_extraction_failures on the datafeed (-1 disables).";
+            + "To change the threshold, set max_consecutive_extraction_failures on the datafeed (-1 resets it to the default).";
     public static final String JOB_AUDIT_DATAFEED_MISSING_DATA =
         "Datafeed has missed {0} documents due to ingest latency, latest bucket with missing data is [{1}]."
             + " Consider increasing query_delay and investigate the cause of high latency in your ingestion process.";

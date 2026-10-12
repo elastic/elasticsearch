@@ -439,11 +439,11 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         assertThat(e.getMessage(), containsString("Invalid max_consecutive_extraction_failures value"));
     }
 
-    public void testCheckValid_GivenMaxConsecutiveExtractionFailuresMinusOneDisables() {
+    public void testCheckValid_GivenMaxConsecutiveExtractionFailuresMinusOneResetsToDefault() {
         DatafeedConfig.Builder conf = new DatafeedConfig.Builder("datafeed1", "job1");
         conf.setIndices(Collections.singletonList("whatever"));
         conf.setMaxConsecutiveExtractionFailures(-1);
-        assertThat(conf.build().getMaxConsecutiveExtractionFailures(), equalTo(-1));
+        assertThat(conf.build().getMaxConsecutiveExtractionFailures(), is(nullValue()));
     }
 
     public void testCheckValid_GivenPositiveMaxConsecutiveExtractionFailures() {
@@ -455,7 +455,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
 
     public void testMaxConsecutiveExtractionFailuresSurvivesSerializationRoundTrip() throws IOException {
         DatafeedConfig.Builder builder = createRandomizedDatafeedConfigBuilder("job1", randomValidDatafeedId(), 3600000);
-        builder.setMaxConsecutiveExtractionFailures(randomBoolean() ? -1 : randomIntBetween(1, 100));
+        builder.setMaxConsecutiveExtractionFailures(randomIntBetween(1, 100));
         DatafeedConfig config = builder.build();
         DatafeedConfig deserialized = copyInstance(config);
         assertThat(deserialized.getMaxConsecutiveExtractionFailures(), equalTo(config.getMaxConsecutiveExtractionFailures()));
@@ -1107,8 +1107,6 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
                 break;
             case 13:
                 if (instance.getMaxConsecutiveExtractionFailures() == null) {
-                    builder.setMaxConsecutiveExtractionFailures(randomFrom(-1, randomIntBetween(1, 100)));
-                } else if (instance.getMaxConsecutiveExtractionFailures() == -1) {
                     builder.setMaxConsecutiveExtractionFailures(randomIntBetween(1, 100));
                 } else {
                     builder.setMaxConsecutiveExtractionFailures(instance.getMaxConsecutiveExtractionFailures() + 1);

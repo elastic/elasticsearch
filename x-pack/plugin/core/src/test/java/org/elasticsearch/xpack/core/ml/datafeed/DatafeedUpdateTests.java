@@ -683,9 +683,10 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
         DatafeedConfig updated = update.apply(datafeed, Collections.emptyMap(), clusterState);
         assertThat(updated.getMaxConsecutiveExtractionFailures(), equalTo(25));
 
-        DatafeedUpdate disable = new DatafeedUpdate.Builder(datafeed.getId()).setMaxConsecutiveExtractionFailures(-1).build();
-        DatafeedConfig disabled = disable.apply(updated, Collections.emptyMap(), clusterState);
-        assertThat(disabled.getMaxConsecutiveExtractionFailures(), equalTo(-1));
+        // -1 resets the setting back to its default, so a user can clear a configured value via the _update API.
+        DatafeedUpdate reset = new DatafeedUpdate.Builder(datafeed.getId()).setMaxConsecutiveExtractionFailures(-1).build();
+        DatafeedConfig wasReset = reset.apply(updated, Collections.emptyMap(), clusterState);
+        assertThat(wasReset.getMaxConsecutiveExtractionFailures(), is(nullValue()));
     }
 
     public void testApplyWithProjectRouting() {

@@ -450,10 +450,44 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         if (values == null) {
             return;
         }
+        IVFSegmentScan scan = new IVFSegmentScan();
+        if (scan.openIfNeeded(() -> planScan(fieldInfo, entry, queryTarget, knnCollector, acceptDocs, esAcceptDocs, values)) == false) {
+            return; // no vectors in this segment / slice
+        }
+        PostingVisitor visitor = getPostingVisitor(
+            fieldInfo,
+            values,
+            entry.postingListSlice(ivfClusters),
+            queryTarget,
+            scan.acceptBits(),
+            entry.centroidSlice(ivfCentroids),
+            esAcceptDocs
+        );
+        while (scan.claim(visitor, knnCollector)) {
+            scan.complete(visitor.visit(knnCollector));
+            if (knnCollector.getSearchStrategy() != null) {
+                knnCollector.getSearchStrategy().nextVectorsBlock();
+            }
+        }
+    }
+
+    /**
+     * Everything a search needs before visiting postings: how many vectors to consider, the visit budget, the filter and
+     * the best-first posting order. Returns null if the segment (or slice) has no vectors.
+     */
+    private IVFSegmentScan.Plan planScan(
+        FieldInfo fieldInfo,
+        E entry,
+        QueryTarget queryTarget,
+        KnnCollector knnCollector,
+        AcceptDocs acceptDocs,
+        ESAcceptDocs esAcceptDocs,
+        KnnVectorValues values
+    ) throws IOException {
         final IndexInput centroids = entry.centroidSlice(ivfCentroids);
         final int numVectors = getNumberOfVectors(entry, values, centroids, esAcceptDocs);
         if (numVectors == 0) {
-            return; // nothing more to do if there are no vectors in this segment / slice
+            return null;
         }
         final float approximateCost;
         if (esAcceptDocs instanceof ESAcceptDocs.ESAcceptDocsAll) {
@@ -471,62 +505,27 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             numCands = ivfSearchStrategy.getNumCands();
             k = ivfSearchStrategy.getK();
         }
-
         if (visitRatio == dynamicVisitRatio) {
             visitRatio = segmentVisitRatio(numCands, k, numVectors);
         }
-        long maxVectorVisited = maxVectorsToVisit(entry, visitRatio, numVectors);
-        IndexInput postListSlice = entry.postingListSlice(ivfClusters);
-        CentroidIterator centroidPrefetchingIterator = getCentroidIterator(
+        CentroidIterator postings = getCentroidIterator(
             fieldInfo,
             entry.numCentroids,
             centroids,
             queryTarget,
-            postListSlice,
+            entry.postingListSlice(ivfClusters),
             acceptDocs,
             approximateCost,
             values,
             visitRatio
         );
-        Bits acceptDocsBits = acceptDocs.bits();
-        PostingVisitor scorer = getPostingVisitor(
-            fieldInfo,
-            values,
-            postListSlice,
-            queryTarget,
-            acceptDocsBits,
-            entry.centroidSlice(ivfCentroids),
-            esAcceptDocs
+        return new IVFSegmentScan.Plan(
+            postings,
+            maxVectorsToVisit(entry, visitRatio, numVectors),
+            numVectors,
+            percentFiltered,
+            acceptDocs.bits()
         );
-        long expectedDocs = 0;
-        long actualDocs = 0;
-        // initially we visit only the "centroids to search"
-        // Note, numCollected is doing the bare minimum here.
-        // TODO do we need to handle nested doc counts similarly to how we handle
-        // filtering? E.g. keep exploring until we hit an expected number of parent documents vs. child vectors?
-        while (centroidPrefetchingIterator.hasNext()
-            && (maxVectorVisited > expectedDocs || knnCollector.minCompetitiveSimilarity() == Float.NEGATIVE_INFINITY)) {
-            PostingMetadata postingMetadata = centroidPrefetchingIterator.nextPosting();
-            expectedDocs += scorer.resetPostingsScorer(postingMetadata);
-            actualDocs += scorer.visit(knnCollector);
-            if (knnCollector.getSearchStrategy() != null) {
-                knnCollector.getSearchStrategy().nextVectorsBlock();
-            }
-        }
-        if (acceptDocsBits != null) {
-            // TODO Adjust the value here when using centroid filtering
-            float unfilteredRatioVisited = (float) expectedDocs / numVectors;
-            int filteredVectors = (int) Math.ceil(numVectors * percentFiltered);
-            float expectedScored = Math.min(2 * filteredVectors * unfilteredRatioVisited, expectedDocs / 2f);
-            while (centroidPrefetchingIterator.hasNext() && (actualDocs < expectedScored || actualDocs < knnCollector.k())) {
-                PostingMetadata postingMetadata = centroidPrefetchingIterator.nextPosting();
-                scorer.resetPostingsScorer(postingMetadata);
-                actualDocs += scorer.visit(knnCollector);
-                if (knnCollector.getSearchStrategy() != null) {
-                    knnCollector.getSearchStrategy().nextVectorsBlock();
-                }
-            }
-        }
     }
 
     /**

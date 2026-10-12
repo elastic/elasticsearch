@@ -18,6 +18,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.InetAddress;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -32,12 +33,14 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
- * Drives the search fetch path so the coordinator holds large fetched responses in heap while a slow
- * client reads them. Each reader opens a raw socket, sends a full-source search that pulls ~200 MB of
- * _source, then drains the response body a few KB at a time, so the coordinator blocks on the write and
- * keeps the fetched hits referenced. A few readers start staggered, so each fetch transit stays under
- * the request breaker while the held sources accumulate on node 0 to more than its heap. On a build
- * that does not charge the coordinator hold, those held sources exhaust node 0's heap and it dies.
+ * Drives the search fetch path so the coordinator holds large fetched responses in heap while
+ * clients read them slowly. Each reader opens a raw socket, sends a full-source search that pulls
+ * ~200 MB of _source, then reads the response body at a steady, throttled pace, so the coordinator
+ * blocks on the write and keeps the fetched hits referenced. Many readers start staggered, so each
+ * fetch transit stays under the request breaker while the held sources accumulate on node 0 past
+ * its heap. On a build that does not charge the coordinator hold, those held sources exhaust
+ * node 0's heap and it dies. On a build that charges the hold, the request breaker refuses new
+ * work with 429 before the heap fills, so node 0 survives.
  */
 public class LargeSourceSearchResponsesIT extends ESRestTestCase {
 
@@ -49,18 +52,21 @@ public class LargeSourceSearchResponsesIT extends ESRestTestCase {
     private static final int DOC_COUNT = 900;
     private static final int DOC_BYTES = 1024 * 1024;
     private static final int DOCS_PER_BULK = 10;
-    // Pull ~200 hits per response (~200 MB) so a single response's transit stays just under the 307 MB
+    // Pull ~200 hits per response (~200 MB) so a single response's transit stays just under the
     // request breaker, but the held _source is large.
     private static final int SEARCH_SIZE = 200;
-    // Only a few slow readers; 4 held ~200 MB responses is ~800 MB of uncharged held _source on node 0.
-    private static final int SLOW_READERS = 4;
-    // Stagger the reader starts so their fetch transits do not overlap and sum past the breaker; each
-    // fetch completes and its _source is held while the next starts.
-    private static final int STAGGER_MILLIS = 200;
-    // Read the body in small sips with a pause between them, so node 0 holds each whole response in heap.
-    private static final int READ_CHUNK_BYTES = 16 * 1024;
-    private static final int READ_DELAY_MILLIS = 100;
-    private static final int HOLD_READS = 200;
+    // Many readers, so even with short holds several ~200 MB responses are held at once; a few held
+    // responses are enough to pass node 0's 512 MB heap.
+    private static final int READERS = 16;
+    // Stagger the reader starts so their fetch transits do not overlap and sum past the breaker;
+    // each fetch completes and its _source is held while the next starts.
+    private static final int STAGGER_MILLIS = 300;
+    // Read the body at a steady throttled pace: 64 KB every 20 ms (~3 MB/s). Faster than a trickle,
+    // but still slower than node 0 can write on loopback, so node 0 holds each whole response.
+    private static final int READ_CHUNK_BYTES = 64 * 1024;
+    private static final int READ_DELAY_MILLIS = 20;
+    // ~150 reads * 20 ms holds each response ~3 s, long enough for many readers' holds to overlap.
+    private static final int HOLD_READS = 150;
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
@@ -84,14 +90,14 @@ public class LargeSourceSearchResponsesIT extends ESRestTestCase {
         List<String> breakerBodies = Collections.synchronizedList(new ArrayList<>());
 
         // Staggered starts so fetch transits do not overlap; the held sources accumulate across readers.
-        ExecutorService pool = Executors.newFixedThreadPool(SLOW_READERS);
-        List<Future<Void>> futures = new ArrayList<>(SLOW_READERS);
+        ExecutorService pool = Executors.newFixedThreadPool(READERS);
+        List<Future<Void>> futures = new ArrayList<>(READERS);
         try {
-            for (int i = 0; i < SLOW_READERS; i++) {
+            for (int i = 0; i < READERS; i++) {
                 final int index = i;
                 futures.add(pool.submit(() -> {
                     Thread.sleep((long) index * STAGGER_MILLIS);
-                    slowSearch(statuses, breakerLabels, breakerBodies);
+                    heldSearch(statuses, breakerLabels, breakerBodies);
                     return null;
                 }));
             }
@@ -139,9 +145,10 @@ public class LargeSourceSearchResponsesIT extends ESRestTestCase {
         assertOK(client().performRequest(new Request("GET", "/_cluster/health")));
     }
 
-    // Opens a raw socket to node 0, sends a full-source search, then reads the response slowly so the
-    // coordinator holds it in heap. Records the status; status 0 marks a dropped connection (node death).
-    private void slowSearch(List<Integer> statuses, List<String> breakerLabels, List<String> breakerBodies) throws InterruptedException {
+    // Opens a raw socket to node 0, sends a full-source search, then reads the response at a throttled
+    // pace so the coordinator holds it in heap. Records the status; status 0 marks a dropped connection
+    // (node death).
+    private void heldSearch(List<Integer> statuses, List<String> breakerLabels, List<String> breakerBodies) throws InterruptedException {
         String hostAndPort = cluster.getHttpAddress(0);
         int colon = hostAndPort.lastIndexOf(':');
         String host = hostAndPort.substring(0, colon);
@@ -163,7 +170,7 @@ public class LargeSourceSearchResponsesIT extends ESRestTestCase {
             + "Connection: close\r\n"
             + "\r\n";
 
-        try (Socket socket = new Socket(host, port)) {
+        try (Socket socket = new Socket(InetAddress.getByName(host), port)) {
             socket.setSoTimeout(120000);
             OutputStream out = socket.getOutputStream();
             out.write(requestHead.getBytes(StandardCharsets.US_ASCII));
@@ -193,7 +200,7 @@ public class LargeSourceSearchResponsesIT extends ESRestTestCase {
             statuses.add(status);
 
             if (status >= 200 && status < 300) {
-                // Hold the completed response: sip the large body slowly so the server blocks on the write.
+                // Hold the completed response: read the large body at a throttled pace so the server blocks on the write.
                 byte[] buffer = new byte[READ_CHUNK_BYTES];
                 try {
                     for (int i = 0; i < HOLD_READS; i++) {
@@ -204,6 +211,7 @@ public class LargeSourceSearchResponsesIT extends ESRestTestCase {
                     }
                 } catch (IOException e) {
                     // Connection reset mid-hold: node 0 died while holding the response.
+                    statuses.add(0);
                 }
             } else {
                 // Error body is small; read it fully and pull out the breaker reservation label.

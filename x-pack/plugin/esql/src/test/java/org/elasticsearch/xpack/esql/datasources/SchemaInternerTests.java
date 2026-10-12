@@ -143,6 +143,32 @@ public class SchemaInternerTests extends ESTestCase {
         assertThat(reservation.queryHeld(), equalTo(baseline));
     }
 
+    /**
+     * CI csv/tsv spec suites failed with request-breaker leftover {@code 64}. That is this schema-object
+     * shell when {@link SchemaInterner#intern(List)} runs after column/shape costs already filled the listing
+     * credit. The charge is {@code esql-external-planning}; {@link ExternalPlanningReservation#close()} must
+     * return it. HeaderBudget's {@code SET_ENTRY_BYTES} is also 64 but is part of a larger per-column
+     * formula, so it cannot be the always-exactly-64 leftover.
+     */
+    public void testInternedSchemaShellIsSixtyFourPlanningBytesAndCloseRefundsThem() {
+        CircuitBreaker breaker = requestBreaker("1mb");
+        long baseline = breaker.getUsed();
+        ExternalPlanningReservation reservation = new ExternalPlanningReservation(breaker);
+        long column = HeapEstimates.columnBytes(1);
+        long oneColumnShape = 40L;
+        SchemaInterner interner = new SchemaInterner(reservation, column + oneColumnShape);
+        List<Attribute> canonical = interner.canonicalize(List.of(attribute("a", DataType.KEYWORD, Nullability.FALSE, false)));
+        assertThat(reservation.queryHeld(), equalTo(0L));
+
+        interner.intern(canonical);
+        assertThat(reservation.queryHeld(), equalTo(64L));
+        assertThat(breaker.getUsed(), equalTo(baseline + 64L));
+
+        reservation.close();
+        assertThat(reservation.queryHeld(), equalTo(0L));
+        assertThat(breaker.getUsed(), equalTo(baseline));
+    }
+
     public void testMaxAllowanceChargesNothing() {
         CircuitBreaker breaker = requestBreaker("1mb");
         ExternalPlanningReservation reservation = new ExternalPlanningReservation(breaker);

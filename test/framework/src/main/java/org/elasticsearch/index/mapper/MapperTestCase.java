@@ -2154,4 +2154,27 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             assertThat(mapperService.fieldType("field").indexType(), equalTo(IndexType.skippers()));
         }
     }
+
+    public void testTimeSeriesSkippersHonorIndexAndDocValues() throws IOException {
+        assumeTrue("Mapper does not support doc values skippers", supportsDocValuesSkippers());
+
+        final Settings settings = Settings.builder()
+            .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true)
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
+            .build();
+        for (boolean indexed : new boolean[] { true, false }) {
+            for (boolean docValues : new boolean[] { true, false }) {
+                final MapperService mapperService = createMapperService(IndexVersion.current(), settings, fieldMapping(b -> {
+                    minimalMapping(b);
+                    b.field("index", indexed);
+                    b.field("doc_values", docValues);
+                }));
+                final IndexType indexType = mapperService.fieldType("field").indexType();
+                final String description = "index=" + indexed + ", doc_values=" + docValues + ", resolved=" + indexType;
+                assertThat(description, indexType.hasDenseIndex(), equalTo(indexed));
+                assertThat(description, indexType.hasDocValues(), equalTo(docValues));
+            }
+        }
+    }
 }

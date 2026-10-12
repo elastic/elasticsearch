@@ -20,6 +20,11 @@ public class IndexFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
+        // SLICE_INDEXING gates slice-routing support (e.g. reindex source/dest [_slice]) and must be advertised by real nodes, not only
+        // in the test framework, so it is published here when the feature flag is enabled.
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
+            return Set.of(SLICE_INDEXING);
+        }
         return Set.of();
     }
 
@@ -83,9 +88,6 @@ public class IndexFeatures implements FeatureSpecification {
                 SEGMENTS_INCLUDE_AUTO_CALIBRATION
             )
         );
-        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
-            features.add(SLICE_INDEXING);
-        }
         return Set.copyOf(features);
     }
 }

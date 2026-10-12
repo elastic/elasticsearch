@@ -36,6 +36,7 @@ import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortingArrayOrderBinaryDocValues;
+import org.elasticsearch.lucene.queries.BinaryDocValuesScanCost;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 
 import java.io.IOException;
@@ -48,7 +49,7 @@ import java.util.function.Supplier;
  * match a provided approximation query which is key to getting good performance).
  */
 
-abstract class BinaryDvConfirmedQuery extends Query {
+abstract class BinaryDvConfirmedQuery extends Query implements BinaryDocValuesScanCost {
 
     protected final String field;
     protected final Query approxQuery;
@@ -273,6 +274,11 @@ abstract class BinaryDvConfirmedQuery extends Query {
 
     Query getApproximationQuery() {
         return approxQuery;
+    }
+
+    @Override
+    public String field() {
+        return field;
     }
 
     @Override

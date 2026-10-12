@@ -89,7 +89,7 @@ import java.util.concurrent.locks.LockSupport;
 public class AsyncExternalSourceOperatorRealDriverTests extends ESTestCase {
 
     private static final BlockFactory TEST_BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("none"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     private static final String DRIVER_POOL_NAME = "test-driver";

@@ -138,8 +138,9 @@ public abstract class SimdVecLibrary {
 
     /** Whether the host CPU/OS/JDK combination can run the native vector library. */
     public static boolean isNativeVectorLibSupported() {
-        var supportedPlatform = Platform.current().equals(Platform.DARWIN_X64) == false;
-        return Runtime.version().feature() >= 22 && supportedPlatform && checkEnableSystemProperty();
+        return Runtime.version().feature() >= 22
+            && LibraryProvider.isAvailableOnCurrentPlatform(SimdVecLibrary.class)
+            && checkEnableSystemProperty();
     }
 
     @SuppressForbidden(

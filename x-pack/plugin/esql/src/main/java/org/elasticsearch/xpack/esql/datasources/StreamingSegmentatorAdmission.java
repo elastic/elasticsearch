@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.xpack.esql.datasources.spi.AdmissionGate;
+import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
+
 import java.util.ArrayDeque;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
@@ -45,9 +48,10 @@ import java.util.function.Consumer;
  * closes the iterator before the work is admitted does not wait for a slot. Cancel of already-dispatched work
  * is a no-op; that iterator's started {@code close()} path interrupts the running segmentator.
  */
-final class StreamingSegmentatorAdmission {
+final class StreamingSegmentatorAdmission implements AdmissionGate {
 
     private final int maxConcurrentSegmentators;
+    private final AdmissionTracker tracker;
 
     /** Segmentators currently handed to the pool (running or queued in the pool's own work queue). Guarded by {@code this}. */
     private int running = 0;
@@ -80,6 +84,7 @@ final class StreamingSegmentatorAdmission {
         private final Runnable segmentator;
         private final Executor executor;
         private final Consumer<RejectedExecutionException> onReject;
+        private AdmissionTracker.Wait wait = AdmissionTracker.NOOP_WAIT;
 
         private Deferred(Runnable segmentator, Executor executor, Consumer<RejectedExecutionException> onReject) {
             this.segmentator = segmentator;
@@ -98,7 +103,11 @@ final class StreamingSegmentatorAdmission {
         @Override
         public boolean cancel() {
             synchronized (StreamingSegmentatorAdmission.this) {
-                return pending.remove(deferred);
+                boolean removed = pending.remove(deferred);
+                if (removed) {
+                    deferred.wait.finished();
+                }
+                return removed;
             }
         }
     }
@@ -113,7 +122,13 @@ final class StreamingSegmentatorAdmission {
     }
 
     StreamingSegmentatorAdmission(int maxConcurrentSegmentators) {
+        this(maxConcurrentSegmentators, AdmissionTracker.NOOP);
+    }
+
+    StreamingSegmentatorAdmission(int maxConcurrentSegmentators, AdmissionTracker tracker) {
         this.maxConcurrentSegmentators = Math.max(1, maxConcurrentSegmentators);
+        this.tracker = tracker == null ? AdmissionTracker.NOOP : tracker;
+        this.tracker.register(this);
     }
 
     /**
@@ -137,6 +152,7 @@ final class StreamingSegmentatorAdmission {
                 queued = null;
             } else {
                 queued = new Deferred(segmentator, executor, onReject);
+                queued.wait = tracker.waitStarted(AdmissionTracker.GATE_SEGMENTATORS, Thread.currentThread().getName());
                 pending.add(queued);
                 toDispatch = null;
             }
@@ -179,6 +195,7 @@ final class StreamingSegmentatorAdmission {
         Deferred next = pending.poll();
         if (next != null) {
             running++;
+            next.wait.granted();
         }
         return next;
     }
@@ -195,5 +212,17 @@ final class StreamingSegmentatorAdmission {
     /** Test-only: segmentators admitted but not yet handed to the pool because the budget was full. */
     synchronized int pending() {
         return pending.size();
+    }
+
+    @Override
+    public String name() {
+        return AdmissionTracker.GATE_SEGMENTATORS;
+    }
+
+    @Override
+    public int holders() {
+        synchronized (this) {
+            return running;
+        }
     }
 }

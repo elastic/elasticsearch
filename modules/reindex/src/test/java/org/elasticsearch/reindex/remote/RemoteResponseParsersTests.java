@@ -11,7 +11,6 @@ package org.elasticsearch.reindex.remote;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -38,7 +37,7 @@ public class RemoteResponseParsersTests extends ESTestCase {
 
     /** Returns a fresh JSON parse context with a no-op breaker and a high threshold (no breaker behavior under test here). */
     private static RemoteParseContext jsonContext() {
-        return new RemoteParseContext(XContentType.JSON, new NoopCircuitBreaker(CircuitBreaker.REQUEST), Long.MAX_VALUE);
+        return new RemoteParseContext(XContentType.JSON, NoopCircuitBreaker.INSTANCE, Long.MAX_VALUE);
     }
 
     /**

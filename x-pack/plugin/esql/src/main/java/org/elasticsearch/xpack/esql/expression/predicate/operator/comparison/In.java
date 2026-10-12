@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
@@ -18,6 +20,8 @@ import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -45,6 +49,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
+import org.elasticsearch.xpack.esql.querydsl.query.FieldValueQueries;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
@@ -534,6 +539,10 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
         if (pushdownPredicates.isPushableAttribute(value)) {
             return Translatable.YES;
         }
+        if (LucenePushdownPredicates.pushesOverValuesOnly(pushdownPredicates, value)) {
+            // The field answers over the values it keeps, which the expression asks it for on the shard.
+            return FieldValueQueries.pushable(pushdownPredicates.minTransportVersion()) ? Translatable.YES : Translatable.NO;
+        }
         if (value instanceof FieldExtract fe && fe.tryAsKeyedSubfieldName(pushdownPredicates).isPresent()) {
             // Candidate terms query against the keyed sub-field; RECHECK keeps the predicate in the
             // FilterOperator to null out multi-valued documents the candidate matched.
@@ -544,6 +553,9 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
 
     @Override
     public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+        if (LucenePushdownPredicates.pushesOverValuesOnly(pushdownPredicates, value)) {
+            return FieldValueQueries.over(source(), handler.nameOf((TypedAttribute) value), this);
+        }
         if (value() instanceof FieldExtract fe) {
             var keyedName = fe.tryAsKeyedSubfieldName(pushdownPredicates);
             if (keyedName.isPresent()) {
@@ -551,6 +563,22 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
             }
         }
         return translate(pushdownPredicates, handler);
+    }
+
+    /** The listed values looked for among the values the field keeps, each matching whole. */
+    @Override
+    public org.apache.lucene.search.Query asLuceneQuery(
+        MappedFieldType fieldType,
+        MultiTermQuery.RewriteMethod constantScoreRewrite,
+        SearchExecutionContext context
+    ) {
+        final List<BytesRef> terms = new ArrayList<>(list().size());
+        for (Expression rhs : list()) {
+            if (Expressions.isGuaranteedNull(rhs) == false) {
+                terms.add(BytesRefs.toBytesRef(literalValueOf(rhs)));
+            }
+        }
+        return FieldValueQueries.textFamily(fieldType).termsLikeQuery(terms, context);
     }
 
     private Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {

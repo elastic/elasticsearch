@@ -12,6 +12,7 @@ import fixture.s3.S3HttpHandler;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.lucene.tests.util.TimeUnits;
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -35,6 +36,9 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.BUCKET;
 import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.WAREHOUSE;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * Heap-attack suite for the {@code FROM <dataset>} ES|QL command over external datasources. The mirror
@@ -269,6 +273,53 @@ public class HeapAttackExternalIT extends HeapAttackRestHelpers {
         } else {
             assertCircuitBreaks(blowup);
         }
+    }
+
+    /**
+     * A streaming query must release its planning reservation the way a regular query does. The leak
+     * is only each file's listing and schema bytes, far below the idle tolerance of
+     * {@link #allowedRequestBreakerBaselineBytes()}, so this measures the request breaker around the
+     * queries directly, over many files and several queries so a leak cannot hide in that tolerance.
+     */
+    public void testStreamingQueryReleasesPlanningReservation() throws Exception {
+        assumeTrue("ES|QL streaming is not available in release builds yet", Build.current().isSnapshot());
+        String prefix = KEY_PREFIX + "/" + sanitizedTestName();
+        for (int f = 0; f < 200; f++) {
+            S3FixtureUtils.addBlobToFixture(handler(), prefix + "/part-" + f + ".csv", HeapAttackExternalFixtures.csvManyRows(1, 1));
+        }
+        String dataset = datasetName("streamrelease", Format.CSV, Compression.NONE);
+        DatasetRegistry.ensureDataset(adminClient(), dataset, DATA_SOURCE, "s3://" + BUCKET + "/" + prefix + "/*.csv", null);
+        String esql = "FROM " + dataset + " | STATS c = COUNT(*)";
+        runQueryAsMap(esql, false);
+        long baseline = requestBreakerBytes();
+
+        for (int q = 0; q < 10; q++) {
+            runQueryAsMap(esql, false);
+        }
+        assertBusy(() -> assertThat("regular queries", requestBreakerBytes(), lessThanOrEqualTo(baseline + LEAK_SLACK_BYTES)));
+
+        for (int q = 0; q < 10; q++) {
+            StreamSummary s = streamQuery(esql, 10);
+            assertThat(s.errors(), empty());
+            assertThat(s.rowCount(), equalTo(1L));
+        }
+        assertBusy(() -> assertThat("streaming queries", requestBreakerBytes(), lessThanOrEqualTo(baseline + LEAK_SLACK_BYTES)));
+    }
+
+    /** Well below the ~200&nbsp;KB each query over 200 files reserves for its listing and schemas. */
+    private static final long LEAK_SLACK_BYTES = 64 * 1024;
+
+    private static long requestBreakerBytes() throws IOException {
+        Response response = adminClient().performRequest(
+            new Request("GET", "/_nodes/stats/breaker?filter_path=nodes.*.breakers.request.estimated_size_in_bytes")
+        );
+        Map<?, ?> nodes = (Map<?, ?>) responseAsMap(response).get("nodes");
+        long total = 0;
+        for (Object node : nodes.values()) {
+            Map<?, ?> request = (Map<?, ?>) ((Map<?, ?>) ((Map<?, ?>) node).get("breakers")).get("request");
+            total += ((Number) request.get("estimated_size_in_bytes")).longValue();
+        }
+        return total;
     }
 
     /*

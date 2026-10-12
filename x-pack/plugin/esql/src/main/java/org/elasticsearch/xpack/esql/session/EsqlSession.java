@@ -43,7 +43,6 @@ import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.iplocation.api.IpDataLookupInfo;
 import org.elasticsearch.iplocation.api.IpLocationConsumer;
 import org.elasticsearch.iplocation.api.IpLocationService;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
@@ -57,7 +56,6 @@ import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
-import org.elasticsearch.xpack.esql.action.ExternalPlanningReservation;
 import org.elasticsearch.xpack.esql.action.TimeSpanMarker;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
@@ -79,6 +77,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor;
+import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.BoundSemantics;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
@@ -90,6 +89,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalStatsRequirementExtractor;
 import org.elasticsearch.xpack.esql.datasources.FoldDateFunctionFiltersForListing;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
+import org.elasticsearch.xpack.esql.datasources.PartitionSpec;
 import org.elasticsearch.xpack.esql.datasources.SchemaDiscoveryPathExtractor;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
@@ -414,12 +414,6 @@ public class EsqlSession {
         executionInfo.queryProfile().planning().start();
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         assert executionInfo != null : "Null EsqlExecutionInfo";
-        if (blockFactory != null && blockFactory.breaker() != null) {
-            executionInfo.externalPlanning(new ExternalPlanningReservation(blockFactory.breaker()));
-        }
-        if (externalSourceResolver != null) {
-            externalSourceResolver.planning(executionInfo.externalPlanning());
-        }
         LOGGER.debug("ESQL query:\n{}", request.queryDescription());
         // Wrap the outer listener so any failure — parse, view-resolution, analyze, optimize, map,
         // execute — funnels through one place that emits the anonymized log on INTERNAL_SERVER_ERROR.
@@ -457,17 +451,14 @@ public class EsqlSession {
         // supplied, before any view-resolution work. An operator's cluster default can never fail a query here: if it
         // is no longer usable the setting falls back to its built-in default, and the operator is warned on the
         // settings-update or license-transition path rather than in the request.
-        ResolvedSettings resolved = applyApproximationLicense(
-            QuerySettings.resolve(
-                clusterService.state().metadata().settings(),
-                clusterService.getSettings(),
-                request.requestSettings(),
-                statement,
-                SettingsValidationContext.from(crossProjectModeDecider)
-            ),
-            request,
+        ResolvedSettings resolved = QuerySettings.resolve(
+            clusterService.state().metadata().settings(),
+            clusterService.getSettings(),
+            request.requestSettings(),
             statement,
-            verifier.licenseState()
+            SettingsValidationContext.from(crossProjectModeDecider),
+            verifier.licenseState(),
+            plannerSettings.loadAllMaxFields()
         );
         if (explainContext == null) {
             gatherSettingsMetrics(request, statement);
@@ -1530,41 +1521,6 @@ public class EsqlSession {
         return IpLocationResolution.fromPrefetched(databaseInfo);
     }
 
-    /**
-     * Decide what an unlicensed cluster does about approximation, which depends on who asked for it.
-     * <p>
-     * A user who asked — in the request body or with {@code SET} — gets today's licensing error, unchanged: they
-     * requested a paid feature this cluster does not have. An operator's cluster-wide default is different. The
-     * operator is not in the request path, so failing would break every query on the cluster for people who never
-     * asked and cannot turn it off. Instead the default simply does not apply and the query runs exactly.
-     * <p>
-     * The operator learns of it from {@code QuerySettings.watchApproximationLicense}, which logs once when the
-     * license transitions. It cannot be logged here: this runs on every query.
-     * <p>
-     * Licenses change under a running cluster, so this cannot be settled when the setting is written: the value is
-     * valid, and it is the entitlement that comes and goes.
-     */
-    static ResolvedSettings applyApproximationLicense(
-        ResolvedSettings resolved,
-        EsqlQueryRequest request,
-        EsqlStatement statement,
-        XPackLicenseState licenseState
-    ) {
-        if (ApproximationSettings.isOn(QuerySettings.APPROXIMATION.get(resolved)) == false) {
-            return resolved;
-        }
-        boolean userSupplied = request.requestSettings().containsKey(QuerySettings.APPROXIMATION)
-            || (statement != null && statement.setting(QuerySettings.APPROXIMATION.name()) != null);
-        if (userSupplied) {
-            EsqlLicenseChecker.checkQueryApproximation(licenseState);
-            return resolved;
-        }
-        if (EsqlLicenseChecker.isQueryApproximationAllowed(licenseState)) {
-            return resolved;
-        }
-        return resolved.withOverride(QuerySettings.APPROXIMATION, null);
-    }
-
     private void gatherSettingsMetrics(EsqlQueryRequest request, EsqlStatement statement) {
         if (metrics == null) {
             return;
@@ -1693,6 +1649,8 @@ public class EsqlSession {
             parsed,
             projectMetadata,
             QuerySettings.WILDCARDS_MATCH_DATASETS.get(configuration.resolvedSettings()),
+            configuration.pragmas(),
+            flags,
             logicalPlanListener.delegateFailureAndWrap((delegate, rewritten) -> {
                 datasetResolutionProfile.stop();
                 analyzedPlanAfterDatasetResolution(rewritten, unmappedResolution, configuration, executionInfo, requestFilter, delegate);
@@ -1720,12 +1678,19 @@ public class EsqlSession {
         PreAnalysisResult result = resolveFieldNames(parsed, preAnalysis, unmappedResolution, requestFilter, configuration)
             .withMinimumTransportVersion(localClusterMinimumVersion);
         String description = requestFilter == null ? "the only attempt without filter" : "first attempt with filter";
-        // Extract timestamp bounds eagerly from the request filter so they can be threaded through to the analyzer,
-        // even when index resolution is retried without the filter (e.g. because the filter covers an empty time range).
-        // Extraction uses configuration::absoluteStartedTimeInMillis (fixed at request start), so it is safe to do here.
+        // Extract timestamp bounds eagerly from the request filter so they can be threaded through to the analyzer
+        // and to listing, even when index resolution is retried without the filter (e.g. because the filter covers
+        // an empty time range). Extraction uses configuration::absoluteStartedTimeInMillis (fixed at request start).
+        // PromQL / TBUCKET / TSTEP keep LEGACY rounding. Listing uses RANGE_QUERY so folder hints are never tighter
+        // than the row-filter rewrite (a time_zone range the translator drops does not narrow listing).
         TimestampBounds timestampBounds = QueryDslTimestampBoundsExtractor.extractTimestampBounds(
             requestFilter,
             configuration::absoluteStartedTimeInMillis
+        );
+        TimestampBounds listingBounds = QueryDslTimestampBoundsExtractor.extractTimestampBounds(
+            requestFilter,
+            configuration::absoluteStartedTimeInMillis,
+            BoundSemantics.RANGE_QUERY
         );
         // Decided here, from the original request filter, for the same reason as timestampBounds above: index resolution may be
         // retried without the filter, but the post-analysis steps that consume view boundaries
@@ -1742,6 +1707,7 @@ public class EsqlSession {
             description,
             requestFilter,
             timestampBounds,
+            listingBounds,
             preserveViewBoundaries,
             preAnalysis,
             result,
@@ -1794,6 +1760,7 @@ public class EsqlSession {
         String description,
         QueryBuilder requestFilter,
         TimestampBounds timestampBounds,
+        TimestampBounds listingBounds,
         boolean preserveViewBoundaries,
         PreAnalyzer.PreAnalysis preAnalysis,
         PreAnalysisResult result,
@@ -1873,7 +1840,7 @@ public class EsqlSession {
                     ExternalSourceResolution resolution = preAnalysisResult.externalSourceResolution();
                     externalSourceWarnings = resolution == null ? List.of() : resolution.warnings();
                     return preAnalysisResult;
-                }), configuration, functionRegistry)
+                }), configuration, functionRegistry, listingBounds)
             )
             .<PreAnalysisResult>andThen((l, r) -> {
                 // Do not update PreAnalysisResult.minimumTransportVersion, that's already been determined during main index resolution.
@@ -1905,6 +1872,7 @@ public class EsqlSession {
                     description,
                     requestFilter,
                     timestampBounds,
+                    listingBounds,
                     preserveViewBoundaries,
                     preAnalysis,
                     r,
@@ -2120,6 +2088,19 @@ public class EsqlSession {
         Configuration configuration,
         EsqlFunctionRegistry functionRegistry
     ) {
+        preAnalyzeExternalSources(externalSourceResolver, plan, preAnalysis, result, listener, configuration, functionRegistry, null);
+    }
+
+    static void preAnalyzeExternalSources(
+        ExternalSourceResolver externalSourceResolver,
+        LogicalPlan plan,
+        PreAnalyzer.PreAnalysis preAnalysis,
+        PreAnalysisResult result,
+        ActionListener<PreAnalysisResult> listener,
+        Configuration configuration,
+        EsqlFunctionRegistry functionRegistry,
+        @Nullable QueryDslTimestampBoundsExtractor.TimestampBounds listingBounds
+    ) {
         if (preAnalysis.externalSourcePaths().isEmpty()) {
             listener.onResponse(result);
             return;
@@ -2129,7 +2110,18 @@ public class EsqlSession {
         Map<String, DatasetMapping> declaredMappings = extractDeclaredMappings(plan);
 
         LogicalPlan listingPlan = FoldDateFunctionFiltersForListing.fold(plan, configuration, functionRegistry);
-        var filterHints = PartitionFilterHintExtractor.extract(listingPlan);
+        // QueryDslTimestampBoundsExtractor parses both ends with roundUp=false, so
+        // `lte now/y` is start-of-year. Including that Instant in year IN is safe
+        // only while listing is year grain.
+        var filterHints = projectPartitionSpecs(
+            PartitionSpec.addTimestampBounds(
+                PartitionFilterHintExtractor.extract(listingPlan),
+                pathConfigs,
+                listingBounds == null ? null : listingBounds.start(),
+                listingBounds == null ? null : listingBounds.end()
+            ),
+            pathConfigs
+        );
 
         // Always non-null (empty when no ungrouped aggregate is present). A non-null set switches the
         // resolver to selective eager stats: only the listed paths read every file's footer at
@@ -2215,6 +2207,29 @@ public class EsqlSession {
             }
         });
         return pathConfigs;
+    }
+
+    /**
+     * Remaps identity hints and emits finite {@code year}/{@code month}/{@code day}/{@code hour}
+     * {@code IN} lists through each path's {@code partition_spec}. Source-column bounds such as
+     * {@code @timestamp} GTE/LTE from {@link PartitionSpec#addTimestampBounds} are dropped after
+     * those {@code IN}s are built so they cannot fragment listing-cache identity. Hour IN
+     * changes listing-cache identity each hour; a Kibana refresh within the
+     * hour still hits. Identity-only specs leave the extractor hints unchanged.
+     */
+    static Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> projectPartitionSpecs(
+        Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
+        Map<String, Map<String, Object>> pathConfigs
+    ) {
+        if (filterHints.isEmpty()) {
+            return filterHints;
+        }
+        Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> projected = new HashMap<>(filterHints.size());
+        filterHints.forEach((path, hints) -> {
+            PartitionSpec spec = PartitionSpec.fromConfig(pathConfigs.get(path));
+            projected.put(path, spec.projectListingHints(hints));
+        });
+        return projected;
     }
 
     private void skipClusterOrError(String clusterAlias, EsqlExecutionInfo executionInfo, String message) {
@@ -2758,6 +2773,7 @@ public class EsqlSession {
         String description,
         QueryBuilder requestFilter,
         TimestampBounds timestampBounds,
+        TimestampBounds listingBounds,
         boolean preserveViewBoundaries,
         PreAnalyzer.PreAnalysis preAnalysis,
         PreAnalysisResult result,
@@ -2809,6 +2825,7 @@ public class EsqlSession {
                     "second attempt, without filter",
                     null,
                     timestampBounds,
+                    listingBounds,
                     preserveViewBoundaries,
                     preAnalysis,
                     result,
@@ -2862,7 +2879,8 @@ public class EsqlSession {
             r,
             timestampBounds,
             resolveIpLocations(parsed),
-            preserveViewBoundaries
+            preserveViewBoundaries,
+            flags
         );
         Analyzer analyzer = new Analyzer(analyzerContext, verifier);
         LogicalPlan plan = analyzer.analyze(parsed);

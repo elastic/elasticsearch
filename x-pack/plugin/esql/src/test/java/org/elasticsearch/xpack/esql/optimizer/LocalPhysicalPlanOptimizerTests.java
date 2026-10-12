@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -2947,6 +2948,44 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var fieldExtract = as(aggExec.child(), FieldExtractExec.class);
         var esQuery = as(fieldExtract.child(), EsQueryExec.class);
         assertNull(esQuery.query());
+    }
+
+    /**
+     * A conjunction of a runtime match and an indexed match splits: the indexed leg is pushed to Lucene while the runtime
+     * leg stays behind in a {@link FilterExec}.
+     */
+    public void testRuntimeMatchAndIndexedMatchSplit() {
+        var plan = plannerOptimizer.plan("from test | where match(to_text(first_name), \"anna\") and match(last_name, \"Smith\")");
+
+        QueryBuilder expected = new MatchQueryBuilder("last_name", "Smith").lenient(true);
+        assertThat(pushedQuery(plan).toString(), equalTo(expected.toString()));
+        assertThat(runtimeFilterCondition(plan), instanceOf(Match.class));
+    }
+
+    /**
+     * A disjunction with a runtime match cannot be split: pushing only the indexed leg would drop rows matched by the
+     * runtime leg, so the whole condition stays in the {@link FilterExec}.
+     */
+    public void testRuntimeMatchOrIndexedMatchNotPushed() {
+        var plan = plannerOptimizer.plan("from test | where match(to_text(first_name), \"anna\") or match(last_name, \"Smith\")");
+
+        assertThat(pushedQuery(plan), nullValue());
+        assertThat(runtimeFilterCondition(plan), instanceOf(Or.class));
+    }
+
+    public void testNegatedRuntimeMatchNotPushed() {
+        var plan = plannerOptimizer.plan("from test | where not match(to_text(first_name), \"anna\")");
+
+        assertThat(pushedQuery(plan), nullValue());
+        var not = as(runtimeFilterCondition(plan), Not.class);
+        assertThat(not.field(), instanceOf(Match.class));
+    }
+
+    private static Expression runtimeFilterCondition(PhysicalPlan plan) {
+        List<FilterExec> filters = new ArrayList<>();
+        plan.forEachDown(FilterExec.class, filters::add);
+        assertThat(filters, hasSize(1));
+        return filters.get(0).condition();
     }
 
     public void testToDateNanosPushDown() {

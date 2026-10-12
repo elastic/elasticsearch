@@ -11,6 +11,8 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -19,6 +21,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -28,6 +31,7 @@ import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
@@ -41,7 +45,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -50,7 +53,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * Make sures that we can run many concurrent requests with large number of shards with any data_partitioning.
@@ -277,33 +279,70 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testCancelUnnecessaryRequests() {
+    /**
+     * Once the coordinator's driver has read enough rows for the {@code LIMIT}, the remaining data nodes are skipped. That early
+     * termination is best effort, so data nodes hold back their responses until the coordinator's driver has finished: the next
+     * node is only picked after the coordinator is done. The coordinator holds no shards, so every exchange it opens goes through
+     * the mock transport and is counted.
+     */
+    public void testCancelUnnecessaryRequests() throws Exception {
         assumeTrue("Requires pragmas", canUseQueryPragmas());
         internalCluster().ensureAtLeastNumDataNodes(3);
+        waitForRelocation();
+        String coordinatingNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
 
-        var coordinatingNode = internalCluster().getNodeNames()[0];
-
-        var exchanges = new AtomicInteger(0);
-        var coordinatorNodeTransport = MockTransportService.getInstance(coordinatingNode);
-        coordinatorNodeTransport.addSendBehavior((connection, requestId, action, request, options) -> {
-            if (Objects.equals(action, ExchangeService.OPEN_EXCHANGE_ACTION_NAME)) {
-                logger.info("Opening exchange on node [{}]", connection.getNode().getId());
+        var exchanges = new AtomicInteger();
+        var coordinatorDriverDone = new SubscribableListener<Void>();
+        var coordinatorTransport = MockTransportService.getInstance(coordinatingNode);
+        coordinatorTransport.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.equals(ExchangeService.OPEN_EXCHANGE_ACTION_NAME)) {
                 exchanges.incrementAndGet();
             }
             connection.sendRequest(requestId, action, request, options);
         });
+        coordinatorTransport.addRequestHandlingBehavior(
+            DriverTaskRunner.ACTION_NAME,
+            (handler, request, channel, task) -> handler.messageReceived(
+                request,
+                new TestTransportChannel(
+                    ActionListener.runAfter(new ChannelActionListener<>(channel), () -> coordinatorDriverDone.onResponse(null))
+                ),
+                task
+            )
+        );
+        var dataNodeTransports = new ArrayList<MockTransportService>();
+        for (DiscoveryNode dataNode : internalCluster().clusterService().state().nodes().getDataNodes().values()) {
+            var dataNodeTransport = MockTransportService.getInstance(dataNode.getName());
+            dataNodeTransports.add(dataNodeTransport);
+            dataNodeTransport.addRequestHandlingBehavior(
+                ComputeService.DATA_ACTION_NAME,
+                (handler, request, channel, task) -> handler.messageReceived(
+                    request,
+                    new TestTransportChannel(ActionListener.wrap(response -> {
+                        response.mustIncRef();
+                        coordinatorDriverDone.addListener(ActionListener.running(() -> {
+                            try {
+                                channel.sendResponse(response);
+                            } finally {
+                                response.decRef();
+                            }
+                        }));
+                    }, e -> coordinatorDriverDone.addListener(ActionListener.running(() -> channel.sendResponse(e))))),
+                    task
+                )
+            );
+        }
 
         var query = syncEsqlQueryRequest("from test-* | LIMIT 1").pragmas(
             new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_NODES_PER_CLUSTER.getKey(), 1).build())
         );
-
-        try (var result = safeGet(client().execute(EsqlQueryAction.INSTANCE, query))) {
+        try (var result = safeGet(client(coordinatingNode).execute(EsqlQueryAction.INSTANCE, query))) {
             assertThat(Iterables.size(result.rows()), equalTo(1L));
-            // Skipping data nodes once the LIMIT is satisfied is best effort: if the coordinator's driver has not consumed the rows
-            // yet, more nodes may still be queried. Each node is queried at most once.
-            assertThat(exchanges.get(), lessThanOrEqualTo(internalCluster().numDataNodes()));
+            assertThat(exchanges.get(), equalTo(1));
         } finally {
-            coordinatorNodeTransport.clearAllRules();
+            coordinatorTransport.clearAllRules();
+            dataNodeTransports.forEach(MockTransportService::clearAllRules);
+            internalCluster().stopNode(coordinatingNode);
         }
     }
 

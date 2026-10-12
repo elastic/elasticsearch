@@ -56,7 +56,7 @@ public class StorageProviderRegistryTests extends ESTestCase {
 
     /**
      * Covers the registry's wrapping ({@code Retryable -> ConcurrencyLimited -> leaf}) plus a {@link QueryBudgetedStorageProvider}
-     * built by hand over it. That hand-built wrap mirrors {@code FileSourceFactory#operatorFactory()}, but this test does not
+     * built by hand over it, with a {@link RangeStorageObject} view on top. That hand-built wrap mirrors {@code FileSourceFactory#operatorFactory()}, but this test does not
      * exercise that wiring; a change that drops or reorders the real wrap would not fail here. Attaching metrics on the outermost
      * object must reach the metered leaf. A decorator that does not forward {@code attachMetrics} stops the attach at that layer,
      * so no {@code storage.*} metric is published for that remote scheme.
@@ -72,7 +72,9 @@ public class StorageProviderRegistryTests extends ESTestCase {
             ConcurrencyBudgetAllocator allocator = registry.allocatorForScheme("s3");
             assertNotNull("explicit permits must yield a per-query allocator", allocator);
             QueryBudgetedStorageProvider budgeted = new QueryBudgetedStorageProvider(registry.provider(path), allocator.register());
-            StorageObject obj = budgeted.newObject(path, data.length);
+            // Operators read through a split's RangeStorageObject view (FileSplitProvider#storageObjectForSplit), so the
+            // outermost layer here is the range view, as in production.
+            StorageObject obj = new RangeStorageObject(budgeted.newObject(path, data.length), 0, data.length);
 
             obj.attachMetrics(new ExternalSourceMetrics(meters), "s3");
             try (InputStream stream = obj.newStream(0, data.length)) {

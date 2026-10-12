@@ -64,6 +64,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.search.vectors.DenseVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
@@ -436,9 +437,7 @@ public class KnnSearcher {
                 logger.debug("Segment layout: {}", segmentInfo);
                 finalResults.numSegments = segCount;
                 finalResults.totalIndexVectors = totalIndexVectors;
-                IndexSearcher searcher = searchParameters.searchThreads() > 1
-                    ? new IndexSearcher(reader, executorService)
-                    : new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader, searchParameters.searchThreads() > 1 ? executorService : null);
 
                 boolean sliced = indexType == KnnIndexTester.IndexType.IVF && this.sliced && !searchParameters.exact();
 
@@ -767,6 +766,33 @@ public class KnnSearcher {
             }
         }
         return true;
+    }
+
+    /**
+     * A plain {@link IndexSearcher}, or, when {@code -Dbench.ivf_slices} is set, the {@link ContextIndexSearcher} Elasticsearch
+     * searches with, with DiskBBQ slices turned on or off; comparing slices must use the same searcher in both arms.
+     */
+    private static IndexSearcher newSearcher(DirectoryReader reader, ExecutorService executor) throws IOException {
+        String slices = System.getProperty("bench.ivf_slices");
+        if (slices == null) {
+            return executor == null ? new IndexSearcher(reader) : new IndexSearcher(reader, executor);
+        }
+        IndexSearcher plain = new IndexSearcher(reader);
+        ContextIndexSearcher searcher = executor == null
+            ? new ContextIndexSearcher(reader, plain.getSimilarity(), plain.getQueryCache(), plain.getQueryCachingPolicy(), false)
+            : new ContextIndexSearcher(
+                reader,
+                plain.getSimilarity(),
+                plain.getQueryCache(),
+                plain.getQueryCachingPolicy(),
+                false,
+                executor,
+                Integer.MAX_VALUE,
+                1
+            );
+        searcher.setIvfSlicesEnabled(Boolean.parseBoolean(slices));
+        logger.info("searching with ContextIndexSearcher, ivf slices enabled: {}", Boolean.parseBoolean(slices));
+        return searcher;
     }
 
     TopDocs doVectorQuery(

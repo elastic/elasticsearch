@@ -92,6 +92,8 @@ public class Knn extends SingleFieldFullTextFunction
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Knn", Knn::readFrom);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Knn.class)
         .ternaryConfig(Knn::new)
+        // Fix a ClassCastException when the query vector has a single dimension and is folded to a scalar.
+        .capabilities("single_dimension_query_vector")
         // Snapshot-only, matching the pragma that enables KNN's runtime search in the first place.
         .snapshotCapabilities("runtime_anywhere", "runtime_similarity_function")
         .name("knn");
@@ -256,6 +258,10 @@ public class Knn extends SingleFieldFullTextFunction
         // we need to check that we got a list and every element in the list is a number
         Expression query = query();
         if (query instanceof Literal literal) {
+            // a one-element multivalue (i.e. a 1-dimension vector) is folded into a scalar
+            if (literal.value() instanceof Number number) {
+                return List.of(number);
+            }
             @SuppressWarnings("unchecked")
             List<Number> result = ((List<Number>) literal.value());
             return result;

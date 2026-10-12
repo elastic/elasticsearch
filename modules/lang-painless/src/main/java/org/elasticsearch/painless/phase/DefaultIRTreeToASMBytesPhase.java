@@ -1233,15 +1233,20 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
                 methodWriter.visitVarInsn(right.getAsmType().getOpcode(Opcodes.ISTORE), right.getSlot());
 
                 loadScriptPointer(writeScope, methodWriter);
-                methodWriter.visitVarInsn(left.getAsmType().getOpcode(Opcodes.ILOAD), left.getSlot());
                 if (leftType.isPrimitive()) {
-                    methodWriter.box(MethodWriter.getType(leftType));
+                    // A primitive side has a fixed cost known now, so pass that instead of boxing the value to measure it.
+                    methodWriter.visitVarInsn(right.getAsmType().getOpcode(Opcodes.ILOAD), right.getSlot());
+                    methodWriter.push(AllocSizes.stringConcatPrimitiveBytes(leftType));
+                    methodWriter.invokeStatic(WriterConstants.ALLOCATION_GUARD_TYPE, WriterConstants.CHECK_DEF_CONCAT_PRIMITIVE_ALLOC);
+                } else if (rightType.isPrimitive()) {
+                    methodWriter.visitVarInsn(left.getAsmType().getOpcode(Opcodes.ILOAD), left.getSlot());
+                    methodWriter.push(AllocSizes.stringConcatPrimitiveBytes(rightType));
+                    methodWriter.invokeStatic(WriterConstants.ALLOCATION_GUARD_TYPE, WriterConstants.CHECK_DEF_CONCAT_PRIMITIVE_ALLOC);
+                } else {
+                    methodWriter.visitVarInsn(left.getAsmType().getOpcode(Opcodes.ILOAD), left.getSlot());
+                    methodWriter.visitVarInsn(right.getAsmType().getOpcode(Opcodes.ILOAD), right.getSlot());
+                    methodWriter.invokeStatic(WriterConstants.ALLOCATION_GUARD_TYPE, WriterConstants.CHECK_DEF_CONCAT_ALLOC);
                 }
-                methodWriter.visitVarInsn(right.getAsmType().getOpcode(Opcodes.ILOAD), right.getSlot());
-                if (rightType.isPrimitive()) {
-                    methodWriter.box(MethodWriter.getType(rightType));
-                }
-                methodWriter.invokeStatic(WriterConstants.ALLOCATION_GUARD_TYPE, WriterConstants.CHECK_DEF_CONCAT_ALLOC);
 
                 methodWriter.visitVarInsn(left.getAsmType().getOpcode(Opcodes.ILOAD), left.getSlot());
                 methodWriter.visitVarInsn(right.getAsmType().getOpcode(Opcodes.ILOAD), right.getSlot());

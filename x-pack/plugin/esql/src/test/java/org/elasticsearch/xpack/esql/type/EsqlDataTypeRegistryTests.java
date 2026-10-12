@@ -73,7 +73,10 @@ public class EsqlDataTypeRegistryTests extends ESTestCase {
                 idx,
                 Map.of(field, new IndexFieldCapabilitiesBuilder(field, esTypeName).build()),
                 true,
-                IndexMode.STANDARD
+                IndexMode.STANDARD,
+                0,
+                0,
+                0
             )
         );
         FieldCapabilitiesResponse caps = FieldCapabilitiesResponse.builder().withIndexResponses(idxResponses).build();
@@ -96,7 +99,10 @@ public class EsqlDataTypeRegistryTests extends ESTestCase {
                 idx,
                 Map.of(field, new IndexFieldCapabilitiesBuilder(field, esTypeName).metricType(metricType).build()),
                 true,
-                IndexMode.TIME_SERIES
+                IndexMode.TIME_SERIES,
+                0,
+                0,
+                0
             )
         );
 

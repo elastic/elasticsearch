@@ -86,6 +86,7 @@ import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.script.ScriptService;
@@ -168,6 +169,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final ValuesSourceRegistry valuesSourceRegistry;
     private final MapperMetrics mapperMetrics;
     private final QueryRewriteInterceptor queryRewriteInterceptor;
+    private final Function<String, FieldPredicate> fieldFilter;
 
     @SuppressWarnings("this-escape")
     public IndexService(
@@ -219,6 +221,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.valuesSourceRegistry = valuesSourceRegistry;
         this.snapshotCommitSupplier = snapshotCommitSupplier;
         this.indexAnalyzers = indexAnalyzers;
+        this.fieldFilter = mapperRegistry.getFieldFilter();
         if (needsMapperService(indexSettings, indexCreationContext)) {
             assert indexAnalyzers != null;
             this.bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetCacheListener(this));
@@ -757,7 +760,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             expressionResolver
         );
         var mapperService = mapperService();
-        return new SearchExecutionContext(
+        var context = new SearchExecutionContext(
             shardId,
             shardRequestIndex,
             indexSettings,
@@ -780,6 +783,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             requestSize,
             mapperMetrics
         );
+        context.setFieldVisibilityPredicate(fieldFilter.apply(index().getName()));
+        return context;
     }
 
     /**
@@ -801,7 +806,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         );
         final MapperService mapperService = mapperService();
         final MappingLookup mappingLookup = mapperService.mappingLookup();
-        return new QueryRewriteContext(
+        var context = new QueryRewriteContext(
             parserConfiguration,
             client,
             nowInMillis,
@@ -823,6 +828,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             null,
             false
         );
+        context.setFieldVisibilityPredicate(fieldFilter.apply(index().getName()));
+        return context;
     }
 
     /**

@@ -39,7 +39,7 @@ Follow these steps to create and use dedicated credentials for use with Data Fed
 ::::::{step} Create a read-only IAM policy
 {{es}} reads your objects through an IAM identity, so first create an IAM policy that grants read-only access to only the objects you want to query in AWS. This policy is the part specific to this integration.
 
-The following policy allows reading your objects with `s3:GetObject`, and listing the bucket with `s3:ListBucket` and `s3:GetBucketLocation` for prefix or glob queries:
+The following policy allows reading your objects with `s3:GetObject`, and listing the bucket with `s3:ListBucket` for prefix or glob queries:
 
 ```json
 {
@@ -52,7 +52,7 @@ The following policy allows reading your objects with `s3:GetObject`, and listin
     },
     {
       "Effect": "Allow",
-      "Action": [ "s3:ListBucket", "s3:GetBucketLocation" ],
+      "Action": [ "s3:ListBucket" ],
       "Resource": [ "arn:aws:s3:::<bucket-name>" ] <2>
     }
   ]
@@ -203,7 +203,7 @@ POLICY_ARN=$(aws iam create-policy \
     },
     {
       "Effect": "Allow",
-      "Action": [ "s3:ListBucket", "s3:GetBucketLocation" ],
+      "Action": [ "s3:ListBucket" ],
       "Resource": [ "arn:aws:s3:::${BUCKET_NAME}" ]
     }
   ]

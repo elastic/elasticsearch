@@ -1910,7 +1910,7 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
     }
 
     // -----------------------------------------------------------------------------------
-    // esql-planning#1030: a Parquet UINT_32 column (physical INT32) widens to ESQL LONG
+    // A Parquet UINT_32 column (physical INT32) widens to ESQL LONG
     // because unsigned 32-bit values can exceed signed int range. Pushing a longColumn
     // predicate against it makes parquet-mr reject the predicate as a declared-type
     // mismatch against the file's INT32 schema — every comparator on such a column 500s.
@@ -2077,7 +2077,7 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
     }
 
     public void testToFilterPredicateLongMissingPathReturnsNull() {
-        // LONG now also resolves the physical primitive via resolveNestedPrimitive (esql-planning#1030);
+        // LONG now also resolves the physical primitive via resolveNestedPrimitive ;
         // a missing/unresolvable path must return null just like the DATETIME case above.
         MessageType schema = uint32Schema();
         Expression expr = eq("does_not_exist", DataType.LONG, 100_000L);
@@ -2134,7 +2134,7 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
     // internally store the name as a multi-segment ColumnPath via ColumnPath.fromDotString,
     // which is then compared against the multi-segment ColumnDescriptor.getPath() at row
     // group filter time — so the dotted name must reappear verbatim in the predicate's
-    // toString. Per the prior PR's D2 rule, a literal top-level field literally named
+    // toString. A literal top-level field literally named
     // "event.action" wins over a nested resolution of the same dotted path.
     // -----------------------------------------------------------------------------------
     // Nested STRUCT type-shape helpers: each builds a single event-group schema with the
@@ -2372,8 +2372,7 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         // columns at filter time, so they are not the right shape for testing the resolver.
         // DATETIME exercises the resolver because it has to map epoch millis to the correct
         // physical encoding. LONG also resolves via resolveNestedPrimitive since
-        // ParquetPushedExpressions.buildLongPredicate (esql-planning#1030) — see
-        // testToFilterPredicateLongMissingPathReturnsNull below for that case.
+        // ParquetPushedExpressions.buildLongPredicate — // testToFilterPredicateLongMissingPathReturnsNull below for that case.
         MessageType schema = nestedTimestamp(LogicalTypeAnnotation.TimeUnit.MILLIS);
         Expression expr = eq("event.does_not_exist", DataType.DATETIME, 1700000000000L);
         assertNull(new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema));
@@ -2390,7 +2389,7 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
 
     public void testToFilterPredicateLiteralDottedNameWinsOverPath() {
         // Schema has BOTH a literal top-level "event.action" and a nested struct event.action.
-        // Per the prior PR's D2 rule (preserved by resolveNestedPrimitive), the literal wins —
+        // Preserved by resolveNestedPrimitive: the literal wins —
         // the predicate type-shape is decided from the literal's primitive (BINARY here), not
         // from the nested INT64 "event.action" leaf.
         MessageType schema = Types.buildMessage()
@@ -2411,7 +2410,7 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
     }
 
     public void testResolveNestedPrimitiveLiteralWinsOverPath() {
-        // Directly assert the helper's D2 contract.
+        // Directly assert the helper's literal-over-path contract.
         MessageType schema = Types.buildMessage()
             .required(PrimitiveType.PrimitiveTypeName.BINARY)
             .as(LogicalTypeAnnotation.stringType())
@@ -2467,7 +2466,7 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
 
     // --- helpers ---
 
-    // List / repeated leaves must NOT push (esql-planning#1056): a 3-level LIST attribute is a
+    // List / repeated leaves must NOT push : a 3-level LIST attribute is a
     // group; a 2-level repeated leaf is a primitive that parquet-mr still rejects. Both decline
     // so the MV-safe evaluator answers.
 

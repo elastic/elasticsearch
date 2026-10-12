@@ -31,25 +31,21 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * the classes that implement it, which go green as long as those classes still do what they did. Nothing watched the
  * property from outside, so the cost could move without anything turning red, and it did.
  * <p>
- * So this asserts files <em>opened</em>, through {@link CountingStorageProvider}, and never the clock. A local
- * filesystem makes a wasted read nearly free, which is exactly why a timing test here proves nothing; the thing that
- * costs money on an object store is the request, and the request is what is counted.
+ * So this asserts files <em>opened</em>, through {@link CountingStorageProvider}, which carries why a request count
+ * and not a duration is the only thing worth asserting here.
  * <p>
- * The dataset is deliberately shaped so the arithmetic is unambiguous: {@link #FILES} files of
- * {@link #ROWS_PER_FILE} rows each, one row group apiece, so a limit below {@code ROWS_PER_FILE} is covered by the
- * first file alone and every file after it is one the query must not touch.
+ * The dataset is shaped so the arithmetic is unambiguous: {@link #FILES} files of {@link #ROWS_PER_FILE} rows each,
+ * one row group apiece, so a limit below {@code ROWS_PER_FILE} is covered by the first file alone and every file
+ * after it is one the query must not touch.
  * <p>
- * Parquet, and that is not incidental. Only a range-aware reader plans from a footer that says how many rows each
- * unit holds, so only a columnar format can have its scan stopped by a row budget at all --
- * {@code listingExtentsForTheDemand} declines outright for anything else, and the budget gives up on the first
- * unit that cannot state a count. A text fixture here would pass every assertion below while exercising none of
- * the pushdown: a CSV {@code LIMIT 20} reads one file because the pipeline stops pulling, which is laziness in the
- * operator rather than a decision not to read. I had this suite on CSV first and the revert check caught it --
- * disabling the budget changed nothing, because nothing was using it.
- * <p>
- * Parquet also makes the cost visible in the right place. Split discovery reads one footer per file it plans,
- * before any row is returned, so a dataset of N files costs N GETs whatever the limit says -- and that is exactly
- * what the pushdown removes and what these counts see.
+ * Parquet, and that is not incidental: a text fixture would pass every assertion below while exercising none of the
+ * pushdown. Only a range-aware reader plans from a footer stating how many rows each unit holds, so only a columnar
+ * format can have its scan stopped by a row budget at all — {@code listingExtentsForTheDemand} declines outright for
+ * anything else, and the budget gives up on the first unit that cannot state a count. A CSV {@code LIMIT 20} does
+ * read one file, but because the pipeline stops pulling, which is laziness in the operator rather than a decision
+ * not to read; reverting the budget leaves such a suite green. Parquet also puts the cost where the count can see
+ * it, since split discovery reads one footer per file it plans before any row is returned, so a dataset of N files
+ * costs N GETs whatever the limit says.
  */
 public class ExternalLimitReadCountIT extends AbstractExternalDataSourceIT {
 
@@ -116,12 +112,10 @@ public class ExternalLimitReadCountIT extends AbstractExternalDataSourceIT {
     /**
      * A {@code LIMIT} the first file covers must open exactly that one file.
      * <p>
-     * This is the limit-N half of the pushdown and the thing that pays for itself on a real dataset: split discovery
-     * reads one file's footer per file it plans, before a single row comes back, so a query wanting 20 rows from a
-     * dataset whose first file holds 50 has no business reading the other eleven. Two mechanisms combine, and the
-     * test pins their outcome rather than either one: split discovery lists only a prefix of the dataset when the
-     * demand could be covered by one, and the row budget is consulted before each file is planned so planning stops
-     * as soon as the rows are accounted for.
+     * Split discovery reads one footer per file it plans, before a single row comes back, so a query wanting 20 rows
+     * from a dataset whose first file holds 50 has no business reading the other eleven. Two mechanisms combine — a
+     * listing bounded to a prefix, and a row budget consulted before each file is planned — and the test pins their
+     * outcome rather than either one.
      */
     public void testLimitCoveredByTheFirstFileReadsOnlyThatFile() throws Exception {
         String dataset = registerParquetDataset("limit_n");

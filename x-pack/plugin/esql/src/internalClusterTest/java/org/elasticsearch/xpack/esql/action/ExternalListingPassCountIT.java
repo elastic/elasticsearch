@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 
@@ -15,6 +16,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -26,11 +28,9 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * How many times a query asks the store to list, and how that number scales.
  * <p>
- * Listing is the dominant cost of answering a schema over a large glob, and it is invisible to a timing test on a
- * local filesystem: {@code LocalStorageProvider} walks the tree into a list before handing out the first entry, so a
- * bounded listing does exactly the work an unbounded one does and only the kept set differs. The saving a bound is
- * supposed to buy is a request never issued, which is an object-store effect. So this suite asserts the
- * <em>request count</em>, through {@link CountingStorageProvider}, and never the clock.
+ * Listing is the dominant cost of answering a schema over a large glob. This suite asserts the <em>request count</em>
+ * through {@link CountingStorageProvider}, which carries why a count and not a duration is the only thing worth
+ * asserting here.
  * <p>
  * The shape under test is a glob whose wildcard sits <em>inside</em> a path segment — {@code date=2024-01-0*} — which
  * is what a Hive-partitioned dataset queried for a date range looks like. {@code StoragePath.patternPrefix} cuts the
@@ -183,6 +183,111 @@ public class ExternalListingPassCountIT extends AbstractExternalDataSourceIT {
             CountingStorageProvider.listingPasses(),
             equalTo(1L)
         );
+    }
+
+    /**
+     * A glob that matches nothing must still list once.
+     * <p>
+     * This is the other half of counting matches rather than keys, and the only case in which it changes an
+     * outcome: a drain that exhausted its prefix without reaching the bound saw every key under it, so an empty
+     * result means the dataset is empty rather than the bound having stopped short. A keys-visited bound returned
+     * the same empty list either way and could never tell them apart, so it re-listed the whole prefix unbounded to
+     * find out. A mistyped glob is the everyday way to reach this, and it used to cost two full listings.
+     */
+    public void testAGlobThatMatchesNothingListsOnce() throws Exception {
+        Path dir = writeFixture(PADDING_FOLDERS);
+        String glob = CountingStorageProvider.SCHEME + "://" + dir.toAbsolutePath() + "/date=2025-01-0*/*.csv";
+        String dataset = registerDataset("pass_empty", glob, Map.of("format", "csv", "schema_resolution", "first_file_wins"));
+        String coordinator = internalCluster().getNodeNames()[0];
+
+        CountingStorageProvider.reset();
+        // The outcome is not what this pins — an empty dataset may answer or may fail, and either is someone
+        // else's test. What must hold is that deciding it took one pass.
+        try (EsqlQueryResponse response = query(coordinator, "FROM " + dataset + " | LIMIT 0")) {
+            assertThat(getValuesList(response).size(), equalTo(0));
+        } catch (Exception e) {
+            // An empty glob that resolves to no schema is a legitimate failure; the pass count below still applies.
+        }
+
+        assertThat(
+            "an empty bounded pass that drained its prefix is conclusive and must not be re-listed",
+            CountingStorageProvider.listingPasses(),
+            equalTo(1L)
+        );
+    }
+
+    /**
+     * The declared-schema rail takes a bound too, and the same once-only rule holds there.
+     * <p>
+     * A declaration is the whole schema, so this listing reads no file for it — it counts files and derives
+     * partition columns. {@code schema_resolution} has to be set explicitly: {@code DatasetRewriter} hydrates
+     * {@code union_by_name} onto a dataset that omits it, and {@code union_by_name} spans every file and so never
+     * takes a bound, which would make this test pass while exercising the unbounded rail.
+     */
+    public void testADeclaredSchemaQueryListsOnce() throws Exception {
+        Path dir = writeFixture(PADDING_FOLDERS);
+        String glob = CountingStorageProvider.SCHEME + "://" + dir.toAbsolutePath() + "/date=2024-01-0*/*.csv";
+        LinkedHashMap<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("id", new DatasetFieldMapping("integer", null));
+        properties.put("v", new DatasetFieldMapping("keyword", null));
+        String dataset = registerStrictDataset(
+            "pass_declared",
+            glob,
+            properties,
+            Map.of("format", "csv", "schema_resolution", "first_file_wins")
+        );
+        String coordinator = internalCluster().getNodeNames()[0];
+
+        CountingStorageProvider.reset();
+        query(coordinator, "FROM " + dataset + " | LIMIT 0").close();
+
+        assertThat("the declared rail must not pay a discarded bounded pass either", CountingStorageProvider.listingPasses(), equalTo(1L));
+    }
+
+    /**
+     * A dataset-wide aggregate must not pay a request per partition folder it cannot match.
+     * <p>
+     * {@code COUNT(*)} resolves as {@code EAGER_STATS}, and {@code listingExtentsFor} refuses a bound for that
+     * demand outright: the fold is over every file, so no prefix answers it. That makes an aggregate the one shape
+     * neither the bound nor the listing cache can rescue on a cold node, and the prefix fan-out is reached only by
+     * an unbounded listing — so this is the only query shape that exercises it, and nothing else here would notice
+     * it issuing one {@code listObjects} per child of the pattern prefix.
+     * <p>
+     * The counts are pinned to the matching geometry rather than to each other. Equality alone would hold if both
+     * grew to one request per folder, which is exactly the regression.
+     */
+    public void testAnAggregateDoesNotListOncePerPartitionFolder() throws Exception {
+        String small = registerCountingDataset("agg_small", 0);
+        String large = registerCountingDataset("agg_large", PADDING_FOLDERS);
+        String coordinator = internalCluster().getNodeNames()[0];
+
+        CountingStorageProvider.reset();
+        try (EsqlQueryResponse response = query(coordinator, "FROM " + small + " | STATS c = COUNT(*)")) {
+            assertThat(getValuesList(response).get(0).get(0), equalTo((long) MATCHING_FOLDERS));
+        }
+        long smallPasses = CountingStorageProvider.listingPasses();
+
+        CountingStorageProvider.reset();
+        try (EsqlQueryResponse response = query(coordinator, "FROM " + large + " | STATS c = COUNT(*)")) {
+            assertThat(
+                "the padding holds no matching file, so the answer is the same",
+                getValuesList(response).get(0).get(0),
+                equalTo((long) MATCHING_FOLDERS)
+            );
+        }
+        long largePasses = CountingStorageProvider.listingPasses();
+
+        CountingStorageProvider.reset();
+        query(coordinator, "FROM " + large + " | STATS c = COUNT(*)").close();
+        long largeWarm = CountingStorageProvider.listingPasses();
+
+        assertThat("the fan-out drains one matching folder per pass", smallPasses, equalTo((long) MATCHING_FOLDERS));
+        assertThat(
+            "a folder the glob cannot match must not cost a request: passes follow the matching set, not the prefix",
+            largePasses,
+            equalTo((long) MATCHING_FOLDERS)
+        );
+        assertThat("and a repeat aggregate is served from the listing cache", largeWarm, equalTo(0L));
     }
 
     /**

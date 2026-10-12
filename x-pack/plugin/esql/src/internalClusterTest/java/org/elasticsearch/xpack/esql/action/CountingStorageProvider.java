@@ -31,16 +31,13 @@ import java.util.concurrent.atomic.AtomicLong;
  * A local-filesystem storage provider that counts what a query asks of the store: how many times it lists, how
  * many keys it visits, and which objects it opens for reading.
  * <p>
- * Both halves exist for the same reason -- the cost of answering a query over external data is requests, and a
- * clock on a local filesystem cannot see them. The read counters are what a limit pushdown has to be measured
- * against: a {@code LIMIT 0} must open nothing, and a {@code LIMIT N} the first file already covers must open that
- * file and no other. Those are properties of which objects were opened, not of how long anything took.
- * <p>
- * Listing cost is an object-store effect: the saving a bound buys is a request never issued, and wall-clock on a
- * local filesystem cannot see it — {@code LocalStorageProvider} walks the tree into a list before handing out the
- * first entry, so a bounded listing does the same work as an unbounded one. A test that timed this would measure
- * nothing. What it can see, and what actually describes the cost, is <em>how many listing passes a query issues and
- * how many keys it visits</em>, and those are what this provider records.
+ * Both halves exist for the same reason, and it is the reason every suite built on this provider counts requests
+ * instead of timing anything: the cost of answering a query over external data is requests, and a clock on a local
+ * filesystem cannot see them. {@link LocalStorageProvider} walks the whole tree into a list before handing out the
+ * first entry, so a bounded listing does exactly the work an unbounded one does and only the kept set differs —
+ * the saving a bound buys is a request never issued, which exists only against an object store. A wasted read is
+ * nearly free here for the same reason. So the properties worth asserting are how many passes a query issues, how
+ * many keys it visits and which objects it opens, none of which is a duration.
  * <p>
  * Everything is delegated to a real {@link LocalStorageProvider} with the scheme rewritten, so ordering, recursion
  * and entry metadata are whatever production does. The only thing added is counting — a double that answered
@@ -58,10 +55,6 @@ public final class CountingStorageProvider implements StorageProvider {
     private static final AtomicLong LIST_OBJECT_CALLS = new AtomicLong();
     /** Keys handed out across every pass — the drain's {@code listed} counter, observed from the store side. */
     private static final AtomicLong KEYS_VISITED = new AtomicLong();
-    /** Directory-granular descents, which is how the prefix fan-out and the partition walk enumerate. */
-    private static final AtomicLong LIST_CHILDREN_CALLS = new AtomicLong();
-    /** Streams opened over any object -- one per footer read, per column chunk, per whole-file scan. */
-    private static final AtomicLong STREAMS_OPENED = new AtomicLong();
     /** Distinct objects opened at least once. The "files scanned" figure a limit pushdown is judged on. */
     private static final Set<String> PATHS_READ = ConcurrentHashMap.newKeySet();
 
@@ -70,8 +63,6 @@ public final class CountingStorageProvider implements StorageProvider {
     public static void reset() {
         LIST_OBJECT_CALLS.set(0);
         KEYS_VISITED.set(0);
-        LIST_CHILDREN_CALLS.set(0);
-        STREAMS_OPENED.set(0);
         PATHS_READ.clear();
     }
 
@@ -81,14 +72,6 @@ public final class CountingStorageProvider implements StorageProvider {
 
     public static long keysVisited() {
         return KEYS_VISITED.get();
-    }
-
-    public static long childDescents() {
-        return LIST_CHILDREN_CALLS.get();
-    }
-
-    public static long streamsOpened() {
-        return STREAMS_OPENED.get();
     }
 
     /** The objects a query opened, as paths, so a failure can name the files it should not have touched. */
@@ -146,7 +129,6 @@ public final class CountingStorageProvider implements StorageProvider {
 
     @Override
     public StorageChildren listChildren(StoragePath prefix, int limit) throws IOException {
-        LIST_CHILDREN_CALLS.incrementAndGet();
         return delegate.listChildren(toFileScheme(prefix), limit);
     }
 
@@ -178,7 +160,6 @@ public final class CountingStorageProvider implements StorageProvider {
         return new StorageObject() {
             @Override
             public InputStream newStream(long position, long length) throws IOException {
-                STREAMS_OPENED.incrementAndGet();
                 PATHS_READ.add(path.toString());
                 return object.newStream(position, length);
             }

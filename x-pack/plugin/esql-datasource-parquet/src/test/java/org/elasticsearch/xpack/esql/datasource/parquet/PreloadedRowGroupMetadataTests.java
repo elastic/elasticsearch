@@ -24,6 +24,7 @@ import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
+import org.apache.parquet.internal.column.columnindex.ColumnIndex;
 import org.apache.parquet.internal.column.columnindex.OffsetIndex;
 import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.io.PositionOutputStream;
@@ -36,7 +37,9 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
@@ -64,9 +67,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -220,6 +226,153 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
             // Without the idempotency guard this second close throws on ArrowBuf double-decrement.
             metadata.close();
         }
+    }
+
+    /**
+     * {@link PreloadedRowGroupMetadata#releaseRawBuffers()} drops the coalesced dictionary/bloom
+     * (and leftover index-page) DirectReadBuffers so their forceAdd charges return, while parsed
+     * column/offset indexes stay usable. A later {@link PreloadedRowGroupMetadata#close()} must
+     * not refund twice.
+     */
+    public void testReleaseRawBuffersKeepsIndexesAndRefundsOnce() throws IOException {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("v").named("schema");
+        int rows = 65_536;
+        long[] values = new long[rows];
+        for (int i = 0; i < rows; i++) {
+            values[i] = i % 16;
+        }
+        byte[] parquetData = writeDictionaryEncodedInt64Parquet(schema, values);
+        StorageObject storage = createRangeReadStorageObject(parquetData);
+        CircuitBreaker trackingBreaker = new LimitedBreaker("release-raw", ByteSizeValue.ofMb(32));
+        ParquetIoWatermark watermark = new ParquetIoWatermark(64 * 1024 * 1024);
+
+        ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
+        try (
+            ParquetFileReader reader = ParquetFileReader.open(
+                new ParquetStorageObjectAdapter(storage, footerByteCache, trackingBreaker),
+                options
+            )
+        ) {
+            try (
+                PreloadedRowGroupMetadata metadata = PreloadedRowGroupMetadata.preload(
+                    reader,
+                    storage,
+                    Set.of("v"),
+                    null,
+                    null,
+                    Integer.MAX_VALUE,
+                    trackingBreaker,
+                    watermark,
+                    footerByteCache
+                )
+            ) {
+                assertFalse("Pre-warm map must be populated", metadata.preWarmedChunks().isEmpty());
+                ColumnIndex columnIndex = metadata.getColumnIndex(0, "v");
+                OffsetIndex offsetIndex = metadata.getOffsetIndex(0, "v");
+                MessageType capturedSchema = metadata.schema();
+                assertNotNull("fixture must expose a parsed column index", columnIndex);
+                assertNotNull("fixture must expose a parsed offset index", offsetIndex);
+                assertNotNull(capturedSchema);
+                long watermarkAfterPreload = watermark.used();
+                long breakerAfterPreload = trackingBreaker.getUsed();
+                assertTrue("preload must forceAdd coalesced buffers, used=" + watermarkAfterPreload, watermarkAfterPreload > 0L);
+
+                metadata.releaseRawBuffers();
+                assertTrue("raw map is cleared after release", metadata.preWarmedChunks().isEmpty());
+                assertSame("parsed column index stays valid", columnIndex, metadata.getColumnIndex(0, "v"));
+                assertSame("parsed offset index stays valid", offsetIndex, metadata.getOffsetIndex(0, "v"));
+                assertSame("schema stays valid", capturedSchema, metadata.schema());
+                assertEquals("watermark refunds the forceAdd", 0L, watermark.used());
+                long breakerAfterRelease = trackingBreaker.getUsed();
+                assertTrue(
+                    "breaker refunds coalesced buffers, leftover is the adapter window; before="
+                        + breakerAfterPreload
+                        + " after="
+                        + breakerAfterRelease,
+                    breakerAfterRelease < breakerAfterPreload
+                );
+                assertTrue("adapter window remains charged until reader close", breakerAfterRelease > 0L);
+
+                metadata.releaseRawBuffers();
+                metadata.close();
+                assertEquals("second release refunds nothing", 0L, watermark.used());
+                assertEquals("close after release refunds nothing twice", breakerAfterRelease, trackingBreaker.getUsed());
+            }
+        }
+        assertEquals("adapter close refunds leftover window charges", 0L, trackingBreaker.getUsed());
+        assertEquals(0L, watermark.used());
+    }
+
+    /**
+     * Both coalesced batches must be in flight before either completes. Failing the index GET
+     * while the pre-warm GET is parked, then completing that parked GET, must refund the late
+     * result so {@code used} and the breaker return to the pre-open baseline.
+     */
+    public void testIndexGetFailsWhilePreWarmInFlightReleasesLateResult() throws Exception {
+        runSplitBatchFailure(true);
+    }
+
+    /**
+     * Pre-warm GET fails after the index batch succeeded. The index buffers must be closed and
+     * the failed pre-warm must not leave a forceAdd.
+     */
+    public void testPreWarmGetFailsAfterIndexSucceededRefunds() throws Exception {
+        runSplitBatchFailure(false);
+    }
+
+    private void runSplitBatchFailure(boolean failIndex) throws Exception {
+        MessageType schema = threeColumnInt64Schema();
+        byte[] parquetData = writeSpanOverOneMibParquet(schema);
+        CircuitBreaker trackingBreaker = new LimitedBreaker("split-batch", ByteSizeValue.ofMb(32));
+        ParquetIoWatermark watermark = new ParquetIoWatermark(64 * 1024 * 1024);
+        ExecutorService pool = Executors.newFixedThreadPool(4);
+        ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
+        try (
+            ParquetFileReader reader = ParquetFileReader.open(
+                new ParquetStorageObjectAdapter(createRangeReadStorageObject(parquetData), footerByteCache, trackingBreaker),
+                options
+            )
+        ) {
+            PageIndexRanges pageIndexes = collectPageIndexRanges(reader);
+            assertTrue("fixture must write page indexes so the index batch is non-empty", pageIndexes.totalCount() > 0);
+            long span = neededSpan(reader, Set.of("a"));
+            assertTrue(
+                "split-case fixture span must exceed the 1 MiB single-GET ceiling, span=" + span,
+                span > CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP
+            );
+            GatedAsyncStorage gated = new GatedAsyncStorage(parquetData, pool, allIndexRanges(pageIndexes), failIndex);
+            Future<PreloadedRowGroupMetadata> future = pool.submit(
+                () -> PreloadedRowGroupMetadata.preload(
+                    reader,
+                    gated,
+                    Set.of("a"),
+                    null,
+                    null,
+                    Integer.MAX_VALUE,
+                    trackingBreaker,
+                    watermark,
+                    null
+                )
+            );
+            assertBusy(() -> {
+                assertTrue("index GET dispatched", gated.indexGets.get() > 0);
+                assertTrue("pre-warm GET dispatched", gated.preWarmGets.get() > 0);
+            });
+            gated.release.countDown();
+            PreloadedRowGroupMetadata metadata = null;
+            try {
+                metadata = future.get(15, TimeUnit.SECONDS);
+            } catch (ExecutionException ignored) {
+                // Coalesced failure may surface instead of sequential fallback.
+            }
+            if (metadata != null) {
+                metadata.close();
+            }
+        } finally {
+            terminate(pool);
+        }
+        assertEquals(0L, trackingBreaker.getUsed());
+        assertEquals("late GET result must not stay force-added", 0L, watermark.used());
     }
 
     /**
@@ -930,6 +1083,68 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
     }
 
     /**
+     * Same three-column layout as {@link #writeThreeColumnInt64Parquet}, but column {@code a} stays
+     * dictionary-encoded while {@code b} and {@code c} are unique and uncompressed so the needed
+     * span exceeds the 1 MiB single-GET ceiling.
+     */
+    private static byte[] writeSpanOverOneMibParquet(MessageType schema) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        OutputFile outputFile = createOutputFile(out);
+        SimpleGroupFactory groupFactory = new SimpleGroupFactory(schema);
+        int rows = 80_000;
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withDictionaryEncoding(true)
+                .withDictionaryEncoding("b", false)
+                .withDictionaryEncoding("c", false)
+                .withPageSize(4 * 1024)
+                .withDictionaryPageSize(64 * 1024)
+                .withRowGroupSize(256 * 1024L)
+                .build()
+        ) {
+            for (int i = 0; i < rows; i++) {
+                Group g = groupFactory.newGroup();
+                g.add("a", (long) (i % 16));
+                g.add("b", (long) i);
+                g.add("c", (long) i);
+                writer.write(g);
+            }
+        }
+        return out.toByteArray();
+    }
+
+    private static long neededSpan(ParquetFileReader reader, Set<String> predicates) {
+        List<CoalescedRangeReader.ByteRange> ranges = new ArrayList<>();
+        for (BlockMetaData block : reader.getRowGroups()) {
+            for (ColumnChunkMetaData col : block.getColumns()) {
+                String path = col.getPath().toDotString();
+                var ci = col.getColumnIndexReference();
+                if (ci != null && ci.getLength() > 0) {
+                    ranges.add(new CoalescedRangeReader.ByteRange(ci.getOffset(), ci.getLength()));
+                }
+                var oi = col.getOffsetIndexReference();
+                if (oi != null && oi.getLength() > 0) {
+                    ranges.add(new CoalescedRangeReader.ByteRange(oi.getOffset(), oi.getLength()));
+                }
+                if (predicates.contains(path)) {
+                    CoalescedRangeReader.ByteRange dict = ColumnChunkPrefetcher.dictionaryPageRange(col, col.getFirstDataPageOffset());
+                    if (dict != null) {
+                        ranges.add(dict);
+                    }
+                    if (col.getBloomFilterOffset() > 0 && col.getBloomFilterLength() > 0) {
+                        ranges.add(new CoalescedRangeReader.ByteRange(col.getBloomFilterOffset(), col.getBloomFilterLength()));
+                    }
+                }
+            }
+        }
+        return PreloadedRowGroupMetadata.neededSpan(ranges);
+    }
+
+    /**
      * Writes a three-column INT64 parquet file with small pages so the writer emits a column index
      * and offset index per column. Used to assert that the gated preload only fetches the page
      * indexes of the requested columns. Each column gets the same {@code rows} count of values
@@ -1106,6 +1321,13 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
         return new PageIndexRanges(ci.toArray(new long[0][]), oi.toArray(new long[0][]));
     }
 
+    private static long[][] allIndexRanges(PageIndexRanges page) {
+        long[][] all = new long[page.totalCount()][];
+        System.arraycopy(page.columnIndex, 0, all, 0, page.columnIndex.length);
+        System.arraycopy(page.offsetIndex, 0, all, page.columnIndex.length, page.offsetIndex.length);
+        return all;
+    }
+
     /**
      * Sums the bytes of a read {@code [position, position + length)} that overlap any of the given
      * index ranges, so coalesced reads that pull adjacent data are attributed only their index bytes.
@@ -1169,6 +1391,108 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
                 out.write(b, off, len);
             }
         };
+    }
+
+    /**
+     * Parks every async GET until {@link #release}, so the test can assert both coalesced
+     * batches are in flight. Completing or failing a parked GET after abandon exercises the
+     * late-result release.
+     */
+    private static final class GatedAsyncStorage implements StorageObject {
+        private final byte[] data;
+        private final ExecutorService pool;
+        private final long[][] indexRanges;
+        private final boolean failIndex;
+        private final AtomicInteger indexGets = new AtomicInteger();
+        private final AtomicInteger preWarmGets = new AtomicInteger();
+        private final CountDownLatch release = new CountDownLatch(1);
+
+        private GatedAsyncStorage(byte[] data, ExecutorService pool, long[][] indexRanges, boolean failIndex) {
+            this.data = data;
+            this.pool = pool;
+            this.indexRanges = indexRanges;
+            this.failIndex = failIndex;
+        }
+
+        @Override
+        public boolean supportsNativeAsync() {
+            return true;
+        }
+
+        @Override
+        public StorageIdentity storageIdentity() {
+            return AbstractTestStorageObject.NOOP;
+        }
+
+        @Override
+        public InputStream newStream() {
+            return new ByteArrayInputStream(data);
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            int pos = (int) position;
+            int len = (int) Math.min(length, data.length - position);
+            return new ByteArrayInputStream(data, pos, len);
+        }
+
+        @Override
+        public void readBytesAsync(
+            long position,
+            long length,
+            DirectBufferFactory factory,
+            Executor ignored,
+            ActionListener<DirectReadBuffer> listener
+        ) {
+            boolean index = overlapBytes(position, length, indexRanges) > 0;
+            if (index) {
+                indexGets.incrementAndGet();
+            } else {
+                preWarmGets.incrementAndGet();
+            }
+            pool.execute(() -> {
+                try {
+                    if (release.await(10, TimeUnit.SECONDS) == false) {
+                        listener.onFailure(new IOException("gated GET not released"));
+                        return;
+                    }
+                    int pos = (int) position;
+                    int len = (int) Math.min(length, data.length - position);
+                    DirectReadBuffer dest = factory.allocateWritableWindow(len);
+                    boolean fail = failIndex ? index : index == false;
+                    if (fail) {
+                        dest.close();
+                        listener.onFailure(new IOException(index ? "index GET failed" : "pre-warm GET failed"));
+                        return;
+                    }
+                    dest.buffer().put(data, pos, len);
+                    dest.buffer().flip();
+                    listener.onResponse(dest);
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                }
+            });
+        }
+
+        @Override
+        public long length() {
+            return data.length;
+        }
+
+        @Override
+        public Instant lastModified() {
+            return Instant.ofEpochMilli(0);
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return StoragePath.of("memory://preload-gated-test.parquet");
+        }
     }
 
     private static StorageObject createRangeReadStorageObject(byte[] data) {

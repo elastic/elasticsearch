@@ -96,8 +96,8 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.compari
  *         of the {@code switch} statements that required the new type. You'll remove
  *         those as part of this process. But it's important that the code can compile.</li>
  *     <li>
- *         New tests using the type will require a new {@code EsqlCapabilities} entry,
- *         otherwise bwc tests will fail (even in SNAPSHOT builds) because old nodes don't
+ *         New yaml or csv-spec tests using the type will require a new {@code EsqlCapabilities}
+ *         entry, otherwise bwc tests will fail (even in SNAPSHOT builds) because old nodes don't
  *         know about the new type. This capability needs to be SNAPSHOT-only as long as
  *         the type is under construction.</li>
  *     <li>
@@ -118,11 +118,6 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.compari
  *         At this point, the CSV tests should fail with a sensible ES|QL error
  *         message. Make sure they're failing in ES|QL, not in the test
  *         framework.</li>
- *     <li>
- *         Add the new data type to this enum. This will cause a bunch of
- *         compile errors for switch statements throughout the code.  Resolve those
- *         as appropriate. That is the main way in which the new type will be tied
- *         into the framework.</li>
  *     <li>
  *         Add typed data generators to TestCaseSupplier, and make sure all
  *         functions that support the new type have tests for it.</li>
@@ -159,6 +154,17 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.compari
  *         {@link EsqlDataTypeConverter#commonType}, individual function type checking,
  *         the verifier rules, or other places. We suggest starting with CSV tests and
  *         seeing where they fail.</li>
+ *     <li> Consider how the type will interact with
+ *         {@link org.elasticsearch.xpack.esql.plan.QuerySettings#UNMAPPED_FIELDS}.
+ *         The {@code LOAD} and {@code LOAD_ALL} modes lode unmapped fields from
+ *         {@code _source} as keyword fields, and this must not be broken (which
+ *         generally shouldn't be a problem). The important case is that of partially
+ *         unmapped non-keyword fields (PUNKs), where values loaded from {@code _source}
+ *         get autocast to the mapped type (from their keyword representation).
+ *         This needs good testing to ensure the right behavior of PUNKs. If
+ *         autocasting is not possible or sensible, we can keep emitting nulls for
+ *         indices where the field is unmapped, but should also emit a warning;
+ *         like for {@link DataType#AGGREGATE_METRIC_DOUBLE}.</li>
  *     <li>
  *         Ensure the new type doesn't break {@code FROM idx | KEEP *} queries by
  *         updating AllSupportedFieldsTestCase. Make sure to run this test in bwc

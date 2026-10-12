@@ -50,7 +50,7 @@ public class RestJvmCrashAction implements RestHandler {
     public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         // BIG BADDA BOOM
         try {
-            // glib will check if the pointer is aligned before attempting
+            // glibc will check if the pointer is aligned before attempting
             FREE_MEMORY.invoke(UNSAFE, 16L);
         } catch (Exception e) {
             throw new AssertionError(e);

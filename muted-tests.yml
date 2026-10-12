@@ -580,6 +580,9 @@ tests:
 - class: org.elasticsearch.integration.FieldLevelSecurityTests
   method: testPercolatorConstantKeywordQueryDependsOnIndexingUsersFls
   issue: https://github.com/elastic/elasticsearch/issues/161396
+- class: org.elasticsearch.xpack.esql.action.ExternalPartitionSpecPruningIT
+  method: testAwsHiveHourlySecondsRangeInsideOneHour
+  issue: https://github.com/elastic/elasticsearch/issues/161409
 - class: org.elasticsearch.xpack.esql.qa.parquet.ClickBenchParquetSpecIT
   issue: https://github.com/elastic/elasticsearch/issues/161413
 - class: org.elasticsearch.columnar.substrate.MonotonicTableTests
@@ -617,9 +620,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/161607
 - class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/161608
-- class: org.elasticsearch.xpack.esql.datasource.parquet.OptimizedParquetColumnIteratorReadinessTests
-  method: testNoMatchReleasesGroupReservation
-  issue: https://github.com/elastic/elasticsearch/issues/161623
 - class: org.elasticsearch.xpack.esql.EsqlSecurityLogsdbColumnarIT
   method: testGetDataSourceForbiddenOutsideGrantedNamePatterns
   issue: https://github.com/elastic/elasticsearch/issues/161625
@@ -632,9 +632,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/161633
-- class: org.elasticsearch.xpack.esql.datasource.parquet.ParquetPreWarmReleaseTests
-  method: testEarlyCloseReleasesTicket
-  issue: https://github.com/elastic/elasticsearch/issues/161642
 - class: org.elasticsearch.xpack.stateless.StatelessCommitServiceIT
   method: testTrackOldSearchNodesWhenIndexingShardRelocates
   issue: https://github.com/elastic/elasticsearch/issues/161643

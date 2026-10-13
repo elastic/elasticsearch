@@ -175,6 +175,10 @@ tasks.named("test").configure {
   // Remote-fetch TopN is on by default in snapshot builds; keep it off for the bulk of unit
   // and golden tests so unrelated planner goldens stay stable. See remoteFetchTopnFeatureFlagTest.
   systemProperty 'es.esql_remote_fetch_topn_feature_flag_enabled', 'false'
+  // FileDataSourceValidatorDocCoverageTests reads this page, so a docs-only edit must rerun the tests.
+  inputs.file("${rootDir}/docs/reference/query-languages/esql/esql-data-federation-dataset-settings.md")
+    .withPropertyName('datasetSettingsDoc')
+    .withPathSensitivity(PathSensitivity.RELATIVE)
 }
 
 // Planner unit tests and remote-fetch golden tests need the feature flag enabled in a dedicated JVM.

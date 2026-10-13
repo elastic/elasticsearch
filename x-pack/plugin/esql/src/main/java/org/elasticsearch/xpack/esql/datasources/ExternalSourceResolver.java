@@ -3436,9 +3436,13 @@ public class ExternalSourceResolver {
      * {@link #publishesScanDerivedStatistics} says it is for. A columnar rail files no statistics record, so
      * asking is a guaranteed miss - and {@code Cache#get} counts an absent key, so each ask also distorts the
      * ratio an operator reads to size the store. Two call sites used to skip the gate and book that miss.
+     * <p>
+     * Package-private for testing: the fallback below is the one place the restriction is applied to what a
+     * foreign read may be handed, every call site reaching it goes through a bound read, and no integration test
+     * in the tree distinguishes it from returning the record's statistics whole.
      */
     @Nullable
-    private Map<String, Object> cachedStatistics(SchemaCacheKey schemaKey, SchemaCacheEntry entry, @Nullable String readConfig) {
+    Map<String, Object> cachedStatistics(SchemaCacheKey schemaKey, SchemaCacheEntry entry, @Nullable String readConfig) {
         if (cacheService == null || publishesScanDerivedStatistics(entry) == false) {
             return null;
         }

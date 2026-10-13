@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ListingCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.ReadConfigFingerprint;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheEntry;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
+import org.elasticsearch.xpack.esql.datasources.cache.StatisticsKey;
 import org.elasticsearch.xpack.esql.datasources.cache.TestDatasetIdentities;
 import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
@@ -5144,6 +5145,82 @@ public class ExternalSourceResolverTests extends ESTestCase {
             "and so is an absent stamp on a text record",
             ExternalSourceResolver.schemaRecordAnswersTheRead(textUnstamped, "read-b")
         );
+    }
+
+    /**
+     * The fallback's restriction, asserted where it is applied. When this read's own address misses,
+     * {@code cachedStatistics} looks a second time at the SCHEMA RECORD's address - and what sits there was
+     * measured under a different read, so it must hand back the licensed physical row count and nothing else.
+     * Mutating the return to {@code atOwnRead} leaves every integration test in this change green, because the
+     * rails they drive have the two addresses agreeing; this is the one line where they differ.
+     * <p>
+     * Three cells, the first two of them controls. The record's own read gets the seed whole, so the seed is real
+     * and the absence below is not vacuous. A foreign read gets the licensed count without the extremum. A
+     * foreign read against an UNLICENSED seed gets no count either. The extremum is the discriminator: it is
+     * dropped in both foreign cells, and only the licence decides the count.
+     */
+    public void testTheFallbackCrossesALicensedCountAndNothingElse() {
+        String path = "s3://bucket/data/one.csv";
+        String objectName = "data/one.csv";
+        long mtime = 1_730_000_000_000L;
+        String ownRead = "read-own";
+        String foreignRead = "read-foreign";
+        String minOfX = SourceStatisticsSerializer.columnMinKey("x");
+
+        for (boolean licensed : List.of(true, false)) {
+            try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+                ExternalSourceResolver resolver = datasetGateResolver(cacheService);
+                Map<String, Object> config = versionedConfig(Map.of());
+                String fingerprint = resolver.formatConfigIdentity(objectName, config);
+                SchemaCacheKey schemaKey = SchemaCacheKey.build(
+                    path,
+                    mtime,
+                    resolver.datasetIdentity(objectName, "s3|eu-west-1", "", config),
+                    false
+                );
+
+                // A text record stamped with the read that produced it. Text, because a columnar record files no
+                // statistics record at all and the gate in front of this would short-circuit.
+                Map<String, Object> metadata = new HashMap<>();
+                metadata.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, ownRead);
+                metadata.put(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint);
+                SchemaCacheEntry entry = SchemaCacheEntry.from(List.of(attr("x", DataType.INTEGER)), "csv", path, metadata, Map.of());
+                cacheService.putSchema(schemaKey, entry);
+
+                // The harvest that read produced: a count, a per-column extremum, and the licence under test.
+                Map<String, Object> harvest = new HashMap<>();
+                harvest.put(ExternalStats.MTIME_MILLIS_KEY, mtime);
+                harvest.put(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint);
+                harvest.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, ownRead);
+                harvest.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
+                harvest.put(minOfX, 7);
+                if (licensed) {
+                    harvest.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+                }
+                cacheService.reconcileSourceStats(Map.of(path, harvest));
+
+                Map<String, Object> atOwnRead = cacheService.getStatistics(StatisticsKey.of(schemaKey, ownRead));
+                assertNotNull("control: the seed must be filed at the record's own read", atOwnRead);
+                assertEquals(100L, ((Number) atOwnRead.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+                assertNotNull("control: the seed must carry the extremum, or its absence below proves nothing", atOwnRead.get(minOfX));
+
+                Map<String, Object> served = resolver.cachedStatistics(schemaKey, entry, foreignRead);
+                assertNotNull("a foreign read must still reach the record's address", served);
+                assertNull("a per-column statistic may never cross a read configuration", served.get(minOfX));
+                if (licensed) {
+                    assertEquals(
+                        "a licensed physical count is the one thing that crosses",
+                        100L,
+                        ((Number) served.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue()
+                    );
+                } else {
+                    assertNull(
+                        "an unlicensed count is a survivor count for its own read and must not cross",
+                        served.get(SourceStatisticsSerializer.STATS_ROW_COUNT)
+                    );
+                }
+            }
+        }
     }
 
     /** A per-file schema record of the given source type, stamped with {@code readConfig} when non-null. */
@@ -11447,27 +11524,5 @@ public class ExternalSourceResolverTests extends ESTestCase {
             ExternalSourceResolver.overlaidBoundReadOf(null, "csv")
         );
     }
-
-    /*
-     * NOT COVERED, and worth more than this note: nothing proves that cachedStatistics applies
-     * restrictToReadConfig to what the fallback finds. Mutating it to `return atOwnRead;` leaves every IT in
-     * this change GREEN, and no unit test here reaches it.
-     *
-     * It is not benign. fileStatisticsForFirstFileWins composes the cachedStatistics return straight into
-     * FileSchemaInfo.statistics, which feeds the per-file split statistics a data node consumes, and
-     * applyNonStrictOverlay's own restrictToReadConfig touches sourceMetadata rather than that path. So under
-     * the mutation a retyping declaration's split stats would carry the inferred read's extrema for the
-     * retyped column, and nothing would fail.
-     *
-     * An earlier version of this note said the licence cannot be planted by a caller. That was wrong: the
-     * whole-file contribution path stamps ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY into the stored map when the
-     * contribution carries it. What is actually missing is a seam - cachedStatistics is private, and the two
-     * call sites that pass readConfigStampOf(entry) return before the fallback, so only the three bound-read
-     * sites reach it. Seed a whole-file contribution stamped read X with the licence and a column extremum,
-     * then ask for read Y against a record stamped X: the count must cross and the extremum must not.
-     *
-     * The restriction's own contract IS covered - see SourceStatisticsSerializerTests, which pins that a
-     * licensed count crosses a foreign read and that per-column statistics do not.
-     */
 
 }

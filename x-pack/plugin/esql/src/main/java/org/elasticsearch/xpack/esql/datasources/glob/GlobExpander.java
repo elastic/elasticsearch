@@ -539,8 +539,9 @@ public final class GlobExpander {
      * comparison on the typed value, so that re-list reaches a spelling the splice missed ({@code month=06} for
      * {@code month == 6}). Where a value filter runs on the original pattern, {@link PartitionValueMatcher} keeps
      * that spelling and drops folders the typed comparison excludes; where {@code PartitionValueFilter#forGlob}
-     * declines the pattern there is no filter to drop anything. The {@code _file.*} filters stay too — they are
-     * exact and can hide nothing.
+     * declines the pattern, the integral equality the splice carried is the one hint nothing re-applies —
+     * {@link #withoutFoldersOutsideClosedRange} still drops folders a closed range or a non-integral equality
+     * excludes. The {@code _file.*} filters stay too — they are exact and can hide nothing.
      *
      * <p>A spelling miss with survivors is not an unfiltered re-list. A value filter that keeps nothing still
      * keeps one inference-anchor file from the excluded set when that prune is trusted, so that pass is not

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.http.local;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.test.ESTestCase;
@@ -38,7 +39,14 @@ import static org.hamcrest.Matchers.not;
 
 /**
  * Tests for LocalStorageProvider and LocalStorageObject.
+ * <p>
+ * Every listing test here asserts exactly which files come back from a directory it populated itself, so the
+ * directory has to hold exactly what the test wrote. {@code ExtrasFS} injects an {@code extra0} file into
+ * directories as they are created, which is a real file the provider is right to return - and under a prefix that
+ * spans a folder it is selected along with the file the test wrote. That makes the counts depend on the seed
+ * rather than on the provider, so the randomization is suppressed and the fixtures mean what they say.
  */
+@LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class LocalStorageProviderTests extends ESTestCase {
 
     private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(NoopCircuitBreaker.INSTANCE);

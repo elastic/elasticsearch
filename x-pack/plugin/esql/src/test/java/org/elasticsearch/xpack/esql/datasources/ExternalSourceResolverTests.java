@@ -2500,12 +2500,20 @@ public class ExternalSourceResolverTests extends ESTestCase {
             // report success - is held by the key rather than by refusing the cache: the extent is part of the
             // address, so only a query asking for the same bound can be served this entry. Asking for the same
             // bound is asking the same question, and the answer is the same listing.
-            resolveWithNoRowPaths(resolver, Set.of(GLOB));
+            ExternalSourceResolution.ResolvedSource second = resolveWithNoRowPaths(resolver, Set.of(GLOB)).resolvedSource(GLOB);
+            assertNotNull(second);
             assertEquals(
                 "a second resolve asking for the same bound is served the cached prefix",
                 listsForNoRows,
                 provider.listCallCount.get()
             );
+            // Identity, not equality, and this is the assertion the incident is about. What killed a 1 GiB search
+            // node was not the cost of listing twice - it was holding the listing twice: every concurrent query
+            // kept its own 1,000-entry copy, charged to the request breaker until the query closed, and a few
+            // hundred of those is the whole heap. Two resolutions reaching the same object is what makes the
+            // resident cost one listing instead of one per query, and equality would pass while each query still
+            // held a copy of its own.
+            assertSame("and holds the same listing, not a copy of it", bounded.fileList(), second.fileList());
         }
     }
 

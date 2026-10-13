@@ -246,9 +246,10 @@ public final class DatasetListingService {
     }
 
     /**
-     * The compacted listing for a cacheable provider, from the cache or computed into it. Always the whole pattern:
-     * a bounded listing is a sample of a dataset rather than the dataset, so it must never become the answer another
-     * query is served, and the refusal below is what holds that.
+     * The compacted listing for a cacheable provider, from the cache or computed into it, as far as {@code extents}
+     * asked it to run. A bounded listing is a sample of a dataset rather than the dataset, so it must never become
+     * the answer a query wanting the dataset is served; the extent is part of the key, which is what holds that, and
+     * the refusal below catches the remaining case - a listing that truncated with no bound asked for.
      * <p>
      * {@code memory} reserves the entries either way, once each, and the same figure either way: a miss reserves
      * through the walk as it grows, a hit reserves the equivalent here.

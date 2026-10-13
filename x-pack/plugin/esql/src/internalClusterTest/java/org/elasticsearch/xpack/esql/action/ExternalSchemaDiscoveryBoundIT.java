@@ -29,10 +29,11 @@ import static org.hamcrest.Matchers.equalTo;
  * What a query that reads rows sees after a query that only asked for a schema.
  * <p>
  * Schema discovery may stop listing once it has a schema, which leaves it holding a prefix of the dataset rather
- * than the dataset. The danger is not that prefix — it is where it can travel. The listing cache is keyed by the
- * path and its filters and knows nothing about what the query that filled it happened to need, so a prefix
- * written there would be served to the next query over the same glob, which would read a fraction of the data,
- * report success, and be believed.
+ * than the dataset. The danger is not that prefix — it is where it can travel. A prefix served to a query that
+ * asked for the whole glob would read a fraction of the data, report success, and be believed. What stops that is
+ * the listing cache's key: how far the listing was asked to run is part of it, so a prefix is addressed as a prefix
+ * and the query that wants the dataset cannot be handed one. These tests are the end-to-end pin on that key, and
+ * they are the reason it has to be in the key rather than in a rule about who may write to the cache.
  * <p>
  * Each test therefore discovers the schema first, on a dataset wide enough that the bound bites, and then
  * reads the same dataset in the same cluster and counts what comes back. Every row is the assertion. Ordering
@@ -80,8 +81,9 @@ public class ExternalSchemaDiscoveryBoundIT extends AbstractExternalDataSourceIT
     }
 
     /**
-     * Schema discovery twice over. The first leaves nothing cached under the dataset's key, so the second
-     * must not find a prefix there and must still answer the same schema.
+     * Schema discovery twice over. The second is served the first's prefix, from the cache entry the bounded ask
+     * addresses, and must still answer the same schema — and the read that follows must still see every file,
+     * because it asks unbounded and so asks a different key.
      */
     public void testRepeatedSchemaDiscoveryAnswersTheSameSchema() throws Exception {
         String glob = writeDataset();

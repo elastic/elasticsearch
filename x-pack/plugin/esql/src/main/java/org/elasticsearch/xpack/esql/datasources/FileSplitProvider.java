@@ -772,9 +772,11 @@ public class FileSplitProvider implements SplitProvider {
             );
             List<PartitionFilterHintExtractor.PartitionFilterHint> narrowing = hints.isEmpty() ? null : hints;
             if (extents.boundsFileSet()) {
-                // Never the cache: what comes back is a prefix of the dataset, and the cache's entries are answers
-                // other queries are served whole. This query may read a prefix because its own demand is covered by
-                // one; the next query's demand is not this one's.
+                // Not the cache, though the key would now hold it: the extent joins the listing cache identity
+                // (GlobExpander#listingCacheDiscriminator), so a prefix is addressed as a prefix and two queries
+                // asking the same bound are asking one question. Sharing here is therefore a correctness-neutral
+                // change and is deliberately not part of this one, which is scoped to the listing resolution
+                // charges per query. A read path left listing privately pays its own walk, not a wrong answer.
                 return listingService.expand(
                     pattern,
                     provider,

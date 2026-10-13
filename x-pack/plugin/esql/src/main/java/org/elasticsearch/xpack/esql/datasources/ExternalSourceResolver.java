@@ -1941,11 +1941,12 @@ public class ExternalSourceResolver {
      * Lists (and, when cacheable, caches) the inferred multi-file glob, and publishes the discovery telemetry for
      * it. FIRST_FILE_WINS, UNION_BY_NAME, and inferred STRICT share this so a cacheable provider hits
      * {@link #cachedListingAsync} regardless of merge strategy. Declared-schema resolution stays in
-     * {@link #resolveStrictMultiFileAsync}, which repeats the bounded-is-never-cached rule below.
+     * {@link #resolveStrictMultiFileAsync}, which makes the same choice.
      *
-     * <p>A bounded listing is a prefix of the dataset, and cache entries are keyed by the path and its filters
-     * rather than by what the query needed, so a bounded listing never touches the cache in either direction.
-     * See {@link #listingExtentsFor}.
+     * <p>A bounded listing is a prefix of the dataset, and the extent it was asked for is part of the cache key
+     * ({@code GlobExpander.listingCacheDiscriminator}), so a prefix is addressed as a prefix: a query wanting the
+     * whole pattern cannot be served one, and a query asking for the same bound is asking the same question.
+     * Cacheability alone decides the rail. See {@link #listingExtentsFor}.
      */
     private void listAndRecordAsync(
         String path,
@@ -1989,9 +1990,9 @@ public class ExternalSourceResolver {
      * How far this resolution's listing runs: how many files it returns, and how many paths partition detection
      * folds over. {@link ListingExtents#UNBOUNDED} is the whole glob for both.
      *
-     * <p>Answered here and nowhere else, and answered before the caller chooses whether to consult the listing
-     * cache, because the two are one decision: a bound revoked after the cache was bypassed lists the whole glob
-     * and neither reads nor writes the cache.
+     * <p>Answered here and nowhere else. It no longer decides whether the listing cache is consulted: the extent
+     * joins the key instead, so a bound granted or revoked here changes how far the listing runs and which address
+     * it takes, never whether it may be shared.
      *
      * <p>Three things must hold. The mode's schema must not span every file, so a prefix of the listing
      * can answer it. The query must not want dataset-wide statistics, which are a fold over every

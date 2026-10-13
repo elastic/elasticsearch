@@ -90,7 +90,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         def buildId = "${bwcVersion}-${shortHash}"
         stubManifestOk(wireMock, draManifestPath(buildId, bwcVersion))
         stubTarArtifact(wireMock, draTarArtifactPath(buildId, bwcVersion, "darwin-x86_64"), bwcVersion)
-        redirectDraRepositories(wireMock.baseUrl())
+        redirectBwcRepositories(wireMock.baseUrl())
 
         when:
         def result = gradleRunner(
@@ -138,7 +138,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         stubLatest(wireMock, draLatestPath(bwcBranch), buildId)
         stubManifestWithCommit(wireMock, draManifestPath(buildId, bwcVersion), fullHash)
         stubTarArtifact(wireMock, draTarArtifactPath(buildId, bwcVersion, "darwin-x86_64"), bwcVersion)
-        redirectDraRepositories(wireMock.baseUrl())
+        redirectBwcRepositories(wireMock.baseUrl())
 
         when:
         // bwc.remote=elastic (the default) — no elastic remote ref exists, only origin
@@ -167,8 +167,8 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         def shortHash = "abc12345"
         def buildId = "${bwcVersion}-${shortHash}"
         stubManifestOk(wireMock, draManifestPath(buildId, bwcVersion))
-        stubJarArtifact(wireMock, draMavenArtifactPath(buildId, bwcVersion, "org.elasticsearch.plugin", "x-pack-sql-jdbc"))
-        redirectDraRepositories(wireMock.baseUrl())
+        stubJarArtifact(wireMock, mavenSnapshotArtifactPath(bwcVersion, "org.elasticsearch.plugin", "x-pack-sql-jdbc"))
+        redirectBwcRepositories(wireMock.baseUrl())
 
         when:
         def result = gradleRunner(
@@ -237,7 +237,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         stubLatest(wireMock, draLatestPath(bwcBranch), buildId)
         stubManifestWithCommit(wireMock, draManifestPath(buildId, bwcVersion), fullHash)
         stubTarArtifact(wireMock, draTarArtifactPath(buildId, bwcVersion, "darwin-x86_64"), bwcVersion)
-        redirectDraRepositories(wireMock.baseUrl())
+        redirectBwcRepositories(wireMock.baseUrl())
 
         when:
         def result = gradleRunner(
@@ -305,7 +305,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         // resolveLatestBuildId does not read local git refs — no remote tracking ref needed.
         stubLatest(wireMock, draLatestPath(bwcBranch), buildId)
         stubTarArtifact(wireMock, draTarArtifactPath(buildId, bwcVersion, "darwin-x86_64"), bwcVersion)
-        redirectDraRepositories(wireMock.baseUrl())
+        redirectBwcRepositories(wireMock.baseUrl())
 
         when:
         def result = gradleRunner(
@@ -408,12 +408,12 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
     // Build-file helper
     // -------------------------------------------------------------------------
 
-    /** Appends a Gradle snippet that redirects all DRA Ivy repositories to {@code baseUrl}. */
-    private void redirectDraRepositories(String baseUrl) {
+    /** Appends a Gradle snippet that redirects all BWC snapshot repositories to {@code baseUrl}. */
+    private void redirectBwcRepositories(String baseUrl) {
         buildFile << """
             allprojects { p ->
                 p.repositories.all { repo ->
-                    if (repo.name.startsWith("dra-bwc-elasticsearch-")) {
+                    if (repo.name.startsWith("dra-bwc-elasticsearch-") || repo.name == "maven-snapshots-elasticsearch") {
                         repo.setUrl('${baseUrl}')
                         allowInsecureProtocol = true
                     }
@@ -438,8 +438,8 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         "/elasticsearch/${buildId}/downloads/elasticsearch/elasticsearch-${version}-SNAPSHOT-${classifier}.tar.gz"
     }
 
-    private static String draMavenArtifactPath(String buildId, String version, String mavenGroup, String module) {
-        "/elasticsearch/${buildId}/maven/${mavenGroup.replace('.', '/')}/${module}/${version}-SNAPSHOT/${module}-${version}-SNAPSHOT.jar"
+    private static String mavenSnapshotArtifactPath(String version, String mavenGroup, String module) {
+        "/${mavenGroup.replace('.', '/')}/${module}/${version}-SNAPSHOT/${module}-${version}-SNAPSHOT.jar"
     }
 
     // -------------------------------------------------------------------------

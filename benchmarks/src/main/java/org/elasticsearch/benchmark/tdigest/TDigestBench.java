@@ -57,7 +57,7 @@ import java.util.function.Supplier;
 @Threads(1)
 @State(Scope.Thread)
 public class TDigestBench {
-    private static final TDigestArrays arrays = new MemoryTrackingTDigestArrays(new NoopCircuitBreaker("default-wrapper-tdigest-arrays"));
+    private static final TDigestArrays arrays = new MemoryTrackingTDigestArrays(NoopCircuitBreaker.INSTANCE);
 
     public enum TDigestFactory {
         MERGE {

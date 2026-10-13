@@ -254,6 +254,10 @@ public class IndexVersions {
     public static final IndexVersion SEMANTIC_TEXT_USES_DENSE_VECTOR_DEFAULT_INDEX_OPTIONS = def(9_092_0_00, Version.LUCENE_10_4_0);
     public static final IndexVersion TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD = def(9_093_0_00, Version.LUCENE_10_4_0);
     public static final IndexVersion TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT = def(9_094_0_00, Version.LUCENE_10_4_0);
+    public static final IndexVersion TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES_BACKPORT_9_4 = def(
+        9_094_0_01,
+        Version.LUCENE_10_4_0
+    );
 
     /*
      * STOP! READ THIS FIRST! No, really,

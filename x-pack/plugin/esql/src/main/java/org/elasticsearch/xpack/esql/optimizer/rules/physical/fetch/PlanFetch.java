@@ -358,7 +358,6 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
             fetchPlan,
             docRef,
             deferred,
-            1,
             candidate.relation().indexPattern(),
             localIndices(candidate.relation()),
             null

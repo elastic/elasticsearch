@@ -307,7 +307,6 @@ public class ComputeService {
             transportService,
             clusterService,
             searchService,
-            fetchContextService,
             blockFactory,
             threadPool.executor(EsqlPlugin.computePool()),
             plannerSettings::get,
@@ -1566,13 +1565,7 @@ public class ComputeService {
                     // the fetches of the query send their requests as children of its task, and count their drivers as its own
                     FetchOperatorProvider fetchOperators = coordinatorPlan.anyMatch(FetchExec.class::isInstance)
                         ? fetchPhaseServices.operatorProvider(
-                            new QueryFetchScope(
-                                rootTask,
-                                sessionId,
-                                configuration,
-                                coordinatorPlan.collect(FetchExec.class).size(),
-                                localListener::acquireCompute
-                            )
+                            new QueryFetchScope(rootTask, sessionId, configuration, localListener::acquireCompute)
                         )
                         : FetchOperatorProvider.UNSUPPORTED;
                     runCompute(

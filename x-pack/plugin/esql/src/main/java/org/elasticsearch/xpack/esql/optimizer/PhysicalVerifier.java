@@ -152,9 +152,6 @@ public final class PhysicalVerifier extends PostOptimizationPhasePlanVerifier<Ph
         if (fetch.docRef().dataType() != DataType.DOC_REF) {
             failures.add(fail(fetch, "[{}] must read a [DOC_REF] attribute", fetch.nodeString()));
         }
-        if (fetch.stage() < 1) {
-            failures.add(fail(fetch, "[{}] must have a stage of at least 1", fetch.nodeString()));
-        }
         if (sameIdsAndTypes(fetch.fetchPlan().output(), fetch.fetchedAttributes()) == false) {
             failures.add(
                 fail(

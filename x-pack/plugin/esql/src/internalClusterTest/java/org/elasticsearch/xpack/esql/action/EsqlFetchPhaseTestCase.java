@@ -692,7 +692,7 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
         assertThat("documents the coordinator asked for", status.documents(), equalTo((long) rows));
         assertThat(
             "documents the nodes answered",
-            status.nodes().stream().mapToLong(FetchOperator.NodeRequest::documents).sum(),
+            status.requests().stream().mapToLong(FetchOperator.NodeRequest::documents).sum(),
             equalTo((long) rows)
         );
     }

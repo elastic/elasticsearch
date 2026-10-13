@@ -85,7 +85,6 @@ public class PlanFetchTests extends ESTestCase {
 
         FetchExec fetch = single(planned.plan(), FetchExec.class);
         assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("emp_no", "first_name")));
-        assertThat(fetch.stage(), equalTo(1));
         assertThat(fetch.indexPattern(), equalTo("employees"));
         assertThat(fetch.docRef().dataType(), equalTo(DataType.DOC_REF));
 

@@ -39,9 +39,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER;
-import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY;
-
 /**
  * Asks one data node for the fetched columns of documents that survived a cut. For each shard it names the reader context
  * the query phase kept open and the documents to load, and it carries the fetch plan that loads them.
@@ -172,13 +169,10 @@ public final class FetchRequest extends AbstractTransportRequest implements Indi
     private final List<ShardDocs> shards;
     private final Configuration configuration;
     private final PhysicalPlan fetchPlan;
-    private List<ShardSearchContextId> releaseAfter;
 
     /**
      * @param originalIndices the index expressions of the query for the cluster of the node
      * @param fetchPlan       the plan that loads the fetched columns, its output is the schema of the response pages
-     * @param releaseAfter    the reader contexts the node frees once it answered, whether the fetch succeeded or not. It
-     *                        may name contexts this request doesn't fetch from.
      */
     public FetchRequest(
         String sessionId,
@@ -186,8 +180,7 @@ public final class FetchRequest extends AbstractTransportRequest implements Indi
         OriginalIndices originalIndices,
         List<ShardDocs> shards,
         Configuration configuration,
-        PhysicalPlan fetchPlan,
-        List<ShardSearchContextId> releaseAfter
+        PhysicalPlan fetchPlan
     ) {
         this.sessionId = sessionId;
         this.clusterAlias = clusterAlias;
@@ -197,7 +190,6 @@ public final class FetchRequest extends AbstractTransportRequest implements Indi
         // the fetch plan reads no lookup tables, so the request doesn't ship them
         this.configuration = configuration.withoutTables();
         this.fetchPlan = fetchPlan;
-        this.releaseAfter = List.copyOf(releaseAfter);
     }
 
     public FetchRequest(StreamInput in) throws IOException {
@@ -224,7 +216,6 @@ public final class FetchRequest extends AbstractTransportRequest implements Indi
         this.fetchPlan = new PlanStreamInput(in, in.namedWriteableRegistry(), configuration, idMapper).readNamedWriteable(
             PhysicalPlan.class
         );
-        this.releaseAfter = in.readCollectionAsImmutableList(ShardSearchContextId::new);
     }
 
     @Override
@@ -241,7 +232,6 @@ public final class FetchRequest extends AbstractTransportRequest implements Indi
         out.writeCollection(shards);
         configuration.writeTo(out);
         new PlanStreamOutput(out, configuration).writeNamedWriteable(fetchPlan);
-        out.writeCollection(releaseAfter);
     }
 
     public String sessionId() {
@@ -264,10 +254,6 @@ public final class FetchRequest extends AbstractTransportRequest implements Indi
         return fetchPlan;
     }
 
-    public List<ShardSearchContextId> releaseAfter() {
-        return releaseAfter;
-    }
-
     public int totalDocs() {
         int docs = 0;
         for (ShardDocs shard : shards) {
@@ -283,15 +269,11 @@ public final class FetchRequest extends AbstractTransportRequest implements Indi
 
     /**
      * Keeps the shards even when authorization leaves no index: the node then fails each of them, because no index of
-     * theirs is in the access control of the request. The request frees none of the contexts it names then, like a free
-     * request without an index, and they stay open until their keep-alive passes.
+     * theirs is in the access control of the request.
      */
     @Override
     public IndicesRequest indices(String... indices) {
         this.indices = indices;
-        if (Arrays.equals(NO_INDICES_OR_ALIASES_ARRAY, indices) || Arrays.asList(indices).contains(NO_INDEX_PLACEHOLDER)) {
-            this.releaseAfter = List.of();
-        }
         return this;
     }
 
@@ -340,7 +322,6 @@ public final class FetchRequest extends AbstractTransportRequest implements Indi
             && shards.equals(that.shards)
             && configuration.equals(that.configuration)
             && fetchPlan.equals(that.fetchPlan)
-            && releaseAfter.equals(that.releaseAfter)
             && getParentTask().equals(that.getParentTask());
     }
 
@@ -354,7 +335,6 @@ public final class FetchRequest extends AbstractTransportRequest implements Indi
             shards,
             configuration,
             fetchPlan,
-            releaseAfter,
             getParentTask()
         );
     }

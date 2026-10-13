@@ -35,8 +35,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * The reader contexts of the fetch phase, on a cluster with three data nodes. The data nodes of a query that gets the
@@ -119,7 +122,7 @@ public class FetchContextsIT extends AbstractEsqlIntegTestCase {
     /**
      * Every data node registers a context per shard, with the keep-alive of {@link FetchContextService#CONTEXT_KEEP_ALIVE}.
      * The query returns the rows it returns without the fetch phase, and all the contexts are freed: by the data nodes
-     * for shards without surviving rows, by the fetch for the shards it read, and by the coordinator's lease for the rest.
+     * for shards without surviving rows, and by the coordinator's lease for the rest.
      */
     public void testQueryWithTheFetchPhaseFreesItsContexts() throws Exception {
         List<List<Object>> eager;
@@ -139,10 +142,10 @@ public class FetchContextsIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * When every row is a winner, the fetch reads every context that kept rows, and each node frees the ones it read once
-     * it answered. The coordinator's lease has nothing left to free, so it sends no free request.
+     * When every row is a winner, the fetch reads every context that kept rows. The fetch frees none of them, so the
+     * coordinator's lease frees them all once the query ends, with one request per node.
      */
-    public void testAFetchThatReadsEveryContextLeavesNothingToFree() throws Exception {
+    public void testTheLeaseFreesTheContextsAFetchRead() throws Exception {
         String everyRow = "FROM " + INDEX + " | SORT ts DESC | LIMIT 100 | KEEP a, b, ts";
         try (EsqlQueryResponse response = run(request(everyRow, true))) {
             assertThat(getValuesList(response), hasSize(60));
@@ -153,7 +156,7 @@ public class FetchContextsIT extends AbstractEsqlIntegTestCase {
             assertThat(freed.get(), equalTo(registered.get()));
             assertThat(indicesAdmin().prepareStats(INDEX).setSearch(true).get().getTotal().getSearch().getOpenContexts(), equalTo(0L));
         });
-        assertThat(freeRequests.get(), equalTo(0));
+        assertThat(freeRequests.get(), allOf(greaterThan(0), lessThanOrEqualTo(internalCluster().numDataNodes())));
     }
 
     /**

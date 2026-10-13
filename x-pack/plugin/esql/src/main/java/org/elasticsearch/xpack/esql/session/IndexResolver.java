@@ -549,6 +549,7 @@ public class IndexResolver {
             type = UNSUPPORTED;
         }
         boolean aggregatable = first.isAggregatable();
+        boolean isPassthrough = Boolean.TRUE.equals(first.isPassthrough());
         EsField.TimeSeriesFieldType timeSeriesFieldType = fieldsInfo.hasTimeSeriesAggregation()
             ? EsField.TimeSeriesFieldType.fromIndexFieldCapabilities(first)
             : EsField.TimeSeriesFieldType.NONE;
@@ -573,6 +574,7 @@ public class IndexResolver {
             }
             for (IndexFieldCapabilities fc : rest) {
                 aggregatable &= fc.isAggregatable();
+                isPassthrough &= Boolean.TRUE.equals(fc.isPassthrough());
             }
         }
 
@@ -594,7 +596,7 @@ public class IndexResolver {
             return unsupported(name, first);
         }
 
-        return new EsField(name, type, new HashMap<>(), aggregatable, isAlias, timeSeriesFieldType);
+        return new EsField(name, type, new HashMap<>(), aggregatable, isAlias, timeSeriesFieldType, isPassthrough);
     }
 
     /**

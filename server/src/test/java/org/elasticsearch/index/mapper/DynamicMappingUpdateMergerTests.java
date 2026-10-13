@@ -181,6 +181,22 @@ public class DynamicMappingUpdateMergerTests extends MapperServiceTestCase {
     }
 
     /**
+     * A multi-field prevents a runtime field of the same path from being mapped dynamically, so an update is rejected when it
+     * defines a multi-field where a previous update defines a runtime field, or the other way around.
+     */
+    public void testMultiFieldAndRuntimeFieldOfSamePathAreRejected() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {}));
+        CompressedXContent multiField = new CompressedXContent("""
+            {"_doc":{"properties":{"a":{"type":"keyword","fields":{"raw":{"type":"keyword"}}}}}}""");
+        CompressedXContent runtimeField = new CompressedXContent("""
+            {"_doc":{"runtime":{"a.raw":{"type":"keyword"}}}}""");
+        boolean multiFieldFirst = randomBoolean();
+        DynamicMappingUpdateMerger merger = mapperService.dynamicMappingUpdateMerger(multiFieldFirst ? multiField : runtimeField);
+        assertFalse(merger.add(multiFieldFirst ? runtimeField : multiField));
+        assertThat(merger.merged(), sameInstance(multiFieldFirst ? multiField : runtimeField));
+    }
+
+    /**
      * An update that maps an object where the index has a runtime field changes how the following documents are parsed, so it is
      * not combined with any other update.
      */

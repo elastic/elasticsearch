@@ -29,7 +29,7 @@ import java.util.function.Predicate;
  * same mappings as applying the accepted updates one after the other, which requires that an update:
  * <ul>
  *   <li>defines the objects, fields and runtime fields that a previous update defines in exactly the same way,</li>
- *   <li>doesn't define an object or a field where a runtime field exists, or a runtime field where an object or a field
+ *   <li>doesn't define an object, a field or a multi-field where a runtime field exists, or a runtime field where one of them
  *   exists, since a runtime field prevents the field of the same path from being mapped dynamically,</li>
  *   <li>keeps the number of added fields within the total fields limit.</li>
  * </ul>
@@ -42,6 +42,7 @@ public final class DynamicMappingUpdateMerger {
     private static final MergeReason REASON = MergeReason.MAPPING_UPDATE;
     private static final String PROPERTIES = "properties";
     private static final String RUNTIME = "runtime";
+    private static final String MULTI_FIELDS = "fields";
 
     private final MappingParser mappingParser;
     private final Predicate<String> isMappedField;
@@ -52,7 +53,7 @@ public final class DynamicMappingUpdateMerger {
     private final ParseFieldLimits limits;
     // the source of the first update and of the accepted ones
     private Map<String, Object> definitions;
-    // the paths of the objects and fields, and the names of the runtime fields, of the definitions
+    // the paths of the objects, fields and multi-fields, and the names of the runtime fields, of the definitions
     private final Set<String> fieldPaths = new HashSet<>();
     private final Set<String> runtimeFieldNames = new HashSet<>();
     // null once a merge failed, which leaves the builder partially modified
@@ -251,6 +252,9 @@ public final class DynamicMappingUpdateMerger {
         for (Map.Entry<String, Object> field : children(definition, PROPERTIES).entrySet()) {
             String path = prefix + field.getKey();
             paths.add(path);
+            for (String multiField : children(asMap(field.getValue()), MULTI_FIELDS).keySet()) {
+                paths.add(path + "." + multiField);
+            }
             collectFieldPaths(asMap(field.getValue()), path + ".", paths);
         }
     }

@@ -52,6 +52,13 @@ public class BulkMappingUpdateLookAheadTests extends IndexShardTestCase {
             "dynamic_templates": [
               { "ids": { "match": "id_*", "mapping": { "type": "keyword" } } },
               { "ips": { "match": "ip_*", "match_mapping_type": "string", "mapping": { "type": "ip" } } },
+              {
+                "multi": {
+                  "path_match": "flat_runtime.multi_*",
+                  "match_mapping_type": "string",
+                  "mapping": { "type": "keyword", "fields": { "raw": { "type": "keyword" } } }
+                }
+              },
               { "short_keyword": { "match": "unmatched", "mapping": { "type": "keyword", "ignore_above": 4 } } },
               { "long_keyword": { "match": "unmatched", "mapping": { "type": "keyword", "ignore_above": 1024 } } },
               { "counter": { "match": "unmatched", "mapping": { "type": "long", "meta": { "kind": "counter" } } } },
@@ -61,7 +68,8 @@ public class BulkMappingUpdateLookAheadTests extends IndexShardTestCase {
               "strict": { "type": "object", "dynamic": "strict" },
               "static": { "type": "object", "dynamic": "false" },
               "runtime": { "type": "object", "dynamic": "runtime" },
-              "flat": { "type": "object", "subobjects": false }
+              "flat": { "type": "object", "subobjects": false },
+              "flat_runtime": { "type": "object", "subobjects": false, "dynamic": "runtime" }
             }
           }
         }""";
@@ -238,6 +246,8 @@ public class BulkMappingUpdateLookAheadTests extends IndexShardTestCase {
                 case 3 -> source.append("\"flat\":{\"field.").append(field).append("\":").append(randomValue()).append('}');
                 case 4 -> source.append("\"id_").append(field).append("\":").append(randomValue());
                 case 5 -> source.append("\"ip_").append(field).append("\":").append(randomFrom("\"10.0.0.1\"", "\"not an ip\"", "1"));
+                // a keyword with a multi-field
+                case 6 -> source.append("\"flat_runtime\":{\"multi_").append(field).append("\":").append(randomValue()).append('}');
                 default -> source.append("\"field_").append(field).append("\":").append(randomValue());
             }
         }

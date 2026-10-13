@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper.flattened;
 
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BatchMappingContext;
@@ -23,6 +24,7 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Iterator;
 
 /**
  * The implicit {@code _unmapped} sink that absorbs unmapped fields on strict columnar indices as full dotted keys. It is a metadata field
@@ -78,29 +80,25 @@ public final class UnmappedSinkFieldMapper extends MetadataFieldMapper {
      * See {@link FlattenedFieldMapper#indexValueAtPath}.
      */
     public static void absorb(DocumentParserContext context, String name) throws IOException {
-        UnmappedSinkFieldMapper sink = (UnmappedSinkFieldMapper) context.mappingLookup().getMapper(FlattenedFieldMapper.UNMAPPED_SINK_NAME);
+        UnmappedSinkFieldMapper sink = context.mappingLookup().getMapping().getMetadataMapperByClass(UnmappedSinkFieldMapper.class);
         sink.delegate.indexValueAtPath(context, context.path().pathAsText(name));
     }
 
+    /**
+     * The sink takes part in the columnar batch path whenever its wrapped flattened mapper can batch the absorbed leaves. Its own
+     * {@code doSupportsColumnarParse} is deliberately left at the inherited {@code false}: a document key {@code _unmapped} resolves to the
+     * sink as a column of its own, and must fall back to the sequential parser, which rejects it, rather than be mapped as a column.
+     */
     @Override
-    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
-        // Flattened is a delegate and it supports columnar parse.
-        return true;
+    public boolean supportsColumnarMetadataParse(IndexSettings indexSettings) {
+        return delegate.supportsColumnarParse(indexSettings);
     }
 
     /**
-     * {@code false} although the sink consumes column groups: absorbed leaves are routed to it explicitly by {@code ShardBatchMapper}
-     * under {@code dynamic: flattened}. Returning {@code false} makes a document leaf under {@code _unmapped.} resolve as a conflict and
-     * fall back to the sequential parser, exactly as for any other metadata field, instead of being silently written into the sink.
+     * Absorbed leaves are routed here explicitly by {@code ShardBatchMapper} under {@code dynamic: flattened}. {@code resolvesColumnGroup}
+     * is deliberately left at the inherited {@code false}, so a document leaf under {@code _unmapped.} resolves as a conflict and falls
+     * back to the sequential parser, which rejects it, instead of being silently written into the sink.
      */
-    @Override
-    public boolean resolvesColumnGroup() {
-        // TODO: the resolution to this depends on how we want to handle fields that share the _unmapped name
-        // Context: without false here, we would a in _unmapped.a into the sink, meanwhile the sequential path currently rejects that.
-        // The problem with absorbing a is that a could also be a mapped field, so during source synthesis, we'll have two instances of a.
-        return false;
-    }
-
     @Override
     public void mapColumnGroupBatch(BatchMappingContext ctx, EscfColumn[] columns, String[] relativeKeys) {
         delegate.mapColumnGroupBatch(ctx, columns, relativeKeys);
@@ -113,17 +111,12 @@ public final class UnmappedSinkFieldMapper extends MetadataFieldMapper {
     @Override
     protected void doValidate(MappingLookup lookup) {
         String prefix = fullPath() + ".";
-        for (Mapper mapper : lookup.fieldMappers()) {
-            rejectIfUnderSink(mapper, prefix);
-        }
-        for (Mapper mapper : lookup.objectMappers().values()) {
-            rejectIfUnderSink(mapper, prefix);
-        }
-    }
-
-    private void rejectIfUnderSink(Mapper mapper, String prefix) {
-        if (mapper.fullPath().startsWith(prefix)) {
-            throw new MapperParsingException("Field [" + mapper.fullPath() + "] is reserved by the metadata field [" + fullPath() + "]");
+        Iterator<? extends Mapper> mappers = Iterators.concat(lookup.fieldMappers().iterator(), lookup.objectMappers().values().iterator());
+        while (mappers.hasNext()) {
+            String path = mappers.next().fullPath();
+            if (path.startsWith(prefix)) {
+                throw new MapperParsingException("Field [" + path + "] is reserved by the metadata field [" + fullPath() + "]");
+            }
         }
     }
 

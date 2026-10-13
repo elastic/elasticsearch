@@ -810,6 +810,19 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
     }
 
     /**
+     * A document key {@code _unmapped} holding a value resolves to the sink itself rather than to a leaf under it. The sink never maps a
+     * column of its own, so the batch must fall back at resolve time and let the sequential parser reject the key, instead of assigning the
+     * sink to the column and failing later inside {@code mapColumnBatch}.
+     */
+    public void testSinkNameAsLeafFallsBack() throws IOException {
+        assumeUnmappedSinkAvailable();
+        MapperService ms = columnarMapperService(unmappedSinkEnabled(), mapping(b -> {}));
+        String value = randomAlphaOfLength(5);
+        String json = randomBoolean() ? "{\"_unmapped\":\"" + value + "\"}" : "{\"_unmapped\":[\"" + value + "\"]}";
+        assertNull(ShardBatchMapper.resolveMappers(schemaOfJson(json), ms.mappingLookup(), columnarIndexSettings(unmappedSinkEnabled())));
+    }
+
+    /**
      * Dynamic templates are tried before the sink on the sequential path, and a match creates a concrete field rather
      * than absorbing the value. The batch path cannot evaluate templates, so it must fall back instead of guessing.
      */

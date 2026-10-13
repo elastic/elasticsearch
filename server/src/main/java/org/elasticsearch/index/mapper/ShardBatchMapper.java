@@ -209,7 +209,7 @@ public final class ShardBatchMapper {
                     continue;
                 }
                 if (parentDynamic == ObjectMapper.Dynamic.FLATTENED) {
-                    final FieldMapper sink = unmappedSink(lookup, indexSettings);
+                    final FieldMapper sink = unmappedSink(lookup);
                     if (sink == null) {
                         return null;
                     }
@@ -304,7 +304,7 @@ public final class ShardBatchMapper {
      * Returns the implicit flattened {@code _unmapped} sink that absorbs unmapped leaves under
      * {@link ObjectMapper.Dynamic#FLATTENED}, or {@code null} if the batch cannot use it and must fall back.
      */
-    private static FieldMapper unmappedSink(MappingLookup lookup, IndexSettings indexSettings) {
+    private static FieldMapper unmappedSink(MappingLookup lookup) {
         // Dynamic templates are tried before the sink on the sequential path
         // (DynamicFieldsBuilder#createDynamicFieldFromValue), and a match creates a concrete field instead of
         // absorbing the value. The batch path cannot evaluate templates, so it cannot tell which leaves would
@@ -313,16 +313,9 @@ public final class ShardBatchMapper {
             logger.debug("batch indexing disabled: dynamic templates may pre-empt the [{}] sink", FlattenedFieldMapper.UNMAPPED_SINK_NAME);
             return null;
         }
-        // getRootDynamic only reports FLATTENED when the sink exists, so this cast is safe.
-        final FieldMapper sink = (FieldMapper) lookup.getMapper(FlattenedFieldMapper.UNMAPPED_SINK_NAME);
-        if (sink.supportsColumnarParse(indexSettings) == false) {
-            logger.debug(
-                "columnar batch mapping disabled: [{}] sink does not support columnar parsing",
-                FlattenedFieldMapper.UNMAPPED_SINK_NAME
-            );
-            return null;
-        }
-        return sink;
+        // getRootDynamic only reports FLATTENED when the sink exists, so this cast is safe. The sink's columnar support was already
+        // checked with every other metadata mapper above, so a sink that cannot batch never reaches this point.
+        return (FieldMapper) lookup.getMapper(FlattenedFieldMapper.UNMAPPED_SINK_NAME);
     }
 
     /**

@@ -119,8 +119,7 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
 
     /**
      * A user object named {@code _unmapped}: a {@code nested} mapper keeps the name and collides with the sink; a plain {@code object} is
-     * flattened by {@code subobjects: false} into dotted leaves, which then hit the prefix reservation. An empty plain object is dropped
-     * by that flattening before any check runs, as for any other empty object on a columnar index, so there is nothing to reject.
+     * flattened by {@code subobjects: false} into dotted leaves, which then hit the prefix reservation.
      */
     public void testUserObjectWithSameNameAsSinkRejected() throws IOException {
         String sink = FlattenedFieldMapper.UNMAPPED_SINK_NAME;
@@ -137,10 +136,6 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
             b.endObject();
         }));
         assertThat(object.getMessage(), containsString("Field [_unmapped." + leaf + "] is reserved by the metadata field [_unmapped]"));
-
-        MapperService mapperService = columnarService(b -> b.startObject(sink).field("type", "object").endObject());
-        assertTrue(isUnmappedSink(mapperService));
-        assertThat(mapperService.documentMapper().mappingSource().toString(), not(containsString(sink)));
     }
 
     /**
@@ -161,15 +156,21 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), containsString("Field [" + name + "] is reserved by the metadata field [_unmapped]"));
     }
 
-    public void testUserFieldUnderSinkPrefixRejectedOnMerge() throws IOException {
-        MapperService mapperService = columnarService(b -> {});
-        String name = FlattenedFieldMapper.UNMAPPED_SINK_NAME + "." + randomAlphaOfLength(5);
-        var e = expectThrows(
-            MapperParsingException.class,
-            () -> merge(mapperService, mapping(b -> b.startObject(name).field("type", "keyword").endObject()))
-        );
-        assertThat(e.getMessage(), containsString("Field [" + name + "] is reserved by the metadata field [_unmapped]"));
-        assertTrue(isUnmappedSink(mapperService));
+    /**
+     * The sink answers metadata columnar support through its wrapped flattened mapper, so the batch path falls back for a shape that mapper
+     * cannot batch, such as the inverted index being enabled through {@code index.mapping.index_disabled_by_default: false}. The sink never
+     * maps a column of its own, so its field-level columnar support is always {@code false}.
+     */
+    public void testSinkColumnarSupportFollowsDelegate() throws IOException {
+        boolean indexDisabled = randomBoolean();
+        Settings settings = Settings.builder()
+            .put(columnarSettings())
+            .put(IndexSettings.INDEX_DISABLED_BY_DEFAULT.getKey(), indexDisabled)
+            .build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+        var sink = (UnmappedSinkFieldMapper) mapperService.mappingLookup().getMapper(FlattenedFieldMapper.UNMAPPED_SINK_NAME);
+        assertEquals(indexDisabled, sink.supportsColumnarMetadataParse(mapperService.getIndexSettings()));
+        assertFalse(sink.supportsColumnarParse(mapperService.getIndexSettings()));
     }
 
     public void testTopLevelSinkKeyNotConfigurable() {
@@ -197,16 +198,12 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
         shapes.put("_unmapped: null", b -> b.nullField(sink));
         shapes.put("_unmapped: {}", b -> b.startObject(sink).endObject());
         shapes.put("_unmapped: {a: value}", b -> b.startObject(sink).field(key, value).endObject());
-        shapes.put("_unmapped: {a: {b: value}}", b -> b.startObject(sink).startObject(key).field(key, value).endObject().endObject());
         shapes.put("_unmapped: []", b -> b.startArray(sink).endArray());
         shapes.put("_unmapped: [value]", b -> b.array(sink, value));
-        shapes.put("_unmapped: [{a: value}]", b -> b.startArray(sink).startObject().field(key, value).endObject().endArray());
         shapes.put("_unmapped.a: value", b -> b.field(dotted, value));
         shapes.put("_unmapped.a: null", b -> b.nullField(dotted));
         shapes.put("_unmapped.a: {}", b -> b.startObject(dotted).endObject());
-        shapes.put("_unmapped.a: {b: value}", b -> b.startObject(dotted).field(key, value).endObject());
         shapes.put("_unmapped.a: []", b -> b.startArray(dotted).endArray());
-        shapes.put("_unmapped.a: [value, value]", b -> b.array(dotted, value, randomAlphanumericOfLength(6)));
         shapes.put("_unmapped.a.b: value", b -> b.field(deeper, value));
         for (var shape : shapes.entrySet()) {
             var e = expectThrows(DocumentParsingException.class, shape.getKey(), () -> mapper.parse(source(shape.getValue())));

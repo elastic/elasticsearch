@@ -1827,7 +1827,8 @@ public class EsqlSession {
         // solution would be to just not track the unmapped indices at all, but that requires a more structural change.
         boolean trackedUnmappedFieldIndices = unmappedResolution.loadsUnmappedFields();
         boolean exemplars = QuerySettings.EXEMPLARS.get(configuration.resolvedSettings()).enabled();
-        boolean nullify = parsed.collectFirstChildren(p -> p instanceof PromqlCommand).isEmpty() == false;
+        // Exemplar columns missing from the exemplar data streams' mappings are nullified rather than failing the query
+        boolean nullify = exemplars || parsed.collectFirstChildren(p -> p instanceof PromqlCommand).isEmpty() == false;
         SubscribableListener.<PreAnalysisResult>newForked(
             l -> preAnalyzeMainIndices(
                 preAnalysis,

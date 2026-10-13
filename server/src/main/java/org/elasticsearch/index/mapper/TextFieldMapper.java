@@ -1263,16 +1263,16 @@ public final class TextFieldMapper extends FieldMapper {
             }
         }
 
-        /**
-         * Whether a query over positions this field did not index can be answered by analyzing its values again. Only a
-         * strictly columnar index is taken to hold them, in the field's own doc values or, for a multi-field keeping
-         * none of its own, in its parent's.
-         */
         @Override
         public boolean answersPositionsFromValues(SearchExecutionContext context) {
             return verifiesPositionsFromDocValues(context);
         }
 
+        /**
+         * Whether a query over positions this field did not index can be answered by analyzing its values again. Only a
+         * strictly columnar index is taken to hold them, in the field's own doc values or, for a multi-field keeping
+         * none of its own, in its parent's.
+         */
         private boolean verifiesPositionsFromDocValues(SearchExecutionContext context) {
             // The values are read for the documents the field's own terms match, so it needs those terms.
             if (strictColumnar == false || indexType().hasTerms() == false || getTextSearchInfo().hasPositions()) {

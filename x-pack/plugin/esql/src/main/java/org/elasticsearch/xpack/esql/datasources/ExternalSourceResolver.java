@@ -65,7 +65,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.WidenedColumn;
@@ -1249,9 +1248,10 @@ public class ExternalSourceResolver {
             StorageEntry storageEntry;
             SourceStatistics harvestedStatistics = null;
             if (isCacheable(provider)) {
-                // Warm path is zero-I/O: the file-metadata cache holds {length, mtime} within the schema TTL, so a warm
-                // single-file resolve never touches a live object (fileMetadataOf). mtime is the cache key's version token;
-                // length + mtime rebuild the singleton FileList.
+                // One live object probe per file-metadata window, not per resolve (fileMetadataOf). The address
+                // records which read is being asked about, never what the store would answer for it now -- and the
+                // window is how long an earlier answer stands in for asking again.
+                // mtime is the cache key's version token; length + mtime rebuild the singleton FileList.
                 FileMetadata meta = fileMetadataOf(storagePath, provider, storageIdentity);
                 SchemaCacheKey schemaKey = SchemaCacheKey.build(
                     storagePath.toString(),
@@ -1292,8 +1292,7 @@ public class ExternalSourceResolver {
                 // them into sourceMetadata() but does not override statistics(), so they are unreachable afterwards.
                 harvestedStatistics = metadata.statistics().orElse(null);
                 extMetadata = wrapAsExternalSourceMetadata(metadata, fileConfig, declaredReadSpecOf(declaredMapping));
-                StorageObject object = provider.newObject(storagePath);
-                storageEntry = new StorageEntry(storagePath, object.length(), object.lastModified());
+                storageEntry = provider.objectMetadata(storagePath);
             }
             extMetadata = withSourceType(extMetadata, datasetFormat);
 
@@ -2188,31 +2187,28 @@ public class ExternalSourceResolver {
 
     /**
      * The single file's {@link FileMetadata} ({@code {length, mtime}}), shared by both single-file rails (inferred
-     * {@link #resolveSingleFileSource} and strict {@link #resolveStrictSingleFile}). A cacheable provider serves it
-     * from the file-metadata cache within the schema TTL, so a warm resolve is zero-I/O; a miss — or a non-cacheable
-     * provider — probes the live object exactly once via {@link #probeFileMetadata(StoragePath, StorageProvider)}. The
-     * mtime is the version token that rebuilds the {@link SchemaCacheKey}; length + mtime rebuild the singleton
-     * {@code StorageEntry}.
+     * {@link #resolveSingleFileSource} and strict {@link #resolveStrictSingleFile}). The mtime is the version token
+     * that rebuilds the {@link SchemaCacheKey}; length + mtime rebuild the singleton {@code StorageEntry}.
+     * <p>
+     * Served from the file-metadata cache within its window — which it shares with the listing — and from
+     * storage otherwise. A provider that is not cacheable asks the store on every resolve.
      */
     private FileMetadata fileMetadataOf(StoragePath storagePath, StorageProvider provider, String storageIdentity) throws Exception {
         if (isCacheable(provider)) {
             FileMetadataCacheKey metaKey = new FileMetadataCacheKey(storagePath.toString(), storageIdentity);
-            return cacheService.getOrComputeFileMetadata(metaKey, k -> probeFileMetadata(storagePath, provider));
+            return cacheService.getOrComputeFileMetadata(metaKey, k -> readFileMetadata(storagePath, provider));
         }
-        return probeFileMetadata(storagePath, provider);
+        return readFileMetadata(storagePath, provider);
     }
 
     /**
-     * One live object probe: a cheap HEAD/stat that on S3 is a single {@code bytes=-1} GET serving both length and
-     * mtime. Null mtime (e.g. gRPC/Flight, GCS/Azure fixtures) falls back to EPOCH so the derived cache key is stable;
-     * providers that never report a trustworthy mtime should return {@code supportsStableMetadata() == false} to bypass
-     * caching entirely.
+     * Asks storage for the object's length and modification time, through {@link StorageProvider#objectMetadata}:
+     * a HEAD or stat that reads nothing of the object. The modification time is never null here:
+     * {@link StorageEntry} substitutes EPOCH, which keeps a key derived from it stable.
      */
-    private static FileMetadata probeFileMetadata(StoragePath storagePath, StorageProvider provider) throws Exception {
-        StorageObject probe = provider.newObject(storagePath);
-        Instant lastMod = probe.lastModified();
-        long mtime = lastMod != null ? lastMod.toEpochMilli() : Instant.EPOCH.toEpochMilli();
-        return new FileMetadata(probe.length(), mtime);
+    private static FileMetadata readFileMetadata(StoragePath storagePath, StorageProvider provider) throws Exception {
+        StorageEntry probed = provider.objectMetadata(storagePath);
+        return new FileMetadata(probed.length(), probed.lastModified().toEpochMilli());
     }
 
     /**
@@ -2536,9 +2532,11 @@ public class ExternalSourceResolver {
      *   <li><b>Per-file merge succeeded</b> — write-through on the FIRST such merge for this file set
      *   (i.e. the prefetch missed): memoize its row count under the dataset key so the NEXT warm query
      *   survives per-file entry loss (LRU pressure) without re-merging. A later warm resolve whose
-     *   prefetch already hit skips the re-put (the entry is current and was just revived).</li>
+     *   prefetch already hit skips the re-put (the entry is already there, and reading it does not
+     *   extend its expiry).</li>
      *   <li><b>Per-file merge failed, prefetch hit</b> — serve the memoized aggregate. The prefetch was
-     *   read (and TTL/LRU-revived) BEFORE the per-file gather on purpose: under cache pressure the
+     *   read BEFORE the per-file gather on purpose (a read promotes it in the LRU; it does not extend
+     *   its expiry): under cache pressure the
      *   gather's own {@code putSchema} calls can evict the dataset entry, so reading it after the gather
      *   would lose exactly the entry this fallback exists to serve. The served map is row-count-only
      *   ({@code _stats.row_count}), so only COUNT(*) warms from it — MIN/MAX keep re-scanning until the
@@ -2567,9 +2565,10 @@ public class ExternalSourceResolver {
         if (aggregatedStats != null) {
             // Write-through only on the FIRST successful merge for this file set — i.e. when the prefetch
             // missed. Once the aggregate is memoized under the fingerprint key (a set-identity key: same
-            // files => same key => same count), repeat warm resolves needn't re-scan paths or re-put; the
-            // prefetch's getDatasetAggregate already LRU/TTL-revived the entry, so skipping the put here
-            // costs it no liveness. Keeps the common warm-non-evicted path off the O(N) scan + write.
+            // files => same key => same count), repeat warm resolves needn't re-scan paths or re-put.
+            //
+            // The figures folded here are cached per-file statistics, which carry no window of their own, so
+            // this put bounds how long the aggregate stands, not how old the measurements inside it are.
             if (prefetch.prefetched() == null) {
                 Object rowCount = aggregatedStats.get(SourceStatisticsSerializer.STATS_ROW_COUNT);
                 // Duplicate-path guard on the write-through: a comma-separated list can name the same file
@@ -4803,10 +4802,8 @@ public class ExternalSourceResolver {
         DatasetMapping declaredMapping,
         String sourceType
     ) throws Exception {
-        // Same warm-probe amortization as the inferred single-file rail (resolveSingleFileSource): a cacheable
-        // provider serves {length, mtime} from the file-metadata cache within the schema TTL, so a warm strict
-        // resolve never probes the live object; a miss (or a non-cacheable provider) probes exactly once. Strict
-        // resolution reads no file body, so length + mtime are the only per-query object metadata it needs.
+        // Length and mtime from the file-metadata cache, or a probe past its window, as on the inferred rail.
+        // Strict resolution reads no file body, so they are the only per-query object metadata it needs.
         FileMetadata meta = fileMetadataOf(storagePath, provider, storageIdentity);
         StorageEntry storageEntry = new StorageEntry(storagePath, meta.length(), Instant.ofEpochMilli(meta.mtimeMillis()));
         FileList singletonList = GlobExpander.detectedFileListOf(List.of(storageEntry), path, PartitionConfig.fromConfig(config));

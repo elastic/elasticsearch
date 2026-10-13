@@ -9,10 +9,17 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.analysis.standard.StandardTokenizer;
+import org.apache.lucene.analysis.synonym.SynonymGraphFilter;
+import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.join.ScoreMode;
+import org.apache.lucene.util.CharsRef;
+import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.IndexMode;
@@ -25,6 +32,7 @@ import org.elasticsearch.index.query.IntervalQueryBuilder;
 import org.elasticsearch.index.query.IntervalsSourceProvider;
 import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.PrefixQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -37,6 +45,7 @@ import org.elasticsearch.index.query.SpanOrQueryBuilder;
 import org.elasticsearch.index.query.SpanTermQueryBuilder;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -58,7 +67,9 @@ public class TextFieldPhraseWithoutPositionsTests extends MapperServiceTestCase 
             // The gap a text field's analyzer carries in an index, which sits between two values of one document.
             Map.of(
                 "default",
-                new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer(), TextFieldMapper.Defaults.POSITION_INCREMENT_GAP)
+                new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer(), TextFieldMapper.Defaults.POSITION_INCREMENT_GAP),
+                "synonym",
+                new NamedAnalyzer("synonym", AnalyzerScope.INDEX, multiWordSynonym())
             ),
             Map.of("lowercase", new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer())),
             Map.of()
@@ -321,6 +332,57 @@ public class TextFieldPhraseWithoutPositionsTests extends MapperServiceTestCase 
             final String message = expectThrows(IllegalArgumentException.class, () -> span.toQuery(context)).getMessage();
             assertThat(span.getName(), message, containsString("requires position data, but field body was indexed without position data"));
         }
+    }
+
+    /** Holds {@code new york} beside {@code ny}, as a multi word synonym does. */
+    private static Analyzer multiWordSynonym() {
+        final SynonymMap.Builder synonyms = new SynonymMap.Builder(true);
+        synonyms.add(new CharsRef("ny"), SynonymMap.Builder.join(new String[] { "new", "york" }, new CharsRefBuilder()), true);
+        final SynonymMap map;
+        try {
+            map = synonyms.build();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        return new Analyzer() {
+            @Override
+            protected TokenStreamComponents createComponents(String fieldName) {
+                final Tokenizer source = new StandardTokenizer();
+                return new TokenStreamComponents(source, new SynonymGraphFilter(source, map, true));
+            }
+        };
+    }
+
+    /**
+     * A word a synonym replaces with two of them is matched as a phrase of those two, so it does not match a value
+     * holding them the other way round. The field reads its values with their positions, so it answers that phrase
+     * whether or not it indexed positions of its own.
+     */
+    public void testAMultiWordSynonymIsMatchedAsAPhrase() throws IOException {
+        final List<Object> docs = List.of("new york", "york new", "new jersey");
+        final QueryBuilder query = new MatchQueryBuilder("body", "ny").analyzer("synonym");
+        final List<Integer> withPositions = matching(mapper("positions"), docs, query);
+        final List<Integer> withoutPositions = matching(mapper("docs"), docs, query);
+        assertEquals("only the value holding the two words in order", List.of(0), withPositions);
+        assertEquals(query.toString(), withPositions, withoutPositions);
+    }
+
+    /** What {@code query} matches over an index of {@code docs}. */
+    private List<Integer> matching(MapperService mapperService, List<Object> docs, QueryBuilder query) throws IOException {
+        final List<Integer> hits = new ArrayList<>();
+        withLuceneIndex(mapperService, iw -> {
+            for (Object doc : docs) {
+                iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field("body", doc))).rootDoc());
+            }
+        }, reader -> {
+            final SearchExecutionContext context = createSearchExecutionContext(mapperService);
+            final IndexSearcher searcher = newSearcher(reader);
+            for (var hit : searcher.search(query.toQuery(context), 10).scoreDocs) {
+                hits.add(hit.doc);
+            }
+            Collections.sort(hits);
+        });
+        return hits;
     }
 
     private static QueryBuilder intervals(IntervalsSourceProvider source) {

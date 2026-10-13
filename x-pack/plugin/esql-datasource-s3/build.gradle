@@ -184,6 +184,10 @@ tasks.named("test").configure {
   // trace at the offending allocation instead of surfacing as a flaky native corruption later
   // in the same JVM.
   systemProperty 'arrow.memory.debug.allocator', 'true'
+  // S3DataSourceSettingsDocCoverageTests reads this page, so a docs-only edit must rerun the tests.
+  inputs.file("${rootDir}/docs/reference/query-languages/esql/esql-data-federation-data-source-settings.md")
+    .withPropertyName('dataSourceSettingsDoc')
+    .withPathSensitivity(PathSensitivity.RELATIVE)
 }
 
 tasks.named("thirdPartyAudit").configure {

@@ -146,7 +146,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
      * {@code HeaderWarning}. Production always supplies one: it is the budget-gated wrapper that caps the whole
      * source and ends in {@code DriverContext#addWarning}. Running on the driver thread is not enough to make the
      * fallback correct — when the scan runs on a node other than the coordinator that thread's response headers do
-     * not reach the client (elastic/esql-planning#1837) — so the {@code null} case is for tests only.
+    * not reach the client — so the {@code null} case is for tests only.
      * See {@link #coercionWarnings()}.
      */
     @Nullable
@@ -611,6 +611,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         AtomicBoolean abandoned = new AtomicBoolean();
         BooleanSupplier cancel = () -> abandoned.get() || captured.getAsBoolean() || lease.isCancelled();
         CompletableFuture<ParquetIoWatermark.AdmitHold> ticket = new CompletableFuture<>();
+        // Fresh or rebound lease; affinity and GET start after grant. Holds no untracked bytes while waiting.
         watermark.admitAsync(prefetchBytes, lease, cancel, Runnable::run).addListener(ActionListener.wrap(hold -> {
             if (ticket.complete(hold) == false) {
                 hold.drop();

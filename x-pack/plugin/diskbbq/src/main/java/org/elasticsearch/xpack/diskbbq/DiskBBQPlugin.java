@@ -24,7 +24,6 @@ import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFor
 import org.elasticsearch.index.codec.vectors.diskbbq.es95.ES950DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskASHVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
-import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.license.License;
@@ -86,7 +85,7 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                     boolean doPrecondition = diskbbq.doPrecondition();
                     int flatIndexThreshold = diskbbq.getFlatIndexThreshold();
                     final String sliceField = SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() && indexSettings.isSliceEnabled()
-                        ? RoutingFieldMapper.NAME
+                        ? SliceIndexing.SLICE_KEY_FIELD_NAME
                         : null;
                     IndexVersion indexVersionCreated = indexSettings.getIndexVersionCreated();
                     boolean experimentalFeaturesEnabled = IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(
@@ -116,7 +115,7 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                             );
                         }
                         IvfMergeConfigResolver mergeConfigResolver = diskbbq.autoCalibrate()
-                            ? IvfAutoCalibration.mergeConfigResolver(clusterSize)
+                            ? IvfAutoCalibration.mergeConfigResolver(clusterSize, diskbbq.autoCalibrationProfile())
                             : IvfMergeConfigResolver.useCodecDefault();
                         return new ESNextDiskBBQVectorsFormat(
                             QuantEncoding.fromBits((byte) diskbbq.getBits()),
@@ -136,7 +135,7 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                         );
                     } else if (indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_ES950_AUTO_CALIBRATE)) {
                         IvfMergeConfigResolver mergeConfigResolver = diskbbq.autoCalibrate()
-                            ? IvfAutoCalibration.mergeConfigResolver(clusterSize)
+                            ? IvfAutoCalibration.mergeConfigResolver(clusterSize, diskbbq.autoCalibrationProfile())
                             : IvfMergeConfigResolver.useCodecDefault();
                         return new ES950DiskBBQVectorsFormat(
                             QuantEncoding.fromBits((byte) diskbbq.getBits()),

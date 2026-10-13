@@ -21,6 +21,7 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatter;
@@ -1888,6 +1889,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
      *   <li>{@code SKIP_ROW} / {@code NULL_FIELD}: skip bad rows, continue sampling, throw if
      *       the budget ({@code max_errors} / {@code max_error_ratio}) is exceeded.</li>
      * </ul>
+     * A {@link CircuitBreakingException} raised while reserving a sampled row is never a sampling error: it
+     * propagates unchanged regardless of the policy and is neither counted nor suppressed.
      * Independent of the policy, sampling bails after
      * {@link #MAX_CONSECUTIVE_SAMPLING_FAILURES} consecutive failures (Jackson resync guard),
      * and throws if zero rows could be collected.
@@ -1968,6 +1971,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     }
                     sampleRows.add(row);
                     consecutiveFailures = 0;
+                } catch (CircuitBreakingException e) {
+                    // Out of memory is a resource failure, not a malformed row: it must not be counted against the
+                    // error budget, reported as bad data, or end the sample early. Propagate it (HTTP 429).
+                    throw e;
                 } catch (RuntimeException e) {
                     totalRowCount++;
                     errorCount++;

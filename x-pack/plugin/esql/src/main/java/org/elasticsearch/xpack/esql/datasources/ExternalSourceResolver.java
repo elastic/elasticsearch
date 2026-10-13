@@ -1978,8 +1978,8 @@ public class ExternalSourceResolver {
             recordDiscovery(listing, discoveryStartNanos, storagePath.scheme(), schemaResolution);
             listener.onResponse(listing);
         }, listener::onFailure);
-        if (cacheable && extents.boundsFileSet() == false) {
-            cachedListingAsync(path, storagePath, provider, storageIdentity, secretIdentity, hints, config, recordingListener);
+        if (cacheable) {
+            cachedListingAsync(path, storagePath, provider, storageIdentity, secretIdentity, hints, config, extents, recordingListener);
         } else {
             expandAndCompactAsync(path, provider, hints, config, storagePath, extents, recordingListener);
         }
@@ -2158,6 +2158,7 @@ public class ExternalSourceResolver {
         String secretIdentity,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         Map<String, Object> config,
+        ListingExtents extents,
         ActionListener<FileList> listener
     ) {
         listingService.cachedListingAsync(
@@ -2172,6 +2173,7 @@ public class ExternalSourceResolver {
             listingCancellation(),
             listingConcurrency(),
             metadataReadExecutor,
+            extents,
             listener
         );
     }
@@ -5107,8 +5109,8 @@ public class ExternalSourceResolver {
                 return;
             }
             listingListener.onResponse(listing);
-        } else if (isCacheable(provider) && extents.boundsFileSet() == false) {
-            cachedListingAsync(path, storagePath, provider, storageIdentity, secretIdentity, hints, config, listingListener);
+        } else if (isCacheable(provider)) {
+            cachedListingAsync(path, storagePath, provider, storageIdentity, secretIdentity, hints, config, extents, listingListener);
         } else {
             expandAndCompactAsync(path, provider, hints, config, storagePath, extents, listingListener);
         }

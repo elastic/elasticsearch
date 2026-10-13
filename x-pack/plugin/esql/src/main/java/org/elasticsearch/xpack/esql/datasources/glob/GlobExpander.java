@@ -2655,7 +2655,8 @@ public final class GlobExpander {
         List<String> encodedFileHints,
         List<String> encodedPartitionHints,
         ExclusionConfig exclusionConfig,
-        FileOrderConfig fileOrder
+        FileOrderConfig fileOrder,
+        int maxFiles
     ) {
 
         static ListingIdentity of(
@@ -2663,7 +2664,8 @@ public final class GlobExpander {
             @Nullable List<PartitionFilterHint> hints,
             PartitionConfig partitionConfig,
             ExclusionConfig exclusionConfig,
-            FileOrderConfig fileOrder
+            FileOrderConfig fileOrder,
+            ListingExtents extents
         ) {
             String effectivePattern = effectiveWholePathPattern(path, hints, partitionConfig);
             // The empty-rewrite retry lists the original glob with these hints. A splice can make the effective
@@ -2692,7 +2694,11 @@ public final class GlobExpander {
                     ? encodedHints(partitionPruningHints(hints))
                     : encodedHints(folderPostFilterHints(hints, partitionConfig)),
                 exclusionConfig,
-                fileOrder
+                fileOrder,
+                // How far the listing runs is part of which files it holds, so it is part of the key. Without it a
+                // prefix of a dataset and the whole dataset collide on one address, which is why a bounded listing
+                // had to bypass the cache: there was no way for a holder to say which of the two values it had.
+                extents.maxFiles()
             );
         }
 
@@ -2729,6 +2735,10 @@ public final class GlobExpander {
             // stays uniform with every other field.
             appendLengthPrefixed(sb, fileOrder.sortBy().name());
             appendLengthPrefixed(sb, fileOrder.order().name());
+            // A bounded listing returns a prefix of what the same pattern returns unbounded, so the two are
+            // different values and take different addresses. Length-prefixed like every other field so the framing
+            // stays uniform and no field boundary can be forged.
+            appendLengthPrefixed(sb, Integer.toString(maxFiles));
             return sb.toString();
         }
     }
@@ -2776,12 +2786,22 @@ public final class GlobExpander {
         @Nullable List<PartitionFilterHint> hints,
         @Nullable Map<String, Object> config
     ) {
+        return listingCacheDiscriminator(path, hints, config, ListingExtents.UNBOUNDED);
+    }
+
+    public static String listingCacheDiscriminator(
+        String path,
+        @Nullable List<PartitionFilterHint> hints,
+        @Nullable Map<String, Object> config,
+        ListingExtents extents
+    ) {
         return ListingIdentity.of(
             path,
             hints,
             PartitionConfig.fromConfig(config),
             ExclusionConfig.fromConfig(config),
-            FileOrderConfig.forListing(config)
+            FileOrderConfig.forListing(config),
+            extents
         ).encode();
     }
 

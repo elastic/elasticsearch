@@ -298,8 +298,14 @@ public class EsqlFlags {
 
     @Override
     public int hashCode() {
-        return Objects.hash(stringLikeOnIndex, roundToPushdownThreshold, maxBranchCount, maxBranchLevel, maxBranchCountPerMerge,
-            maxFillNullFields);
+        return Objects.hash(
+            stringLikeOnIndex,
+            roundToPushdownThreshold,
+            maxBranchCount,
+            maxBranchLevel,
+            maxBranchCountPerMerge,
+            maxFillNullFields
+        );
     }
 
     @Override

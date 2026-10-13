@@ -36,8 +36,8 @@ import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
-import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.hamcrest.Matcher;
 

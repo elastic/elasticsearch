@@ -519,6 +519,19 @@ public class GoldenTests extends ESTestCase {
         assertThat("there is nothing to compare, so no search is made for it", probes.size(), equalTo(PROBES_PER_STATE));
     }
 
+    public void testManyQueriesWithoutTheStateOfTheDataDoNotExhaustTheStack() {
+        List<StoredSample> many = new ArrayList<>();
+        for (int i = 0; i < 100_000; i++) {
+            many.add(goldenUpdaterStored(1, 100, "d", null));
+        }
+        AtomicReference<List<GoldenStaleness.Status>> statuses = new AtomicReference<>();
+
+        goldenStalenessStaleness().classify(many, ActionListener.wrap(statuses::set, e -> fail(e)));
+
+        assertThat(statuses.get().size(), equalTo(many.size()));
+        assertThat(Set.copyOf(statuses.get()), equalTo(Set.of(GoldenStaleness.Status.UNKNOWN)));
+    }
+
     public void testWithoutAVersionTheLatestOneThatIsCompleteIsChecked() throws IOException {
         records = List.of(record(1, STORED));
         latestCompleted = 7L;

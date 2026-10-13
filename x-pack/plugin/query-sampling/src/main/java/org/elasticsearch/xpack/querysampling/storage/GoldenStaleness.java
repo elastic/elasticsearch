@@ -103,6 +103,10 @@ public final class GoldenStaleness {
         FAILED
     }
 
+    private static DataState stateOf(StoredSample record) {
+        return record.groundTruth() == null ? null : record.groundTruth().dataState();
+    }
+
     /**
      * Looks at each of the queries, one after the other.
      *
@@ -113,18 +117,17 @@ public final class GoldenStaleness {
     }
 
     private void next(List<StoredSample> records, List<Status> statuses, ActionListener<List<Status>> listener) {
+        // the queries that cannot be told are taken in a loop, as no search comes between them to end the call stack
+        while (statuses.size() < records.size() && stateOf(records.get(statuses.size())) == null) {
+            statuses.add(Status.UNKNOWN);
+        }
         int index = statuses.size();
         if (index == records.size()) {
             listener.onResponse(statuses);
             return;
         }
         StoredSample record = records.get(index);
-        DataState stored = record.groundTruth() == null ? null : record.groundTruth().dataState();
-        if (stored == null) {
-            statuses.add(Status.UNKNOWN);
-            next(records, statuses, listener);
-            return;
-        }
+        DataState stored = stateOf(record);
         ActionListener<DataState> done = new ActionListener<>() {
             // a search function may complete the listener and then still throw, only the first outcome counts
             private final AtomicBoolean completed = new AtomicBoolean();

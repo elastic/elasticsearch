@@ -8,12 +8,15 @@
 package org.elasticsearch.xpack.querysampling;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.ClassRule;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -21,14 +24,9 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
 
-/**
- * Runs the whole path against a real cluster: a kNN search is captured and sampled, the sampled query is written to
- * the index of the sample, its weights are kept up to date and its ground truth is computed through the REST API.
- * A sampled query reaches the index on another thread, which a YAML test cannot wait for, hence this class and its
- * polling.
- */
-public class QuerySamplingGroundTruthIT extends QuerySamplingRestTestCase {
+public class QuerySamplingIT extends QuerySamplingRestTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
@@ -49,8 +47,6 @@ public class QuerySamplingGroundTruthIT extends QuerySamplingRestTestCase {
         float x = sampleOneQuery();
         assertThat(storedValue(x, "has_ground_truth"), equalTo(false));
 
-        // the index keeps what was sampled between tests and a call does at most 100 queries, so ask until nothing is
-        // left; what a call stored is only found as done by the next one once the index was refreshed
         long computed = 0;
         long last;
         int calls = 0;
@@ -67,18 +63,14 @@ public class QuerySamplingGroundTruthIT extends QuerySamplingRestTestCase {
         assertThat(last, equalTo(0L));
         assertBusy(() -> assertThat(storedValue(x, "has_ground_truth"), equalTo(true)));
         assertThat(((List<?>) storedValue(x, "ground_truth.neighbors")).size(), equalTo(3));
-        // what the data was like is taken by the exact search itself: the five documents of the index, with sequence numbers
-        // that are 0 to 4 for the first of them
         assertThat(((Number) storedValue(x, "ground_truth.data_state.documents")).longValue(), equalTo(5L));
         assertThat(((Number) storedValue(x, "ground_truth.data_state.seq_no_sum")).doubleValue(), equalTo(10.0));
 
-        // the queries that have ground truth now are what the recall is estimated from
         refreshSampleIndex();
         ObjectPath estimate = ObjectPath.createFromResponse(
             client().performRequest(new Request("GET", "/_query_sampling/recall?include_samples=true"))
         );
         assertThat(((Number) estimate.evaluate("records_with_ground_truth")).intValue(), greaterThanOrEqualTo(1));
-        // the index is so small that the approximate search finds every true neighbour
         assertThat(((Number) estimate.evaluate("traffic_weighted_recall")).doubleValue(), greaterThan(0.99));
         assertThat(((Number) estimate.evaluate("unique_query_recall")).doubleValue(), greaterThan(0.99));
         assertThat(((List<?>) estimate.evaluate("samples")).size(), greaterThanOrEqualTo(1));
@@ -91,7 +83,6 @@ public class QuerySamplingGroundTruthIT extends QuerySamplingRestTestCase {
 
     public void testHeadThresholdCanBeChangedWhileRunning() throws Exception {
         setUpIndexAndSampling();
-        // a head threshold of one makes every captured query a head query, which is always picked, so none is left to chance
         Request settings = new Request("PUT", "/_cluster/settings");
         settings.setJsonEntity("""
             { "persistent": { "xpack.query_sampling.head_threshold": 1 } }
@@ -114,8 +105,6 @@ public class QuerySamplingGroundTruthIT extends QuerySamplingRestTestCase {
 
     public void testFloorCapturesQuietTrafficWhateverTheCaptureRate() throws Exception {
         setUpIndexAndSampling();
-        // a capture rate of zero captures nothing: what is captured is only because of the floor. Head threshold one
-        // picks every captured query, so that the outcome does not depend on a coin flip
         Request settings = new Request("PUT", "/_cluster/settings");
         settings.setJsonEntity("""
             { "persistent": {
@@ -126,7 +115,6 @@ public class QuerySamplingGroundTruthIT extends QuerySamplingRestTestCase {
             """);
         client().performRequest(settings);
 
-        // the traffic is observed once a second, until then the rate is the configured one
         List<Float> sent = new ArrayList<>();
         assertBusy(() -> {
             float x = randomFloat();
@@ -148,8 +136,6 @@ public class QuerySamplingGroundTruthIT extends QuerySamplingRestTestCase {
             """);
         client().performRequest(settings);
 
-        // the searches earn the credit that the exact searches are paid with, and the worker looks for work every
-        // few seconds, so nobody asks for the ground truth here
         float x = sampleOneQuery();
 
         assertBusy(() -> assertThat(storedValue(x, "has_ground_truth"), equalTo(true)), 60, TimeUnit.SECONDS);
@@ -169,12 +155,118 @@ public class QuerySamplingGroundTruthIT extends QuerySamplingRestTestCase {
         setUpIndexAndSampling();
         float x = sampleOneQuery();
 
-        // the document was written when the query was picked, the arrivals that follow only reach it as an update
         double before = storedMultiplicity(x);
         int arrivals = 5;
         for (int i = 0; i < arrivals; i++) {
             client().performRequest(knnSearch(x));
         }
         assertBusy(() -> assertThat(storedMultiplicity(x), greaterThanOrEqualTo(before + arrivals)));
+    }
+
+    public void testEveryArrivalIsADocumentAndGivesAnEstimateOfTheTraffic() throws Exception {
+        setUpIndexAndSampling();
+        Request settings = new Request("PUT", "/_cluster/settings");
+        settings.setJsonEntity("""
+            { "persistent": { "xpack.query_sampling.event_slice_rate": 1.0 } }
+            """);
+        client().performRequest(settings);
+
+        float x = randomFloat();
+        int searches = 4;
+        for (int i = 0; i < searches; i++) {
+            client().performRequest(knnSearch(x));
+        }
+        assertBusy(() -> assertThat(eventsOf(x), greaterThanOrEqualTo(searches)));
+
+        long last;
+        int calls = 0;
+        do {
+            refreshSampleIndex();
+            last = ((Number) ObjectPath.createFromResponse(client().performRequest(new Request("POST", "/_query_sampling/ground_truth")))
+                .evaluate("computed")).longValue();
+        } while (last > 0 && ++calls < 100);
+        assertThat(last, equalTo(0L));
+
+        assertBusy(() -> {
+            refreshSampleIndex();
+            ObjectPath estimate = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/_query_sampling/recall")));
+            assertThat(((Number) estimate.evaluate("event_slice.records_with_ground_truth")).intValue(), greaterThanOrEqualTo(searches));
+            assertThat(((Number) estimate.evaluate("event_slice.recall")).doubleValue(), greaterThan(0.99));
+            assertThat(((Number) estimate.evaluate("event_slice.effective_size")).doubleValue(), greaterThan(0.0));
+        });
+    }
+
+    private static int eventsOf(float x) throws IOException {
+        if (refreshSampleIndex() == false) {
+            return 0;
+        }
+        Request search = new Request("GET", "/.query_sampling/_search?size=10000");
+        search.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build());
+        ObjectPath result = ObjectPath.createFromResponse(client().performRequest(search));
+        List<?> hits = result.evaluate("hits.hits");
+        int events = 0;
+        for (int i = 0; i < hits.size(); i++) {
+            double first = ((Number) result.evaluate("hits.hits." + i + "._source.query.query_vector.0")).doubleValue();
+            if (Math.abs(first - x) < 1e-6 && result.evaluate("hits.hits." + i + "._source.event_id") != null) {
+                events++;
+            }
+        }
+        return events;
+    }
+
+    private static Request filteredKnnSearch(float x, String filter) {
+        Request search = new Request("POST", "/vectors/_search");
+        search.setJsonEntity(
+            "{ \"knn\": { \"field\": \"vec\", \"query_vector\": ["
+                + x
+                + ", 1.0], \"k\": 3, \"num_candidates\": 10, \"filter\": "
+                + filter
+                + " } }"
+        );
+        return search;
+    }
+
+    public void testSelectivityOfQueriesWithFiltersIsCountedAndTellsTheRecallApart() throws Exception {
+        setUpIndexAndSampling();
+        Request settings = new Request("PUT", "/_cluster/settings");
+        settings.setJsonEntity("""
+            { "persistent": { "xpack.query_sampling.estimate_selectivity": true, "xpack.query_sampling.head_threshold": 1 } }
+            """);
+        client().performRequest(settings);
+
+        float all = randomFloat();
+        float none = randomFloat();
+        float unfiltered = randomFloat();
+        client().performRequest(filteredKnnSearch(all, "{ \"match_all\": {} }"));
+        client().performRequest(filteredKnnSearch(none, "{ \"exists\": { \"field\": \"nothing\" } }"));
+        client().performRequest(knnSearch(unfiltered));
+
+        assertBusy(() -> {
+            assertThat(storedValue(all, "selectivity"), equalTo("high"));
+            assertThat(storedValue(none, "selectivity"), equalTo("low"));
+            assertThat(storedValue(unfiltered, "selectivity"), equalTo("unfiltered"));
+        });
+
+        long last;
+        int calls = 0;
+        do {
+            refreshSampleIndex();
+            last = ((Number) ObjectPath.createFromResponse(client().performRequest(new Request("POST", "/_query_sampling/ground_truth")))
+                .evaluate("computed")).longValue();
+        } while (last > 0 && ++calls < 100);
+        assertThat(last, equalTo(0L));
+
+        assertBusy(() -> {
+            refreshSampleIndex();
+            ObjectPath estimate = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/_query_sampling/recall")));
+            List<?> selectivities = estimate.evaluate("by_selectivity");
+            List<String> names = new ArrayList<>();
+            for (int i = 0; i < selectivities.size(); i++) {
+                names.add(estimate.evaluate("by_selectivity." + i + ".selectivity"));
+            }
+            assertThat(names, hasItem("high"));
+            assertThat(names, hasItem("unfiltered"));
+            assertThat(((Number) estimate.evaluate("by_selectivity.0.records_with_ground_truth")).intValue(), greaterThanOrEqualTo(1));
+        });
     }
 }

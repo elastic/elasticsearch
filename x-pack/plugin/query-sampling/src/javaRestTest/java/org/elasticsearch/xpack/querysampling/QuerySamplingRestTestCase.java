@@ -18,11 +18,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * What the tests that run the sampling against a real cluster have in common. A sampled query reaches the index of the
- * sample on another thread, which a YAML test cannot wait for, hence these tests and their polling. Each test class
- * brings its own cluster, as what they check depends on its settings.
- */
 abstract class QuerySamplingRestTestCase extends ESRestTestCase {
 
     void setUpIndexAndSampling() throws IOException {
@@ -43,13 +38,6 @@ abstract class QuerySamplingRestTestCase extends ESRestTestCase {
         client().performRequest(settings);
     }
 
-    /**
-     * Searches with many different vectors, so that it is practically certain that some of them are picked: a
-     * new query is picked with a probability of about 0.69, and one that repeats is less and less likely to be.
-     * Waits until one of them is in the index of the sample.
-     *
-     * @return the first component of the vector of such a query, which tells it from the others
-     */
     float sampleOneQuery() throws Exception {
         List<Float> sent = new ArrayList<>();
         for (int i = 0; i < 20; i++) {
@@ -58,7 +46,6 @@ abstract class QuerySamplingRestTestCase extends ESRestTestCase {
             client().performRequest(knnSearch(x));
         }
         Float[] sampled = new Float[1];
-        // queries are written once the flush interval has passed
         assertBusy(() -> {
             for (float x : sent) {
                 if (storedValue(x, "weighted_multiplicity") != null) {
@@ -81,10 +68,6 @@ abstract class QuerySamplingRestTestCase extends ESRestTestCase {
         return ((Number) storedValue(x, "weighted_multiplicity")).doubleValue();
     }
 
-    /**
-     * A field of the document of the index of the sample whose query vector starts with {@code x}, or {@code null}
-     * if there is no such document.
-     */
     static Object storedValue(float x, String path) throws IOException {
         if (refreshSampleIndex() == false) {
             return null;
@@ -102,9 +85,6 @@ abstract class QuerySamplingRestTestCase extends ESRestTestCase {
         return null;
     }
 
-    /**
-     * @return whether the index of the sample exists, which it does not before the first write
-     */
     static boolean refreshSampleIndex() throws IOException {
         Request refresh = new Request("POST", "/.query_sampling/_refresh");
         refresh.setOptions(systemIndexAccess());
@@ -116,9 +96,6 @@ abstract class QuerySamplingRestTestCase extends ESRestTestCase {
         }
     }
 
-    /**
-     * The index of the sample is a system index: reading it directly is allowed, but gets a deprecation warning.
-     */
     static RequestOptions systemIndexAccess() {
         return RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build();
     }

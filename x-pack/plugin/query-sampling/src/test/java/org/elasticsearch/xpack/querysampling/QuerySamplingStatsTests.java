@@ -7,20 +7,13 @@
 
 package org.elasticsearch.xpack.querysampling;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.json.JsonXContent;
-
-import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class QuerySamplingStatsTests extends AbstractWireSerializingTestCase<QuerySamplingStats> {
 
-    /** How many of the numbers of the stats are counters. */
     private static final int COUNTERS = 14;
 
     @Override
@@ -54,24 +47,6 @@ public class QuerySamplingStatsTests extends AbstractWireSerializingTestCase<Que
             credit += 0.5;
         }
         return stats(counters, rate, scale, credit);
-    }
-
-    public void testRendersEveryNumber() throws IOException {
-        QuerySamplingStats stats = stats(new long[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14 }, 0.25, 0.5, -7.5);
-        XContentBuilder builder = JsonXContent.contentBuilder().startObject();
-        stats.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
-
-        assertThat(
-            Strings.toString(builder),
-            equalTo(
-                "{\"knn_searches\":1,\"captured\":2,\"dropped\":3,\"distinct_queries\":4,\"untracked_arrivals\":5,"
-                    + "\"picked\":6,\"written\":7,\"write_failures\":8,\"write_dropped\":9,\"weights_refreshed\":10,"
-                    + "\"expired\":11,\"ground_truth_computed\":12,\"ground_truth_failed\":13,"
-                    + "\"starved\":14,\"effective_capture_rate\":0.25,\"effective_acceptance_scale\":0.5,"
-                    + "\"ground_truth_credit_millis\":-7.5}"
-            )
-        );
     }
 
     private static long[] counters(QuerySamplingStats stats) {

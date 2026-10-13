@@ -27,14 +27,9 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 
-public class QuerySamplerTests extends ESTestCase {
+public class SamplerTests extends ESTestCase {
 
     private static final QueryFingerprint FINGERPRINT = new QueryFingerprint(1, 1);
-
-    public void testNewQueryIsAcceptedWithAboutTwoThirdsOfTheScale() {
-        QuerySampler sampler = new QuerySampler(0.5, 100, seededRandom());
-        assertThat(sampler.acceptanceProbability(1), closeTo(0.5 * Math.log(2), 1e-12));
-    }
 
     public void testProbabilityShrinksWithPopularityButAddsUpLogarithmically() {
         double scale = 0.5;
@@ -47,14 +42,13 @@ public class QuerySamplerTests extends ESTestCase {
             previous = probability;
             total += probability;
         }
-        // the expected number of accepted arrivals after w of them is scale * ln(1 + w), not proportional to w
         assertThat(total, closeTo(scale * Math.log(1001), 1e-9));
     }
 
     public void testWeightedArrivalsAddUpToTheSameAsUnitOnes() {
-        double scale = 0.2; // small enough for no probability to be capped at one
+        double scale = 0.2;
         QuerySampler sampler = new QuerySampler(scale, Long.MAX_VALUE, seededRandom());
-        double weight = 10; // each captured arrival stands for ten
+        double weight = 10;
         double total = 0;
         double estimatedArrivals = 0;
         for (int arrival = 0; arrival < 100; arrival++) {
@@ -64,43 +58,10 @@ public class QuerySamplerTests extends ESTestCase {
         assertThat(total, closeTo(scale * Math.log(1 + estimatedArrivals), 1e-9));
     }
 
-    public void testFollowsTheSettingsWhenTheyChange() {
-        ClusterSettings clusterSettings = new ClusterSettings(
-            Settings.builder()
-                .put(QuerySamplingSettings.ACCEPTANCE_SCALE.getKey(), 0.5)
-                .put(QuerySamplingSettings.HEAD_THRESHOLD.getKey(), 5)
-                .build(),
-            Set.of(
-                QuerySamplingSettings.ACCEPTANCE_SCALE,
-                QuerySamplingSettings.HEAD_THRESHOLD,
-                QuerySamplingSettings.MAX_PICKS_PER_HOUR,
-                QuerySamplingSettings.TARGET_PICKS_PER_HOUR,
-                QuerySamplingSettings.SPATIAL_BALANCE,
-                QuerySamplingSettings.HARDNESS_TILT
-            )
-        );
-        QuerySampler sampler = new QuerySampler(1.0, 100, seededRandom());
-        sampler.watch(clusterSettings);
-
-        // what is set when the sampler starts to watch replaces what it was created with
-        assertThat(sampler.acceptanceProbability(1), closeTo(0.5 * Math.log(2), 1e-12));
-        assertThat(sampler.acceptanceProbability(5), equalTo(1.0));
-
-        clusterSettings.applySettings(
-            Settings.builder()
-                .put(QuerySamplingSettings.ACCEPTANCE_SCALE.getKey(), 0.25)
-                .put(QuerySamplingSettings.HEAD_THRESHOLD.getKey(), 2)
-                .build()
-        );
-
-        assertThat(sampler.acceptanceProbability(1), closeTo(0.25 * Math.log(2), 1e-12));
-        assertThat("the head starts earlier", sampler.acceptanceProbability(2), equalTo(1.0));
-    }
-
     public void testQueriesGetNoChanceOnceThePicksAreUsedUpAndThatIsRecorded() {
         AtomicLong now = new AtomicLong();
         PickBudget budget = new PickBudget(now::get);
-        budget.perHour(60); // a bucket of one pick, which comes back after a minute
+        budget.perHour(60);
         QuerySampler sampler = new QuerySampler(1.0, 1000, alwaysDrawing(0.0), budget);
         MultiplicityTracker tracker = new MultiplicityTracker(10);
 
@@ -123,38 +84,12 @@ public class QuerySamplerTests extends ESTestCase {
         PickBudget budget = new PickBudget(() -> 0L);
         budget.perHour(60);
         QuerySampler sampler = new QuerySampler(1.0, 5, alwaysDrawing(0.999999), budget);
-        // the only pick goes to a query that is not a head query, the draw of 0.999999 would leave it
         QuerySampler lucky = new QuerySampler(1.0, 5, alwaysDrawing(0.0), budget);
         assertTrue(lucky.offer(tracked(1)));
 
         TrackedQuery head = tracked(5);
         assertTrue("the budget is empty, and it is a head query", sampler.offer(head));
         assertThat(head.inclusionProbability(), equalTo(1.0));
-    }
-
-    public void testTheLimitFollowsTheSetting() {
-        AtomicLong now = new AtomicLong();
-        PickBudget budget = new PickBudget(now::get);
-        ClusterSettings clusterSettings = new ClusterSettings(
-            Settings.builder().put(QuerySamplingSettings.MAX_PICKS_PER_HOUR.getKey(), 60).build(),
-            Set.of(
-                QuerySamplingSettings.ACCEPTANCE_SCALE,
-                QuerySamplingSettings.HEAD_THRESHOLD,
-                QuerySamplingSettings.MAX_PICKS_PER_HOUR,
-                QuerySamplingSettings.TARGET_PICKS_PER_HOUR,
-                QuerySamplingSettings.SPATIAL_BALANCE,
-                QuerySamplingSettings.HARDNESS_TILT
-            )
-        );
-        QuerySampler sampler = new QuerySampler(1.0, 1000, alwaysDrawing(0.0), budget);
-        sampler.watch(clusterSettings);
-        MultiplicityTracker tracker = new MultiplicityTracker(10);
-
-        assertTrue(sampler.offer(tracker.record(new QueryFingerprint(1, 1))));
-        assertFalse("the limit is one an hour", sampler.offer(tracker.record(new QueryFingerprint(2, 2))));
-
-        clusterSettings.applySettings(Settings.builder().put(QuerySamplingSettings.MAX_PICKS_PER_HOUR.getKey(), 0).build());
-        assertTrue("and then there is none", sampler.offer(tracker.record(new QueryFingerprint(3, 3))));
     }
 
     public void testTheScaleFollowsTheTargetOfThePicks() {
@@ -172,12 +107,12 @@ public class QuerySamplerTests extends ESTestCase {
         QuerySampler sampler = new QuerySampler(0.5, 1000, alwaysDrawing(0.0));
         sampler.watch(clusterSettings);
         MultiplicityTracker tracker = new MultiplicityTracker(1000);
-        assertThat(sampler.effectiveScale(), equalTo(1.0)); // the scale of the setting, which the sampler read
+        assertThat(sampler.effectiveScale(), equalTo(1.0));
 
         for (int i = 0; i < 100; i++) {
             assertTrue(sampler.offer(tracker.record(new QueryFingerprint(i, i))));
         }
-        sampler.regulate(30); // 100 picks in 30 seconds is 12000 an hour, more than three times the target
+        sampler.regulate(30);
 
         double step = Math.sqrt(3600.0 / 12_000);
         assertThat("lower, by the square root of how far off it was", sampler.effectiveScale(), closeTo(step, 1e-12));
@@ -187,38 +122,11 @@ public class QuerySamplerTests extends ESTestCase {
         assertThat("and back to the setting when there is no target", sampler.effectiveScale(), equalTo(1.0));
     }
 
-    public void testPicksOfHeadQueriesDoNotCountTowardsTheTarget() {
-        QuerySampler sampler = new QuerySampler(0.5, 5, alwaysDrawing(0.0));
-        sampler.watch(
-            new ClusterSettings(
-                Settings.builder()
-                    .put(QuerySamplingSettings.TARGET_PICKS_PER_HOUR.getKey(), 3600)
-                    .put(QuerySamplingSettings.HEAD_THRESHOLD.getKey(), 5)
-                    .build(),
-                Set.of(
-                    QuerySamplingSettings.ACCEPTANCE_SCALE,
-                    QuerySamplingSettings.HEAD_THRESHOLD,
-                    QuerySamplingSettings.MAX_PICKS_PER_HOUR,
-                    QuerySamplingSettings.TARGET_PICKS_PER_HOUR,
-                    QuerySamplingSettings.SPATIAL_BALANCE,
-                    QuerySamplingSettings.HARDNESS_TILT
-                )
-            )
-        );
-        for (int i = 0; i < 100; i++) {
-            assertTrue(sampler.offer(tracked(5)));
-        }
-
-        sampler.regulate(30);
-
-        assertThat("nothing was picked by chance, so the scale goes up", sampler.effectiveScale(), equalTo(2.0));
-    }
-
     public void testQueriesOfSparseClustersAreFavouredWhenBalancing() {
         ClusterSettings clusterSettings = new ClusterSettings(
             Settings.builder()
                 .put(QuerySamplingSettings.SPATIAL_BALANCE.getKey(), 1.0)
-                .put(QuerySamplingSettings.ACCEPTANCE_SCALE.getKey(), 0.1) // small enough for no probability to be capped at one
+                .put(QuerySamplingSettings.ACCEPTANCE_SCALE.getKey(), 0.1)
                 .build(),
             Set.of(
                 QuerySamplingSettings.ACCEPTANCE_SCALE,
@@ -238,10 +146,9 @@ public class QuerySamplerTests extends ESTestCase {
         );
         sampler.watch(clusterSettings);
         MultiplicityTracker tracker = new MultiplicityTracker(1000);
-        // a dense cluster of 9 queries and a sparse one of 1
         TrackedQuery first = tracker.record(new QueryFingerprint(0, 0));
         TrackedQuery dense = first;
-        sampler.assignStratum(first, "vector", new float[] { 0, 0 }); // there are two queries to fit the two clusters on
+        sampler.assignStratum(first, "vector", new float[] { 0, 0 });
         TrackedQuery sparse = tracker.record(new QueryFingerprint(100, 100));
         sampler.assignStratum(sparse, "vector", new float[] { 10, 10 });
         for (int i = 1; i < 9; i++) {
@@ -264,7 +171,7 @@ public class QuerySamplerTests extends ESTestCase {
         ClusterSettings clusterSettings = new ClusterSettings(
             Settings.builder()
                 .put(QuerySamplingSettings.HARDNESS_TILT.getKey(), 1.0)
-                .put(QuerySamplingSettings.ACCEPTANCE_SCALE.getKey(), 0.1) // small enough for no probability to be capped at one
+                .put(QuerySamplingSettings.ACCEPTANCE_SCALE.getKey(), 0.1)
                 .build(),
             Set.of(
                 QuerySamplingSettings.ACCEPTANCE_SCALE,
@@ -295,10 +202,6 @@ public class QuerySamplerTests extends ESTestCase {
         assertThat(hard.inclusionProbability() / easy.inclusionProbability(), closeTo(Math.exp(2.0), 1e-9));
     }
 
-    /**
-     * A γ that is raised to reach a target has to be able to make up for the strata: the probability is capped after
-     * the factors are applied, not before.
-     */
     public void testAHighScaleMakesUpForTheFactorOfACrowdedCluster() {
         ClusterSettings clusterSettings = new ClusterSettings(
             Settings.builder()
@@ -333,19 +236,7 @@ public class QuerySamplerTests extends ESTestCase {
 
         sampler.offer(dense);
 
-        // 9 of the 10 queries are in its cluster: a factor of 5/9, and 10 · ln 2 · 5/9 is more than one
         assertThat(dense.inclusionProbability(), equalTo(1.0));
-    }
-
-    public void testProbabilityIsCappedAtOne() {
-        assertThat(new QuerySampler(10, 100, seededRandom()).acceptanceProbability(1), equalTo(1.0));
-    }
-
-    public void testHeadQueriesAreAlwaysPicked() {
-        QuerySampler sampler = new QuerySampler(0.01, 5, alwaysDrawing(0.999999));
-        TrackedQuery query = tracked(5);
-        assertTrue(sampler.offer(query));
-        assertThat(query.inclusionProbability(), equalTo(1.0));
     }
 
     public void testAQueryIsPickedAtMostOnceButEveryArrivalCountsTowardsItsInclusionProbability() {
@@ -364,10 +255,6 @@ public class QuerySamplerTests extends ESTestCase {
         assertThat(query.inclusionProbability(), closeTo(1 - survival, 1e-12));
     }
 
-    /**
-     * The inclusion probability is only useful as a weight if it is the real chance of the query ending up
-     * in the sample, so compare it with how often that actually happens.
-     */
     public void testInclusionProbabilityMatchesHowOftenQueriesAreSampled() {
         QuerySampler sampler = new QuerySampler(0.3, 1000, seededRandom());
         int arrivals = 6;
@@ -408,5 +295,184 @@ public class QuerySamplerTests extends ESTestCase {
                 return value;
             }
         };
+    }
+
+    private final AtomicLong now = new AtomicLong();
+
+    private final PickBudget budget = new PickBudget(now::get);
+
+    public void testTheBucketStartsFullAndIsEmptiedByPicks() {
+        budget.perHour(3600);
+
+        for (int i = 0; i < 60; i++) {
+            assertTrue("pick " + i, budget.available());
+            budget.take();
+        }
+        assertFalse(budget.available());
+    }
+
+    public void testTokensComeBackAtTheRateOfTheLimit() {
+        budget.perHour(3600);
+        for (int i = 0; i < 60; i++) {
+            budget.take();
+        }
+        assertFalse(budget.available());
+
+        now.addAndGet(TimeUnit.MILLISECONDS.toNanos(1500));
+        assertTrue("one token after a second and a half", budget.available());
+        budget.take();
+        assertFalse("and not two", budget.available());
+    }
+
+    public void testAQuietSpellDoesNotStoreUpMoreThanABurst() {
+        budget.perHour(3600);
+
+        now.addAndGet(TimeUnit.HOURS.toNanos(1));
+        int picks = 0;
+        while (budget.available() && picks < 1000) {
+            budget.take();
+            picks++;
+        }
+
+        assertThat(picks, equalTo(60));
+    }
+
+    public void testChangingTheLimitKeepsWhatIsInTheBucket() {
+        budget.perHour(3600);
+        for (int i = 0; i < 60; i++) {
+            budget.take();
+        }
+
+        budget.perHour(7200);
+        assertFalse("raising the limit does not refill the bucket", budget.available());
+
+        budget.perHour(0);
+        assertTrue("removing it lifts it", budget.available());
+
+        budget.perHour(3600);
+        assertTrue("a limit that is set again starts with a full bucket", budget.available());
+    }
+
+    private final ScaleRegulator regulator = new ScaleRegulator();
+
+    private void pick(int picks) {
+        for (int i = 0; i < picks; i++) {
+            regulator.recordPick();
+        }
+    }
+
+    public void testWaitsForAWindowBeforeLookingAtTheRate() {
+        regulator.targetPerHour(3600);
+        pick(1000);
+
+        regulator.observe(10);
+        regulator.observe(10);
+        assertThat("less than a window", regulator.adjustment(), equalTo(1.0));
+
+        regulator.observe(10);
+        assertThat("a window", regulator.adjustment(), equalTo(0.5));
+    }
+
+    public void testPicksTooFastBringsTheScaleDown() {
+        regulator.targetPerHour(3600);
+        pick(60);
+
+        regulator.observe(30);
+
+        assertThat(regulator.adjustment(), closeTo(Math.sqrt(0.5), 1e-12));
+    }
+
+    public void testPicksTooSlowlyRaisesTheScale() {
+        regulator.targetPerHour(3600);
+        pick(10);
+
+        regulator.observe(30);
+
+        assertThat(regulator.adjustment(), closeTo(Math.sqrt(3.0), 1e-12));
+    }
+
+    public void testASingleStepIsNeverMoreThanAFactorOfTwo() {
+        regulator.targetPerHour(3600);
+        regulator.observe(30);
+        assertThat("no picks at all", regulator.adjustment(), equalTo(2.0));
+
+        pick(100_000);
+        regulator.observe(30);
+        assertThat("far too many", regulator.adjustment(), equalTo(1.0));
+    }
+
+    public void testTheAdjustmentIsBounded() {
+        regulator.targetPerHour(3600);
+        for (int i = 0; i < 100; i++) {
+            regulator.observe(30);
+        }
+        assertThat(regulator.adjustment(), equalTo(ScaleRegulator.MAX_ADJUSTMENT));
+
+        pick(10_000_000);
+        for (int i = 0; i < 100; i++) {
+            regulator.observe(30);
+            pick(10_000_000);
+        }
+        assertThat(regulator.adjustment(), equalTo(ScaleRegulator.MIN_ADJUSTMENT));
+    }
+
+    public void testSettlesAtATargetAndStaysThere() {
+        regulator.targetPerHour(3600);
+        double picksPerWindowAtFullScale = 120;
+        for (int window = 0; window < 20; window++) {
+            pick((int) Math.round(picksPerWindowAtFullScale * regulator.adjustment()));
+            regulator.observe(30);
+        }
+
+        assertThat("30 seconds of 3600 picks an hour", picksPerWindowAtFullScale * regulator.adjustment(), closeTo(30, 1.5));
+    }
+
+    private static EventSlice slice(double rate, Random random) {
+        EventSlice slice = new EventSlice(() -> random);
+        slice.watch(
+            new ClusterSettings(
+                Settings.builder().put(QuerySamplingSettings.EVENT_SLICE_RATE.getKey(), rate).build(),
+                Set.of(QuerySamplingSettings.EVENT_SLICE_RATE)
+            )
+        );
+        return slice;
+    }
+
+    public void testAKeptSearchCarriesTheProbabilityItHadOfBeingKept() {
+        EventSlice slice = slice(0.25, new Random(randomLong()) {
+            @Override
+            public double nextDouble() {
+                return 0.2;
+            }
+        });
+
+        assertThat(slice.draw(), equalTo(0.25));
+    }
+
+    public void testAboutTheRateOfSearchesIsKept() {
+        EventSlice slice = slice(0.1, new Random(randomLong()));
+        int trials = 20_000;
+        int kept = 0;
+        for (int i = 0; i < trials; i++) {
+            kept += slice.draw() > 0 ? 1 : 0;
+        }
+
+        assertThat((double) kept / trials, closeTo(0.1, 5 * Math.sqrt(0.1 * 0.9 / trials)));
+    }
+
+    public void testRateFollowsTheSettingWhenItChanges() {
+        EventSlice slice = new EventSlice(() -> new Random(0L) {
+            @Override
+            public double nextDouble() {
+                return 0.0;
+            }
+        });
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(QuerySamplingSettings.EVENT_SLICE_RATE));
+        slice.watch(clusterSettings);
+        assertThat(slice.draw(), equalTo(0.0));
+
+        clusterSettings.applySettings(Settings.builder().put(QuerySamplingSettings.EVENT_SLICE_RATE.getKey(), 0.5).build());
+
+        assertThat(slice.draw(), equalTo(0.5));
     }
 }

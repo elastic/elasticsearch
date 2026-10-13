@@ -21,10 +21,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-/**
- * The golden dataset that grows by itself, against a real cluster: once the interval has passed, the stored sampled queries that
- * have ground truth are in a version, and the queries that come after are in a next one that is made from it.
- */
 public class QuerySamplingGoldenScheduleIT extends QuerySamplingRestTestCase {
 
     @ClassRule
@@ -42,7 +38,6 @@ public class QuerySamplingGoldenScheduleIT extends QuerySamplingRestTestCase {
     }
 
     private static void computeAllGroundTruth() throws IOException {
-        // the index keeps what was sampled between tests, so ask until nothing is left to compute
         long last;
         int calls = 0;
         do {
@@ -52,16 +47,13 @@ public class QuerySamplingGoldenScheduleIT extends QuerySamplingRestTestCase {
         } while (last > 0 && ++calls < 100);
     }
 
-    /**
-     * The completed versions of the golden dataset, oldest first, as the paths to read them with.
-     */
     private static ObjectPath completedVersions() throws IOException {
         Request refresh = new Request("POST", "/.query_golden/_refresh");
         refresh.setOptions(systemIndexAccess());
         try {
             client().performRequest(refresh);
         } catch (ResponseException e) {
-            return null; // nothing was promoted yet
+            return null;
         }
         Request search = new Request("GET", "/.query_golden/_search?size=100&sort=dataset_version:asc");
         search.setOptions(systemIndexAccess());
@@ -76,7 +68,6 @@ public class QuerySamplingGoldenScheduleIT extends QuerySamplingRestTestCase {
         sampleOneQuery();
         computeAllGroundTruth();
 
-        // nobody asks for it: the master does it once the interval has passed
         assertBusy(() -> {
             ObjectPath versions = completedVersions();
             assertNotNull("a version was made", versions);
@@ -88,7 +79,6 @@ public class QuerySamplingGoldenScheduleIT extends QuerySamplingRestTestCase {
         assertNull("the first is not made from another", first.evaluate("hits.hits.0._source.source_version"));
         long firstVersion = ((Number) first.evaluate("hits.hits.0._source.dataset_version")).longValue();
 
-        // queries that are new are added to a version that is made from the one there is
         sampleOneQuery();
         computeAllGroundTruth();
         assertBusy(() -> {
@@ -100,7 +90,6 @@ public class QuerySamplingGoldenScheduleIT extends QuerySamplingRestTestCase {
             int latestRecords = ((Number) versions.evaluate("hits.hits." + (hits.size() - 1) + "._source.records")).intValue();
             assertThat("it has what was there and what is new", latestRecords, greaterThan(firstRecords));
         });
-        // the first version is as it was
         assertThat(((Number) completedVersions().evaluate("hits.hits.0._source.records")).intValue(), equalTo(firstRecords));
         assertThat(((Number) completedVersions().evaluate("hits.hits.0._source.dataset_version")).longValue(), equalTo(firstVersion));
     }

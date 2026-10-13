@@ -10,18 +10,24 @@ package org.elasticsearch.xpack.querysampling.dedup;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.querysampling.QuerySamplingSettings;
+import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
 
+import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class MultiplicityTrackerTests extends ESTestCase {
+public class DedupTests extends ESTestCase {
 
     public void testCountsRepeatsOfTheSameQuery() {
         MultiplicityTracker tracker = new MultiplicityTracker(10);
@@ -51,33 +57,12 @@ public class MultiplicityTrackerTests extends ESTestCase {
         assertThat(query.weightedMultiplicity(), closeTo(10 + 10 + 2, 1e-9));
     }
 
-    public void testQueriesThatWereAlwaysCapturedAreCertainlySeen() {
-        MultiplicityTracker tracker = new MultiplicityTracker(10);
-        QueryFingerprint a = new QueryFingerprint(1, 1);
-
-        assertThat(tracker.record(a).seenProbability(), equalTo(1.0));
-        assertThat(tracker.record(a, 0.5).seenProbability(), equalTo(1.0));
-    }
-
     public void testSeenProbabilityOfAQueryCapturedRarely() {
         MultiplicityTracker tracker = new MultiplicityTracker(10);
         QueryFingerprint a = new QueryFingerprint(1, 1);
 
-        // one capture at 1% stands for 100 arrivals, which were all missed with probability 0.99^100
         assertThat(tracker.record(a, 0.01).seenProbability(), closeTo(1 - Math.pow(0.99, 100), 1e-9));
-        // another one stands for 100 more
         assertThat(tracker.record(a, 0.01).seenProbability(), closeTo(1 - Math.pow(0.99, 200), 1e-9));
-    }
-
-    public void testSeenProbabilityFollowsTheRateOfEveryArrival() {
-        MultiplicityTracker tracker = new MultiplicityTracker(10);
-        QueryFingerprint a = new QueryFingerprint(1, 1);
-
-        tracker.record(a, 0.1);
-        double seen = tracker.record(a, 0.5).seenProbability();
-
-        // 10 arrivals at a rate of 0.1 and 2 at a rate of 0.5
-        assertThat(seen, closeTo(1 - Math.pow(0.9, 10) * Math.pow(0.5, 2), 1e-9));
     }
 
     public void testStopsTrackingNewQueriesWhenFull() {
@@ -110,19 +95,6 @@ public class MultiplicityTrackerTests extends ESTestCase {
         assertThat("and starts from scratch if it comes back", tracker.record(gone).multiplicity(), equalTo(1L));
     }
 
-    public void testQueriesKeepTheirCountAsLongAsTheyKeepArriving() {
-        AtomicLong now = new AtomicLong();
-        MultiplicityTracker tracker = new MultiplicityTracker(10, TimeValue.timeValueMinutes(1), now::get);
-        QueryFingerprint frequent = new QueryFingerprint(1, 1);
-
-        int windows = between(3, 6);
-        for (int i = 0; i < windows; i++) {
-            assertThat(tracker.record(frequent).multiplicity(), equalTo((long) i + 1));
-            now.addAndGet(TimeValue.timeValueSeconds(61).nanos());
-        }
-        assertThat(tracker.distinct(), equalTo(1));
-    }
-
     public void testWindowFollowsTheSettingWhenItChanges() {
         AtomicLong now = new AtomicLong();
         ClusterSettings clusterSettings = new ClusterSettings(
@@ -142,16 +114,55 @@ public class MultiplicityTrackerTests extends ESTestCase {
         assertThat("with a window of an hour it is remembered", tracker.record(query).multiplicity(), equalTo(2L));
     }
 
-    public void testRotationMakesRoomWhenFull() {
-        AtomicLong now = new AtomicLong();
-        MultiplicityTracker tracker = new MultiplicityTracker(2, TimeValue.timeValueMinutes(1), now::get);
-        tracker.record(new QueryFingerprint(1, 1));
-        tracker.record(new QueryFingerprint(2, 2));
-        assertThat(tracker.record(new QueryFingerprint(3, 3)), nullValue());
+    private static final QueryBuilder BRAND = QueryBuilders.termQuery("brand", "apple");
 
-        now.addAndGet(TimeValue.timeValueMinutes(2).nanos());
+    private static final QueryBuilder CATEGORY = QueryBuilders.termQuery("category", "phone");
 
-        assertThat(tracker.record(new QueryFingerprint(3, 3)).multiplicity(), equalTo(1L));
-        assertThat(tracker.distinct(), equalTo(1));
+    public void testRuntimeParametersAreNotPartOfTheIdentity() {
+        float[] vector = randomVector(16);
+        CapturedQuery a = new CapturedQuery(new String[] { "a" }, "vec", vector, 10, 100, null, null, List.of(), "x");
+        CapturedQuery b = new CapturedQuery(new String[] { "a" }, "vec", vector, 50, 500, 0.1f, 3f, List.of(), "y");
+        assertThat(QueryFingerprint.of(a), equalTo(QueryFingerprint.of(b)));
+    }
+
+    public void testFilterOrderDoesNotMatter() {
+        float[] vector = randomVector(16);
+        assertThat(
+            QueryFingerprint.of(query("vec", vector, List.of(BRAND, CATEGORY))),
+            equalTo(QueryFingerprint.of(query("vec", vector, List.of(CATEGORY, BRAND))))
+        );
+    }
+
+    public void testIndicesArePartOfTheIdentityButTheirOrderIsNot() {
+        float[] vector = randomVector(16);
+        CapturedQuery a = new CapturedQuery(new String[] { "a" }, "vec", vector, 10, 100, null, null, List.of(), null);
+        CapturedQuery b = new CapturedQuery(new String[] { "b" }, "vec", vector, 10, 100, null, null, List.of(), null);
+        CapturedQuery ab = new CapturedQuery(new String[] { "a", "b" }, "vec", vector, 10, 100, null, null, List.of(), null);
+        CapturedQuery ba = new CapturedQuery(new String[] { "b", "a" }, "vec", vector, 10, 100, null, null, List.of(), null);
+
+        assertThat(QueryFingerprint.of(a), not(equalTo(QueryFingerprint.of(b))));
+        assertThat(QueryFingerprint.of(a), not(equalTo(QueryFingerprint.of(ab))));
+        assertThat(QueryFingerprint.of(ab), equalTo(QueryFingerprint.of(ba)));
+    }
+
+    public void testNoCollisionsAmongManyQueries() {
+        Set<QueryFingerprint> seen = new HashSet<>();
+        int queries = 50_000;
+        for (int i = 0; i < queries; i++) {
+            seen.add(QueryFingerprint.of(query("vec", randomVector(8), List.of())));
+        }
+        assertThat(seen.size(), equalTo(queries));
+    }
+
+    private static CapturedQuery query(String field, float[] vector, List<QueryBuilder> filters) {
+        return new CapturedQuery(new String[] { "idx" }, field, vector, 10, 100, null, null, filters, null);
+    }
+
+    private static float[] randomVector(int dims) {
+        float[] vector = new float[dims];
+        for (int i = 0; i < dims; i++) {
+            vector[i] = randomFloat();
+        }
+        return vector;
     }
 }

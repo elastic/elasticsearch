@@ -144,15 +144,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             );
             case STRING -> {
                 final StringColumnOptions options = stringSelector.select(field.name, type);
-                writeStringColumn(
-                    field,
-                    type,
-                    options,
-                    options.singleValued()
-                        ? () -> ColumnarStringBinaryDocValues.decodeRawValues(valuesProducer.getBinary(field))
-                        : () -> ColumnarStringBinaryDocValues.decodePayloads(valuesProducer.getBinary(field)),
-                    null
-                );
+                writeStringColumn(field, type, options, () -> decodeBlobs(valuesProducer.getBinary(field), options), null);
             }
         }
     }
@@ -171,13 +163,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             case STRING -> {
                 final StringColumnOptions options = stringSelector.select(field.name, type);
                 final Vocabulary.Terms vocabulary = mergedVocabulary(field, mergeState, options.dictionary(), options.summary()).terms();
-                writeStringColumn(
-                    field,
-                    type,
-                    options,
-                    () -> stringMergeCursor(field, mergeState, vocabulary, options.singleValued()),
-                    vocabulary
-                );
+                writeStringColumn(field, type, options, () -> stringMergeCursor(field, mergeState, vocabulary, options), vocabulary);
             }
         }
     }
@@ -512,7 +498,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         FieldInfo field,
         MergeState mergeState,
         Vocabulary.Terms vocabulary,
-        boolean singleValued
+        StringColumnOptions options
     ) throws IOException {
         List<ColumnMergeSub<StringColumnValues>> subs = new ArrayList<>();
         long cost = 0;
@@ -563,9 +549,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
                 // what this merge takes from it.
                 recorded &= mergeState.liveDocs[i] == null;
             } else {
-                values = singleValued
-                    ? ColumnarStringBinaryDocValues.decodeRawValues(binary)
-                    : ColumnarStringBinaryDocValues.decodePayloads(binary);
+                values = decodeBlobs(binary, options);
                 recorded = false;
             }
             cost += values.cost();
@@ -638,6 +622,12 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
                 return finalCost;
             }
         };
+    }
+
+    private static StringColumnValues decodeBlobs(BinaryDocValues binary, StringColumnOptions options) {
+        return options.singleValued()
+            ? ColumnarStringBinaryDocValues.decodeRawValues(binary)
+            : ColumnarStringBinaryDocValues.decodePayloads(binary);
     }
 
     private void writeNumericColumn(FieldInfo field, ColumnarFieldType type, IOSupplier<NumericColumnValues> cursors) throws IOException {

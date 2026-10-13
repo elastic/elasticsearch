@@ -636,14 +636,25 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         if (mappingUpdate == ownMappingUpdate) {
             mappingUpdater.updateMappings(ownMappingUpdate, primary.shardId(), mappingUpdateListener);
         } else {
-            // the operation only fails if its own update fails
-            mappingUpdater.updateMappings(
-                mappingUpdate,
-                primary.shardId(),
-                mappingUpdateListener.delegateResponse((l, e) -> mappingUpdater.updateMappings(ownMappingUpdate, primary.shardId(), l))
-            );
+            // the operation only fails because of the fields of the other operations if its own update fails too
+            mappingUpdater.updateMappings(mappingUpdate, primary.shardId(), mappingUpdateListener.delegateResponse((l, e) -> {
+                if (isRejectedMappingUpdate(e)) {
+                    mappingUpdater.updateMappings(ownMappingUpdate, primary.shardId(), l);
+                } else {
+                    l.onFailure(e);
+                }
+            }));
         }
         return false;
+    }
+
+    /**
+     * Returns true if a mapping update failed because the mappings can't take it, as opposed to a failure to reach the master or to
+     * publish the update.
+     */
+    private static boolean isRejectedMappingUpdate(Exception e) {
+        final Throwable cause = ExceptionsHelper.unwrapCause(e);
+        return cause instanceof IllegalArgumentException || cause instanceof MapperException;
     }
 
     /**

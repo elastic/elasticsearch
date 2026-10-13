@@ -26,7 +26,11 @@ import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Requests;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
@@ -40,6 +44,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexSettings;
@@ -52,6 +57,7 @@ import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -60,6 +66,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.rest.RestStatus;
@@ -78,6 +85,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -92,6 +100,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -1562,8 +1571,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
     }
 
     /**
-     * The mappings fail to be updated with the update of several operations, so the operation sends its own update. It only fails
-     * if that update fails too. The following operations send their own update when their turn comes.
+     * The mappings reject the update of several operations, so the operation sends its own update. It only fails if that update
+     * fails too. The following operations send their own update when their turn comes.
      */
     public void testFailureToUpdateMappingsWithCombinedUpdate() throws Exception {
         IndexShard shard = newStartedShard(
@@ -1588,7 +1597,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 updates.add(update);
                 // the second update is the combined one, the third one is the update of the same operation alone
                 if (updates.size() == 2 || (updates.size() == 3 && ownUpdateFails)) {
-                    throw new ElasticsearchException("failed to update the mappings");
+                    throw randomBoolean()
+                        ? new IllegalArgumentException("failed to update the mappings")
+                        : new MapperParsingException("failed to update the mappings");
                 }
                 shard.mapperService().merge(MapperService.SINGLE_MAPPING_NAME, update, MapperService.MergeReason.MAPPING_AUTO_UPDATE);
                 return null;
@@ -1608,6 +1619,66 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             assertThat(shard.mapperService().fieldType("field_" + i), failed ? nullValue() : notNullValue());
         }
         assertDocCount(shard, ownUpdateFails ? numDocs - 1 : numDocs);
+        closeShards(shard);
+    }
+
+    /**
+     * The update of several operations fails for a reason that its content has nothing to do with, so the operation fails without
+     * sending its own update, which would fail the same way. The following operations send their own update when their turn comes.
+     */
+    public void testFailureToSendCombinedUpdate() throws Exception {
+        IndexShard shard = newStartedShard(
+            true,
+            Settings.builder().put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), true).build()
+        );
+        int numDocs = between(3, 20);
+        BulkItemRequest[] items = new BulkItemRequest[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            items[i] = new BulkItemRequest(i, new IndexRequest("index").id("id_" + i).source(Requests.INDEX_CONTENT_TYPE, "field_" + i, i));
+        }
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, SplitShardCountSummary.IRRELEVANT, RefreshPolicy.NONE, items);
+        Exception failure = randomFrom(
+            new ClusterBlockException(Set.of(Metadata.CLUSTER_READ_ONLY_BLOCK)),
+            new ProcessClusterEventTimeoutException(TimeValue.timeValueSeconds(30), "put-mapping"),
+            new NodeClosedException(DiscoveryNodeUtils.create("node"))
+        );
+        List<CompressedXContent> updates = new ArrayList<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        TransportShardBulkAction.performOnPrimary(
+            bulkShardRequest,
+            shard,
+            null,
+            threadPool::absoluteTimeInMillis,
+            (update, shardId, listener) -> ActionListener.completeWith(listener, () -> {
+                updates.add(update);
+                // the second update is the combined one
+                if (updates.size() == 2) {
+                    throw failure;
+                }
+                shard.mapperService().merge(MapperService.SINGLE_MAPPING_NAME, update, MapperService.MergeReason.MAPPING_AUTO_UPDATE);
+                return null;
+            }),
+            (listener, mappingVersion) -> listener.onResponse(null),
+            new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(result -> {}), latch),
+            threadPool.executor(Names.WRITE)
+        );
+        latch.await();
+
+        assertThat(updates.size(), equalTo(numDocs));
+        assertThat(items[1].getPrimaryResponse().isFailed(), equalTo(true));
+        assertThat(items[1].getPrimaryResponse().getFailure().getCause(), sameInstance(failure));
+        for (int i = 0; i < numDocs; i++) {
+            if (i != 1) {
+                Map<String, Object> update = XContentHelper.convertToMap(updates.get(i).uncompressed(), false).v2();
+                assertThat(
+                    XContentMapValues.extractValue("_doc.properties", update),
+                    equalTo(Map.of("field_" + i, Map.of("type", "long")))
+                );
+                assertThat(items[i].getPrimaryResponse().isFailed(), equalTo(false));
+            }
+            assertThat(shard.mapperService().fieldType("field_" + i), i == 1 ? nullValue() : notNullValue());
+        }
+        assertDocCount(shard, numDocs - 1);
         closeShards(shard);
     }
 

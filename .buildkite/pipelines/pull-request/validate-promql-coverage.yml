@@ -9,7 +9,7 @@ env:
 steps:
   - label: validate-promql-coverage
     key: validate-promql-coverage
-    command: .buildkite/scripts/validate-promql-coverage.sh grafanalabs-top100
+    command: .buildkite/scripts/validate-promql-coverage.sh
     timeout_in_minutes: 120
     retry:
       automatic:

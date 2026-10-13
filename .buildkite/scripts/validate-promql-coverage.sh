@@ -9,15 +9,12 @@
 # soft_fail (see flakiness-detection/runners/never-fail.sh), so a regression, or a comparison that could not
 # run, is annotated and the step exits 0. Only a misconfigured pipeline fails it.
 #
-# Usage:
-#   validate-promql-coverage.sh <corpus>
-#
-# <corpus> names a testcase bundle in the promcheck release (e.g. grafanalabs-top100.tar.gz): the seeded
+# The testcase bundle is fixed: grafanalabs-top100.tar.gz from the promcheck release carries the seeded
 # dataset plus the queries, piped whole into the binary. No Python, no Docker: Prometheus runs in-process.
 
 set -euo pipefail
 
-readonly CORPUS="${1:?Usage: validate-promql-coverage.sh <corpus>}"
+readonly CORPUS=grafanalabs-top100
 
 for var in PROMCHECK_VER PROMCHECK_TEST_INSTANCE_TIMEOUT GITHUB_PR_TARGET_BRANCH; do
   [[ -n "${!var:-}" ]] || { echo "$var must be set" >&2; exit 1; }

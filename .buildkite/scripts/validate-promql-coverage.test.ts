@@ -122,7 +122,7 @@ esac
     writeFileSync(join(dir, "control.log"), promcheckLog(control));
     writeFileSync(join(dir, "test.log"), promcheckLog(tested));
     if (opts.controlRc !== undefined) writeFileSync(join(dir, "control.rc"), String(opts.controlRc));
-    const result = spawnSync("bash", [SCRIPT, CORPUS], {
+    const result = spawnSync("bash", [SCRIPT], {
       cwd: repo,
       env: {
         ...process.env,

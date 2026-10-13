@@ -292,7 +292,7 @@ public final class DatasetListingService {
         // closed-range narrowing and a _file.* hint each drop entries after that, so the count that comes out is
         // not the count that stopped the drain. Every rule written to detect "nothing narrowed" from the outside
         // was a proxy that missed two of those three: the guard this replaced tested only the value filter.
-        // Strictly fewer, because reaching the bound is what sets the truncation flag.
+        // The comparison is strictly below the bound, because reaching the bound is what sets the truncation flag.
         FileList cached = cacheService.getListingIfPresent(listingKey);
         if (servesThisBound(cached, extents)) {
             GlobExpander.checkDiscoveredFilesLimit(cached.fileCount(), maxDiscoveredFiles.getAsInt());
@@ -351,7 +351,7 @@ public final class DatasetListingService {
         // closed-range narrowing and a _file.* hint each drop entries after that, so the count that comes out is
         // not the count that stopped the drain. Every rule written to detect "nothing narrowed" from the outside
         // was a proxy that missed two of those three: the guard this replaced tested only the value filter.
-        // Strictly fewer, because reaching the bound is what sets the truncation flag.
+        // The comparison is strictly below the bound, because reaching the bound is what sets the truncation flag.
         FileList cached = cacheService.getListingIfPresent(listingKey);
         if (servesThisBound(cached, extents)) {
             try {

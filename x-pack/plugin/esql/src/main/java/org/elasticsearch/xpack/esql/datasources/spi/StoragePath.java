@@ -368,6 +368,9 @@ public final class StoragePath {
      * {@code .../transactions/date=2024-01-0*}&#47;{@code *.csv} the prefix is {@code .../transactions/} and this is
      * {@code date=2024-01-0}. Together they name the narrowest key prefix that cannot exclude a match, which is what
      * a flat-namespace store can be asked for directly instead of being asked for the whole parent and filtered.
+     * <p>
+     * It never holds a {@code /}, since the cut is at the last separator at or before the first metacharacter. So a
+     * provider may compare it against one path segment, or append it to a key prefix, without re-splitting it.
      */
     public String literalNamePrefix() {
         if (isPattern() == false) {

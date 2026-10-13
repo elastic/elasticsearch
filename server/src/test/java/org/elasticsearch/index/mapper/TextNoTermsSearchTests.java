@@ -61,6 +61,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
@@ -204,6 +205,27 @@ public class TextNoTermsSearchTests extends MapperServiceTestCase {
             assertEquals(queries.get(q).toString(), indexed.get(q), notIndexed.get(q));
         }
         assertEquals("no document holds all three", List.of(), notIndexed.get(0));
+    }
+
+    /**
+     * {@code cross_fields} blends the term statistics several fields keep in an index. A field answered from its
+     * values keeps none, so a blend reaching one is refused rather than leaving its matches out.
+     */
+    public void testCrossFieldsOverSeveralFieldsIsRefused() throws IOException {
+        final MapperService mapper = createMapperService(
+            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build(),
+            mapping(b -> {
+                b.startObject("body").field("type", "text").field("index", false).endObject();
+                b.startObject("other").field("type", "text").endObject();
+            })
+        );
+        final SearchExecutionContext context = createSearchExecutionContext(mapper);
+        final QueryBuilder blended = new MultiMatchQueryBuilder("quick", "body", "other").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS);
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> blended.toQuery(context));
+        assertThat(e.getMessage(), containsString("Cannot run [cross_fields] over field [body]"));
+
+        // One field of its own still answers, since nothing is blended there.
+        assertNotNull(new MultiMatchQueryBuilder("quick", "body").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS).toQuery(context));
     }
 
     /** Every multi match type answers from the values, including the one that blends a term across fields. */

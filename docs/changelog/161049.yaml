@@ -1,6 +1,6 @@
-area: "TSDB"
+area: TSDB
 breaking:
-  area: "TSDB"
+  area: TSDB
   details: |-
     Elasticsearch introduces the minimum data stream lifecycle which performs only the operations
     that are necessary for the health of the data stream, such as rolling over and tail merge. It will be enabled
@@ -16,7 +16,9 @@ breaking:
     `PUT _cluster/settings { "persistent": { "data_streams.lifecycle.minimum.enabled": false } }`.
     The setting is dynamic, so no restart is required.
   notable: true
-  title: Time series data streams without a lifecycle are managed by a minimum data stream lifecycle
+  title: Time series data streams without a lifecycle are managed by a minimum data
+    stream lifecycle
+issues: []
 pr: 161049
 summary: Introduce the setting to enable minimum lifecycle
-type: "breaking"
+type: breaking

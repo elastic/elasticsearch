@@ -86,7 +86,7 @@ final class PlainSkipIndexCodec {
     private final int maxBoundBytes;
     private final double maxOverlapFraction;
     private final int localitySampleIntervals;
-    private final int intervalsPerBatch;
+    private final int maxAccumulators;
 
     /**
      * @param intervalSize  documents with a slot in one level-0 interval
@@ -132,13 +132,13 @@ final class PlainSkipIndexCodec {
         this.levelShift = levelShift;
         this.maxBoundBytes = maxBoundBytes;
         this.maxOverlapFraction = maxOverlapFraction;
-        this.intervalsPerBatch = 1 << (levelShift * (maxLevel - 1));
-        this.localitySampleIntervals = Math.min(localitySampleIntervals, intervalsPerBatch);
+        this.maxAccumulators = 1 << (levelShift * (maxLevel - 1));
+        this.localitySampleIntervals = Math.min(localitySampleIntervals, maxAccumulators);
     }
 
-    /** A writer appending this codec's entries to {@code skipOutput}, which nothing else may write to meanwhile. */
-    Writer writer(IndexOutput skipOutput) {
-        return new Writer(skipOutput, false);
+    /** A writer appending this codec's entries to {@code data}, which nothing else may write to meanwhile. */
+    Writer writer(IndexOutput data) {
+        return new Writer(data, false);
     }
 
     /** A writer for a column that gets no region: it takes the same calls, keeps nothing and writes nothing. */
@@ -152,47 +152,47 @@ final class PlainSkipIndexCodec {
      * written, so the entries go straight to it.
      */
     final class Writer {
-        private final IndexOutput skipOutput;
-        private final long regionStart;
-        private final List<IntervalBounds> pendingIntervals = new ArrayList<>();
-        private IntervalBounds currentInterval;
-        private int lastDocId = -1;
+        private final IndexOutput data;
+        private final long dataStart;
+        private final List<SkipAccumulator> accumulators = new ArrayList<>();
+        private SkipAccumulator accumulator;
+        private int maxDocId = -1;
         private boolean localityChecked;
-        private boolean entriesWritten;
-        private boolean regionDropped;
+        private boolean hasWrittenEntries;
+        private boolean skipIndexDisabled;
 
-        private Writer(IndexOutput skipOutput, boolean regionDropped) {
-            this.skipOutput = skipOutput;
-            this.regionStart = regionDropped ? 0 : skipOutput.getFilePointer();
-            this.regionDropped = regionDropped;
+        private Writer(IndexOutput data, boolean skipIndexDisabled) {
+            this.data = data;
+            this.dataStart = skipIndexDisabled ? 0 : data.getFilePointer();
+            this.skipIndexDisabled = skipIndexDisabled;
         }
 
         /** Called once per document before its values are delivered via {@link #add}. */
         void startDoc(int doc) throws IOException {
-            if (regionDropped) {
+            if (skipIndexDisabled) {
                 return;
             }
-            if (currentInterval != null && currentInterval.isFull(intervalSize)) {
-                pendingIntervals.add(currentInterval);
-                currentInterval = null;
-                if (localityChecked == false && pendingIntervals.size() == localitySampleIntervals) {
+            if (accumulator != null && accumulator.isDone(intervalSize)) {
+                accumulators.add(accumulator);
+                accumulator = null;
+                if (localityChecked == false && accumulators.size() == localitySampleIntervals) {
                     localityChecked = true;
-                    if (lacksLocality()) {
-                        dropRegion();
+                    if (hasExcessiveOverlap()) {
+                        disableSkipIndex();
                         return;
                     }
                 }
-                if (pendingIntervals.size() == intervalsPerBatch) {
-                    writeEntries(pendingIntervals, skipOutput);
-                    pendingIntervals.clear();
-                    entriesWritten = true;
+                if (accumulators.size() == maxAccumulators) {
+                    writeLevels(accumulators, data);
+                    accumulators.clear();
+                    hasWrittenEntries = true;
                 }
             }
-            if (currentInterval == null) {
-                currentInterval = new IntervalBounds(doc, maxBoundBytes);
+            if (accumulator == null) {
+                accumulator = new SkipAccumulator(doc, maxBoundBytes);
             }
-            currentInterval.addDoc(doc);
-            lastDocId = doc;
+            accumulator.nextDoc(doc);
+            maxDocId = doc;
         }
 
         /**
@@ -200,8 +200,8 @@ final class PlainSkipIndexCodec {
          * contribute to byte-range bounds and would force the min to the empty string.
          */
         void add(BytesRef value) {
-            if (regionDropped == false) {
-                currentInterval.includeValue(value);
+            if (skipIndexDisabled == false) {
+                accumulator.accumulate(value);
             }
         }
 
@@ -212,39 +212,39 @@ final class PlainSkipIndexCodec {
          * @param readerBisects whether the reader finds terms in this column by bisection, which never reads a region
          */
         StringColumnMetadata.Plain.Skipper finish(boolean readerBisects) throws IOException {
-            if (regionDropped) {
+            if (skipIndexDisabled) {
                 return null;
             }
-            if (currentInterval != null) {
-                pendingIntervals.add(currentInterval);
-                currentInterval = null;
+            if (accumulator != null) {
+                accumulators.add(accumulator);
+                accumulator = null;
             }
-            if (pendingIntervals.isEmpty()) {
+            if (accumulators.isEmpty()) {
                 return null;
             }
-            if (entriesWritten == false && (readerBisects || (localityChecked == false && lacksLocality()))) {
-                dropRegion();
+            if (hasWrittenEntries == false && (readerBisects || (localityChecked == false && hasExcessiveOverlap()))) {
+                disableSkipIndex();
                 return null;
             }
-            writeEntries(pendingIntervals, skipOutput);
+            writeLevels(accumulators, data);
             return new StringColumnMetadata.Plain.Skipper(
-                regionStart,
-                skipOutput.getFilePointer() - regionStart,
-                lastDocId,
+                dataStart,
+                data.getFilePointer() - dataStart,
+                maxDocId,
                 maxLevel,
                 maxBoundBytes,
                 ID
             );
         }
 
-        private boolean lacksLocality() {
-            return overlapFraction(pendingIntervals) >= maxOverlapFraction;
+        private boolean hasExcessiveOverlap() {
+            return overlapFraction(accumulators) >= maxOverlapFraction;
         }
 
-        private void dropRegion() {
-            regionDropped = true;
-            pendingIntervals.clear();
-            currentInterval = null;
+        private void disableSkipIndex() {
+            skipIndexDisabled = true;
+            accumulators.clear();
+            accumulator = null;
         }
     }
 
@@ -252,17 +252,17 @@ final class PlainSkipIndexCodec {
      * Share of ordered interval pairs, an interval with itself included, whose [min, max] ranges overlap; 1 when no
      * interval holds a term.
      */
-    private static double overlapFraction(List<IntervalBounds> intervals) {
+    private static double overlapFraction(List<SkipAccumulator> intervals) {
         final int intervalCount = intervals.size();
         long overlappingPairs = 0;
         for (int i = 0; i < intervalCount; i++) {
-            final IntervalBounds first = intervals.get(i);
+            final SkipAccumulator first = intervals.get(i);
             if (first.hasTerm == false) {
                 continue;
             }
             overlappingPairs++;
             for (int j = i + 1; j < intervalCount; j++) {
-                final IntervalBounds second = intervals.get(j);
+                final SkipAccumulator second = intervals.get(j);
                 if (second.hasTerm
                     && first.minTerm.get().compareTo(second.maxTerm.get()) <= 0
                     && second.minTerm.get().compareTo(first.maxTerm.get()) <= 0) {
@@ -273,59 +273,59 @@ final class PlainSkipIndexCodec {
         return overlappingPairs == 0 ? 1 : overlappingPairs / ((double) intervalCount * intervalCount);
     }
 
-    private void writeEntries(List<IntervalBounds> intervals, IndexOutput output) throws IOException {
-        final List<List<IntervalBounds>> levels = new ArrayList<>(maxLevel);
-        levels.add(intervals);
+    private void writeLevels(List<SkipAccumulator> accumulators, IndexOutput data) throws IOException {
+        final List<List<SkipAccumulator>> levels = new ArrayList<>(maxLevel);
+        levels.add(accumulators);
         for (int i = 0; i < maxLevel - 1; i++) {
-            levels.add(aggregateLevel(levels.get(i)));
+            levels.add(buildLevel(levels.get(i)));
         }
-        final int intervalCount = intervals.size();
-        final int[] entryBytes = new int[intervalCount];
-        for (int index = 0; index < intervalCount; index++) {
+        final int total = accumulators.size();
+        final int[] entryBytes = new int[total];
+        for (int index = 0; index < total; index++) {
             int entryLength = 1;
-            for (int level = levelsInEntry(index, intervalCount) - 1; level >= 0; level--) {
+            for (int level = levelsAt(index, total) - 1; level >= 0; level--) {
                 entryLength += levels.get(level).get(index >> (levelShift * level)).encodedLength();
             }
             entryBytes[index] = entryLength;
         }
-        for (int index = 0; index < intervalCount; index++) {
-            final int numLevels = levelsInEntry(index, intervalCount);
-            output.writeByte((byte) numLevels);
-            for (int level = numLevels - 1; level >= 0; level--) {
-                final IntervalBounds bounds = levels.get(level).get(index >> (levelShift * level));
-                long groupBytes = 0;
+        for (int index = 0; index < total; index++) {
+            final int entryLevels = levelsAt(index, total);
+            data.writeByte((byte) entryLevels);
+            for (int level = entryLevels - 1; level >= 0; level--) {
+                final SkipAccumulator acc = levels.get(level).get(index >> (levelShift * level));
+                long subtreeByteLength = 0;
                 for (int member = index; member < index + (1 << (levelShift * level)); member++) {
-                    groupBytes += entryBytes[member];
+                    subtreeByteLength += entryBytes[member];
                 }
-                output.writeInt(bounds.maxDocId);
-                output.writeInt(Math.toIntExact(groupBytes));
-                output.writeInt(bounds.minDocId);
-                output.writeInt(bounds.docCount);
-                final BytesRef min = bounds.hasTerm ? bounds.minTerm.get() : new BytesRef();
-                final BytesRef max = bounds.hasTerm ? bounds.maxTerm.get() : new BytesRef();
-                output.writeVInt(min.length);
-                output.writeBytes(min.bytes, min.offset, min.length);
-                output.writeVInt(max.length);
-                output.writeBytes(max.bytes, max.offset, max.length);
+                data.writeInt(acc.maxDocID);
+                data.writeInt(Math.toIntExact(subtreeByteLength));
+                data.writeInt(acc.minDocID);
+                data.writeInt(acc.docCount);
+                final BytesRef min = acc.hasTerm ? acc.minTerm.get() : new BytesRef();
+                final BytesRef max = acc.hasTerm ? acc.maxTerm.get() : new BytesRef();
+                data.writeVInt(min.length);
+                data.writeBytes(min.bytes, min.offset, min.length);
+                data.writeVInt(max.length);
+                data.writeBytes(max.bytes, max.offset, max.length);
             }
         }
     }
 
-    private List<IntervalBounds> aggregateLevel(List<IntervalBounds> intervals) {
-        final int branching = 1 << levelShift;
-        final List<IntervalBounds> level = new ArrayList<>();
-        for (int i = 0; i < intervals.size() - branching + 1; i += branching) {
-            level.add(IntervalBounds.union(intervals, i, branching, maxBoundBytes));
+    private List<SkipAccumulator> buildLevel(List<SkipAccumulator> accumulators) {
+        final int levelSize = 1 << levelShift;
+        final List<SkipAccumulator> collector = new ArrayList<>();
+        for (int i = 0; i < accumulators.size() - levelSize + 1; i += levelSize) {
+            collector.add(SkipAccumulator.merge(accumulators, i, levelSize, maxBoundBytes));
         }
-        return level;
+        return collector;
     }
 
-    private int levelsInEntry(int index, int intervalCount) {
+    private int levelsAt(int index, int size) {
         if (Integer.numberOfTrailingZeros(index) >= levelShift) {
-            final int intervalsLeft = intervalCount - index;
+            final int left = size - index;
             for (int level = maxLevel - 1; level > 0; level--) {
-                final int intervalsPerRecord = 1 << (levelShift * level);
-                if (intervalsLeft >= intervalsPerRecord && index % intervalsPerRecord == 0) {
+                final int intervals = 1 << (levelShift * level);
+                if (left >= intervals && index % intervals == 0) {
                     return level + 1;
                 }
             }
@@ -333,10 +333,10 @@ final class PlainSkipIndexCodec {
         return 1;
     }
 
-    private static final class IntervalBounds {
+    private static final class SkipAccumulator {
         final int maxBoundBytes;
-        int minDocId;
-        int maxDocId;
+        int minDocID;
+        int maxDocID;
         int docCount;
         final BytesRefBuilder minTerm = new BytesRefBuilder();
         final BytesRefBuilder maxTerm = new BytesRefBuilder();
@@ -344,8 +344,8 @@ final class PlainSkipIndexCodec {
         long minTermPrefix;
         long maxTermPrefix;
 
-        IntervalBounds(int doc, int maxBoundBytes) {
-            this.minDocId = doc;
+        SkipAccumulator(int doc, int maxBoundBytes) {
+            this.minDocID = doc;
             this.maxBoundBytes = maxBoundBytes;
         }
 
@@ -356,17 +356,17 @@ final class PlainSkipIndexCodec {
             return FIXED_LEVEL_BYTES + vIntLength(min) + min + vIntLength(max) + max;
         }
 
-        boolean isFull(int intervalSize) {
+        boolean isDone(int intervalSize) {
             return docCount >= intervalSize;
         }
 
-        void addDoc(int doc) {
-            maxDocId = doc;
+        void nextDoc(int doc) {
+            maxDocID = doc;
             docCount++;
         }
 
         // NOTE: zero-padded, so two prefixes that differ settle the order, and only a tie reads the whole terms.
-        void includeValue(BytesRef value) {
+        void accumulate(BytesRef value) {
             final long prefix = leadingBytes(value);
             if (hasTerm == false) {
                 setMin(value);
@@ -419,8 +419,8 @@ final class PlainSkipIndexCodec {
             maxTerm.copyBytes(value);
         }
 
-        void includeBounds(IntervalBounds other) {
-            maxDocId = other.maxDocId;
+        void accumulate(SkipAccumulator other) {
+            maxDocID = other.maxDocID;
             docCount += other.docCount;
             if (other.hasTerm) {
                 if (hasTerm == false) {
@@ -438,10 +438,10 @@ final class PlainSkipIndexCodec {
             }
         }
 
-        static IntervalBounds union(List<IntervalBounds> list, int index, int length, int maxBoundBytes) {
-            final IntervalBounds acc = new IntervalBounds(list.get(index).minDocId, maxBoundBytes);
+        static SkipAccumulator merge(List<SkipAccumulator> list, int index, int length, int maxBoundBytes) {
+            final SkipAccumulator acc = new SkipAccumulator(list.get(index).minDocID, maxBoundBytes);
             for (int i = 0; i < length; i++) {
-                acc.includeBounds(list.get(index + i));
+                acc.accumulate(list.get(index + i));
             }
             return acc;
         }

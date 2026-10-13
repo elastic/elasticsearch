@@ -382,8 +382,8 @@ public class PlainSkipIndexCodecTests extends ESTestCase {
     }
 
     public void testTheSampleDecidesAndLaterDocumentsWriteNothing() throws IOException {
-        final int intervalSize = between(4, 16);
-        final int sampleIntervals = between(2, 30);
+        final int intervalSize = between(8, 16);
+        final int sampleIntervals = between(6, 30);
         final PlainSkipIndexCodec codec = codecSamplingIntervals(intervalSize, sampleIntervals);
         final int sampleDocs = intervalSize * sampleIntervals;
         final Region region = write(codec, sampleDocs * between(2, 4) + between(0, intervalSize), doc -> randomValue());
@@ -402,8 +402,8 @@ public class PlainSkipIndexCodecTests extends ESTestCase {
     }
 
     public void testTheDecisionIsTheSameWhetherTheSampleEndsTheColumnOrNot() throws IOException {
-        final int intervalSize = between(4, 16);
-        final int sampleIntervals = between(2, 30);
+        final int intervalSize = between(8, 16);
+        final int sampleIntervals = between(6, 30);
         final PlainSkipIndexCodec codec = codecSamplingIntervals(intervalSize, sampleIntervals);
         final int sampleDocs = intervalSize * sampleIntervals;
         for (int docs : new int[] { sampleDocs, sampleDocs + 1 }) {

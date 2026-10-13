@@ -26,7 +26,7 @@ import java.io.IOException;
  */
 final class PlainStringColumnSkipper {
 
-    private final StringColumnMetadata.Plain.Skipper skipperMetadata;
+    private final StringColumnMetadata.Plain.Skipper meta;
     private final int maxLevel;
     private final IndexInput input;
 
@@ -35,20 +35,17 @@ final class PlainStringColumnSkipper {
     private final int[] docCount;
     private final BytesRefBuilder[] minTerm;
     private final BytesRefBuilder[] maxTerm;
-    private int levelsInEntry = 1;
+    private int levels = 1;
 
-    PlainStringColumnSkipper(StringColumnMetadata.Plain.Skipper skipperMetadata, IndexInput skipIndex) throws IOException {
-        this.skipperMetadata = skipperMetadata;
-        this.maxLevel = skipperMetadata.maxLevel();
-        this.input = skipIndex.slice("columnar string skipper", skipperMetadata.dataOffset(), skipperMetadata.dataLength());
+    PlainStringColumnSkipper(StringColumnMetadata.Plain.Skipper meta, IndexInput skipIndex) throws IOException {
+        this.meta = meta;
+        this.maxLevel = meta.maxLevel();
+        this.input = skipIndex.slice("columnar string skipper", meta.dataOffset(), meta.dataLength());
         if (maxLevel < 1 || maxLevel > Byte.MAX_VALUE) {
             throw new CorruptIndexException("skip region records [" + maxLevel + "] levels", input.toString());
         }
-        if (skipperMetadata.maxBoundBytes() < 1) {
-            throw new CorruptIndexException(
-                "skip region keeps bounds of [" + skipperMetadata.maxBoundBytes() + "] bytes",
-                input.toString()
-            );
+        if (meta.maxBoundBytes() < 1) {
+            throw new CorruptIndexException("skip region keeps bounds of [" + meta.maxBoundBytes() + "] bytes", input.toString());
         }
         this.minDocID = new int[maxLevel];
         this.maxDocID = new int[maxLevel];
@@ -64,7 +61,7 @@ final class PlainStringColumnSkipper {
 
     /** Moves to the entry covering {@code target}, which has to be beyond the current level-0 interval. */
     void advance(int target) throws IOException {
-        if (target > skipperMetadata.maxDocId()) {
+        if (target > meta.maxDocId()) {
             for (int level = 0; level < maxLevel; level++) {
                 minDocID[level] = maxDocID[level] = DocIdSetIterator.NO_MORE_DOCS;
             }
@@ -73,27 +70,30 @@ final class PlainStringColumnSkipper {
         assert target > maxDocID[0] : "target must be beyond the current interval";
         while (true) {
             final long entryStart = input.getFilePointer();
-            levelsInEntry = input.readByte();
-            if (levelsInEntry < 1 || levelsInEntry > maxLevel) {
-                throw new CorruptIndexException(
-                    "skip entry at [" + entryStart + "] holds [" + levelsInEntry + "] levels",
-                    input.toString()
-                );
+            levels = input.readByte();
+            if (levels < 1 || levels > maxLevel) {
+                throw new CorruptIndexException("skip entry at [" + entryStart + "] holds [" + levels + "] levels", input.toString());
             }
-            boolean coversTarget = true;
-            for (int level = levelsInEntry - 1; level >= 0; level--) {
+            boolean valid = true;
+            for (int level = levels - 1; level >= 0; level--) {
                 maxDocID[level] = input.readInt();
-                final long groupBytes = input.readInt();
+                final long subtreeByteLength = input.readInt();
                 if (maxDocID[level] < target) {
-                    final long nextEntryStart = entryStart + groupBytes;
+                    final long nextEntryStart = entryStart + subtreeByteLength;
                     if (nextEntryStart < input.getFilePointer() || nextEntryStart > input.length()) {
                         throw new CorruptIndexException(
-                            "skip entry at [" + entryStart + "] jumps [" + groupBytes + "] bytes in a region of [" + input.length() + "]",
+                            "skip entry at ["
+                                + entryStart
+                                + "] jumps ["
+                                + subtreeByteLength
+                                + "] bytes in a region of ["
+                                + input.length()
+                                + "]",
                             input.toString()
                         );
                     }
                     input.seek(nextEntryStart);
-                    coversTarget = false;
+                    valid = false;
                     break;
                 }
                 minDocID[level] = input.readInt();
@@ -101,9 +101,9 @@ final class PlainStringColumnSkipper {
                 readTerm(minTerm[level]);
                 readTerm(maxTerm[level]);
             }
-            if (coversTarget) {
-                while (levelsInEntry < maxLevel && maxDocID[levelsInEntry] >= target) {
-                    levelsInEntry++;
+            if (valid) {
+                while (levels < maxLevel && maxDocID[levels] >= target) {
+                    levels++;
                 }
                 return;
             }
@@ -112,7 +112,7 @@ final class PlainStringColumnSkipper {
 
     /** The levels whose bounds cover the current interval, level 0 first. */
     int numLevels() {
-        return levelsInEntry;
+        return levels;
     }
 
     int minDocID(int level) {

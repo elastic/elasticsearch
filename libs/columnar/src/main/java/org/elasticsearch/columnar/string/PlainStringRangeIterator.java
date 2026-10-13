@@ -23,7 +23,7 @@ import java.io.IOException;
  * <p>The documents it keeps are a superset of those holding a value in the range, so a confirmation still has
  * to compare the values unless {@link #intervalInsideRange} says the document's interval cannot fail it.
  */
-final class PlainSkippingStringDocs extends DocIdSetIterator {
+final class PlainStringRangeIterator extends DocIdSetIterator {
 
     private final DocIdSetIterator presence;
     private final PlainStringColumnSkipper skipper;
@@ -33,11 +33,11 @@ final class PlainSkippingStringDocs extends DocIdSetIterator {
     private final boolean includeUpper;
 
     private int intervalLastDoc = -1;
-    private int coarsestMissingLevel = -1;
+    private int highestExcludedLevel = -1;
     private boolean intervalInsideRange;
 
     /** A null bound is open. */
-    PlainSkippingStringDocs(
+    PlainStringRangeIterator(
         DocIdSetIterator presence,
         PlainStringColumnSkipper skipper,
         BytesRef lower,
@@ -61,13 +61,13 @@ final class PlainSkippingStringDocs extends DocIdSetIterator {
     @Override
     public int nextDoc() throws IOException {
         final int doc = presence.nextDoc();
-        return doc <= intervalLastDoc ? doc : skipMissingSpans(doc);
+        return doc <= intervalLastDoc ? doc : skipNonMatchingIntervals(doc);
     }
 
     @Override
     public int advance(int target) throws IOException {
         final int doc = presence.advance(target);
-        return doc <= intervalLastDoc ? doc : skipMissingSpans(doc);
+        return doc <= intervalLastDoc ? doc : skipNonMatchingIntervals(doc);
     }
 
     @Override
@@ -85,7 +85,7 @@ final class PlainSkippingStringDocs extends DocIdSetIterator {
         return intervalInsideRange;
     }
 
-    private int skipMissingSpans(int doc) throws IOException {
+    private int skipNonMatchingIntervals(int doc) throws IOException {
         while (doc != NO_MORE_DOCS) {
             if (intervalLastDoc < doc) {
                 skipper.advance(doc);
@@ -93,33 +93,33 @@ final class PlainSkippingStringDocs extends DocIdSetIterator {
                 if (intervalLastDoc == NO_MORE_DOCS) {
                     return doc;
                 }
-                classifyInterval();
+                evaluateIntervalBounds();
             }
-            if (coarsestMissingLevel < 0) {
+            if (highestExcludedLevel < 0) {
                 return doc;
             }
-            doc = presence.advance(skipper.maxDocID(coarsestMissingLevel) + 1);
+            doc = presence.advance(skipper.maxDocID(highestExcludedLevel) + 1);
         }
         return NO_MORE_DOCS;
     }
 
-    private void classifyInterval() {
-        coarsestMissingLevel = -1;
-        for (int level = skipper.numLevels() - 1; level >= 0 && coarsestMissingLevel < 0; level--) {
-            if (boundsMissRange(skipper.minTerm(level), skipper.maxTerm(level))) {
-                coarsestMissingLevel = level;
+    private void evaluateIntervalBounds() {
+        highestExcludedLevel = -1;
+        for (int level = skipper.numLevels() - 1; level >= 0 && highestExcludedLevel < 0; level--) {
+            if (boundsDisjointFromRange(skipper.minTerm(level), skipper.maxTerm(level))) {
+                highestExcludedLevel = level;
             }
         }
-        intervalInsideRange = coarsestMissingLevel < 0 && boundsInsideRange(skipper.minTerm(0), skipper.maxTerm(0));
+        intervalInsideRange = highestExcludedLevel < 0 && boundsContainedInRange(skipper.minTerm(0), skipper.maxTerm(0));
     }
 
-    private boolean boundsInsideRange(BytesRef min, BytesRef max) {
+    private boolean boundsContainedInRange(BytesRef min, BytesRef max) {
         final int lowerCmp = lower == null ? 1 : min.compareTo(lower);
         final int upperCmp = upper == null ? -1 : max.compareTo(upper);
         return (lowerCmp > 0 || (lowerCmp == 0 && includeLower)) && (upperCmp < 0 || (upperCmp == 0 && includeUpper));
     }
 
-    private boolean boundsMissRange(BytesRef min, BytesRef max) {
+    private boolean boundsDisjointFromRange(BytesRef min, BytesRef max) {
         if (upper != null) {
             final int cmp = min.compareTo(upper);
             if (cmp > 0 || (cmp == 0 && includeUpper == false)) {

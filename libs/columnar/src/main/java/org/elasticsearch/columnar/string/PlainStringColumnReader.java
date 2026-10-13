@@ -230,9 +230,9 @@ public final class PlainStringColumnReader extends StringColumnReader {
         throws IOException {
         final ColumnIterator presence = iterator();
         final LastSeen lastSeen = new LastSeen();
-        final PlainSkippingStringDocs skipping = skipperMeta == null
+        final PlainStringRangeIterator skipping = skipperMeta == null
             ? null
-            : new PlainSkippingStringDocs(
+            : new PlainStringRangeIterator(
                 presence,
                 new PlainStringColumnSkipper(skipperMeta, skipIndex),
                 lower,

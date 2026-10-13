@@ -748,7 +748,8 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
             "typed in def in typed",
             "",
             "SETUP",
-            "Optional.of(1).map(x -> { def o2 = Optional.of(x); return o2.map(y -> Optional.of(y).map(z -> { BODY }).get()).get(); }).get()",
+            "Optional.of(1).map(x -> { def o2 = Optional.of(x); return o2.map(y -> Optional.of(y).map(z -> { BODY }).get()).get(); })"
+                + ".get()",
             "TDT"
         ),
         new Wrapper(

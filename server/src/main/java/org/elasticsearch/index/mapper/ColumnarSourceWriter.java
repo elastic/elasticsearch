@@ -78,6 +78,8 @@ final class ColumnarSourceWriter {
     void write(MappingLookup mappingLookup, List<LuceneDocument> allDocs, LuceneDocument doc, XContentBuilder builder) throws IOException {
         // It is safe to reuse synthetic loader and leaf loader for each thread per index.
         // Because a new mapping will result into a new instance of this class and otherwise materialized mappings stay immutable.
+        // The loader is reset when the leaf is built below, and not for each document: as when reading a segment, writing a document
+        // clears what it wrote and advancing to the next one replaces the rest, and a reset walks every field loader of the mapping.
         PerThreadResources perThread = cachedColumnarPerThread.get();
         if (perThread == null) {
             final Mapping mapping = mappingLookup.getMapping();
@@ -96,7 +98,6 @@ final class ColumnarSourceWriter {
 
         perThread.leafReader().setAllDocs(allDocs);
         perThread.leafReader().repopulate(doc);
-        perThread.fieldLoader().reset();
         final SourceLoader.Synthetic sourceLoader = perThread.sourceLoader;
         final SourceLoader.Leaf leaf = perThread.sourceLoaderLeaf();
         final LeafReaderContext leafCtx = perThread.leafReader.getContext();
@@ -104,7 +105,16 @@ final class ColumnarSourceWriter {
         // TODO: in columnar there shouldn't exist any store fields and so we can use StoredFieldLoader.empty() here.
         var storedFieldLoader = StoredFieldLoader.create(false, sourceLoader.requiredStoredFields()).getLoader(leafCtx, DOC_IDS);
         storedFieldLoader.advanceTo(DOC_ID);
-        leaf.write(storedFieldLoader, DOC_ID, builder);
+        boolean written = false;
+        try {
+            leaf.write(storedFieldLoader, DOC_ID, builder);
+            written = true;
+        } finally {
+            if (written == false) {
+                // A document that failed half way leaves values in the loaders, which the next document must not pick up.
+                perThread.fieldLoader().reset();
+            }
+        }
     }
 
     /**

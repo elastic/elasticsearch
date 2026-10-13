@@ -711,23 +711,10 @@ public class JobResultsProvider {
         );
     }
 
-    /**
-     * Upper bound on the number of copies of the checkpoint document that the rollover fallback search retrieves.
-     * One copy can be left behind in every results index that was the write index when a checkpoint was persisted.
-     */
+    /** One checkpoint document can remain in each results index that was once the write index. */
     private static final int MAX_ESQL_CHECKPOINT_COPIES = 100;
 
-    /**
-     * Load the ES|QL source checkpoint.
-     * <p>
-     * The checkpoint is persisted through the results write alias with {@link WriteRequest.RefreshPolicy#NONE}, so the
-     * freshest copy is read with a realtime GET against that alias: a search would miss a write that was not yet refreshed.
-     * After a results-index rollover the write alias points at a new index that holds no checkpoint until the next
-     * persist, while the last checkpoint stays behind in an older index. The GET misses in that case, so fall back to a
-     * search against the read alias, which spans every results index of the job. Such older copies were persisted long
-     * before the rollover and are visible to search. Several indices can hold a copy, so the one with the greatest
-     * {@code source_end_ms} wins.
-     */
+    /** Returns the stored checkpoint for {@code jobId}, or null when none is stored. */
     public void esqlDatafeedSourceCheckpoint(
         String jobId,
         Consumer<EsqlDatafeedSourceCheckpoint> handler,
@@ -737,6 +724,7 @@ public class JobResultsProvider {
             AnomalyDetectorsIndex.resultsWriteAlias(jobId),
             EsqlDatafeedSourceCheckpoint.documentId(jobId)
         );
+        // Persist may use refresh NONE; a non-realtime get would miss that write until refresh.
         getRequest.realtime(true);
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, getRequest, new ActionListener<GetResponse>() {
             @Override
@@ -766,6 +754,7 @@ public class JobResultsProvider {
         }, client::get);
     }
 
+    /** Copies left in older results indices after the write alias rolls onto an empty index. */
     private void esqlDatafeedSourceCheckpointFromAllResultsIndices(
         String jobId,
         Consumer<EsqlDatafeedSourceCheckpoint> handler,

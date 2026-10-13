@@ -518,11 +518,7 @@ public class JobResultsPersister {
         persistable.persist(() -> true, true, listener);
     }
 
-    /**
-     * Persist an ES|QL datafeed source checkpoint. Default {@link WriteRequest.RefreshPolicy#NONE} avoids a
-     * refresh on every realtime cycle. Bulk ack is the in-process commit barrier; restart load uses realtime
-     * GET so the last unrefreshed write is still visible.
-     */
+    /** Writes the checkpoint through the job results write alias. */
     public void persistEsqlDatafeedSourceCheckpoint(
         EsqlDatafeedSourceCheckpoint checkpoint,
         WriteRequest.RefreshPolicy refreshPolicy,
@@ -542,6 +538,7 @@ public class JobResultsPersister {
     }
 
     public void persistEsqlDatafeedSourceCheckpoint(EsqlDatafeedSourceCheckpoint checkpoint) {
+        // Load uses a realtime GET, so this write stays visible without a refresh on every cycle.
         persistEsqlDatafeedSourceCheckpoint(checkpoint, WriteRequest.RefreshPolicy.NONE).actionGet();
     }
 

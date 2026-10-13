@@ -389,7 +389,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         });
     }
 
-    private static boolean isShardCopyUnavailable(Exception e) {
+    static boolean isShardCopyUnavailable(Exception e) {
         return TransportActions.isShardNotAvailableException(e)
             || ExceptionsHelper.unwrap(e, ConnectTransportException.class, NodeClosedException.class) != null;
     }

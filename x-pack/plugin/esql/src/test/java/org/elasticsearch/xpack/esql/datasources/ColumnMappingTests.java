@@ -352,7 +352,7 @@ public class ColumnMappingTests extends ESTestCase {
     // ===== Four-schema combinatorial matrix =====
     //
     // pruneToPerFileQuery is the seam where the four-schema model meets a single per-file mapping.
-    // The bug class behind this PR (and B1 in particular) lives at one cell of a three-axis matrix:
+    // The bug class lives at one cell of a three-axis matrix:
     //
     // {reconciliation mode: FFW / STRICT / UBN}
     // × {partitioning: unpartitioned / Hive-style}

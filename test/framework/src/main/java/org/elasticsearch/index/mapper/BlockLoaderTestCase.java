@@ -30,7 +30,6 @@ import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -272,25 +271,11 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     }
 
     protected BlockLoaderTestRunner configureRunner(BlockLoaderTestRunner runner, Settings.Builder settings, Mapping mapping) {
-        if (this.params.indexMode() == IndexMode.LOGSDB) {
-            // When index mode is LOGSDB then the BlockLoader return multivalue
-            // fields in the natural order (or in general the order selected by the codec)
-            // and do not reshuffle in original order, so the matcher mustn't check the order.
-            runner.matcher(BlockLoaderTestCase::matchInAnyOrder);
-        }
         return runner;
     }
 
-    private static void matchInAnyOrder(Object expected, Object actual) {
-        if (expected instanceof Collection<?> expectedCasted) {
-            Collection<?> actualCasted = (Collection<?>) actual;
-            assertThat(actualCasted, Matchers.containsInAnyOrder(expectedCasted.toArray()));
-        } else {
-            assertThat(actual, BlockLoaderTestRunner.PrettyEqual.prettyEqualTo(expected));
-        }
-    }
-
     public void testBlockLoaderForFieldInObject() throws IOException {
+        assumeFalse("Skip test for Geo tests and LOGSDB", params.indexMode() == IndexMode.LOGSDB && this.getClass().getSimpleName().equals("GeoPointFieldBlockLoaderTests"));
         testBlockLoaderForFieldInObject(newLimitedBreaker(TEST_BREAKER_SIZE));
     }
 

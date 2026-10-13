@@ -69,12 +69,12 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
 
     public void testTheSkipIndexSwitchSurvivesChangingOtherOptions() {
         final StringColumnOptions off = StringColumnOptions.DEFAULT.withoutSkipIndex();
-        assertTrue(StringColumnOptions.DEFAULT.skipIndex());
-        assertFalse(off.skipIndex());
-        assertFalse(off.withPolicies(DictionaryPolicy.NONE, SummaryPolicy.NONE).skipIndex());
-        assertFalse(off.withSizes(StringColumnOptions.DEFAULT_SIZES).skipIndex());
-        assertTrue(StringColumnOptions.DEFAULT.withPolicies(DictionaryPolicy.NONE, SummaryPolicy.NONE).skipIndex());
-        assertTrue(StringColumnOptions.DEFAULT.withSizes(StringColumnOptions.DEFAULT_SIZES).skipIndex());
+        assertTrue(StringColumnOptions.DEFAULT.writeSkipIndex());
+        assertFalse(off.writeSkipIndex());
+        assertFalse(off.withPolicies(DictionaryPolicy.NONE, SummaryPolicy.NONE).writeSkipIndex());
+        assertFalse(off.withSizes(StringColumnOptions.DEFAULT_SIZES).writeSkipIndex());
+        assertTrue(StringColumnOptions.DEFAULT.withPolicies(DictionaryPolicy.NONE, SummaryPolicy.NONE).writeSkipIndex());
+        assertTrue(StringColumnOptions.DEFAULT.withSizes(StringColumnOptions.DEFAULT_SIZES).writeSkipIndex());
     }
 
     public void testAFieldWithoutASkipIndexWritesNoRegionThroughFlushesAndAMerge() throws IOException {

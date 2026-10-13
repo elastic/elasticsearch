@@ -26,7 +26,7 @@ import java.io.IOException;
  */
 final class PlainStringColumnSkipper {
 
-    private final StringColumnMetadata.Plain.Skipper meta;
+    private final StringColumnMetadata.Plain.Skipper skipperMetadata;
     private final int maxLevel;
     private final IndexInput input;
 
@@ -35,17 +35,20 @@ final class PlainStringColumnSkipper {
     private final int[] docCount;
     private final BytesRefBuilder[] minTerm;
     private final BytesRefBuilder[] maxTerm;
-    private int levels = 1;
+    private int levelsInEntry = 1;
 
-    PlainStringColumnSkipper(StringColumnMetadata.Plain.Skipper meta, IndexInput skipIndex) throws IOException {
-        this.meta = meta;
-        this.maxLevel = meta.maxLevel();
-        this.input = skipIndex.slice("columnar string skipper", meta.dataOffset(), meta.dataLength());
+    PlainStringColumnSkipper(StringColumnMetadata.Plain.Skipper skipperMetadata, IndexInput skipIndex) throws IOException {
+        this.skipperMetadata = skipperMetadata;
+        this.maxLevel = skipperMetadata.maxLevel();
+        this.input = skipIndex.slice("columnar string skipper", skipperMetadata.dataOffset(), skipperMetadata.dataLength());
         if (maxLevel < 1 || maxLevel > Byte.MAX_VALUE) {
             throw new CorruptIndexException("skip region records [" + maxLevel + "] levels", input.toString());
         }
-        if (meta.maxBoundBytes() < 1) {
-            throw new CorruptIndexException("skip region keeps bounds of [" + meta.maxBoundBytes() + "] bytes", input.toString());
+        if (skipperMetadata.maxBoundBytes() < 1) {
+            throw new CorruptIndexException(
+                "skip region keeps bounds of [" + skipperMetadata.maxBoundBytes() + "] bytes",
+                input.toString()
+            );
         }
         this.minDocID = new int[maxLevel];
         this.maxDocID = new int[maxLevel];
@@ -61,7 +64,7 @@ final class PlainStringColumnSkipper {
 
     /** Moves to the entry covering {@code target}, which has to be beyond the current level-0 interval. */
     void advance(int target) throws IOException {
-        if (target > meta.maxDocId()) {
+        if (target > skipperMetadata.maxDocId()) {
             for (int level = 0; level < maxLevel; level++) {
                 minDocID[level] = maxDocID[level] = DocIdSetIterator.NO_MORE_DOCS;
             }
@@ -70,34 +73,37 @@ final class PlainStringColumnSkipper {
         assert target > maxDocID[0] : "target must be beyond the current interval";
         while (true) {
             final long entryStart = input.getFilePointer();
-            levels = input.readByte();
-            if (levels < 1 || levels > maxLevel) {
-                throw new CorruptIndexException("skip entry at [" + entryStart + "] holds [" + levels + "] levels", input.toString());
+            levelsInEntry = input.readByte();
+            if (levelsInEntry < 1 || levelsInEntry > maxLevel) {
+                throw new CorruptIndexException(
+                    "skip entry at [" + entryStart + "] holds [" + levelsInEntry + "] levels",
+                    input.toString()
+                );
             }
-            boolean valid = true;
-            for (int level = levels - 1; level >= 0; level--) {
+            boolean coversTarget = true;
+            for (int level = levelsInEntry - 1; level >= 0; level--) {
                 maxDocID[level] = input.readInt();
                 final long groupBytes = input.readInt();
                 if (maxDocID[level] < target) {
-                    final long next = entryStart + groupBytes;
-                    if (next < input.getFilePointer() || next > input.length()) {
+                    final long nextEntryStart = entryStart + groupBytes;
+                    if (nextEntryStart < input.getFilePointer() || nextEntryStart > input.length()) {
                         throw new CorruptIndexException(
                             "skip entry at [" + entryStart + "] jumps [" + groupBytes + "] bytes in a region of [" + input.length() + "]",
                             input.toString()
                         );
                     }
-                    input.seek(next);
-                    valid = false;
+                    input.seek(nextEntryStart);
+                    coversTarget = false;
                     break;
                 }
                 minDocID[level] = input.readInt();
                 docCount[level] = input.readInt();
-                read(minTerm[level]);
-                read(maxTerm[level]);
+                readTerm(minTerm[level]);
+                readTerm(maxTerm[level]);
             }
-            if (valid) {
-                while (levels < maxLevel && maxDocID[levels] >= target) {
-                    levels++;
+            if (coversTarget) {
+                while (levelsInEntry < maxLevel && maxDocID[levelsInEntry] >= target) {
+                    levelsInEntry++;
                 }
                 return;
             }
@@ -106,7 +112,7 @@ final class PlainStringColumnSkipper {
 
     /** The levels whose bounds cover the current interval, level 0 first. */
     int numLevels() {
-        return levels;
+        return levelsInEntry;
     }
 
     int minDocID(int level) {
@@ -129,11 +135,14 @@ final class PlainStringColumnSkipper {
         return maxTerm[level].get();
     }
 
-    private void read(BytesRefBuilder term) throws IOException {
+    private void readTerm(BytesRefBuilder term) throws IOException {
         final int length = input.readVInt();
-        final long left = input.length() - input.getFilePointer();
-        if (length < 0 || length > left) {
-            throw new CorruptIndexException("skip term of [" + length + "] bytes with [" + left + "] left in the region", input.toString());
+        final long bytesLeft = input.length() - input.getFilePointer();
+        if (length < 0 || length > bytesLeft) {
+            throw new CorruptIndexException(
+                "skip term of [" + length + "] bytes with [" + bytesLeft + "] left in the region",
+                input.toString()
+            );
         }
         term.grow(length);
         input.readBytes(term.bytes(), 0, length);

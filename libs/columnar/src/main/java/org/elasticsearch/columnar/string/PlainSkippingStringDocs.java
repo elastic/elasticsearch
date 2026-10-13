@@ -21,7 +21,7 @@ import java.io.IOException;
  * coarsest that misses, so a group of intervals that misses the range costs one entry read.
  *
  * <p>The documents it keeps are a superset of those holding a value in the range, so a confirmation still has
- * to compare the values unless {@link #interiorToRange} says the document's interval cannot fail it.
+ * to compare the values unless {@link #intervalInsideRange} says the document's interval cannot fail it.
  */
 final class PlainSkippingStringDocs extends DocIdSetIterator {
 
@@ -32,9 +32,9 @@ final class PlainSkippingStringDocs extends DocIdSetIterator {
     private final BytesRef upper;
     private final boolean includeUpper;
 
-    private int intervalMaxDoc = -1;
-    private int missingLevel = -1;
-    private boolean interior;
+    private int intervalLastDoc = -1;
+    private int coarsestMissingLevel = -1;
+    private boolean intervalInsideRange;
 
     /** A null bound is open. */
     PlainSkippingStringDocs(
@@ -61,13 +61,13 @@ final class PlainSkippingStringDocs extends DocIdSetIterator {
     @Override
     public int nextDoc() throws IOException {
         final int doc = presence.nextDoc();
-        return doc <= intervalMaxDoc ? doc : settle(doc);
+        return doc <= intervalLastDoc ? doc : skipMissingSpans(doc);
     }
 
     @Override
     public int advance(int target) throws IOException {
         final int doc = presence.advance(target);
-        return doc <= intervalMaxDoc ? doc : settle(doc);
+        return doc <= intervalLastDoc ? doc : skipMissingSpans(doc);
     }
 
     @Override
@@ -81,45 +81,45 @@ final class PlainSkippingStringDocs extends DocIdSetIterator {
      * since a document holding nothing but nulls is in the interval and matches nothing. A document holding no
      * slot at all, which an empty array is, is in the interval too, so the caller has to count its slots.
      */
-    boolean interiorToRange() {
-        return interior;
+    boolean intervalInsideRange() {
+        return intervalInsideRange;
     }
 
-    private int settle(int doc) throws IOException {
+    private int skipMissingSpans(int doc) throws IOException {
         while (doc != NO_MORE_DOCS) {
-            if (intervalMaxDoc < doc) {
+            if (intervalLastDoc < doc) {
                 skipper.advance(doc);
-                intervalMaxDoc = skipper.maxDocID(0);
-                if (intervalMaxDoc == NO_MORE_DOCS) {
+                intervalLastDoc = skipper.maxDocID(0);
+                if (intervalLastDoc == NO_MORE_DOCS) {
                     return doc;
                 }
-                judgeInterval();
+                classifyInterval();
             }
-            if (missingLevel < 0) {
+            if (coarsestMissingLevel < 0) {
                 return doc;
             }
-            doc = presence.advance(skipper.maxDocID(missingLevel) + 1);
+            doc = presence.advance(skipper.maxDocID(coarsestMissingLevel) + 1);
         }
         return NO_MORE_DOCS;
     }
 
-    private void judgeInterval() {
-        missingLevel = -1;
-        for (int level = skipper.numLevels() - 1; level >= 0 && missingLevel < 0; level--) {
-            if (missesRange(skipper.minTerm(level), skipper.maxTerm(level))) {
-                missingLevel = level;
+    private void classifyInterval() {
+        coarsestMissingLevel = -1;
+        for (int level = skipper.numLevels() - 1; level >= 0 && coarsestMissingLevel < 0; level--) {
+            if (boundsMissRange(skipper.minTerm(level), skipper.maxTerm(level))) {
+                coarsestMissingLevel = level;
             }
         }
-        interior = missingLevel < 0 && insideRange(skipper.minTerm(0), skipper.maxTerm(0));
+        intervalInsideRange = coarsestMissingLevel < 0 && boundsInsideRange(skipper.minTerm(0), skipper.maxTerm(0));
     }
 
-    private boolean insideRange(BytesRef min, BytesRef max) {
+    private boolean boundsInsideRange(BytesRef min, BytesRef max) {
         final int lowerCmp = lower == null ? 1 : min.compareTo(lower);
         final int upperCmp = upper == null ? -1 : max.compareTo(upper);
         return (lowerCmp > 0 || (lowerCmp == 0 && includeLower)) && (upperCmp < 0 || (upperCmp == 0 && includeUpper));
     }
 
-    private boolean missesRange(BytesRef min, BytesRef max) {
+    private boolean boundsMissRange(BytesRef min, BytesRef max) {
         if (upper != null) {
             final int cmp = min.compareTo(upper);
             if (cmp > 0 || (cmp == 0 && includeUpper == false)) {

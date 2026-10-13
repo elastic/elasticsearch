@@ -26,7 +26,7 @@ import org.elasticsearch.columnar.substrate.ChunkCodec;
  * @param singleValued whether each document's blob is its value's own bytes rather than a
  *                     {@link StringBinaryPayload}. Unlike the other options it cannot change for a field: a merge
  *                     decodes a source that is not a ColumNAR column with the target's framing
- * @param skipIndex  whether a plain column records the term bounds of its intervals, which only a field
+ * @param writeSkipIndex  whether a plain column records the term bounds of its intervals, which only a field
  *                   that is range queried over its values gains from
  */
 public record StringColumnOptions(
@@ -35,7 +35,7 @@ public record StringColumnOptions(
     ChunkCodec chunkCodec,
     Sizes sizes,
     boolean singleValued,
-    boolean skipIndex
+    boolean writeSkipIndex
 ) {
 
     /**
@@ -228,17 +228,17 @@ public record StringColumnOptions(
      * so twice rather than setting one and inheriting the other.
      */
     public StringColumnOptions withPolicies(DictionaryPolicy dictionaryPolicy, SummaryPolicy summaryPolicy) {
-        return new StringColumnOptions(dictionaryPolicy, summaryPolicy, chunkCodec, sizes, singleValued, skipIndex);
+        return new StringColumnOptions(dictionaryPolicy, summaryPolicy, chunkCodec, sizes, singleValued, writeSkipIndex);
     }
 
     /** These options with different sizes, for a field whose shape is not what the defaults were measured on. */
     public StringColumnOptions withSizes(Sizes other) {
-        return new StringColumnOptions(dictionary, summary, chunkCodec, other, singleValued, skipIndex);
+        return new StringColumnOptions(dictionary, summary, chunkCodec, other, singleValued, writeSkipIndex);
     }
 
     /** These options for a field whose documents each hold exactly one value, handed over as its own bytes. */
     public StringColumnOptions withSingleValued(boolean singleValued) {
-        return new StringColumnOptions(dictionary, summary, chunkCodec, sizes, singleValued, skipIndex);
+        return new StringColumnOptions(dictionary, summary, chunkCodec, sizes, singleValued, writeSkipIndex);
     }
 
     /** These options for a field no range query reaches, so its plain column writes no skip index. */

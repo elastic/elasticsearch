@@ -35,7 +35,7 @@ public class PlainSkipIndexCodecTests extends ESTestCase {
         PlainSkipIndexCodec.DEFAULT_LEVEL_SHIFT,
         PlainSkipIndexCodec.DEFAULT_MAX_BOUND_BYTES,
         2.0,
-        PlainSkipIndexCodec.DEFAULT_JUDGE_AFTER_INTERVALS
+        PlainSkipIndexCodec.DEFAULT_LOCALITY_SAMPLE_INTERVALS
     );
 
     private record Region(byte[] bytes, StringColumnMetadata.Plain.Skipper meta) {
@@ -191,7 +191,7 @@ public class PlainSkipIndexCodecTests extends ESTestCase {
             levelShift,
             PlainSkipIndexCodec.DEFAULT_MAX_BOUND_BYTES,
             2.0,
-            PlainSkipIndexCodec.DEFAULT_JUDGE_AFTER_INTERVALS
+            PlainSkipIndexCodec.DEFAULT_LOCALITY_SAMPLE_INTERVALS
         );
         final int rootIntervals = 1 << (levelShift * (maxLevel - 1));
         final int docs = intervalSize * between(1, 3 * rootIntervals) + between(0, intervalSize - 1);
@@ -231,7 +231,7 @@ public class PlainSkipIndexCodecTests extends ESTestCase {
             PlainSkipIndexCodec.DEFAULT_LEVEL_SHIFT,
             cap,
             2.0,
-            PlainSkipIndexCodec.DEFAULT_JUDGE_AFTER_INTERVALS
+            PlainSkipIndexCodec.DEFAULT_LOCALITY_SAMPLE_INTERVALS
         );
         final int docs = between(1, 200);
         final BytesRef[] values = new BytesRef[docs];
@@ -263,7 +263,7 @@ public class PlainSkipIndexCodecTests extends ESTestCase {
             3,
             1024,
             2.0,
-            PlainSkipIndexCodec.DEFAULT_JUDGE_AFTER_INTERVALS
+            PlainSkipIndexCodec.DEFAULT_LOCALITY_SAMPLE_INTERVALS
         );
         final int docs = between(1, 400);
         final byte[] alphabet = { 0, 1, 0x7F, (byte) 0x80, (byte) 0xFF };
@@ -312,42 +312,42 @@ public class PlainSkipIndexCodecTests extends ESTestCase {
         final double overlap = PlainSkipIndexCodec.DEFAULT_MAX_OVERLAP_FRACTION;
         expectThrows(
             IllegalArgumentException.class,
-            () -> new PlainSkipIndexCodec(0, 4, shift, bound, overlap, PlainSkipIndexCodec.DEFAULT_JUDGE_AFTER_INTERVALS)
+            () -> new PlainSkipIndexCodec(0, 4, shift, bound, overlap, PlainSkipIndexCodec.DEFAULT_LOCALITY_SAMPLE_INTERVALS)
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> new PlainSkipIndexCodec(size, 0, shift, bound, overlap, PlainSkipIndexCodec.DEFAULT_JUDGE_AFTER_INTERVALS)
+            () -> new PlainSkipIndexCodec(size, 0, shift, bound, overlap, PlainSkipIndexCodec.DEFAULT_LOCALITY_SAMPLE_INTERVALS)
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> new PlainSkipIndexCodec(size, 4, 0, bound, overlap, PlainSkipIndexCodec.DEFAULT_JUDGE_AFTER_INTERVALS)
+            () -> new PlainSkipIndexCodec(size, 4, 0, bound, overlap, PlainSkipIndexCodec.DEFAULT_LOCALITY_SAMPLE_INTERVALS)
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> new PlainSkipIndexCodec(size, 4, shift, 0, overlap, PlainSkipIndexCodec.DEFAULT_JUDGE_AFTER_INTERVALS)
+            () -> new PlainSkipIndexCodec(size, 4, shift, 0, overlap, PlainSkipIndexCodec.DEFAULT_LOCALITY_SAMPLE_INTERVALS)
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> new PlainSkipIndexCodec(size, 12, shift, bound, overlap, PlainSkipIndexCodec.DEFAULT_JUDGE_AFTER_INTERVALS)
+            () -> new PlainSkipIndexCodec(size, 12, shift, bound, overlap, PlainSkipIndexCodec.DEFAULT_LOCALITY_SAMPLE_INTERVALS)
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> new PlainSkipIndexCodec(size, 4, shift, bound, 0, PlainSkipIndexCodec.DEFAULT_JUDGE_AFTER_INTERVALS)
+            () -> new PlainSkipIndexCodec(size, 4, shift, bound, 0, PlainSkipIndexCodec.DEFAULT_LOCALITY_SAMPLE_INTERVALS)
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> new PlainSkipIndexCodec(size, 4, shift, bound, -0.5, PlainSkipIndexCodec.DEFAULT_JUDGE_AFTER_INTERVALS)
+            () -> new PlainSkipIndexCodec(size, 4, shift, bound, -0.5, PlainSkipIndexCodec.DEFAULT_LOCALITY_SAMPLE_INTERVALS)
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> new PlainSkipIndexCodec(size, 4, shift, bound, Double.NaN, PlainSkipIndexCodec.DEFAULT_JUDGE_AFTER_INTERVALS)
+            () -> new PlainSkipIndexCodec(size, 4, shift, bound, Double.NaN, PlainSkipIndexCodec.DEFAULT_LOCALITY_SAMPLE_INTERVALS)
         );
-        for (int judgeAfter : new int[] { Integer.MIN_VALUE, -1, 0, 1 }) {
-            expectThrows(IllegalArgumentException.class, () -> new PlainSkipIndexCodec(size, 4, shift, bound, overlap, judgeAfter));
+        for (int sampleIntervals : new int[] { Integer.MIN_VALUE, -1, 0, 1 }) {
+            expectThrows(IllegalArgumentException.class, () -> new PlainSkipIndexCodec(size, 4, shift, bound, overlap, sampleIntervals));
         }
         assertNotNull(new PlainSkipIndexCodec(size, 4, shift, bound, overlap, 2));
         assertNotNull(new PlainSkipIndexCodec(size, 4, shift, bound, overlap, ROOT_INTERVALS * 4));
-        assertNotNull(new PlainSkipIndexCodec(size, 11, shift, bound, overlap, PlainSkipIndexCodec.DEFAULT_JUDGE_AFTER_INTERVALS));
+        assertNotNull(new PlainSkipIndexCodec(size, 11, shift, bound, overlap, PlainSkipIndexCodec.DEFAULT_LOCALITY_SAMPLE_INTERVALS));
     }
 
     public void testAColumnWhoseIntervalsOverlapGetsNoRegion() throws IOException {
@@ -373,7 +373,7 @@ public class PlainSkipIndexCodecTests extends ESTestCase {
     }
 
     public void testAColumnTheReaderBisectsGetsNoRegion() throws IOException {
-        final int sampleIntervals = PlainSkipIndexCodec.DEFAULT_JUDGE_AFTER_INTERVALS;
+        final int sampleIntervals = PlainSkipIndexCodec.DEFAULT_LOCALITY_SAMPLE_INTERVALS;
         for (int intervals : new int[] { 2, sampleIntervals, sampleIntervals + 4, 40 }) {
             final Region region = write(KEEP_ALL, true, INTERVAL * intervals, PlainSkipIndexCodecTests::ascending);
             assertNull("[" + intervals + "] intervals", region.meta());
@@ -383,9 +383,9 @@ public class PlainSkipIndexCodecTests extends ESTestCase {
 
     public void testTheSampleDecidesAndLaterDocumentsWriteNothing() throws IOException {
         final int intervalSize = between(4, 16);
-        final int judgeAfter = between(2, 30);
-        final PlainSkipIndexCodec codec = codecJudgingAfter(intervalSize, judgeAfter);
-        final int sampleDocs = intervalSize * judgeAfter;
+        final int sampleIntervals = between(2, 30);
+        final PlainSkipIndexCodec codec = codecSamplingIntervals(intervalSize, sampleIntervals);
+        final int sampleDocs = intervalSize * sampleIntervals;
         final Region region = write(codec, sampleDocs * between(2, 4) + between(0, intervalSize), doc -> randomValue());
         assertNull(region.meta());
         assertEquals(0, region.bytes().length);
@@ -393,9 +393,9 @@ public class PlainSkipIndexCodecTests extends ESTestCase {
 
     public void testAColumnThatTurnsRandomAfterTheSampleKeepsItsRegion() throws IOException {
         final int intervalSize = between(1, 8);
-        final int judgeAfter = between(2, 30);
-        final PlainSkipIndexCodec codec = codecJudgingAfter(intervalSize, judgeAfter);
-        final int sampleDocs = intervalSize * judgeAfter;
+        final int sampleIntervals = between(2, 30);
+        final PlainSkipIndexCodec codec = codecSamplingIntervals(intervalSize, sampleIntervals);
+        final int sampleDocs = intervalSize * sampleIntervals;
         final Region region = write(codec, sampleDocs * 2, doc -> doc < sampleDocs ? ascending(doc) : randomValue());
         assertNotNull(region.meta());
         assertEquals(sampleDocs * 2 - 1, region.meta().maxDocId());
@@ -403,9 +403,9 @@ public class PlainSkipIndexCodecTests extends ESTestCase {
 
     public void testTheDecisionIsTheSameWhetherTheSampleEndsTheColumnOrNot() throws IOException {
         final int intervalSize = between(4, 16);
-        final int judgeAfter = between(2, 30);
-        final PlainSkipIndexCodec codec = codecJudgingAfter(intervalSize, judgeAfter);
-        final int sampleDocs = intervalSize * judgeAfter;
+        final int sampleIntervals = between(2, 30);
+        final PlainSkipIndexCodec codec = codecSamplingIntervals(intervalSize, sampleIntervals);
+        final int sampleDocs = intervalSize * sampleIntervals;
         for (int docs : new int[] { sampleDocs, sampleDocs + 1 }) {
             assertNull("random, " + docs + " docs", write(codec, docs, doc -> randomValue()).meta());
             final int half = (docs + 1) / 2;
@@ -464,14 +464,14 @@ public class PlainSkipIndexCodecTests extends ESTestCase {
         out.writeBytes(max.getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }
 
-    private static PlainSkipIndexCodec codecJudgingAfter(int intervalSize, int judgeAfter) {
+    private static PlainSkipIndexCodec codecSamplingIntervals(int intervalSize, int sampleIntervals) {
         return new PlainSkipIndexCodec(
             intervalSize,
             PlainSkipIndexCodec.DEFAULT_MAX_LEVEL,
             PlainSkipIndexCodec.DEFAULT_LEVEL_SHIFT,
             PlainSkipIndexCodec.DEFAULT_MAX_BOUND_BYTES,
             PlainSkipIndexCodec.DEFAULT_MAX_OVERLAP_FRACTION,
-            judgeAfter
+            sampleIntervals
         );
     }
 
@@ -564,7 +564,7 @@ public class PlainSkipIndexCodecTests extends ESTestCase {
             PlainSkipIndexCodec.DEFAULT_LEVEL_SHIFT,
             cap,
             2.0,
-            PlainSkipIndexCodec.DEFAULT_JUDGE_AFTER_INTERVALS
+            PlainSkipIndexCodec.DEFAULT_LOCALITY_SAMPLE_INTERVALS
         );
         final Region region = write(codec, between(1, 300), PlainSkipIndexCodecTests::ascending);
         assertEquals(cap, region.meta().maxBoundBytes());
@@ -599,7 +599,7 @@ public class PlainSkipIndexCodecTests extends ESTestCase {
             PlainSkipIndexCodec.DEFAULT_LEVEL_SHIFT,
             cap,
             2.0,
-            PlainSkipIndexCodec.DEFAULT_JUDGE_AFTER_INTERVALS
+            PlainSkipIndexCodec.DEFAULT_LOCALITY_SAMPLE_INTERVALS
         );
         final BytesRef fits = new BytesRef("a".repeat(cap));
         final BytesRef over = new BytesRef("a".repeat(cap) + "b");
@@ -624,7 +624,7 @@ public class PlainSkipIndexCodecTests extends ESTestCase {
             PlainSkipIndexCodec.DEFAULT_LEVEL_SHIFT,
             cap,
             2.0,
-            PlainSkipIndexCodec.DEFAULT_JUDGE_AFTER_INTERVALS
+            PlainSkipIndexCodec.DEFAULT_LOCALITY_SAMPLE_INTERVALS
         );
         final int docs = between(1, 200);
         final BytesRef[] values = new BytesRef[docs];

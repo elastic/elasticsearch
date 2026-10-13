@@ -240,11 +240,11 @@ public final class PlainStringColumnReader extends StringColumnReader {
                 upper,
                 includeUpper
             );
-        final boolean intervalsDecide = skipping != null && hasNullSlots == false;
+        final boolean canAcceptFromBounds = skipping != null && hasNullSlots == false;
         return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(skipping == null ? presence : skipping) {
             @Override
             public boolean matches() throws IOException {
-                if (intervalsDecide && skipping.interiorToRange() && valueCount(presence.rank()) > 0) {
+                if (canAcceptFromBounds && skipping.intervalInsideRange() && valueCount(presence.rank()) > 0) {
                     return true;
                 }
                 return matchesRangeRank(presence.rank(), lower, includeLower, upper, includeUpper, lastSeen);

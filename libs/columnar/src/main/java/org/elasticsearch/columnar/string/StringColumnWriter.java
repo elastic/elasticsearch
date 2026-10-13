@@ -207,12 +207,12 @@ public final class StringColumnWriter {
         // the comparison decides cannot be restored, and the value it would compare against is not kept.
         final BytesRefBuilder previous = new BytesRefBuilder();
         boolean hasPrevious = false;
-        final PlainSkipIndexCodec.Writer skip = options.skipIndex()
+        final PlainSkipIndexCodec.Writer skipIndexWriter = options.writeSkipIndex()
             ? PlainSkipIndexCodec.DEFAULT.writer(skipIndex)
             : PlainSkipIndexCodec.DEFAULT.disabledWriter();
         for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
             slots.startDocument(valueAddress);
-            skip.startDoc(doc);
+            skipIndexWriter.startDoc(doc);
             for (int i = 0, count = values.valueCount(); i < count; i++) {
                 values.nextValue();
                 final BytesRef value = values.value();
@@ -232,7 +232,7 @@ public final class StringColumnWriter {
                             hasPrevious = true;
                         }
                     }
-                    skip.add(value);
+                    skipIndexWriter.add(value);
                     stream.add(value);
                 }
                 valueAddress++;
@@ -241,7 +241,7 @@ public final class StringColumnWriter {
         written = stream.finish();
         valuesWorthNaming = dictionaryPolicy.enabled() == false || stream.runs() * StringColumnReader.MIN_PAGE_REPEAT <= numValues;
         addressing = slots.finish(valueAddress);
-        final StringColumnMetadata.Plain.Skipper skipper = skip.finish(sorted && SlotAddressing.NONE.equals(addressing));
+        final StringColumnMetadata.Plain.Skipper skipper = skipIndexWriter.finish(sorted && SlotAddressing.NONE.equals(addressing));
         // Checked rather than asserted: these are on the wire, and a reader, or the next merge, would trust them.
         if (nulls != numNullSlots) {
             throw new IllegalStateException("wrote " + nulls + " null slots, counted " + numNullSlots);

@@ -38,6 +38,6 @@ public class MatchOnlyTextColumnarNullHandlingTests extends AbstractColumnarNull
         final StringColumnOptions options = ((FieldMapper) codecMapperService().mappingLookup().getMapper(FIELD)).columnarStringOptions();
         assertNotNull("a match_only_text field is written as a string column", options);
         assertEquals(DictionaryPolicy.NONE, options.dictionary());
-        assertFalse("no range query reaches a match_only_text column", options.skipIndex());
+        assertFalse("no range query reaches a match_only_text column", options.writeSkipIndex());
     }
 }

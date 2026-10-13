@@ -55,6 +55,11 @@
         ],
         "default": "open",
         "description": "Whether to expand wildcard expression to concrete indices that are open, closed or both."
+      },
+      "include_auto_calibration": {
+        "type": "boolean",
+        "default": false,
+        "description": "If set to true, auto-calibration parameters are included per segment for dense_vector fields that support auto-calibration."
       }
     }
   }

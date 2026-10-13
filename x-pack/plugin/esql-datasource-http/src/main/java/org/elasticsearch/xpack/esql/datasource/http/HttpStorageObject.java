@@ -7,14 +7,15 @@
 
 package org.elasticsearch.xpack.esql.datasource.http;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.HttpStatus;
+import org.apache.hc.core5.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpStatus;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalPlanningIo;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.LogThrottle;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
@@ -64,6 +66,13 @@ import java.util.concurrent.atomic.AtomicReference;
 public final class HttpStorageObject extends AbstractMeteredStorageObject {
 
     private static final Logger logger = LogManager.getLogger(HttpStorageObject.class);
+
+    /**
+     * Bounds WARN lines for HTTP error-response bodies: the body is withheld from the user-facing message (it often
+     * names the bucket or object), so the node log is the only place it survives. Shared across every HTTP object on
+     * the node — anyone who can query a failing dataset can repeat the failure.
+     */
+    static final LogThrottle ERROR_BODY_WARN = new LogThrottle(TimeValue.timeValueMinutes(1));
 
     private final HttpClient client;
     private final StoragePath path;
@@ -185,13 +194,17 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
      * any other status becomes an {@link IOException}, which the external source operator classifies as
      * a client-class 400. {@code detail} is an optional truncated error-response body: a store's error body
      * routinely names the bucket or object in plain text (e.g. a GCS {@code {"error":{"message":"No such object:
-     * bucket/key"}}}), so it is logged here for the admin at DEBUG and never forwarded. {@code retryAfterMs}
-     * is the parsed {@code Retry-After} hint (0 when absent). Returns (never throws) so both the
-     * synchronous and async read paths can route it.
+     * bucket/key"}}}), so it is never forwarded and is logged here for the admin — at WARN at most once a minute
+     * per node ({@link #ERROR_BODY_WARN}), otherwise at DEBUG. {@code retryAfterMs} is the parsed {@code Retry-After}
+     * hint (0 when absent). Returns (never throws) so both the synchronous and async read paths can route it.
      */
     private Exception mapReadFailure(String context, int statusCode, String detail, long retryAfterMs) {
         if (detail != null && detail.isEmpty() == false) {
-            logger.debug("HTTP {} error body reading [{}]: {}", statusCode, path.objectName(), detail);
+            if (ERROR_BODY_WARN.tryAcquire()) {
+                logger.warn("HTTP {} error body reading [{}]: {}", statusCode, path.objectName(), detail);
+            } else {
+                logger.debug("HTTP {} error body reading [{}]: {}", statusCode, path.objectName(), detail);
+            }
         }
         if (ExternalUnavailableException.isRetryableStatus(statusCode)) {
             boolean throttling = ExternalUnavailableException.isThrottlingStatus(statusCode);
@@ -393,14 +406,17 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
         HttpRequest request = buildRangeRequest(position, length);
         long startNanos = System.nanoTime();
         AsyncReadHandle handle = new AsyncReadHandle(listener, startNanos);
-        CompletableFuture<HttpResponse<DirectReadBuffer>> future = client.sendAsync(
-            request,
-            DirectByteBufferBodyHandlers.ofRangeRead(position, (int) length, factory, path)
+        HttpResponse.BodyHandler<DirectReadBuffer> bodyHandler = capturingBody(
+            DirectByteBufferBodyHandlers.ofRangeRead(position, (int) length, factory, path),
+            handle
         );
+        CompletableFuture<HttpResponse<DirectReadBuffer>> future = client.sendAsync(request, bodyHandler);
         handle.register(future);
         onReadComplete(future, (response, throwable) -> {
             if (handle.isCancelled()) {
-                closeBodyQuietly(response);
+                if (response != null) {
+                    handle.discardBody(response.body());
+                }
                 handle.notifyCancelled();
                 return;
             }
@@ -421,20 +437,21 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                     observeHeaders(response.headers(), position, true);
                 } catch (ExternalObjectChangedException e) {
                     counters.addRequest(System.nanoTime() - startNanos, 0L);
-                    response.body().close();
+                    handle.discardBody(response.body());
                     if (handle.tryCompleteListener()) {
                         listener.onFailure(e);
                     }
                     return;
                 }
                 if (handle.tryCompleteListener()) {
+                    handle.markListenerOwnsBody();
                     deliverRead(listener, response.body(), startNanos);
                 } else {
-                    response.body().close();
+                    handle.discardBody(response.body());
                 }
             } else {
                 counters.addRequest(System.nanoTime() - startNanos, 0L);
-                response.body().close();
+                handle.discardBody(response.body());
                 if (handle.tryCompleteListener()) {
                     long retryAfterMs = ExternalUnavailableException.parseRetryAfterMs(
                         response.headers().firstValue("retry-after").orElse(null)
@@ -446,25 +463,39 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
         return handle::cancel;
     }
 
-    private static void closeBodyQuietly(HttpResponse<DirectReadBuffer> response) {
-        if (response == null || response.body() == null) {
-            return;
-        }
-        try {
-            response.body().close();
-        } catch (RuntimeException ignored) {
-            // Cancel already owns the listener; a close fault must not hide TaskCancelledException.
-        }
+    private static HttpResponse.BodyHandler<DirectReadBuffer> capturingBody(
+        HttpResponse.BodyHandler<DirectReadBuffer> inner,
+        AsyncReadHandle handle
+    ) {
+        return responseInfo -> {
+            HttpResponse.BodySubscriber<DirectReadBuffer> subscriber = inner.apply(responseInfo);
+            handle.registerBody(subscriber.getBody().toCompletableFuture());
+            return subscriber;
+        };
     }
 
     /**
-     * Cancellation handle for one {@code sendAsync} GET. {@link #cancel} aborts the JDK future and
-     * claims the listener immediately so notify does not wait on the client completing the future.
+     * Cancellation handle for one {@code sendAsync} GET. {@link #cancel} claims the listener
+     * immediately and cancels both the response future and the subscriber body future (including
+     * a body that only exists once headers arrive). Buffer ownership is not "whoever wins
+     * {@link #tryCompleteListener()}": the 200/206 success path marks {@link BodyOwner#LISTENER}
+     * and {@link #deliverRead} hands the buffer off; cancel that wins the listener CAS marks
+     * {@link BodyOwner#HANDLE} and {@link #discardBody} closes it exactly once. A completed body
+     * whose cancel returns false is discarded only for {@code HANDLE}.
      */
     private final class AsyncReadHandle {
+        private enum BodyOwner {
+            NONE,
+            HANDLE,
+            LISTENER
+        }
+
         private volatile boolean cancelled;
         private final AtomicBoolean listenerDone = new AtomicBoolean();
+        private final AtomicReference<BodyOwner> bodyOwner = new AtomicReference<>(BodyOwner.NONE);
+        private final AtomicBoolean bodyDiscarded = new AtomicBoolean();
         private final AtomicReference<CompletableFuture<?>> inFlight = new AtomicReference<>();
+        private final AtomicReference<CompletableFuture<DirectReadBuffer>> body = new AtomicReference<>();
         private final ActionListener<DirectReadBuffer> listener;
         private final long startNanos;
 
@@ -480,25 +511,66 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
             }
         }
 
+        void registerBody(CompletableFuture<DirectReadBuffer> bodyFuture) {
+            body.set(bodyFuture);
+            if (cancelled) {
+                abortBody(bodyFuture);
+            }
+        }
+
         boolean tryCompleteListener() {
             return listenerDone.compareAndSet(false, true);
         }
 
-        void notifyCancelled() {
+        void markListenerOwnsBody() {
+            bodyOwner.set(BodyOwner.LISTENER);
+            bodyDiscarded.compareAndSet(false, true);
+        }
+
+        boolean notifyCancelled() {
             if (tryCompleteListener()) {
+                bodyOwner.set(BodyOwner.HANDLE);
                 counters.addRequest(System.nanoTime() - startNanos, 0L);
                 listener.onFailure(new TaskCancelledException("read cancelled"));
+                return true;
             }
+            return false;
         }
 
         void cancel() {
             cancelled = true;
             FutureUtils.cancel(inFlight.get());
             notifyCancelled();
+            abortBody(body.get());
         }
 
         boolean isCancelled() {
             return cancelled;
+        }
+
+        private void abortBody(CompletableFuture<DirectReadBuffer> bodyFuture) {
+            if (bodyFuture == null) {
+                return;
+            }
+            if (FutureUtils.cancel(bodyFuture) == false
+                && bodyOwner.get() == BodyOwner.HANDLE
+                && bodyFuture.isCompletedExceptionally() == false) {
+                discardBody(bodyFuture.getNow(null));
+            }
+        }
+
+        void discardBody(DirectReadBuffer buffer) {
+            if (buffer == null) {
+                return;
+            }
+            if (bodyDiscarded.compareAndSet(false, true) == false) {
+                return;
+            }
+            try {
+                buffer.close();
+            } catch (RuntimeException ignored) {
+                // Listener outcome is already chosen; a close fault must not replace it.
+            }
         }
     }
 

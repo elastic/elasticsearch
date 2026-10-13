@@ -46,6 +46,15 @@ public interface SearchStats {
     boolean canUseEqualityOnSyntheticSourceDelegate(FieldName name, String value);
 
     /**
+     * Do all fields with the matching name answer a query over the values their doc values hold? Such a query matches a
+     * document's value whole, which is what a predicate over the value means, so one can be pushed to Lucene for a
+     * field whose index holds no exact form of it - a {@code text} field keeping its values in a column.
+     */
+    default boolean hasValueQueries(FieldName field) {
+        return false;
+    }
+
+    /**
      * Do all fields with the matching name support this loader config?
      */
     boolean supportsLoaderConfig(FieldName name, BlockLoaderFunctionConfig config, MappedFieldType.FieldExtractPreference preference);

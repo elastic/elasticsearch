@@ -74,6 +74,16 @@ Functions that convert between scalars and instant vectors.
 :::
 ::::
 
+### Metadata functions
+
+Functions that derive new labels from existing label values.
+
+::::{dropdown} Metadata function list
+:open:
+:::{include} _snippets/generated/x-pack-esql/functions/lists/metadata-overview.md
+:::
+::::
+
 ### Sorting functions
 
 Functions that order an instant vector by sample value.

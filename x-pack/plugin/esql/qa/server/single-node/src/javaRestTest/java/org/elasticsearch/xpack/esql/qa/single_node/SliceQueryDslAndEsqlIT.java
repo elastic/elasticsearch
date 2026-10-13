@@ -127,8 +127,7 @@ public class SliceQueryDslAndEsqlIT extends ESRestTestCase {
         assertOK(client().performRequest(createIndex));
 
         StringBuilder bulk = new StringBuilder();
-        // sorted so that the vectors, which depend on the order of the slices, are the same on every run
-        new TreeMap<>(DOCS_PER_SLICE).forEach((slice, docs) -> {
+        DOCS_PER_SLICE.forEach((slice, docs) -> {
             for (int i = 0; i < docs; i++) {
                 bulk.append(org.elasticsearch.core.Strings.format("{\"index\": {\"_id\": \"%d\", \"_slice\": \"%s\"}}\n", i, slice));
                 bulk.append(
@@ -268,7 +267,7 @@ public class SliceQueryDslAndEsqlIT extends ESRestTestCase {
                 assertThat(slices.toString(), keys, not(empty()));
                 assertThat(slices.toString(), keys, everyItem(not(startsWith("acme-"))));
             }
-            // the search returns the k nearest neighbours overall, which ES|QL returns among the neighbours of each segment
+            // ES|QL returns the nearest neighbours of each segment, which include the k nearest overall that the search returns
             assertTrue(slices + ": " + searchKeys + " not in " + esqlKeys, esqlKeys.containsAll(searchKeys));
         }
     }

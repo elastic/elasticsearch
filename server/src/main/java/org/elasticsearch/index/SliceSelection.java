@@ -24,10 +24,7 @@ import java.util.List;
 public record SliceSelection(Kind kind, List<String> names) {
 
     public enum Kind {
-        /**
-         * No slice was selected. Every slice is read, unless the field mapper that builds a query needs the slices to be
-         * selected by name.
-         */
+        /** No slice was selected. Every slice is read, unless the field mapper that builds a query needs them by name. */
         UNSPECIFIED,
         /** Every slice was selected, with {@link SliceIndexing#SLICE_ALL}. A field mapper may still need them by name. */
         ALL,

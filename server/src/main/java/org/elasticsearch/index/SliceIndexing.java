@@ -357,7 +357,7 @@ public final class SliceIndexing {
     /**
      * Validates request-level slice/routing requirements and resolves effective routing for search-style APIs.
      * When {@code anySliceEnabled} is true and no {@code _slice} parameter was provided, routing is left unrestricted,
-     * covering all slices. The field mappers that build the queries of the request decide whether they accept that.
+     * covering all slices.
      */
     public static String validateAndResolveSliceRoutingRequirement(
         boolean anySliceEnabled,

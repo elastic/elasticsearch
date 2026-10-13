@@ -245,7 +245,7 @@ final class DefaultSearchContext extends SearchContext {
             );
             searchExecutionContext = circuitBreaker != null ? new SearchExecutionContext(baseContext, circuitBreaker) : baseContext;
             if (searchExecutionContext != null) {
-                // A request that names no slice says so: each field mapper decides whether it can build its query without one.
+                // The slices the request names, for the field mappers that build its queries.
                 searchExecutionContext.setSliceSelection(SliceSelection.fromSearchSlice(request.sliceRouting()));
             }
             queryBoost = request.indexBoost();

@@ -35,6 +35,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
@@ -198,9 +199,24 @@ public class ViewIT extends AbstractEsqlIntegTestCase {
         );
 
         // Per-series averages are 20 (host a) and 20 (host b). A plain sum over all docs would give 60.
-        assertAcked(createView("ts-view", "TS ts-source | STATS total = sum(avg_over_time(cpu)) | EVAL f1=1"));
-        try (EsqlQueryResponse response = run("FROM ts-view | EVAL f2=2")) {
+        assertAcked(createView("ts-view-1", "TS ts-source | STATS total = sum(avg_over_time(cpu)) | EVAL f1=1"));
+        try (EsqlQueryResponse response = run("FROM ts-view-1 | EVAL f2=2")) {
             assertThat(getValuesList(response), equalTo(List.of(List.of(40.0, 1, 2))));
+        }
+        expectThrows(
+            VerificationException.class,
+            containsString("Views are not supported in TS command, found view(s) [ts-view-1]"),
+            () -> run("TS ts-view-1 | EVAL f2=2").close()
+        );
+        expectThrows(
+            VerificationException.class,
+            containsString("Views are not supported in TS command, found view(s) [ts-view-1]"),
+            () -> run("TS ts-source,ts-view-1 | EVAL f2=2").close()
+        );
+
+        assertAcked(createView("ts-view-2", "TS ts-source | EVAL f1=1"));
+        try (EsqlQueryResponse response = run("FROM ts-view-2 | STATS total = sum(cpu) BY f1 | EVAL f2=2")) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(60L, 1, 2))));
         }
     }
 

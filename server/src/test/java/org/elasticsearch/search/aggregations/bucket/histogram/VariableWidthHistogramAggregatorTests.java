@@ -28,6 +28,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -35,6 +36,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalStats;
 import org.elasticsearch.search.aggregations.metrics.StatsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.TopHits;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 
 import java.io.IOException;
@@ -398,6 +400,105 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
                 assertEquals(11d, stats.getMax(), deltaError);
                 assertEquals(4L, stats.getCount());
                 assertTrue(AggregationInspectionHelper.hasValue(stats));
+            }
+        );
+    }
+
+    /**
+     * Buffers the values in an order that sorting does not map back onto itself, so every buffered doc changes
+     * ordinal when the buffer is clustered. Each bucket's {@code stats} sub-aggregation sees exactly the docs of
+     * that bucket.
+     */
+    public void testSubAggregationsWithUnsortedBuffer() throws IOException {
+        final List<Number> dataset = Arrays.asList(2, 4, 1, 3);
+
+        testSearchCase(
+            DEFAULT_QUERY,
+            dataset,
+            false,
+            aggregation -> aggregation.field(NUMERIC_FIELD)
+                .setNumBuckets(4)
+                .subAggregation(new StatsAggregationBuilder("stats").field(NUMERIC_FIELD)),
+            histogram -> {
+                double deltaError = 1d / 10000d;
+                List<InternalVariableWidthHistogram.Bucket> buckets = histogram.getBuckets();
+                assertEquals(4, buckets.size());
+                for (int i = 0; i < buckets.size(); i++) {
+                    InternalVariableWidthHistogram.Bucket bucket = buckets.get(i);
+                    assertEquals(i + 1, bucket.min(), deltaError);
+                    assertEquals(i + 1, bucket.max(), deltaError);
+                    assertEquals(1L, bucket.getDocCount());
+                    InternalStats stats = bucket.getAggregations().get("stats");
+                    assertEquals(i + 1, stats.getMin(), deltaError);
+                    assertEquals(i + 1, stats.getMax(), deltaError);
+                    assertEquals(1L, stats.getCount());
+                }
+            }
+        );
+    }
+
+    /**
+     * A {@code top_hits} sub-aggregation returns a doc from its own bucket.
+     */
+    public void testTopHitsSubAggregation() throws IOException {
+        final List<Number> dataset = Arrays.asList(2, 4, 1, 3);
+
+        testSearchCase(
+            DEFAULT_QUERY,
+            dataset,
+            false,
+            aggregation -> aggregation.field(NUMERIC_FIELD)
+                .setNumBuckets(4)
+                .subAggregation(AggregationBuilders.topHits("top").size(1).docValueField(NUMERIC_FIELD)),
+            histogram -> {
+                List<InternalVariableWidthHistogram.Bucket> buckets = histogram.getBuckets();
+                assertEquals(4, buckets.size());
+                for (InternalVariableWidthHistogram.Bucket bucket : buckets) {
+                    SearchHits hits = ((TopHits) bucket.getAggregations().get("top")).getHits();
+                    assertEquals(1L, hits.getTotalHits().value());
+                    Number hitValue = hits.getAt(0).field(NUMERIC_FIELD).getValue();
+                    assertEquals(bucket.centroid(), hitValue.doubleValue(), 0d);
+                }
+            }
+        );
+    }
+
+    /**
+     * On random data, settings and segment layouts, the {@code stats} sub-aggregation of every bucket agrees with the
+     * bucket's own doc count and centroid (the mean of the bucket's values), whether the docs were clustered from the
+     * initial buffer, added to an existing cluster, or put in a new cluster after the buffer filled. The bucket bounds
+     * are not compared, because the reduction moves the bounds of overlapping buckets to their midpoint.
+     */
+    public void testSubAggregationsMatchBucketCentroids() throws IOException {
+        final int numDocs = randomIntBetween(1, 200);
+        final List<Number> dataset = new ArrayList<>(numDocs);
+        for (int i = 0; i < numDocs; i++) {
+            dataset.add(randomIntBetween(-1000, 1000));
+        }
+        final int numBuckets = randomIntBetween(1, 8);
+        // 3/4 of the shard size must be at least the number of buckets
+        final int shardSize = randomIntBetween(numBuckets * 2, 50);
+        final int initialBuffer = randomIntBetween(numBuckets, 100);
+
+        testSearchCase(
+            DEFAULT_QUERY,
+            dataset,
+            randomBoolean(),
+            aggregation -> aggregation.field(NUMERIC_FIELD)
+                .setNumBuckets(numBuckets)
+                .setShardSize(shardSize)
+                .setInitialBuffer(initialBuffer)
+                .subAggregation(new StatsAggregationBuilder("stats").field(NUMERIC_FIELD)),
+            histogram -> {
+                double deltaError = 1d / 10000d;
+                long totalDocCount = 0;
+                for (InternalVariableWidthHistogram.Bucket bucket : histogram.getBuckets()) {
+                    InternalStats stats = bucket.getAggregations().get("stats");
+                    assertEquals(bucket.getDocCount(), stats.getCount());
+                    assertEquals(bucket.centroid(), stats.getAvg(), deltaError);
+                    totalDocCount += bucket.getDocCount();
+                }
+                assertEquals(numDocs, totalDocCount);
             }
         );
     }

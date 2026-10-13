@@ -120,3 +120,67 @@ initial_buffer:
   - length: { aggregations.histo.buckets: 2 }
   - match: { aggregations.histo.buckets.0: {"min": -3.0, "key": -1.3333333333333333, "max": 1.0, "doc_count": 3 } }
   - match: { aggregations.histo.buckets.1: {"min":  4.0, "key":  7.5, "max": 11.0, "doc_count": 8 } }
+
+---
+sub-aggregations see the docs of their own bucket:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ variable_width_histogram_sub_agg_ordinals ]
+      test_runner_features: [capabilities]
+      reason: "sub-aggregations of variable_width_histogram receive the documents of their bucket"
+  - do:
+      indices.create:
+        index: test_sub_aggs
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              number:
+                type: integer
+  - do:
+      bulk:
+        refresh: true
+        index: test_sub_aggs
+        body:
+          - '{"index": {}}'
+          - '{"number": 2}'
+          - '{"index": {}}'
+          - '{"number": 4}'
+          - '{"index": {}}'
+          - '{"number": 1}'
+          - '{"index": {}}'
+          - '{"number": 3}'
+  - do:
+      search:
+        index: test_sub_aggs
+        body:
+          size: 0
+          aggs:
+            histo:
+              variable_width_histogram:
+                field: number
+                buckets: 4
+              aggs:
+                top:
+                  top_hits:
+                    size: 1
+                min_number:
+                  min:
+                    field: number
+  - match: { hits.total.value: 4 }
+  - length: { aggregations.histo.buckets: 4 }
+  - match: { aggregations.histo.buckets.0.key: 1.0 }
+  - match: { aggregations.histo.buckets.0.top.hits.hits.0._source.number: 1 }
+  - match: { aggregations.histo.buckets.0.min_number.value: 1.0 }
+  - match: { aggregations.histo.buckets.1.key: 2.0 }
+  - match: { aggregations.histo.buckets.1.top.hits.hits.0._source.number: 2 }
+  - match: { aggregations.histo.buckets.1.min_number.value: 2.0 }
+  - match: { aggregations.histo.buckets.2.key: 3.0 }
+  - match: { aggregations.histo.buckets.2.top.hits.hits.0._source.number: 3 }
+  - match: { aggregations.histo.buckets.2.min_number.value: 3.0 }
+  - match: { aggregations.histo.buckets.3.key: 4.0 }
+  - match: { aggregations.histo.buckets.3.top.hits.hits.0._source.number: 4 }
+  - match: { aggregations.histo.buckets.3.min_number.value: 4.0 }

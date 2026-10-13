@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -121,7 +122,12 @@ public class RestShardsAction extends AbstractCatAction {
             .addCell("dataset", "text-align:right;desc:total size of dataset")
             .addCell("ip", "default:true;desc:ip of node where it lives")
             .addCell("id", "default:false;desc:unique id of node where it lives")
-            .addCell("node", "default:true;alias:n;desc:name of node where it lives");
+            .addCell("node", "default:true;alias:n;desc:name of node where it lives")
+            .addCell(
+                "node.role",
+                "alias:r,role,nodeRole;default:false;desc:m:master eligible node, d:data node, i:ingest node, -:coordinating node only"
+            )
+            .addCell("_tier_preference", "alias:tp,tierPref;default:false;desc:index-level data tier preference");
 
         if (request.getRestApiVersion() == RestApiVersion.V_8) {
             table.addCell("sync_id", "alias:sync_id;default:false;desc:sync id");
@@ -321,11 +327,17 @@ public class RestShardsAction extends AbstractCatAction {
                 table.addCell(ip);
                 table.addCell(nodeId);
                 table.addCell(name);
+                table.addCell(state.getState().nodes().get(shard.currentNodeId()).getRoleAbbreviationString());
             } else {
                 table.addCell(null);
                 table.addCell(null);
                 table.addCell(null);
+                table.addCell(null);
             }
+
+            // _tier_preference from index settings
+            var indexMetadata = state.getState().metadata().getProject().index(shard.getIndexName());
+            table.addCell(indexMetadata != null ? DataTier.TIER_PREFERENCE_SETTING.get(indexMetadata.getSettings()) : null);
 
             if (request.getRestApiVersion() == RestApiVersion.V_8) {
                 table.addCell(null);

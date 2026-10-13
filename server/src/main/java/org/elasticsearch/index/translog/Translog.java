@@ -1260,7 +1260,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             INDEX((byte) 2),
             DELETE((byte) 3),
             NO_OP((byte) 4),
-            BATCH((byte) 5);
+            BATCH((byte) 5),
+            DOC_VALUES_UPDATE((byte) 6);
 
             // Verify that the ids shared with Operation.Type stay in sync.
             static {
@@ -1268,6 +1269,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 assert INDEX.id == Operation.Type.INDEX.id();
                 assert DELETE.id == Operation.Type.DELETE.id();
                 assert NO_OP.id == Operation.Type.NO_OP.id();
+                assert DOC_VALUES_UPDATE.id == Operation.Type.DOC_VALUES_UPDATE.id();
             }
 
             private final byte id;
@@ -1287,6 +1289,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                     case 3 -> DELETE;
                     case 4 -> NO_OP;
                     case 5 -> BATCH;
+                    case 6 -> DOC_VALUES_UPDATE;
                     default -> throw new IllegalArgumentException("no type mapped for [" + id + "]");
                 };
             }
@@ -1305,6 +1308,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             case CREATE, INDEX -> Index.readFrom(input);
             case DELETE -> Delete.readFrom(input);
             case NO_OP -> new NoOp(input);
+            case DOC_VALUES_UPDATE -> DocValuesUpdate.readFrom(input);
             case BATCH -> IndexOperationBatch.TranslogRecord.readFrom(input);
         };
     }
@@ -1313,7 +1317,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * A generic interface representing an operation performed on the transaction log.
      * Each is associated with a type.
      */
-    public abstract static sealed class Operation implements Writeable, Record permits Delete, Index, NoOp {
+    public abstract static sealed class Operation implements Writeable, Record permits Delete, Index, NoOp, DocValuesUpdate {
 
         /**
          * The type of a single-document operation.
@@ -1324,7 +1328,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             CREATE((byte) 1),
             INDEX((byte) 2),
             DELETE((byte) 3),
-            NO_OP((byte) 4);
+            NO_OP((byte) 4),
+            DOC_VALUES_UPDATE((byte) 6);
 
             private final byte id;
 
@@ -1371,6 +1376,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 case CREATE, INDEX -> Index.readFrom(input);
                 case DELETE -> Delete.readFrom(input);
                 case NO_OP -> new NoOp(input);
+                case DOC_VALUES_UPDATE -> DocValuesUpdate.readFrom(input);
                 case BATCH -> throw new IOException("Cannot read batch record as a single Operation");
             };
         }
@@ -1853,6 +1859,201 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
+    /**
+     * A translog record for an in-place doc-values update: the document identified by {@link #uid} keeps all of its fields except the
+     * ones named in {@link #updates}, whose doc-values columns are overwritten. See {@code doc_values.updatable}.
+     */
+    public static final class DocValuesUpdate extends Operation {
+
+        /**
+         * Wire-format version; unstable while behind the feature flag, so readers reject any other value.
+         */
+        public static final int EXPERIMENTAL_PRE_RELEASE = 0;
+
+        /**
+         * A single field's new doc-values value. The two shapes mirror the only Lucene doc-values types that
+         * {@code IndexWriter#updateDocValues} accepts.
+         */
+        public sealed interface FieldUpdate extends Writeable permits NumericFieldUpdate, BinaryFieldUpdate {
+            byte NUMERIC_TAG = 0;
+            byte BINARY_TAG = 1;
+
+            String field();
+
+            /** Rough in-memory footprint of this update: the field name plus its value. */
+            default long estimatedSizeInBytes() {
+                return 2L * field().length() + switch (this) {
+                    case NumericFieldUpdate n -> Long.BYTES;
+                    case BinaryFieldUpdate b -> b.value().length;
+                };
+            }
+
+            static FieldUpdate readFrom(StreamInput in) throws IOException {
+                byte tag = in.readByte();
+                return switch (tag) {
+                    case NUMERIC_TAG -> new NumericFieldUpdate(in.readString(), in.readLong());
+                    case BINARY_TAG -> new BinaryFieldUpdate(in.readString(), in.readBytesRef());
+                    default -> throw new IOException("unknown DocValuesUpdate.FieldUpdate tag [" + tag + "]");
+                };
+            }
+        }
+
+        public record NumericFieldUpdate(String field, long value) implements FieldUpdate {
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                out.writeByte(NUMERIC_TAG);
+                out.writeString(field);
+                out.writeLong(value);
+            }
+        }
+
+        public record BinaryFieldUpdate(String field, BytesRef value) implements FieldUpdate {
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                out.writeByte(BINARY_TAG);
+                out.writeString(field);
+                out.writeBytesRef(value);
+            }
+        }
+
+        private final BytesRef uid;
+        private final long version;
+        private final List<FieldUpdate> updates;
+
+        private static DocValuesUpdate readFrom(StreamInput in) throws IOException {
+            final int format = in.readVInt();
+            if (format != EXPERIMENTAL_PRE_RELEASE) {
+                throw new IOException("unexpected doc values update format [" + format + "]");
+            }
+            final long version = in.readLong();
+            final long seqNo = in.readLong();
+            final long primaryTerm = in.readLong();
+            final BytesRef uid = in.readBytesRef();
+            final List<FieldUpdate> updates = in.readCollectionAsList(FieldUpdate::readFrom);
+            return new DocValuesUpdate(uid, seqNo, primaryTerm, version, updates);
+        }
+
+        public DocValuesUpdate(String id, long seqNo, long primaryTerm, long version, List<FieldUpdate> updates) {
+            this(Uid.encodeId(id), seqNo, primaryTerm, version, updates);
+        }
+
+        /**
+         * Serializes the uid and field updates into the payload stored on a doc-values-update history document. The uid rides in the
+         * payload (rather than an indexed {@code _id} field) so that a later {@code IndexWriter#updateDocValues} by the {@code _id} term
+         * does not also rewrite the history document. The inverse is {@link #fromHistoryPayload}.
+         */
+        public static BytesReference serializeUpdates(BytesRef uid, List<FieldUpdate> updates) throws IOException {
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                out.writeBytesRef(uid);
+                out.writeCollection(updates);
+                return out.bytes();
+            }
+        }
+
+        /**
+         * Reconstructs the operation from the payload of a doc-values-update history document (see
+         * {@code ParsedDocument#docValuesUpdateHistory}).
+         */
+        public static DocValuesUpdate fromHistoryPayload(long seqNo, long primaryTerm, long version, BytesRef payload) throws IOException {
+            try (StreamInput in = new BytesArray(payload).streamInput()) {
+                final BytesRef uid = in.readBytesRef();
+                final List<FieldUpdate> updates = in.readCollectionAsList(FieldUpdate::readFrom);
+                return new DocValuesUpdate(uid, seqNo, primaryTerm, version, updates);
+            }
+        }
+
+        public DocValuesUpdate(BytesRef uid, long seqNo, long primaryTerm, long version, List<FieldUpdate> updates) {
+            super(seqNo, primaryTerm);
+            this.uid = Objects.requireNonNull(uid);
+            this.version = version;
+            this.updates = List.copyOf(updates);
+        }
+
+        @Override
+        public Type opType() {
+            return Type.DOC_VALUES_UPDATE;
+        }
+
+        @Override
+        public long estimateSize() {
+            long size = uid.length + (3 * Long.BYTES); // seq_no, primary_term, version
+            for (FieldUpdate update : updates) {
+                size += update.estimatedSizeInBytes();
+            }
+            return size;
+        }
+
+        public BytesRef uid() {
+            return uid;
+        }
+
+        public long version() {
+            return version;
+        }
+
+        public List<FieldUpdate> updates() {
+            return updates;
+        }
+
+        @Override
+        protected void writeHeader(int format, StreamOutput out) throws IOException {
+            out.writeVInt(format);
+            out.writeLong(version);
+            out.writeLong(seqNo);
+            out.writeLong(primaryTerm);
+            out.writeBytesRef(uid);
+            out.writeCollection(updates);
+        }
+
+        @Override
+        public void writeBody(StreamOutput out) throws IOException {
+            writeHeader(EXPERIMENTAL_PRE_RELEASE, out);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            DocValuesUpdate that = (DocValuesUpdate) o;
+            return seqNo == that.seqNo
+                && primaryTerm == that.primaryTerm
+                && version == that.version
+                && uid.equals(that.uid)
+                && updates.equals(that.updates);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = uid.hashCode();
+            result = 31 * result + Long.hashCode(seqNo);
+            result = 31 * result + Long.hashCode(primaryTerm);
+            result = 31 * result + Long.hashCode(version);
+            result = 31 * result + updates.hashCode();
+            return result;
+        }
+
+        @Override
+        public String toString() {
+            return "DocValuesUpdate{"
+                + "id='"
+                + Uid.decodeId(uid.bytes, uid.offset, uid.length)
+                + '\''
+                + ", seqNo="
+                + seqNo
+                + ", primaryTerm="
+                + primaryTerm
+                + ", version="
+                + version
+                + ", updates="
+                + updates
+                + '}';
+        }
+    }
+
     public enum Durability {
 
         /**
@@ -1991,6 +2192,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             case Index index -> TranslogHeaderWriter.writeIndexHeader(out, index);
             case Delete delete -> TranslogHeaderWriter.writeDeleteHeader(out, delete);
             case NoOp noOp -> TranslogHeaderWriter.writeNoOpHeader(out, noOp);
+            case DocValuesUpdate update -> TranslogHeaderWriter.writeDocValuesUpdateHeader(out, update);
         }
     }
 

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.glob.ListingExtents;
@@ -28,7 +29,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -51,6 +51,12 @@ public class DatasetListingServiceCacheTests extends ESTestCase {
     private static final String GLOB = "s3://bucket/logs/year=*/month=*/*.csv";
     private static final String OLD = "s3://bucket/logs/year=2023/month=01/old.csv";
     private static final String KEPT = "s3://bucket/logs/year=2024/month=01/a.csv";
+
+    /** The spelling-miss case: a leading {@code *} segment, so neither the original nor the spliced glob walks. */
+    private static final String SPELLING_GLOB = "s3://bucket/logs/*/year=*/month=*/*.csv";
+    private static final String SPELLING_DROPPED = "s3://bucket/logs/x/year=2023/month=6/o.csv";
+    private static final String SPELLING_ALT = "s3://bucket/logs/x/year=2024/month=06/s.csv";
+    private static final String SPELLING_KEPT = "s3://bucket/logs/x/year=2024/month=6/k.csv";
 
     /** The glob of the retry case: a second segment the splice leaves as {@code *}, so the narrowed pass cannot walk. */
     private static final String RETRY_GLOB = "s3://bucket/logs/year=*/*/*.csv";
@@ -240,7 +246,7 @@ public class DatasetListingServiceCacheTests extends ESTestCase {
                 PlanningMemory.NONE,
                 () -> false,
                 1,
-                directExecutor(),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 future
             );
             assertEquals("the bounded drain applies the filter itself", List.of(KEPT), paths(future.get()));
@@ -254,6 +260,87 @@ public class DatasetListingServiceCacheTests extends ESTestCase {
                 provider.listObjectsCalls.get() > listsAfterBounded
             );
         }
+    }
+
+    /**
+     * And the retry must not be published where nothing walked at all — the route that defeats both halves of a
+     * rule written about the walk.
+     *
+     * <p>The splice is a literal string; the value filter is a comparison on the typed value. So a folder spelled
+     * {@code month=06} is kept by a {@code month == 6} filter and missed by a spliced {@code month=6}, and the
+     * retry on the original pattern keeps it where the spliced drain the unbounded rail runs never lists it. The
+     * glob's first segment is {@code *}, so neither pattern is walkable: nothing withdraws, nothing suppresses the
+     * filter, and before this was fixed the listing carried a real count and was published.
+     *
+     * <p>Worse than the walk routes, because the extra file's rows satisfy the {@code WHERE} — month 6 of 2024 —
+     * so the rows the query returns change, not only the file a schema is taken from.
+     */
+    public void testTheSpellingMissRetryIsNotPublishedWhereNothingWalks() throws Exception {
+        try (ExternalSourceCacheService cache = new ExternalSourceCacheService(cacheEnabled())) {
+            DatasetListingService service = new DatasetListingService(Settings.EMPTY, cache, null, null, null);
+            TreeProvider provider = spellingFixture();
+
+            FileList boundedFirst = service.boundedListing(
+                SPELLING_GLOB,
+                StoragePath.of(SPELLING_GLOB),
+                provider,
+                "",
+                "",
+                spellingHints(),
+                Map.of(),
+                new ListingExtents(1),
+                PlanningMemory.NONE,
+                () -> false
+            );
+            assertEquals("the retry keeps the other spelling the splice hid", List.of(SPELLING_ALT, SPELLING_KEPT), paths(boundedFirst));
+
+            long listsAfterBounded = provider.listObjectsCalls.get();
+            FileList whole = service.cachedListing(
+                SPELLING_GLOB,
+                StoragePath.of(SPELLING_GLOB),
+                provider,
+                "",
+                "",
+                spellingHints(),
+                Map.of(),
+                PlanningMemory.NONE,
+                () -> false
+            );
+
+            assertEquals("a query that wants the whole pattern gets its own file set", List.of(SPELLING_KEPT), paths(whole));
+            assertTrue(
+                "which means it listed for itself rather than reading the retry's wider set",
+                provider.listObjectsCalls.get() > listsAfterBounded
+            );
+        }
+    }
+
+    /** The two spellings of month 6, plus the out-of-range file whose glob match spends the bound. */
+    private static TreeProvider spellingFixture() {
+        return new TreeProvider(
+            List.of(
+                new StorageEntry(StoragePath.of(SPELLING_DROPPED), 10, Instant.EPOCH),
+                new StorageEntry(StoragePath.of(SPELLING_ALT), 10, Instant.EPOCH),
+                new StorageEntry(StoragePath.of(SPELLING_KEPT), 10, Instant.EPOCH)
+            )
+        );
+    }
+
+    /** {@code month} splices into the glob; the closed range on {@code year} does not, so it drops a glob match. */
+    private static List<PartitionFilterHintExtractor.PartitionFilterHint> spellingHints() {
+        return List.of(
+            new PartitionFilterHintExtractor.PartitionFilterHint("month", PartitionFilterHintExtractor.Operator.EQUALS, List.of(6)),
+            new PartitionFilterHintExtractor.PartitionFilterHint(
+                "year",
+                PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL,
+                List.of(2024)
+            ),
+            new PartitionFilterHintExtractor.PartitionFilterHint(
+                "year",
+                PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL,
+                List.of(2024)
+            )
+        );
     }
 
     /** {@code year=abc} is what the walk cannot type, so it withdraws and re-lists with the year filter suppressed. */
@@ -286,11 +373,6 @@ public class DatasetListingServiceCacheTests extends ESTestCase {
                 List.of(7)
             )
         );
-    }
-
-    /** Runs the listing on the calling thread, so the test observes the publish decision without a thread pool. */
-    private static Executor directExecutor() {
-        return Runnable::run;
     }
 
     /** Lists a flat entry set as a directory tree, so the partition walk has children to descend. */

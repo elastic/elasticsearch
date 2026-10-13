@@ -175,10 +175,11 @@ public class ExternalListingPassCountIT extends AbstractExternalDataSourceIT {
         // recording, or a fixture that stopped reaching the store, cannot read as a cache hit.
         assertThat("the cold query listed", CountingStorageProvider.listingPasses(), greaterThan(0L));
         assertThat("and visited keys", CountingStorageProvider.keysVisited(), greaterThan(0L));
-        // Not childListings: this dataset's glob carries no partition-value hints, so neither the fan-out nor the
-        // walk runs even on the cold query, and there is no non-zero reading of it to be had here. Asserting it
-        // zero below is a guard against either of them appearing on a repeat query, not a cache measurement; that
-        // the counter can count at all is what testAnAggregateDoesNotListOncePerPartitionFolder establishes.
+        // Not childListings: this query is bounded, and only an unbounded listing fans out or walks - the glob
+        // carrying no partition-value hints is what rules out the walk, not the fan-out, which
+        // testAnAggregateDoesNotListOncePerPartitionFolder drives to a non-zero count on this same glob. So there
+        // is no non-zero reading of it to be had here, and asserting it zero below is a guard against either of
+        // them appearing on a repeat query rather than a cache measurement.
 
         CountingStorageProvider.reset();
         try (EsqlQueryResponse response = query(coordinator, "FROM " + dataset + " | LIMIT 0")) {

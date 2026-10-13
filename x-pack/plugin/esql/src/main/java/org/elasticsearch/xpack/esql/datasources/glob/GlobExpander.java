@@ -856,6 +856,10 @@ public final class GlobExpander {
         Check.notNull(provider, "provider cannot be null");
 
         String effectivePattern = allowRewrite ? effectivePattern(pattern, hints, partitionConfig) : pattern;
+        // The empty-rewrite retry lists the original pattern where another query's drain lists the spliced one, and
+        // the splice hides every other spelling of the hinted value while the value filter keeps them. So this drain
+        // can return files that drain never sees, and the count it stops on is not that drain's number.
+        boolean spliceSkipped = allowRewrite == false && effectivePattern(pattern, hints, partitionConfig).equals(pattern) == false;
 
         StoragePath storagePath = StoragePath.of(effectivePattern);
 
@@ -1124,7 +1128,7 @@ public final class GlobExpander {
             fileHints,
             excludedCount,
             globKeptCount,
-            suppressValueFilter,
+            suppressValueFilter || spliceSkipped,
             excludedExample,
             excludedExampleEntry,
             truncated,
@@ -1145,6 +1149,10 @@ public final class GlobExpander {
      * fan-out so the two cannot disagree about what a listing is; they differ only in how the entries were gathered.
      *
      * @param reserved how many of the retained entries the drain has already reserved heap for
+     * @param countNotComparable whether this drain applied narrowings another query's drain would not, or skipped
+     *                           ones it would, so the number it stopped on is not that drain's number. Recorded as
+     *                           {@link FileList#UNKNOWN_GLOB_MATCH_COUNT}, which is what keeps such a listing out
+     *                           of both the bounded serve rule and the bounded publish rule.
      */
     private static FileList finishListing(
         String pattern,
@@ -1155,7 +1163,7 @@ public final class GlobExpander {
         List<PartitionFilterHint> fileHints,
         int excludedCount,
         int globKeptCount,
-        boolean valueFilterSuppressed,
+        boolean countNotComparable,
         @Nullable String excludedExample,
         @Nullable String excludedExampleEntry,
         boolean truncated,
@@ -1275,7 +1283,7 @@ public final class GlobExpander {
         // folder holding no matching file (a console placeholder, a _SUCCESS, another format) is visible only to the
         // walk. Recording no count keeps the entry cacheable for a query that wants the whole pattern and refuses it
         // to a bounded one, which re-lists -- the conservative direction servesThisBound documents.
-        int recordedCount = valueFilterSuppressed ? FileList.UNKNOWN_GLOB_MATCH_COUNT : globKeptCount;
+        int recordedCount = countNotComparable ? FileList.UNKNOWN_GLOB_MATCH_COUNT : globKeptCount;
         return new GenericFileList(matched, pattern, partitionMetadata, listingWarnings, truncated, false, recordedCount);
     }
 
@@ -1485,6 +1493,9 @@ public final class GlobExpander {
         // Fan-out eligible path: re-derive just enough of doExpandGlob's header to handle early exits
         // (non-pattern, enumerable) inline, then attempt to build slots for the fan-out.
         String effectivePattern = allowRewrite ? effectivePattern(pattern, hints, partitionConfig) : pattern;
+        // See doExpandGlob: a retry that skipped the splice keeps spellings the spliced drain never lists, so the
+        // count it stops on is not that drain's number. The fan-out reaches this too, because a retry is unbounded.
+        boolean spliceSkipped = allowRewrite == false && effectivePattern(pattern, hints, partitionConfig).equals(pattern) == false;
         StoragePath storagePath;
         try {
             storagePath = StoragePath.of(effectivePattern);
@@ -1628,7 +1639,8 @@ public final class GlobExpander {
                 isCancelled,
                 fanOutExecutor,
                 listener,
-                sharedListedCount
+                sharedListedCount,
+                spliceSkipped
             );
         } else {
             // Slots unavailable (listChildren unsupported, budget exhausted, or a value filter): use the flat drain.
@@ -1942,7 +1954,8 @@ public final class GlobExpander {
         BooleanSupplier isCancelled,
         Executor fanOutExecutor,
         ActionListener<FileList> listener,
-        AtomicInteger sharedListedCount
+        AtomicInteger sharedListedCount,
+        boolean spliceSkipped
     ) {
         int size = slots.size();
         AtomicReferenceArray<SlotResult> results = new AtomicReferenceArray<>(size);
@@ -2088,8 +2101,9 @@ public final class GlobExpander {
                         fileHints,
                         merged.excludedCount(),
                         merged.globKeptCount(),
-                        // The fan-out rail never withdraws a walk, so it never suppresses the filter.
-                        false,
+                        // The fan-out rail never withdraws a walk, so the filter is never suppressed here; a retry
+                        // that skipped the splice still reaches this rail, and its count is not comparable either.
+                        spliceSkipped,
                         merged.excludedExample(),
                         merged.excludedExampleEntry(),
                         false,

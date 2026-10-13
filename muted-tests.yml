@@ -133,9 +133,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:k8s-timeseries-increase.increase_of_double_no_grouping_promql}
   issue: https://github.com/elastic/elasticsearch/issues/150045
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
-  method: testGroupOnManyLongs
-  issue: https://github.com/elastic/elasticsearch/issues/150104
 - class: org.elasticsearch.xpack.stateless.engine.translog.StatelessTranslogIT
   method: testTranslogStressRecoveryTest
   issue: https://github.com/elastic/elasticsearch/issues/150297
@@ -232,21 +229,12 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testRelocateHollowableShardWithConnectionFailure
   issue: https://github.com/elastic/elasticsearch/issues/153156
-- class: org.elasticsearch.xpack.esql.action.FromDatasetIT
-  method: testNdjsonBadDateTokenHonorsErrorPolicyMatchingColumnar
-  issue: https://github.com/elastic/elasticsearch/issues/153158
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testSourceRelocationAndTargetRestart
   issue: https://github.com/elastic/elasticsearch/issues/153173
-- class: org.elasticsearch.xpack.esql.action.FromDatasetIT
-  method: testColumnarBadDateTokenNullsCellEagerAndDeferred
-  issue: https://github.com/elastic/elasticsearch/issues/153187
 - class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
   method: testCacheIsWarmedBeforeSearchShardRecoveryWhenVBCCGetsUploaded
   issue: https://github.com/elastic/elasticsearch/issues/153406
-- class: org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.SubTests
-  method: testEvaluate {TestCase=<big negative double>, <big positive double>}
-  issue: https://github.com/elastic/elasticsearch/issues/153598
 - class: org.elasticsearch.xpack.transform.transforms.TransformIndexerStateTests
   method: testRunOneJobAtATime
   issue: https://github.com/elastic/elasticsearch/issues/153770
@@ -407,15 +395,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
   method: testDeploymentSurvivesRestart {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/151923
-- class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
-  method: testUnpromotableRegisterCommitForRecoveryTracksAllBlobsPessimisticallyAndWaitsUntilShardStarts
-  issue: https://github.com/elastic/elasticsearch/issues/160055
-- class: org.elasticsearch.xpack.esql.action.FromDatasetIT
-  method: testAbsentDeclaredColumnEmitsResponseWarning
-  issue: https://github.com/elastic/elasticsearch/issues/160158
-- class: org.elasticsearch.xpack.esql.action.ExternalCsvHivePartitionedIT
-  method: testHivePartitionShadowWarningReachesClient
-  issue: https://github.com/elastic/elasticsearch/issues/160177
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {yaml=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old outlier_detection job}
   issue: https://github.com/elastic/elasticsearch/issues/157942
@@ -428,9 +407,6 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormatTests
   method: testRandomWithUpdatesAndGraph
   issue: https://github.com/elastic/elasticsearch/issues/160380
-- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityWithApmTracingRestIT
-  method: testTracingCrossCluster
-  issue: https://github.com/elastic/elasticsearch/issues/160408
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testTermVectorsApiRealtimeGet
   issue: https://github.com/elastic/elasticsearch/issues/153282
@@ -467,9 +443,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.engine.translog.StatelessTranslogIT
   method: testTranslogIsolatedNodeOnlyStressRecoveryTest
   issue: https://github.com/elastic/elasticsearch/issues/161325
-- class: org.elasticsearch.xpack.esql.CsvFlattenedKeywordIT
-  method: test {csv-spec:scoring.testMatchAndQueryStringFunctionsWithScore}
-  issue: https://github.com/elastic/elasticsearch/issues/153614
 - class: org.elasticsearch.xpack.migrate.action.ReindexDatastreamIndexTransportActionIT
   issue: https://github.com/elastic/elasticsearch/issues/161483
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardDisruptionIT
@@ -484,3 +457,6 @@ tests:
 - class: org.elasticsearch.search.vectors.RescoreKnnVectorQueryTests
   method: testRescoreDocs
   issue: https://github.com/elastic/elasticsearch/issues/161638
+- class: org.elasticsearch.compute.operator.exchange.ExchangeServiceTests
+  method: testExchangeSourceContinueOnFailure
+  issue: https://github.com/elastic/elasticsearch/issues/157535

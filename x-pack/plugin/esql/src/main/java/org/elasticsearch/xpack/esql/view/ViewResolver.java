@@ -227,8 +227,7 @@ public class ViewResolver {
         // {@link org.elasticsearch.xpack.esql.view.ViewCompaction} and is applied by EsqlSession
         // between view resolution and pre-analysis, so PreAnalyzer extracts the same index
         // patterns that the analyzer's ResolveTable will later look up. Keeping the resolver's
-        // output uncompacted is the foundation for the CPS lenient-field-caps work in
-        // esql-planning #543, #472.
+        // output uncompacted is the foundation for CPS lenient field-caps.
         replaceViews(
             plan,
             projectRouting,
@@ -569,7 +568,7 @@ public class ViewResolver {
         }
 
         // ViewShadowRelation siblings are only emitted in CPS mode — they exist solely to drive a
-        // per-level lenient field-caps lookup against linked projects (esql-planning #543). In
+        // per-level lenient field-caps lookup against linked projects. In
         // non-CPS mode the shadow has no consumer, so we skip the bookkeeping entirely; the rest of
         // the resolver behaves as if shadows are simply not part of the tree.
         boolean cpsEnabled = crossProjectModeDecider.crossProjectEnabled();
@@ -1019,7 +1018,7 @@ public class ViewResolver {
                 // Bare UnresolvedRelation branch: either a pass-through view or a plain index/alias
                 // ref from the user's query. Neither is a view branch — see the note above.
             } else if (vp.plan instanceof ViewShadowRelation) {
-                // Leave ViewShadowRelation bare — Phase A's ViewCompaction strip recognises it by
+                // Leave ViewShadowRelation bare — ViewCompaction's strip recognises it by
                 // type and removes it directly. Wrapping in NamedSubquery would hide it from the
                 // strip and keep its name out of the dropped-entries' keyspace.
                 plans.put(key, vp.plan);
@@ -1033,7 +1032,7 @@ public class ViewResolver {
         // compaction work has moved to the {@link ViewCompaction} analyzer rule, but a per-level merge
         // here keeps the resolved plan compact: a wide branching level (e.g. {@code FROM v1, v2, ... v9}
         // of compactable views) folds into a single {@link UnresolvedRelation} entry rather than a
-        // ViewUnionAll that would later trip {@link MergePlan#MAX_BRANCHES} at post-analysis verification.
+        // ViewUnionAll that would later trip {@link MergePlan} limit at logical verification.
         mergeCompatibleUnresolvedRelations(plans, buildAliasResolver());
         // Remove any view-branch keys that were merged away (bare UR merge can eliminate entries).
         viewBranchKeys.retainAll(plans.keySet());
@@ -1080,8 +1079,8 @@ public class ViewResolver {
      * Merges bare UnresolvedRelation entries that don't share index patterns into a single entry.
      * Those that cannot be merged are wrapped in NamedSubquery nodes to preserve data duplication
      * semantics. The full broader-scope compaction lives in {@link ViewCompaction}; this is the
-     * per-level merge that keeps the resolved tree small enough to pass {@link MergePlan#MAX_BRANCHES}
-     * at post-analysis verification.
+     * per-level merge that keeps the resolved tree small enough to pass {@link MergePlan} limit
+     * at logical verification.
      */
     private static void mergeCompatibleUnresolvedRelations(
         LinkedHashMap<String, LogicalPlan> plans,

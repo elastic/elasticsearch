@@ -242,6 +242,12 @@ public final class DeclaredTypeCoercions {
      * number, yet {@link #exactToUnsignedLong} refuses a negative value, so a {@code long} column read as
      * {@code unsigned_long} fails on the first negative. A caller using this to decide that nothing can
      * fail would push a filter over such a column and keep the row with the cell nulled.
+     * <p>
+     * It is not sufficient in the other direction either: a string target is total for every source the
+     * reader can render, and {@code commonType} does not name one the supertype of a number, boolean or
+     * ip. Since {@code keyword} is what {@code union_by_name} settles on for a cross-file pair with no
+     * closer supertype, deferring to {@code commonType} there would call a whole class of reads failable
+     * for a conversion that can only succeed.
      */
     public static boolean readsLossless(DataType from, DataType to) {
         if (from == null || to == null) {
@@ -252,6 +258,16 @@ public final class DeclaredTypeCoercions {
         }
         if (to == DataType.UNSIGNED_LONG) {
             return false;
+        }
+        // Rendering a value as text cannot fail: every coercer arm for a string target is total
+        // (String::valueOf, dateTimeToString, nanoTimeToString) - no parse, no range check. commonType
+        // does not name a string type the supertype of a number, boolean or ip, so asking it here would
+        // call a total conversion failable, and a keyword is what union_by_name picks for any cross-file
+        // pair with no closer supertype. That would cost a whole class of reads their stripe skipping,
+        // their IS NULL pushdown and, under skip_row, their deferred extraction, for a value that can
+        // only succeed.
+        if (to == DataType.KEYWORD || to == DataType.TEXT) {
+            return supports(from, to);
         }
         DataType unified = EsqlDataTypeConverter.commonType(to, from);
         return unified != null && unified.equals(to);

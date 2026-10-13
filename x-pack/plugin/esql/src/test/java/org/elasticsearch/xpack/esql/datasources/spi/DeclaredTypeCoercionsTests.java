@@ -140,6 +140,43 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
      * containment is false and means nothing - {@code short -> long} is a lossless widening no reader will ever be
      * asked for. It is over this set that a caller can act on the answer, so it is over this set that it must hold.
      */
+    /**
+     * A conversion into a string type cannot fail - the coercer renders the value and there is nothing to parse or
+     * range-check - so every supported pair into {@code keyword} or {@code text} reads lossless. Asking
+     * {@code commonType} instead answers no for a number, boolean or ip source, because no string type is their
+     * supertype, and {@code keyword} is exactly what {@code union_by_name} picks for a cross-file pair with no
+     * closer supertype. Calling those reads failable costs them stripe skipping, {@code IS NULL} pushdown and,
+     * under {@code skip_row}, deferred extraction, for a conversion that can only succeed.
+     */
+    public void testAConversionIntoAStringTypeCannotFail() {
+        Set<DataType> decodable = Set.of(
+            DataType.KEYWORD,
+            DataType.TEXT,
+            DataType.INTEGER,
+            DataType.LONG,
+            DataType.DOUBLE,
+            DataType.BOOLEAN,
+            DataType.DATETIME,
+            DataType.DATE_NANOS,
+            DataType.IP,
+            DataType.UNSIGNED_LONG
+        );
+        List<String> refused = new ArrayList<>();
+        for (DataType from : decodable) {
+            for (DataType to : List.of(DataType.KEYWORD, DataType.TEXT)) {
+                if (DeclaredTypeCoercions.supports(from, to) && DeclaredTypeCoercions.readsLossless(from, to) == false) {
+                    refused.add(from + " -> " + to);
+                }
+            }
+        }
+        assertThat("a supported conversion into a string type is total, so it must read lossless", refused, empty());
+        // The pair union_by_name produces, named so the enumeration above cannot pass by covering nothing.
+        assertTrue(DeclaredTypeCoercions.readsLossless(DataType.LONG, DataType.KEYWORD));
+        assertTrue(DeclaredTypeCoercions.readsLossless(DataType.IP, DataType.KEYWORD));
+        // A string target the reader cannot supply at all is still not lossless.
+        assertFalse(DeclaredTypeCoercions.readsLossless(DataType.UNSUPPORTED, DataType.KEYWORD));
+    }
+
     public void testEveryLosslessPairIsAlsoASupportedPair() {
         Set<DataType> decodable = Set.of(
             DataType.KEYWORD,

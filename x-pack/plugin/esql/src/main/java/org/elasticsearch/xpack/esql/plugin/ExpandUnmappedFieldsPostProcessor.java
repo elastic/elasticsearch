@@ -366,7 +366,7 @@ public final class ExpandUnmappedFieldsPostProcessor {
         try (XContentBuilder json = XContentFactory.jsonBuilder()) {
             json.startObject();
             for (Map.Entry<String, Object> leaf : leaves.entrySet()) {
-                json.field(leaf.getKey(), leaf.getValue());
+                json.field(leaf.getKey(), leaf.getValue() instanceof MultiValue multi ? multi.values : leaf.getValue());
             }
             json.endObject();
             builder.appendBytesRef(BytesReference.bytes(json).toBytesRef());
@@ -452,23 +452,30 @@ public final class ExpandUnmappedFieldsPostProcessor {
         return Strings.format("Unmapped field '%s' carries a null or an empty array or object", name);
     }
 
+    /**
+     * Records one leaf value. The first value under a name is stored as is; a second turns it into a {@link MultiValue}, which later
+     * values are appended to in place. The walk only emits scalars, so a stored {@link MultiValue} is always one built here. Appending
+     * in place matters: a leaf with a very large number of values (an array of many objects flattening to one dotted name) would
+     * otherwise be copied in full on every further value, which is quadratic in the number of values.
+     */
     private static void collectLeaf(Map<String, Object> leaves, String name, Object value) {
-        if (leaves.containsKey(name) == false) {
-            leaves.put(name, value);
+        Object existing = leaves.putIfAbsent(name, value);
+        if (existing == null) {
             return;
         }
-        List<Object> combined = new ArrayList<>();
-        flattenInto(combined, leaves.get(name));
-        flattenInto(combined, value);
-        leaves.put(name, combined);
+        if (existing instanceof MultiValue multi) {
+            multi.values.add(value);
+        } else {
+            MultiValue multi = new MultiValue();
+            multi.values.add(existing);
+            multi.values.add(value);
+            leaves.put(name, multi);
+        }
     }
 
-    private static void flattenInto(List<Object> combined, Object value) {
-        if (value instanceof List<?> list) {
-            combined.addAll(list);
-        } else if (value != null) {
-            combined.add(value);
-        }
+    /** The values of a leaf that appeared more than once in a row, in source order. */
+    private static final class MultiValue {
+        final List<Object> values = new ArrayList<>();
     }
 
     private static BytesRef getBytesRef(BytesRefBlock unmappedBlock, int row, BytesRef scratch) {

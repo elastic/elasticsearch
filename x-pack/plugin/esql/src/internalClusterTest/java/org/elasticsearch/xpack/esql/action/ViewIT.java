@@ -122,6 +122,14 @@ public class ViewIT extends AbstractEsqlIntegTestCase {
         );
     }
 
+    public void testViewOverRow() {
+        assertAcked(createView("row-view", "ROW f1=1"));
+
+        try (EsqlQueryResponse response = run("FROM row-view")) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(1))));
+        }
+    }
+
     public void testViewOverAlias() {
         assertAcked(indicesAdmin().prepareCreate("source-index").setMapping("f1", "type=integer"));
         prepareIndex("source-index").setSource("f1", 42).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();

@@ -30,16 +30,22 @@ import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.zip.GZIPInputStream;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonMap;
@@ -118,6 +124,19 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
     private int auditLogLinesBeforeTestStart;
 
     /**
+     * First line of the active audit log at the start of the test, or {@code null} when that file was empty.
+     * Identifies the file across a midnight rollover: the node timezone is the randomized test timezone, so the
+     * active {@code *_audit.json} can be replaced while this test is still running.
+     */
+    private String auditLogFirstLine;
+
+    /**
+     * Rolled {@code *_audit-*} file names already present when the test started. Archives created later belong to this test
+     * when the snapshot file was empty and therefore had no first line to match.
+     */
+    private Set<String> rolledAuditNamesBeforeTest = Set.of();
+
+    /**
      * All tests run as a an administrative user but use
      * <code>es-security-runas-user</code> to become a less privileged user when needed.
      */
@@ -164,17 +183,29 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
         // the offset, otherwise late-arriving lines from a prior test would land inside this test's
         // window and be treated as unmatched logs.
         assertBusy(() -> {
-            int first = countAuditLogLines();
+            List<String> first = readActiveAuditLines();
             Thread.sleep(100);
-            int second = countAuditLogLines();
-            assertEquals("audit log still being written", first, second);
-            auditLogLinesBeforeTestStart = second;
+            List<String> second = readActiveAuditLines();
+            assertEquals("audit log still being written", first.size(), second.size());
+            // Count and identity come from this same read. A later read can already be the post-midnight file.
+            auditLogLinesBeforeTestStart = second.size();
+            auditLogFirstLine = second.isEmpty() ? null : second.get(0);
+            rolledAuditNamesBeforeTest = listRolledAuditFileNames();
         });
     }
 
-    private int countAuditLogLines() throws IOException {
+    private List<String> readActiveAuditLines() {
         try (InputStream auditLog = getCluster().getNodeLog(0, LogType.AUDIT)) {
-            return Streams.readAllLines(auditLog).size();
+            return Streams.readAllLines(auditLog);
+        } catch (IOException | IllegalArgumentException e) {
+            // The active file is briefly missing while log4j renames it at rollover. assertBusy retries AssertionError only.
+            throw new AssertionError("audit log not readable yet", e);
+        } catch (RuntimeException e) {
+            // getNodeLog wraps a failed open in RuntimeException when the file disappears between exists and newInputStream.
+            if (e.getCause() instanceof IOException) {
+                throw new AssertionError("audit log not readable yet", e);
+            }
+            throw e;
         }
     }
 
@@ -459,6 +490,171 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
         return new AuditLogAsserter();
     }
 
+    private List<String> auditLinesSinceTestStart() {
+        List<String> active = readActiveAuditLines();
+        if (sameAuditFile(active, auditLogLinesBeforeTestStart, auditLogFirstLine)) {
+            return active.subList(auditLogLinesBeforeTestStart, active.size());
+        }
+        return selectAuditLinesSinceTestStart(
+            active,
+            auditLogLinesBeforeTestStart,
+            auditLogFirstLine,
+            rolledAuditNamesBeforeTest,
+            readRolledAuditFiles()
+        );
+    }
+
+    /**
+     * Lines written after the pre-test snapshot of the audit log.
+     * <p>
+     * Log4j rolls {@code *_audit.json} at local midnight. The node uses the randomized test timezone, so the active file
+     * can be replaced while a test is running. The pre-midnight lines then live in one {@code *_audit-yyyy-MM-dd-*.json}
+     * or {@code .json.gz} archive. {@code .json} and {@code .json.gz} for the same index are one roll; the plain file is
+     * the closed source and wins when both are readable.
+     */
+    static List<String> selectAuditLinesSinceTestStart(
+        List<String> activeLines,
+        int linesBeforeTest,
+        String firstLineBeforeTest,
+        Set<String> rolledNamesBeforeTest,
+        Map<String, List<String>> rolledLinesByName
+    ) {
+        if (sameAuditFile(activeLines, linesBeforeTest, firstLineBeforeTest)) {
+            return activeLines.subList(linesBeforeTest, activeLines.size());
+        }
+        if (firstLineBeforeTest == null) {
+            List<String> window = new ArrayList<>(linesOfNewRolls(rolledNamesBeforeTest, rolledLinesByName));
+            window.addAll(activeLines);
+            return window;
+        }
+        List<String> archived = linesMatchingFirstLine(firstLineBeforeTest, rolledLinesByName);
+        if (archived == null || archived.size() < linesBeforeTest) {
+            throw new AssertionError(
+                "rolled audit log not ready; snapshot started at line [" + linesBeforeTest + "] of a non-empty audit file"
+            );
+        }
+        List<String> window = new ArrayList<>(archived.subList(linesBeforeTest, archived.size()));
+        window.addAll(activeLines);
+        return window;
+    }
+
+    private static boolean sameAuditFile(List<String> activeLines, int linesBeforeTest, String firstLineBeforeTest) {
+        return firstLineBeforeTest != null
+            && activeLines.isEmpty() == false
+            && firstLineBeforeTest.equals(activeLines.get(0))
+            && activeLines.size() >= linesBeforeTest;
+    }
+
+    private static List<String> linesOfNewRolls(Set<String> rolledNamesBeforeTest, Map<String, List<String>> rolledLinesByName) {
+        Map<String, List<String>> chosen = new TreeMap<>();
+        for (Map.Entry<String, List<String>> entry : rolledLinesByName.entrySet()) {
+            String name = entry.getKey();
+            String plain = plainAuditName(name);
+            if (rolledNamesBeforeTest.contains(name)
+                || rolledNamesBeforeTest.contains(plain)
+                || rolledNamesBeforeTest.contains(plain + ".gz")) {
+                continue;
+            }
+            List<String> existing = chosen.get(plain);
+            if (existing == null || name.endsWith(".gz") == false) {
+                chosen.put(plain, entry.getValue());
+            }
+        }
+        List<String> lines = new ArrayList<>();
+        for (List<String> part : chosen.values()) {
+            lines.addAll(part);
+        }
+        return lines;
+    }
+
+    // The rolled file that starts with firstLine, or null when that file is not readable yet.
+    private static List<String> linesMatchingFirstLine(String firstLine, Map<String, List<String>> rolledLinesByName) {
+        String preferredPlain = null;
+        List<String> preferred = null;
+        boolean preferredIsGzip = false;
+        for (Map.Entry<String, List<String>> entry : rolledLinesByName.entrySet()) {
+            List<String> lines = entry.getValue();
+            if (lines.isEmpty() || firstLine.equals(lines.get(0)) == false) {
+                continue;
+            }
+            String name = entry.getKey();
+            boolean gzip = name.endsWith(".gz");
+            String plain = plainAuditName(name);
+            if (preferred == null || (plain.equals(preferredPlain) && gzip == false && preferredIsGzip)) {
+                preferredPlain = plain;
+                preferred = lines;
+                preferredIsGzip = gzip;
+            }
+        }
+        return preferred;
+    }
+
+    private static String plainAuditName(String name) {
+        return name.endsWith(".gz") ? name.substring(0, name.length() - 3) : name;
+    }
+
+    private Path auditLogsDir() {
+        return getCluster().getNodeConfigPath(0).getParent().resolve("logs");
+    }
+
+    private Set<String> listRolledAuditFileNames() {
+        Path logsDir = auditLogsDir();
+        if (Files.isDirectory(logsDir) == false) {
+            throw new AssertionError("audit log directory not ready [" + logsDir + "]");
+        }
+        Set<String> names = new HashSet<>();
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(logsDir)) {
+            for (Path path : stream) {
+                String name = path.getFileName().toString();
+                if (isRolledAuditLog(name)) {
+                    names.add(name);
+                }
+            }
+        } catch (IOException e) {
+            throw new AssertionError("audit log directory not readable", e);
+        }
+        return names;
+    }
+
+    private Map<String, List<String>> readRolledAuditFiles() {
+        Path logsDir = auditLogsDir();
+        if (Files.isDirectory(logsDir) == false) {
+            throw new AssertionError("audit log directory not ready [" + logsDir + "]");
+        }
+        Map<String, List<String>> rolled = new TreeMap<>();
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(logsDir)) {
+            for (Path path : stream) {
+                String name = path.getFileName().toString();
+                if (isRolledAuditLog(name) == false) {
+                    continue;
+                }
+                try {
+                    rolled.put(name, readAuditFile(path));
+                } catch (IOException e) {
+                    // Log4j writes the .gz before it deletes the closed .json. A partial gzip must not hide that .json.
+                    // If the matching archive never becomes readable, the selector retries via AssertionError.
+                    logger.debug("rolled audit file [{}] is not readable yet: [{}]", name, e.getMessage());
+                }
+            }
+        } catch (IOException e) {
+            throw new AssertionError("audit log directory not readable", e);
+        }
+        return rolled;
+    }
+
+    private static boolean isRolledAuditLog(String name) {
+        return name.contains("_audit-") && (name.endsWith(".json") || name.endsWith(".json.gz"));
+    }
+
+    private static List<String> readAuditFile(Path path) throws IOException {
+        try (InputStream fileIn = Files.newInputStream(path)) {
+            InputStream in = path.getFileName().toString().endsWith(".gz") ? new GZIPInputStream(fileIn) : fileIn;
+            try (InputStream toRead = in) {
+                return Streams.readAllLines(toRead);
+            }
+        }
+    }
+
     /**
      * Used to assert audit logs. Logs are asserted to match in any order because
      * we don't always scroll in the same order but each log checker must match a
@@ -526,13 +722,8 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
             try {
                 // Audit events flush asynchronously; allow generous time for the expected events to appear.
                 assertBusy(() -> {
-                    List<String> allLines;
-                    try (InputStream auditLog = getCluster().getNodeLog(0, LogType.AUDIT)) {
-                        allLines = Streams.readAllLines(auditLog);
-                    }
-
-                    // Skip lines that were written before this test started
-                    List<String> testLines = allLines.subList(Math.min(auditLogLinesBeforeTestStart, allLines.size()), allLines.size());
+                    // Skip lines written before this test. After a midnight rollover those lines are in the rolled file.
+                    List<String> testLines = auditLinesSinceTestStart();
 
                     List<Map<String, Object>> logs = new ArrayList<>();
                     for (String line : testLines) {

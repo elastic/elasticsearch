@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.empty;
 public class NdJsonFormatReaderRecognizedKeysTests extends ESTestCase {
 
     private static final BlockFactory NOOP_BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("noop"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     public void testRecognizedKeysSetIsExpected() {

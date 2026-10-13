@@ -175,6 +175,19 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertThat(path.evaluate("data.result"), equalTo(List.of(1767225900.0, "3.14")));
     }
 
+    /** Prometheus: a duration literal is a float literal in seconds - {@code 1h30m} is the scalar {@code 5400}. */
+    public void testInstantQueryDurationLiteralIsSeconds() throws Exception {
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query",
+            new BasicNameValuePair("query", "1h30m"),
+            new BasicNameValuePair("time", "2026-01-01T00:05:00Z")
+        );
+        ObjectPath path = ObjectPath.createFromResponse(client().performRequest(request));
+        assertThat(path.evaluate("status"), equalTo("success"));
+        assertThat(path.evaluate("data.resultType"), equalTo("scalar"));
+        assertThat(Double.parseDouble(path.evaluate("data.result.1")), equalTo(5400.0));
+    }
+
     /** Prometheus: a string literal is a result of type {@code string}, rendered as {@code [<unix_time>, "<string>"]}. */
     public void testInstantQueryStringLiteral() throws Exception {
         Request request = prometheusReadRequest(
@@ -229,6 +242,26 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         ingestLabelledSeries(METRIC);
 
         assertThat(instantSeries(METRIC + " > 1"), containsInAnyOrder(seriesWithValueAbove(1.0)));
+    }
+
+    public void testInstantQuerySortOrdersByValueAscending() throws Exception {
+        ingestLabelledSeries(METRIC);
+
+        assertThat(instantSeries("sort(" + METRIC + ")"), contains(LABELLED_SERIES.toArray(PromqlResponseSeries[]::new)));
+    }
+
+    public void testInstantQuerySortDescOrdersByValueAndOmitsSyntheticNanLabel() throws Exception {
+        ingestLabelledSeries(METRIC);
+
+        List<PromqlResponseSeries> series = instantSeries("sort_desc(" + METRIC + ")");
+        List<PromqlResponseSeries> expected = LABELLED_SERIES.reversed();
+        assertThat(series, contains(expected.toArray(PromqlResponseSeries[]::new)));
+        for (PromqlResponseSeries s : series) {
+            for (String label : s.labels().keySet()) {
+                assertFalse("synthetic sort key leaked into metric labels: " + s.labels(), label.contains("promql_sort"));
+                assertFalse("synthetic sort key leaked into metric labels: " + s.labels(), label.startsWith("$$"));
+            }
+        }
     }
 
     private static PromqlResponseSeries[] seriesWithValueAbove(double threshold) {
@@ -500,6 +533,19 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         wipeDefaultStream();
         ingestTestDataUsingRemoteWriteAndBulk(QUERY_TIME);
         assertBinopInstantGroups("sum by (host, __name__) (tx) / on (host) sum by (host, __name__) (rx)", "host", txRxRatios());
+    }
+
+    /**
+     * {@code vector(s)} in an {@code or} fills what the other side lacks: its steps are its own, so the instant query's range
+     * filter still drops the sample exactly one lookback before the query time, and the range query keeps one step per row.
+     */
+    public void testInstantOrConstantVector() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME.minusSeconds(300));
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantValues("tx or vector(0)", 10, 30, 12, 0);
+        assertBinopInstantValues("vector(0) or tx", 0, 10, 30, 12);
+        assertBinopInstantValues("sum(tx) or vector(0)", 52);
+        assertBinopInstantValues("sum(tx{host=~\"nope\"}) or vector(0)", 0);
     }
 
     /**

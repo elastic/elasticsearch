@@ -88,6 +88,12 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         );
     }
 
+    /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantQueryDurationLiteralIsSeconds}. */
+    public void testQueryRangeDurationLiteralIsSeconds() throws Exception {
+        assertBinopRangeValues("1h30m", 5400);
+        assertBinopRangeValues("2m + 30s", 150);
+    }
+
     /** Prometheus rejects a string literal in a range query: "invalid expression type "string" for range query". */
     public void testQueryRangeStringLiteralIsRejected() throws Exception {
         Request request = prometheusReadRequest(
@@ -492,6 +498,14 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         wipeDefaultStream();
         ingestTestDataUsingRemoteWriteAndBulk(QUERY_END);
         assertBinopRangeGroups("sum by (host, __name__) (tx) / on (host) sum by (host, __name__) (rx)", "host", txRxRatios());
+    }
+
+    /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantOrConstantVector}. */
+    public void testRangeOrConstantVector() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeValues("tx or vector(0)", 10, 30, 12, 0);
+        assertBinopRangeValues("sum(tx) or vector(0)", 52);
+        assertBinopRangeValues("sum(tx{host=~\"nope\"}) or vector(0)", 0);
     }
 
     /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantEmptyLabelValueIsAbsent}. */

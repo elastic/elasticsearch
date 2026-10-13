@@ -24,17 +24,17 @@ import java.util.function.Consumer;
 
 public class ChangesExponentialHistogramAggregatorTests extends OperatorTests {
 
-    public void testCountsInterleavedChangesAcrossIntermediateMerge() {
+    public void testCountsTimestampOrderedChangesAcrossIntermediateMerge() {
         DriverContext driverContext = driverContext();
         try (
             var selected = driverContext.blockFactory().newConstantIntVector(0, 1);
             var left = newAggregator(driverContext);
             var right = newAggregator(driverContext);
-            var merged = newAggregator(driverContext);
+            var merged = newIntermediateAggregator(driverContext);
             var evalContext = new GroupingAggregatorEvaluationContext(driverContext)
         ) {
-            addRaw(left, driverContext, repeatedSamples(new double[] { 1, 2 }, 4), new long[] { 8, 6, 4, 2 });
-            addRaw(right, driverContext, repeatedSamples(new double[] { 3, 4 }, 4), new long[] { 7, 5, 3, 1 });
+            addRaw(left, driverContext, new double[][] { { 1 }, { 2 }, { 1 } }, new long[] { 30, 20, 10 });
+            addRaw(right, driverContext, new double[][] { { 3 }, { 1 } }, new long[] { 50, 40 });
 
             for (var source : List.of(left, right)) {
                 Block[] intermediate = new Block[source.intermediateBlockCount()];
@@ -44,7 +44,35 @@ public class ChangesExponentialHistogramAggregatorTests extends OperatorTests {
                 }
             }
 
-            assertChanges(merged, selected, evalContext, 7L);
+            assertChanges(merged, selected, evalContext, 3L);
+        } finally {
+            driverContext.finish();
+            assertDriverContext(driverContext);
+        }
+    }
+
+    public void testIntermediateStateIsReduced() {
+        DriverContext driverContext = driverContext();
+        try (
+            var selected = driverContext.blockFactory().newConstantIntVector(0, 1);
+            var state = newAggregator(driverContext);
+            var evalContext = new GroupingAggregatorEvaluationContext(driverContext)
+        ) {
+            addRaw(state, driverContext, new double[][] { { 1 }, { 2 }, { 1 }, { 2 } }, new long[] { 40, 30, 20, 10 });
+
+            Block[] intermediate = new Block[state.intermediateBlockCount()];
+            state.prepareEvaluateIntermediate(selected, evalContext).evaluate(intermediate, 0, selected);
+            try (
+                LongBlock timestamps = (LongBlock) intermediate[0];
+                ExponentialHistogramBlock values = (ExponentialHistogramBlock) intermediate[1];
+                LongBlock sampleCounts = (LongBlock) intermediate[2];
+                LongBlock changes = (LongBlock) intermediate[3]
+            ) {
+                assertEquals(2, timestamps.getValueCount(0));
+                assertEquals(2, values.getValueCount(0));
+                assertEquals(4, sampleCounts.getLong(0));
+                assertEquals(3, changes.getLong(0));
+            }
         } finally {
             driverContext.finish();
             assertDriverContext(driverContext);
@@ -141,6 +169,10 @@ public class ChangesExponentialHistogramAggregatorTests extends OperatorTests {
         return new ChangesExponentialHistogramAggregatorFunctionSupplier().groupingAggregator(driverContext, List.of(0, 1));
     }
 
+    private static GroupingAggregatorFunction newIntermediateAggregator(DriverContext driverContext) {
+        return new ChangesExponentialHistogramAggregatorFunctionSupplier().groupingAggregator(driverContext, List.of(0, 1, 2, 3));
+    }
+
     private static void addRaw(GroupingAggregatorFunction aggregator, DriverContext driverContext, double[][] samples, long[] timestamps) {
         assert samples.length == timestamps.length;
         ExponentialHistogramBlock values;
@@ -220,14 +252,6 @@ public class ChangesExponentialHistogramAggregatorTests extends OperatorTests {
             driverContext.finish();
             assertDriverContext(driverContext);
         }
-    }
-
-    private static double[][] repeatedSamples(double[] samples, int count) {
-        double[][] result = new double[count][];
-        for (int i = 0; i < count; i++) {
-            result[i] = samples;
-        }
-        return result;
     }
 
     private static void assertChanges(

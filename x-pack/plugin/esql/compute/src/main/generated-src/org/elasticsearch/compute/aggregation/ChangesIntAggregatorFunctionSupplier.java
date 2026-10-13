@@ -8,7 +8,13 @@
 package org.elasticsearch.compute.aggregation;
 
 // begin generated imports
+import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.IntroSorter;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
@@ -20,6 +26,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 import java.util.List;
@@ -59,24 +66,34 @@ public final class ChangesIntAggregatorFunctionSupplier implements AggregatorFun
 final class ChangesIntGroupingAggregatorFunction extends AbstractRateGroupingFunction implements GroupingAggregatorFunction {
     private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
         new IntermediateStateDesc("timestamps", ElementType.LONG),
-        new IntermediateStateDesc("values", ElementType.INT)
+        new IntermediateStateDesc("values", ElementType.INT),
+        new IntermediateStateDesc("sampleCounts", ElementType.LONG),
+        new IntermediateStateDesc("changes", ElementType.LONG)
     );
 
     private final List<Integer> channels;
     private final DriverContext driverContext;
+    private final BigArrays bigArrays;
     private final IntRawBuffer rawBuffer;
-    private FlushQueues preparedFlushQueues;
+    private final IntervalBuffer intervalBuffer;
+    private ObjectArray<ReducedState> reducedStates;
 
     ChangesIntGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
         this.channels = channels;
         this.driverContext = driverContext;
+        this.bigArrays = driverContext.bigArrays();
         IntRawBuffer rawBuffer = null;
+        IntervalBuffer intervalBuffer = null;
         try {
             rawBuffer = new IntRawBuffer(driverContext.breaker());
+            intervalBuffer = new IntervalBuffer(driverContext.breaker());
+            this.reducedStates = bigArrays.newObjectArray(256);
             this.rawBuffer = rawBuffer;
             rawBuffer = null;
+            this.intervalBuffer = intervalBuffer;
+            intervalBuffer = null;
         } finally {
-            Releasables.close(rawBuffer);
+            Releasables.close(rawBuffer, intervalBuffer);
         }
     }
 
@@ -91,7 +108,7 @@ final class ChangesIntGroupingAggregatorFunction extends AbstractRateGroupingFun
 
     @Override
     public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
-        // Nulls are represented by missing flush queues.
+        // Nulls are represented by missing reduced states.
     }
 
     @Override
@@ -227,13 +244,24 @@ final class ChangesIntGroupingAggregatorFunction extends AbstractRateGroupingFun
         assert channels.size() == intermediateBlockCount();
         LongBlock timestamps = page.getBlock(channels.get(0));
         IntBlock values = page.getBlock(channels.get(1));
-        if (timestamps.areAllValuesNull() || values.areAllValuesNull()) {
+        assert timestamps.getTotalValueCount() == values.getTotalValueCount() : "timestamps=" + timestamps + "; values=" + values;
+        LongVector sampleCounts = ((LongBlock) page.getBlock(channels.get(2))).asVector();
+        LongVector changes = ((LongBlock) page.getBlock(channels.get(3))).asVector();
+        if (sampleCounts == null || changes == null) {
             return;
         }
-        for (int p = 0; p < groups.getPositionCount(); p++) {
-            int valuePosition = positionOffset + p;
-            if (timestamps.isNull(valuePosition) == false && values.isNull(valuePosition) == false) {
-                addIntermediatePosition(groups.getInt(p), timestamps, values, valuePosition);
+        for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+            int valuePosition = positionOffset + groupPosition;
+            long sampleCount = sampleCounts.getLong(valuePosition);
+            if (sampleCount > 0) {
+                addIntermediatePosition(
+                    groups.getInt(groupPosition),
+                    timestamps,
+                    values,
+                    sampleCount,
+                    changes.getLong(valuePosition),
+                    valuePosition
+                );
             }
         }
     }
@@ -242,70 +270,73 @@ final class ChangesIntGroupingAggregatorFunction extends AbstractRateGroupingFun
         assert channels.size() == intermediateBlockCount();
         LongBlock timestamps = page.getBlock(channels.get(0));
         IntBlock values = page.getBlock(channels.get(1));
-        if (timestamps.areAllValuesNull() || values.areAllValuesNull()) {
+        assert timestamps.getTotalValueCount() == values.getTotalValueCount() : "timestamps=" + timestamps + "; values=" + values;
+        LongVector sampleCounts = ((LongBlock) page.getBlock(channels.get(2))).asVector();
+        LongVector changes = ((LongBlock) page.getBlock(channels.get(3))).asVector();
+        if (sampleCounts == null || changes == null) {
             return;
         }
-        for (int p = 0; p < groups.getPositionCount(); p++) {
-            int valuePosition = positionOffset + p;
-            if (groups.isNull(p) || timestamps.isNull(valuePosition) || values.isNull(valuePosition)) {
+        for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+            int valuePosition = positionOffset + groupPosition;
+            long sampleCount = sampleCounts.getLong(valuePosition);
+            if (sampleCount == 0 || groups.isNull(groupPosition)) {
                 continue;
             }
-            int groupStart = groups.getFirstValueIndex(p);
-            int groupEnd = groupStart + groups.getValueCount(p);
+            int groupStart = groups.getFirstValueIndex(groupPosition);
+            int groupEnd = groupStart + groups.getValueCount(groupPosition);
             for (int g = groupStart; g < groupEnd; g++) {
-                addIntermediatePosition(groups.getInt(g), timestamps, values, valuePosition);
+                addIntermediatePosition(groups.getInt(g), timestamps, values, sampleCount, changes.getLong(valuePosition), valuePosition);
             }
         }
     }
 
-    private void addIntermediatePosition(int groupId, LongBlock timestamps, IntBlock values, int position) {
-        int count = timestamps.getValueCount(position);
-        assert count == values.getValueCount(position) : "timestamps=" + timestamps + "; values=" + values + "; position=" + position;
-        int firstTimestamp = timestamps.getFirstValueIndex(position);
-        int firstValue = values.getFirstValueIndex(position);
-        for (int i = 0; i < count; i++) {
-            rawBuffer.append(groupId, timestamps.getLong(firstTimestamp + i), values.getInt(firstValue + i));
-        }
+    private void addIntermediatePosition(int groupId, LongBlock timestamps, IntBlock values, long sampleCount, long changes, int position) {
+        ReducedState state = getOrInitializeReducedState(groupId);
+        state.appendIntervalsFromBlocks(timestamps, values, position);
+        state.samples += sampleCount;
+        state.changes += changes;
     }
 
     @Override
     public PreparedForEvaluation prepareEvaluateIntermediate(IntVector selected, GroupingAggregatorEvaluationContext ctx) {
-        flushQueues();
+        flushRawBuffers();
         return this::evaluateIntermediate;
     }
 
     private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
+        BlockFactory blockFactory = driverContext.blockFactory();
         int positionCount = selectedInPage.getPositionCount();
         try (
-            LongBlock.Builder timestamps = driverContext.blockFactory().newLongBlockBuilder(positionCount);
-            IntBlock.Builder values = driverContext.blockFactory().newIntBlockBuilder(positionCount)
+            LongBlock.Builder timestamps = blockFactory.newLongBlockBuilder(positionCount * 2);
+            IntBlock.Builder values = blockFactory.newIntBlockBuilder(positionCount * 2);
+            LongVector.FixedBuilder sampleCounts = blockFactory.newLongVectorFixedBuilder(positionCount);
+            LongVector.FixedBuilder changes = blockFactory.newLongVectorFixedBuilder(positionCount)
         ) {
             for (int p = 0; p < positionCount; p++) {
                 int group = selectedInPage.getInt(p);
-                FlushQueue flushQueue = preparedFlushQueues.getFlushQueue(group, rawBuffer::compareValues);
-                if (flushQueue == null) {
-                    timestamps.appendNull();
-                    values.appendNull();
+                ReducedState state = group < reducedStates.size() ? reducedStates.get(group) : null;
+                // Keep intervals separate until final evaluation, matching rate's reduced-state contract.
+                if (state != null && state.samples > 0) {
+                    state.writeIntervalsToBlocks(timestamps, values);
+                    sampleCounts.appendLong(state.samples);
+                    changes.appendLong(state.changes);
                 } else {
-                    timestamps.beginPositionEntry();
-                    values.beginPositionEntry();
-                    while (flushQueue.size() > 0) {
-                        int position = nextPosition(flushQueue);
-                        timestamps.appendLong(rawBuffer.timestamp(position));
-                        values.appendInt(rawBuffer.value(position));
-                    }
-                    timestamps.endPositionEntry();
-                    values.endPositionEntry();
+                    timestamps.appendLong(0);
+                    values.appendInt(0);
+                    sampleCounts.appendLong(0);
+                    changes.appendLong(0);
                 }
             }
             blocks[offset] = timestamps.build();
             blocks[offset + 1] = values.build();
+            blocks[offset + 2] = sampleCounts.build().asBlock();
+            blocks[offset + 3] = changes.build().asBlock();
         }
     }
 
     @Override
     public PreparedForEvaluation prepareEvaluateFinal(IntVector selected, GroupingAggregatorEvaluationContext ctx) {
-        flushQueues();
+        flushRawBuffers();
         return this::evaluateFinal;
     }
 
@@ -314,22 +345,63 @@ final class ChangesIntGroupingAggregatorFunction extends AbstractRateGroupingFun
         try (LongBlock.Builder changes = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
             for (int p = 0; p < positionCount; p++) {
                 int group = selectedInPage.getInt(p);
-                FlushQueue flushQueue = preparedFlushQueues.getFlushQueue(group, rawBuffer::compareValues);
-                if (flushQueue == null) {
+                ReducedState state = group < reducedStates.size() ? reducedStates.get(group) : null;
+                if (state == null || state.samples == 0) {
                     changes.appendNull();
                 } else {
-                    changes.appendLong(countChanges(flushQueue));
+                    state.combineIntervals();
+                    changes.appendLong(state.changes);
                 }
             }
             blocks[offset] = changes.build();
         }
     }
 
-    private FlushQueues flushQueues() {
-        if (preparedFlushQueues == null) {
-            preparedFlushQueues = rawBuffer.prepareForFlush();
+    private ReducedState getOrInitializeReducedState(int groupId) {
+        reducedStates = bigArrays.grow(reducedStates, groupId + 1);
+        ReducedState state = reducedStates.get(groupId);
+        if (state == null) {
+            state = new ReducedState();
+            reducedStates.set(groupId, state);
         }
-        return preparedFlushQueues;
+        return state;
+    }
+
+    private void flushRawBuffers() {
+        if (rawBuffer.minGroupId > rawBuffer.maxGroupId) {
+            return;
+        }
+        reducedStates = bigArrays.grow(reducedStates, rawBuffer.maxGroupId + 1);
+        FlushQueues flushQueues = rawBuffer.prepareForFlush();
+        for (int groupId = flushQueues.minGroupId(); groupId <= flushQueues.maxGroupId(); groupId++) {
+            FlushQueue flushQueue = flushQueues.getFlushQueue(groupId, rawBuffer::compareValues);
+            if (flushQueue != null) {
+                flushGroup(getOrInitializeReducedState(groupId), flushQueue);
+            }
+        }
+        rawBuffer.clearBuffers();
+    }
+
+    private void flushGroup(ReducedState state, FlushQueue flushQueue) {
+        int sampleCount = flushQueue.valueCount;
+        int lastPosition = nextPosition(flushQueue);
+        int previous = lastPosition;
+        int firstPosition = lastPosition;
+        while (flushQueue.size() > 0) {
+            int current = nextPosition(flushQueue);
+            if (valuesEqual(rawBuffer.value(previous), rawBuffer.value(current)) == false) {
+                state.changes++;
+            }
+            previous = current;
+            firstPosition = current;
+        }
+        state.samples += sampleCount;
+        state.appendInterval(
+            rawBuffer.timestamp(lastPosition),
+            rawBuffer.value(lastPosition),
+            rawBuffer.timestamp(firstPosition),
+            rawBuffer.value(firstPosition)
+        );
     }
 
     private static int nextPosition(FlushQueue flushQueue) {
@@ -343,26 +415,162 @@ final class ChangesIntGroupingAggregatorFunction extends AbstractRateGroupingFun
         return position;
     }
 
-    private long countChanges(FlushQueue flushQueue) {
-        int previous = nextPosition(flushQueue);
-        long changes = 0;
-        while (flushQueue.size() > 0) {
-            int current = nextPosition(flushQueue);
-            if (valuesEqual(rawBuffer.value(previous), rawBuffer.value(current)) == false) {
-                changes++;
-            }
-            previous = current;
-        }
-        return changes;
-    }
-
     private static boolean valuesEqual(int left, int right) {
         return left == right;
     }
 
     @Override
     public void close() {
-        Releasables.close(rawBuffer);
+        Releasables.close(reducedStates, rawBuffer, intervalBuffer);
+    }
+
+    private final class ReducedState {
+        private static final int[] EMPTY_INTERVALS = new int[0];
+        private long samples;
+        private long changes;
+        private int[] intervals = EMPTY_INTERVALS;
+
+        private void appendInterval(long lastTs, int lastValue, long firstTs, int firstValue) {
+            int currentSize = intervals.length;
+            intervals = ArrayUtil.growExact(intervals, currentSize + 1);
+            intervals[currentSize] = intervalBuffer.appendInterval(lastTs, lastValue, firstTs, firstValue);
+        }
+
+        private void appendIntervalsFromBlocks(LongBlock timestamps, IntBlock values, int position) {
+            int intervalCount = timestamps.getValueCount(position) / 2;
+            int firstIntervalId = intervalBuffer.appendIntervalsFromBlocks(timestamps, values, position);
+            int currentSize = intervals.length;
+            intervals = ArrayUtil.growExact(intervals, currentSize + intervalCount);
+            for (int i = 0; i < intervalCount; i++) {
+                intervals[currentSize++] = firstIntervalId + i;
+            }
+        }
+
+        private void writeIntervalsToBlocks(LongBlock.Builder timestamps, IntBlock.Builder values) {
+            timestamps.beginPositionEntry();
+            values.beginPositionEntry();
+            for (int intervalId : intervals) {
+                timestamps.appendLong(intervalBuffer.lastTs(intervalId));
+                timestamps.appendLong(intervalBuffer.firstTs(intervalId));
+                values.appendInt(intervalBuffer.lastValue(intervalId));
+                values.appendInt(intervalBuffer.firstValue(intervalId));
+            }
+            timestamps.endPositionEntry();
+            values.endPositionEntry();
+        }
+
+        private void combineIntervals() {
+            sortIntervals();
+            for (int i = 1; i < intervals.length; i++) {
+                int next = intervals[i - 1];
+                int previous = intervals[i];
+                if (valuesEqual(intervalBuffer.lastValue(previous), intervalBuffer.firstValue(next)) == false) {
+                    changes++;
+                }
+            }
+        }
+
+        private void sortIntervals() {
+            new IntroSorter() {
+                private long pivotTs;
+
+                @Override
+                protected void setPivot(int i) {
+                    pivotTs = intervalBuffer.lastTs(intervals[i]);
+                }
+
+                @Override
+                protected int comparePivot(int j) {
+                    return Long.compare(intervalBuffer.lastTs(intervals[j]), pivotTs);
+                }
+
+                @Override
+                protected int compare(int i, int j) {
+                    return Long.compare(intervalBuffer.lastTs(intervals[j]), intervalBuffer.lastTs(intervals[i]));
+                }
+
+                @Override
+                protected void swap(int i, int j) {
+                    int tmp = intervals[i];
+                    intervals[i] = intervals[j];
+                    intervals[j] = tmp;
+                }
+            }.sort(0, intervals.length);
+        }
+    }
+
+    private static final class IntervalBuffer implements Releasable {
+        private final LongBuffer timestamps;
+        private final IntBuffer values;
+
+        private IntervalBuffer(CircuitBreaker breaker) {
+            LongBuffer timestamps = null;
+            IntBuffer values = null;
+            boolean success = false;
+            try {
+                timestamps = new LongBuffer(breaker, PAGE_SIZE);
+                values = new IntBuffer(breaker, PAGE_SIZE);
+                success = true;
+            } finally {
+                if (success == false) {
+                    Releasables.close(timestamps, values);
+                }
+            }
+            this.timestamps = timestamps;
+            this.values = values;
+        }
+
+        private int count() {
+            return timestamps.size() / 2;
+        }
+
+        private long lastTs(int intervalId) {
+            return timestamps.get(2 * intervalId);
+        }
+
+        private int lastValue(int intervalId) {
+            return values.get(2 * intervalId);
+        }
+
+        private long firstTs(int intervalId) {
+            return timestamps.get(2 * intervalId + 1);
+        }
+
+        private int firstValue(int intervalId) {
+            return values.get(2 * intervalId + 1);
+        }
+
+        private int appendInterval(long lastTs, int lastValue, long firstTs, int firstValue) {
+            int intervalId = count();
+            timestamps.ensureCapacity(timestamps.size() + 2);
+            values.ensureCapacity(values.size() + 2);
+            timestamps.append(lastTs);
+            values.append(lastValue);
+            timestamps.append(firstTs);
+            values.append(firstValue);
+            return intervalId;
+        }
+
+        private int appendIntervalsFromBlocks(LongBlock timestampBlock, IntBlock valueBlock, int position) {
+            int timestampStart = timestampBlock.getFirstValueIndex(position);
+            int valueStart = valueBlock.getFirstValueIndex(position);
+            int valueCount = timestampBlock.getValueCount(position);
+            assert valueCount == valueBlock.getValueCount(position);
+            assert valueCount % 2 == 0 : "expected interval endpoints but got [" + valueCount + "] values";
+            timestamps.ensureCapacity(timestamps.size() + valueCount);
+            values.ensureCapacity(values.size() + valueCount);
+            int firstIntervalId = count();
+            for (int i = 0; i < valueCount; i++) {
+                timestamps.append(timestampBlock.getLong(timestampStart + i));
+                values.append(valueBlock.getInt(valueStart + i));
+            }
+            return firstIntervalId;
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(timestamps, values);
+        }
     }
 
     private static final class IntRawBuffer extends RawBuffer {

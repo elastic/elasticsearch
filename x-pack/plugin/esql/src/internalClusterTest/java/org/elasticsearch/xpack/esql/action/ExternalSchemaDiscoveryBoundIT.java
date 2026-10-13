@@ -70,7 +70,16 @@ public class ExternalSchemaDiscoveryBoundIT extends AbstractExternalDataSourceIT
         LinkedHashMap<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("id", new DatasetFieldMapping("long", null));
         properties.put("v", new DatasetFieldMapping("keyword", null));
-        String dataset = registerStrictDataset("bound_declared", glob, properties, Map.of("format", "csv"));
+        // first_file_wins explicitly: with schema_resolution absent, DatasetRewriter hydrates union_by_name
+        // onto the query config, FileOrderConfig#forListing then answers NAME_ASC rather than DEFAULT, and
+        // listingExtentsFor refuses to bound a non-default order. This case asserted nothing for as long as
+        // it omitted the key - the listing it called bounded was the whole glob.
+        String dataset = registerStrictDataset(
+            "bound_declared",
+            glob,
+            properties,
+            Map.of("format", "csv", "schema_resolution", "first_file_wins")
+        );
 
         try (EsqlQueryResponse discovery = run(syncEsqlQueryRequest("FROM " + dataset + " | LIMIT 0"), TIMEOUT)) {
             assertThat(getValuesList(discovery).size(), equalTo(0));
@@ -87,7 +96,13 @@ public class ExternalSchemaDiscoveryBoundIT extends AbstractExternalDataSourceIT
      */
     public void testRepeatedSchemaDiscoveryAnswersTheSameSchema() throws Exception {
         String glob = writeDataset();
-        String dataset = registerLocalFileDataset("bound_repeat", glob, Map.of("format", "csv"));
+        // Explicit, for the reason the declared case above states: an omitted schema_resolution is hydrated to
+        // union_by_name, which costs the listing its bound and left this case asserting nothing either.
+        String dataset = registerLocalFileDataset(
+            "bound_repeat",
+            glob,
+            Map.of("format", "csv", "schema_resolution", "first_file_wins")
+        );
 
         List<String> first;
         try (EsqlQueryResponse response = run(syncEsqlQueryRequest("FROM " + dataset + " | LIMIT 0"), TIMEOUT)) {

@@ -15,7 +15,7 @@ breaking:
     To restore the previous behaviour, set `data_streams.lifecycle.minimum.enabled` to `false`, for example
     `PUT _cluster/settings { "persistent": { "data_streams.lifecycle.minimum.enabled": false } }`.
     The setting is dynamic, so no restart is required.
-  notable: true
+  notable: false
   title: Time series data streams without a lifecycle are managed by a minimum data
     stream lifecycle
 issues: []

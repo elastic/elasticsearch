@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
@@ -48,22 +49,21 @@ import static org.elasticsearch.common.util.set.Sets.haveNonEmptyIntersection;
  *       {@code ResolveTable} later looks up.</li>
  *   <li>{@link #postIndexResolution(LogicalPlan, boolean)} — runs as an analyzer rule after {@code ResolveTable}.
  *       Strips any {@link ViewShadowRelation} that lenient field-caps did not fold into a sibling
- *       {@code EsRelation} (in Phase A this is all of them, since lenient field-caps is not yet
- *       wired up — see esql-planning#543), then flattens nested {@link ViewUnionAll}s and unwraps
+ *       {@code EsRelation} (today this is all of them, since lenient field-caps is not yet
+ *       wired up), then flattens nested {@link ViewUnionAll}s and unwraps
  *       remaining {@link NamedSubquery} wrappers.</li>
  * </ol>
  * <p>
- * The split is what lets a colleague implement lenient field-caps purely as a Phase B analyzer
+ * The split is what lets a colleague implement lenient field-caps purely as an analyzer
  * rule that lives between {@code ResolveTable} and {@link #postIndexResolution}: shadows that match
  * remote indices get rewritten to {@link UnresolvedRelation}/{@code EsRelation}; shadows that
- * fail to match are simply left unresolved and {@link #postIndexResolution} sweeps them away. Ordering
- * details: see <a href="https://github.com/elastic/esql-planning/issues/472">esql-planning#472</a>.
+ * fail to match are simply left unresolved and {@link #postIndexResolution} sweeps them away.
  * <p>
  * Note: a small amount of compaction stays inside {@link ViewResolver#buildPlanFromBranches} —
  * specifically the per-level sibling {@link UnresolvedRelation} merge — to keep the resolved tree
  * compact at the per-level boundary, so wide branching levels of compactable views (e.g.
  * {@code FROM v1, v2, ... v9}) collapse to a single {@link UnresolvedRelation} rather than
- * tripping {@link MergePlan#MAX_BRANCHES} at post-analysis verification.
+ * one branch per view, which would count against {@code max_branch_count}.
  */
 public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
 
@@ -92,7 +92,7 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
      * {@link UnionAll} structures into {@link ViewUnionAll} for uniform downstream handling.
      * Deliberately does NOT strip {@link ViewShadowRelation} siblings or flatten nested
      * {@link ViewUnionAll}s — those are deferred to {@link #postIndexResolution} so lenient field-caps
-     * (Phase B) can pair each shadow with its strict resolution at field-caps time.
+     * can pair each shadow with its strict resolution at field-caps time.
      *
      * Records view-branch membership in {@link ViewUnionAll#viewBranchKeys()} but never collapses a
      * boundary, so it needs no knowledge of the request filter.
@@ -108,7 +108,7 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
      * wrappers. By the time this runs, all reachable {@link UnresolvedRelation}s have been
      * replaced by {@code EsRelation}s, so the {@link UnresolvedRelation}-merge step inside
      * {@link #compactNestedViewUnionAlls} is effectively a no-op — sibling {@code EsRelation}s
-     * stay separate (Strategy A from esql-planning#543).
+     * stay separate rather than merging via a combined field-caps call.
      *
      * @param preserveViewBoundaries {@code true} when the request carries a DSL filter that must be
      *                               applied at view-output boundaries. This is the <em>only</em> reason
@@ -121,6 +121,14 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
      *                               can find the boundary; every other branch kind still collapses.
      */
     public static LogicalPlan postIndexResolution(LogicalPlan plan, boolean preserveViewBoundaries) {
+        return postIndexResolution(plan, preserveViewBoundaries, EsqlFlags.DEFAULTS.maxBranchCount());
+    }
+
+    /**
+     * As {@link #postIndexResolution(LogicalPlan, boolean)}, flattening a nested view union only when the flat width
+     * is within {@code maxBranchCount}.
+     */
+    public static LogicalPlan postIndexResolution(LogicalPlan plan, boolean preserveViewBoundaries, int maxBranchCount) {
         plan = stripViewShadowRelations(plan, preserveViewBoundaries);
         // Strip can collapse a {@code ViewUnionAll[NamedSubquery, ViewShadowRelation]} to its sole
         // {@link NamedSubquery} when the shadow is removed. That exposes a {@code Subquery[NamedSubquery]}
@@ -128,7 +136,7 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
         // {@link #rewriteUnionAllsWithNamedSubqueries} needs to see in order to unwrap and convert
         // to {@link ViewUnionAll}, so we re-run the rewrite after the strip.
         plan = rewriteUnionAllsWithNamedSubqueries(plan);
-        plan = compactNestedViewUnionAlls(plan, preserveViewBoundaries);
+        plan = compactNestedViewUnionAlls(plan, preserveViewBoundaries, maxBranchCount);
         plan = plan.transformDown(NamedSubquery.class, UnaryPlan::child);
         return plan;
     }
@@ -256,12 +264,12 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
      * seeing it. Exclusion-bearing {@link UnresolvedRelation}s stay wrapped to preserve their
      * narrow scope (see exclusion-leak tests).
      */
-    static LogicalPlan compactNestedViewUnionAlls(LogicalPlan plan, boolean preserveViewBoundaries) {
+    static LogicalPlan compactNestedViewUnionAlls(LogicalPlan plan, boolean preserveViewBoundaries, int maxBranchCount) {
         List<LogicalPlan> children = plan.children();
         List<LogicalPlan> newChildren = null;
         for (int i = 0; i < children.size(); i++) {
             LogicalPlan child = children.get(i);
-            LogicalPlan newChild = compactNestedViewUnionAlls(child, preserveViewBoundaries);
+            LogicalPlan newChild = compactNestedViewUnionAlls(child, preserveViewBoundaries, maxBranchCount);
             if (newChild != child) {
                 if (newChildren == null) {
                     newChildren = new ArrayList<>(children);
@@ -275,12 +283,12 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
             return ur;
         }
         if (current instanceof ViewUnionAll vua) {
-            return tryFlattenViewUnionAll(vua, preserveViewBoundaries);
+            return tryFlattenViewUnionAll(vua, preserveViewBoundaries, maxBranchCount);
         }
         return current;
     }
 
-    private static LogicalPlan tryFlattenViewUnionAll(ViewUnionAll vua, boolean preserveViewBoundaries) {
+    private static LogicalPlan tryFlattenViewUnionAll(ViewUnionAll vua, boolean preserveViewBoundaries, int maxBranchCount) {
         // Trial pass: collect all entries from full flattening and check for conflicts.
         // Inner ViewUnionAlls that only contain UnresolvedRelations are lifted into the parent,
         // eliminating nesting that the runtime doesn't yet support.
@@ -386,8 +394,8 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
         // Remove any view-branch keys that the merge step may have removed.
         flatViewBranchKeys.retainAll(flat.keySet());
 
-        if (flat.size() > MergePlan.MAX_BRANCHES) {
-            return vua; // flattening would exceed the branch limit, keep the nested structure
+        if (flat.size() > maxBranchCount) {
+            return vua; // flattening would exceed max_branch_count, keep the nested structure
         }
         if (flat.size() == 1) {
             String survivingKey = flat.keySet().iterator().next();

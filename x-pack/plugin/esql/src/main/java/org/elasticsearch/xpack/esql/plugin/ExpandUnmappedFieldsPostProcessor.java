@@ -82,7 +82,8 @@ import java.util.function.BooleanSupplier;
  * cancellation - is what bounds the memory a wide row can demand.
  *
  * <p>TODO every row's {@code _source} ends up parsed twice: the data node parses it to filter the column, then the coordinator parses
- *  the column once more here to flatten it. Flattening on the data node would remove the second parse; tracked by #158479.
+ *  the column once more here to flatten it. #161644 moves the per-leaf filtering and the streaming {@code _source} read to the shard
+ *  (the first half of #158479); what remains is flattening on the shard too, so the column ships as-is with no reparse here.
  */
 public final class ExpandUnmappedFieldsPostProcessor {
     /** The user-visible name of the single flattened unmapped-fields column this post-processor emits. */

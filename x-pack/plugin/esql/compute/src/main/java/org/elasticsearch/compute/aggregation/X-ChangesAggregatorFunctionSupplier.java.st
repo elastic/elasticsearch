@@ -10,7 +10,6 @@ package org.elasticsearch.compute.aggregation;
 // begin generated imports
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IntroSorter;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.data.Block;
@@ -26,7 +25,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.$Type$Block;
 import org.elasticsearch.compute.data.$Type$Vector;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 import java.util.List;
@@ -75,7 +73,7 @@ final class Changes$Type$GroupingAggregatorFunction extends AbstractRateGrouping
     private final DriverContext driverContext;
     private final BigArrays bigArrays;
     private final $Type$RawBuffer rawBuffer;
-    private final IntervalBuffer intervalBuffer;
+    private final Rate$Type$GroupingAggregatorFunction.IntervalBuffer intervalBuffer;
     private ObjectArray<ReducedState> reducedStates;
 
     Changes$Type$GroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
@@ -83,10 +81,10 @@ final class Changes$Type$GroupingAggregatorFunction extends AbstractRateGrouping
         this.driverContext = driverContext;
         this.bigArrays = driverContext.bigArrays();
         $Type$RawBuffer rawBuffer = null;
-        IntervalBuffer intervalBuffer = null;
+        Rate$Type$GroupingAggregatorFunction.IntervalBuffer intervalBuffer = null;
         try {
             rawBuffer = new $Type$RawBuffer(driverContext.breaker());
-            intervalBuffer = new IntervalBuffer(driverContext.breaker());
+            intervalBuffer = new Rate$Type$GroupingAggregatorFunction.IntervalBuffer(driverContext.breaker());
             this.reducedStates = bigArrays.newObjectArray(256);
             this.rawBuffer = rawBuffer;
             rawBuffer = null;
@@ -507,80 +505,6 @@ $endif$
                     intervals[j] = tmp;
                 }
             }.sort(0, intervals.length);
-        }
-    }
-
-    private static final class IntervalBuffer implements Releasable {
-        private final LongBuffer timestamps;
-        private final $Type$Buffer values;
-
-        private IntervalBuffer(CircuitBreaker breaker) {
-            LongBuffer timestamps = null;
-            $Type$Buffer values = null;
-            boolean success = false;
-            try {
-                timestamps = new LongBuffer(breaker, PAGE_SIZE);
-                values = new $Type$Buffer(breaker, PAGE_SIZE);
-                success = true;
-            } finally {
-                if (success == false) {
-                    Releasables.close(timestamps, values);
-                }
-            }
-            this.timestamps = timestamps;
-            this.values = values;
-        }
-
-        private int count() {
-            return timestamps.size() / 2;
-        }
-
-        private long lastTs(int intervalId) {
-            return timestamps.get(2 * intervalId);
-        }
-
-        private $type$ lastValue(int intervalId) {
-            return values.get(2 * intervalId);
-        }
-
-        private long firstTs(int intervalId) {
-            return timestamps.get(2 * intervalId + 1);
-        }
-
-        private $type$ firstValue(int intervalId) {
-            return values.get(2 * intervalId + 1);
-        }
-
-        private int appendInterval(long lastTs, $type$ lastValue, long firstTs, $type$ firstValue) {
-            int intervalId = count();
-            timestamps.ensureCapacity(timestamps.size() + 2);
-            values.ensureCapacity(values.size() + 2);
-            timestamps.append(lastTs);
-            values.append(lastValue);
-            timestamps.append(firstTs);
-            values.append(firstValue);
-            return intervalId;
-        }
-
-        private int appendIntervalsFromBlocks(LongBlock timestampBlock, $Type$Block valueBlock, int position) {
-            int timestampStart = timestampBlock.getFirstValueIndex(position);
-            int valueStart = valueBlock.getFirstValueIndex(position);
-            int valueCount = timestampBlock.getValueCount(position);
-            assert valueCount == valueBlock.getValueCount(position);
-            assert valueCount % 2 == 0 : "expected interval endpoints but got [" + valueCount + "] values";
-            timestamps.ensureCapacity(timestamps.size() + valueCount);
-            values.ensureCapacity(values.size() + valueCount);
-            int firstIntervalId = count();
-            for (int i = 0; i < valueCount; i++) {
-                timestamps.append(timestampBlock.getLong(timestampStart + i));
-                values.append(valueBlock.get$Type$(valueStart + i));
-            }
-            return firstIntervalId;
-        }
-
-        @Override
-        public void close() {
-            Releasables.close(timestamps, values);
         }
     }
 

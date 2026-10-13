@@ -10,7 +10,6 @@ package org.elasticsearch.compute.aggregation;
 // begin generated imports
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IntroSorter;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.data.Block;
@@ -26,7 +25,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 import java.util.List;
@@ -75,7 +73,7 @@ final class ChangesLongGroupingAggregatorFunction extends AbstractRateGroupingFu
     private final DriverContext driverContext;
     private final BigArrays bigArrays;
     private final LongRawBuffer rawBuffer;
-    private final IntervalBuffer intervalBuffer;
+    private final RateLongGroupingAggregatorFunction.IntervalBuffer intervalBuffer;
     private ObjectArray<ReducedState> reducedStates;
 
     ChangesLongGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
@@ -83,10 +81,10 @@ final class ChangesLongGroupingAggregatorFunction extends AbstractRateGroupingFu
         this.driverContext = driverContext;
         this.bigArrays = driverContext.bigArrays();
         LongRawBuffer rawBuffer = null;
-        IntervalBuffer intervalBuffer = null;
+        RateLongGroupingAggregatorFunction.IntervalBuffer intervalBuffer = null;
         try {
             rawBuffer = new LongRawBuffer(driverContext.breaker());
-            intervalBuffer = new IntervalBuffer(driverContext.breaker());
+            intervalBuffer = new RateLongGroupingAggregatorFunction.IntervalBuffer(driverContext.breaker());
             this.reducedStates = bigArrays.newObjectArray(256);
             this.rawBuffer = rawBuffer;
             rawBuffer = null;
@@ -503,80 +501,6 @@ final class ChangesLongGroupingAggregatorFunction extends AbstractRateGroupingFu
                     intervals[j] = tmp;
                 }
             }.sort(0, intervals.length);
-        }
-    }
-
-    private static final class IntervalBuffer implements Releasable {
-        private final LongBuffer timestamps;
-        private final LongBuffer values;
-
-        private IntervalBuffer(CircuitBreaker breaker) {
-            LongBuffer timestamps = null;
-            LongBuffer values = null;
-            boolean success = false;
-            try {
-                timestamps = new LongBuffer(breaker, PAGE_SIZE);
-                values = new LongBuffer(breaker, PAGE_SIZE);
-                success = true;
-            } finally {
-                if (success == false) {
-                    Releasables.close(timestamps, values);
-                }
-            }
-            this.timestamps = timestamps;
-            this.values = values;
-        }
-
-        private int count() {
-            return timestamps.size() / 2;
-        }
-
-        private long lastTs(int intervalId) {
-            return timestamps.get(2 * intervalId);
-        }
-
-        private long lastValue(int intervalId) {
-            return values.get(2 * intervalId);
-        }
-
-        private long firstTs(int intervalId) {
-            return timestamps.get(2 * intervalId + 1);
-        }
-
-        private long firstValue(int intervalId) {
-            return values.get(2 * intervalId + 1);
-        }
-
-        private int appendInterval(long lastTs, long lastValue, long firstTs, long firstValue) {
-            int intervalId = count();
-            timestamps.ensureCapacity(timestamps.size() + 2);
-            values.ensureCapacity(values.size() + 2);
-            timestamps.append(lastTs);
-            values.append(lastValue);
-            timestamps.append(firstTs);
-            values.append(firstValue);
-            return intervalId;
-        }
-
-        private int appendIntervalsFromBlocks(LongBlock timestampBlock, LongBlock valueBlock, int position) {
-            int timestampStart = timestampBlock.getFirstValueIndex(position);
-            int valueStart = valueBlock.getFirstValueIndex(position);
-            int valueCount = timestampBlock.getValueCount(position);
-            assert valueCount == valueBlock.getValueCount(position);
-            assert valueCount % 2 == 0 : "expected interval endpoints but got [" + valueCount + "] values";
-            timestamps.ensureCapacity(timestamps.size() + valueCount);
-            values.ensureCapacity(values.size() + valueCount);
-            int firstIntervalId = count();
-            for (int i = 0; i < valueCount; i++) {
-                timestamps.append(timestampBlock.getLong(timestampStart + i));
-                values.append(valueBlock.getLong(valueStart + i));
-            }
-            return firstIntervalId;
-        }
-
-        @Override
-        public void close() {
-            Releasables.close(timestamps, values);
         }
     }
 

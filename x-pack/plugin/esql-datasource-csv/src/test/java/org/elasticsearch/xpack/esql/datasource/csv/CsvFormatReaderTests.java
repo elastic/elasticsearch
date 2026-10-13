@@ -387,6 +387,32 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals(2, readRowCount(reader, createStorageObject(csv), declared, null));
     }
 
+    /**
+     * What lifts the width bound is a settled schema, never where that schema came from. The cap bounds the schema a
+     * read resolves; a read carrying a pin resolves none, and reads the file only to locate the pinned schema's
+     * columns, so {@link CsvFormatReader#MAX_HEADER_SPLIT_COLUMNS} bounds it instead. The streaming coordinator
+     * resolves a first chunk after the planner has settled a schema, so holding that resolve to the cap refused a
+     * file the single-threaded path read - the same file read or not by which read path it took. An empty pin
+     * settles nothing and is bounded by the cap again, which is the {@code COUNT(*)} shape.
+     */
+    public void testAPinnedSchemaReadsPastTheColumnCap() throws Exception {
+        String csv = "1,2,3,4\n5,6,7,8\n";
+        CsvFormatReader capped = (CsvFormatReader) new CsvFormatReader(blockFactory).withSchemaMaxFields(3)
+            .withConfigTrackingConsumedKeys(Map.of("header_row", false))
+            .value();
+        expectThrows(ExternalClientException.class, () -> capped.schema(createStorageObject(csv)));
+
+        List<Attribute> pinned = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "column1", DataType.INTEGER),
+            new ReferenceAttribute(Source.EMPTY, null, "column2", DataType.INTEGER)
+        );
+        CsvFormatReader pinnedReader = capped.withSchema(pinned);
+        assertEquals(4, pinnedReader.schema(createStorageObject(csv)).size());
+
+        CsvFormatReader emptyPin = capped.withSchema(List.of());
+        expectThrows(ExternalClientException.class, () -> emptyPin.schema(createStorageObject(csv)));
+    }
+
     /** The synthesized columns are charged while the schema is built and nothing stays reserved afterwards. */
     public void testHeaderlessSyntheticColumnsAreChargedAndReleased() throws Exception {
         int columns = 5_000;

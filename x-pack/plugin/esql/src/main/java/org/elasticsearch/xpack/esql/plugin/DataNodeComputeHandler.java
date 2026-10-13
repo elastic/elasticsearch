@@ -33,7 +33,6 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.compute.operator.exchange.LocalExchange;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -61,11 +60,9 @@ import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchBoundaryExec;
 import org.elasticsearch.xpack.esql.planner.PlanConcurrencyCalculator;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
-import org.elasticsearch.xpack.esql.remotefetch.RemoteFetchService;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
@@ -136,9 +133,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         Set<String> concreteIndices,
         OriginalIndices originalIndices,
         ExchangeSourceHandler exchangeSource,
-        boolean retainSearchContexts,
-        // Non-null iff retainSearchContexts: every request that asks a data node to retain contexts must have a releaser tracking it.
-        @Nullable RemoteFetchService.RetainedSessionReleaser remoteFetchRetainedSessionReleaser,
         Runnable runOnTaskFailure,
         ActionListener<ComputeResponse> outListener
     ) {
@@ -190,28 +184,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     queryPragmas.exchangeBufferSize(),
                     searchExecutor,
                     listener.delegateFailureAndWrap((l, unused) -> {
-                        if (retainSearchContexts
-                            && connection.getTransportVersion()
-                                .supports(RemoteFetchBoundaryExec.ESQL_REMOTE_FETCH_TOPN_REDUCTION) == false) {
-                            /*
-                             * The coordinator only plans remote-fetch TopN when the cluster-wide minimum transport version supports
-                             * it. Reaching this branch means the connection view changed after planning, or otherwise disagrees with
-                             * the coordinator's cluster-state view. We cannot degrade here because the data-node and coordinator plans
-                             * have already been rewritten to exchange remote-fetch handles.
-                             */
-                            l.onFailure(
-                                new IllegalStateException(
-                                    "remote fetch TopN requires transport version ["
-                                        + RemoteFetchBoundaryExec.ESQL_REMOTE_FETCH_TOPN_REDUCTION
-                                        + "] but node ["
-                                        + connection.getNode().getName()
-                                        + "] has ["
-                                        + connection.getTransportVersion()
-                                        + "]"
-                                )
-                            );
-                            return;
-                        }
                         final Runnable onGroupFailure;
                         final CancellableTask groupTask;
                         if (configuration.allowPartialResults()) {
@@ -237,10 +209,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 .equals(connection.getNode().getId());
                             boolean enableReduceNodeLateMaterialization = EsqlCapabilities.Cap.ENABLE_REDUCE_NODE_LATE_MATERIALIZATION
                                 .isEnabled();
-                            if (retainSearchContexts) {
-                                assert remoteFetchRetainedSessionReleaser != null : "retainSearchContexts requires a session releaser";
-                                remoteFetchRetainedSessionReleaser.track(connection.getNode(), nodeReduceSessionId(childSessionId));
-                            }
                             var dataNodeRequest = new DataNodeRequest(
                                 childSessionId,
                                 configuration,
@@ -255,7 +223,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 // work as the final driver.
                                 queryPragmas.nodeLevelReduction() && sameNodeAsCoordinator == false,
                                 queryPragmas.nodeLevelReduction() && enableReduceNodeLateMaterialization,
-                                retainSearchContexts,
                                 sameNodeAsCoordinator && queryPragmas.singleNodeOptimizations() && Strings.isEmpty(clusterAlias)
                             );
                             ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
@@ -396,7 +363,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             new String[0],
                             IndicesOptions.STRICT_EXPAND_OPEN,
                             queryPragmas.nodeLevelReduction(),
-                            false,
                             false,
                             false,
                             nodeSplits
@@ -752,7 +718,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         configuration.newFoldContext(),
                         null,
                         () -> exchangeSink(pagesProduced::incrementAndGet),
-                        request.retainSearchContexts(),
                         singleNodeOptimizations
                     );
                     computeService.runCompute(
@@ -937,7 +902,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         new FoldContext(request.pragmas().foldLimit().getBytes()),
                         internalExchange::exchangeSource,
                         () -> externalSink.createExchangeSink(() -> {}),
-                        request.retainSearchContexts(),
                         request.singleNodeOptimizations()
                     ),
                     reductionPlan.nodeReducePlan(),
@@ -992,46 +956,24 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         }
 
         ReductionPlan reductionPlan;
-        final String sessionId = request.sessionId();
-        final String nodeReduceSessionId = nodeReduceSessionId(sessionId);
         if (request.plan() instanceof ExchangeSinkExec plan) {
-            try {
-                validateRemoteFetchRequest(plan, request.retainSearchContexts(), channel.getVersion(), computeService.createFlags());
-                if (plan.anyMatch(RemoteFetchBoundaryExec.class::isInstance)) {
-                    reductionPlan = ComputeService.reductionPlan(
-                        computeService.plannerSettings().get(),
-                        computeService.createFlags(),
-                        configuration,
-                        configuration.newFoldContext(),
-                        plan,
-                        request.runNodeLevelReduction(),
-                        request.reductionLateMaterialization(),
-                        clusterService.localNode().getId(),
-                        nodeReduceSessionId,
-                        planTimeProfile
-                    );
-                } else {
-                    reductionPlan = ComputeService.reductionPlan(
-                        computeService.plannerSettings().get(),
-                        computeService.createFlags(),
-                        configuration,
-                        configuration.newFoldContext(),
-                        plan,
-                        request.runNodeLevelReduction(),
-                        request.reductionLateMaterialization(),
-                        planTimeProfile
-                    );
-                }
-            } catch (Exception e) {
-                failWithoutStarting(request, listener, e);
-                return;
-            }
+            reductionPlan = ComputeService.reductionPlan(
+                computeService.plannerSettings().get(),
+                computeService.createFlags(),
+                configuration,
+                configuration.newFoldContext(),
+                plan,
+                request.runNodeLevelReduction(),
+                request.reductionLateMaterialization(),
+                planTimeProfile
+            );
         } else {
             listener.onFailure(new IllegalStateException("expected exchange sink for a remote compute; got " + request.plan()));
             return;
         }
+        final String sessionId = request.sessionId();
         request = new DataNodeRequest(
-            nodeReduceSessionId, // internal session
+            sessionId + "[n]", // internal session
             request.configuration(),
             request.clusterAlias(),
             request.shards(),
@@ -1041,62 +983,12 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             request.indicesOptions(),
             request.runNodeLevelReduction(),
             request.reductionLateMaterialization(),
-            request.retainSearchContexts(),
             request.singleNodeOptimizations(),
             request.externalSplits()
         );
         // the sender doesn't support retry on shard failures, so we need to fail fast here.
         final boolean failFastOnShardFailures = supportShardLevelRetryFailure(channel.getVersion()) == false;
         var computeSearchContexts = new AcquiredSearchContexts(request.shards().size());
-        ActionListener<DataNodeComputeResponse> responseListener;
-        if (request.retainSearchContexts()) {
-            final RetainedSearchContextsRegistry.Handle retainedSearchContexts;
-            try {
-                retainedSearchContexts = computeService.remoteFetchService()
-                    .retainSearchContexts(nodeReduceSessionId, computeSearchContexts);
-            } catch (Exception e) {
-                computeSearchContexts.close();
-                listener.onFailure(e);
-                return;
-            }
-            /*
-             * The compute holds its own lease on the retained contexts while its drivers run. Cancellation closes the
-             * registration asynchronously, which rejects new fetch leases immediately, but must not release the
-             * contexts out from under still-running drivers; that only happens once this lease is closed in the
-             * response listener, after the compute has completed.
-             */
-            final RetainedSearchContextsRegistry.Handle computeLease;
-            try {
-                computeLease = computeService.remoteFetchService().acquireRetainedContexts(nodeReduceSessionId);
-            } catch (Exception e) {
-                retainedSearchContexts.close();
-                listener.onFailure(e);
-                return;
-            }
-            ((CancellableTask) task).addListener(retainedSearchContexts::close);
-            responseListener = ActionListener.wrap(response -> {
-                boolean success = false;
-                try {
-                    // TODO: Keep a coordinator-owned lease or refresh this registration while global TopN is active. The idle reaper
-                    // must still clean abandoned sessions, but it currently cannot distinguish abandonment from waiting on a slower
-                    // data node.
-                    retainedSearchContexts.finishRegistration();
-                    listener.onResponse(response);
-                    success = true;
-                } finally {
-                    computeLease.close();
-                    if (success == false) {
-                        retainedSearchContexts.close();
-                    }
-                }
-            }, e -> {
-                try (retainedSearchContexts; computeLease) {
-                    listener.onFailure(e);
-                }
-            });
-        } else {
-            responseListener = ActionListener.releaseAfter(listener, computeSearchContexts);
-        }
         runComputeOnDataNode(
             (CancellableTask) task,
             sessionId,
@@ -1106,40 +998,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             computeSearchContexts,
             computeService.plannerSettings().get(),
             planTimeProfile,
-            responseListener
+            ActionListener.releaseAfter(listener, computeSearchContexts)
         );
-    }
-
-    private static String nodeReduceSessionId(String sessionId) {
-        return sessionId + "[n]";
-    }
-
-    static void validateRemoteFetchRequest(
-        PhysicalPlan plan,
-        boolean retainSearchContexts,
-        TransportVersion transportVersion,
-        EsqlFlags flags
-    ) {
-        if (plan.anyMatch(RemoteFetchBoundaryExec.class::isInstance) == false) {
-            return;
-        }
-        if (retainSearchContexts == false) {
-            throw new IllegalStateException("remote-fetch boundary requires retained search contexts");
-        }
-        if (flags.remoteFetchTopN() == false) {
-            throw new IllegalStateException(
-                "remote-fetch boundary requires cluster setting [" + EsqlFlags.ESQL_REMOTE_FETCH_TOPN.getKey() + "]"
-            );
-        }
-        if (transportVersion.supports(RemoteFetchBoundaryExec.ESQL_REMOTE_FETCH_TOPN_REDUCTION) == false) {
-            throw new IllegalStateException(
-                "remote-fetch boundary requires transport version ["
-                    + RemoteFetchBoundaryExec.ESQL_REMOTE_FETCH_TOPN_REDUCTION
-                    + "] but request uses ["
-                    + transportVersion
-                    + "]"
-            );
-        }
     }
 
     /**
@@ -1248,7 +1108,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     configuration.newFoldContext(),
                     null,
                     () -> externalSink.createExchangeSink(() -> {}),
-                    false,
                     false
                 );
                 computeService.runCompute(

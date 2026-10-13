@@ -323,6 +323,94 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         }
     }
 
+    public void testEscapesAndNonAsciiRoundTripAsValidJson() {
+        BlockFactory bf = blockFactory();
+        String json =
+            "{\"qu\\\"ote\":\"back\\\\slash\",\"ctl\":\"line\\nbreak\\ttab\",\"caf\u00e9\":\"na\u00efve\",\"emoji\":\"\uD83D\uDE00\"}";
+        Result result = singlePage(bf, List.of(intAttr(), unmappedAttr()), row(1, json));
+
+        Result expanded = expand(result, bf);
+        try {
+            // Keys and values with quotes, backslashes, control characters, accents and a surrogate pair must come back out of the
+            // re-serialised blob as the same strings, i.e. the blob is still valid JSON.
+            assertThat(
+                rows(expanded),
+                contains(
+                    matchesMap().entry(INT_ATTR, 1)
+                        .entry(
+                            UNMAPPED,
+                            matchesMap().entry("qu\"ote", "back\\slash")
+                                .entry("ctl", "line\nbreak\ttab")
+                                .entry("caf\u00e9", "na\u00efve")
+                                .entry("emoji", "\uD83D\uDE00")
+                        )
+                )
+            );
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testDottedKeyHoldingAnObjectFlattensToTheFullDottedPath() {
+        BlockFactory bf = blockFactory();
+        Result result = singlePage(bf, List.of(intAttr(), unmappedAttr()), row(1, jsonObject("{'a.b':{'c':1,'d':{'e':2}}}")));
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(
+                rows(expanded),
+                contains(matchesMap().entry(INT_ATTR, 1).entry(UNMAPPED, matchesMap().entry("a.b.c", 1).entry("a.b.d.e", 2)))
+            );
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testVeryWideRowKeepsEveryLeafAndReleasesTheBreaker() {
+        BlockFactory bf = blockFactory();
+        int leaves = 20_000;
+        StringBuilder json = new StringBuilder("{");
+        for (int i = 0; i < leaves; i++) {
+            json.append(i == 0 ? "" : ",").append("\"f").append(i).append("\":").append(i);
+        }
+        Result result = singlePage(bf, List.of(intAttr(), unmappedAttr()), row(1, json.append('}').toString()));
+
+        Result expanded = expand(result, bf);
+        try {
+            Map<?, ?> blob = (Map<?, ?>) rows(expanded).get(0).get(UNMAPPED);
+            assertThat(blob.size(), equalTo(leaves));
+            assertThat(blob.get("f0"), equalTo(0));
+            assertThat(blob.get("f19999"), equalTo(19_999));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+        assertThat("the parse reservation was not handed back", bf.breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testDeepNestingFlattensToOneLongDottedPath() {
+        BlockFactory bf = blockFactory();
+        int depth = 500;
+        Result result = singlePage(bf, List.of(intAttr(), unmappedAttr()), row(1, nested(depth)));
+
+        Result expanded = expand(result, bf);
+        try {
+            Map<?, ?> blob = (Map<?, ?>) rows(expanded).get(0).get(UNMAPPED);
+            assertThat(blob.size(), equalTo(1));
+            assertThat(blob.keySet().iterator().next(), equalTo("k" + ".k".repeat(depth - 1)));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testNestingBeyondTheParserLimitFailsCleanlyWithoutLeaking() {
+        BlockFactory bf = blockFactory();
+        // _source nested deeper than the JSON parser allows cannot be indexed either; this guards the coordinator against it anyway.
+        Result result = singlePage(bf, List.of(intAttr(), unmappedAttr()), row(1, nested(5_000)));
+
+        expectThrows(Exception.class, () -> expand(result, bf));
+        assertThat("a failed flattening leaked pages or reservation", bf.breaker().getUsed(), equalTo(0L));
+    }
+
     public void testChildWildcardIncludeKeepsObjectLeavesAndDropsSiblings() {
         BlockFactory bf = blockFactory();
         Result result = singlePage(
@@ -587,6 +675,11 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
     }
 
     /** Turns single quotes into double quotes so JSON literals read without escaping. */
+    /** {@code {"k":{"k":...1...}}}, {@code depth} objects deep. */
+    private static String nested(int depth) {
+        return "{\"k\":".repeat(depth) + "1" + "}".repeat(depth);
+    }
+
     private static String jsonObject(String singleQuoted) {
         return singleQuoted.replace('\'', '"');
     }

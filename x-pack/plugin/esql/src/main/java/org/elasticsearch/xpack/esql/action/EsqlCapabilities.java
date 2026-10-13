@@ -4374,6 +4374,14 @@ public class EsqlCapabilities {
          */
         FIX_DERIVED_EXTERNAL_GROUPING_MULTIVALUE,
 
+        /**
+         * A delimited-text column declared {@code date_nanos} accepts the same timestamp grammar a column declared
+         * {@code date} accepts, including the space-separated {@code YYYY-MM-DD HH:MM:SS[.f..f]} form that pandas and
+         * SQL dumps write, at nanosecond precision. Older nodes read that cell under {@code date} and refused it
+         * under {@code date_nanos}. Gates the csv-spec case asserting both reads, which such nodes still fail.
+         */
+        EXTERNAL_CSV_DATE_NANOS_ACCEPTS_THE_DATETIME_GRAMMAR,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

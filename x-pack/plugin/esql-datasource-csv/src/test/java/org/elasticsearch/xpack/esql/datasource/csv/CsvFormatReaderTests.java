@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.datasources.DeclaredSchemaValidator;
 import org.elasticsearch.xpack.esql.datasources.DrainSimulatingStorageObject;
@@ -112,6 +113,64 @@ public class CsvFormatReaderTests extends ESTestCase {
             // ESTestCase provides a fresh threadContext for the next test, so the stashed one
             // can be discarded).
             threadContext.stashContext();
+        }
+    }
+
+    /**
+     * The defect, end to end: a space-separated timestamp — what {@code pandas.to_csv} and every SQL dump write —
+     * is read by a declared {@code date} and was refused by a declared {@code date_nanos}, in the same reader, on
+     * the same cell. Both declarations now read it, and the {@code date_nanos} one keeps the sub-millisecond digits
+     * that are the reason to declare it at all.
+     */
+    public void testCsvSpaceSeparatedTimestampReadsAsBothTemporalTypes() throws Exception {
+        String cell = "2021-01-01 10:00:00.123456789\n";
+        for (DataType declared : List.of(DataType.DATE_NANOS, DataType.DATETIME)) {
+            StorageObject object = createStorageObject(cell);
+            List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "ts", declared));
+            CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
+            try (
+                CloseableIterator<Page> it = reader.read(
+                    object,
+                    FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+                )
+            ) {
+                Page page = it.next();
+                assertEquals(declared.typeName(), 1, page.getPositionCount());
+                assertFalse(declared.typeName() + " must read the cell, not refuse it", page.getBlock(0).isNull(0));
+                long expected = declared == DataType.DATE_NANOS
+                    ? epochNanos(Instant.parse("2021-01-01T10:00:00.123456789Z"))
+                    : Instant.parse("2021-01-01T10:00:00.123Z").toEpochMilli();
+                assertEquals(declared.typeName(), expected, ((LongBlock) page.getBlock(0)).getLong(0));
+                page.releaseBlocks();
+            }
+        }
+    }
+
+    /**
+     * The same cell with a zone, which neither ladder's fast template accepts: both types reach their general
+     * parser and still agree about the instant. This is the stage the {@code date_nanos} ladder was missing on top
+     * of the template one.
+     */
+    public void testCsvSpaceSeparatedTimestampWithZoneReadsAsBothTemporalTypes() throws Exception {
+        String cell = "2021-01-01 10:00:00.123456789Z\n";
+        for (DataType declared : List.of(DataType.DATE_NANOS, DataType.DATETIME)) {
+            StorageObject object = createStorageObject(cell);
+            List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "ts", declared));
+            CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
+            try (
+                CloseableIterator<Page> it = reader.read(
+                    object,
+                    FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+                )
+            ) {
+                Page page = it.next();
+                assertFalse(declared.typeName() + " must read a zoned space-separated cell", page.getBlock(0).isNull(0));
+                long expected = declared == DataType.DATE_NANOS
+                    ? epochNanos(Instant.parse("2021-01-01T10:00:00.123456789Z"))
+                    : Instant.parse("2021-01-01T10:00:00.123Z").toEpochMilli();
+                assertEquals(declared.typeName(), expected, ((LongBlock) page.getBlock(0)).getLong(0));
+                page.releaseBlocks();
+            }
         }
     }
 
@@ -5859,9 +5918,175 @@ public class CsvFormatReaderTests extends ESTestCase {
     // millis as the existing slow path (DateUtils.asDateTime), and any input it rejects must hit
     // the slow path unchanged (returning FAST_PATH_MISS).
 
+    // The date_nanos sibling of the fast path. The equivalence contract is the same, one rail down: an accepted
+    // input must produce the epoch NANOS of the instant, and a rejected one must return FAST_PATH_MISS so the
+    // caller falls through. The millis grammar above is unchanged -- a fraction wider than three digits is still a
+    // miss there, and still reaches the general parser.
+
+    /** Epoch nanoseconds of {@code instant}, computed here rather than through the conversion under test. */
+    private static long epochNanos(Instant instant) {
+        return instant.getEpochSecond() * 1_000_000_000L + instant.getNano();
+    }
+
+    public void testNanosFastPathSpaceSeparatedNoFraction() {
+        assertEquals(
+            epochNanos(Instant.parse("2021-01-01T10:00:00Z")),
+            CsvFormatReader.tryParseSpaceSeparatedDatetimeNanos("2021-01-01 10:00:00")
+        );
+    }
+
+    public void testNanosFastPathSpaceSeparatedKeepsNanosecondPrecision() {
+        assertEquals(
+            epochNanos(Instant.parse("2021-01-01T10:00:00.123456789Z")),
+            CsvFormatReader.tryParseSpaceSeparatedDatetimeNanos("2021-01-01 10:00:00.123456789")
+        );
+    }
+
+    public void testNanosFastPathSpaceSeparatedScalesShortFractions() {
+        assertEquals(
+            epochNanos(Instant.parse("2021-01-01T10:00:00.123Z")),
+            CsvFormatReader.tryParseSpaceSeparatedDatetimeNanos("2021-01-01 10:00:00.123")
+        );
+        assertEquals(
+            epochNanos(Instant.parse("2021-01-01T10:00:00.100Z")),
+            CsvFormatReader.tryParseSpaceSeparatedDatetimeNanos("2021-01-01 10:00:00.1")
+        );
+    }
+
+    /**
+     * A pre-1970 space-separated cell has no {@code date_nanos} representation, so the template stage must decline
+     * it rather than return a negative nanos long — the stage returns before Stage 3's range rule would apply, so
+     * it carries the floor itself. The same cell under {@code date} is an ordinary instant and still reads.
+     */
+    public void testNanosFastPathDeclinesPreEpoch() {
+        assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeNanos("1965-03-04 12:00:00"));
+        assertEquals(
+            Instant.parse("1965-03-04T12:00:00Z").toEpochMilli(),
+            CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("1965-03-04 12:00:00")
+        );
+    }
+
+    /**
+     * End to end on the same pre-1970 cell: declared {@code date} reads the instant, declared {@code date_nanos}
+     * reports the cell as unreadable instead of emitting an out-of-domain negative value.
+     */
+    public void testCsvPreEpochSpaceSeparatedCellReadsAsDateAndNullsAsDateNanos() throws Exception {
+        for (DataType declared : List.of(DataType.DATETIME, DataType.DATE_NANOS)) {
+            StorageObject object = createStorageObject("1965-03-04 12:00:00\n");
+            List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "ts", declared));
+            CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+                Map.of("header_row", false, "error_mode", "null_field")
+            );
+            try (
+                CloseableIterator<Page> it = reader.read(
+                    object,
+                    FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+                )
+            ) {
+                Page page = it.next();
+                if (declared == DataType.DATETIME) {
+                    assertEquals(
+                        "date represents a pre-1970 instant",
+                        Instant.parse("1965-03-04T12:00:00Z").toEpochMilli(),
+                        ((LongBlock) page.getBlock(0)).getLong(0)
+                    );
+                } else {
+                    assertTrue("date_nanos cannot hold a pre-1970 instant, so the cell nulls", page.getBlock(0).isNull(0));
+                }
+                page.releaseBlocks();
+            }
+        }
+    }
+
+    /**
+     * A calendar-invalid cell stays unreadable under {@code date_nanos}. The JDK's SMART resolver clamps an
+     * impossible day-of-month to the month's last day, so a lenient tail would read 2021-02-30 as 2021-02-28 --
+     * a different, valid-looking instant, which is worse than a refusal. Both reference engines refuse to produce
+     * Feb 28 here: DuckDB nulls the cast and ClickHouse answers 2021-03-02.
+     */
+    public void testCalendarInvalidCellStaysUnreadableAsDateNanos() throws Exception {
+        for (String cell : List.of("2021-02-30T10:00:00", "2021-02-30 10:00:00", "2021-04-31 10:00:00.5", "2021-01-01 24:00:00")) {
+            StorageObject object = createStorageObject(cell + "\n");
+            List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "ts", DataType.DATE_NANOS));
+            CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+                Map.of("header_row", false, "error_mode", "null_field")
+            );
+            try (
+                CloseableIterator<Page> it = reader.read(
+                    object,
+                    FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+                )
+            ) {
+                Page page = it.next();
+                assertTrue(cell + " must stay unreadable as date_nanos, not clamp to a real date", page.getBlock(0).isNull(0));
+                page.releaseBlocks();
+            }
+        }
+    }
+
+    /**
+     * The nanosecond ceiling, which the exact arithmetic enforces: {@code Long.MAX_VALUE} nanoseconds is exactly
+     * 2262-04-11T23:47:16.854775807, the top of the {@code date_nanos} domain. Without the exact arithmetic a wrap
+     * that lands positive is a silent wrong answer -- a year-2600 cell reads as 2015 -- so the last case here is
+     * the one that discriminates it.
+     */
+    public void testNanosFastPathEnforcesTheCeiling() {
+        assertEquals(Long.MAX_VALUE, CsvFormatReader.tryParseSpaceSeparatedDatetimeNanos("2262-04-11 23:47:16.854775807"));
+        assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeNanos("2262-04-11 23:47:16.854775808"));
+        assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeNanos("2600-01-01 00:00:00"));
+    }
+
+    public void testNanosFastPathRejectsWhatTheMillisPathRejects() {
+        for (String rejected : List.of(
+            "2021-01-01T10:00:00",
+            "2021-01-01",
+            "2021-02-30 10:00:00",
+            "2021-13-01 10:00:00",
+            "not-a-date",
+            "2021/01/01 10:00:00",
+            "2021-01-01 10:00:00.1234567890"
+        )) {
+            assertEquals(rejected, CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeNanos(rejected));
+        }
+    }
+
+    /**
+     * The one place the two templates differ, and why: the {@code date_nanos} entry point takes a trailing
+     * {@code Z} so its ladder can stop before the lenient JDK resolver, while the millisecond entry point still
+     * refuses it and reaches that resolver as it always did. Both produce the same instant for the cell. A numeric
+     * offset is not part of the template on either rail.
+     */
+    public void testNanosFastPathTakesTheZoneSuffixTheMillisPathRefuses() {
+        assertEquals(
+            epochNanos(Instant.parse("2021-01-01T10:00:00.123456789Z")),
+            CsvFormatReader.tryParseSpaceSeparatedDatetimeNanos("2021-01-01 10:00:00.123456789Z")
+        );
+        assertEquals(
+            epochNanos(Instant.parse("2021-01-01T10:00:00Z")),
+            CsvFormatReader.tryParseSpaceSeparatedDatetimeNanos("2021-01-01 10:00:00Z")
+        );
+        assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("2021-01-01 10:00:00Z"));
+        assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeNanos("2021-01-01 10:00:00+02:00"));
+    }
+
     public void testFastPathSpaceSeparatedNoFraction() {
         long actual = CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("2024-05-12 14:30:45");
         assertEquals(Instant.parse("2024-05-12T14:30:45Z").toEpochMilli(), actual);
+    }
+
+    /**
+     * One and two fraction digits reach the millisecond template now rather than falling through to Stage 3. The
+     * value a declared {@code date} reads is unchanged -- Stage 3 produced exactly these milliseconds -- so this
+     * pins the equivalence the widening has to preserve: {@code .1} is 100 milliseconds, not 1.
+     */
+    public void testFastPathSpaceSeparatedShortFractionsMatchTheGeneralParser() {
+        for (String cell : List.of("2024-05-12 14:30:45.1", "2024-05-12 14:30:45.12", "2024-05-12 14:30:45.123")) {
+            assertEquals(
+                cell,
+                DateUtils.asDateTime(cell).toInstant().toEpochMilli(),
+                CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis(cell)
+            );
+        }
     }
 
     public void testFastPathSpaceSeparatedWithMillis() {
@@ -5897,7 +6122,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         // Trailing Z — falls back to the general-purpose parser (preserves the existing semantics
         // that DateUtils.asDateTime's whitespace formatter would apply).
         assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("2024-05-12 14:30:45Z"));
-        // Microsecond precision (6-digit fraction) — only 3-digit ms is fast-pathed.
+        // Microsecond precision (6-digit fraction) — three digits is the millisecond template's budget.
         assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("2024-05-12 14:30:45.123456"));
         // Garbage
         assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("not-a-date"));
@@ -5905,8 +6130,8 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("2024/05/12 14:30:45"));
         // Non-ASCII digit (full-width '1') in the year — must be rejected without throwing
         assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("\uFF12024-05-12 14:30:45"));
-        // Negative year — `-2024-05-12 14:30:45` is 20 chars and fails the length guard
-        // (19 or 23 only); `-999-05-12 14:30:45` is 19 chars but the leading '-' fails
+        // Negative year — `-2024-05-12 14:30:45` shifts every separator by one, so the template's '-' check at
+        // offset 4 sees a digit; `-999-05-12 14:30:45` keeps the separators in place but the leading '-' fails
         // parseFixedDigits at offset 0. Either way, BCE-style dates route to Stage 3.
         assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("-2024-05-12 14:30:45"));
         assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("-999-05-12 14:30:45"));

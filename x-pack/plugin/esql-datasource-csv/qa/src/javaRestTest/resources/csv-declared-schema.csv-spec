@@ -156,3 +156,22 @@ id:long | h:integer
 10002   | null
 10003   | null
 ;
+
+// One cell, two declared temporal types, and they used to disagree about whether it is a timestamp at all. The
+// space-separated `YYYY-MM-DD HH:MM:SS[.f..f]` form is what pandas.to_csv and every SQL dump write; the datetime
+// ladder has a stage for it and the date_nanos ladder did not, so declaring the type that exists FOR
+// sub-millisecond precision refused the cell outright. Two physical columns because two logical columns may not
+// share one, and {{spaced_timestamps}} holds the same value in both.
+declaredDateAndDateNanosReadTheSameSpaceSeparatedCell
+required_capability: dataset_in_from_command
+required_capability: external_csv_date_nanos_accepts_the_datetime_grammar
+dataset: spaced_ts: "{{spaced_timestamps}}" WITH {"mappings": {"dynamic": "false", "properties": {"as_date": {"type": "date", "path": "ts_a"}, "as_nanos": {"type": "date_nanos", "path": "ts_b"}}}}
+
+FROM spaced_ts
+| SORT as_date
+;
+
+as_date:date             | as_nanos:date_nanos
+2021-01-01T10:00:00.123Z | 2021-01-01T10:00:00.123456789Z
+2021-06-15T23:59:59.000Z | 2021-06-15T23:59:59.000000000Z
+;

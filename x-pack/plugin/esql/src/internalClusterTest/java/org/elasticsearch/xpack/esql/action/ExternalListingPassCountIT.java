@@ -234,7 +234,7 @@ public class ExternalListingPassCountIT extends AbstractExternalDataSourceIT {
      */
     public void testAFilteredEntryServesTheSameFilterAndNoOther() throws Exception {
         Path dir = writeFixture(PADDING_FOLDERS);
-        String glob = CountingStorageProvider.SCHEME + "://" + dir.toAbsolutePath() + "/date=*/*.csv";
+        String glob = CountingStorageProvider.location(dir) + "/date=*/*.csv";
         String dataset = registerDataset("pass_filtered", glob, Map.of("format", "csv", "schema_resolution", "first_file_wins"));
         String coordinator = internalCluster().getNodeNames()[0];
         String filtered = "FROM " + dataset + " | WHERE date == \"2024-01-05\" | LIMIT 0";
@@ -315,7 +315,7 @@ public class ExternalListingPassCountIT extends AbstractExternalDataSourceIT {
      */
     public void testAGlobThatMatchesNothingListsOnce() throws Exception {
         Path dir = writeFixture(PADDING_FOLDERS);
-        String glob = CountingStorageProvider.SCHEME + "://" + dir.toAbsolutePath() + "/date=2025-01-0*/*.csv";
+        String glob = CountingStorageProvider.location(dir) + "/date=2025-01-0*/*.csv";
         String dataset = registerDataset("pass_empty", glob, Map.of("format", "csv", "schema_resolution", "first_file_wins"));
         String coordinator = internalCluster().getNodeNames()[0];
 
@@ -345,7 +345,7 @@ public class ExternalListingPassCountIT extends AbstractExternalDataSourceIT {
      */
     public void testADeclaredSchemaQueryListsOnce() throws Exception {
         Path dir = writeFixture(PADDING_FOLDERS);
-        String glob = CountingStorageProvider.SCHEME + "://" + dir.toAbsolutePath() + "/date=2024-01-0*/*.csv";
+        String glob = CountingStorageProvider.location(dir) + "/date=2024-01-0*/*.csv";
         LinkedHashMap<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("id", new DatasetFieldMapping("integer", null));
         properties.put("v", new DatasetFieldMapping("keyword", null));
@@ -457,7 +457,7 @@ public class ExternalListingPassCountIT extends AbstractExternalDataSourceIT {
 
     private String registerCountingDataset(String name, int paddingFolders, Map<String, Object> extraSettings) throws IOException {
         Path dir = writeFixture(paddingFolders);
-        String glob = CountingStorageProvider.SCHEME + "://" + dir.toAbsolutePath() + "/date=2024-01-0*/*.csv";
+        String glob = CountingStorageProvider.location(dir) + "/date=2024-01-0*/*.csv";
         Map<String, Object> settings = new HashMap<>(Map.of("format", "csv", "schema_resolution", "first_file_wins"));
         settings.putAll(extraSettings);
         return registerDataset(name, glob, settings);

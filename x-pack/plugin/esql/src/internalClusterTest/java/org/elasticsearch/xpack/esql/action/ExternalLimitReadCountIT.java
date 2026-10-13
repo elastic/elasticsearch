@@ -177,7 +177,7 @@ public class ExternalLimitReadCountIT extends AbstractExternalDataSourceIT {
         for (int f = 0; f < fileCount; f++) {
             writeParquet(dir.resolve(String.format(Locale.ROOT, "part-%04d.parquet", f)), ROWS_PER_FILE, ROWS_PER_FILE);
         }
-        String glob = CountingStorageProvider.SCHEME + "://" + dir.toAbsolutePath() + "/*.parquet";
+        String glob = CountingStorageProvider.location(dir) + "/*.parquet";
         return registerDataset(name, glob, Map.of("format", "parquet", "schema_resolution", "first_file_wins"));
     }
 }

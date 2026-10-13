@@ -206,6 +206,60 @@ public class DatasetListingServiceCacheTests extends ESTestCase {
         }
     }
 
+    /**
+     * A pattern that matches nothing is listed once and then served from the cache.
+     * <p>
+     * It is the case most exposed to a missing count, because it is the one where the count is zero: both the
+     * publish check and the read check decline a listing that reports no count, so an empty listing built without
+     * one is cached by neither side and every query asking for that pattern lists the whole prefix again. Zero is a
+     * count, and an empty listing that read to the end of the pattern has it.
+     */
+    public void testACompleteEmptyListingIsPublishedAndServed() throws Exception {
+        String glob = "s3://bucket/flat/*.parquet";
+        try (ExternalSourceCacheService cache = new ExternalSourceCacheService(cacheEnabled())) {
+            DatasetListingService service = new DatasetListingService(Settings.EMPTY, cache, null, null, null);
+            TreeProvider provider = new TreeProvider(
+                List.of(
+                    new StorageEntry(StoragePath.of("s3://bucket/flat/a.csv"), 10, Instant.EPOCH),
+                    new StorageEntry(StoragePath.of("s3://bucket/flat/b.csv"), 10, Instant.EPOCH)
+                )
+            );
+
+            FileList first = service.boundedListing(
+                glob,
+                StoragePath.of(glob),
+                provider,
+                "",
+                "",
+                null,
+                Map.of(),
+                new ListingExtents(1000),
+                PlanningMemory.NONE,
+                () -> false
+            );
+            assertEquals("no .parquet in the fixture", 0, first.fileCount());
+            assertFalse("and the listing reached the end of the pattern", first.isTruncated());
+            assertEquals("so it selected zero files, and says so", 0, first.globMatchCount());
+
+            long listsAfterFirst = provider.listObjectsCalls.get();
+            FileList second = service.boundedListing(
+                glob,
+                StoragePath.of(glob),
+                provider,
+                "",
+                "",
+                null,
+                Map.of(),
+                new ListingExtents(1000),
+                PlanningMemory.NONE,
+                () -> false
+            );
+
+            assertEquals("the empty answer came from the cache", listsAfterFirst, provider.listObjectsCalls.get());
+            assertEquals(0, second.fileCount());
+        }
+    }
+
     /** And the bounded listing must not overwrite an entry the unbounded rail already published. */
     public void testABoundedListingDoesNotOverwriteTheWholePattern() throws Exception {
         try (ExternalSourceCacheService cache = new ExternalSourceCacheService(cacheEnabled())) {

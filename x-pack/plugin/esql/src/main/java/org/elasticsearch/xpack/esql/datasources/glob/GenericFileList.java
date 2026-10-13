@@ -230,8 +230,12 @@ final class GenericFileList implements FileList {
             return false;
         }
         GenericFileList other = (GenericFileList) o;
+        // globMatchCount participates: it decides whether this listing may answer a bounded query from the cache
+        // (DatasetListingService#servesThisBound) and whether it may be published there at all, so two listings
+        // that differ only in it are not interchangeable.
         return truncated == other.truncated
             && inferenceAnchor == other.inferenceAnchor
+            && globMatchCount == other.globMatchCount
             && Objects.equals(files, other.files)
             && Objects.equals(originalPattern, other.originalPattern)
             && Objects.equals(partitionMetadata, other.partitionMetadata)
@@ -240,7 +244,7 @@ final class GenericFileList implements FileList {
 
     @Override
     public int hashCode() {
-        return Objects.hash(files, originalPattern, partitionMetadata, listingWarnings, truncated, inferenceAnchor);
+        return Objects.hash(files, originalPattern, partitionMetadata, listingWarnings, truncated, inferenceAnchor, globMatchCount);
     }
 
     @Override

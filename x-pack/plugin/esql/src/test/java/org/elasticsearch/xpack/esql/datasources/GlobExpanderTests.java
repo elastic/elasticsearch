@@ -6725,10 +6725,6 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * A bounded page holding nothing the glob matches is not an empty dataset. Reporting one would turn a working
-     * query into "matched no files" for any dataset whose first keys happen to be another format.
-     */
-    /**
      * A bounded pattern that matches nothing, and that nothing narrowed, lists once.
      *
      * <p>The retry is for a listing that stopped short: a rewrite that missed a folder's spelling, or a bound
@@ -6759,8 +6755,48 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("nothing in the fixture matches the pattern", 0, result.fileCount());
         assertFalse("the listing reached the end of the pattern, so the empty answer is complete", result.isTruncated());
         assertEquals("so there is no retry: the ten keys were pulled once, not twice", 10, provider.keysPulled());
+        assertEquals(
+            "a complete empty listing selected zero files, which is a count -- not the absence of one, which would "
+                + "hold it out of the cache and make every query asking for this pattern list it again",
+            0,
+            result.globMatchCount()
+        );
     }
 
+    /**
+     * The async twin of the test above. The short-circuit is implemented once per code path, so a pin on one says
+     * nothing about the other: deleting the async one left every unit and integration suite green.
+     */
+    public void testABoundedPatternMatchingNothingListsOnceAsync() throws Exception {
+        List<StorageEntry> listing = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            listing.add(entry(String.format(Locale.ROOT, "s3://bucket/data/part-%06d.csv", i), 50));
+        }
+        CountingStubProvider provider = new CountingStubProvider(listing);
+
+        FileList result = expandSync(
+            "s3://bucket/data/*.parquet",
+            provider,
+            null,
+            HIVE_OFF,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            1000,
+            4,
+            () -> false
+        );
+
+        assertEquals("nothing in the fixture matches the pattern", 0, result.fileCount());
+        assertFalse("the listing reached the end of the pattern, so the empty answer is complete", result.isTruncated());
+        assertEquals("so there is no retry: the ten keys were pulled once, not twice", 10, provider.keysPulled());
+        assertEquals("and the complete empty listing carries its count", 0, result.globMatchCount());
+    }
+
+    /**
+     * A bounded page holding nothing the glob matches is not an empty dataset. Reporting one would turn a working
+     * query into "matched no files" for any dataset whose first keys happen to be another format.
+     */
     public void testBoundedListingMatchingNothingRelistsInFull() throws IOException {
         List<StorageEntry> listing = new ArrayList<>();
         for (int i = 0; i < 1000; i++) {

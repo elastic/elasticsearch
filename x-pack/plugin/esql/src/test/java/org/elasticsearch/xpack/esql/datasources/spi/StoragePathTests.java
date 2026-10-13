@@ -11,6 +11,9 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
+import java.util.Map;
+
+import static org.hamcrest.Matchers.containsString;
 
 @SuppressWarnings("RegexpMultiline")
 public class StoragePathTests extends ESTestCase {
@@ -55,20 +58,50 @@ public class StoragePathTests extends ESTestCase {
      */
     public void testAWindowsShapedFileUriParsesWithAndWithoutAnAuthority() {
         String windowsStyle = "/C:/Users/jenkins/tmp/dir";
-        for (String spelling : List.of(
+        // Each spelling against the local path it must yield. Asserted on localPath() rather than toString(),
+        // which returns the location verbatim and so contains the drive letter whatever the parse did with it. The
+        // drive letter arriving in the path with NO leading slash is what shows the fold ran: read as an authority,
+        // "C:" would have become the host and the path would have started at the first segment after it.
+        Map<String, String> expected = Map.of(
             "file://" + windowsStyle,
+            "C:/Users/jenkins/tmp/dir",
             "file://" + windowsStyle + "/",
+            "C:/Users/jenkins/tmp/dir/",
             "file://localhost" + windowsStyle,
+            "C:/Users/jenkins/tmp/dir",
             "file://localhost" + windowsStyle + "/",
-            "file://" + windowsStyle + "//"
-        )) {
-            StoragePath path = StoragePath.of(spelling);
-            assertEquals(spelling, "file", path.scheme());
-            assertTrue(spelling + " must keep the drive-lettered path", path.toString().contains("C:"));
+            "C:/Users/jenkins/tmp/dir/",
+            "file://" + windowsStyle + "//",
+            "C:/Users/jenkins/tmp/dir//"
+        );
+        for (Map.Entry<String, String> spelling : expected.entrySet()) {
+            StoragePath path = StoragePath.of(spelling.getKey());
+            assertEquals(spelling.getKey(), "file", path.scheme());
+            assertEquals(spelling.getKey(), spelling.getValue(), path.localPath());
         }
         // And the spelling that skipping fileUri would produce is rejected, which is what makes the normalisation
         // load-bearing rather than tidy: the authority reads as "localhostC:".
         expectThrows(IllegalArgumentException.class, () -> StoragePath.of("file://localhostC:/Users/jenkins/tmp/dir"));
+    }
+
+    /**
+     * The normalisation the test above exercises runs only for scheme {@code file}, so a location for any other
+     * scheme has to be built from {@link StoragePath#fileUri} rather than by concatenating an absolute path onto
+     * the scheme. Pinned here because nothing else can catch it cheaply: on POSIX the two spellings are the same
+     * string, so only a Windows run tells them apart, and a test that needs Windows to fail is a test that reports
+     * late.
+     */
+    public void testANonFileSchemeDoesNotFoldAWindowsDriveLetter() {
+        String windowsAbsolute = "C:\\Users\\jenkins\\tmp\\dir";
+        IllegalArgumentException rejected = expectThrows(
+            IllegalArgumentException.class,
+            () -> StoragePath.of("countfs://" + windowsAbsolute + "/date=*/*.csv")
+        );
+        assertThat(rejected.getMessage(), containsString("Malformed authority"));
+        // Spelled the way fileUri spells it, the same directory parses under a scheme that is not file.
+        StoragePath path = StoragePath.of("countfs:///C:/Users/jenkins/tmp/dir/date=*/*.csv");
+        assertEquals("countfs", path.scheme());
+        assertEquals("C:/Users/jenkins/tmp/dir/date=*/*.csv", path.localPath());
     }
 
     /** No pattern, nothing to narrow. */

@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -91,6 +92,20 @@ public final class CountingStorageProvider implements StorageProvider {
     /** The objects a query opened, as paths, so a failure can name the files it should not have touched. */
     public static Set<String> pathsRead() {
         return Set.copyOf(PATHS_READ);
+    }
+
+    /**
+     * A {@code countfs://} location for a local directory or file, spelled the way {@link StoragePath#fileUri}
+     * spells a {@code file://} one.
+     * <p>
+     * Not {@code SCHEME + "://" + path.toAbsolutePath()}: the backslash normalisation and the drive-letter fold in
+     * {@link StoragePath#of} run only for scheme {@code file}, so on Windows that spelling leaves
+     * {@code C:\\Users\\...} as the authority, which splits at the last colon into host {@code C} and an
+     * unparseable port. Going through {@code fileUri} gives {@code countfs:///C:/Users/...}, where the drive letter
+     * is part of the path on either platform.
+     */
+    static String location(Path path) {
+        return SCHEME + "://" + StoragePath.fileUri(path).substring("file://".length());
     }
 
     /** Rewrites {@code countfs:///x} to {@code file:///x} so the real local provider serves it. */

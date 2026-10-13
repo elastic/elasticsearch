@@ -1247,32 +1247,6 @@ public final class GlobExpander {
             matched.add(fileHintAnchor);
         }
 
-        if (matched.isEmpty()) {
-            // FileList.EMPTY is a shared sentinel and cannot carry per-listing warnings. Litter-only
-            // prefixes still need the exclusion text on a cacheable empty listing.
-            // Carries `truncated` even when nothing matched: the shared EMPTY sentinel cannot hold it, so a
-            // bounded empty listing takes the GenericFileList branch whether or not there are warnings.
-            return emptyListing(pattern, exclusionNotice, truncated);
-        }
-
-        matched = withoutFoldersOutsideClosedRange(matched, hints, partitionConfig);
-        if (matched.isEmpty()) {
-            // A bound that then filters to nothing is still truncated. EMPTY cannot carry the flag, and caching
-            // it as a complete empty listing would hide files past the bound that fall inside the range.
-            return emptyListing(pattern, exclusionNotice, truncated);
-        }
-
-        // Charge the listing that is kept. valueExcluded was reserved as the drain grew; putting those files
-        // into matched must not charge them a second time.
-        reserveRetained(memory, matched.size(), reserved, true);
-
-        fileOrder.apply(matched);
-
-        // Every path kept, not a sample of them: the drain stops at the bound, so `matched` is already no longer
-        // than it, and ordinal-aligned partition metadata has to cover the listing it hangs off
-        // (PartitionMetadata#coversFileCount) — a narrower sample would describe a listing that cannot be built.
-        PartitionMetadata partitionMetadata = detectPartitions(matched, partitionConfig, listingWarnings::add);
-
         // globKeptCount, not matched.size(): the count the bound was measured against, before the value filter, the
         // closed-range narrowing and the _file.* hints each dropped from it. See FileList#globMatchCount.
         //
@@ -1291,15 +1265,65 @@ public final class GlobExpander {
         //
         // Recording no count keeps the entry cacheable for a query that wants the whole pattern and refuses it
         // to a bounded one, which re-lists -- the conservative direction servesThisBound documents.
+        //
+        // Computed before the two empty returns below, not just for the listing that keeps files: a listing that
+        // kept none still selected however many the pattern matched, and recording no count for it would hold it
+        // out of the cache both ways, so every query asking for that pattern would list it again.
         int recordedCount = countNotComparable ? FileList.UNKNOWN_GLOB_MATCH_COUNT : globKeptCount;
+
+        if (matched.isEmpty()) {
+            // FileList.EMPTY is a shared sentinel and cannot carry per-listing warnings. Litter-only
+            // prefixes still need the exclusion text on a cacheable empty listing.
+            // Carries `truncated` even when nothing matched: the shared EMPTY sentinel cannot hold it, so a
+            // bounded empty listing takes the GenericFileList branch whether or not there are warnings.
+            return emptyListing(pattern, exclusionNotice, truncated, recordedCount);
+        }
+
+        matched = withoutFoldersOutsideClosedRange(matched, hints, partitionConfig);
+        if (matched.isEmpty()) {
+            // A bound that then filters to nothing is still truncated. EMPTY cannot carry the flag, and caching
+            // it as a complete empty listing would hide files past the bound that fall inside the range.
+            return emptyListing(pattern, exclusionNotice, truncated, recordedCount);
+        }
+
+        // Charge the listing that is kept. valueExcluded was reserved as the drain grew; putting those files
+        // into matched must not charge them a second time.
+        reserveRetained(memory, matched.size(), reserved, true);
+
+        fileOrder.apply(matched);
+
+        // Every path kept, not a sample of them: the drain stops at the bound, so `matched` is already no longer
+        // than it, and ordinal-aligned partition metadata has to cover the listing it hangs off
+        // (PartitionMetadata#coversFileCount) — a narrower sample would describe a listing that cannot be built.
+        PartitionMetadata partitionMetadata = detectPartitions(matched, partitionConfig, listingWarnings::add);
+
         return new GenericFileList(matched, pattern, partitionMetadata, listingWarnings, truncated, false, recordedCount);
     }
 
-    private static FileList emptyListing(String pattern, @Nullable String exclusionNotice, boolean truncated) {
-        if (exclusionNotice == null && truncated == false) {
+    /**
+     * @param globMatchCount how many files the pattern selected, for a listing that ended up keeping none of them:
+     *                       zero where the pattern matched nothing, non-zero where it matched files the value
+     *                       filter or the closed-range narrowing then dropped, and
+     *                       {@link FileList#UNKNOWN_GLOB_MATCH_COUNT} where this listing narrowed differently from
+     *                       the one another query would build. An empty listing carries this for the same reason a
+     *                       populated one does -- {@code DatasetListingService} declines an entry with no count
+     *                       both when publishing and when reading -- so where there is a count to record the
+     *                       shared {@link FileList#EMPTY} sentinel cannot be used. The sentinel reports no count
+     *                       correctly, since it is also what a path that never listed anything returns.
+     */
+    private static FileList emptyListing(String pattern, @Nullable String exclusionNotice, boolean truncated, int globMatchCount) {
+        if (exclusionNotice == null && truncated == false && globMatchCount == FileList.UNKNOWN_GLOB_MATCH_COUNT) {
             return FileList.EMPTY;
         }
-        return new GenericFileList(List.of(), pattern, null, exclusionNotice == null ? List.of() : List.of(exclusionNotice), truncated);
+        return new GenericFileList(
+            List.of(),
+            pattern,
+            null,
+            exclusionNotice == null ? List.of() : List.of(exclusionNotice),
+            truncated,
+            false,
+            globMatchCount
+        );
     }
 
     /**

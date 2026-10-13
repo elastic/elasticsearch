@@ -104,6 +104,32 @@ public class GenericFileListTests extends ESTestCase {
         assertNotEquals(a, c);
     }
 
+    /**
+     * Two listings that differ only in the glob-match count are not interchangeable: the count decides whether a
+     * listing may answer a bounded query from the shared cache and whether it may be published there, so a cache
+     * or a test treating them as one value would substitute a listing that cannot serve for one that can.
+     */
+    public void testEqualityDistinguishesTheGlobMatchCount() {
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://bucket/data/file.parquet"), 100, Instant.EPOCH);
+        String pattern = "s3://bucket/data/*.parquet";
+        GenericFileList counted = new GenericFileList(List.of(entry), pattern, null, List.of(), false, false, 1);
+        GenericFileList sameCount = new GenericFileList(List.of(entry), pattern, null, List.of(), false, false, 1);
+        GenericFileList uncounted = new GenericFileList(
+            List.of(entry),
+            pattern,
+            null,
+            List.of(),
+            false,
+            false,
+            FileList.UNKNOWN_GLOB_MATCH_COUNT
+        );
+
+        assertEquals(counted, sameCount);
+        assertEquals(counted.hashCode(), sameCount.hashCode());
+        assertNotEquals(counted, uncounted);
+        assertNotEquals(counted.hashCode(), uncounted.hashCode());
+    }
+
     public void testFileListOfDetectsHivePartitions() {
         StorageEntry entry = new StorageEntry(StoragePath.of("s3://bucket/year=2024/file.parquet"), 100, Instant.EPOCH);
         for (PartitionConfig config : List.of(PartitionConfig.DEFAULT, new PartitionConfig(PartitionConfig.Strategy.HIVE, null))) {

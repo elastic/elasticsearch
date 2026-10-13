@@ -30,9 +30,9 @@ public class PreAnalyzerTests extends ESTestCase {
 
     public void testMixedIndexModesReturnClientError() {
         assumeTrue("TS command required", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
-        assumeTrue("LOOKUP JOIN on a subquery required", EsqlCapabilities.Cap.LOOKUP_JOIN_ON_SUBQUERY.isEnabled());
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
 
-        var plan = TEST_PARSER.parseQuery("TS idx | LOOKUP JOIN (FROM idx) ON host");
+        var plan = TEST_PARSER.parseQuery("TS idx | LEFT OUTER JOIN (FROM idx) ON host");
         EsqlIllegalArgumentException exception = expectThrows(EsqlIllegalArgumentException.class, () -> new PreAnalyzer().preAnalyze(plan));
         assertThat(exception.getMessage(), containsString("Index pattern [idx] is referenced with multiple index modes"));
     }

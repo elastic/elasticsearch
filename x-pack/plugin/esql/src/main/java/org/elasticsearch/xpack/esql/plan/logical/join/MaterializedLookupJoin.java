@@ -26,7 +26,7 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * A LOOKUP JOIN whose independent subquery has been materialized for physical planning.
+ * A JOIN whose independent subquery has been materialized for physical planning.
  */
 public class MaterializedLookupJoin extends Join {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -91,10 +91,10 @@ public class MaterializedLookupJoin extends Join {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (right() instanceof LocalRelation == false) {
-            throw new IllegalStateException("materialized LOOKUP JOIN must have a LocalRelation on the right");
+            throw new IllegalStateException("materialized subquery join must have a LocalRelation on the right");
         }
         if (out.getTransportVersion().supports(ESQL_LOOKUP_JOIN_SUBQUERY) == false) {
-            throw new IllegalStateException("materialized LOOKUP JOIN cannot be sent to a node without subquery join support");
+            throw new IllegalStateException("materialized subquery join cannot be sent to a node without subquery join support");
         }
         super.writeTo(out);
     }

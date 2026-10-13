@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier;
@@ -74,6 +75,25 @@ public class SubqueryLookupJoinTests extends ESTestCase {
         assertThat(join.config().type(), sameInstance(JoinTypes.LEFT));
         assertThat(join.output().stream().filter(attribute -> attribute.name().equals("key")).toList(), contains(key));
 
+        Attribute outputValue = join.output().stream().filter(attribute -> attribute.name().equals("value")).findFirst().orElseThrow();
+        assertThat(outputValue, instanceOf(ReferenceAttribute.class));
+        assertThat(outputValue.id(), equalTo(rightValue.id()));
+    }
+
+    public void testInnerJoinOutputUsesRightReferencesAndPreservesLeftJoinKey() {
+        FieldAttribute key = getFieldAttribute("key", DataType.INTEGER);
+        FieldAttribute leftValue = getFieldAttribute("value", DataType.INTEGER);
+        FieldAttribute rightValue = getFieldAttribute("value", DataType.INTEGER);
+        SubqueryLookupJoin join = new SubqueryLookupJoin(
+            Source.EMPTY,
+            relation(List.of(key, leftValue)),
+            relation(List.of(key, rightValue)),
+            JoinTypes.INNER,
+            List.of(key)
+        );
+
+        assertThat(join.config().type(), sameInstance(JoinTypes.INNER));
+        assertThat(join.output().stream().filter(attribute -> attribute.name().equals("key")).toList(), contains(key));
         Attribute outputValue = join.output().stream().filter(attribute -> attribute.name().equals("value")).findFirst().orElseThrow();
         assertThat(outputValue, instanceOf(ReferenceAttribute.class));
         assertThat(outputValue.id(), equalTo(rightValue.id()));
@@ -145,7 +165,7 @@ public class SubqueryLookupJoinTests extends ESTestCase {
         )) {
             Failures failures = new Failures();
             joinWithPayload(dataType).postOptimizationVerification(failures);
-            assertThat(failures.toString(), containsString("LOOKUP JOIN subquery cannot return column [payload]"));
+            assertThat(failures.toString(), containsString("JOIN subquery cannot return column [payload]"));
         }
 
         Failures supportedPayload = new Failures();
@@ -215,9 +235,44 @@ public class SubqueryLookupJoinTests extends ESTestCase {
             drainWarnings(),
             contains(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded",
-                "Line -1:-1: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value"
+                "Line -1:-1: java.lang.IllegalArgumentException: JOIN subquery encountered multi-value"
             )
         );
+    }
+
+    public void testInnerJoinWithEmptyRightSideProducesNoRows() {
+        BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
+        ReferenceAttribute leftKey = attribute("key", DataType.INTEGER);
+        ReferenceAttribute rightKey = attribute("key", DataType.INTEGER);
+        ReferenceAttribute payload = attribute("payload", DataType.LONG);
+        SubqueryLookupJoin join = new SubqueryLookupJoin(
+            Source.EMPTY,
+            relation(List.of(leftKey)),
+            relation(List.of(rightKey, payload)),
+            JoinTypes.INNER,
+            List.of(leftKey),
+            List.of(rightKey),
+            null,
+            ExecuteLocation.ANY
+        );
+
+        Page inputPage;
+        try (IntBlock.Builder keys = blockFactory.newIntBlockBuilder(0); LongBlock.Builder values = blockFactory.newLongBlockBuilder(0)) {
+            inputPage = new Page(keys.build(), values.build());
+        }
+        AtomicReference<Page> pageHolder = new AtomicReference<>(inputPage);
+        LocalRelation materialized = new LocalRelation(Source.EMPTY, List.of(rightKey, payload), LocalSupplier.of(inputPage));
+
+        Project project = as(
+            join.inlineSubqueryResult(materialized, resultContext(blockFactory, pageHolder, ByteSizeValue.ofMb(100))),
+            Project.class
+        );
+        Eval eval = as(project.child(), Eval.class);
+        Filter filter = as(eval.child(), Filter.class);
+        Literal condition = as(filter.condition(), Literal.class);
+        assertThat(condition.value(), equalTo(false));
+        assertThat(project.output(), equalTo(join.output()));
+        assertNull(pageHolder.get());
     }
 
     public void testInliningFiltersCompositeKeysWhenAnyComponentIsNullOrMultivalued() {
@@ -283,7 +338,7 @@ public class SubqueryLookupJoinTests extends ESTestCase {
             drainWarnings(),
             contains(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded",
-                "Line -1:-1: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value"
+                "Line -1:-1: java.lang.IllegalArgumentException: JOIN subquery encountered multi-value"
             )
         );
     }
@@ -443,7 +498,7 @@ public class SubqueryLookupJoinTests extends ESTestCase {
             drainWarnings(),
             contains(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded",
-                "Line -1:-1: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value"
+                "Line -1:-1: java.lang.IllegalArgumentException: JOIN subquery encountered multi-value"
             )
         );
     }

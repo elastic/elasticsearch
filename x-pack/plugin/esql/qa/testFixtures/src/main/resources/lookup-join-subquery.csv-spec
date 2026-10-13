@@ -1,11 +1,10 @@
-indexJoinLookupSubqueryRepeatedKey
-required_capability: join_lookup_v12
-required_capability: lookup_join_on_subquery
+indexJoinSubqueryRepeatedKey
+required_capability: join_on_subquery
 
 FROM employees
 | WHERE emp_no == 10092
 | EVAL language_code = emp_no % 10
-| LOOKUP JOIN (
+| LEFT OUTER JOIN (
     FROM languages_lookup_non_unique_key
     | WHERE language_code == 2
     | KEEP language_code, language_name
@@ -21,9 +20,8 @@ emp_no:integer | language_code:integer | language_name:keyword
 10092          | 2                     | German
 ;
 
-subqueryJoinLookupSubquery
-required_capability: join_lookup_v12
-required_capability: lookup_join_on_subquery
+subqueryJoinSubquery
+required_capability: join_on_subquery
 required_capability: subquery_in_from_command
 
 FROM (
@@ -32,7 +30,7 @@ FROM (
     | EVAL language_code = languages
     | KEEP emp_no, language_code
   )
-| LOOKUP JOIN (
+| LEFT OUTER JOIN (
     FROM languages_lookup
     | WHERE language_code == 2
     | KEEP language_code, language_name

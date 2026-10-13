@@ -128,11 +128,11 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
     }
 
     public void testLookupJoinSubqueryResolvesViewAndNestedInSubquery() {
-        assumeTrue("LOOKUP JOIN on a subquery required", EsqlCapabilities.Cap.LOOKUP_JOIN_ON_SUBQUERY.isEnabled());
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
         addView("dept_view", "FROM departments | KEEP dept_id");
         ViewResolver.ViewResolutionResult result = resolve("""
             FROM employees
-            | LOOKUP JOIN (
+            | LEFT OUTER JOIN (
                 FROM dept_view
                 | WHERE dept_id IN (FROM teams | KEEP dept_id)
                 | KEEP dept_id

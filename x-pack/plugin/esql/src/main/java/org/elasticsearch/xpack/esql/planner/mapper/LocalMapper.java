@@ -151,7 +151,8 @@ public class LocalMapper {
         // special handling for inlinejoin - join + subquery which has to be executed first (async) and replaced by its result
         if (binary instanceof Join join) {
             JoinConfig config = join.config();
-            if (config.type() != JoinTypes.LEFT) {
+            boolean materializedSubqueryInnerJoin = join instanceof MaterializedLookupJoin && config.type() == JoinTypes.INNER;
+            if (config.type() != JoinTypes.LEFT && materializedSubqueryInnerJoin == false) {
                 throw new EsqlIllegalArgumentException("unsupported join type [" + config.type() + "]");
             }
 
@@ -160,6 +161,9 @@ public class LocalMapper {
             if (binary.right() instanceof LocalRelation) {
                 PhysicalPlan right = map(binary.right());
                 if (right instanceof LocalSourceExec localData) {
+                    if (join instanceof MaterializedLookupJoin) {
+                        return Mapper.mapMaterializedSubqueryJoin(join, left, localData);
+                    }
                     return new HashJoinExec(
                         join.source(),
                         left,
@@ -167,7 +171,7 @@ public class LocalMapper {
                         config.leftFields(),
                         config.rightFields(),
                         join.rightOutputFields(),
-                        join instanceof MaterializedLookupJoin
+                        false
                     );
                 } else {
                     throw new EsqlIllegalArgumentException("Unsupported right plan for join [" + binary.right().nodeName() + "]");

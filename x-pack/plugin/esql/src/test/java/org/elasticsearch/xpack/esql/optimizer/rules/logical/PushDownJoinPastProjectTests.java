@@ -120,7 +120,7 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
             | EVAL language_name = 2 * salary
             | KEEP languages, language_name
             | RENAME language_name AS foo
-            | LOOKUP JOIN (FROM test | EVAL language_name = last_name | KEEP languages, language_name) ON languages
+            | LEFT OUTER JOIN (FROM test | EVAL language_name = last_name | KEEP languages, language_name) ON languages
             """;
 
         var analyzed = defaultAnalyzer().query(query);

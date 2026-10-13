@@ -37,11 +37,11 @@ public class AnalyzerLookupJoinSubqueryTests extends AnalyzerTestCase {
     }
 
     public void testResolvesKeysAndPinsUnprojectedSubqueryOutput() {
-        assumeTrue("LOOKUP JOIN on a subquery required", EsqlCapabilities.Cap.LOOKUP_JOIN_ON_SUBQUERY.isEnabled());
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
 
         LogicalPlan plan = analyzer().addEmployees().query("""
             ROW emp_no = 10001
-            | LOOKUP JOIN (FROM employees | WHERE emp_no == 10001) ON emp_no
+            | LEFT OUTER JOIN (FROM employees | WHERE emp_no == 10001) ON emp_no
             | LIMIT 10
             """);
         SubqueryLookupJoin join = findSubqueryLookupJoin(plan);
@@ -59,29 +59,36 @@ public class AnalyzerLookupJoinSubqueryTests extends AnalyzerTestCase {
     }
 
     public void testNumericJoinKeysRemainCompatible() {
-        assumeTrue("LOOKUP JOIN on a subquery required", EsqlCapabilities.Cap.LOOKUP_JOIN_ON_SUBQUERY.isEnabled());
-        LogicalPlan plan = analyzer().query("ROW key = 1 | LOOKUP JOIN (ROW key = 1.0, value = 2) ON key | LIMIT 10");
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
+        LogicalPlan plan = analyzer().query("ROW key = 1 | LEFT OUTER JOIN (ROW key = 1.0, value = 2) ON key | LIMIT 10");
         SubqueryLookupJoin join = findSubqueryLookupJoin(plan);
         assertThat(join.config().leftFields().getFirst().dataType(), equalTo(DataType.INTEGER));
         assertThat(join.config().rightFields().getFirst().dataType(), equalTo(DataType.DOUBLE));
     }
 
+    public void testInnerJoinSubqueryExecutesOnCoordinator() {
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
+        LogicalPlan plan = analyzer().query("ROW key = 1 | INNER JOIN (ROW key = 1, value = 2) ON key | LIMIT 10");
+
+        assertThat(findSubqueryLookupJoin(plan).executesOn(), equalTo(ExecuteLocation.COORDINATOR));
+    }
+
     public void testDateAndDateNanosJoinKeysAreIncompatible() {
-        assumeTrue("LOOKUP JOIN on a subquery required", EsqlCapabilities.Cap.LOOKUP_JOIN_ON_SUBQUERY.isEnabled());
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
         analyzer().error("""
             ROW key = TO_DATETIME("2023-01-01T00:00:00Z")
-            | LOOKUP JOIN (ROW key = TO_DATE_NANOS("2023-01-01T00:00:00.123456789Z")) ON key
+            | LEFT OUTER JOIN (ROW key = TO_DATE_NANOS("2023-01-01T00:00:00.123456789Z")) ON key
             | LIMIT 10
             """, containsString("is incompatible with right field"));
     }
 
     public void testUnionTypeMustBeConvertedInsideLookupSubquery() {
-        assumeTrue("LOOKUP JOIN on a subquery required", EsqlCapabilities.Cap.LOOKUP_JOIN_ON_SUBQUERY.isEnabled());
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
 
         analyzer().addIndex(indexWithDateDateNanosUnionType()).error("""
             FROM index*
             | EVAL lookup_key = 1
-            | LOOKUP JOIN (
+            | LEFT OUTER JOIN (
                 FROM index*
                 | EVAL lookup_key = 1
                 | KEEP lookup_key, date_and_date_nanos
@@ -93,7 +100,7 @@ public class AnalyzerLookupJoinSubqueryTests extends AnalyzerTestCase {
         LogicalPlan plan = analyzer().addIndex(indexWithDateDateNanosUnionType()).query("""
             FROM index*
             | EVAL lookup_key = 1
-            | LOOKUP JOIN (
+            | LEFT OUTER JOIN (
                 FROM index*
                 | EVAL lookup_key = 1, converted = date_and_date_nanos::date_nanos
                 | KEEP lookup_key, converted

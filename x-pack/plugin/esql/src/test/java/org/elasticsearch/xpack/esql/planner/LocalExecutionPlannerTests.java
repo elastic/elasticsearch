@@ -116,8 +116,15 @@ import org.elasticsearch.xpack.esql.inference.textembedding.TextEmbeddingOperato
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.join.MaterializedLookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryLookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryResultContext;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.DistinctByExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -133,9 +140,11 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.DenseVectorExec;
+import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.hamcrest.Matcher;
 import org.junit.After;
@@ -143,6 +152,7 @@ import org.junit.After;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -152,6 +162,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -1144,6 +1155,24 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         }
     }
 
+    public void testMaterializedSubqueryLeftJoinExpandsMatchesAndPreservesUnmatchedRows() throws IOException {
+        List<Long> expectedKeys = List.of(1L, 1L, 2L, 1L, 1L, 3L);
+        List<Long> expectedLeftValues = List.of(10L, 10L, 20L, 11L, 11L, 30L);
+        List<Long> expectedRightValues = Arrays.asList(100L, 101L, null, 100L, 101L, 300L);
+
+        assertMaterializedSubqueryJoinOutput(JoinTypes.LEFT, false, expectedKeys, expectedLeftValues, expectedRightValues);
+        assertMaterializedSubqueryJoinOutput(JoinTypes.LEFT, true, expectedKeys, expectedLeftValues, expectedRightValues);
+    }
+
+    public void testMaterializedSubqueryInnerJoinExpandsMatchesAndDropsUnmatchedRows() throws IOException {
+        List<Long> expectedKeys = List.of(1L, 1L, 1L, 1L, 3L);
+        List<Long> expectedLeftValues = List.of(10L, 10L, 11L, 11L, 30L);
+        List<Long> expectedRightValues = List.of(100L, 101L, 100L, 101L, 300L);
+
+        assertMaterializedSubqueryJoinOutput(JoinTypes.INNER, false, expectedKeys, expectedLeftValues, expectedRightValues);
+        assertMaterializedSubqueryJoinOutput(JoinTypes.INNER, true, expectedKeys, expectedLeftValues, expectedRightValues);
+    }
+
     public void testRepeatedKeyJoinWithoutPayloadStillExpandsMatches() throws IOException {
         HashJoinExec join = lookupSubqueryJoinExec(
             true,
@@ -1311,6 +1340,82 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             EmptyIndexedByShardId.instance(),
             randomBoolean()
         ).driverFactories.get(0).driverSupplier().physicalOperation();
+    }
+
+    private void assertMaterializedSubqueryJoinOutput(
+        JoinType type,
+        boolean localMapper,
+        List<Long> expectedKeys,
+        List<Long> expectedLeftValues,
+        List<Long> expectedRightValues
+    ) throws IOException {
+        var blockFactory = TestBlockFactory.getNonBreakingInstance();
+        ReferenceAttribute leftKey = new ReferenceAttribute(Source.EMPTY, "k", DataType.LONG);
+        ReferenceAttribute leftValue = new ReferenceAttribute(Source.EMPTY, "left_value", DataType.LONG);
+        ReferenceAttribute rightKey = new ReferenceAttribute(Source.EMPTY, "k", DataType.LONG);
+        ReferenceAttribute rightValue = new ReferenceAttribute(Source.EMPTY, "right_value", DataType.LONG);
+
+        LocalRelation left = new LocalRelation(
+            Source.EMPTY,
+            List.of(leftKey, leftValue),
+            LocalSupplier.of(
+                new Page(
+                    blockFactory.newLongArrayVector(new long[] { 1, 2, 1, 3 }, 4).asBlock(),
+                    blockFactory.newLongArrayVector(new long[] { 10, 20, 11, 30 }, 4).asBlock()
+                )
+            )
+        );
+        SubqueryLookupJoin subqueryJoin = new SubqueryLookupJoin(
+            Source.EMPTY,
+            left,
+            new LocalRelation(Source.EMPTY, List.of(rightKey, rightValue), LocalSupplier.of(new Page(0))),
+            type,
+            List.of(leftKey),
+            List.of(rightKey),
+            null,
+            ExecuteLocation.ANY
+        );
+        Page materializedPage = new Page(
+            blockFactory.newLongArrayVector(new long[] { 1, 1, 3 }, 3).asBlock(),
+            blockFactory.newLongArrayVector(new long[] { 100, 101, 300 }, 3).asBlock()
+        );
+        AtomicReference<Page> pageHolder = new AtomicReference<>(materializedPage);
+        LocalRelation materializedRight = new LocalRelation(
+            Source.EMPTY,
+            List.of(rightKey, rightValue),
+            LocalSupplier.of(materializedPage)
+        );
+
+        MaterializedLookupJoin join = as(
+            subqueryJoin.inlineSubqueryResult(
+                materializedRight,
+                new SubqueryResultContext(0, ByteSizeValue.ofMb(10), blockFactory, pageHolder)
+            ),
+            MaterializedLookupJoin.class
+        );
+        assertThat(join.config().type(), equalTo(type));
+        assertNotNull(pageHolder.getAndSet(null));
+
+        PhysicalPlan mapped = localMapper
+            ? LocalMapper.INSTANCE.map(join)
+            : new Mapper().map(new Versioned<>(join, TransportVersion.current()));
+        LocalExecutionPlanner.PhysicalOperation operation = planner().plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            mapped,
+            EmptyIndexedByShardId.instance(),
+            randomBoolean()
+        ).driverFactories.get(0).driverSupplier().physicalOperation();
+
+        List<Page> results = runPlanned(operation);
+        try {
+            assertThat(longColumn(results, operation.layout().get(leftKey.id()).channel()), equalTo(expectedKeys));
+            assertThat(longColumn(results, operation.layout().get(leftValue.id()).channel()), equalTo(expectedLeftValues));
+            assertThat(longColumn(results, operation.layout().get(rightValue.id()).channel()), equalTo(expectedRightValues));
+        } finally {
+            results.forEach(Page::releaseBlocks);
+        }
     }
 
     private static HashJoinExec lookupSubqueryJoinExec(

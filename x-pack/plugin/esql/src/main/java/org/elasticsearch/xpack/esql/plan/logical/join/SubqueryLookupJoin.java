@@ -27,13 +27,17 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
 
 /**
- * A LOOKUP JOIN whose lookup rows come from an independent subquery. The coordinator materializes the right side before mapping, so this
- * node is never serialized. Right-side outputs are references because they do not belong to the left index.
+ * A JOIN whose right side comes from an independent subquery. The coordinator materializes the right side before mapping, so this node is
+ * never serialized. Right-side outputs are references because they do not belong to the left index.
  */
 public class SubqueryLookupJoin extends Join implements IndependentSubqueryJoin, TelemetryAware {
 
     public SubqueryLookupJoin(Source source, LogicalPlan left, LogicalPlan subquery, List<Attribute> joinFields) {
-        this(source, left, subquery, new JoinConfig(LEFT, joinFields, joinFields, null), ExecuteLocation.ANY);
+        this(source, left, subquery, LEFT, joinFields);
+    }
+
+    public SubqueryLookupJoin(Source source, LogicalPlan left, LogicalPlan subquery, JoinType type, List<Attribute> joinFields) {
+        this(source, left, subquery, new JoinConfig(type, joinFields, joinFields, null), ExecuteLocation.ANY);
     }
 
     public SubqueryLookupJoin(Source source, LogicalPlan left, LogicalPlan subquery, JoinConfig config, ExecuteLocation mode) {
@@ -95,7 +99,7 @@ public class SubqueryLookupJoin extends Join implements IndependentSubqueryJoin,
 
     @Override
     public String telemetryLabel() {
-        return "LOOKUP JOIN SUBQUERY";
+        return config().type().joinName() + " JOIN SUBQUERY";
     }
 
     @Override
@@ -107,7 +111,7 @@ public class SubqueryLookupJoin extends Join implements IndependentSubqueryJoin,
                 failures.add(
                     fail(
                         leftField,
-                        "LOOKUP JOIN subquery left field [{}] of type [{}] is incompatible with right field [{}] of type [{}]",
+                        "JOIN subquery left field [{}] of type [{}] is incompatible with right field [{}] of type [{}]",
                         leftField.name(),
                         leftField.dataType(),
                         rightField.name(),
@@ -119,7 +123,7 @@ public class SubqueryLookupJoin extends Join implements IndependentSubqueryJoin,
                 failures.add(
                     fail(
                         leftField,
-                        "LOOKUP JOIN subquery with right field [{}] of type [{}] is not supported",
+                        "JOIN subquery with right field [{}] of type [{}] is not supported",
                         rightField.name(),
                         rightField.dataType()
                     )
@@ -135,7 +139,7 @@ public class SubqueryLookupJoin extends Join implements IndependentSubqueryJoin,
                 failures.add(
                     fail(
                         rightField,
-                        "LOOKUP JOIN subquery cannot return column [{}] of type [{}]; remove it with KEEP or DROP",
+                        "JOIN subquery cannot return column [{}] of type [{}]; remove it with KEEP or DROP",
                         rightField.name(),
                         rightField.dataType()
                     )

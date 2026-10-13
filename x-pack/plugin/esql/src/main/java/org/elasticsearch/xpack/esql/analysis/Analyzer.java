@@ -1786,7 +1786,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 right = new Project(join.source(), right, right.output());
             }
 
-            ExecuteLocation mode = newSubqueryLookupJoinMode(context.minimumVersion(), join.left());
+            // Coordinator execution preserves mixed-version compatibility for the INNER join marker filter.
+            ExecuteLocation mode;
+            if (config.type() == JoinTypes.INNER) {
+                mode = ExecuteLocation.COORDINATOR;
+            } else {
+                mode = newSubqueryLookupJoinMode(context.minimumVersion(), join.left());
+            }
             return new SubqueryLookupJoin(
                 join.source(),
                 join.left(),
@@ -3887,7 +3893,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             subqueryUnionField.name(),
                             "Union-typed field ["
                                 + subqueryUnionField.name()
-                                + "] from a LOOKUP JOIN subquery must be converted inside the subquery"
+                                + "] from a JOIN subquery must be converted inside the subquery"
                         );
                     }
                     return resolveConvertFunction(convert, state.unionFieldAttributes, context);

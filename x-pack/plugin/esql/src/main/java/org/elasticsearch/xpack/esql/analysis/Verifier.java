@@ -141,7 +141,7 @@ public class Verifier {
         if (unmappedResolution != UnmappedResolution.DEFAULT && plan.anyMatch(SubqueryLookupJoin.class::isInstance)) {
             plan.forEachDown(
                 SubqueryLookupJoin.class,
-                join -> failures.add(fail(join, "LOOKUP JOIN subquery is only supported with [unmapped_fields=default]"))
+                join -> failures.add(fail(join, "JOIN subquery is only supported with [unmapped_fields=default]"))
             );
             return failures.failures();
         }

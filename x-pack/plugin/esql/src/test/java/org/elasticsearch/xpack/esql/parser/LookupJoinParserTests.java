@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Esq
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryLookupJoin;
 
@@ -98,14 +99,26 @@ public class LookupJoinParserTests extends AbstractStatementParserTests {
             "FROM right /* nested comment */ | WHERE key == ?_key | KEEP key",
             "FROM right | LOOKUP JOIN nested ON key"
         )) {
-            assertGrammarAccepts("FROM left | LOOKUP JOIN (" + subquery + ") ON key", config);
+            assertGrammarAccepts("FROM left | LEFT OUTER JOIN (" + subquery + ") ON key", config);
+            assertGrammarAccepts("FROM left | INNER JOIN (" + subquery + ") ON key", config);
         }
     }
 
-    public void testSubqueryTargetBuildsIndependentJoin() {
-        assumeTrue("requires LOOKUP JOIN subquery capability", EsqlCapabilities.Cap.LOOKUP_JOIN_ON_SUBQUERY.isEnabled());
+    public void testLookupJoinSubquerySyntaxIsRejected() {
+        expectError("FROM main | LOOKUP JOIN (FROM sub) ON key", "mismatched input '('");
+    }
 
-        var join = as(query("FROM main | LOOKUP JOIN (FROM sub | KEEP key, value) ON key"), SubqueryLookupJoin.class);
+    public void testLookupJoinIndexNamedOuter() {
+        assumeTrue("LOOKUP JOIN requires the corresponding capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+
+        var join = as(query("FROM main | LOOKUP JOIN outer ON key"), LookupJoin.class);
+        assertThat(as(join.right(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo("outer"));
+    }
+
+    public void testSubqueryTargetBuildsIndependentJoin() {
+        assumeTrue("requires JOIN subquery capability", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
+
+        var join = as(query("FROM main | LEFT OUTER JOIN (FROM sub | KEEP key, value) ON key"), SubqueryLookupJoin.class);
         assertThat(join, instanceOf(IndependentSubqueryJoin.class));
         assertThat(as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo("main"));
         assertThat(as(as(join.right(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo("sub"));
@@ -116,10 +129,17 @@ public class LookupJoinParserTests extends AbstractStatementParserTests {
         assertNull(join.config().joinOnConditions());
     }
 
+    public void testInnerSubqueryJoinBuildsInnerJoin() {
+        assumeTrue("requires JOIN subquery capability", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
+
+        var join = as(query("FROM main | INNER JOIN (FROM sub | KEEP key, value) ON key"), SubqueryLookupJoin.class);
+        assertThat(join.config().type(), equalTo(JoinTypes.INNER));
+    }
+
     public void testSubqueryTargetRejectsExpressionOn() {
         expectError(
-            "FROM main | LOOKUP JOIN (FROM sub) ON left_key == right_key",
-            "LOOKUP JOIN on a subquery only supports a list of fields in ON"
+            "FROM main | LEFT OUTER JOIN (FROM sub) ON left_key == right_key",
+            "JOIN on a subquery only supports a list of fields in ON"
         );
     }
 

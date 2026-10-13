@@ -737,13 +737,10 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     public void testLoadModeRejectsLookupJoinSubqueryBeforeUnresolvedAttributes() {
-        assumeTrue("LOOKUP JOIN on a subquery required", EsqlCapabilities.Cap.LOOKUP_JOIN_ON_SUBQUERY.isEnabled());
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
         test().statementError(
-            setUnmappedLoad("ROW key = 1 | LOOKUP JOIN (ROW key = 1, value = 2) ON missing_key"),
-            allOf(
-                containsString("LOOKUP JOIN subquery is only supported with [unmapped_fields=default]"),
-                not(containsString("Unknown column"))
-            )
+            setUnmappedLoad("ROW key = 1 | LEFT OUTER JOIN (ROW key = 1, value = 2) ON missing_key"),
+            allOf(containsString("JOIN subquery is only supported with [unmapped_fields=default]"), not(containsString("Unknown column")))
         );
     }
 

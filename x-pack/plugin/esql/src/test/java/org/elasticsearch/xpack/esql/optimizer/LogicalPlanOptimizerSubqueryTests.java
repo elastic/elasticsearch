@@ -193,7 +193,7 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
     public void testUnboundedSortInsideLookupSubqueryIsPruned() {
         LogicalPlan plan = planSubquery("""
             FROM test
-            | LOOKUP JOIN (FROM test | SORT emp_no | KEEP languages) ON languages
+            | LEFT OUTER JOIN (FROM test | SORT emp_no | KEEP languages) ON languages
             | LIMIT 10
             """, Settings.EMPTY);
 
@@ -204,7 +204,7 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
     public void testUnboundedSortInsideInSubqueryWithinLookupSubqueryIsRejected() {
         VerificationException exception = expectThrows(VerificationException.class, () -> planSubquery("""
             FROM test
-            | LOOKUP JOIN (
+            | LEFT OUTER JOIN (
                 FROM test
                 | WHERE emp_no IN (FROM test | SORT emp_no | KEEP emp_no)
                 | KEEP languages
@@ -218,7 +218,7 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
     public void testPropagateEvalFoldablesDoesNotCrossSubqueryLookupJoin() {
         LogicalPlan analyzed = defaultAnalyzer().query("""
             ROW key = 2
-            | LOOKUP JOIN (ROW key = 1, flag = true) ON key
+            | LEFT OUTER JOIN (ROW key = 1, flag = true) ON key
             | WHERE flag IS NULL
             """);
 
@@ -233,7 +233,7 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
     public void testPruneConstantSortKeysDoesNotCrossSubqueryLookupJoin() {
         LogicalPlan analyzed = defaultAnalyzer().query("""
             ROW key = 2
-            | LOOKUP JOIN (ROW key = 1, flag = true) ON key
+            | LEFT OUTER JOIN (ROW key = 1, flag = true) ON key
             | SORT flag
             | LIMIT 10
             """);
@@ -251,7 +251,7 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
             | EVAL language_name = 2 * salary
             | KEEP languages, language_name
             | RENAME language_name AS foo
-            | LOOKUP JOIN (FROM test | EVAL language_name = last_name | KEEP languages, language_name) ON languages
+            | LEFT OUTER JOIN (FROM test | EVAL language_name = last_name | KEEP languages, language_name) ON languages
             | KEEP foo, language_name
             | LIMIT 10
             """);

@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -46,7 +47,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType;
 
 /**
- * Turns a materialized LOOKUP JOIN subquery into a local-relation join with LOOKUP JOIN key semantics.
+ * Turns a materialized JOIN subquery into a local-relation join.
  */
 public final class SubqueryLookupJoinInliner {
     private SubqueryLookupJoinInliner() {}
@@ -68,7 +69,7 @@ public final class SubqueryLookupJoinInliner {
         List<Attribute> leftFields = join.config().leftFields();
         List<Attribute> rightFields = join.config().rightFields();
         if (leftFields.isEmpty() || leftFields.size() != rightFields.size()) {
-            throw new IllegalStateException("LOOKUP JOIN subquery requires matching, non-empty left and right keys");
+            throw new IllegalStateException("JOIN subquery requires matching, non-empty left and right keys");
         }
         if (leftFields.stream().anyMatch(field -> field.dataType() == DataType.NULL)) {
             releasePage(context.pageHolder());
@@ -83,7 +84,7 @@ public final class SubqueryLookupJoinInliner {
             List<Attribute> schema = data.output();
             if (sourcePage.getBlockCount() != schema.size()) {
                 throw new IllegalStateException(
-                    "materialized LOOKUP JOIN schema has ["
+                    "materialized subquery join schema has ["
                         + schema.size()
                         + "] columns but its page has ["
                         + sourcePage.getBlockCount()
@@ -98,7 +99,7 @@ public final class SubqueryLookupJoinInliner {
             for (int i = 0; i < rightFields.size(); i++) {
                 Integer column = columnById.get(rightFields.get(i).id());
                 if (column == null) {
-                    throw new IllegalStateException("materialized LOOKUP JOIN is missing right key [" + rightFields.get(i).name() + "]");
+                    throw new IllegalStateException("materialized subquery join is missing right key [" + rightFields.get(i).name() + "]");
                 }
                 keyColumns[i] = column;
             }
@@ -138,7 +139,7 @@ public final class SubqueryLookupJoinInliner {
                     DataType commonDataType = commonType(leftField.dataType(), rightField.dataType());
                     if (commonDataType == null) {
                         throw new IllegalStateException(
-                            "incompatible numeric LOOKUP JOIN key types [" + leftField.dataType() + "] and [" + rightField.dataType() + "]"
+                            "incompatible numeric JOIN key types [" + leftField.dataType() + "] and [" + rightField.dataType() + "]"
                         );
                     }
                     ElementType commonElementType = numericElementType(commonDataType);
@@ -238,9 +239,12 @@ public final class SubqueryLookupJoinInliner {
     }
 
     private static LogicalPlan noMatchPlan(SubqueryLookupJoin join) {
+        LogicalPlan left = join.config().type() == JoinTypes.INNER
+            ? new Filter(join.source(), join.left(), new Literal(join.source(), false, DataType.BOOLEAN))
+            : join.left();
         List<Attribute> rightOutputFields = join.rightOutputFields();
         if (rightOutputFields.isEmpty()) {
-            return join.left();
+            return left;
         }
         List<Alias> nullPayloads = new ArrayList<>(rightOutputFields.size());
         for (Attribute field : rightOutputFields) {
@@ -248,7 +252,7 @@ public final class SubqueryLookupJoinInliner {
                 new Alias(join.source(), field.name(), new Literal(join.source(), null, field.dataType()), field.id(), field.synthetic())
             );
         }
-        Eval eval = new Eval(join.source(), join.left(), nullPayloads);
+        Eval eval = new Eval(join.source(), left, nullPayloads);
         return new Project(join.source(), eval, join.output());
     }
 
@@ -260,7 +264,7 @@ public final class SubqueryLookupJoinInliner {
             source.text()
         );
         HeaderWarning.addWarning(
-            "Line {}:{}: {}: LOOKUP JOIN encountered multi-value",
+            "Line {}:{}: {}: JOIN subquery encountered multi-value",
             source.lineNumber(),
             source.columnNumber(),
             IllegalArgumentException.class.getName()
@@ -338,7 +342,7 @@ public final class SubqueryLookupJoinInliner {
 
     private static int singleValueIndex(Block block, int position) {
         if (block.getValueCount(position) != 1) {
-            throw new IllegalStateException("normalized LOOKUP JOIN key must have exactly one value");
+            throw new IllegalStateException("normalized subquery join key must have exactly one value");
         }
         return block.getFirstValueIndex(position);
     }

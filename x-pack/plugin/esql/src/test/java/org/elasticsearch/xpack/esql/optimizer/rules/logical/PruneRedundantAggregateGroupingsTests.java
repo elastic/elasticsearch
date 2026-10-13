@@ -107,7 +107,7 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
     public void testDoesNotPruneGroupingFromLookupSubqueryEval() {
         LogicalPlan analyzed = subqueryAnalyzer().query("""
             FROM test
-            | LOOKUP JOIN (FROM test | EVAL flag = true | KEEP languages, flag) ON languages
+            | LEFT OUTER JOIN (FROM test | EVAL flag = true | KEEP languages, flag) ON languages
             | STATS c = COUNT(*) BY flag
             """);
 

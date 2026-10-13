@@ -28,6 +28,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automata;
 import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.string.ColumnarStringBinaryDocValues;
 import org.elasticsearch.columnar.string.DictionaryPolicy;
@@ -435,7 +436,10 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 final IndexSearcher searcher = new IndexSearcher(reader);
                 assertEquals(List.of(), found(searcher, ColumnarStringTermQuery.term(FIELD, new BytesRef("alpha"), ScanBudget.UNLIMITED)));
-                assertEquals(List.of(), found(searcher, ColumnarStringAutomatonQuery.forWildcard(FIELD, "al*a", ScanBudget.UNLIMITED)));
+                assertEquals(
+                    List.of(),
+                    found(searcher, new ColumnarStringAutomatonQuery(FIELD, Automata.makeString("alpha"), "alpha", ScanBudget.UNLIMITED))
+                );
             }
         }
     }

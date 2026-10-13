@@ -55,7 +55,16 @@ The general query performance advice in [optimize {{esql}} query performance](es
 
 ### Caching
 
-{{es}} caches file metadata (schemas and file listings) so that repeated queries against the same dataset do not re-discover files each time. Cached schemas are invalidated when the underlying files change, so a schema stays cached for as long as it stays correct. There is no schema TTL. Only the file-listing cache uses a TTL (5 minutes by default) configurable through [cluster settings](esql-data-federation-cluster-settings.md).
+{{es}} caches dataset metadata on each node so that repeated queries against the same dataset don't discover files and read file metadata again each time:
+
+- **File listings** are reused for a fixed time before {{es}} lists the storage again. A file added to or removed from the bucket becomes visible once the listing expires.
+- **Inferred schemas** are invalidated when the underlying file changes. 
+  - {applies_to}`stack: experimental 9.6+` Additionally, a schema is reused for at most 20 minutes by default.
+- {applies_to}`stack: experimental 9.6+` **Footers of columnar files**, such as Parquet footers, are reused for 5 minutes by default.
+
+The data in your files is not cached. Every query reads the rows it needs from object storage, so running the same query again or refreshing a dashboard reads the data again.
+
+To change cache sizes and TTLs, refer to [caching settings](esql-data-federation-cluster-settings.md#caching).
 
 ### File discovery limits
 
@@ -79,7 +88,7 @@ FROM speedtest_data, network_incidents METADATA _class, _name
 | LIMIT 10
 ```
 
-When sources have different schemas, columns that do not exist in a given source return `null` for rows from that source. {applies_to}`stack: experimental 9.6+` Use `METADATA _name` to see which source each row came from: it returns the dataset name for dataset rows and the index name for index rows. `METADATA _class` returns what kind of source a row came from — `index` or `dataset` — so a query can tell the two apart without knowing the names in advance.
+When sources have different schemas, columns that do not exist in a given source return `null` for rows from that source. {applies_to}`stack: experimental 9.6+` Use `METADATA _class, _name` to see which source each row came from. For details, refer to [Use metadata columns](#use-metadata-columns).
 
 {applies_to}`stack: experimental 9.6+` `_index` does not answer this question on a dataset. It names an index, and a dataset is not one, so it returns `null` for dataset rows. In earlier versions it returned the dataset name.
 
@@ -112,10 +121,6 @@ You can also send it in the `_query` request body as `"settings": {"wildcards_ma
 `_index`, `_id`, `_version` and `_source` return `null` on a dataset. A dataset is not an index, and
 files carry no document identity, version, or stored source. In 9.5, these fields returned synthetic
 values (dataset name, row ID, file modification time, row-as-JSON) instead of null.
-
-{applies_to}`stack: experimental 9.6+` `_class` and `_name` answer the same two questions on every source. On an index they return `index` and
-the concrete index name; on a dataset, `dataset` and the dataset name. A `FROM` that names both kinds
-can separate the rows without knowing in advance which names resolve to which.
 
 For example, this query returns file-level metadata for each matching row:
 
@@ -156,7 +161,8 @@ The limitations below include operations that require structures available only 
 | `TS` (time series) | A time-series source must be an {{es}} index. | `TS command is not supported for datasets; dataset(s) requested: [...]` |
 | Search functions | Search functions work on datasets as runtime search functions, scanning values row by row without an inverted index. Availability varies by version and deployment type. Refer to the [availability table](#use-search-functions). | `… cannot operate on [<field>], which is not a field from an index mapping (the source is a federated data source, not an index)` |
 | `KNN` | `KNN` requires a vector field from an index mapping, which a dataset does not have. | `… cannot operate on [<field>], which is not a field from an index mapping (the source is a federated data source, not an index)` |
-| More than 8 sources resolved in one `FROM` | A `FROM` that includes datasets runs one execution branch per resolved source, up to a limit of 8 branches. Query fewer sources together. | |
+| More than 8 sources in one `FROM` {applies_to}`stack: experimental =9.5` | A `FROM` that includes datasets runs one execution branch per resolved source, up to a limit of 8 branches. Query fewer sources together. | |
+| More sources in one `FROM` than `max_branch_count_per_merge` allows {applies_to}`stack: experimental 9.6+` | A `FROM` that includes datasets runs one execution branch per resolved source. The limit is the `esql.query.max_branch_count_per_merge` cluster setting (default 8). Query fewer sources together, or raise the limit. | |
 | A column with conflicting types across sources | When you query a dataset together with other sources and the same column has types that cannot be reconciled, the query fails rather than returning mixed types. | `Column [<name>] has conflicting data types in subqueries` |
 | A file column whose name matches a requested `METADATA` name {applies_to}`stack: experimental 9.6` | The engine-generated value replaces the file column. Rename the file column in the dataset mapping to keep both. | A warning names the dropped column. |
 | Document-level security (DLS) and field-level security (FLS) | A dataset's `read` grant cannot carry document- or field-level security. Queries where DLS or FLS applies to a dataset are rejected during authorization. The same check covers [{{esql}} views](esql-views.md). | `Datasets with document or field level security restrictions are not supported. Remove DLS/FLS restrictions from the affected datasets in the role definition, or exclude them from the request.` |
@@ -180,13 +186,13 @@ Slow queries
 :   {{es}} encrypts credentials before storing them. If the cluster state encryption key is not available, the request returns `503 SERVICE_UNAVAILABLE`. Refer to [credential encryption](esql-data-federation-security.md#credential-encryption) for details.
 
 New files not appearing in query results
-:   {{es}} caches file listings for each dataset. A file added to or removed from the bucket might not show up until the listing cache expires. The default listing cache TTL is 5 minutes. Lower `esql.external.cache.listing.ttl` when new or removed files must be visible sooner. Refer to [cluster settings](esql-data-federation-cluster-settings.md).
+:   {{es}} caches file listings for each dataset. A file added to or removed from the bucket might not show up until the listing cache expires. Lower the listing cache TTL when new or removed files must be visible sooner. Refer to [caching settings](esql-data-federation-cluster-settings.md#caching).
 
 Columns with unexpected types or missing values
 :   When {{es}} infers a dataset's schema from its files, it might infer types differently than you expect. For example, a date column might appear as a keyword if the values do not match the default datetime format. To inspect the inferred field mappings, refer to [check field mappings](esql-data-federation-quickstart.md#check-field-mappings) in the quickstart. [Declare the schema explicitly](esql-data-federation-schema.md#declare-a-schema-explicitly) to control column types, or adjust the `datetime_format` setting for [CSV and TSV](esql-data-federation-dataset-settings.md#csv-datetime-format) or [NDJSON](esql-data-federation-dataset-settings.md#ndjson-datetime-format). If some rows have null values for a column that exists in other files, review [schema inference and resolution](esql-data-federation-schema.md).
 
 Access denied or connection errors
-:   Credential and permission errors appear at query time, not when the data source is created. If a query returns an access denied error, verify that the credentials in the data source have the required permissions (such as `s3:ListBucket` and `s3:GetObject`) and that the region is correct.
+:   Credential and permission errors appear at query time, not when the data source or dataset is created. For each access denied message and the permission it needs, refer to [troubleshoot access errors](esql-data-federation-s3.md#s3-access-errors) for Amazon S3, and verify that the region is correct.
 
 ## Next steps
 

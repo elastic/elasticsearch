@@ -31,6 +31,7 @@ import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -149,7 +150,7 @@ public class RegionDiscoveryIT extends ESRestTestCase {
      * Verifies region discovery on the exact-path (non-glob) dataset code path.
      *
      * <p>An exact-path resource bypasses {@code listObjects} entirely and goes through
-     * {@code probeFileMetadata → newObject}. Before this fix, {@code newObject} used the
+     * {@code readFileMetadata → newObject}. Before this fix, {@code newObject} used the
      * wrong-region client and the subsequent HeadObject/GET would fail with
      * {@code AuthorizationHeaderMalformed}. The fix makes {@code newObject} trigger a
      * HeadBucket probe (via {@code resolveClientsForBucket}) when no region has been
@@ -168,6 +169,31 @@ public class RegionDiscoveryIT extends ESRestTestCase {
         String body = EntityUtils.toString(response.getEntity());
         assertThat(body, containsString("Vienna"));
         assertThat(body, containsString("Berlin"));
+    }
+
+    /**
+     * End-to-end, through a real cluster and the S3 protocol: the metadata lookup an exact-path resolve makes is
+     * a HEAD on the object. The query also reads the object, so GETs are expected; the HEAD is what is new, and
+     * its absence is what this would have found before the resolve asked the provider for metadata.
+     */
+    public void testExactPathResolveProbesTheObjectWithHead() throws IOException {
+        putDataSource();
+        putExactPathDataset();
+        s3HttpFixture.clearRequestLog();
+
+        Request req = new Request("POST", "/_query");
+        req.setJsonEntity("{\"query\":\"FROM " + EXACT_DATASET + " | SORT id | LIMIT 10\"}");
+        req.setOptions(req.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build());
+        assertThat(client().performRequest(req).getStatusLine().getStatusCode(), equalTo(200));
+
+        List<String> log = s3HttpFixture.requestLog();
+        List<String> onTheObject = log.stream().filter(entry -> entry.endsWith("/data/test.csv")).toList();
+        assertThat("nothing reached the object, so this asserts nothing. log=" + log, onTheObject.isEmpty(), equalTo(false));
+        assertThat(
+            "the resolve never issued a HEAD for the object's metadata. requests on the object=" + onTheObject,
+            onTheObject.stream().anyMatch(entry -> entry.startsWith("HEAD ")),
+            equalTo(true)
+        );
     }
 
     private void putDataSource() throws IOException {

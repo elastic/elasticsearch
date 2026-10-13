@@ -77,9 +77,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
   method: testStopQuery
   issue: https://github.com/elastic/elasticsearch/issues/159131
-- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
-  method: testStopQueryLocal
-  issue: https://github.com/elastic/elasticsearch/issues/159132
 - class: org.elasticsearch.xpack.ilm.actions.RolloverActionIT
   issue: https://github.com/elastic/elasticsearch/issues/159148
 - class: org.elasticsearch.xpack.esql.heap_attack.ManyRequestsIT

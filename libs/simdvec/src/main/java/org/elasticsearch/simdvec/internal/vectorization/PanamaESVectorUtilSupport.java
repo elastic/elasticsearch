@@ -34,7 +34,9 @@ import java.io.IOException;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Queue;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 import static jdk.incubator.vector.VectorOperators.ADD;
 import static jdk.incubator.vector.VectorOperators.AND;
@@ -2520,12 +2522,23 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
                 }
             } else {
                 // parallelize!
-                List<Callable<Void>> ops = new ArrayList<>(numRequiredTasks);
+                List<Callable<Void>> tasks = new ArrayList<>(numRequiredTasks);
+                /*
+                 * A stack of panel buffers for this call.
+                 * Each task needs a panel buffer. ThreadLocals are designed
+                 * to be static final objects, and tearing one down is expensive.
+                 * It will also leave the buffers in-memory for the full lifetime of the threads.
+                 * So instead have a simple stack of buffers that can be used and released as required
+                 * for the duration of this call.
+                 */
+                Queue<float[]> buffers = new ConcurrentLinkedQueue<>();
 
                 for (int p = 0; p < panelLimit; p += MATRIX_TILE_COLS) {
                     final int panelStart = p;
-                    ops.add(() -> {
-                        float[] panel = new float[inner * MATRIX_TILE_COLS];
+                    tasks.add(() -> {
+                        float[] panel = buffers.poll(); // acquire panel buffer if available
+                        if (panel == null) panel = new float[inner * MATRIX_TILE_COLS];
+
                         packPanel(b, n, inner, panelStart, panel);
 
                         for (int i = 0; i < rowLimit; i += rowSectionSize) {
@@ -2535,12 +2548,13 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
                                 multiplyPanel4x2(a, aRowStride, panel, c, i, panelStart, inner, n);
                             }
                         }
+                        buffers.add(panel); // release panel buffer
                         return null;
                     });
                 }
 
                 try {
-                    executor.invokeAll(ops);
+                    executor.invokeAll(tasks);
                 } catch (IOException e) {
                     // can't happen
                     throw new AssertionError(e);
@@ -2559,11 +2573,11 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
                     multiplyTile4Tail(a, aRowStride, b, c, r, inner, n, panelLimit);
                 }
             } else {
-                List<Callable<Void>> ops = new ArrayList<>(numRequiredTasks);
+                List<Callable<Void>> tasks = new ArrayList<>(numRequiredTasks);
                 for (int r = 0; r < rowLimit; r += taskRows) {
                     int taskRow = r;
                     int taskLimit = Math.min(r + taskRows, rowLimit);
-                    ops.add(() -> {
+                    tasks.add(() -> {
                         for (int i = taskRow; i < taskLimit; i += rowSectionSize) {
                             multiplyTile4Tail(a, aRowStride, b, c, i, inner, n, panelLimit);
                         }
@@ -2572,7 +2586,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
                 }
 
                 try {
-                    executor.invokeAll(ops);
+                    executor.invokeAll(tasks);
                 } catch (IOException e) {
                     // can't happen
                     throw new AssertionError(e);

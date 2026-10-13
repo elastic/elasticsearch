@@ -98,11 +98,7 @@ public class ExternalSchemaDiscoveryBoundIT extends AbstractExternalDataSourceIT
         String glob = writeDataset();
         // Explicit, for the reason the declared case above states: an omitted schema_resolution is hydrated to
         // union_by_name, which costs the listing its bound and left this case asserting nothing either.
-        String dataset = registerLocalFileDataset(
-            "bound_repeat",
-            glob,
-            Map.of("format", "csv", "schema_resolution", "first_file_wins")
-        );
+        String dataset = registerLocalFileDataset("bound_repeat", glob, Map.of("format", "csv", "schema_resolution", "first_file_wins"));
 
         List<String> first;
         try (EsqlQueryResponse response = run(syncEsqlQueryRequest("FROM " + dataset + " | LIMIT 0"), TIMEOUT)) {

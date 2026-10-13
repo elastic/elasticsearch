@@ -204,9 +204,6 @@ tests:
 - class: org.elasticsearch.compute.operator.topn.GroupedTopNOperatorTests
   method: testRandomMultipleColumns
   issue: https://github.com/elastic/elasticsearch/issues/155019
-- class: org.elasticsearch.compute.aggregation.CountDistinctLongGroupingAggregatorFunctionTests
-  method: testAllKeyNulls
-  issue: https://github.com/elastic/elasticsearch/issues/155578
 - class: org.elasticsearch.xpack.inference.integration.CCMServiceIT
   method: testDisableCCM_RemovesAuthorizationTask
   issue: https://github.com/elastic/elasticsearch/issues/155579
@@ -550,9 +547,6 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
   method: test {yaml=/37_columnar_collapse/collapse on a columnar keyword field with the columnar codec disabled}
   issue: https://github.com/elastic/elasticsearch/issues/161604
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecFuseIT
-  method: test {csv-spec:fuse.fuseWithRowLinearAndMultiValueScoreColumn}
-  issue: https://github.com/elastic/elasticsearch/issues/161607
 - class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/161608
 - class: org.elasticsearch.xpack.esql.EsqlSecurityLogsdbColumnarIT
@@ -619,3 +613,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
   method: testStopQuery
   issue: https://github.com/elastic/elasticsearch/issues/159131
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardDisruptionIT
+  method: testReshardWithDisruption
+  issue: https://github.com/elastic/elasticsearch/issues/161494

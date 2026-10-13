@@ -688,9 +688,17 @@ public final class Def {
     /**
      * Looks up a getter for a def load. When {@code scriptPushed} the call site passes the script instance after the receiver:
      * a {@code @script_aware} getter takes it first, any other getter drops it, and a getter with an {@code @allocates}
-     * estimator charges it before the read.
+     * estimator charges it before the read. A numeric shortcut on a list is a bracket read, so it takes the same charged,
+     * script-aware list load as one.
      */
     static MethodHandle lookupGetter(PainlessLookup painlessLookup, Class<?> receiverClass, String name, boolean scriptPushed) {
+        if (scriptPushed
+            && List.class.isAssignableFrom(receiverClass)
+            && painlessLookup.lookupRuntimeGetterMethodHandle(receiverClass, name) == null) {
+            MethodHandle load = lookupListLoadWithScript(painlessLookup, receiverClass);
+            return MethodHandles.insertArguments(load, 1, listShortcutIndex(name));
+        }
+
         MethodHandle getter = lookupGetterInternal(painlessLookup, receiverClass, name);
         MethodType type = getter.type();
         boolean takesScript = type.parameterCount() == 2 && type.parameterType(0) == PainlessScript.class;
@@ -747,15 +755,19 @@ public final class Def {
             // lists allow access like mylist.0
             // wire '0' (index) as a parameter, its a constant. this also avoids
             // parsing the same integer millions of times!
-            try {
-                int index = Integer.parseInt(name);
-                return MethodHandles.insertArguments(LIST_GET, 1, index);
-            } catch (NumberFormatException exception) {
-                throw new IllegalArgumentException("Illegal list shortcut value [" + name + "].");
-            }
+            return MethodHandles.insertArguments(LIST_GET, 1, listShortcutIndex(name));
         }
 
         throw new IllegalArgumentException("dynamic getter [" + typeToCanonicalTypeName(receiverClass) + ", " + name + "] not found");
+    }
+
+    /** The index a numeric list shortcut names. */
+    private static int listShortcutIndex(String name) {
+        try {
+            return Integer.parseInt(name);
+        } catch (NumberFormatException exception) {
+            throw new IllegalArgumentException("Illegal list shortcut value [" + name + "].");
+        }
     }
 
     /**

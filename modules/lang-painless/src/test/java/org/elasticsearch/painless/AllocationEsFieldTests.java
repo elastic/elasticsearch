@@ -69,6 +69,9 @@ public class AllocationEsFieldTests extends AllocationTestCase {
         assertEquals(KEYWORD_HELLO_BYTES, allocatedBytes("params.field.value", params));
         assertEquals(KEYWORD_HELLO_BYTES, allocatedBytes("params.field.get(0)", params));
         assertEquals(KEYWORD_HELLO_BYTES, allocatedBytes("params.field[0]", params));
+        // The numeric dot shortcut is the same list read.
+        assertEquals(KEYWORD_HELLO_BYTES, allocatedBytes("params.field.0", params));
+        assertEquals(KEYWORD_HELLO_BYTES, allocatedBytes("def f = params.field; return f.0;", params));
         // A two byte char counts the same as any other char.
         Map<String, Object> accented = Map.of("field", keywordField("h\u00e9llo").toScriptDocValues());
         assertEquals(KEYWORD_HELLO_BYTES, allocatedBytes("params.field.value", accented));
@@ -92,6 +95,7 @@ public class AllocationEsFieldTests extends AllocationTestCase {
         Map<String, Object> params = Map.of("field", keywordField("hello").toScriptDocValues());
         assertTripsLimit("Optional.empty().orElseGet(() -> params.field.value)", "60b", params);
         assertTripsLimit("Optional.empty().orElseGet(() -> params.field[0])", "60b", params);
+        assertTripsLimit("Optional.empty().orElseGet(() -> params.field.0)", "60b", params);
         assertTripsLimit(
             "ScriptDocValues.Strings f = (ScriptDocValues.Strings) params.field; Optional.empty().orElseGet(() -> f.value)",
             "60b",
@@ -122,6 +126,7 @@ public class AllocationEsFieldTests extends AllocationTestCase {
         assertEquals(AllocationEstimators.termCopyBytes(5), allocatedBytes("params.refs.value", params));
         assertEquals(AllocationEstimators.termCopyBytes(5), allocatedBytes("params.refs.get(0)", params));
         assertEquals(AllocationEstimators.termCopyBytes(5), allocatedBytes("params.refs[0]", params));
+        assertEquals(AllocationEstimators.termCopyBytes(5), allocatedBytes("params.refs.0", params));
         assertEquals(
             AllocationEstimators.byteBufferBytes(5),
             allocatedBytes("BinaryDocValuesField f = (BinaryDocValuesField) params.field; f.get(null)", params)
@@ -166,6 +171,7 @@ public class AllocationEsFieldTests extends AllocationTestCase {
         // The def bracket form reaches the same get(int). (The typed form does not compile on these classes: get returns Long
         // while the inherited set takes def, and the list shortcut requires them to match.)
         assertEquals(AllocSizes.boxSize(long.class), allocatedBytes("params.field[0]", longParams));
+        assertEquals(AllocSizes.boxSize(long.class), allocatedBytes("params.field.0", longParams));
 
         DoubleDocValuesField doubles = new DoubleDocValuesField(doubleDocValues(2.5), "test");
         doubles.setNextDocId(0);

@@ -2708,9 +2708,13 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
     /**
      * Whether a def load of the shortcut {@code name} must pass the script instance: some allowlisted class has a
      * {@code @script_aware} getter for it, or tracking is on and some class has a getter for it with an {@code @allocates}
-     * estimator to charge.
+     * estimator to charge. A numeric name is a list index shortcut, the same read as a bracket with an int index, so it
+     * follows the bracket rule.
      */
     static boolean defGetterNeedsScript(ScriptScope scriptScope, String name) {
+        if (isListShortcut(name)) {
+            return defBraceLoadNeedsScript(scriptScope, int.class);
+        }
         PainlessLookup painlessLookup = scriptScope.getPainlessLookup();
         return hasAnnotatedGetter(painlessLookup, ScriptAwareAnnotation.class, name)
             || (scriptScope.getCompilerSettings().isAllocationTrackingEnabled()
@@ -2730,6 +2734,19 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         return painlessLookup.hasAnnotationAwareMethod(ScriptAwareAnnotation.class, "get", 1)
             || (scriptScope.getCompilerSettings().isAllocationTrackingEnabled()
                 && painlessLookup.hasAnnotationAwareMethod(AllocatesAnnotation.class, "get", 1));
+    }
+
+    /** True when {@code name} is digits only, which a def load on a list treats as an index. */
+    private static boolean isListShortcut(String name) {
+        if (name.isEmpty()) {
+            return false;
+        }
+        for (int i = 0; i < name.length(); i++) {
+            if (Character.isDigit(name.charAt(i)) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static boolean hasAnnotatedGetter(PainlessLookup painlessLookup, Class<?> annotationType, String name) {

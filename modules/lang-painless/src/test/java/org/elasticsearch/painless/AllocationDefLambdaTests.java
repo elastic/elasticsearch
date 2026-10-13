@@ -567,6 +567,8 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
             { "def l = [1, 2]; Optional.of(1).map(x -> { ++l[0]; return x; }); return l[0];", "2" },
             { "def l = [1, 2]; return Optional.of(1).map(x -> l[0]++).get() + l[0];", "3" },
             { "def l = [1, 2]; return Optional.of(1).map(x -> (l[0] += x)).get();", "2" },
+            { "def l = [1, 2]; Optional.of(1).map(x -> { l.0 += x; return x; }); return l.0;", "2" },
+            { "def l = [1, 2]; return Optional.of(1).map(x -> l.0++).get() + l.0;", "3" },
             { "def m = ['value': 'x']; Optional.of(1).map(x -> { m.value += 'a'; return x; }); return m.value;", "xa" },
             { "def m = ['value': 1]; Optional.of(1).map(x -> { m.value++; return x; }); return m.value;", "2" },
             { "def m = ['k': 1]; Optional.of(1).map(x -> { m['k'] += x; return x; }); return m.k;", "2" },
@@ -1088,6 +1090,17 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
             Need.TRACKING
         ),
         new Body("def bracket, script-aware", "", "", "return params.kw[0];", "hello", HELLO_NEUTRAL, "hello", KEYWORD_BYTES, Need.ALWAYS),
+        new Body(
+            "def numeric dot, script-aware",
+            "",
+            "",
+            "return params.kw.0;",
+            "hello",
+            HELLO_NEUTRAL,
+            "hello",
+            KEYWORD_BYTES,
+            Need.ALWAYS
+        ),
         new Body("def bracket on a list", "", "def l = [7];", "return l[0];", "7", "return l.size() * 7;", "7", 0, Need.ALWAYS),
         new Body(
             "post-increment as a value",

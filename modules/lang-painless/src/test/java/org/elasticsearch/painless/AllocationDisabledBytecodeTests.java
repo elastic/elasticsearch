@@ -290,6 +290,13 @@ public class AllocationDisabledBytecodeTests extends ScriptTestCase {
         assertThat(on, not(containsString("AllocationEstimators")));
         String key = bytecode("def m = params; def v = m['k']; return 1;", 1024 * 1024L);
         assertThat(key, containsString("arrayLoad(Ljava/lang/Object;Ljava/lang/String;)Ljava/lang/Object;"));
+        // A numeric dot shortcut is the same list read, so it passes the script too. A plain name with no annotated getter
+        // does not.
+        String dot = bytecode("def l = params.l; def v = l.0; return 1;", -1L);
+        assertThat(dot, containsString("0(Ljava/lang/Object;Lorg/elasticsearch/painless/PainlessScript$Script;)Ljava/lang/Object;"));
+        assertThat(dot, not(containsString("$checkAllocBytes")));
+        String plain = bytecode("def m = params; def v = m.other; return 1;", 1024 * 1024L);
+        assertThat(plain, containsString("other(Ljava/lang/Object;)Ljava/lang/Object;"));
     }
 
     public void testDefStoreInLambdaCapturesScriptOnlyWhenItLoads() {
@@ -300,6 +307,9 @@ public class AllocationDisabledBytecodeTests extends ScriptTestCase {
         String compound = bytecode("def l = params.l; Optional.of(1).map(x -> { l[0] += x; return x; }); return 1;", 1024 * 1024L);
         assertThat(compound, containsString("public synthetic lambda$"));
         assertThat(compound, not(containsString("public static synthetic lambda$")));
+        String dotCompound = bytecode("def l = params.l; Optional.of(1).map(x -> { l.0 += x; return x; }); return 1;", 1024 * 1024L);
+        assertThat(dotCompound, containsString("public synthetic lambda$"));
+        assertThat(dotCompound, not(containsString("public static synthetic lambda$")));
         // A name with no annotated getter, or a String key, never pushes the script, so those compound stores stay static too.
         String plainName = bytecode("def m = params; Optional.of(1).map(x -> { m.other += x; return x; }); return 1;", 1024 * 1024L);
         assertThat(plainName, containsString("public static synthetic lambda$"));

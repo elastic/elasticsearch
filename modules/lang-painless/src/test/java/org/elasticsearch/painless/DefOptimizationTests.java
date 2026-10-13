@@ -49,8 +49,9 @@ public class DefOptimizationTests extends ScriptTestCase {
     }
 
     public void testIntFieldListOptiLoad() {
+        // A numeric shortcut may be a @script_aware list read, so the load site carries the script instance.
         final String script = "int x = 0; def y = new ArrayList(); y.add(5); x = y.0;";
-        assertBytecodeExists(script, "INVOKEDYNAMIC 0(Ljava/lang/Object;)I");
+        assertBytecodeExists(script, "INVOKEDYNAMIC 0(Ljava/lang/Object;Lorg/elasticsearch/painless/PainlessScript$Script;)I");
         assertEquals(5, exec(script));
     }
 
@@ -62,7 +63,7 @@ public class DefOptimizationTests extends ScriptTestCase {
 
     public void testIntFieldMapOptiLoad() {
         final String script = "int x = 0; def y = new HashMap(); y.put('0', 5); x = y.0; return x;";
-        assertBytecodeExists(script, "INVOKEDYNAMIC 0(Ljava/lang/Object;)I");
+        assertBytecodeExists(script, "INVOKEDYNAMIC 0(Ljava/lang/Object;Lorg/elasticsearch/painless/PainlessScript$Script;)I");
         assertEquals(5, exec(script));
     }
 
@@ -134,7 +135,7 @@ public class DefOptimizationTests extends ScriptTestCase {
 
     public void testDoubleFieldListOptiLoad() {
         final String script = "double x = 0; def y = new ArrayList(); y.add(5.0); x = y.0;";
-        assertBytecodeExists(script, "INVOKEDYNAMIC 0(Ljava/lang/Object;)D");
+        assertBytecodeExists(script, "INVOKEDYNAMIC 0(Ljava/lang/Object;Lorg/elasticsearch/painless/PainlessScript$Script;)D");
         assertEquals(5.0, exec(script));
     }
 
@@ -146,7 +147,7 @@ public class DefOptimizationTests extends ScriptTestCase {
 
     public void testDoubleFieldMapOptiLoad() {
         final String script = "double x = 0; def y = new HashMap(); y.put('0', 5.0); x = y.0; return x;";
-        assertBytecodeExists(script, "INVOKEDYNAMIC 0(Ljava/lang/Object;)D");
+        assertBytecodeExists(script, "INVOKEDYNAMIC 0(Ljava/lang/Object;Lorg/elasticsearch/painless/PainlessScript$Script;)D");
         assertEquals(5.0, exec(script));
     }
 

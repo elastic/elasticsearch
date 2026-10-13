@@ -958,6 +958,27 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * Regression test: a view referenced from an IN subquery whose body is a very long pipeline must not
+     * overflow the stack while views are being resolved.
+     */
+    public void testViewReferencedFromInSubqueryWithDeepPipeline() {
+        assumeTrue("Requires views in cluster state", EsqlCapabilities.Cap.VIEWS_IN_CLUSTER_STATE.isEnabled());
+        assumeTrue("Requires IN subquery view support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW.isEnabled());
+        try {
+            installView("deep_ids", "FROM test | KEEP id");
+
+            String query = "FROM test | WHERE id IN (FROM deep_ids" + " | LIMIT 1".repeat(5_000) + ") | KEEP id";
+            try (var resp = run(query)) {
+                assertColumnNames(resp.columns(), List.of("id"));
+                // The subquery yields a single, arbitrary id, so only the cardinality is deterministic.
+                assertTrue(getValuesList(resp).size() <= 1);
+            }
+        } finally {
+            deleteViews("deep_ids");
+        }
+    }
+
     // ---- multi-column IN subquery ----
 
     /**

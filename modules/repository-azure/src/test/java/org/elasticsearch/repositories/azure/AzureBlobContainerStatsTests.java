@@ -134,7 +134,7 @@ public class AzureBlobContainerStatsTests extends AbstractAzureServerTestCase {
 
     public void testConcurrentMultipartCopyIsReflectedInBlobStoreStats() throws IOException {
         serverlessMode = true;
-        AzureBlobContainer blobContainer = asInstanceOf(AzureBlobContainer.class, createBlobContainer(between(1, 3)));
+        AzureBlobContainer blobContainer = asInstanceOf(AzureBlobContainer.class, createBlobContainerWithSasToken(between(1, 3)));
         AzureBlobStore blobStore = blobContainer.getBlobStore();
         OperationPurpose purpose = randomFrom(OperationPurpose.values());
 

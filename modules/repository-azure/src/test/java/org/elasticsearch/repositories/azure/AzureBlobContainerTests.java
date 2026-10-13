@@ -189,7 +189,7 @@ public class AzureBlobContainerTests extends AbstractAzureServerTestCase {
     }
 
     private void testConcurrentMultipartCopy(boolean singleThread) throws Exception {
-        final AzureBlobContainer blobContainer = asInstanceOf(AzureBlobContainer.class, createBlobContainer(between(1, 3)));
+        final AzureBlobContainer blobContainer = asInstanceOf(AzureBlobContainer.class, createBlobContainerWithSasToken(between(1, 3)));
         final AzureBlobStore blobStore = blobContainer.getBlobStore();
         final long partSize = blobStore.maxCopySizeBeforeMultipart();
         final int nbParts = randomIntBetween(2, 5);
@@ -226,7 +226,7 @@ public class AzureBlobContainerTests extends AbstractAzureServerTestCase {
     }
 
     public void testConcurrentMultipartCopyMissingSource() {
-        final AzureBlobContainer blobContainer = asInstanceOf(AzureBlobContainer.class, createBlobContainer(between(1, 3)));
+        final AzureBlobContainer blobContainer = asInstanceOf(AzureBlobContainer.class, createBlobContainerWithSasToken(between(1, 3)));
         final long blobSize = blobContainer.getBlobStore().maxCopySizeBeforeMultipart() + 1;
         expectThrows(
             NoSuchFileException.class,

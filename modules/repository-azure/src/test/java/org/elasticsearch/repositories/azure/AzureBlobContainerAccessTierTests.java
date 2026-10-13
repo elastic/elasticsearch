@@ -62,6 +62,7 @@ import static org.elasticsearch.repositories.azure.AzureStorageSettings.ACCOUNT_
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.ENDPOINT_SUFFIX_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.KEY_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.MAX_RETRIES_SETTING;
+import static org.elasticsearch.repositories.azure.AzureStorageSettings.SAS_TOKEN_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.TIMEOUT_SETTING;
 
 @SuppressForbidden(reason = "use a http server")
@@ -110,11 +111,23 @@ public class AzureBlobContainerAccessTierTests extends ESTestCase {
     }
 
     private AzureBlobContainer buildContainer(@Nullable String dataAccessTier, @Nullable String metadataAccessTier) {
+        return buildContainer(dataAccessTier, metadataAccessTier, false);
+    }
+
+    private AzureBlobContainer buildContainer(@Nullable String dataAccessTier, @Nullable String metadataAccessTier, boolean useSasToken) {
         final String clientName = randomIdentifier();
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString(ACCOUNT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), ACCOUNT);
-        final String key = Base64.getEncoder().encodeToString(randomAlphaOfLength(14).getBytes(UTF_8));
-        secureSettings.setString(KEY_SETTING.getConcreteSettingForNamespace(clientName).getKey(), key);
+        if (useSasToken) {
+            // Put Block From URL, used by the concurrent multipart copy, only works with a SAS on the source
+            secureSettings.setString(
+                SAS_TOKEN_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
+                "se=2021-07-20T13%3A21Z&sp=rwdl&sv=2018-11-09&sr=c&sig=random"
+            );
+        } else {
+            final String key = Base64.getEncoder().encodeToString(randomAlphaOfLength(14).getBytes(UTF_8));
+            secureSettings.setString(KEY_SETTING.getConcreteSettingForNamespace(clientName).getKey(), key);
+        }
 
         final InetSocketAddress address = httpServer.getAddress();
         final String host = address.getAddress().isLoopbackAddress() ? "localhost" : InetAddresses.toUriString(address.getAddress());
@@ -341,7 +354,7 @@ public class AzureBlobContainerAccessTierTests extends ESTestCase {
 
     public void testDataAccessTierSentOnConcurrentMultipartCopyBlob() throws IOException {
         String dataAccessTier = getRandomAllowedAccessTierString();
-        final AzureBlobContainer container = buildContainer(dataAccessTier, null);
+        final AzureBlobContainer container = buildContainer(dataAccessTier, null, true);
         final String sourceBlobName = randomIdentifier();
         final String destBlobName = randomIdentifier();
         // Larger than the multipart copy threshold so copyBlob takes the Put Block From URL path

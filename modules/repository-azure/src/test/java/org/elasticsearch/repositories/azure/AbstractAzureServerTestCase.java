@@ -63,6 +63,7 @@ import static org.elasticsearch.repositories.azure.AzureStorageSettings.ACCOUNT_
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.ENDPOINT_SUFFIX_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.KEY_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.MAX_RETRIES_SETTING;
+import static org.elasticsearch.repositories.azure.AzureStorageSettings.SAS_TOKEN_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.TIMEOUT_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -107,6 +108,25 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
 
     protected BlobContainer createBlobContainer(final int maxRetries) {
         return builder().withMaxRetries(maxRetries).build();
+    }
+
+    protected BlobContainer createBlobContainerWithSasToken(final int maxRetries) {
+        final String clientName = randomIdentifier();
+        return builder().withMaxRetries(maxRetries)
+            .withClientName(clientName)
+            .withSecureSettings(sasTokenSecureSettings(clientName))
+            .build();
+    }
+
+    protected static MockSecureSettings sasTokenSecureSettings(String clientName) {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(ACCOUNT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), ACCOUNT);
+        // The SDK expects a valid looking SAS token, the fixture does not validate it
+        secureSettings.setString(
+            SAS_TOKEN_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
+            "se=2021-07-20T13%3A21Z&sp=rwdl&sv=2018-11-09&sr=c&sig=random"
+        );
+        return secureSettings;
     }
 
     protected BlobContainer createBlobContainer(

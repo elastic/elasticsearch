@@ -135,6 +135,8 @@ public class AzureBlobStore implements BlobStore {
     private static final Logger logger = LogManager.getLogger(AzureBlobStore.class);
     // See https://learn.microsoft.com/en-us/rest/api/storageservices/blob-batch#request-body
     public static final int MAX_ELEMENTS_PER_BATCH = 256;
+    // See https://learn.microsoft.com/en-us/rest/api/storageservices/put-block-list
+    static final int MAX_BLOCKS_PER_BLOB = 50_000;
     private static final long DEFAULT_READ_CHUNK_SIZE = ByteSizeValue.of(32, ByteSizeUnit.MB).getBytes();
     private static final int DEFAULT_UPLOAD_BUFFERS_SIZE = (int) ByteSizeValue.of(64, ByteSizeUnit.KB).getBytes();
     public static final Map<String, AccessTier> ALLOWED_ACCESS_TIERS_BY_LOWER_NAME = Stream.of(
@@ -850,9 +852,15 @@ public class AzureBlobStore implements BlobStore {
                 final BlobServiceClient syncClient = client.getSyncClient();
                 final BlobClient blobSyncClient = syncClient.getBlobContainerClient(container).getBlobClient(blobName);
                 try {
-                    if (executor != null && blobSize > maxCopySizeBeforeMultipart()) {
+                    final long partSize = maxCopySizeBeforeMultipart();
+                    // Put Block From URL requires the source to be public or authorized by a SAS in the source URL,
+                    // see https://learn.microsoft.com/en-us/rest/api/storageservices/put-block-from-url
+                    // A block blob can also have at most MAX_BLOCKS_PER_BLOB committed blocks.
+                    if (executor != null
+                        && Strings.hasText(sasToken)
+                        && blobSize > partSize
+                        && blobSize <= MAX_BLOCKS_PER_BLOB * partSize) {
                         final BlockBlobClient blockBlobClient = blobSyncClient.getBlockBlobClient();
-                        final long partSize = maxCopySizeBeforeMultipart();
                         final int nbParts = ConcurrentMultipartHelper.numberOfParts(blobSize, partSize);
                         final String[] blockIds = new String[nbParts];
                         for (int i = 0; i < nbParts; i++) {

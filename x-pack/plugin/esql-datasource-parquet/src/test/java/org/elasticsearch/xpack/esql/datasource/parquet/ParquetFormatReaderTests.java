@@ -5886,7 +5886,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * A {@code TIMESTAMP(MICROS)} column — Arrow's and Spark's default timestamp unit — infers {@code date_nanos}, so
+     * A {@code TIMESTAMP(MICROS)} column — Arrow's and pandas' default timestamp unit — infers {@code date_nanos}, so
      * declaring it {@code date} narrows through {@code castBlock}. A value before 1970 is an ordinary instant for
      * {@code date}, and it must read rather than fail the whole column: the 1970 floor belongs to the source type.
      * Both decode engines take the same route here (the pair is not fused), so the assertion covers both.

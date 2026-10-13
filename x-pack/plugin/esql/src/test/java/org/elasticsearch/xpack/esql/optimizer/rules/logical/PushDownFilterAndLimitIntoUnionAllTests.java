@@ -2106,7 +2106,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      */
     public void testFullTextFunctionOnExternalDatasetField() {
         checkExternalDatasetSupport();
-        // : supports runtime search and can operate on external (non-index) fields
+        // MATCH supports runtime search and can operate on external (non-index) fields
         var plan = planExternalDatasetSubquery("""
             FROM test, (FROM external_employees | WHERE salary > 50000)
             | WHERE first_name:"first"

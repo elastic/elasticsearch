@@ -483,8 +483,8 @@ public class PlannerUtils {
 
     /**
      * Runs local logical/physical optimization with external splits injected before the physical optimizer.
-     * Splits are attached to any empty {@link ExternalSourceExec} nodes so that rules like
-     * {@code PushStatsToExternalSource} can see per-split statistics.
+     * The node-assigned split list is stamped onto every {@link ExternalSourceExec} in the fragment so
+     * rules like {@code PushStatsToExternalSource} see this worker's splits, not a coordinator listing.
      */
     public static PhysicalPlan localPlan(
         PlannerSettings plannerSettings,
@@ -627,10 +627,10 @@ public class PlannerUtils {
             if (externalSplits.isEmpty() == false) {
                 @SuppressWarnings("unchecked")
                 List<ExternalSplit> typedSplits = (List<ExternalSplit>) externalSplits;
-                physicalFragment = physicalFragment.transformUp(
-                    ExternalSourceExec.class,
-                    exec -> exec.splits().isEmpty() ? exec.withSplits(typedSplits) : exec
-                );
+                // Always the node-assigned list. Filling only empty execs would keep a coordinator
+                // listing copied onto every worker, and INITIAL COUNT(*) would fold the full set
+                // on each data node (#161409).
+                physicalFragment = physicalFragment.transformUp(ExternalSourceExec.class, exec -> exec.withSplits(typedSplits));
             }
 
             // Physical optimization

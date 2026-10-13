@@ -52,7 +52,6 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseDateTimeFormatter;
 public class RootObjectMapper extends ObjectMapper {
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RootObjectMapper.class);
     private static final int MAX_NESTING_LEVEL_FOR_PASS_THROUGH_OBJECTS = 20;
-    static final String RETAINS_UNMAPPED_FIELDS = "retains_unmapped_fields";
 
     public static class Defaults {
         public static final Explicit<DateFormatter[]> DYNAMIC_DATE_TIME_FORMATTERS = new Explicit<>(
@@ -75,16 +74,6 @@ public class RootObjectMapper extends ObjectMapper {
         protected Explicit<Boolean> numericDetection = Defaults.NUMERIC_DETECTION;
         protected RootObjectMapperNamespaceValidator namespaceValidator;
         protected boolean sliceEnabled;
-        /**
-         * Whether the mapping this builder produces records {@code retains_unmapped_fields}. Only indices created on or after
-         * {@link IndexVersions#MAPPING_TRACKS_UNMAPPED_FIELD_RETENTION} do, as the record is only meaningful when it has been
-         * kept since the index was created.
-         */
-        protected boolean tracksUnmappedFieldRetention;
-        /**
-         * Whether a mapping this builder was parsed from or merged with already carries {@code retains_unmapped_fields}.
-         */
-        protected boolean retainsUnmappedFields;
 
         public Builder(String name) {
             this(name, ObjectMapper.Defaults.SUBOBJECTS);
@@ -101,11 +90,6 @@ public class RootObjectMapper extends ObjectMapper {
 
         public Builder setSliceEnabled(boolean sliceEnabled) {
             this.sliceEnabled = sliceEnabled;
-            return this;
-        }
-
-        Builder setTracksUnmappedFieldRetention(IndexVersion indexVersionCreated) {
-            this.tracksUnmappedFieldRetention = indexVersionCreated.onOrAfter(IndexVersions.MAPPING_TRACKS_UNMAPPED_FIELD_RETENTION);
             return this;
         }
 
@@ -143,8 +127,6 @@ public class RootObjectMapper extends ObjectMapper {
             builder.sourceKeepMode = this.sourceKeepMode;
             builder.namespaceValidator = this.namespaceValidator;
             builder.sliceEnabled = this.sliceEnabled;
-            builder.tracksUnmappedFieldRetention = this.tracksUnmappedFieldRetention;
-            builder.retainsUnmappedFields = this.retainsUnmappedFields;
             return builder;
         }
 
@@ -171,9 +153,6 @@ public class RootObjectMapper extends ObjectMapper {
             }
             super.merge(mergeWith, objectMergeContext, fullPath);
             if (mergeWith instanceof RootObjectMapper.Builder rootMergeWith) {
-                // Never cleared: once a mapping could retain unmapped fields, documents indexed under it may still hold them.
-                this.retainsUnmappedFields |= rootMergeWith.retainsUnmappedFields;
-                this.tracksUnmappedFieldRetention |= rootMergeWith.tracksUnmappedFieldRetention;
                 if (rootMergeWith.numericDetection.explicit()) {
                     this.numericDetection = rootMergeWith.numericDetection;
                 }
@@ -228,9 +207,6 @@ public class RootObjectMapper extends ObjectMapper {
             // Build child mappers first so that flattenBuildersIfNeeded has a chance to populate
             // prefixProperties before we pass them to the RootObjectMapper constructor.
             Map<String, Mapper> mappers = buildMappers(context.createChildContext(null, dynamic));
-            // An untracked mapping records nothing, not even a value it is given: it reads as retaining either way.
-            boolean retains = tracksUnmappedFieldRetention
-                && (retainsUnmappedFields || canRetainUnmappedFields(enabled.value(), dynamic, mappers.values(), prefixProperties));
             return new RootObjectMapper(
                 leafName(),
                 enabled,
@@ -245,9 +221,7 @@ public class RootObjectMapper extends ObjectMapper {
                 dateDetection,
                 numericDetection,
                 namespaceValidator,
-                sliceEnabled,
-                tracksUnmappedFieldRetention,
-                retains
+                sliceEnabled
             );
         }
     }
@@ -259,8 +233,8 @@ public class RootObjectMapper extends ObjectMapper {
     private final Map<String, RuntimeField> runtimeFields;
     private final RootObjectMapperNamespaceValidator namespaceValidator;
     private final boolean sliceEnabled;
-    private final boolean tracksUnmappedFieldRetention;
-    private final boolean retainsUnmappedFields;
+    /** Computed on first use. */
+    private Boolean canRetainUnmappedFields;
     /**
      * Per-prefix settings captured during auto-flattening in strict columnar mode.
      * Keys are the full dotted paths of declared object mappers (e.g. {@code "attributes"},
@@ -285,14 +259,9 @@ public class RootObjectMapper extends ObjectMapper {
         Explicit<Boolean> dateDetection,
         Explicit<Boolean> numericDetection,
         RootObjectMapperNamespaceValidator namespaceValidator,
-        boolean sliceEnabled,
-        boolean tracksUnmappedFieldRetention,
-        boolean retainsUnmappedFields
+        boolean sliceEnabled
     ) {
         super(name, name, enabled, subobjects, sourceKeepMode, dynamic, mappers);
-        assert retainsUnmappedFields == false || tracksUnmappedFieldRetention : "an untracked mapping records nothing";
-        this.tracksUnmappedFieldRetention = tracksUnmappedFieldRetention;
-        this.retainsUnmappedFields = retainsUnmappedFields;
         this.runtimeFields = runtimeFields;
         this.dynamicTemplates = dynamicTemplates;
         this.dynamicDateTimeFormatters = dynamicDateTimeFormatters;
@@ -310,7 +279,6 @@ public class RootObjectMapper extends ObjectMapper {
         builder.dynamic = dynamic;
         builder.sourceKeepMode = sourceKeepMode;
         builder.sliceEnabled = sliceEnabled;
-        // Left untracked: this builds a dynamic mapping update, and the mapping it is merged into does the tracking.
         return builder;
     }
 
@@ -330,34 +298,29 @@ public class RootObjectMapper extends ObjectMapper {
             dateDetection,
             numericDetection,
             namespaceValidator,
-            sliceEnabled,
-            tracksUnmappedFieldRetention,
-            retainsUnmappedFields
+            sliceEnabled
         );
     }
 
     /**
-     * Whether documents indexed under this mapping, or under any mapping it was merged from, may hold fields that no mapping
-     * declares. It is recorded in the mapping as {@code retains_unmapped_fields} and never cleared, because tightening a mapping
-     * does not remove the fields earlier documents kept.
-     * <p>
-     * Always {@code true} for an index created before {@link IndexVersions#MAPPING_TRACKS_UNMAPPED_FIELD_RETENTION}: its mapping
-     * was not tracked from the start, so its history is unknown.
-     * <p>
-     * This only covers what the mapping itself allows. A dynamic field skipped for exceeding a limit, or a malformed value
-     * ignored by a mapped field, is recorded per document in {@code _ignored}.
+     * Whether a document indexed under this mapping may keep a field that no mapper holds: the mapping or one of its
+     * objects is disabled or has {@code dynamic} set to {@code false} or {@code flattened}, or the field is a runtime
+     * field, which can be removed from the mapping. A dynamic field skipped for exceeding a limit is not covered: it is
+     * recorded per document in {@code _ignored}.
      */
-    public boolean retainsUnmappedFields() {
-        return retainsUnmappedFields || tracksUnmappedFieldRetention == false;
+    public boolean canRetainUnmappedFields() {
+        Boolean canRetain = canRetainUnmappedFields;
+        if (canRetain == null) {
+            canRetain = runtimeFields.isEmpty() == false
+                || canRetainUnmappedFields(isEnabled(), dynamic, getMappers().values(), prefixProperties);
+            canRetainUnmappedFields = canRetain;
+        }
+        return canRetain;
     }
 
-    /**
-     * Whether a mapping with these properties keeps a field it does not declare, where a mapping that maps every field
-     * dynamically or rejects the document would not.
-     */
     private static boolean canRetainUnmappedFields(
         boolean enabled,
-        Dynamic dynamic,
+        @Nullable Dynamic dynamic,
         Collection<Mapper> mappers,
         Map<String, PrefixProperties> prefixProperties
     ) {
@@ -385,9 +348,9 @@ public class RootObjectMapper extends ObjectMapper {
             return false;
         }
         return switch (dynamic) {
-            // Every field holding a value is mapped, as a runtime field under RUNTIME, or the document is rejected.
-            case TRUE, RUNTIME, STRICT -> false;
-            case FALSE, FLATTENED -> true;
+            // Every field holding a value gets a mapper, or the document is rejected.
+            case TRUE, STRICT -> false;
+            case FALSE, FLATTENED, RUNTIME -> true;
         };
     }
 
@@ -506,9 +469,6 @@ public class RootObjectMapper extends ObjectMapper {
         }
         if (numericDetection.explicit() || includeDefaults) {
             builder.field("numeric_detection", numericDetection.value());
-        }
-        if (retainsUnmappedFields) {
-            builder.field(RETAINS_UNMAPPED_FIELDS, true);
         }
 
         if (runtimeFields.isEmpty() == false) {
@@ -666,7 +626,6 @@ public class RootObjectMapper extends ObjectMapper {
         RootObjectMapper.Builder builder = new Builder(name, subobjects);
         builder.addNamespaceValidator(parserContext.getNamespaceValidator());
         builder.setSliceEnabled(parserContext.getIndexSettings().isSliceEnabled());
-        builder.setTracksUnmappedFieldRetention(parserContext.indexVersionCreated());
         Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();
         while (iterator.hasNext()) {
             Map.Entry<String, Object> entry = iterator.next();
@@ -727,10 +686,6 @@ public class RootObjectMapper extends ObjectMapper {
             return true;
         } else if (fieldName.equals("numeric_detection")) {
             builder.numericDetection = Explicit.explicitBoolean(nodeBooleanValue(fieldNode, "numeric_detection"));
-            return true;
-        } else if (fieldName.equals(RETAINS_UNMAPPED_FIELDS)) {
-            // Only ever set: false is what an untracked mapping reads as, so it clears nothing.
-            builder.retainsUnmappedFields |= nodeBooleanValue(fieldNode, RETAINS_UNMAPPED_FIELDS);
             return true;
         } else if (fieldName.equals("runtime")) {
             if (fieldNode instanceof Map) {

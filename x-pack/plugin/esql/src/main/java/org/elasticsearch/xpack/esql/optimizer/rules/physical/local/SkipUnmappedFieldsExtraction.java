@@ -22,13 +22,9 @@ import java.util.List;
 
 /**
  * Replaces the extraction of the {@code $$unmapped_fields} column of {@code SET unmapped_fields="LOAD_ALL"} with a
- * {@code null} when no shard on this node may hold an unmapped field (see {@code SearchStats#mayHoldUnmappedFields}).
- * <p>
- * Extracting the column reads and parses {@code _source} for every row, only to find nothing the mapping does not already
- * describe. The column itself stays in the plan, so the coordinator expands it into no column at all, as it does for any
- * row without unmapped fields.
- * <p>
- * Runs after {@code InsertFieldExtraction}, which is what adds the column to a {@link FieldExtractExec}.
+ * {@code null} when no shard on this node may hold an unmapped field (see {@code SearchStats#mayHoldUnmappedFields}),
+ * which saves reading {@code _source} for every row. The column stays in the plan, so the coordinator expands it into no
+ * column at all. Runs after {@code InsertFieldExtraction}, which adds the column to a {@link FieldExtractExec}.
  */
 public class SkipUnmappedFieldsExtraction extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
     FieldExtractExec,

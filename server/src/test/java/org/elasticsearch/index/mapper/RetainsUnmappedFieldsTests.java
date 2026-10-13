@@ -27,16 +27,14 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 /**
- * Tests the {@code retains_unmapped_fields} property a mapping records about itself, and
- * {@link SearchExecutionContext#mayHoldUnmappedFields()}, which combines it with the index mode and with what the segments of a
- * shard hold.
+ * Tests {@link RootObjectMapper#canRetainUnmappedFields()}, which tells whether a mapping keeps the fields it does not declare,
+ * and {@link SearchExecutionContext#mayHoldUnmappedFields()}, which combines it with what the index recorded of its earlier
+ * mappings, with the index mode and with what the segments of a shard hold.
  */
 public class RetainsUnmappedFieldsTests extends MapperServiceTestCase {
 
-    private static final String PROPERTY = "\"" + RootObjectMapper.RETAINS_UNMAPPED_FIELDS + "\"";
-
     public void testNotRetainedWhenEveryFieldIsMappedOrRejected() throws IOException {
-        for (String dynamic : new String[] { null, "true", "runtime", "strict" }) {
+        for (String dynamic : new String[] { null, "true", "strict" }) {
             MapperService mapperService = createMapperService(topMapping(b -> {
                 if (dynamic != null) {
                     b.field("dynamic", dynamic);
@@ -53,6 +51,23 @@ public class RetainsUnmappedFieldsTests extends MapperServiceTestCase {
 
     public void testRetainedByRootDynamic() throws IOException {
         assertRetains(createMapperService(topMapping(b -> b.field("dynamic", false))), true);
+    }
+
+    /**
+     * A runtime field can be removed, which leaves the values documents hold for it without a field.
+     */
+    public void testRetainedByRuntimeFields() throws IOException {
+        assertRetains(createMapperService(topMapping(b -> b.field("dynamic", "runtime"))), true);
+        assertRetains(
+            createMapperService(mapping(b -> b.startObject("object").field("type", "object").field("dynamic", "runtime").endObject())),
+            true
+        );
+        assertRetains(
+            createMapperService(
+                topMapping(b -> b.startObject("runtime").startObject("field").field("type", "keyword").endObject().endObject())
+            ),
+            true
+        );
     }
 
     public void testRetainedByDisabledRoot() throws IOException {
@@ -73,53 +88,57 @@ public class RetainsUnmappedFieldsTests extends MapperServiceTestCase {
     }
 
     /**
-     * Documents indexed while the mapping kept unmapped fields still hold them after the mapping is tightened.
+     * The mapping only answers for itself: what its earlier versions allowed is recorded by the index.
      */
-    public void testStaysRetainedOnceTheMappingIsTightened() throws IOException {
+    public void testFollowsTheMapping() throws IOException {
         MapperService mapperService = createMapperService(topMapping(b -> b.field("dynamic", false)));
         assertRetains(mapperService, true);
 
         merge(mapperService, topMapping(b -> b.field("dynamic", randomFrom("true", "strict"))));
-        assertThat(mapperService.mappingLookup().getMapping().getRoot().dynamic(), not(equalTo(ObjectMapper.Dynamic.FALSE)));
-        assertRetains(mapperService, true);
-
-        merge(mapperService, mapping(b -> b.startObject("field").field("type", "keyword").endObject()));
-        assertRetains(mapperService, true);
-    }
-
-    public void testBecomesRetainedWhenAnUpdateLoosensTheMapping() throws IOException {
-        MapperService mapperService = createMapperService(mapping(b -> b.startObject("field").field("type", "keyword").endObject()));
         assertRetains(mapperService, false);
 
         merge(mapperService, mapping(b -> b.startObject("object").field("type", "object").field("enabled", false).endObject()));
         assertRetains(mapperService, true);
     }
 
-    public void testCannotBeClearedExplicitly() throws IOException {
-        MapperService mapperService = createMapperService(topMapping(b -> b.field("dynamic", false)));
-        merge(mapperService, topMapping(b -> b.field("dynamic", true).field(RootObjectMapper.RETAINS_UNMAPPED_FIELDS, false)));
-        assertRetains(mapperService, true);
-    }
-
-    public void testCanBeSetExplicitly() throws IOException {
-        MapperService mapperService = createMapperService(topMapping(b -> b.field(RootObjectMapper.RETAINS_UNMAPPED_FIELDS, true)));
-        assertRetains(mapperService, true);
+    public void testIsNotAMappingParameter() {
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(topMapping(b -> b.field("retains_unmapped_fields", true)))
+        );
+        assertThat(e.getMessage(), containsString("unsupported parameters"));
+        assertThat(e.getMessage(), containsString("retains_unmapped_fields"));
     }
 
     /**
-     * An index created before the property existed has an unknown history, so it reads as retaining without recording so.
+     * Documents indexed while a mapping kept unmapped fields still hold them after the mapping is tightened, which the index
+     * records.
+     */
+    public void testStoredSourceWithEarlierMappingThatRetained() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.RETAINS_UNMAPPED_FIELDS_SETTING.getKey(), true).build();
+        MapperService mapperService = createMapperService(
+            settings,
+            mapping(b -> b.startObject("field").field("type", "keyword").endObject())
+        );
+        assertRetains(mapperService, false);
+        assertMayHoldUnmappedFields(mapperService, b -> b.field("field", "value"), true);
+    }
+
+    /**
+     * An index created before its mappings were tracked has an unknown history, so it reads as retaining.
      */
     public void testUntrackedBeforeIndexVersion() throws IOException {
-        IndexVersion before = IndexVersionUtils.getPreviousVersion(IndexVersions.MAPPING_TRACKS_UNMAPPED_FIELD_RETENTION);
-        for (String dynamic : new String[] { "true", "false" }) {
-            MapperService mapperService = createMapperService(before, topMapping(b -> b.field("dynamic", dynamic)));
-            assertTrue(mapperService.mappingLookup().getMapping().getRoot().retainsUnmappedFields());
-            assertThat(mapperService.documentMapper().mappingSource().string(), not(containsString(PROPERTY)));
-        }
-        // Nor does it record a value it is given, such as a mapping copied from an index that tracks it.
-        MapperService mapperService = createMapperService(before, topMapping(b -> b.field(RootObjectMapper.RETAINS_UNMAPPED_FIELDS, true)));
-        assertTrue(mapperService.mappingLookup().getMapping().getRoot().retainsUnmappedFields());
-        assertThat(mapperService.documentMapper().mappingSource().string(), not(containsString(PROPERTY)));
+        IndexVersion before = IndexVersionUtils.getPreviousVersion(IndexVersions.TRACKS_UNMAPPED_FIELD_RETENTION);
+        assertTrue(IndexSettings.retainsUnmappedFields(before, Settings.EMPTY));
+        assertFalse(IndexSettings.retainsUnmappedFields(IndexVersions.TRACKS_UNMAPPED_FIELD_RETENTION, Settings.EMPTY));
+
+        MapperService mapperService = createMapperService(
+            before,
+            mapping(b -> b.startObject("field").field("type", "keyword").endObject())
+        );
+        assertRetains(mapperService, false);
+        assertTrue(mapperService.getIndexSettings().retainsUnmappedFields());
+        assertMayHoldUnmappedFields(mapperService, b -> b.field("field", "value"), true);
     }
 
     public void testStoredSourceWithoutUnmappedFields() throws IOException {
@@ -181,9 +200,8 @@ public class RetainsUnmappedFieldsTests extends MapperServiceTestCase {
     }
 
     private static void assertRetains(MapperService mapperService, boolean expected) {
-        assertThat(mapperService.mappingLookup().getMapping().getRoot().retainsUnmappedFields(), equalTo(expected));
-        String source = mapperService.documentMapper().mappingSource().string();
-        assertThat(source, expected ? containsString(PROPERTY + ":true") : not(containsString(PROPERTY)));
+        assertThat(mapperService.mappingLookup().getMapping().getRoot().canRetainUnmappedFields(), equalTo(expected));
+        assertThat(mapperService.documentMapper().mappingSource().string(), not(containsString("retains_unmapped_fields")));
     }
 
     private void assertMayHoldUnmappedFields(

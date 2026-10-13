@@ -799,24 +799,12 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
-     * Whether a document of this shard may hold, in its {@code _source}, a field that the mapping does not declare. When this
-     * returns {@code false}, reading {@code _source} can find nothing beyond what the mapped fields already describe, so a
-     * caller looking for unmapped fields can skip it.
-     * <p>
-     * The answer is {@code false} in any of these cases:
-     * <ul>
-     *   <li>The index mode is strict columnar and unmapped fields are not routed to the flattened {@code _unmapped} field: such
-     *       an index drops the fields its mapping does not declare while parsing the document.</li>
-     *   <li>{@code _source} is synthetic and no segment has an {@code _ignored_source} field: a synthetic {@code _source} is
-     *       rebuilt from the mapped fields plus {@code _ignored_source}, which is where an unmapped field is kept.</li>
-     *   <li>{@code _source} is stored, the mapping never allowed an unmapped field to be kept (see
-     *       {@link RootObjectMapper#retainsUnmappedFields()}) and no segment has an {@code _ignored} field, which records the
-     *       dynamic fields that were skipped for exceeding a limit.</li>
-     * </ul>
-     * Without a searcher the segments cannot be inspected, so the answer is {@code true} unless the index mode alone decides.
-     * <p>
-     * A value a mapped field keeps under its own name, such as the keys of an object-valued field, is not an unmapped field
-     * and is not covered by this method.
+     * Whether a document of this shard may hold, in its {@code _source}, a field that the mapping does not declare. It
+     * returns {@code false} when the index mode is strict columnar and unmapped fields are not routed to the flattened
+     * {@code _unmapped} field, when {@code _source} is synthetic and no segment has an {@code _ignored_source} field, and
+     * when {@code _source} is stored, no mapping the index has or had can keep an unmapped field (see
+     * {@link IndexSettings#retainsUnmappedFields()} and {@link RootObjectMapper#canRetainUnmappedFields()}) and no segment
+     * has an {@code _ignored} field. Without a searcher it returns {@code true} unless the index mode decides.
      */
     public boolean mayHoldUnmappedFields() {
         if (indexSettings.getMode().isStrictColumnar() && indexSettings.isFlattenedUnmappedFieldsEnabled() == false) {
@@ -828,7 +816,9 @@ public class SearchExecutionContext extends QueryRewriteContext {
         if (mappingLookup.isSourceSynthetic()) {
             return fieldExistsInIndex(IgnoredSourceFieldMapper.NAME);
         }
-        return mappingLookup.getMapping().getRoot().retainsUnmappedFields() || fieldExistsInIndex(IgnoredFieldMapper.NAME);
+        return indexSettings.retainsUnmappedFields()
+            || mappingLookup.getMapping().getRoot().canRetainUnmappedFields()
+            || fieldExistsInIndex(IgnoredFieldMapper.NAME);
     }
 
     /**

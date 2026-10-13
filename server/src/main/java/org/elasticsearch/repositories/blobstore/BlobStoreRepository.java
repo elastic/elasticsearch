@@ -80,6 +80,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThrottledIterator;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.AbstractRefCounted;
@@ -1307,32 +1308,99 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
         private void writeUpdatedShardMetadataAndComputeDeletes(ActionListener<Void> listener) {
             // noinspection resource -- closed safely at the end of the iteration
-            final var listeners = new RefCountingListener(ActionListener.runBefore(listener, this::recordUnreferencedIndicesMetadata));
+            final var listeners = new RefCountingListener(listener);
 
             // Each per-index process takes some nonzero amount of working memory to hold the relevant snapshot IDs and metadata generations
             // etc. which we can keep under tighter limits and release sooner if we limit the number of concurrently processing indices.
             // Each one needs at least one snapshot thread at all times, so threadPool.info(SNAPSHOT).getMax() of them at once is enough to
             // keep the threadpool fully utilized.
             ThrottledIterator.run(
-                originalRepositoryData.indicesToUpdateAfterRemovingSnapshot(snapshotIds),
+                originalRepositoryData.getIndices().values().iterator(),
                 (ref, indexId) -> ActionListener.run(
                     ActionListener.releaseAfter(listeners.acquire(), ref),
-                    l -> new IndexSnapshotsDeletion(indexId).run(l)
+                    new IndexSnapshotsDeletionLauncher(indexId)
                 ),
                 threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
                 listeners::close
             );
         }
 
+        /// Works out whether we need to process the index at all, and if it does need processing then computes some needed data and invokes
+        /// [IndexSnapshotsDeletion].
+        private class IndexSnapshotsDeletionLauncher implements CheckedConsumer<ActionListener<Void>, RuntimeException> {
+            private final IndexId indexId;
+            private final List<SnapshotId> indexSnapshotIds;
+
+            IndexSnapshotsDeletionLauncher(IndexId indexId) {
+                this.indexId = indexId;
+                this.indexSnapshotIds = originalRepositoryData.getSnapshots(indexId);
+            }
+
+            @Override
+            public void accept(ActionListener<Void> listener) {
+                // An untouched index needs no work and an index that loses every snapshot is removed with its blob container. So first
+                // check whether this index has both deleted and surviving snapshots and bail out early if not:
+                if (requiresDeletion() == false) {
+                    listener.onResponse(null);
+                    return;
+                }
+
+                final var survivingSnapshots = Sets.<SnapshotId>newHashSetWithExpectedSize(indexSnapshotIds.size());
+                final var survivingMetaBlobIds = Sets.<String>newHashSetWithExpectedSize(indexSnapshotIds.size());
+                final var deletedMetaBlobIds = Sets.<String>newHashSetWithExpectedSize(
+                    Math.min(indexSnapshotIds.size(), snapshotIds.size())
+                );
+                for (final var snapshotId : indexSnapshotIds) {
+                    final var metaBlobId = originalRepositoryData.indexMetaDataGenerations().indexMetaBlobId(snapshotId, indexId);
+                    if (snapshotIds.contains(snapshotId)) {
+                        deletedMetaBlobIds.add(metaBlobId);
+                    } else {
+                        survivingSnapshots.add(snapshotId);
+                        survivingMetaBlobIds.add(metaBlobId);
+                    }
+                }
+
+                assert survivingMetaBlobIds.isEmpty() == false;
+                assert deletedMetaBlobIds.isEmpty() == false;
+                assert survivingSnapshots.isEmpty() == false;
+
+                deleteUnreferencedMetaBlobs(survivingMetaBlobIds, deletedMetaBlobIds);
+                new IndexSnapshotsDeletion(indexId, survivingSnapshots).run(deletedMetaBlobIds, listener);
+            }
+
+            private boolean requiresDeletion() {
+                assert snapshotIds.isEmpty() == false; // we could further optimize this case if needed, but it never happens
+                final var indexSnapshotIdIterator = indexSnapshotIds.iterator();
+                if (indexSnapshotIdIterator.hasNext()) {
+                    final var deletingFirstSnapshot = snapshotIds.contains(indexSnapshotIdIterator.next());
+                    while (indexSnapshotIdIterator.hasNext()) {
+                        if (snapshotIds.contains(indexSnapshotIdIterator.next()) != deletingFirstSnapshot) {
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }
+
+            private void deleteUnreferencedMetaBlobs(Set<String> survivingMetaBlobIds, Set<String> deletedMetaBlobIds) {
+                // TODO also list existing index metadata blobs here to clean up leaks
+                final var unreferencedMetaBlobIds = new HashSet<>(deletedMetaBlobIds);
+                unreferencedMetaBlobIds.removeAll(survivingMetaBlobIds);
+                if (unreferencedMetaBlobIds.isEmpty() == false) {
+                    blobsToDelete.addIndexDeleteResult(indexId, unreferencedMetaBlobIds);
+                }
+            }
+        }
+
         private class IndexSnapshotsDeletion {
             private final IndexId indexId;
-            private final Set<SnapshotId> snapshotsWithIndex;
+            private final Set<SnapshotId> survivingSnapshots;
             private final BlobContainer indexContainer;
 
-            IndexSnapshotsDeletion(IndexId indexId) {
+            IndexSnapshotsDeletion(IndexId indexId, Set<SnapshotId> survivingSnapshots) {
                 this.indexId = indexId;
+                this.survivingSnapshots = survivingSnapshots;
                 this.indexContainer = indexContainer(indexId);
-                this.snapshotsWithIndex = Set.copyOf(originalRepositoryData.getSnapshots(indexId));
             }
 
             // Computed by reading the relevant index metadata, which happens-before this value is used to determine the shards to process.
@@ -1342,35 +1410,32 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 shardCount = Math.max(shardCount, newShardCount);
             }
 
-            void run(ActionListener<Void> listener) {
-                determineShardCount(listener.delegateFailureAndWrap((l, v) -> processShards(l)));
+            void run(Set<String> metaBlobIds, ActionListener<Void> listener) {
+                determineShardCount(metaBlobIds, listener.delegateFailureAndWrap((l, v) -> processShards(l)));
             }
 
             // -----------------------------------------------------------------------------------------------------------------------------
             // Determining the shard count by reading all the relevant index metadata
 
-            private void determineShardCount(ActionListener<Void> listener) {
+            private void determineShardCount(Set<String> metaBlobIds, ActionListener<Void> listener) {
                 try (var listeners = new RefCountingListener(listener)) {
-                    for (final var indexMetaGeneration : snapshotIds.stream()
-                        .filter(snapshotsWithIndex::contains)
-                        .map(id -> originalRepositoryData.indexMetaDataGenerations().indexMetaBlobId(id, indexId))
-                        .collect(Collectors.toSet())) {
+                    for (final var metaBlobId : metaBlobIds) {
                         // NB since 7.9.0 we deduplicate index metadata blobs, and one of the components of the deduplication key is the
                         // index UUID; the shard count is going to be the same for all metadata with the same index UUID, so it is
                         // unnecessary to read multiple metadata blobs corresponding to the same index UUID.
                         // TODO Skip this unnecessary work? Maybe track the shard count in RepositoryData?
-                        snapshotExecutor.execute(ActionRunnable.run(listeners.acquire(), () -> getOneShardCount(indexMetaGeneration)));
+                        snapshotExecutor.execute(ActionRunnable.run(listeners.acquire(), () -> getOneShardCount(metaBlobId)));
                     }
                 }
             }
 
-            private void getOneShardCount(String indexMetaGeneration) {
+            private void getOneShardCount(String metaBlobId) {
                 try {
                     updateShardCount(
-                        INDEX_SHARD_COUNT_FORMAT.read(getProjectRepo(), indexContainer, indexMetaGeneration, namedXContentRegistry).count()
+                        INDEX_SHARD_COUNT_FORMAT.read(getProjectRepo(), indexContainer, metaBlobId, namedXContentRegistry).count()
                     );
                 } catch (Exception ex) {
-                    logger.warn(() -> format("[%s] [%s] failed to read shard count for index", indexMetaGeneration, indexId.getName()), ex);
+                    logger.warn(() -> format("[%s] [%s] failed to read shard count for index", metaBlobId, indexId.getName()), ex);
                     // Definitely indicates something fairly badly wrong with the repo, but not immediately fatal here: we might get the
                     // shard count from another metadata blob, or we might just not process these shards. If we skip these shards
                     // then the repository will technically enter an invalid state (these shards' index-XXX blobs will refer to snapshots
@@ -1382,12 +1447,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
 
             private void processShards(ActionListener<Void> listener) {
-                final Set<SnapshotId> survivingSnapshots = snapshotsWithIndex.stream()
-                    .filter(id -> snapshotIds.contains(id) == false)
-                    .collect(Collectors.toSet());
                 try (var listeners = new RefCountingListener(listener)) {
                     for (int shardId = 0; shardId < shardCount; shardId++) {
-                        snapshotExecutor.execute(new ShardSnapshotsDeletion(shardId, survivingSnapshots, listeners.acquire()));
+                        snapshotExecutor.execute(new ShardSnapshotsDeletion(shardId, listeners.acquire()));
                     }
                 }
             }
@@ -1398,16 +1460,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             private class ShardSnapshotsDeletion extends AbstractRunnable {
 
                 private final int shardId;
-                private final Set<SnapshotId> survivingSnapshots;
                 private final ActionListener<Void> listener;
 
                 // Computed at the start of doRun(), after forking, rather than in the constructor. TODO make these local variables perhaps?
                 private BlobContainer shardContainer;
                 private Set<String> originalShardBlobs;
 
-                ShardSnapshotsDeletion(int shardId, Set<SnapshotId> survivingSnapshots, ActionListener<Void> listener) {
+                ShardSnapshotsDeletion(int shardId, ActionListener<Void> listener) {
                     this.shardId = shardId;
-                    this.survivingSnapshots = survivingSnapshots;
                     this.listener = listener;
                 }
 
@@ -1547,16 +1607,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     throw e;
                 }
             }));
-        }
-
-        private void recordUnreferencedIndicesMetadata() {
-            // TODO also list existing index metadata blobs here to clean up leaks
-            originalRepositoryData.indexMetaDataToRemoveAfterRemovingSnapshots(snapshotIds)
-                .forEachRemaining(this::recordUnreferencedIndexMetadata);
-        }
-
-        private void recordUnreferencedIndexMetadata(Tuple<IndexId, Collection<String>> toDelete) {
-            blobsToDelete.addIndexDeleteResult(toDelete.v1(), toDelete.v2());
         }
 
         /**

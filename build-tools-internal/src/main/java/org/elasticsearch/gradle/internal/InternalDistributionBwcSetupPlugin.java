@@ -934,7 +934,12 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 + " (snapshot endpoints unreachable or no build for this branch yet); falling back to source build";
             if (isDistributionArchive) {
                 return switch (this) {
-                    case PREBUILT -> "BWC [" + bwcVersion + "]: building distribution [" + projectName + "] from source" + prebuiltUnavailable;
+                    case PREBUILT -> "BWC ["
+                        + bwcVersion
+                        + "]: building distribution ["
+                        + projectName
+                        + "] from source"
+                        + prebuiltUnavailable;
                     case AUTO -> "BWC ["
                         + bwcVersion
                         + "]: building distribution ["

@@ -35,7 +35,7 @@ $$$indices-lifecycle-rollover-only-if-has-documents$$$
 
 $$$data-streams-lifecycle-prefer-by-default-metrics-enabled$$$
 
-`data_streams.lifecycle.prefer_by_default.metrics_enabled``data_streams.lifecycle.prefer_by_default.metrics_enabled` {applies_to}`stack: ga 9.6`
+`data_streams.lifecycle.prefer_by_default.metrics_enabled` {applies_to}`stack: ga 9.6`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), Boolean) Whether new backing indices of time series data streams that use the unmodified, pre-installed `metrics` policy default `index.lifecycle.prefer_ilm` to `false`, so that they are managed by the data stream lifecycle instead of {{ilm}}. An explicit `index.lifecycle.prefer_ilm` value in the index template or create index request always takes precedence. Changing this setting does not affect existing indices. Defaults to `true`.
 
 

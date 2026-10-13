@@ -1391,6 +1391,54 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, null));
     }
 
+    /**
+     * An empty string in {@code _source} is indexed as {@code null} when {@code coerce} is enabled, so the fields API
+     * returns the {@code null_value} or nothing for it and does not report it as ignored. With {@code coerce} disabled
+     * the empty string is malformed, so the fields API reports it as ignored.
+     */
+    public void testFetchEmptyStringSourceValue() throws IOException {
+        for (NumberType type : NumberType.values()) {
+            MappedFieldType coerceMapper = new NumberFieldMapper.Builder("field", type, ScriptCompiler.NONE, defaultIndexSettings()).build(
+                MapperBuilderContext.root(false, false)
+            ).fieldType();
+            List<Object> ignored = new ArrayList<>();
+            assertEquals(type.typeName(), List.of(), fetchSourceValue(coerceMapper, "", null, ignored));
+            assertEquals(type.typeName(), List.of(), ignored);
+            assertEquals(
+                type.typeName(),
+                List.of(type.parse(1, true), type.parse(2, true)),
+                fetchSourceValue(coerceMapper, List.of(1, "", 2), null, ignored)
+            );
+            assertEquals(type.typeName(), List.of(), ignored);
+
+            MappedFieldType coerceNullValueMapper = new NumberFieldMapper.Builder(
+                "field",
+                type,
+                ScriptCompiler.NONE,
+                defaultIndexSettings()
+            ).nullValue(type.parse(7, true)).build(MapperBuilderContext.root(false, false)).fieldType();
+            assertEquals(type.typeName(), List.of(type.parse(7, true)), fetchSourceValue(coerceNullValueMapper, "", null, ignored));
+            assertEquals(type.typeName(), List.of(), ignored);
+
+            MappedFieldType strictMapper = new NumberFieldMapper.Builder("field", type, ScriptCompiler.NONE, defaultIndexSettings()).coerce(
+                false
+            ).build(MapperBuilderContext.root(false, false)).fieldType();
+            assertEquals(type.typeName(), List.of(), fetchSourceValue(strictMapper, "", null, ignored));
+            assertEquals(type.typeName(), List.of(""), ignored);
+
+            MappedFieldType strictNullValueMapper = new NumberFieldMapper.Builder(
+                "field",
+                type,
+                ScriptCompiler.NONE,
+                defaultIndexSettings()
+            ).coerce(false).nullValue(type.parse(7, true)).build(MapperBuilderContext.root(false, false)).fieldType();
+            ignored.clear();
+            assertEquals(type.typeName(), List.of(), fetchSourceValue(strictNullValueMapper, "", null, ignored));
+            assertEquals(type.typeName(), List.of(""), ignored);
+            assertEquals(type.typeName(), List.of(type.parse(7, true)), fetchSourceValue(strictNullValueMapper, null));
+        }
+    }
+
     public void testFetchHalfFloatFromSource() throws IOException {
         MappedFieldType mapper = new NumberFieldMapper.Builder("field", NumberType.HALF_FLOAT, ScriptCompiler.NONE, defaultIndexSettings())
             .build(MapperBuilderContext.root(false, false))

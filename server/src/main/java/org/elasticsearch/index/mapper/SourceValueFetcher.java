@@ -84,6 +84,13 @@ public abstract class SourceValueFetcher implements ValueFetcher {
                         }
                     }
                 } else {
+                    if (isNullEquivalent(value)) {
+                        // The mapper indexes this value as if it were null, so fetch it the same way as a null in _source.
+                        if (nullValue == null) {
+                            continue;
+                        }
+                        value = nullValue;
+                    }
                     try {
                         Object parsedValue = parseSourceValue(value);
                         if (parsedValue != null) {
@@ -116,6 +123,16 @@ public abstract class SourceValueFetcher implements ValueFetcher {
      * {@link FieldMapper#parseCreateField} or {@link FieldMapper#parse}.
      */
     protected abstract Object parseSourceValue(Object value);
+
+    /**
+     * Whether the mapper indexes this value from a document's source as if it were {@code null}, for
+     * example a numeric field that coerces an empty string to {@code null}. Such a value is never reported
+     * as ignored: it is replaced by the fetcher's null value when there is one, and skipped otherwise.
+     * This should closely mirror the null handling in {@link FieldMapper#parseCreateField}.
+     */
+    protected boolean isNullEquivalent(Object value) {
+        return false;
+    }
 
     /**
      * Creates a {@link SourceValueFetcher} that passes through source values unmodified.

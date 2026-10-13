@@ -5,13 +5,13 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.datasources.spi;
+package org.elasticsearch.compute.operator;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadMXBean;
 
 /**
- * Utility for measuring per-thread CPU time in format readers.
+ * Utility for measuring per-thread CPU time in drivers and format readers.
  * <p>
  * Call {@link #currentNanos()} before and after a timed region.  A return
  * value of {@code -1} means the JVM does not support per-thread CPU timing
@@ -22,6 +22,12 @@ public final class ThreadCpuTimer {
 
     private static final ThreadMXBean THREAD_MX = ManagementFactory.getThreadMXBean();
 
+    /**
+     * {@link ThreadMXBean#getCurrentThreadCpuTime()} throws rather than returning {@code -1} when
+     * the JVM doesn't support thread CPU time, so check once up front.
+     */
+    private static final boolean SUPPORTED = THREAD_MX.isCurrentThreadCpuTimeSupported();
+
     private ThreadCpuTimer() {}
 
     /**
@@ -30,7 +36,7 @@ public final class ThreadCpuTimer {
      * {@code false} or CPU-time collection has been disabled at runtime.
      */
     public static long currentNanos() {
-        return THREAD_MX.getCurrentThreadCpuTime();
+        return SUPPORTED ? THREAD_MX.getCurrentThreadCpuTime() : -1;
     }
 
     /**
@@ -38,6 +44,6 @@ public final class ThreadCpuTimer {
      * Callers must still guard with {@code if (startCpuNanos >= 0)} before calling this.
      */
     public static long elapsedNanos(long startCpuNanos) {
-        return Math.max(0L, THREAD_MX.getCurrentThreadCpuTime() - startCpuNanos);
+        return Math.max(0L, currentNanos() - startCpuNanos);
     }
 }

@@ -115,7 +115,8 @@ public class EsqlLogContext extends QueryLoggerContext {
                 response.bytesRead(),
                 response.readNanos(),
                 response.readCpuNanos(),
-                response.cpuNanos()
+                response.cpuNanos(),
+                response.driverNanos()
             )
         );
     }
@@ -128,7 +129,8 @@ public class EsqlLogContext extends QueryLoggerContext {
         long bytesRead,
         long readNanos,
         long readCpuNanos,
-        long cpuNanos
+        long cpuNanos,
+        long driverNanos
     ) {}
 
     @Override

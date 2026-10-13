@@ -118,6 +118,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         assertSplitDiscoveryCpuNanos("csv");
         assertThat(lastMetrics.get(QueryMetricsListener.PLANNING_NANOS), greaterThan(0L));
         assertThat(lastMetrics.get(QueryMetricsListener.CPU_NANOS), greaterThan(0L));
+        assertThat(lastMetrics.get(QueryMetricsListener.DRIVER_NANOS), greaterThan(0L));
         // TODO: does not work for CVS for now: assertThat(lastMetrics.get(QueryMetricsListener.BYTES_READ), greaterThan(0L));
     }
 
@@ -155,6 +156,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         assertSplitDiscoveryCpuNanos("streaming-ndjson");
         assertThat(lastMetrics.get(QueryMetricsListener.PLANNING_NANOS), greaterThan(0L));
         assertThat(lastMetrics.get(QueryMetricsListener.CPU_NANOS), greaterThan(0L));
+        assertThat(lastMetrics.get(QueryMetricsListener.DRIVER_NANOS), greaterThan(0L));
     }
 
     /**

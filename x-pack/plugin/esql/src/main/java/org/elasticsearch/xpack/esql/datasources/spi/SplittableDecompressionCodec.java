@@ -35,7 +35,7 @@ public interface SplittableDecompressionCodec extends DecompressionCodec {
      * spawned by this call (e.g. parallel bzip2 chunk scanners). It is called at most once,
      * after all background work completes, with a non-negative value. Implementations that
      * run entirely on the calling thread should not call it (the caller's own
-     * {@link org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer} measurement already
+     * {@link org.elasticsearch.compute.operator.ThreadCpuTimer} measurement already
      * captures that CPU).
      *
      * @param object    the storage object to scan

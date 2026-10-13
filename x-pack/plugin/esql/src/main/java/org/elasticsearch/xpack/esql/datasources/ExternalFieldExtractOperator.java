@@ -25,13 +25,13 @@ import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.ThreadCpuTimer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
-import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 
 import java.io.IOException;
 import java.util.List;

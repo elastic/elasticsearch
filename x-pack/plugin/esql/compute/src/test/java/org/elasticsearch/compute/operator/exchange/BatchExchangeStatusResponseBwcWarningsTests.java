@@ -177,6 +177,7 @@ public class BatchExchangeStatusResponseBwcWarningsTests extends ESTestCase {
             2L,
             999L,
             102L,
+            150L,
             1L,
             List.of(
                 new OperatorStatus("ExchangeSourceOperator[]", new ExchangeSourceOperator.Status(0, 8, 111L)),

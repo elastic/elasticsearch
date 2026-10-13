@@ -1272,7 +1272,9 @@ public class RestEsqlIT extends RestEsqlTestCase {
             .entry("start_millis", greaterThan(0L))
             .entry("stop_millis", greaterThan(0L))
             .entry("iterations", greaterThan(0L))
-            .entry("cpu_nanos", greaterThan(0L))
+            // Thread CPU time can read 0 for a short driver where it ticks coarsely, like on Windows.
+            .entry("cpu_nanos", greaterThanOrEqualTo(0L))
+            .entry("driver_nanos", greaterThan(0L))
             .entry("took_nanos", greaterThan(0L))
             .entry("operators", instanceOf(List.class))
             .entry("sleeps", matchesMap().extraOk())
@@ -1501,6 +1503,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
     static void fixTypesOnProfile(Map<String, Object> profile) {
         profile.put("iterations", ((Number) profile.get("iterations")).longValue());
         profile.put("cpu_nanos", ((Number) profile.get("cpu_nanos")).longValue());
+        profile.put("driver_nanos", ((Number) profile.get("driver_nanos")).longValue());
         profile.put("took_nanos", ((Number) profile.get("took_nanos")).longValue());
         profile.put("rows_emitted", ((Number) profile.get("rows_emitted")).longValue());
         profile.put("bytes_read", ((Number) profile.get("bytes_read")).longValue());

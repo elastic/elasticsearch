@@ -29,6 +29,7 @@ module org.elasticsearch.compute {
     requires transitive org.apache.arrow.memory.core;
     requires org.apache.arrow.vector;
     requires org.jspecify;
+    requires java.management; // for thread CPU time in ThreadCpuTimer
 
     exports org.elasticsearch.compute;
     exports org.elasticsearch.compute.aggregation;

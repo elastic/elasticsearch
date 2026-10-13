@@ -94,7 +94,6 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static java.lang.Math.max;
 import static org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput.BUFFER_SIZE;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING;
 import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
@@ -510,7 +509,10 @@ public class SharedBlobCacheWarmingService {
         this.cfeThrottledTaskRunner = new ThrottledTaskRunner("cfe-prewarming-cache", 2, threadPool.generic());
         // Throttle byte-range warming fetches so they don't saturate the PREWARM_THREAD_POOL and starve other prewarming work.
         final int prewarmMax = threadPool.info(StatelessPlugin.PREWARM_THREAD_POOL).getMax();
-        final int warmByteRangeThrottleLimit = max(1, (int) (prewarmMax * clusterSettings.get(WARM_BYTE_RANGE_THROTTLE_RATIO_SETTING)));
+        final int warmByteRangeThrottleLimit = Math.max(
+            1,
+            (int) (prewarmMax * clusterSettings.get(WARM_BYTE_RANGE_THROTTLE_RATIO_SETTING))
+        );
         this.warmByteRangeThrottledTaskRunner = new ThrottledTaskRunner(
             "warm-byte-range-prewarming-cache",
             warmByteRangeThrottleLimit,
@@ -1029,8 +1031,8 @@ public class SharedBlobCacheWarmingService {
          */
         public WarmTarget merge(WarmTarget other) {
             return new WarmTarget(
-                max(endOffset(), other.endOffset()),
-                max(blobSize(), other.blobSize()),
+                Math.max(endOffset(), other.endOffset()),
+                Math.max(blobSize(), other.blobSize()),
                 BlobFileRanges.mostRecentKnownTimestamp(timestampMillis(), other.timestampMillis())
             );
         }
@@ -1179,7 +1181,7 @@ public class SharedBlobCacheWarmingService {
                 try {
                     // Approximate: bytesWarmedSoFar also counts bytes that are not part of bytesToWarm (e.g. header/footer reads), and
                     // regions that were already cached are never counted, so this can under- or overestimate the bytes still to warm.
-                    final long bytesRemaining = max(0L, bytesToWarm - bytesWarmedSoFar.getAsLong());
+                    final long bytesRemaining = Math.max(0L, bytesToWarm - bytesWarmedSoFar.getAsLong());
                     final var newPlan = searchRecoveryTimeout(clusterStateSupplier.get(), indexShard, bytesRemaining, latestPlan);
                     if (newPlan.shouldExtendAfter(latestPlan)) {
                         final var elapsed = TimeValue.timeValueMillis(threadPool.relativeTimeInMillis() - startedMillis);
@@ -1219,7 +1221,7 @@ public class SharedBlobCacheWarmingService {
         /// plan's timeout is already bounded by the grace deadline and the lower of the two wins.
         private TimeValue cappedToTotalBudget(TimeValue timeout, TimeValue elapsed) {
             final var budgetLeft = TimeValue.timeValueMillis(
-                max(0L, searchRecoveryTimeoutCalculationService.totalTimeoutCap().millis() - elapsed.millis())
+                Math.max(0L, searchRecoveryTimeoutCalculationService.totalTimeoutCap().millis() - elapsed.millis())
             );
             return TimeValue.min(budgetLeft, timeout);
         }
@@ -1515,7 +1517,7 @@ public class SharedBlobCacheWarmingService {
             if (fileExtension != LuceneFilesExtensions.TIM) {
                 return BUFFER_SIZE;
             }
-            final var value = max((long) (idLookupPreWarmRatio * length), BUFFER_SIZE);
+            final var value = Math.max((long) (idLookupPreWarmRatio * length), BUFFER_SIZE);
             return value;
         }
 
@@ -1540,7 +1542,7 @@ public class SharedBlobCacheWarmingService {
                 try (var listeners = new RefCountingListener(listener)) {
                     for (int r = startRegion; r <= endRegion; r++) {
                         // adjust the position & length to the region
-                        var range = ByteRange.of(max(start, (long) r * regionSize), Math.min(end, (r + 1L) * regionSize));
+                        var range = ByteRange.of(Math.max(start, (long) r * regionSize), Math.min(end, (r + 1L) * regionSize));
                         BlobRegion blobRegion = new BlobRegion(location.blobFile(), r);
                         enqueueLocation(blobRegion, location, range.start(), range.length(), timestampMillis, listeners.acquire());
                     }
@@ -1666,7 +1668,7 @@ public class SharedBlobCacheWarmingService {
                     if (existingLength == null) {
                         return embeddedEndOffset;
                     } else {
-                        return max(embeddedEndOffset, existingLength);
+                        return Math.max(embeddedEndOffset, existingLength);
                     }
                 });
 

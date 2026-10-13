@@ -25,10 +25,6 @@ import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeout.TimeoutCont
 
 import java.util.Map;
 
-import static java.lang.Math.max;
-import static java.lang.Math.min;
-import static java.lang.Math.round;
-
 /// Computes how long search shard recovery should await offline warming (internal replicated-files path only), see
 /// [#searchRecoveryTimeout].
 public class SearchRecoveryTimeoutCalculationService {
@@ -260,7 +256,7 @@ public class SearchRecoveryTimeoutCalculationService {
         if (grace == null) {
             grace = searchRecoveryWarmingGracePeriodCap;
         }
-        final long effectiveGraceMillis = min(grace.getMillis(), searchRecoveryWarmingGracePeriodCap.millis());
+        final long effectiveGraceMillis = Math.min(grace.getMillis(), searchRecoveryWarmingGracePeriodCap.millis());
         final long now = threadPool.absoluteTimeInMillis();
         final long deadline = shutdown.getStartedAtMillis() + effectiveGraceMillis;
         final long remaining = deadline - now;
@@ -274,7 +270,7 @@ public class SearchRecoveryTimeoutCalculationService {
         final double equalShareMs = (remaining / (double) shardsOnSource) * searchRecoveryWarmingSourceShutdownShareFactor;
 
         // Data-volume-proportional heuristic: scale remaining time by the fraction of the warming cache this shard occupies.
-        final long warmingCacheBytes = round(cacheService.getCacheSize() * searchRecoveryWarmingCacheRatio);
+        final long warmingCacheBytes = Math.round(cacheService.getCacheSize() * searchRecoveryWarmingCacheRatio);
         // Re-evaluations pass the bytes still to warm (an approximation, see SharedBlobCacheWarmingService.ReevaluatingTimeoutTask#run),
         // the first calculation passes all of them. The baseline (the warming cache budget) is still fixed, since it's hard to do the
         // accounting of the bytes warmed for shards for all the relocations of a given node shutting down.
@@ -294,9 +290,9 @@ public class SearchRecoveryTimeoutCalculationService {
             // are already relocating wait concurrently, so the remaining grace would be wasted if not used.
             final double extensionMs = countPendingShardsOnNode(state, sourceNodeId) == 0
                 ? remaining
-                : max(0.0, equalShareMs - previousPlan.perShardShareMs()) * ongoingRelocations;
+                : Math.max(0.0, equalShareMs - previousPlan.perShardShareMs()) * ongoingRelocations;
             return new SearchRecoveryTimeout(
-                TimeValue.timeValueMillis(round(min(remaining, extensionMs))),
+                TimeValue.timeValueMillis(Math.round(Math.min(remaining, extensionMs))),
                 TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE,
                 equalShareMs
             );
@@ -309,12 +305,12 @@ public class SearchRecoveryTimeoutCalculationService {
         // so the impact of currently choosing a different heuristic from previous (or future) relocating shards is partially mitigated
         if (dataVolumeMs > equalShareMs) {
             return new SearchRecoveryTimeout(
-                TimeValue.timeValueMillis(round(min(remaining, dataVolumeMs * ongoingRelocations))),
+                TimeValue.timeValueMillis(Math.round(Math.min(remaining, dataVolumeMs * ongoingRelocations))),
                 TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME
             );
         }
         return new SearchRecoveryTimeout(
-            TimeValue.timeValueMillis(round(min(remaining, equalShareMs * ongoingRelocations))),
+            TimeValue.timeValueMillis(Math.round(Math.min(remaining, equalShareMs * ongoingRelocations))),
             TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE,
             equalShareMs
         );

@@ -71,10 +71,12 @@ public class CsvDeclaredHeaderMultiChunkTests extends ESTestCase {
     }
 
     /**
-     * A declared schema names the columns it reads, so a file wider than the schema-inference cap is still readable:
-     * the cap bounds what inference materialises, not what a declaration selects. The file spans several chunks, so
-     * chunk 0 binds from its own header and every later chunk from the width and names the coordinator captured through
-     * {@code metadata()}, which is the path that would otherwise run inference over the whole header.
+     * A file wider than the cap is readable through a schema the planner pinned: the cap bounds the schema a read
+     * resolves, and this read resolves none. The file spans several chunks, so chunk 0 binds from its own header and
+     * every later chunk from the width and names the coordinator captured through {@code metadata()} - the one path
+     * that asks the reader to resolve a schema from the file after the pin, and so the one that has to take its bound
+     * from the pin rather than from the call site. Leaving the cap at its default is what makes this a test of that:
+     * raising it to the file's width would pass whatever the bound did.
      */
     public void testDeclaredSchemaOverFileWiderThanTheCapReadsAcrossChunks() throws Exception {
         int columns = ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS + 201;
@@ -97,8 +99,7 @@ public class CsvDeclaredHeaderMultiChunkTests extends ESTestCase {
             new ReferenceAttribute(Source.EMPTY, null, "c1100", DataType.LONG),
             new ReferenceAttribute(Source.EMPTY, null, "c5", DataType.LONG)
         );
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withSchemaMaxFields(columns)
-            .withConfig(Map.of("header_row", true))
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
             .withDeclaredProvenanceBinding(true)
             .withSchema(declared);
 
@@ -147,8 +148,8 @@ public class CsvDeclaredHeaderMultiChunkTests extends ESTestCase {
 
     /**
      * Every chunk after the first charges the scratch it builds to bind the declaration against the header names
-     * chunk 0 passed down, and releases it once bound. The cap is raised to the file's width because declaring the
-     * columns no longer lifts it (esql-planning#2076).
+     * chunk 0 passed down, and releases it once bound. The file is five times the cap and the cap is left at its
+     * default: a read whose schema the planner pinned is not bounded by the file's width (esql-planning#2076).
      */
     public void testLaterChunksChargeTheDeclaredHeaderBinding() throws Exception {
         int columns = ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS * 5;
@@ -182,8 +183,7 @@ public class CsvDeclaredHeaderMultiChunkTests extends ESTestCase {
         };
         BlockFactory charged = new BlockFactory(breaker, BigArrays.NON_RECYCLING_INSTANCE);
         List<Attribute> declared = List.of(new ReferenceAttribute(Source.EMPTY, null, "c4000", DataType.LONG));
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(charged).withSchemaMaxFields(columns)
-            .withConfig(Map.of("header_row", true))
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(charged).withConfig(Map.of("header_row", true))
             .withDeclaredProvenanceBinding(true)
             .withSchema(declared);
 

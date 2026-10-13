@@ -5510,11 +5510,16 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * The config the strict declared probe reads the anchor's footer with. A declared dataset is not capped by how many
-     * columns its files have, so for Parquet, the only file-typed reader that enforces {@code schema_max_fields}, the
-     * probe raises the cap to its ceiling; the reader charges the schema it flattens to the breaker instead. The key is
-     * part of the reader's config identity, so the probe's schema cache entry is kept apart from the inferred one, which
-     * stays capped.
+     * The config the strict declared probe reads the anchor's footer with. For Parquet, the only file-typed reader that
+     * enforces {@code schema_max_fields}, the probe raises the cap to its ceiling; the reader charges the schema it
+     * flattens to the breaker instead. The key is part of the reader's config identity, so the probe's schema cache
+     * entry is kept apart from the inferred one, which stays capped.
+     * <p>
+     * This is the one width bound declaredness still decides, and it is deliberate rather than overlooked
+     * (esql-planning#2076). The probe is checking whether declared types can be read from the file's own types, not
+     * resolving a schema the query uses, and a dataset naming three columns of a very wide file is a legitimate thing
+     * to write; what the cap is for is the question, so it is not a straight removal. Every other width bound asks what
+     * this read's schema is, never where it came from.
      */
     private static Map<String, Object> declaredProbeConfig(String sourceType, Map<String, Object> config) {
         if ("parquet".equals(sourceType) == false) {

@@ -1514,7 +1514,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         + " has no schema line: the object is empty or contains only comments"
                 );
             }
-            List<Attribute> typedSchema = parseSchema(headerLine, schemaMaxFields);
+            List<Attribute> typedSchema = parseSchema(headerLine, widthBound());
             if (typedSchema != null) {
                 checkUniqueAttributeNames(typedSchema);
                 return new InferredSchema(typedSchema, 0L, 0);
@@ -1547,7 +1547,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         Consumer<WidenedColumn> widenedColumnSink,
         HeaderBudget budget
     ) throws IOException {
-        String[] columnNames = splitFieldsForOptions(headerLine, options, schemaMaxFields, budget);
+        String[] columnNames = splitFieldsForOptions(headerLine, options, widthBound(), budget);
         if (options.quoting()) {
             // No type annotations on this path, so the fields are bare names — unwrap RFC 4180 quoting.
             unquoteHeaderNames(columnNames, options.quoteChar());
@@ -1588,7 +1588,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             maybeHintUndecodedNullMarker(sample.rows(), sourceLocation, warningSink);
             int columns = syntheticColumnCount(sample.rows());
-            checkColumnCap(columns, schemaMaxFields);
+            checkColumnCap(columns, widthBound());
             try (Releasable charge = chargeSyntheticColumns(columns)) {
                 boolean[] sawUndecodableTemporal = new boolean[columns];
                 List<CsvSchemaInferrer.Widening> widenings = new ArrayList<>();
@@ -3059,9 +3059,26 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
+     * The width a split in this reader is held to. {@code schema_max_fields} bounds the schema a read resolves, so it
+     * applies while this reader has none of its own: the file's columns become the dataset's schema and the cap is what
+     * bounds them. Once a schema is settled, a split is locating that schema's columns in the file rather than deciding
+     * what the schema is, so {@link #MAX_HEADER_SPLIT_COLUMNS} bounds it instead and the file's own width does not
+     * decide whether a narrower schema can be read.
+     * <p>
+     * The pin is what this reads, never where the pin came from: the planner pins a declared schema and an anchor
+     * file's inferred schema through the same field, so a {@code first_file_wins} glob's wide later file and a
+     * {@code dynamic: false} dataset's wide file are bounded alike (esql-planning#2076). A streaming read asks this
+     * reader for its first chunk's metadata after the pin, which is why the bound has to follow the pin rather than the
+     * call site; the two sites that can only ever be locating names take {@link #MAX_HEADER_SPLIT_COLUMNS} directly.
+     */
+    private int widthBound() {
+        return resolvedSchema != null && resolvedSchema.isEmpty() == false ? MAX_HEADER_SPLIT_COLUMNS : schemaMaxFields;
+    }
+
+    /**
      * Charges the circuit breaker for the names and attributes a headerless file's schema synthesizes, one per column of
-     * the widest sampled row. The callers cap them at {@code schema_max_fields}, so this charge bounds the memory and
-     * the cap bounds the count. Release the result once the schema is built.
+     * the widest sampled row. The callers cap them at {@link #widthBound}, so this charge bounds the memory and that
+     * bound the count. Release the result once the schema is built.
      */
     private Releasable chargeSyntheticColumns(int columns) {
         long bytes = (long) columns * HeapEstimates.columnBytes(options.columnPrefix().length() + SYNTHETIC_INDEX_DIGITS);
@@ -3150,14 +3167,16 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * The refusal for a width over {@code maxFields}. Below the ceiling the user can raise the cap, so the message names
-     * it. At the ceiling raising it is rejected too, and the same number bounds a header split
-     * ({@link #MAX_HEADER_SPLIT_COLUMNS}), which no setting raises, so the message states the width rather than offering
-     * a remedy that does not work.
+     * The refusal for a width over {@code maxFields}. Below the ceiling only a read resolving its own schema can reach
+     * it, and raising the cap is the remedy, so the message names the setting. At the ceiling raising it is rejected
+     * too, and the same number bounds a split locating a settled schema's columns
+     * ({@link #MAX_HEADER_SPLIT_COLUMNS}), which no setting raises, so the message states the width instead of offering
+     * a remedy that does not work. It speaks of the file rather than the schema because at that bound the file's own
+     * header is what is too wide, whether or not a schema was being resolved from it.
      */
     static String columnCapMessage(int maxFields) {
         if (maxFields >= ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS) {
-            return "the file has more than [" + maxFields + "] columns, more than any schema can carry";
+            return "the file has more than [" + maxFields + "] columns, the most that can be read";
         }
         return "schema inference found more than ["
             + maxFields
@@ -4616,7 +4635,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     if (counters != null) {
                         counters.markHeaderDetected();
                     }
-                    schema = parseSchema(headerLine, schemaMaxFields);
+                    schema = parseSchema(headerLine, widthBound());
                     if (schema == null) {
                         schema = inferSchemaFromBatchReader(headerLine);
                     }
@@ -4929,7 +4948,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         private List<Attribute> inferSchemaFromBatchReader(String headerLine, HeaderBudget budget) throws IOException {
-            String[] columnNames = splitFieldsForOptions(headerLine, options, schemaMaxFields, budget);
+            String[] columnNames = splitFieldsForOptions(headerLine, options, widthBound(), budget);
             if (options.quoting()) {
                 // No type annotations on this path, so the fields are bare names — unwrap RFC 4180 quoting.
                 unquoteHeaderNames(columnNames, options.quoteChar());
@@ -4986,7 +5005,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             prefetchSample(sample);
             maybeHintUndecodedNullMarker(sample.rows(), messageLocation, warningSink);
             int columns = syntheticColumnCount(sample.rows());
-            checkColumnCap(columns, schemaMaxFields);
+            checkColumnCap(columns, widthBound());
             try (Releasable charge = chargeSyntheticColumns(columns)) {
                 boolean[] sawUndecodableTemporal = new boolean[columns];
                 List<CsvSchemaInferrer.Widening> widenings = new ArrayList<>();

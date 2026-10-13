@@ -3700,10 +3700,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     /**
      * When the query plan type cannot be satisfied from this file's Parquet-derived ESQL type — neither by the same
      * widening rules as {@link EsqlDataTypeConverter#commonType} (plus KEYWORD/TEXT interchangeability) nor by a
-     * declared-type coercion the decode paths implement ({@link DeclaredTypeCoercions#supports}) — emit a response
-     * Warning header (and log a warning) and read the column as null instead of failing at decode time. The warning
-     * header lets clients see — alongside other recoverable ES|QL warnings — exactly which columns were silently
-     * null-replaced. This is the per-file manifestation of the castability check the resolver already ran against the
+     * declared-type coercion the decode paths implement ({@link DeclaredTypeCoercions#supports}) — the column cannot
+     * be read in this file, and the read's {@code errorPolicy} decides what happens to it; the last paragraph below
+     * says what each mode does. Where the read continues, a response Warning header (and a logged warning) names the
+     * column, so clients see which columns a read could not interpret alongside other recoverable ES|QL warnings.
+     * This is the per-file manifestation of the castability check the resolver already ran against the
      * anchor footer: a multi-file glob can drift from the anchor, and a drifted file that is neither compatible nor
      * coercible must not decode garbage.
      * <p>
@@ -3731,8 +3732,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         @Nullable Consumer<String> warningSink
     ) {
         MessageType fullSchema = reader.getFileMetaData().getSchema();
-        // Reported once the loop is done, and only if no declared column drops the file's rows: a column of rows
-        // that never reach the page does not read null.
+        // Reported once the loop is done, and only if no column drops the file's rows: a column of rows that never
+        // reach the page does not read null.
         List<String> nullDetails = null;
         SkipWarnings dropWarnings = null;
         String dropReason = null;

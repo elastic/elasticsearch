@@ -1350,8 +1350,9 @@ public final class StreamingParallelParsingCoordinator {
                 return;
             }
             if (bound instanceof SegmentableFormatReader segBound) {
-                // Only a planner-bound read can be a declared one, whose inference the file's width does not cap.
-                // Per-file inference is held to schema_max_fields, so what it binds is already bounded.
+                // A planner-bound read is one whose schema is already settled, so the reader resolves this chunk's
+                // schema under the width a locating split is bounded by rather than under schema_max_fields, and what
+                // it binds can be as wide as the file. Charge it. Without a pin the cap bounds it already.
                 if (readSchema != null) {
                     long bytes = 0;
                     for (Attribute attribute : schema) {

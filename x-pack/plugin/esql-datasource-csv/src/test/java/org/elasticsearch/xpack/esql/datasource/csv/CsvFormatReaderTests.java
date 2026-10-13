@@ -356,14 +356,14 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * A headerless file wider than the cap is refused whether or not the dataset declares its columns. Declaring them
-     * used to lift the cap, so the same file was refused when its types were inferred and read when they were declared
-     * (esql-planning#2076). A headerless file has no header to bind against, so the only way to learn its width is to
-     * synthesize a schema from its rows, and that synthesis is held to {@code schema_max_fields} like any other - the
-     * header bound a declared read gets ({@link CsvFormatReader#MAX_HEADER_SPLIT_COLUMNS}) has nothing to apply to here.
-     * Raising the cap reads it, and the streaming read's headerless inference then agrees with the plain read, which
-     * binds the declared columns without inferring. The synthesized columns stay bounded by the breaker
-     * ({@link #testHeaderlessSyntheticColumnsAreChargedAndReleased}).
+     * Resolving a schema from a headerless file wider than the cap is refused whatever the reader was told about where
+     * its types came from. Declaring the columns used to lift the cap here, so the same file was refused when its types
+     * were inferred and resolved when they were declared (esql-planning#2076); what decides the bound now is whether a
+     * schema is already pinned, and nothing is pinned on this reader - {@code schema()} is what settles the schema.
+     * A read that does carry a pin is bounded by {@link CsvFormatReader#MAX_HEADER_SPLIT_COLUMNS} instead, which
+     * {@code CsvDeclaredHeaderMultiChunkTests} pins. Raising the cap resolves it, and the streaming read's headerless
+     * inference then agrees with the plain read, which binds the declared columns without inferring. The synthesized
+     * columns stay bounded by the breaker ({@link #testHeaderlessSyntheticColumnsAreChargedAndReleased}).
      */
     public void testDeclaredHeaderlessSchemaWiderThanTheCapIsRefusedToo() throws Exception {
         String csv = "1,2,3,4\n5,6,7,8\n";
@@ -514,11 +514,11 @@ public class CsvFormatReaderTests extends ESTestCase {
         int ceiling = ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS;
         assertEquals(ceiling, CsvFormatReader.MAX_HEADER_SPLIT_COLUMNS);
         ExternalClientException e = expectThrows(ExternalClientException.class, () -> CsvFormatReader.checkColumnCap(ceiling + 1, ceiling));
-        assertThat(e.getMessage(), containsString("more than any schema can carry"));
+        assertThat(e.getMessage(), containsString("the most that can be read"));
         assertThat(e.getMessage(), not(containsString("dynamic: false")));
         assertThat(e.getMessage(), not(containsString("raise [esql.external.schema_max_fields]")));
         assertThat(CsvFormatReader.columnCapMessage(ceiling - 1), containsString("raise [esql.external.schema_max_fields]"));
-        assertThat(CsvFormatReader.columnCapMessage(ceiling - 1), not(containsString("any schema can carry")));
+        assertThat(CsvFormatReader.columnCapMessage(ceiling - 1), not(containsString("the most that can be read")));
     }
 
     private static String header(int columns) {

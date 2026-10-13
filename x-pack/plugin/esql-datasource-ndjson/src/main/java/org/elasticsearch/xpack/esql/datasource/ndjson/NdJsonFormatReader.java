@@ -101,6 +101,13 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     static final String CONFIG_DATETIME_FORMAT = "datetime_format";
     static final String CONFIG_SCHEMA_MAX_FIELDS = "schema_max_fields";
 
+    /**
+     * The most fields a sample is read for when the read's schema is already settled, so the sample is locating that
+     * schema's fields in the file rather than deciding what the schema is. The ceiling {@code schema_max_fields} itself
+     * accepts, since no schema wider than that can be read. Mirrors {@code CsvFormatReader.MAX_HEADER_SPLIT_COLUMNS}.
+     */
+    static final int MAX_SETTLED_SCHEMA_FIELDS = ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS;
+
     /** Keys recognised by {@link #withConfigTrackingConsumedKeys(Map)}. */
     static final Set<String> RECOGNIZED_KEYS = Set.of(
         CONFIG_SCHEMA_SAMPLE_SIZE,
@@ -499,6 +506,18 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         parseSchemaMaxFields(config.get(CONFIG_SCHEMA_MAX_FIELDS), ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS);
     }
 
+    /**
+     * The width a schema sample in this reader is held to. {@code schema_max_fields} bounds the schema a read resolves,
+     * so it applies while this reader has none of its own. Once a schema is settled, a sample is locating that schema's
+     * fields in the file rather than deciding what the schema is, so {@link #MAX_SETTLED_SCHEMA_FIELDS} bounds it
+     * instead and the file's own width does not decide whether a narrower schema can be read. What it reads is the pin,
+     * never where the pin came from: a declared schema and an anchor file's inferred schema arrive through the same
+     * field and are bounded alike (esql-planning#2076).
+     */
+    private int widthBound() {
+        return resolvedSchema != null && resolvedSchema.isEmpty() == false ? MAX_SETTLED_SCHEMA_FIELDS : schemaMaxFields;
+    }
+
     @Override
     public SourceMetadata metadata(StorageObject object) throws IOException {
         InputStream stream = object.newStream();
@@ -512,7 +531,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             NdJsonSchemaInferrer.SampledSchema sampled = NdJsonSchemaInferrer.inferSampledSchema(
                 counted,
                 schemaSampleSize,
-                schemaMaxFields,
+                widthBound(),
                 datetimeFormatter,
                 blockFactory.breaker(),
                 widenings

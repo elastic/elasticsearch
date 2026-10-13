@@ -1496,10 +1496,13 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * The strict declared rail ({@code dynamic: false}) keys every file to one shared {@code FileSchemaInfo} carrying
-     * the declaration, with {@code inferredTypes} null and no statistics, so a file whose footer type differs from the
-     * declaration is not identifiable from the map. The first-file-wins rail above snapshots each file's own footer
-     * type instead.
+     * The strict declared rail ({@code dynamic: false}) opens the anchor for its coercibility check and nothing else,
+     * so the anchor's own footer types are recorded and every later file's record is empty. The first-file-wins rail
+     * above snapshots each file's own footer type, because it opens them all.
+     * <p>
+     * An empty record therefore means one thing only: nobody opened that file. It used to mean that as well as "the
+     * schema was declared", because the rail keyed every file to one shared record carrying the declaration, and a
+     * file whose footer differed from the declaration was not identifiable from the map at all.
      * <p>
      * The readers no longer care - they compare the file's actual type to the one being read, per file, at read time.
      * What this costs is statistics for the files nobody opened: they safe-miss their extrema, because nothing has
@@ -4960,8 +4963,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     /**
      * Driven through the real resolver, because the defect was the ORDER of two calls in {@code resolveNextPath}:
-     * the stamp reads the read spec's renames and provenance, and every producer hands the source over without a
-     * spec attached. Stamping first therefore saw neither, and a path-renamed narrowing column came out as "cannot
+     * the stamp reads the read spec's renames, and every producer hands the source over without a spec attached.
+     * Stamping first therefore saw none of them, and a path-renamed narrowing column came out as "cannot
      * fail" - the filter is then pushed into a reader that cannot drop rows, and an overflowing row comes back with
      * the column nulled instead of dropped. A test that calls the stamp helper itself cannot catch that, whichever
      * orderings it asserts.
@@ -5102,9 +5105,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * A strict declared read keeps one record with no per-file type snapshot, so nothing has established what the
-     * files hold. The declaration is the schema someone asked for, not what is there, so the stamp must say a value
-     * can fail. Comparing the declared type against itself called every such read safe.
+     * A file with no recorded types is one nobody opened, so nothing has established what it holds and the stamp must
+     * say a value can fail. A declaration is the schema someone asked for, not what is there, so it cannot stand in:
+     * comparing the declared type against itself called every such read safe. The strict declared rail reaches this
+     * state for every file after the anchor
+     * ({@link #testStrictDeclaredMultiFileRecordsOnlyTheAnchorsTypes}); this builds it directly.
      */
     public void testADeclaredReadWithNoCapturedTypesMayNarrow() {
         ExternalSchema declared = new ExternalSchema(List.of(attr("n", DataType.INTEGER)));

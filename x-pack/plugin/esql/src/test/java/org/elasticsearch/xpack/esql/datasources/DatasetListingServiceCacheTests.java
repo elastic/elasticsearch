@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
@@ -27,6 +28,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -49,6 +51,12 @@ public class DatasetListingServiceCacheTests extends ESTestCase {
     private static final String GLOB = "s3://bucket/logs/year=*/month=*/*.csv";
     private static final String OLD = "s3://bucket/logs/year=2023/month=01/old.csv";
     private static final String KEPT = "s3://bucket/logs/year=2024/month=01/a.csv";
+
+    /** The glob of the retry case: a second segment the splice leaves as {@code *}, so the narrowed pass cannot walk. */
+    private static final String RETRY_GLOB = "s3://bucket/logs/year=*/*/*.csv";
+    private static final String RETRY_OUT_OF_RANGE = "s3://bucket/logs/year=2024/month=01/a.csv";
+    private static final String RETRY_OTHER_YEAR = "s3://bucket/logs/year=2023/month=06/o.csv";
+    private static final String RETRY_IN_RANGE = "s3://bucket/logs/year=2024/month=06/k.csv";
 
     private static Settings cacheEnabled() {
         return Settings.builder()
@@ -148,6 +156,141 @@ public class DatasetListingServiceCacheTests extends ESTestCase {
             );
             assertEquals("and it is still served from the cache", listsBefore, provider.listObjectsCalls.get());
         }
+    }
+
+    /**
+     * The retry on the original pattern must not be published either — the second route to the same superset.
+     *
+     * <p>Here the splice leaves a glob the walk cannot use, so no prediction about the unbounded rail refuses this
+     * listing. The divergence is in what this rail itself produced: the narrowed pass spends its whole bound on
+     * {@code month=01}, a glob match the closed range then drops, so it returns empty-and-truncated and is retried
+     * unbounded on the <em>original</em> pattern. That pattern does walk, the walk withdraws on {@code year=abc},
+     * and the re-list suppresses the year filter — so the bounded rail ends up holding the wider set, and the
+     * unbounded rail, whose own narrowed pass finds the in-range file and never retries, holds the narrower one.
+     *
+     * <p>The bound is 1 so the fixture stays readable; at the default of 1000 the same thing needs 1000 dropped
+     * matches listed ahead of the first surviving one.
+     */
+    public void testTheRetryOnTheOriginalPatternIsNotPublished() throws Exception {
+        try (ExternalSourceCacheService cache = new ExternalSourceCacheService(cacheEnabled())) {
+            DatasetListingService service = new DatasetListingService(Settings.EMPTY, cache, null, null, null);
+            TreeProvider provider = retryFixture();
+
+            FileList boundedFirst = service.boundedListing(
+                RETRY_GLOB,
+                StoragePath.of(RETRY_GLOB),
+                provider,
+                "",
+                "",
+                retryHints(),
+                Map.of(),
+                new ListingExtents(1),
+                PlanningMemory.NONE,
+                () -> false
+            );
+            assertEquals(
+                "the retry re-listed the original pattern with the year filter suppressed",
+                List.of(RETRY_OTHER_YEAR, RETRY_IN_RANGE),
+                paths(boundedFirst)
+            );
+
+            long listsAfterBounded = provider.listObjectsCalls.get();
+            FileList whole = service.cachedListing(
+                RETRY_GLOB,
+                StoragePath.of(RETRY_GLOB),
+                provider,
+                "",
+                "",
+                retryHints(),
+                Map.of(),
+                PlanningMemory.NONE,
+                () -> false
+            );
+
+            assertEquals("a query that wants the whole pattern gets its own file set", List.of(RETRY_IN_RANGE), paths(whole));
+            assertTrue(
+                "which means it listed for itself rather than reading the retry's superset",
+                provider.listObjectsCalls.get() > listsAfterBounded
+            );
+        }
+    }
+
+    /**
+     * The same refusal on the async rail, which is the one split discovery actually uses.
+     *
+     * <p>Worth its own test rather than trusting the two to agree: the guard is a separate statement inside
+     * {@code boundedListingAsync}'s completion lambda, and with only the synchronous tests above it could be
+     * deleted without failing anything.
+     */
+    public void testTheAsyncRailRefusesToPublishToo() throws Exception {
+        try (ExternalSourceCacheService cache = new ExternalSourceCacheService(cacheEnabled())) {
+            DatasetListingService service = new DatasetListingService(Settings.EMPTY, cache, null, null, null);
+            TreeProvider provider = fixture();
+
+            PlainActionFuture<FileList> future = new PlainActionFuture<>();
+            service.boundedListingAsync(
+                GLOB,
+                StoragePath.of(GLOB),
+                provider,
+                "",
+                "",
+                hints(),
+                Map.of(),
+                new ListingExtents(1000),
+                PlanningMemory.NONE,
+                () -> false,
+                1,
+                directExecutor(),
+                future
+            );
+            assertEquals("the bounded drain applies the filter itself", List.of(KEPT), paths(future.get()));
+
+            long listsAfterBounded = provider.listObjectsCalls.get();
+            FileList whole = unbounded(service, provider);
+
+            assertEquals("a query that wants the whole pattern gets its own file set", List.of(OLD, KEPT), paths(whole));
+            assertTrue(
+                "which means it listed for itself rather than reading the bounded entry",
+                provider.listObjectsCalls.get() > listsAfterBounded
+            );
+        }
+    }
+
+    /** {@code year=abc} is what the walk cannot type, so it withdraws and re-lists with the year filter suppressed. */
+    private static TreeProvider retryFixture() {
+        return new TreeProvider(
+            List.of(
+                new StorageEntry(StoragePath.of(RETRY_OTHER_YEAR), 10, Instant.EPOCH),
+                new StorageEntry(StoragePath.of(RETRY_OUT_OF_RANGE), 10, Instant.EPOCH),
+                new StorageEntry(StoragePath.of(RETRY_IN_RANGE), 10, Instant.EPOCH),
+                new StorageEntry(StoragePath.of("s3://bucket/logs/year=abc/_SUCCESS"), 0, Instant.EPOCH)
+            )
+        );
+    }
+
+    /**
+     * {@code year} is spliced into the glob; the closed range on {@code month} is not, so it is applied as a filter
+     * after the glob has already counted the file against the bound.
+     */
+    private static List<PartitionFilterHintExtractor.PartitionFilterHint> retryHints() {
+        return List.of(
+            new PartitionFilterHintExtractor.PartitionFilterHint("year", PartitionFilterHintExtractor.Operator.EQUALS, List.of(2024)),
+            new PartitionFilterHintExtractor.PartitionFilterHint(
+                "month",
+                PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL,
+                List.of(6)
+            ),
+            new PartitionFilterHintExtractor.PartitionFilterHint(
+                "month",
+                PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL,
+                List.of(7)
+            )
+        );
+    }
+
+    /** Runs the listing on the calling thread, so the test observes the publish decision without a thread pool. */
+    private static Executor directExecutor() {
+        return Runnable::run;
     }
 
     /** Lists a flat entry set as a directory tree, so the partition walk has children to descend. */

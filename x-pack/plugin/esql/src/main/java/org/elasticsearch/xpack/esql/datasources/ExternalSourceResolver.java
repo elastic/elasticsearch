@@ -1948,8 +1948,10 @@ public class ExternalSourceResolver {
      *
      * <p>Cache entries are keyed by the path and its filters rather than by what the query needed, so what may be
      * cached is decided by the listing that came back, not by the bound that was asked for: a bounded listing that
-     * drained its whole prefix is complete and is cached, and a truncated one is served to its own query and
-     * dropped. {@link #boundedListingAsync} is that rail; see also {@link #listingExtentsFor}.
+     * drained its whole prefix is complete and may be cached, while a truncated one is served to its own query and
+     * dropped. Complete is necessary but not sufficient — a complete bounded listing of a pattern where the walk
+     * is in play is kept out, because the unbounded rail would not have produced it. {@link #boundedListingAsync}
+     * is that rail; see also {@link #listingExtentsFor}.
      */
     private void listAndRecordAsync(
         String path,

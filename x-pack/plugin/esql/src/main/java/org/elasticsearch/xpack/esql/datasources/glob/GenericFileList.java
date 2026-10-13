@@ -84,8 +84,8 @@ final class GenericFileList implements FileList {
 
     /**
      * @param globMatchCount how many files the glob selected before anything narrowed the result further, which is
-     *                       the number a listing bound is measured against. {@link #UNKNOWN_GLOB_MATCH_COUNT} where
-     *                       no drain produced it. See {@link FileList#globMatchCount()}.
+     *                       the number a listing bound is measured against, or {@link #UNKNOWN_GLOB_MATCH_COUNT}
+     *                       where this listing has none to offer. See {@link FileList#globMatchCount()}.
      */
     GenericFileList(
         List<StorageEntry> files,

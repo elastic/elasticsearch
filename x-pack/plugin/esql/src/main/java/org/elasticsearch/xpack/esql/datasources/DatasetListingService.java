@@ -216,21 +216,36 @@ public final class DatasetListingService {
      * <p>
      * Every other reader of that cache wants the whole pattern, and takes an entry without comparing anything. A
      * bounded drain applies the value filter itself; an unbounded one first tries the partition walk, and where
-     * the walk withdraws it re-lists with that filter suppressed — the unfiltered superset. So for a pattern the
-     * walk would try, the two rails can produce different file sets for one key, and publishing the bounded one
-     * hands an unbounded query a listing narrower than its own: under {@code first_file_wins} it would take its
-     * schema from a different file, so the answer would depend on which query ran first.
+     * the walk withdraws it re-lists with that filter suppressed — the unfiltered superset. So where the walk is
+     * in play the two rails can produce different file sets for one key, and publishing the bounded one hands an
+     * unbounded query a listing that is not what it would have listed: under {@code first_file_wins} it would
+     * take its schema from a different file, so the answer would depend on which query ran first.
      * <p>
-     * Declining to publish costs the next unbounded query a listing it could have had. It does not cost the
-     * bounded rail its own cache: a pattern with no partition-value hints -- the shape the bound exists for --
-     * never walks, so it still publishes and still reads.
+     * The walk reaches that superset by two separate routes, so both are refused here:
+     * <ul>
+     *     <li>the listing in hand has no glob-match count, which is what every suppressed-filter re-list records.
+     *     A bounded listing acquires one by that route too: where the narrowed pass drains its bound entirely on
+     *     matches the value filter then drops, the empty result is retried unbounded on the <em>original</em>
+     *     pattern, and that pattern walks even when the narrowed one cannot. So the superset can be this rail's
+     *     own product, and no prediction about the other rail would catch it;</li>
+     *     <li>or the pattern an unbounded query would list can itself route through the walk, in which case the
+     *     entry this rail is about to publish is the narrower of the two sets rather than the wider.</li>
+     * </ul>
+     * One conjunct is about the listing produced and the other about the listing the other rail would produce;
+     * neither implies the other. The first also makes this the same question the read side asks — see
+     * {@link #servesThisBound}, which declines an entry with no count for the same reason.
+     * <p>
+     * Declining to publish costs the next unbounded query a listing it could have had, never an answer. It does
+     * not cost the bounded rail its own cache: a pattern with no partition-value hints -- the shape the bound
+     * exists for -- never walks by either route, so it still publishes and still reads.
      */
     private static boolean publishable(
+        FileList listing,
         String path,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         Map<String, Object> config
     ) {
-        return GlobExpander.wouldWalk(path, hints, config) == false;
+        return listing.globMatchCount() != FileList.UNKNOWN_GLOB_MATCH_COUNT && GlobExpander.pathWouldWalk(path, hints, config) == false;
     }
 
     /**
@@ -284,7 +299,7 @@ public final class DatasetListingService {
             return cached;
         }
         FileList listing = expand(path, provider, hints, config, storagePath, extents, memory, cancelled);
-        if (publishable(path, hints, config)) {
+        if (publishable(listing, path, hints, config)) {
             cacheService.putListingIfComplete(listingKey, listing);
         }
         return listing;
@@ -295,9 +310,10 @@ public final class DatasetListingService {
      * <p>
      * A bound and the cache used to be mutually exclusive, so a bounded listing was recomputed on every execution
      * however complete it was — which, before the bound counted matching files, it almost never was for a selective
-     * glob. Now a listing whose matches fit inside the bound drains its whole prefix, and such a listing is
-     * indistinguishable from an unbounded one of the same inputs, so the next query that needs the whole pattern is
-     * owed it, and this one is owed whatever the cache already holds.
+     * glob. Now a listing whose matches fit inside the bound drains its whole prefix, and for most patterns such a
+     * listing is the same artifact an unbounded query would have produced, so the next query that needs the whole
+     * pattern is owed it, and this one is owed whatever the cache already holds. Where the two could differ it is
+     * read but not published; {@link #publishable} is that boundary.
      * <p>
      * Reading needs one question answered: would this query's own listing have completed, or stopped on its bound?
      * If it would have stopped, the entry reports the whole pattern where this query reports a prefix, with
@@ -359,7 +375,7 @@ public final class DatasetListingService {
             concurrency,
             executor,
             listener.delegateFailureAndWrap((l, listing) -> {
-                if (publishable(path, hints, config)) {
+                if (publishable(listing, path, hints, config)) {
                     cacheService.putListingIfComplete(listingKey, listing);
                 }
                 l.onResponse(listing);

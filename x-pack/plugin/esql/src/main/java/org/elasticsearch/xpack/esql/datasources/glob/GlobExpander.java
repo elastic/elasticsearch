@@ -929,95 +929,93 @@ public final class GlobExpander {
         boolean suppressValueFilter = false;
         if (extents.boundsFileSet() == false && wouldWalk(glob, hints, partitionConfig)) {
             List<PartitionFilterHint> partitionHints = partitionPruningHints(hints);
-            {
-                PartitionPruningWalk.WalkResult walk = PartitionPruningWalk.tryWalk(
-                    provider,
-                    prefix,
-                    matcher,
-                    nameFilter,
-                    partitionHints,
-                    maxDiscoveredFiles,
-                    glob
-                );
-                // An all-pruned walk keeps one inference-anchor file from a pruned folder. The row filter still
-                // yields zero matching rows; the resolver needs the file to infer schema. A probe miss falls
-                // through to the flat listing with the value filter still on — Stage 2 keeps one excluded file.
-                if (walk != null && walk.matched().isEmpty()) {
-                    // A non-default file_order (newest-first, name) needs the excluded set so Stage 2 can
-                    // honour it. Provider LIST order (DEFAULT) matches the first-match probe.
-                    if (fileOrder.equals(FileOrderConfig.DEFAULT) && walk.prunedColumns().isEmpty() == false && maxDiscoveredFiles > 0) {
-                        StorageEntry anchor = findAnchor(
-                            provider,
-                            walk.prunedDirs(),
-                            prefix,
-                            matcher,
-                            nameFilter,
-                            fileHints,
-                            walk.columnFullTypes().keySet(),
-                            cancelled,
-                            maxListedObjects
-                        );
-                        if (anchor != null) {
-                            List<String> walkNotices = new ArrayList<>();
-                            PartitionMetadata detected = detectPartitions(List.of(anchor), partitionConfig, walkNotices::add);
-                            if (walkPruningProven(walk.prunedColumns(), detected)) {
-                                PartitionMetadata metadata = overlayWalkTypes(
-                                    detected,
-                                    walk.columnFullTypes(),
-                                    List.of(anchor),
-                                    partitionConfig,
-                                    pattern
-                                );
-                                throwIfCancelled(cancelled);
-                                reserveRetained(memory, 1, 0, true);
-                                return inferenceAnchorListing(List.of(anchor), pattern, metadata, walkNotices);
+            PartitionPruningWalk.WalkResult walk = PartitionPruningWalk.tryWalk(
+                provider,
+                prefix,
+                matcher,
+                nameFilter,
+                partitionHints,
+                maxDiscoveredFiles,
+                glob
+            );
+            // An all-pruned walk keeps one inference-anchor file from a pruned folder. The row filter still
+            // yields zero matching rows; the resolver needs the file to infer schema. A probe miss falls
+            // through to the flat listing with the value filter still on — Stage 2 keeps one excluded file.
+            if (walk != null && walk.matched().isEmpty()) {
+                // A non-default file_order (newest-first, name) needs the excluded set so Stage 2 can
+                // honour it. Provider LIST order (DEFAULT) matches the first-match probe.
+                if (fileOrder.equals(FileOrderConfig.DEFAULT) && walk.prunedColumns().isEmpty() == false && maxDiscoveredFiles > 0) {
+                    StorageEntry anchor = findAnchor(
+                        provider,
+                        walk.prunedDirs(),
+                        prefix,
+                        matcher,
+                        nameFilter,
+                        fileHints,
+                        walk.columnFullTypes().keySet(),
+                        cancelled,
+                        maxListedObjects
+                    );
+                    if (anchor != null) {
+                        List<String> walkNotices = new ArrayList<>();
+                        PartitionMetadata detected = detectPartitions(List.of(anchor), partitionConfig, walkNotices::add);
+                        if (walkPruningProven(walk.prunedColumns(), detected)) {
+                            PartitionMetadata metadata = overlayWalkTypes(
+                                detected,
+                                walk.columnFullTypes(),
+                                List.of(anchor),
+                                partitionConfig,
+                                pattern
+                            );
+                            throwIfCancelled(cancelled);
+                            reserveRetained(memory, 1, 0, true);
+                            return inferenceAnchorListing(List.of(anchor), pattern, metadata, walkNotices);
+                        }
+                    }
+                }
+            } else if (walk != null) {
+                List<StorageEntry> walked = walk.matched();
+                if (fileHints.isEmpty() == false) {
+                    List<StorageEntry> filtered = new ArrayList<>();
+                    StorageEntry fileHintAnchor = null;
+                    for (StorageEntry entry : walked) {
+                        fileHintAnchor = addOrStashAnchor(entry, fileHints, filtered, fileHintAnchor, maxDiscoveredFiles);
+                    }
+                    if (filtered.isEmpty() && fileHintAnchor != null && maxDiscoveredFiles > 0) {
+                        filtered.add(fileHintAnchor);
+                    }
+                    walked = filtered;
+                }
+                fileOrder.apply(walked);
+                List<String> walkNotices = new ArrayList<>();
+                PartitionMetadata walkedMetadata = detectPartitions(walked, partitionConfig, walkNotices::add);
+                if (walkPruningProven(walk.prunedColumns(), walkedMetadata)) {
+                    if (walkTypesConsistent(walk, walkedMetadata)) {
+                        // Counted pre-_file.*-filter, as the flat path counts.
+                        if (walk.excludedCount() > 0) {
+                            String exclusionNotice = exclusionNotice(
+                                walk.excludedCount(),
+                                walk.matched().size(),
+                                prefix.toString(),
+                                walk.excludedExample(),
+                                walk.excludedExampleEntry()
+                            );
+                            logger.debug("{}", exclusionNotice);
+                            if (walked.isEmpty()) {
+                                walkNotices.add(exclusionNotice);
                             }
                         }
+                        return new GenericFileList(walked, pattern, walkedMetadata, walkNotices);
                     }
-                } else if (walk != null) {
-                    List<StorageEntry> walked = walk.matched();
-                    if (fileHints.isEmpty() == false) {
-                        List<StorageEntry> filtered = new ArrayList<>();
-                        StorageEntry fileHintAnchor = null;
-                        for (StorageEntry entry : walked) {
-                            fileHintAnchor = addOrStashAnchor(entry, fileHints, filtered, fileHintAnchor, maxDiscoveredFiles);
-                        }
-                        if (filtered.isEmpty() && fileHintAnchor != null && maxDiscoveredFiles > 0) {
-                            filtered.add(fileHintAnchor);
-                        }
-                        walked = filtered;
-                    }
-                    fileOrder.apply(walked);
-                    List<String> walkNotices = new ArrayList<>();
-                    PartitionMetadata walkedMetadata = detectPartitions(walked, partitionConfig, walkNotices::add);
-                    if (walkPruningProven(walk.prunedColumns(), walkedMetadata)) {
-                        if (walkTypesConsistent(walk, walkedMetadata)) {
-                            // Counted pre-_file.*-filter, as the flat path counts.
-                            if (walk.excludedCount() > 0) {
-                                String exclusionNotice = exclusionNotice(
-                                    walk.excludedCount(),
-                                    walk.matched().size(),
-                                    prefix.toString(),
-                                    walk.excludedExample(),
-                                    walk.excludedExampleEntry()
-                                );
-                                logger.debug("{}", exclusionNotice);
-                                if (walked.isEmpty()) {
-                                    walkNotices.add(exclusionNotice);
-                                }
-                            }
-                            return new GenericFileList(walked, pattern, walkedMetadata, walkNotices);
-                        }
-                        logger.debug("Walked listing of [{}] would narrow the type of partition column(s); re-listing flat", pattern);
-                        suppressValueFilter = true;
-                    } else {
-                        logger.debug(
-                            "Walked listing of [{}] does not detect the pruned-on partition columns {}; re-listing flat",
-                            pattern,
-                            walk.prunedColumns()
-                        );
-                        suppressValueFilter = true;
-                    }
+                    logger.debug("Walked listing of [{}] would narrow the type of partition column(s); re-listing flat", pattern);
+                    suppressValueFilter = true;
+                } else {
+                    logger.debug(
+                        "Walked listing of [{}] does not detect the pruned-on partition columns {}; re-listing flat",
+                        pattern,
+                        walk.prunedColumns()
+                    );
+                    suppressValueFilter = true;
                 }
             }
         }
@@ -2384,18 +2382,14 @@ public final class GlobExpander {
     }
 
     /**
-     * Whether {@code glob} is a shape the partition walk can narrow: a leading {@code **}, or a leading Hive
-     * {@code key=*} segment. {@code year=*}/{@code city=*} is the keyed form a multi-value hint no longer rewrites.
-     * A keyed glob may descend an unhinted leading {@code key=*} when a hinted key of that glob is still pending;
-     * a {@code **} glob still withdraws at the first unhinted level.
-     */
-    /**
      * Whether an unbounded drain of this pattern would try the partition walk — and so might withdraw from it and
      * return the unfiltered superset, where a bounded drain applies the value filter and keeps a subset.
      * <p>
-     * It is the gate at the walk itself, lifted out so the two callers cannot drift: the walk, and the bounded
-     * rail's refusal to publish a listing into the shared cache where the two rails can disagree. Only the
-     * bound-independent half is here; the caller adds its own.
+     * It is the gate at the walk in {@link #doExpandGlob}, lifted out so that gate and the bounded rail's refusal
+     * to publish into the shared cache cannot drift apart. Only the bound-independent half is here; the caller
+     * adds its own. {@link #doExpandGlobAsync} still carries a separate copy of the same shape, which predates
+     * this and admits fewer globs ({@link #globstarLeads} rather than {@link #walkableGlob}); it only routes to
+     * the synchronous drain, so it decides nothing this answers.
      */
     static boolean wouldWalk(String glob, @Nullable List<PartitionFilterHint> hints, PartitionConfig partitionConfig) {
         return walkableGlob(glob) && walkableStrategy(partitionConfig) && partitionPruningHints(hints).isEmpty() == false;
@@ -2405,11 +2399,15 @@ public final class GlobExpander {
      * As {@link #wouldWalk}, for a caller holding the dataset's raw path and settings rather than one resolved
      * pattern. A comma list walks if any of its segments would, which is the conservative direction.
      */
-    public static boolean wouldWalk(String path, @Nullable List<PartitionFilterHint> hints, @Nullable Map<String, Object> config) {
+    public static boolean pathWouldWalk(String path, @Nullable List<PartitionFilterHint> hints, @Nullable Map<String, Object> config) {
         PartitionConfig partitionConfig = PartitionConfig.fromConfig(config);
         for (String segment : commaSegments(path)) {
             // The EFFECTIVE pattern, because that is what the drain is handed: a single-value equality is spliced
-            // into the glob, and the literal segment it leaves is not walkable, so those two rails cannot diverge.
+            // into the glob, and the literal segment it leaves is not walkable. That answers what an unbounded
+            // drain of this pattern does, which is not the whole of whether the two rails can disagree -- the
+            // empty-rewrite retry lists the ORIGINAL pattern, which walks where the effective one cannot. The
+            // listing that retry produces is refused on the count it carries instead; see
+            // DatasetListingService's publish rule.
             StoragePath parsed = StoragePath.of(effectivePattern(segment, hints, partitionConfig));
             if (parsed.isPattern() && wouldWalk(parsed.globPart(), hints, partitionConfig)) {
                 return true;
@@ -2418,6 +2416,12 @@ public final class GlobExpander {
         return false;
     }
 
+    /**
+     * Whether {@code glob} is a shape the partition walk can narrow: a leading {@code **}, or a leading Hive
+     * {@code key=*} segment. {@code year=*}/{@code city=*} is the keyed form a multi-value hint no longer rewrites.
+     * A keyed glob may descend an unhinted leading {@code key=*} when a hinted key of that glob is still pending;
+     * a {@code **} glob still withdraws at the first unhinted level.
+     */
     private static boolean walkableGlob(String glob) {
         if (globstarLeads(glob)) {
             return true;

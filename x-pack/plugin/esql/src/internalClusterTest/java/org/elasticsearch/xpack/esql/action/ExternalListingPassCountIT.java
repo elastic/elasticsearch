@@ -158,15 +158,27 @@ public class ExternalListingPassCountIT extends AbstractExternalDataSourceIT {
      * A second bounded query over the same dataset must ask the store nothing.
      * <p>
      * This is the half of the cost a bound used to forfeit: a bounded listing took the uncached rail outright, so
-     * however complete it was it was recomputed on every execution. A bounded listing that drained its whole prefix
-     * is the same artifact as an unbounded one of the same inputs, so it belongs in the shared cache and may be
-     * served back.
+     * however complete it was it was recomputed on every execution. This dataset's glob carries no partition-value
+     * hints, so the partition walk never runs on either rail and a bounded listing that drained its whole prefix is
+     * the same artifact as an unbounded one of the same inputs — it belongs in the shared cache and may be served
+     * back. Where the walk is in play that equivalence does not hold and the listing is kept out; see
+     * {@code DatasetListingServiceCacheTests}.
      */
     public void testASecondQueryListsNothing() throws Exception {
         String dataset = registerCountingDataset("pass_warm", PADDING_FOLDERS);
         String coordinator = internalCluster().getNodeNames()[0];
 
+        CountingStorageProvider.reset();
         query(coordinator, "FROM " + dataset + " | LIMIT 0").close();
+        // This test's own positive control for the two counters it can have one for: both are observed non-zero
+        // on the same dataset and the same code path before being asserted zero below, so a counter that stopped
+        // recording, or a fixture that stopped reaching the store, cannot read as a cache hit.
+        assertThat("the cold query listed", CountingStorageProvider.listingPasses(), greaterThan(0L));
+        assertThat("and visited keys", CountingStorageProvider.keysVisited(), greaterThan(0L));
+        // Not childListings: this dataset's glob carries no partition-value hints, so neither the fan-out nor the
+        // walk runs even on the cold query, and there is no non-zero reading of it to be had here. Asserting it
+        // zero below is a guard against either of them appearing on a repeat query, not a cache measurement; that
+        // the counter can count at all is what testAnAggregateDoesNotListOncePerPartitionFolder establishes.
 
         CountingStorageProvider.reset();
         try (EsqlQueryResponse response = query(coordinator, "FROM " + dataset + " | LIMIT 0")) {

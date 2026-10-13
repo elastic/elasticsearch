@@ -156,14 +156,13 @@ public interface FileList {
      * {@link #globMatchCount()} where the listing cannot say how many files the glob selected — either it was
      * built without draining the pattern at all (an enumerable-keys probe, a partition walk, a schema-inference
      * anchor, a comma list), or the drain that built it deliberately skipped a narrowing that another query's
-     * drain will apply, so its count is not the number that would stop that drain. Enumerating the producers here
-     * went stale twice; what the value means is the durable half.
+     * drain will apply, so its count is not the number that would stop that drain.
      */
     int UNKNOWN_GLOB_MATCH_COUNT = -1;
 
     /**
      * How many files the glob selected, before anything narrowed the result further — or
-     * {@link #UNKNOWN_GLOB_MATCH_COUNT} where no drain produced one, whatever the bound was.
+     * {@link #UNKNOWN_GLOB_MATCH_COUNT} where this listing has no such number to offer, whatever the bound was.
      * <p>
      * This is the number a listing bound is measured against, and it is not {@link #fileCount()}. The drain counts
      * a file here when the glob matches its path, and then several things can drop it before it reaches the

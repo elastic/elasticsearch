@@ -190,7 +190,8 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
          * @param dataLength length of the interval entries
          * @param maxDocId   largest doc id with a value
          * @param maxLevel   levels the writer used, which bounds how many records an entry holds
-         * @param maxBoundBytes longest min or max term the writer kept whole; a longer value was cut to fit
+         * @param maxBoundBytes longest min or max term the writer kept whole; a longer value was cut to fit, so the bounds are exact
+         *                      when the column's longest value is no longer than this
          * @param codecId    {@link PlainSkipIndexCodec} id that wrote the region
          */
         record Skipper(long dataOffset, long dataLength, int maxDocId, int maxLevel, int maxBoundBytes, byte codecId) {
@@ -205,15 +206,6 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
 
             static Skipper readFrom(DataInput in) throws IOException {
                 return new Skipper(in.readVLong(), in.readVLong(), in.readVInt(), in.readVInt(), in.readVInt(), in.readByte());
-            }
-
-            /**
-             * Whether every bound is the exact min or max term of its interval, which holds when no value of the
-             * column was longer than the writer kept. It is conservative: one long value that never became a
-             * bound still makes it false.
-             */
-            boolean boundsAreExact(int columnMaxLength) {
-                return columnMaxLength <= maxBoundBytes;
             }
         }
 

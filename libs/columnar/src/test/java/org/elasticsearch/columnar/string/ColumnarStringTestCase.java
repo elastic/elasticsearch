@@ -19,6 +19,7 @@ import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.FormatVersion;
 import org.elasticsearch.columnar.substrate.ChunkBounds;
 import org.elasticsearch.columnar.substrate.ChunkCodec;
+import org.elasticsearch.columnar.substrate.ColumnInputs;
 import org.elasticsearch.columnar.substrate.ColumnTestFiles;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 import org.elasticsearch.test.ESTestCase;
@@ -26,6 +27,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
 
@@ -214,12 +216,22 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
 
     /** As above, with every choice named at once, for a test that cares about one the overloads do not reach. */
     protected void withColumn(final BytesRef[][] docSlots, final StringColumnOptions options, final ColumnCheck check) throws IOException {
+        withColumn(docSlots, options, UnaryOperator.identity(), check);
+    }
+
+    /** As above, with the column's inputs wrapped before the reader opens them, to observe what a query reads. */
+    protected void withColumn(
+        final BytesRef[][] docSlots,
+        final StringColumnOptions options,
+        final UnaryOperator<ColumnInputs> wrapInputs,
+        final ColumnCheck check
+    ) throws IOException {
         final byte[] segmentId = new byte[16];
         random().nextBytes(segmentId);
         try (Directory dir = newDirectory()) {
             final StringColumnMetadata metadata = writeColumn(dir, segmentId, docSlots, options);
             try (ColumnTestFiles.Inputs inputs = ColumnTestFiles.open(dir, COLUMN_FILES, segmentId)) {
-                check.check(metadata, StringColumnReader.open(metadata, inputs.inputs(), inputs.skipIndex()));
+                check.check(metadata, StringColumnReader.open(metadata, wrapInputs.apply(inputs.inputs()), inputs.skipIndex()));
             }
         }
     }

@@ -13,6 +13,8 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.columnar.substrate.ChunkBounds;
+import org.elasticsearch.columnar.substrate.ColumnInputs;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -32,7 +34,7 @@ public class PlainStringColumnSkipperTests extends ColumnarStringTestCase {
             assertEquals(PlainSkipIndexCodec.ID, skipper.codecId());
             assertEquals(PlainSkipIndexCodec.DEFAULT_MAX_LEVEL, skipper.maxLevel());
             assertEquals(PlainSkipIndexCodec.DEFAULT_MAX_BOUND_BYTES, skipper.maxBoundBytes());
-            assertTrue(skipper.boundsAreExact(metadata.maxLength()));
+            assertTrue(metadata.maxLength() <= skipper.maxBoundBytes());
             assertEquals(count - 1, skipper.maxDocId());
             assertTrue(skipper.dataLength() > 0);
         });
@@ -49,8 +51,58 @@ public class PlainStringColumnSkipperTests extends ColumnarStringTestCase {
             final StringColumnMetadata.Plain.Skipper skipper = ((StringColumnMetadata.Plain) metadata).skipper();
             assertNotNull(skipper);
             assertTrue(metadata.maxLength() > skipper.maxBoundBytes());
-            assertFalse(skipper.boundsAreExact(metadata.maxLength()));
+            assertTrue(metadata.maxLength() > skipper.maxBoundBytes());
         });
+    }
+
+    public void testIntervalsInsideTheRangeAreAcceptedWithoutReadingTheirValues() throws IOException {
+        final int runs = 2;
+        final int count = INTERVAL * runs * between(3, 4);
+        final BytesRef[] docValues = ascendingRuns(count, runs);
+        final BytesRef[][] docSlots = singleValued(docValues);
+        final StringColumnOptions.Sizes sizes = StringColumnOptions.DEFAULT_SIZES;
+        final StringColumnOptions plain = StringColumnOptions.DEFAULT.withPolicies(DictionaryPolicy.NONE, SummaryPolicy.NONE)
+            .withSizes(
+                new StringColumnOptions.Sizes(
+                    sizes.valuesPerBlock(),
+                    ChunkBounds.ofBytes(8 * 1024),
+                    sizes.escapeChunks(),
+                    sizes.packedOrdinalBlockSize(),
+                    sizes.compressedOrdinalBlockSize(),
+                    sizes.escapeRankBlockSize(),
+                    sizes.slotCountsBlockSize(),
+                    sizes.lengthBlockSize()
+                )
+            );
+        final BytesRef below = new BytesRef("a");
+        final BytesRef above = new BytesRef("z");
+        final List<Integer> everything = expectedInRange(docSlots, below, true, above, true);
+        assertEquals(count, everything.size());
+
+        assertEquals("every interval is inside the range", 0, valueBytesRead(plain, docSlots, below, above, everything));
+        final long fullScan = valueBytesRead(plain.withoutSkipIndex(), docSlots, below, above, everything);
+        assertTrue("without a region every value is read, saw " + fullScan, fullScan > 0);
+
+        final BytesRef lower = docValues[count / 10];
+        final BytesRef upper = docValues[count / 4];
+        final long partial = valueBytesRead(plain, docSlots, lower, upper, expectedInRange(docSlots, lower, true, upper, true));
+        assertTrue("only the intervals at the edges are read, saw " + partial + " of " + fullScan, partial > 0 && partial < fullScan);
+    }
+
+    private long valueBytesRead(StringColumnOptions options, BytesRef[][] docSlots, BytesRef lower, BytesRef upper, List<Integer> expected)
+        throws IOException {
+        final CountingIndexInput[] counted = new CountingIndexInput[2];
+        final long[] bytesRead = new long[1];
+        withColumn(docSlots, options, inputs -> {
+            counted[0] = new CountingIndexInput(inputs.data());
+            counted[1] = new CountingIndexInput(inputs.lengths());
+            return new ColumnInputs(counted[0], inputs.addressing(), counted[1], inputs.navigation());
+        }, (metadata, reader) -> {
+            final long before = counted[0].bytesRead() + counted[1].bytesRead();
+            assertEquals(expected, matched(reader.matchRange(lower, true, upper, true)));
+            bytesRead[0] = counted[0].bytesRead() + counted[1].bytesRead() - before;
+        });
+        return bytesRead[0];
     }
 
     public void testColumnsWithoutLocalityWriteNoRegionAndStillAnswerRanges() throws IOException {
@@ -276,7 +328,7 @@ public class PlainStringColumnSkipperTests extends ColumnarStringTestCase {
         final BytesRef[][] docSlots = singleValued(docValues);
         withColumn(docSlots, (metadata, reader) -> {
             assertKeepsARegion(metadata);
-            assertFalse(((StringColumnMetadata.Plain) metadata).skipper().boundsAreExact(metadata.maxLength()));
+            assertTrue(metadata.maxLength() > ((StringColumnMetadata.Plain) metadata).skipper().maxBoundBytes());
             for (int query = 0; query < 20; query++) {
                 final BytesRef lower = randomBound(docValues);
                 final BytesRef upper = randomBound(docValues);

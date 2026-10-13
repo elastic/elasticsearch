@@ -30,9 +30,7 @@ final class PlainStringColumnSkipper {
     private final int maxLevel;
     private final IndexInput input;
 
-    private final int[] minDocID;
     private final int[] maxDocID;
-    private final int[] docCount;
     private final BytesRefBuilder[] minTerm;
     private final BytesRefBuilder[] maxTerm;
     private int levels = 1;
@@ -47,13 +45,11 @@ final class PlainStringColumnSkipper {
         if (meta.maxBoundBytes() < 1) {
             throw new CorruptIndexException("skip region keeps bounds of [" + meta.maxBoundBytes() + "] bytes", input.toString());
         }
-        this.minDocID = new int[maxLevel];
         this.maxDocID = new int[maxLevel];
-        this.docCount = new int[maxLevel];
         this.minTerm = new BytesRefBuilder[maxLevel];
         this.maxTerm = new BytesRefBuilder[maxLevel];
         for (int level = 0; level < maxLevel; level++) {
-            minDocID[level] = maxDocID[level] = -1;
+            maxDocID[level] = -1;
             minTerm[level] = new BytesRefBuilder();
             maxTerm[level] = new BytesRefBuilder();
         }
@@ -63,7 +59,7 @@ final class PlainStringColumnSkipper {
     void advance(int target) throws IOException {
         if (target > meta.maxDocId()) {
             for (int level = 0; level < maxLevel; level++) {
-                minDocID[level] = maxDocID[level] = DocIdSetIterator.NO_MORE_DOCS;
+                maxDocID[level] = DocIdSetIterator.NO_MORE_DOCS;
             }
             return;
         }
@@ -96,8 +92,8 @@ final class PlainStringColumnSkipper {
                     valid = false;
                     break;
                 }
-                minDocID[level] = input.readInt();
-                docCount[level] = input.readInt();
+                // NOTE: minDocId and docCount are part of every record and are not needed to skip.
+                input.skipBytes(2 * Integer.BYTES);
                 readTerm(minTerm[level]);
                 readTerm(maxTerm[level]);
             }
@@ -115,16 +111,8 @@ final class PlainStringColumnSkipper {
         return levels;
     }
 
-    int minDocID(int level) {
-        return minDocID[level];
-    }
-
     int maxDocID(int level) {
         return maxDocID[level];
-    }
-
-    int docCount(int level) {
-        return docCount[level];
     }
 
     BytesRef minTerm(int level) {

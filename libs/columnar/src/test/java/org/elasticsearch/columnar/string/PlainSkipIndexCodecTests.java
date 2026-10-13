@@ -11,6 +11,7 @@ package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ByteBuffersDataInput;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexInput;
@@ -21,6 +22,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
@@ -97,7 +99,6 @@ public class PlainSkipIndexCodecTests extends ESTestCase {
         final int target = INTERVAL * ROOT_INTERVALS + between(0, INTERVAL - 1);
         beyond.advance(target);
         assertEquals(1, beyond.numLevels());
-        assertEquals(INTERVAL * ROOT_INTERVALS, beyond.minDocID(0));
         assertEquals(docs - 1, beyond.maxDocID(0));
         assertEquals(ascending(INTERVAL * ROOT_INTERVALS), beyond.minTerm(0));
         assertEquals(ascending(docs - 1), beyond.maxTerm(0));
@@ -112,11 +113,9 @@ public class PlainSkipIndexCodecTests extends ESTestCase {
             skipper.advance(target);
             final int first = target / INTERVAL * INTERVAL;
             final int last = Math.min(first + INTERVAL, docs) - 1;
-            assertEquals(first, skipper.minDocID(0));
             assertEquals(last, skipper.maxDocID(0));
             assertEquals(ascending(first), skipper.minTerm(0));
             assertEquals(ascending(last), skipper.maxTerm(0));
-            assertEquals(last - first + 1, skipper.docCount(0));
             target = last + 1 + between(0, INTERVAL * 3);
         }
         skipper.advance(docs);
@@ -178,7 +177,6 @@ public class PlainSkipIndexCodecTests extends ESTestCase {
         assertTrue("region of [" + region.bytes().length + "] bytes", region.bytes().length <= (ROOT_INTERVALS + 1) * maxEntryBytes);
         final PlainStringColumnSkipper skipper = region.skipper(region.bytes());
         skipper.advance(INTERVAL * ROOT_INTERVALS);
-        assertEquals(INTERVAL * ROOT_INTERVALS, skipper.minDocID(0));
     }
 
     public void testAnyGeometryIsReadBackFromTheRegion() throws IOException {
@@ -206,13 +204,10 @@ public class PlainSkipIndexCodecTests extends ESTestCase {
             final int first = target / intervalSize * intervalSize;
             final int last = Math.min(first + intervalSize, docs) - 1;
             assertTrue(skipper.numLevels() <= maxLevel);
-            assertEquals(first, skipper.minDocID(0));
             assertEquals(last, skipper.maxDocID(0));
             assertEquals(ascending(first), skipper.minTerm(0));
             assertEquals(ascending(last), skipper.maxTerm(0));
-            assertEquals(last - first + 1, skipper.docCount(0));
             for (int level = 1; level < skipper.numLevels(); level++) {
-                assertTrue(skipper.minDocID(level) <= first);
                 assertTrue(skipper.maxDocID(level) >= last);
                 assertTrue(skipper.minTerm(level).compareTo(ascending(first)) <= 0);
                 assertTrue(skipper.maxTerm(level).compareTo(ascending(last)) >= 0);
@@ -574,23 +569,6 @@ public class PlainSkipIndexCodecTests extends ESTestCase {
         assertEquals(region.meta(), StringColumnMetadata.Plain.Skipper.readFrom(out.toDataInput()));
     }
 
-    public void testBoundsAreExactExactlyWhenNoValueIsLongerThanTheCap() {
-        final int cap = between(1, 300);
-        final StringColumnMetadata.Plain.Skipper meta = new StringColumnMetadata.Plain.Skipper(
-            0,
-            0,
-            0,
-            PlainSkipIndexCodec.DEFAULT_MAX_LEVEL,
-            cap,
-            PlainSkipIndexCodec.ID
-        );
-        assertTrue(meta.boundsAreExact(0));
-        assertTrue(meta.boundsAreExact(cap - 1));
-        assertTrue(meta.boundsAreExact(cap));
-        assertFalse(meta.boundsAreExact(cap + 1));
-        assertFalse(meta.boundsAreExact(Integer.MAX_VALUE));
-    }
-
     public void testAValueOneByteOverTheCapIsCutAndTheBoundsAreNotExact() throws IOException {
         final int cap = between(2, 40);
         final PlainSkipIndexCodec codec = new PlainSkipIndexCodec(
@@ -606,8 +584,7 @@ public class PlainSkipIndexCodecTests extends ESTestCase {
         final BytesRef[] values = { fits, over };
 
         final Region region = write(codec, values.length, doc -> values[doc]);
-        assertTrue(region.meta().boundsAreExact(cap));
-        assertFalse(region.meta().boundsAreExact(over.length));
+        assertEquals(cap, region.meta().maxBoundBytes());
 
         final PlainStringColumnSkipper skipper = region.skipper(region.bytes());
         skipper.advance(0);
@@ -641,13 +618,50 @@ public class PlainSkipIndexCodecTests extends ESTestCase {
         final Region region = write(codec, docs, doc -> values[doc]);
         final PlainStringColumnSkipper skipper = region.skipper(region.bytes());
         skipper.advance(0);
-        if (region.meta().boundsAreExact(columnMaxLength)) {
+        if (columnMaxLength <= region.meta().maxBoundBytes()) {
             assertEquals(trueMin, skipper.minTerm(0));
             assertEquals(trueMax, skipper.maxTerm(0));
         } else {
             assertTrue(skipper.minTerm(0).compareTo(trueMin) <= 0);
             assertTrue(skipper.maxTerm(0).compareTo(trueMax) >= 0);
         }
+    }
+
+    public void testASkippedSubtreeIsNeverReadPastItsHeader() throws IOException {
+        final int intervalSize = between(1, 4);
+        final int maxLevel = between(2, 3);
+        final int levelShift = between(1, 2);
+        final PlainSkipIndexCodec codec = new PlainSkipIndexCodec(
+            intervalSize,
+            maxLevel,
+            levelShift,
+            PlainSkipIndexCodec.DEFAULT_MAX_BOUND_BYTES,
+            2.0,
+            PlainSkipIndexCodec.DEFAULT_LOCALITY_SAMPLE_INTERVALS
+        );
+        final int rootDocs = intervalSize << (levelShift * (maxLevel - 1));
+        final int docs = rootDocs * between(2, 3);
+        final Region region = write(codec, docs, PlainSkipIndexCodecTests::ascending);
+
+        final ByteArrayDataInput layout = new ByteArrayDataInput(region.bytes());
+        assertEquals("the first entry holds every level", maxLevel, layout.readByte());
+        layout.readInt();
+        final int subtreeByteLength = layout.readInt();
+        final int headerEnd = 1 + 2 * Integer.BYTES;
+        assertTrue("the first root group has records past its header", subtreeByteLength > headerEnd);
+
+        final byte[] poisoned = region.bytes().clone();
+        Arrays.fill(poisoned, headerEnd, subtreeByteLength, (byte) 0xFF);
+
+        expectThrows(CorruptIndexException.class, () -> region.skipper(poisoned).advance(between(0, rootDocs - 1)));
+
+        final int target = rootDocs + between(0, rootDocs - 1);
+        final PlainStringColumnSkipper skipper = region.skipper(poisoned);
+        skipper.advance(target);
+        final int first = target / intervalSize * intervalSize;
+        assertEquals(first + intervalSize - 1, skipper.maxDocID(0));
+        assertEquals(ascending(first), skipper.minTerm(0));
+        assertEquals(ascending(first + intervalSize - 1), skipper.maxTerm(0));
     }
 
     public void testAJumpThatDoesNotMoveForwardIsCorrupt() throws IOException {

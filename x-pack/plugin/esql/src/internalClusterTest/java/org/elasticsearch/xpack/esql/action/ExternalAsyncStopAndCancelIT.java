@@ -70,7 +70,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * are tested below; each diverges on whether the response body is partial, fully gone, or a hard error.
  * Backing the tests is a controllable {@code slowfile://} fixture that serves a fast leading prefix and
  * then trickles one byte at a time, so the query is observably mid-stream when STOP / cancel / DELETE
- * land. Follow-up to elastic/esql-planning#535.
+ * land.
  */
 @SuppressForbidden(reason = "test fixture uses local file paths via PathUtils.get to back the slowfile:// scheme")
 public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {

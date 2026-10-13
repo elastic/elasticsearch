@@ -41,11 +41,14 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceBuffer;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceDrainUtils;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -70,9 +73,13 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongPredicate;
+import java.util.function.LongSupplier;
 
 import static org.elasticsearch.xpack.esql.datasource.parquet.OptimizedParquetColumnIterator.ReadinessPhase;
+import static org.hamcrest.Matchers.lessThan;
 
 /**
  * {@link CloseableIterator#waitForReady()} / {@link CloseableIterator#tryAdvance()} contract for
@@ -367,7 +374,7 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
             opci.revokeOvershootOnPark();
             assertEquals("park on space must drop look-ahead prefetches", 0, opci.pendingPrefetchCount());
             // M1: current-group overshoot owner is not cleared here. Clearing it while those
-            // bytes stay charged would admit a second overshoot. PR7 may re-ticket on park.
+            // bytes stay charged would admit a second overshoot. A later change may re-ticket on park.
         }
     }
 
@@ -479,6 +486,74 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
         assertLedgerClear(watermark);
     }
 
+    public void testPhase2RetryAfterAllocatedFailureStaysWithinCap() throws Exception {
+        byte[] parquet = twoColumnFile();
+        PhaseSizes group0 = phaseSizes(parquet, 0);
+        AtomicLong peakUsed = new AtomicLong();
+        ParquetIoWatermark watermark = new ParquetIoWatermark(1 << 20);
+        FailAfterAllocateOnceStorage storage = new FailAfterAllocateOnceStorage(
+            parquet,
+            asyncIo,
+            new IOException("injected phase-2 alloc-then-fail"),
+            watermark::used,
+            peakUsed
+        );
+        ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
+        Expression filter = new LessThan(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 4L, DataType.LONG), null);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
+            .withPushedFilter(new ParquetPushedExpressions(List.of(filter)));
+        int rows = 0;
+        try (CloseableIterator<Page> iter = reader.read(storage, FormatReadContext.of(null, 64))) {
+            OptimizedParquetColumnIterator opci = (OptimizedParquetColumnIterator) iter;
+            assertBusy(() -> assertTrue(iter.waitForReady().isDone()), 5, TimeUnit.SECONDS);
+            peakUsed.accumulateAndGet(watermark.used(), Math::max);
+            storage.arm.set(true);
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+            while (System.nanoTime() < deadline) {
+                peakUsed.accumulateAndGet(watermark.used(), Math::max);
+                assertBusy(() -> assertTrue(iter.waitForReady().isDone()), 5, TimeUnit.SECONDS);
+                Page page = iter.tryAdvance();
+                if (page != null) {
+                    rows += page.getPositionCount();
+                    page.releaseBlocks();
+                    continue;
+                }
+                if (opci.readinessPhase() == ReadinessPhase.DONE) {
+                    break;
+                }
+            }
+            assertEquals(1, storage.failures.get());
+            assertTrue(storage.successes.get() >= 1);
+            assertEquals(4, rows);
+            assertThat(
+                "used must stay within cap + one phase-2 range; peak="
+                    + peakUsed.get()
+                    + " cap="
+                    + watermark.limit()
+                    + " R="
+                    + group0.reservation,
+                peakUsed.get(),
+                lessThan(watermark.limit() + group0.reservation + 1)
+            );
+        }
+        assertLedgerClear(watermark);
+        assertEquals(0, blockFactory.breaker().getUsed());
+    }
+
+    public void testPhase2FetchRangesFallsBackWhenFilteredExceedsRemaining() {
+        RowRanges survivors = RowRanges.of(0, 1, 8);
+        assertSame(survivors, OptimizedParquetColumnIterator.phase2FetchRanges(survivors, 100, 100));
+        assertSame(survivors, OptimizedParquetColumnIterator.phase2FetchRanges(survivors, 100, 101));
+        assertNull(OptimizedParquetColumnIterator.phase2FetchRanges(survivors, 101, 100));
+        assertNull(OptimizedParquetColumnIterator.phase2FetchRanges(null, 101, 100));
+        // Humongous full chunk vs many mid-size pages: filtered footprint can exceed the
+        // one-region charge admission used for the merged chunk (4 MiB G1 regions).
+        long fullCharge = HeapFootprint.byteArrayBytes((2L << 20) + 1);
+        long filteredCharge = 5 * HeapFootprint.byteArrayBytes((1L << 20) + 1024);
+        assertTrue(filteredCharge > fullCharge);
+        assertNull(OptimizedParquetColumnIterator.phase2FetchRanges(survivors, filteredCharge, fullCharge));
+    }
+
     public void testCloseQueuedTicketReleasesLedger() throws Exception {
         byte[] parquet = smallFile();
         ParquetIoWatermark watermark = new ParquetIoWatermark(1);
@@ -528,6 +603,54 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
         assertLedgerClear(watermark);
     }
 
+    /**
+     * Regression for elastic/esql-planning#2271 against a real Parquet iterator. The producer drain
+     * parks on {@code waitForReady()} while the row-group GET is in flight; a cancel
+     * ({@code buffer.finish(true)}) must complete the drain <em>before</em> the GET returns -- the
+     * readiness signal belongs to the iterator and nothing on the cancel path completes it -- and the
+     * byte ledger must still clear once the iterator is closed and the GET lands.
+     */
+    public void testBufferFinishWakesDrainParkedOnGroupIo() throws Exception {
+        byte[] parquet = smallFile();
+        CountDownLatch allowRead = new CountDownLatch(1);
+        GatedAsyncStorage storage = new GatedAsyncStorage(parquet, asyncIo, allowRead);
+        ParquetIoWatermark watermark = new ParquetIoWatermark(1 << 20);
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1 << 20);
+        ExecutorService drainExec = Executors.newSingleThreadExecutor(EsExecutors.daemonThreadFactory("test", "opci-drain"));
+        try (CloseableIterator<Page> iter = open(storage, watermark)) {
+            OptimizedParquetColumnIterator opci = (OptimizedParquetColumnIterator) iter;
+            assertBusy(() -> assertEquals(ReadinessPhase.GROUP_IO_PENDING, opci.readinessPhase()), 5, TimeUnit.SECONDS);
+
+            CountDownLatch drained = new CountDownLatch(1);
+            AtomicReference<Exception> error = new AtomicReference<>();
+            ExternalSourceDrainUtils.drainPagesAsync(
+                iter,
+                buffer,
+                drainExec,
+                buffer::readCancelled,
+                ActionListener.wrap(v -> drained.countDown(), e -> {
+                    error.set(e);
+                    drained.countDown();
+                })
+            );
+            assertFalse("drain must stay parked while the group GET is in flight", drained.await(200, TimeUnit.MILLISECONDS));
+            assertEquals(ReadinessPhase.GROUP_IO_PENDING, opci.readinessPhase());
+
+            buffer.finish(true);
+
+            assertTrue("finish(true) must wake the drain while the GET is still in flight", drained.await(10, TimeUnit.SECONDS));
+            assertNull(error.get());
+            assertEquals("the wake must not depend on the object store answering", 1, allowRead.getCount());
+            assertEquals("a cancelled drain delivers nothing", 0, buffer.size());
+        } finally {
+            // The iterator is closed by try-with-resources while the GET is still gated; only then
+            // let the GET land so the ledger release after close is what gets asserted.
+            allowRead.countDown();
+            terminate(drainExec);
+        }
+        assertLedgerClear(watermark);
+    }
+
     public void testCloseDuringPhase2IoReleasesLedger() throws Exception {
         byte[] parquet = twoColumnFile();
         CountDownLatch allowPhase2 = new CountDownLatch(1);
@@ -555,9 +678,20 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
         byte[] parquet = twoColumnSparseGroupsFile();
         PhaseSizes group0 = phaseSizes(parquet, 0);
         PhaseSizes group1 = phaseSizes(parquet, 1);
+        assertThat(
+            "group 1 must sit outside the footer tail so the gated GET is a real miss",
+            group1.startingPos(),
+            lessThan((long) parquet.length - ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES)
+        );
         CountDownLatch allowGroup1 = new CountDownLatch(1);
-        AtomicBoolean gateGroup1 = new AtomicBoolean();
-        GatedOnDemandStorage storage = new GatedOnDemandStorage(parquet, asyncIo, gateGroup1, allowGroup1);
+        long group2Start = phaseSizes(parquet, 2).startingPos();
+        GatedOnDemandStorage storage = new GatedOnDemandStorage(
+            parquet,
+            asyncIo,
+            new AtomicBoolean(true),
+            allowGroup1,
+            pos -> pos >= group1.startingPos() && pos < group2Start
+        );
         ParquetIoWatermark watermark = new ParquetIoWatermark(1 << 20);
         ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
         Expression filter = new Equals(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 5L, DataType.LONG), null);
@@ -568,7 +702,6 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
             assertBusy(() -> assertTrue(iter.waitForReady().isDone()), 5, TimeUnit.SECONDS);
             long usedWhenReady = watermark.used();
             assertTrue("group 0 must hold a reservation; used=" + usedWhenReady, usedWhenReady >= group0.reservation);
-            gateGroup1.set(true);
             assertNull(iter.tryAdvance());
             assertEquals(ReadinessPhase.GROUP_IO_PENDING, opci.readinessPhase());
             long usedParked = watermark.used();
@@ -802,13 +935,13 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
             long phase2Io = ColumnChunkPrefetcher.computePrefetchBytes(block, Set.of("label"));
             long phase1 = ParquetDecodeWorkingSet.admitTotal(phase1Io, ParquetDecodeWorkingSet.estimateBytes(block, Set.of("id")));
             long phase2 = ParquetDecodeWorkingSet.admitTotal(phase2Io, ParquetDecodeWorkingSet.estimateBytes(block, Set.of("label")));
-            return new PhaseSizes(phase1, Math.max(phase1, phase2));
+            return new PhaseSizes(phase1, Math.max(phase1, phase2), block.getStartingPos());
         } finally {
             codecFactory.release();
         }
     }
 
-    private record PhaseSizes(long phase1, long reservation) {}
+    private record PhaseSizes(long phase1, long reservation, long startingPos) {}
 
     private static void releaseOvershoot(ParquetIoWatermark watermark, NodeByteBudget.Hold hold) {
         RowGroupIo lease = hold.lease();
@@ -924,8 +1057,10 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
     }
 
     /**
-     * Two row groups whose {@code id} stats overlap a missing value: group 0 is {@code {0,10}},
-     * group 1 is {@code {5,15}}. {@code id == 5} is not row-group-pruned and matches only group 1.
+     * Two matching row groups whose {@code id} stats overlap a missing value: group 0 is
+     * {@code {0,10}}, group 1 is {@code {5,15}}. {@code id == 5} is not row-group-pruned and
+     * matches only group 1. A third stats-pruned group holds a fat pad so group 1 sits outside
+     * the 64 KiB footer tail; otherwise the group-1 GET is a cache hit and never parks.
      */
     private static byte[] twoColumnSparseGroupsFile() throws IOException {
         MessageType schema = Types.buildMessage()
@@ -934,6 +1069,8 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
             .required(PrimitiveType.PrimitiveTypeName.BINARY)
             .as(LogicalTypeAnnotation.stringType())
             .named("label")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .named("pad")
             .named("ready_two_sparse");
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         SimpleGroupFactory factory = new SimpleGroupFactory(schema);
@@ -944,14 +1081,24 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
                 .withType(schema)
                 .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
                 .withDictionaryEncoding(false)
+                .withDictionaryEncoding("pad", false)
                 .withRowGroupSize(1)
                 .withRowGroupRowCountLimit(2)
                 .withPageSize(128)
                 .build()
         ) {
             String fat = "x".repeat(256);
+            byte[] tiny = new byte[] { 0 };
             for (long id : new long[] { 0L, 10L, 5L, 15L }) {
-                writer.write(factory.newGroup().append("id", id).append("label", fat + "_" + id));
+                writer.write(
+                    factory.newGroup().append("id", id).append("label", fat + "_" + id).append("pad", Binary.fromConstantByteArray(tiny))
+                );
+            }
+            byte[] trailer = new byte[80 * 1024];
+            for (long id : new long[] { 100L, 101L }) {
+                writer.write(
+                    factory.newGroup().append("id", id).append("label", fat + "_" + id).append("pad", Binary.fromConstantByteArray(trailer))
+                );
             }
         }
         return out.toByteArray();
@@ -1122,11 +1269,23 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
     private static final class GatedOnDemandStorage extends ImmediateAsyncStorage {
         private final AtomicBoolean gate;
         private final CountDownLatch allow;
+        private final LongPredicate gatedPosition;
 
         private GatedOnDemandStorage(byte[] data, ExecutorService asyncIo, AtomicBoolean gate, CountDownLatch allow) {
+            this(data, asyncIo, gate, allow, pos -> true);
+        }
+
+        private GatedOnDemandStorage(
+            byte[] data,
+            ExecutorService asyncIo,
+            AtomicBoolean gate,
+            CountDownLatch allow,
+            LongPredicate gatedPosition
+        ) {
             super(data, asyncIo);
             this.gate = gate;
             this.allow = allow;
+            this.gatedPosition = gatedPosition;
         }
 
         @Override
@@ -1137,7 +1296,7 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
             Executor executor,
             ActionListener<DirectReadBuffer> listener
         ) {
-            if (gate.get() == false) {
+            if (gate.get() == false || gatedPosition.test(position) == false) {
                 super.readBytesAsync(position, length, factory, executor, listener);
                 return;
             }
@@ -1204,6 +1363,59 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
                 return;
             }
             throw new RuntimeException("injected fillPrefetchQueue failure");
+        }
+    }
+
+    private static final class FailAfterAllocateOnceStorage extends ImmediateAsyncStorage {
+        private final Exception failure;
+        private final AtomicBoolean arm = new AtomicBoolean();
+        private final AtomicBoolean failNext = new AtomicBoolean(true);
+        private final AtomicInteger failures = new AtomicInteger();
+        private final AtomicInteger successes = new AtomicInteger();
+        private final LongSupplier used;
+        private final AtomicLong peakUsed;
+
+        private FailAfterAllocateOnceStorage(
+            byte[] data,
+            ExecutorService asyncIo,
+            Exception failure,
+            LongSupplier used,
+            AtomicLong peakUsed
+        ) {
+            super(data, asyncIo);
+            this.failure = failure;
+            this.used = used;
+            this.peakUsed = peakUsed;
+        }
+
+        @Override
+        public void readBytesAsync(
+            long position,
+            long length,
+            DirectBufferFactory factory,
+            Executor executor,
+            ActionListener<DirectReadBuffer> listener
+        ) {
+            DirectBufferFactory sampling = len -> {
+                DirectReadBuffer allocated = factory.allocate(len);
+                peakUsed.accumulateAndGet(used.getAsLong(), Math::max);
+                return allocated;
+            };
+            if (arm.get() && failNext.compareAndSet(true, false)) {
+                DirectReadBuffer allocated;
+                try {
+                    allocated = sampling.allocate((int) length);
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                    return;
+                }
+                allocated.close();
+                failures.incrementAndGet();
+                super.asyncIo.execute(() -> listener.onFailure(failure));
+                return;
+            }
+            successes.incrementAndGet();
+            super.readBytesAsync(position, length, sampling, executor, listener);
         }
     }
 

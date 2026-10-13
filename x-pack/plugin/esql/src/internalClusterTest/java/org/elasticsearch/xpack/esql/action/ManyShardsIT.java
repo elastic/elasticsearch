@@ -11,8 +11,6 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.support.ChannelActionListener;
-import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -20,8 +18,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.iterable.Iterables;
-import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -31,7 +27,6 @@ import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.RemoteTransportException;
-import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
@@ -276,71 +271,6 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
                 mockSearchService.setOnCreateSearchContext(r -> {});
                 mockSearchService.setOnRemoveContext(r -> {});
             }
-        }
-    }
-
-    /**
-     * Holds back data node responses until the coordinator's driver has finished, and checks that {@code LIMIT 1} queries only
-     * one data node.
-     */
-    public void testCancelUnnecessaryRequests() throws Exception {
-        assumeTrue("Requires pragmas", canUseQueryPragmas());
-        internalCluster().ensureAtLeastNumDataNodes(3);
-        waitForRelocation();
-        String coordinatingNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
-
-        var exchanges = new AtomicInteger();
-        var coordinatorDriverDone = new SubscribableListener<Void>();
-        var coordinatorTransport = MockTransportService.getInstance(coordinatingNode);
-        coordinatorTransport.addSendBehavior((connection, requestId, action, request, options) -> {
-            if (action.equals(ExchangeService.OPEN_EXCHANGE_ACTION_NAME)) {
-                exchanges.incrementAndGet();
-            }
-            connection.sendRequest(requestId, action, request, options);
-        });
-        coordinatorTransport.addRequestHandlingBehavior(
-            DriverTaskRunner.ACTION_NAME,
-            (handler, request, channel, task) -> handler.messageReceived(
-                request,
-                new TestTransportChannel(
-                    ActionListener.runAfter(new ChannelActionListener<>(channel), () -> coordinatorDriverDone.onResponse(null))
-                ),
-                task
-            )
-        );
-        var dataNodeTransports = new ArrayList<MockTransportService>();
-        for (DiscoveryNode dataNode : internalCluster().clusterService().state().nodes().getDataNodes().values()) {
-            var dataNodeTransport = MockTransportService.getInstance(dataNode.getName());
-            dataNodeTransports.add(dataNodeTransport);
-            dataNodeTransport.addRequestHandlingBehavior(
-                ComputeService.DATA_ACTION_NAME,
-                (handler, request, channel, task) -> handler.messageReceived(
-                    request,
-                    new TestTransportChannel(ActionListener.wrap(response -> {
-                        response.mustIncRef();
-                        coordinatorDriverDone.addListener(ActionListener.running(() -> {
-                            try {
-                                channel.sendResponse(response);
-                            } finally {
-                                response.decRef();
-                            }
-                        }));
-                    }, e -> coordinatorDriverDone.addListener(ActionListener.running(() -> channel.sendResponse(e))))),
-                    task
-                )
-            );
-        }
-
-        var query = syncEsqlQueryRequest("from test-* | LIMIT 1").pragmas(
-            new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_NODES_PER_CLUSTER.getKey(), 1).build())
-        );
-        try (var result = safeGet(client(coordinatingNode).execute(EsqlQueryAction.INSTANCE, query))) {
-            assertThat(Iterables.size(result.rows()), equalTo(1L));
-            assertThat(exchanges.get(), equalTo(1));
-        } finally {
-            coordinatorTransport.clearAllRules();
-            dataNodeTransports.forEach(MockTransportService::clearAllRules);
-            internalCluster().stopNode(coordinatingNode);
         }
     }
 

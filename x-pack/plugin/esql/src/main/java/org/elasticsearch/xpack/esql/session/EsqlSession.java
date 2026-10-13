@@ -471,6 +471,7 @@ public class EsqlSession {
             verifier.licenseState(),
             plannerSettings.loadAllMaxFields()
         );
+        LOGGER.debug("ESQL query settings:\n{}", resolved);
         planSnapshot = planSnapshot.withSettings(resolved);
         TimeSpanMarker viewResolutionProfile = executionInfo.queryProfile().viewResolution();
         viewResolutionProfile.start();

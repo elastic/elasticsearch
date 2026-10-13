@@ -2994,8 +2994,9 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
-     * A planner-bound read keeps the header names and the schema chunk 0 infers for the rest of the read, and a declared
-     * read is not capped by the file's width, so both stay charged to the breaker until the read closes.
+     * A planner-bound read keeps the header names and the schema chunk 0 infers for the rest of the read, and a read
+     * whose schema the planner settled is bounded by the ceiling rather than by {@code schema_max_fields}, so both
+     * stay charged to the breaker until the read closes.
      */
     public void testPlannerBoundReadChargesTheSchemaChunkZeroKeepsUntilClose() throws Exception {
         int columns = 2_000;
@@ -3381,7 +3382,14 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             if (readSchema == settled) {
                 assertEquals(arm + ": a settled schema is what the resolve is bounded by", settled, resolvedWith.get());
             } else {
-                assertNull(arm + ": with nothing settled the resolve runs on the cap, not on the projection", resolvedWith.get());
+                // Both readers' widthBound() treat null and an empty list alike, so what this has to pin is that
+                // the resolve did not receive the projection - not which of the two forms the absence took, which
+                // would go red on a refactor that changes no width.
+                List<Attribute> resolved = resolvedWith.get();
+                assertFalse(
+                    arm + ": with nothing settled the resolve runs on the cap, not on the projection, but got " + resolved,
+                    resolved != null && resolved.isEmpty() == false
+                );
             }
             assertEquals(arm + ": nothing stays charged", 0L, breaker.getUsed());
         }
@@ -4383,10 +4391,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
-    /**
-     * {@link LineFormatReader} whose inferred schema is {@code columns} wide and which binds a declared schema by name,
-     * the shape of a declared read over a wide headered file: chunk 0 captures the header names and binds the schema.
-     */
+    /** One attribute of a pinned schema, shaped like the ones a planner-settled schema carries. */
     private static Attribute pinAttribute(String name) {
         return new ReferenceAttribute(Source.EMPTY, null, name, DataType.KEYWORD, Nullability.TRUE, null, false);
     }
@@ -4471,6 +4476,10 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
+    /**
+     * {@link LineFormatReader} whose inferred schema is {@code columns} wide and which binds a settled schema by name,
+     * the shape of a read over a wide headered file: chunk 0 captures the header names and binds the schema.
+     */
     private static final class WideHeaderLineFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
         private final LineFormatReader delegate;
         private final int columns;

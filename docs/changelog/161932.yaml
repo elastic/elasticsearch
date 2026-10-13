@@ -1,5 +1,0 @@
-area: Search
-issues: []
-pr: 161932
-summary: Don't charge the circuit breaker for leaves served from the query cache
-type: bug

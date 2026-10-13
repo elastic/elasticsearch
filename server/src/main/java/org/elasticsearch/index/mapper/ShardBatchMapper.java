@@ -152,6 +152,11 @@ public final class ShardBatchMapper {
                 logger.debug("batch indexing disabled: malformed field name [{}]", fullPath);
                 return null;
             }
+            // Checked for every leaf, whatever it resolves to, before any of the branches below that can accept it.
+            if (isUnderKeepAllObject(fullPath, lookup, indexSettings)) {
+                logger.debug("batch indexing disabled: leaf [{}] is under an object with synthetic_source_keep: all", fullPath);
+                return null;
+            }
             final Mapper resolved = lookup.getMapper(fullPath);
 
             if (resolved == null) {
@@ -323,6 +328,28 @@ public final class ShardBatchMapper {
             return null;
         }
         return sink;
+    }
+
+    /**
+     * Whether an enclosing object has {@code synthetic_source_keep: all}. The sequential path then copies the whole object into
+     * {@code _ignored_source}, whatever its leaves' own mappers do, and the batch path writes no such entry. Strict-columnar modes
+     * reject the setting, and there the sequential path never writes {@code _ignored_source} either.
+     */
+    private static boolean isUnderKeepAllObject(String leafPath, MappingLookup lookup, IndexSettings indexSettings) {
+        if (indexSettings.getMode().isStrictColumnar()) {
+            return false;
+        }
+        String current = leafPath;
+        int dot;
+        while ((dot = current.lastIndexOf('.')) > 0) {
+            current = current.substring(0, dot);
+            final ObjectMapper parent = lookup.objectMappers().get(current);
+            if (parent != null && parent.sourceKeepMode().orElse(null) == Mapper.SourceKeepMode.ALL) {
+                return true;
+            }
+        }
+        // The root mapping and the index setting both reject synthetic_source_keep: all, so only named objects can carry it.
+        return false;
     }
 
     /**

@@ -346,7 +346,8 @@ public abstract class FieldMapper extends Mapper {
         }
         // Outside strict-columnar modes (which reject the setting), a non-default synthetic_source_keep makes the row path keep array
         // source as-is, either as positional offsets or in _ignored_source, neither of which the batch path writes.
-        // TODO: scalars under keep: all and object-level keep are not yet covered; see supportsColumnarParse.
+        // Fields under keep: all are kept off the batch path by supportsColumnarParse, and ShardBatchMapper does the same for
+        // objects with keep: all; arrays under keep: arrays are the case that can only be recognised per batch, here.
         if (source.kind() == EscfColumnKind.ARRAY
             && ctx.indexSettings().getMode().isStrictColumnar() == false
             && sourceKeepMode().orElse(ctx.indexSettings().sourceKeepMode()) != SourceKeepMode.NONE) {

@@ -4807,6 +4807,30 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
+     * A cross-file pair with no closer supertype reconciles to {@code keyword}, so the read asks the file's own
+     * type to be rendered as text - which cannot fail, because every coercer arm for a string target is total.
+     * The stamp has to say so, and this pins it at the resolver rather than at the predicate: a caller that
+     * stopped consulting {@code readsLossless}, or consulted it with the pair the other way round, would keep
+     * passing a predicate-level test while stamping every {@code union_by_name} glob as able to fail - and a
+     * {@code skip_row} read of one would lose its filter pushdown and its deferred extraction for nothing.
+     */
+    public void testAColumnReconciledToAStringTypeDoesNotStampNarrowing() {
+        for (DataType stringTarget : List.of(DataType.KEYWORD, DataType.TEXT)) {
+            for (DataType nativeType : List.of(DataType.LONG, DataType.INTEGER, DataType.DOUBLE, DataType.BOOLEAN, DataType.IP)) {
+                ExternalSchema readAsText = new ExternalSchema(List.of(attr("x", stringTarget)));
+                assertFalse(
+                    nativeType + " read as " + stringTarget + " renders rather than parses, so no value can fail",
+                    stampedMayNarrow(readAsText, Map.of("x", nativeType))
+                );
+            }
+        }
+
+        // The arm that keeps it honest: a narrowing toward a non-string type still stamps.
+        ExternalSchema readAsInteger = new ExternalSchema(List.of(attr("x", DataType.INTEGER)));
+        assertTrue("a long read as integer can still fail per value", stampedMayNarrow(readAsInteger, Map.of("x", DataType.LONG)));
+    }
+
+    /**
      * The stamp the data node reads to decide filter pushdown, deferred extraction and the operator factory's
      * extraction mode. It is written when reading any file may convert a value and fail, which is decided by the
      * file's own type against the type it is read as. Every row here holds the schema fixed and varies only the

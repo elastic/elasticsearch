@@ -184,7 +184,8 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
             .withDeclaredReadSpec(DeclaredReadSpec.of(Map.of(), Map.of(), Set.of()));
         TopNExec topN = topN(schema.get(0), 100, source);
 
-        assertThat(applyRule(topN, columnExtractorAwareRegistry()), instanceOf(TopNExec.class));
+        // assertSame, not instanceOf(TopNExec): an extract inserted BELOW the TopN leaves a TopNExec at the root.
+        assertSame(topN, applyRule(topN, columnExtractorAwareRegistry()));
     }
 
     /** A mode that keeps every row stays eligible even where a value can fail to convert. */

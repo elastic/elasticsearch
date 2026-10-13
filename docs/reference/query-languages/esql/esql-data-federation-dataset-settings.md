@@ -238,7 +238,7 @@ $$$split-probe-window$$$
 `split_probe_window` {applies_to}`stack: experimental 9.6+`
 :   The number of bytes that each record-boundary search can read while files are split.
 
-    - **Formats:** NDJSON, CSV and TSV without quoting or escaping, and CSV without an explicit `mode` whose sampled rows contain no quote or escape character
+    - **Formats:** NDJSON, CSV and TSV without quoting or escaping, and CSV split on newlines: `multiline_fields` set to `false`, or not set, with no explicit `mode`, `quote` or `escape` and sampled rows that contain no quote or escape character
     - **Default:** 256 KiB (`256kb`)
     - **Valid values:** A positive byte size. The product of `max_split_probes` and `split_probe_window` can't exceed 4 GiB.
     - **Related:** `max_split_probes`, `target_split_size`
@@ -255,7 +255,7 @@ $$$max-split-probes$$$
 `max_split_probes` {applies_to}`stack: experimental 9.6+`
 :   The maximum number of record-boundary searches that a query can perform, which limits how many splits its files are cut into.
 
-    - **Formats:** NDJSON, and CSV and TSV without quoting or escaping
+    - **Formats:** NDJSON, CSV and TSV without quoting or escaping, and CSV split on newlines: `multiline_fields` set to `false`, or not set, with no explicit `mode`, `quote` or `escape` and sampled rows that contain no quote or escape character
     - **Default:** `1000`
     - **Valid values:** An integer from `1` through `10000`. The product of `max_split_probes` and `split_probe_window` can't exceed 4 GiB.
     - **Related:** `split_probe_window`, `target_split_size`
@@ -325,6 +325,8 @@ $$$csv-mode$$$
     - **Related:** `quote`, `escape`
 
     An explicit `quote` or `escape` value overrides the preset.
+
+    {applies_to}`stack: experimental 9.6+` When `mode`, `quote` and `escape` aren't set and the rows sampled to infer a CSV file's schema contain no quote or escape character, the file is split on newlines for faster parallel reading. If a later row has a quoted field or an escaped line break that spans several lines, the query fails, whatever the `error_mode`. To read such files, set [`multiline_fields`](#csv-multiline-fields) to `true`, or set `mode` explicitly, for example to `quoted`.
 
     :::{dropdown} Why `escaped` with `quote` is rejected
     Setting `quote` turns quoting on, and the quoting parser doesn't decode escape sequences. The combination therefore reads neither as escaped nor as quoted data, so it's rejected when you create or update the dataset. A dataset stored with this combination before the check took effect continues to read.

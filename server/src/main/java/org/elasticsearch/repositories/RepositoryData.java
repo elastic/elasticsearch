@@ -348,7 +348,7 @@ public final class RepositoryData {
      * @param snapshotIds SnapshotId to remove
      * @return Iterator over indices that are changed but not removed
      */
-    public Iterator<IndexId> indicesToUpdateAfterRemovingSnapshot(Collection<SnapshotId> snapshotIds) {
+    public Iterator<IndexId> indicesToUpdateAfterRemovingSnapshot(Set<SnapshotId> snapshotIds) {
         return Iterators.flatMap(indexSnapshots.entrySet().iterator(), entry -> {
             if (isIndexToUpdateAfterRemovingSnapshots(entry.getValue(), snapshotIds)) {
                 return Iterators.single(entry.getKey());
@@ -358,17 +358,22 @@ public final class RepositoryData {
         });
     }
 
+    /**
+     * Whether deleting {@code snapshotsToDelete} rewrites this index's shard metadata without removing the index: i.e. at least one, but
+     * fewer than all of this index's snapshots are being deleted.
+     */
     private static boolean isIndexToUpdateAfterRemovingSnapshots(
         Collection<SnapshotId> snapshotsContainingIndex,
-        Collection<SnapshotId> snapshotsToDelete
+        Set<SnapshotId> snapshotsToDelete
     ) {
-        // TODO this method is pretty opaque, let's add some comments
-        if (snapshotsToDelete.containsAll(snapshotsContainingIndex)) {
-            return snapshotsContainingIndex.size() > snapshotsToDelete.size();
-        }
-        for (SnapshotId snapshotId : snapshotsToDelete) {
-            if (snapshotsContainingIndex.contains(snapshotId)) {
-                return true;
+        assert snapshotsToDelete.isEmpty() == false; // we could further optimize this case if needed, but it never happens
+        final var indexSnapshotsIterator = snapshotsContainingIndex.iterator();
+        if (indexSnapshotsIterator.hasNext()) {
+            final var deletingFirstSnapshot = snapshotsToDelete.contains(indexSnapshotsIterator.next());
+            while (indexSnapshotsIterator.hasNext()) {
+                if (snapshotsToDelete.contains(indexSnapshotsIterator.next()) != deletingFirstSnapshot) {
+                    return true;
+                }
             }
         }
         return false;
@@ -381,7 +386,7 @@ public final class RepositoryData {
      *
      * @param snapshotIds SnapshotIds to remove
      */
-    public Iterator<Tuple<IndexId, Collection<String>>> indexMetaDataToRemoveAfterRemovingSnapshots(Collection<SnapshotId> snapshotIds) {
+    public Iterator<Tuple<IndexId, Collection<String>>> indexMetaDataToRemoveAfterRemovingSnapshots(Set<SnapshotId> snapshotIds) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SNAPSHOT);
         final Set<String> allRemainingIdentifiers = indexMetaDataGenerations.lookup.entrySet()
             .stream()
@@ -533,7 +538,7 @@ public final class RepositoryData {
      *                                The {@code String[]} passed for each {@link IndexId} contains the new shard generation id for each
      *                                changed shard indexed by its shardId
      */
-    public RepositoryData removeSnapshots(final Collection<SnapshotId> snapshots, final ShardGenerations updatedShardGenerations) {
+    public RepositoryData removeSnapshots(final Set<SnapshotId> snapshots, final ShardGenerations updatedShardGenerations) {
         Map<String, SnapshotId> newSnapshotIds = snapshotIds.values()
             .stream()
             .filter(Predicate.not(snapshots::contains))

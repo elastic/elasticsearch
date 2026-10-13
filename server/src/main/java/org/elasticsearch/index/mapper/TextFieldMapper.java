@@ -1264,6 +1264,11 @@ public final class TextFieldMapper extends FieldMapper {
             }
         }
 
+        @Override
+        public boolean answersPositionsFromValues(SearchExecutionContext context) {
+            return verifiesPositionsFromDocValues(context);
+        }
+
         /**
          * Whether a query over positions this field did not index can be answered by analyzing its values again. Only a
          * strictly columnar index is taken to hold them, in the field's own doc values or, for a multi-field keeping

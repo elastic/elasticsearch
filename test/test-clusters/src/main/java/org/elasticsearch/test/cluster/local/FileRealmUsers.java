@@ -52,6 +52,10 @@ final class FileRealmUsers {
      * Adds {@code username} with an already computed password hash and the given comma-separated roles, splitting them
      * the same way {@code useradd} does. The file realm merges repeated role lines in {@code users_roles}, so each role is
      * appended as its own line.
+     * <p>
+     * Unlike {@code useradd}, this does not validate the username or roles. The node applies the same checks when it loads
+     * the files, so an invalid or reserved name is skipped with an error in the node log and requests as that user fail with
+     * 401 instead of setup failing.
      */
     static void addUser(Path configDir, String username, String passwordHash, String roles) {
         append(configDir.resolve("users"), username + ":" + passwordHash + "\n");

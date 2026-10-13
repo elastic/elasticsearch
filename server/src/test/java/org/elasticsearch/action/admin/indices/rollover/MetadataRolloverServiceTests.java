@@ -665,7 +665,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             MetadataDataStreamsService metadataDataStreamsService = new MetadataDataStreamsService(
                 clusterService,
                 indicesService,
-                DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings(), Settings.EMPTY),
+                DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings()),
                 IndexSettingProviders.EMPTY
             );
             for (String settingName : metadataDataStreamsService.getEffectiveSettings(

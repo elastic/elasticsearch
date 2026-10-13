@@ -26,8 +26,7 @@ public class DataStreamLifecycleSettingsTests extends ESTestCase {
 
     public void testDefaults() {
         DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(
-            ClusterSettings.createBuiltInClusterSettings(),
-            Settings.EMPTY
+            ClusterSettings.createBuiltInClusterSettings()
         );
 
         assertThat(dataStreamLifecycleSettings.getDefaultRetention(), nullValue());
@@ -43,7 +42,7 @@ public class DataStreamLifecycleSettingsTests extends ESTestCase {
 
     public void testMonitorsDefaultRetention() {
         ClusterSettings clusterSettings = ClusterSettings.createBuiltInClusterSettings();
-        DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(clusterSettings, Settings.EMPTY);
+        DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(clusterSettings);
 
         // Test valid update
         TimeValue newDefaultRetention = TimeValue.timeValueDays(randomIntBetween(1, 10));
@@ -78,7 +77,7 @@ public class DataStreamLifecycleSettingsTests extends ESTestCase {
 
     public void testMonitorsMaxRetention() {
         ClusterSettings clusterSettings = ClusterSettings.createBuiltInClusterSettings();
-        DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(clusterSettings, Settings.EMPTY);
+        DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(clusterSettings);
 
         // Test valid update
         TimeValue newMaxRetention = TimeValue.timeValueDays(randomIntBetween(10, 29));
@@ -118,7 +117,7 @@ public class DataStreamLifecycleSettingsTests extends ESTestCase {
 
     public void testMonitorsDefaultFailuresRetention() {
         ClusterSettings clusterSettings = ClusterSettings.createBuiltInClusterSettings();
-        DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(clusterSettings, Settings.EMPTY);
+        DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(clusterSettings);
 
         // Test valid update
         TimeValue newDefaultRetention = TimeValue.timeValueDays(randomIntBetween(1, 10));
@@ -160,7 +159,7 @@ public class DataStreamLifecycleSettingsTests extends ESTestCase {
 
     public void testCombinationValidation() {
         ClusterSettings clusterSettings = ClusterSettings.createBuiltInClusterSettings();
-        DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(clusterSettings, Settings.EMPTY);
+        DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(clusterSettings);
 
         // Test invalid update
         Settings newInvalidSettings = Settings.builder()
@@ -215,12 +214,10 @@ public class DataStreamLifecycleSettingsTests extends ESTestCase {
     }
 
     public void testMinimumLifecycleIsDisabledWhenSettingIsNotRegistered() {
-        // Without the ILM plugin the setting is not registered, so it cannot be enabled, not even via the node settings.
         DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(
             ClusterSettings.createBuiltInClusterSettings(
                 Settings.builder().put(DataStreamLifecycleSettings.MINIMUM_LIFECYCLE_ENABLED_SETTING_NAME, true).build()
-            ),
-            Settings.EMPTY
+            )
         );
         assertThat(dataStreamLifecycleSettings.minimumLifecycleEnabled(), equalTo(false));
     }
@@ -231,7 +228,7 @@ public class DataStreamLifecycleSettingsTests extends ESTestCase {
         settingsSet.add(DataStreamLifecycleSettings.MINIMUM_LIFECYCLE_ENABLED_SETTING);
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, settingsSet);
 
-        DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(clusterSettings, Settings.EMPTY);
+        DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(clusterSettings);
 
         assertThat(dataStreamLifecycleSettings.minimumLifecycleEnabled(), equalTo(true));
 

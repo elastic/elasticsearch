@@ -163,7 +163,7 @@ public class TransportBulkActionTests extends ESTestCase {
                     }
                 },
                 new TimeSeriesEligibleWriteWindowLocator(),
-                DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings(), Settings.EMPTY)
+                DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings())
             );
         }
 

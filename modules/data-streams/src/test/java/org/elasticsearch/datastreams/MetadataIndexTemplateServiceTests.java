@@ -322,7 +322,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             xContentRegistry(),
             EmptySystemIndices.INSTANCE,
             indexSettingProviders,
-            DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings(), Settings.EMPTY)
+            DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings())
         );
     }
 

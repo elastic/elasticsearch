@@ -75,7 +75,7 @@ public class TransportExplainDataStreamLifecycleActionTests extends ESTestCase {
             TestProjectResolvers.alwaysThrow(),
             TestIndexNameExpressionResolver.newInstance(),
             mock(DataStreamLifecycleErrorStore.class),
-            DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings(), Settings.EMPTY),
+            DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings()),
             FrozenTransitionInfoProvider.noop()
         );
     }

@@ -164,7 +164,7 @@ id:long | h:integer
 // share one, and {{spaced_timestamps}} holds the same value in both.
 declaredDateAndDateNanosReadTheSameSpaceSeparatedCell
 required_capability: dataset_in_from_command
-required_capability: external_csv_date_nanos_accepts_the_datetime_grammar
+required_capability: external_csv_date_nanos_accepts_space_separated_timestamp
 dataset: spaced_ts: "{{spaced_timestamps}}" WITH {"mappings": {"dynamic": "false", "properties": {"as_date": {"type": "date", "path": "ts_a"}, "as_nanos": {"type": "date_nanos", "path": "ts_b"}}}}
 
 FROM spaced_ts

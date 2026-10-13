@@ -147,9 +147,8 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * The same cell with a zone, which neither ladder's fast template accepts: both types reach their general
-     * parser and still agree about the instant. This is the stage the {@code date_nanos} ladder was missing on top
-     * of the template one.
+     * The same cell with a trailing {@code Z}, which the {@code date_nanos} template now accepts; both types
+     * reach the template and agree about the instant, with no general parser needed.
      */
     public void testCsvSpaceSeparatedTimestampWithZoneReadsAsBothTemporalTypes() throws Exception {
         String cell = "2021-01-01 10:00:00.123456789Z\n";

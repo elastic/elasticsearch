@@ -65,6 +65,7 @@ public class StoragePathTests extends ESTestCase {
     public void testPatternPrefixPlusLeadIsAlwaysAPrefixOfThePattern() {
         List<String> patterns = List.of(
             "s3://b/data/date=2024-01-0*/*.parquet",
+            "s3://b/data/year=2024/part-*.csv",
             "s3://b/data/part-*.csv",
             "s3://b/data/*.parquet",
             "s3://b/data/year=*/month=0[1-3]/*.parquet",

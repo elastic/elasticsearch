@@ -7,4 +7,7 @@ dependencies {
   api project(':test:framework')
   api project(":client:rest")
   api project(":client:sniffer")
+
+  // optional dependency
+  compileOnly project(":test:test-clusters")
 }

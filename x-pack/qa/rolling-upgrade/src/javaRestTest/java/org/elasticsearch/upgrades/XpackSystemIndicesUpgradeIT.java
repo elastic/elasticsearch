@@ -9,6 +9,7 @@ package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -37,7 +38,7 @@ public class XpackSystemIndicesUpgradeIT extends AbstractXpackRollingUpgradeWith
     @BeforeClass
     public static void avoidBugIn8_0_1() {
         // 8.0.1 crashes when the X-elastic-product-origin header propagates to transport threads; skip to avoid cluster instability.
-        assumeTrue("https://github.com/elastic/elasticsearch/issues/125168", getOldClusterTestVersion().onOrAfter("8.1.0"));
+        assumeTrue("https://github.com/elastic/elasticsearch/issues/125168", UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_1_0));
     }
 
     private static final String BASIC_AUTH_VALUE = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
@@ -129,7 +130,7 @@ public class XpackSystemIndicesUpgradeIT extends AbstractXpackRollingUpgradeWith
         createUser(upgradeUser, upgradeUserPassword, "upgrade_role");
 
         try (RestClient upgradeUserClient = getClient(upgradeUser, upgradeUserPassword)) {
-            boolean upgradeRequired = getOldClusterTestVersion().before(SystemIndices.NO_UPGRADE_REQUIRED_VERSION.toString());
+            boolean upgradeRequired = UPGRADE_FROM_VERSION.before(SystemIndices.NO_UPGRADE_REQUIRED_VERSION);
             String expectedStatus = (upgradeRequired) ? "MIGRATION_NEEDED" : "NO_MIGRATION_NEEDED";
 
             assertThat(

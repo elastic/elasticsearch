@@ -799,6 +799,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 new RestEsqlStopAsyncAction(),
                 new RestEsqlDeleteAsyncResultAction(),
                 new RestEsqlListQueriesAction(),
+                new RestEsqlStatsAction(),
                 new RestPutViewAction(),
                 new RestDeleteViewAction(),
                 new RestGetViewAction()

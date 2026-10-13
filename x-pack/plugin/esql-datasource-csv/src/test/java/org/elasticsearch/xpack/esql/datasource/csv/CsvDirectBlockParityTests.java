@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -1890,6 +1891,9 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     }
 
     private record InMemoryStorageObject(byte[] bytes) implements StorageObject {
+        @Override
+        public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
         @Override
         public InputStream newStream() {
             return new ByteArrayInputStream(bytes);

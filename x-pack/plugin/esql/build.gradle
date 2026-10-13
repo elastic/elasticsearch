@@ -172,6 +172,10 @@ tasks.named("test").configure {
   // inadvertently affected — the per-buffer ledger overhead invalidates timing measurements
   // (OptimizedReaderPerformanceTests is already excluded from the test task for this reason).
   systemProperty 'arrow.memory.debug.allocator', 'true'
+  // FileDataSourceValidatorDocCoverageTests reads this page, so a docs-only edit must rerun the tests.
+  inputs.file("${rootDir}/docs/reference/query-languages/esql/esql-data-federation-dataset-settings.md")
+    .withPropertyName('datasetSettingsDoc')
+    .withPathSensitivity(PathSensitivity.RELATIVE)
 }
 
 

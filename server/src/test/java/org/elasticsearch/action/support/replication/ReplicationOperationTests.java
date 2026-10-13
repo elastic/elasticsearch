@@ -395,8 +395,7 @@ public class ReplicationOperationTests extends ESTestCase {
         final long primaryTerm = indexMetadata.primaryTerm(0);
         final IndexShardRoutingTable indexShardRoutingTable = initialState.getRoutingTable().shardRoutingTable(shardId);
         final ShardRouting primaryShard = indexShardRoutingTable.primaryShard();
-        final Set<String> trackedShards = new HashSet<>();
-        addTrackingInfo(indexShardRoutingTable, primaryShard, trackedShards, new HashSet<>());
+        final Set<String> trackedShards = indexShardRoutingTable.getPromotableAllocationIds();
         final ReplicationGroup replicationGroup = new ReplicationGroup(
             indexShardRoutingTable,
             indexMetadata.inSyncAllocationIds(0),

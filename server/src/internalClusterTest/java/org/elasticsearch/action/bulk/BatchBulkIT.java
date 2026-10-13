@@ -35,7 +35,6 @@ import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -2701,7 +2700,6 @@ public class BatchBulkIT extends ESIntegTestCase {
      * seen once, so the column is written over the shapes its layout is chosen from rather than one of them.
      */
     public void testColumnarCodecBatchMatchesRowPath() throws IOException {
-        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
         final String batched = "test-columnar-codec-batched";
         final String sequential = "test-columnar-codec-sequential";
 

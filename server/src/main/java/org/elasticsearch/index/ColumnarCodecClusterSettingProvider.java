@@ -14,7 +14,6 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 
 import java.time.Instant;
 import java.util.List;
@@ -34,10 +33,6 @@ import java.util.List;
  * <p>When disabled, the provider overrules any template or create request value and forces
  * {@link IndexSettings#COLUMNAR_CODEC_ENABLED_SETTING} to {@code false}, so the cluster wide kill switch wins
  * over a per-index opt-in.
- *
- * <p>Like the per-index opt-in, the kill switch is only registered while the {@code columnar_codec} feature flag
- * is enabled, so a release build without the flag does not expose it. Callers gate registration on
- * {@link #isFeatureFlagEnabled()}.
  */
 public final class ColumnarCodecClusterSettingProvider implements IndexSettingProvider {
 
@@ -53,15 +48,6 @@ public final class ColumnarCodecClusterSettingProvider implements IndexSettingPr
     public ColumnarCodecClusterSettingProvider(final ClusterSettings clusterSettings) {
         this.enabled = clusterSettings.get(COLUMNAR_CODEC_CLUSTER_ENABLED_SETTING);
         clusterSettings.addSettingsUpdateConsumer(COLUMNAR_CODEC_CLUSTER_ENABLED_SETTING, value -> this.enabled = value);
-    }
-
-    /**
-     * @return {@code true} if the {@code columnar_codec} feature flag is enabled. The kill switch and this provider
-     *         are only registered while the flag is enabled, mirroring the gating of the per-index
-     *         {@link IndexSettings#COLUMNAR_CODEC_ENABLED_SETTING}.
-     */
-    public static boolean isFeatureFlagEnabled() {
-        return ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled();
     }
 
     @Override

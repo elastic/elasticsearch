@@ -27,7 +27,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
-import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
@@ -557,7 +556,6 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     }
 
     public void testColumnarUsedForKeywordInColumnarModeWhenEnabled() throws IOException {
-        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
         for (IndexMode mode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(mode, randomColumnarEligibleIndexVersion(), true);
             assertThat("mode=" + mode, supplier.getDocValuesFormatForField("category"), instanceOf(ColumNARDocValuesFormat.class));
@@ -565,7 +563,6 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     }
 
     public void testColumnarNotUsedForNonKeywordField() throws IOException {
-        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
         final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(
             randomColumnarMode(),
             randomColumnarEligibleIndexVersion(),
@@ -582,7 +579,6 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     }
 
     public void testColumnarNotUsedWhenSettingDisabled() throws IOException {
-        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
         final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(
             randomColumnarMode(),
             randomColumnarEligibleIndexVersion(),
@@ -592,31 +588,18 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     }
 
     public void testColumnarNotUsedInNonColumnarMode() throws IOException {
-        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
         final IndexMode nonColumnarMode = randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB);
         final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(nonColumnarMode, randomColumnarEligibleIndexVersion(), true);
         assertFalse("mode=" + nonColumnarMode, supplier.getDocValuesFormatForField("category") instanceof ColumNARDocValuesFormat);
     }
 
     public void testColumnarNotUsedForOldIndexVersion() throws IOException {
-        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
-        final IndexVersion oldVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG);
+        final IndexVersion oldVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG);
         final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(randomColumnarMode(), oldVersion, true);
         assertFalse(supplier.getDocValuesFormatForField("category") instanceof ColumNARDocValuesFormat);
     }
 
-    public void testColumnarNotSelectedWhenFlagDisabled() throws IOException {
-        assumeFalse("columnar_codec feature flag must be disabled", columnarFeatureFlagEnabled());
-        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(
-            randomColumnarMode(),
-            randomColumnarEligibleIndexVersion(),
-            true
-        );
-        assertFalse(supplier.getDocValuesFormatForField("category") instanceof ColumNARDocValuesFormat);
-    }
-
     public void testColumnarUsedForTextInColumnarModeWhenEnabled() throws IOException {
-        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
         for (IndexMode mode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(mode, randomColumnarEligibleIndexVersion(), true);
             assertThat("mode=" + mode, supplier.getDocValuesFormatForField("body"), instanceOf(ColumNARDocValuesFormat.class));
@@ -624,7 +607,6 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     }
 
     public void testColumnarNotUsedForTextWhenSettingDisabled() throws IOException {
-        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
         final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(
             randomColumnarMode(),
             randomColumnarEligibleIndexVersion(),
@@ -634,32 +616,19 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     }
 
     public void testColumnarNotUsedForTextInNonColumnarMode() throws IOException {
-        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
         final IndexMode nonColumnarMode = randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB);
         final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(nonColumnarMode, randomColumnarEligibleIndexVersion(), true);
         assertFalse("mode=" + nonColumnarMode, supplier.getDocValuesFormatForField("body") instanceof ColumNARDocValuesFormat);
     }
 
     public void testColumnarNotUsedForTextOnOldIndexVersion() throws IOException {
-        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
-        final IndexVersion oldVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG);
+        final IndexVersion oldVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG);
         final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(randomColumnarMode(), oldVersion, true);
-        assertFalse(supplier.getDocValuesFormatForField("body") instanceof ColumNARDocValuesFormat);
-    }
-
-    public void testColumnarNotSelectedForTextWhenFlagDisabled() throws IOException {
-        assumeFalse("columnar_codec feature flag must be disabled", columnarFeatureFlagEnabled());
-        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(
-            randomColumnarMode(),
-            randomColumnarEligibleIndexVersion(),
-            true
-        );
         assertFalse(supplier.getDocValuesFormatForField("body") instanceof ColumNARDocValuesFormat);
     }
 
     /** A text column is written without a dictionary; a keyword column with one. */
     public void testTextAsksForNoDictionary() throws IOException {
-        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
         final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(
             randomColumnarMode(),
             randomColumnarEligibleIndexVersion(),
@@ -677,7 +646,6 @@ public class PerFieldMapperCodecTests extends ESTestCase {
 
     /** The field says how its string column is written, and a field that is not one says nothing. */
     public void testColumnarStringOptionsComeFromTheField() throws IOException {
-        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
         final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(
             randomColumnarMode(),
             randomColumnarEligibleIndexVersion(),
@@ -692,17 +660,12 @@ public class PerFieldMapperCodecTests extends ESTestCase {
 
     /** A field the codec does not store is not written as a string column, whatever its type. */
     public void testColumnarStringOptionsAbsentWhenTheCodecIsOff() throws IOException {
-        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
         final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(
             randomColumnarMode(),
             randomColumnarEligibleIndexVersion(),
             false
         );
         assertNull(supplier.columnarStringOptionsOf("category"));
-    }
-
-    private static boolean columnarFeatureFlagEnabled() {
-        return ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled();
     }
 
     /**
@@ -733,7 +696,6 @@ public class PerFieldMapperCodecTests extends ESTestCase {
      */
     public void testVectorDbColumnarStringColumnsUseSmallChunks() throws IOException {
         assumeTrue("vectordb_columnar must be enabled", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
-        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
         final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(
             IndexMode.VECTORDB_COLUMNAR,
             randomColumnarEligibleIndexVersion(),
@@ -755,7 +717,6 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     }
 
     public void testStringColumnOptionsKeepEachFieldsFramingInEveryColumnarMode() throws IOException {
-        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
         final List<IndexMode> modes = new ArrayList<>(List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR));
         if (IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled()) {
             modes.add(IndexMode.VECTORDB_COLUMNAR);
@@ -792,7 +753,6 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     }
 
     public void testStringColumnOptionsAreNotGuessedForAFieldWithoutThem() throws IOException {
-        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
         final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(
             randomColumnarMode(),
             randomColumnarEligibleIndexVersion(),
@@ -812,7 +772,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     }
 
     private static IndexVersion randomColumnarEligibleIndexVersion() {
-        return IndexVersionUtils.randomVersionBetween(IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG, IndexVersion.current());
+        return IndexVersionUtils.randomVersionBetween(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG, IndexVersion.current());
     }
 
     private PerFieldFormatSupplier createColumnarFormatSupplier(

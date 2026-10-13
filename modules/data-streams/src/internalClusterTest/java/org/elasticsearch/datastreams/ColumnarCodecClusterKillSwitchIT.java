@@ -60,13 +60,11 @@ public class ColumnarCodecClusterKillSwitchIT extends ESIntegTestCase {
     }
 
     public void testSwitchOnByDefaultKeepsColumnarOptIn() {
-        assumeTrue("columnar_codec feature flag must be enabled", ColumnarCodecClusterSettingProvider.isFeatureFlagEnabled());
         final String index = createColumnarIndex("columnar-on-" + randomIdentifier());
         assertThat(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.get(indexSettingsFor(index)), equalTo(true));
     }
 
     public void testSwitchOffDisablesNewColumnarIndex() {
-        assumeTrue("columnar_codec feature flag must be enabled", ColumnarCodecClusterSettingProvider.isFeatureFlagEnabled());
         updateClusterSettings(Settings.builder().put(CLUSTER_KEY, false));
         try {
             final String index = createColumnarIndex("columnar-off-" + randomIdentifier());
@@ -77,7 +75,6 @@ public class ColumnarCodecClusterKillSwitchIT extends ESIntegTestCase {
     }
 
     public void testExistingColumnarIndexUnaffectedWhenSwitchFlippedOff() {
-        assumeTrue("columnar_codec feature flag must be enabled", ColumnarCodecClusterSettingProvider.isFeatureFlagEnabled());
         final String existing = createColumnarIndex("columnar-existing-" + randomIdentifier());
         assertThat(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.get(indexSettingsFor(existing)), equalTo(true));
 
@@ -93,7 +90,6 @@ public class ColumnarCodecClusterKillSwitchIT extends ESIntegTestCase {
     }
 
     public void testSwitchOffDoesNotStickyThroughDataStreamSettingsUpdate() throws Exception {
-        assumeTrue("columnar_codec feature flag must be enabled", ColumnarCodecClusterSettingProvider.isFeatureFlagEnabled());
         final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
         final String dsName = "ds-columnar-" + randomIdentifier();
         putColumnarDataStreamTemplate(dsName, mode);

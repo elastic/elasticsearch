@@ -18,18 +18,9 @@ import java.util.List;
 
 public class DataStreamsPluginTests extends ESTestCase {
 
-    public void testColumnarClusterKillSwitchRegisteredWhenFlagEnabled() {
-        assumeTrue("columnar_codec feature flag must be enabled", ColumnarCodecClusterSettingProvider.isFeatureFlagEnabled());
+    public void testColumnarClusterKillSwitchRegistered() {
         assertTrue(
-            "cluster.columnar_codec.enabled must be registered when the columnar_codec feature flag is enabled",
-            settingKeys().contains(ColumnarCodecClusterSettingProvider.COLUMNAR_CODEC_CLUSTER_ENABLED_SETTING.getKey())
-        );
-    }
-
-    public void testColumnarClusterKillSwitchNotRegisteredWhenFlagDisabled() {
-        assumeFalse("columnar_codec feature flag must be disabled", ColumnarCodecClusterSettingProvider.isFeatureFlagEnabled());
-        assertFalse(
-            "cluster.columnar_codec.enabled must not be registered when the columnar_codec feature flag is disabled",
+            "cluster.columnar_codec.enabled must be registered",
             settingKeys().contains(ColumnarCodecClusterSettingProvider.COLUMNAR_CODEC_CLUSTER_ENABLED_SETTING.getKey())
         );
     }

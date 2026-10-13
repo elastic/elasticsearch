@@ -41,7 +41,6 @@ public class ColumnarTextCodecTests extends ESSingleNodeTestCase {
     private static final String FIELD = "body";
 
     public void testTextIsStoredByTheCodec() throws IOException {
-        assumeColumnarCodecEnabled();
         final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
         createIndex(INDEX, columnarSettings(mode, true), "@timestamp", "type=date", FIELD, "type=text");
         index(0, "\"a line of a log\"");
@@ -52,7 +51,6 @@ public class ColumnarTextCodecTests extends ESSingleNodeTestCase {
 
     /** With the codec off the same field keeps the format it had, so the gate is what moves it. */
     public void testTextIsNotStoredByTheCodecWhenItIsOff() throws IOException {
-        assumeColumnarCodecEnabled();
         final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
         createIndex(INDEX, columnarSettings(mode, false), "@timestamp", "type=date", FIELD, "type=text");
         index(0, "\"a line of a log\"");
@@ -62,7 +60,6 @@ public class ColumnarTextCodecTests extends ESSingleNodeTestCase {
     }
 
     public void testTextIsSearchableAndReadableThroughTheCodec() throws IOException {
-        assumeColumnarCodecEnabled();
         createIndex(
             INDEX,
             columnarSettings(randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR), true),
@@ -88,7 +85,6 @@ public class ColumnarTextCodecTests extends ESSingleNodeTestCase {
      * with an inline null has to come back through {@code _source} exactly as it went in, position and all.
      */
     public void testArraysAndNullsRoundTripThroughSource() throws IOException {
-        assumeColumnarCodecEnabled();
         createIndex(
             INDEX,
             columnarSettings(randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR), true),
@@ -121,10 +117,6 @@ public class ColumnarTextCodecTests extends ESSingleNodeTestCase {
         prepareIndex(INDEX).setId(Integer.toString(id))
             .setSource("{\"@timestamp\":\"2024-01-01T00:00:0" + id + "Z\",\"" + FIELD + "\":" + json + "}", XContentType.JSON)
             .get();
-    }
-
-    private void assumeColumnarCodecEnabled() {
-        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
     }
 
     private static Settings columnarSettings(IndexMode mode, boolean codecEnabled) {

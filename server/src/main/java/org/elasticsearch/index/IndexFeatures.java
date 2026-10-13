@@ -28,6 +28,14 @@ public class IndexFeatures implements FeatureSpecification {
         return Set.of();
     }
 
+    /**
+     * The ColumNAR codec no longer sits behind a feature flag. Indices created by a node without this feature may have been
+     * written with the codec under an index version that predates {@link IndexVersions#COLUMNAR_CODEC_NO_FEATURE_FLAG}, which
+     * a node with this feature reads as not using it, so upgrade tests turn the codec off on columnar indices they create in an
+     * old cluster without this feature.
+     */
+    public static final NodeFeature COLUMNAR_CODEC_NO_FEATURE_FLAG = new NodeFeature("index.columnar_codec_no_feature_flag");
+
     public static final NodeFeature LOGSDB_NO_HOST_NAME_FIELD = new NodeFeature("index.logsdb_no_host_name_field");
 
     public static final NodeFeature TIME_SERIES_SYNTHETIC_ID = new NodeFeature("index.time_series_synthetic_id");
@@ -85,7 +93,8 @@ public class IndexFeatures implements FeatureSpecification {
                 InferenceMetadataFieldsMapper.INFERENCE_FIELDS_GET_VIA_SOURCE_EXCLUDE_VECTORS,
                 MERGE_SCHEDULER_CLAMPS_MAX_THREAD_COUNT,
                 STATS_INCLUDE_AUTO_CALIBRATION,
-                SEGMENTS_INCLUDE_AUTO_CALIBRATION
+                SEGMENTS_INCLUDE_AUTO_CALIBRATION,
+                COLUMNAR_CODEC_NO_FEATURE_FLAG
             )
         );
         return Set.copyOf(features);

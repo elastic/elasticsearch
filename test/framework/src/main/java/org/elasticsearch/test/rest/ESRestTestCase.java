@@ -72,6 +72,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.node.selection.HealthNode;
+import org.elasticsearch.index.IndexFeatures;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -367,6 +368,23 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     protected static boolean clusterHasFeature(NodeFeature feature) {
         return testFeatureService.clusterHasFeature(feature.id(), false);
+    }
+
+    /**
+     * Whether the cluster is a build that writes ColumNAR doc values behind the {@code columnar_codec} feature flag. Such a
+     * build stamps them with an index version that later builds read as not using the codec, so an upgrade test that
+     * creates a strict columnar index on it must set {@code index.columnar_codec.enabled: false}. Builds that predate the
+     * codec do not register its cluster kill switch, and builds that dropped the flag advertise
+     * {@link IndexFeatures#COLUMNAR_CODEC_NO_FEATURE_FLAG}; neither needs the setting.
+     */
+    protected static boolean clusterHasFlaggedColumnarCodec() throws IOException {
+        if (clusterHasFeature(IndexFeatures.COLUMNAR_CODEC_NO_FEATURE_FLAG)) {
+            return false;
+        }
+        Request request = new Request("GET", "/_cluster/settings");
+        request.addParameter("include_defaults", "true");
+        request.addParameter("filter_path", "defaults.cluster.columnar_codec.enabled");
+        return entityAsMap(adminClient().performRequest(request)).isEmpty() == false;
     }
 
     protected static boolean testFeatureServiceInitialized() {

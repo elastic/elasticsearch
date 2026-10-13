@@ -44,8 +44,6 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
     private static final String INDEX = "columnar-index";
 
     public void testColumnarCodecSettingIsSetOnColumnarIndex() {
-        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
-
         final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
         final IndexService indexService = createIndex(INDEX, columnarSettings(mode), "@timestamp", "type=date", "kw", "type=keyword");
         assertTrue("mode=" + mode, indexService.getIndexSettings().isColumnarCodecEnabled());
@@ -55,8 +53,6 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
     }
 
     public void testKeywordRoundTripsThroughColumnarCodec() throws IOException {
-        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
-
         final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
         final String mapping = Strings.format("""
             {"properties":{"@timestamp":{"type":"date"},"kw":{"type":"keyword","doc_values":{"multi_value":%s}}}}""", randomBoolean());
@@ -73,8 +69,6 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
     }
 
     public void testMultiValuedKeywordRoundTripsThroughColumnarCodec() throws IOException {
-        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
-
         final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
         createIndex(INDEX, columnarSettings(mode), "@timestamp", "type=date", "kw", "type=keyword");
         prepareIndex(INDEX).setSource("@timestamp", "2024-01-01T00:00:00Z", "kw", List.of("red", "green", "blue")).get();
@@ -93,8 +87,6 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
      * with an inline null has to come back through {@code _source} exactly as it went in — position and all.
      */
     public void testMultiValuedKeywordWithNullsRoundTripsThroughSource() throws IOException {
-        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
-
         final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
         createIndex(INDEX, columnarSettings(mode), "@timestamp", "type=date", "kw", "type=keyword");
         // Each array as it goes in, beside what _source has to render it as; a lone value is not wrapped in a list.
@@ -126,8 +118,6 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
      * indexes the same documents with the codec on and off and requires the two to agree.
      */
     public void testValuelessArraysRenderAsTheyDoWithoutTheCodec() throws IOException {
-        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
-
         final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
         final List<String> arrays = List.of("[null]", "[]", "[null, null]", "[\"a\"]", "[\"a\", null]");
 
@@ -163,8 +153,6 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
      * as the value — this pins that against the same field with the codec off.
      */
     public void testSingleValuedFieldRendersAsItDoesWithoutTheCodec() throws IOException {
-        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
-
         final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
         final String mapping = """
             {"properties":{"@timestamp":{"type":"date"},"kw":{"type":"keyword","doc_values":{"multi_value":false}}}}""";
@@ -204,8 +192,6 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
      * and several batches force-merged. Documents without the field sort to whichever end {@code missing} names.
      */
     public void testIndexSortedByKeywordWithOneValuePerDocument() throws IOException {
-        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
-
         final boolean descending = randomBoolean();
         final boolean missingFirst = randomBoolean();
         final String mapping = Strings.format("""
@@ -300,8 +286,6 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
      * that, including the empty-term case, which rewrites to a length query and has to recognise the payload again.
      */
     public void testDocValuesOnlyQueriesReadTheColumnarPayload() throws IOException {
-        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
-
         final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
         final String mapping = """
             {"properties":{"@timestamp":{"type":"date"},"kw":{"type":"keyword","index":false}}}""";
@@ -336,8 +320,6 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
      * column being single-valued in the sense that every slot holds a value.
      */
     public void testExplicitNullsAlongsideSingleValues() throws IOException {
-        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
-
         final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
         final String mapping = """
             {"properties":{"@timestamp":{"type":"date"},"kw":{"type":"keyword","index":false}}}""";
@@ -368,8 +350,6 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
      * agrees with the path it is standing in for, on documents holding several values, nulls, and the empty string.
      */
     public void testEveryQueryShapeAgreesWithTheFormatItReplaces() throws IOException {
-        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
-
         final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
         final String mapping = """
             {"properties":{"@timestamp":{"type":"date"},"kw":{"type":"keyword","index":false}}}""";

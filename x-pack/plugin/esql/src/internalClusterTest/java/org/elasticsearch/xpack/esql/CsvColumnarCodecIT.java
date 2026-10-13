@@ -11,7 +11,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.junit.BeforeClass;
 
@@ -41,7 +40,6 @@ public class CsvColumnarCodecIT extends CsvColumnarIT {
      */
     @BeforeClass
     public static void installColumnarCodecStrategy() {
-        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
         indexLoadStrategy = new ColumnarStrategy(
             Settings.builder().put(modeSettings()).put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), true).build()
         );

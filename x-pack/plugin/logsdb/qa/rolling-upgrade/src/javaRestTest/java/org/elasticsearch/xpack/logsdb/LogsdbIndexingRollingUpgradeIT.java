@@ -85,9 +85,15 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
             // Disable the TSDB doc-values format so both old and new nodes use stored fields,
             // eliminating the conflict while still exercising _ignored_source via synthetic_source_keep.
             final boolean ignoredSourceFormatIsStable = oldVersion.before("9.4.0") || oldVersion.onOrAfter(Version.fromString("9.5.0"));
-            final String settingsJson = ignoredSourceFormatIsStable
-                ? ""
-                : "\"settings\": {\"index.use_time_series_doc_values_format\": false},";
+            final String settingsJson;
+            if (ignoredSourceFormatIsStable == false) {
+                settingsJson = "\"settings\": {\"index.use_time_series_doc_values_format\": false},";
+            } else if (columnarEnabled && clusterHasFlaggedColumnarCodec()) {
+                // The old cluster writes ColumNAR doc values behind the feature flag, which the new nodes read as not using them.
+                settingsJson = "\"settings\": {\"index.columnar_codec.enabled\": false},";
+            } else {
+                settingsJson = "";
+            }
             template = template.replace("%%settings%%", settingsJson);
 
             String templateId = getClass().getSimpleName().toLowerCase(Locale.ROOT);

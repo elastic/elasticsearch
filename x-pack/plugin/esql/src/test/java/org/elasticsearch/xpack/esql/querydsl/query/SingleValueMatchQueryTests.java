@@ -38,7 +38,6 @@ import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.ColumnarBinaryDocValuesField;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -80,11 +79,6 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
          */
         default Settings indexSettings() {
             return Settings.EMPTY;
-        }
-
-        /** Whether this setup writes the ColumNAR codec's payload, which it can only do where the codec is available. */
-        default boolean needsColumnarCodec() {
-            return false;
         }
     }
 
@@ -136,7 +130,6 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
     }
 
     public void testQuery() throws IOException {
-        assumeCodecAvailable();
         MapperService mapper = createMapperService(setup.indexSettings(), mapping(setup::mapping));
         try (Directory d = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), d)) {
             List<List<Object>> fieldValues = setup.build(iw);
@@ -153,7 +146,6 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
     }
 
     public void testEmpty() throws IOException {
-        assumeCodecAvailable();
         MapperService mapper = createMapperService(setup.indexSettings(), mapping(setup::mapping));
         try (Directory d = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), d)) {
             try (IndexReader reader = iw.getReader()) {
@@ -164,14 +156,6 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
                 );
             }
         }
-    }
-
-    /** A setup that writes the codec's payload only runs where the codec can be turned on. */
-    private void assumeCodecAvailable() {
-        assumeTrue(
-            "columnar_codec feature flag must be enabled",
-            setup.needsColumnarCodec() == false || ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()
-        );
     }
 
     @FunctionalInterface
@@ -252,11 +236,6 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
                         .build();
                 case DEFAULT, DOC_VALUES_ONLY -> Settings.EMPTY;
             };
-        }
-
-        @Override
-        public boolean needsColumnarCodec() {
-            return docValuesMode.columnarCodec();
         }
 
         @Override

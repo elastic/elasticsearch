@@ -221,9 +221,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
         pluginSettings.add(TransportPastTimeSeriesIndexCreationAction.PAST_TSDB_INDEX_INTERVAL);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TSDB_TARGET_FACTOR_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TSDB_TARGET_FLOOR_SEGMENT_SETTING);
-        if (ColumnarCodecClusterSettingProvider.isFeatureFlagEnabled()) {
-            pluginSettings.add(ColumnarCodecClusterSettingProvider.COLUMNAR_CODEC_CLUSTER_ENABLED_SETTING);
-        }
+        pluginSettings.add(ColumnarCodecClusterSettingProvider.COLUMNAR_CODEC_CLUSTER_ENABLED_SETTING);
         return pluginSettings;
     }
 
@@ -331,9 +329,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
         final List<IndexSettingProvider> providers = new ArrayList<>();
         providers.add(new DataStreamIndexSettingsProvider(parameters.mapperServiceFactory(), settings));
         providers.add(new ES95CodecClusterSettingProvider(parameters.clusterService().getClusterSettings()));
-        if (ColumnarCodecClusterSettingProvider.isFeatureFlagEnabled()) {
-            providers.add(new ColumnarCodecClusterSettingProvider(parameters.clusterService().getClusterSettings()));
-        }
+        providers.add(new ColumnarCodecClusterSettingProvider(parameters.clusterService().getClusterSettings()));
         return providers;
     }
 

@@ -77,7 +77,7 @@ public class IndexingIT extends AbstractRollingUpgradeTestCase {
         }
 
         if (isOldCluster()) {
-            String indexMode = randomlyUseColumnarMode() ? ", \"index.mode\": \"columnar\"" : "";
+            String indexMode = randomColumnarModeSettings();
             Request createTestIndex = new Request("PUT", "/test_index");
             createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0" + indexMode + "}}");
             useIgnoreMultipleMatchingTemplatesWarningsHandler(createTestIndex);
@@ -139,7 +139,7 @@ public class IndexingIT extends AbstractRollingUpgradeTestCase {
         bulk.setJsonEntity(b);
 
         if (isOldCluster()) {
-            String indexMode = randomlyUseColumnarMode() ? ", \"index.mode\": \"columnar\"" : "";
+            String indexMode = randomColumnarModeSettings();
             Request createTestIndex = new Request("PUT", "/" + indexName);
             createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0" + indexMode + "}}");
             client().performRequest(createTestIndex);
@@ -171,7 +171,11 @@ public class IndexingIT extends AbstractRollingUpgradeTestCase {
             Request createIndex = new Request("PUT", "/" + indexName);
             XContentBuilder mappings = XContentBuilder.builder(XContentType.JSON.xContent()).startObject();
             if (randomlyUseColumnarMode()) {
-                mappings.startObject("settings").field("index.mode", "columnar").endObject();
+                mappings.startObject("settings").field("index.mode", "columnar");
+                if (clusterHasFlaggedColumnarCodec()) {
+                    mappings.field("index.columnar_codec.enabled", false);
+                }
+                mappings.endObject();
             }
             mappings.startObject("mappings")
                 .startObject("properties")
@@ -456,6 +460,17 @@ public class IndexingIT extends AbstractRollingUpgradeTestCase {
      */
     private static boolean clusterSupportsColumnarMode() throws IOException {
         return clusterHasCapability("PUT", "/{index}", List.of(), List.of("columnar_index_modes")).orElse(false);
+    }
+
+    /**
+     * Randomly chooses the settings JSON fragment for {@code index.mode: columnar}, or {@code ""} for the default mode.
+     * Also disables the ColumNAR codec when the old cluster writes it behind the feature flag.
+     */
+    private static String randomColumnarModeSettings() throws IOException {
+        if (randomlyUseColumnarMode() == false) {
+            return "";
+        }
+        return ", \"index.mode\": \"columnar\"" + (clusterHasFlaggedColumnarCodec() ? ", \"index.columnar_codec.enabled\": false" : "");
     }
 
     /**

@@ -18,7 +18,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
@@ -83,19 +82,12 @@ public abstract class AbstractColumnarBinaryLayoutTestCase extends MapperService
         }
 
         Settings settings() {
-            final Settings.Builder settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName());
-            if (ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()) {
-                // Named on every layout rather than left to the default, so that the two layouts the stock codec
-                // writes keep being written once the ColumNAR codec is the default. The setting only exists while
-                // the flag does, and a build without it writes neither the codec's layout nor this setting.
-                settings.put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), codec);
-            }
-            return settings.build();
-        }
-
-        /** Whether this build writes this layout at all, which for the ColumNAR codec is its feature flag. */
-        boolean isAvailable() {
-            return codec == false || ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled();
+            // Named on every layout rather than left to the default, so that the two layouts the stock codec
+            // writes are still written now that the ColumNAR codec is the default.
+            return Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), codec)
+                .build();
         }
     }
 
@@ -168,9 +160,9 @@ public abstract class AbstractColumnarBinaryLayoutTestCase extends MapperService
         return false;
     }
 
-    /** Whether this build writes {@code layout} for this field type, so it can be reached and read back here. */
+    /** Whether {@code layout} is written for this field type, so it can be reached and read back here. */
     private boolean reaches(Layout layout) {
-        return layout.isAvailable() && (layout != Layout.PLAIN || writesPlain());
+        return layout != Layout.PLAIN || writesPlain();
     }
 
     /**

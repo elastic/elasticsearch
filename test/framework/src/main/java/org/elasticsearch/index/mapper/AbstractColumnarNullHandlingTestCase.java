@@ -47,7 +47,6 @@ import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -90,11 +89,6 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
     /** A value of the field's type that indexes to at least one term, used as the document the all-null document has to agree with. */
     protected String sampleValue() {
         return "a value";
-    }
-
-    @Before
-    public void assumeColumnarCodecEnabled() {
-        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
     }
 
     /**

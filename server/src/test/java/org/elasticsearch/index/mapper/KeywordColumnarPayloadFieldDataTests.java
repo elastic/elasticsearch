@@ -13,13 +13,11 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -34,7 +32,6 @@ import static org.hamcrest.Matchers.equalTo;
  * {@link AbstractColumnarArrayOrderFieldDataTestCase} covers the layout a strictly columnar index uses without the
  * codec, which still sorts, so this is the only place the two part company.
  */
-@ESTestCase.WithoutEntitlements // the codec feature flag is read from a system property
 public class KeywordColumnarPayloadFieldDataTests extends MapperServiceTestCase {
 
     @Override
@@ -46,18 +43,15 @@ public class KeywordColumnarPayloadFieldDataTests extends MapperServiceTestCase 
     }
 
     public void testValuesComeBackInTheOrderTheyWereWritten() throws IOException {
-        assumeTrue("the ColumNAR codec is behind a feature flag", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
         assertThat(read("c", "a", "b"), contains("c", "a", "b"));
     }
 
     /** Nothing deduplicates on the way out, and a repeat need not sit next to the value it repeats. */
     public void testRepeatsAreKeptWhereverTheyFall() throws IOException {
-        assumeTrue("the ColumNAR codec is behind a feature flag", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
         assertThat(read("b", "a", "b"), contains("b", "a", "b"));
     }
 
     public void testTheFieldSaysItsValuesAreInArrayOrder() throws IOException {
-        assumeTrue("the ColumNAR codec is behind a feature flag", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
         final MapperService mapperService = columnarKeyword();
         withValues(mapperService, new String[] { "b", "a" }, values -> {
             assertThat(values.getValueOrder(), equalTo(SortableBinaryDocValues.ValueOrder.ARRAY));

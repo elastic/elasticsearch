@@ -77,13 +77,11 @@ public class ColumnarCodecClusterSettingProviderTests extends ESTestCase {
     }
 
     public void testExistingColumnarIndexStillSelectsColumnarWhenSwitchOff() {
-        assumeTrue("columnar_codec feature flag must be enabled", ColumnarCodecClusterSettingProvider.isFeatureFlagEnabled());
         final IndexMode mode = randomStrictColumnarMode();
         assertTrue(ColumnarDocValuesFormatSelector.useColumnarCodec(indexSettings(mode, randomEligibleVersion(), true)));
     }
 
     public void testForcedOffSettingMakesNewIndexIneligible() {
-        assumeTrue("columnar_codec feature flag must be enabled", ColumnarCodecClusterSettingProvider.isFeatureFlagEnabled());
         final IndexMode mode = randomStrictColumnarMode();
         final ColumnarCodecClusterSettingProvider provider = provider(clusterSetting(false));
         final Settings forced = inject(provider, mode, Settings.builder().put(INDEX_KEY, true).build());
@@ -96,7 +94,7 @@ public class ColumnarCodecClusterSettingProviderTests extends ESTestCase {
     }
 
     private static IndexVersion randomEligibleVersion() {
-        return IndexVersionUtils.randomVersionBetween(IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG, IndexVersion.current());
+        return IndexVersionUtils.randomVersionBetween(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG, IndexVersion.current());
     }
 
     private static ClusterSettings clusterSettings(final Settings nodeSettings) {

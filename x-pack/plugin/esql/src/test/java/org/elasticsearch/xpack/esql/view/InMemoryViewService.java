@@ -200,10 +200,10 @@ public class InMemoryViewService extends ViewService implements Closeable {
     }
 
     public InMemoryViewResolver getViewResolver() {
-        return new InMemoryViewResolver(clusterService, () -> viewMetadata, CrossProjectModeDecider.NOOP);
+        return new InMemoryViewResolver(threadPool, clusterService, () -> viewMetadata, CrossProjectModeDecider.NOOP);
     }
 
     public InMemoryViewResolver getViewResolver(CrossProjectModeDecider crossProjectModeDecider) {
-        return new InMemoryViewResolver(clusterService, () -> viewMetadata, crossProjectModeDecider);
+        return new InMemoryViewResolver(threadPool, clusterService, () -> viewMetadata, crossProjectModeDecider);
     }
 }

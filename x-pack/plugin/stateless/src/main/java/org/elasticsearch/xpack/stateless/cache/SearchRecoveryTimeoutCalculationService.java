@@ -149,8 +149,8 @@ public class SearchRecoveryTimeoutCalculationService {
     ///
     /// with `deadline = start + min(metadata grace, cap)`.
     /// `concurrentRelocations` is the source's proportional share of the target's concurrent relocation slots:
-    /// `min(sourceToTarget, relocationCap * sourceToTarget / allShuttingDownToTarget)`, with `sourceToTarget` and
-    /// `allShuttingDownToTarget` counting relocations from the cluster state and relocationCap derived from .
+    /// `min(sourceToTarget, relocationCap * sourceToTarget / allToTarget)`, with `sourceToTarget` and `allToTarget`
+    /// counting relocations from the cluster state and relocationCap derived from .
     ///
     /// The resulting timeout is capped at the remaining grace period.
     ///
@@ -194,7 +194,7 @@ public class SearchRecoveryTimeoutCalculationService {
         if (relocationsFromSourceToTarget <= 0) {
             relocationsFromSourceToTarget = 1;
         }
-        // Share the target's cap between shutting-down sources, preserving fractional shares below one slot.
+        // Share the target's cap between shutting-down sources.
         final int allRelocationsToTarget = Math.max(1, countRelocationsFromShuttingDownNodesTo(state, targetNodeId));
         double concurrentRelocations = Math.min(
             relocationsFromSourceToTarget,

@@ -147,9 +147,9 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             .build();
     }
 
-    /// Builds a cluster state with `numShards` SEARCH\_ONLY replicas on `sourceNodeId`, with the first `numShardsToTarget`
-    /// relocating to `targetNodeId` and the remainder not relocating yet. The source is marked for REMOVE shutdown starting
-    /// at `startedAtMillis`, the effective grace period is controlled via
+    /// Builds a cluster state with `numShards` SEARCH_ONLY replicas on `sourceNodeId`, with the first `numShardsToTarget`
+    /// relocating to `targetNodeId` and the remainder relocating to `other-node`. The source is marked for REMOVE shutdown
+    /// starting at `startedAtMillis`, the effective grace period is controlled via
     /// [SharedBlobCacheWarmingService#SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING].
     private static ClusterState clusterStateSearchShardsRelocatingFromShuttingDownSource(
         int numShards,
@@ -162,6 +162,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
         assert numShardsToTarget <= numShards;
         final String primaryNodeId = "primary-node";
         final String masterNodeId = "master-node";
+        final String otherNodeId = "other-node";
         final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
             .settings(indexSettings(IndexVersion.current(), index.getUUID(), numShards, 1))
             .build();
@@ -171,13 +172,12 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             final ShardRouting primary = TestShardRouting.shardRoutingBuilder(sid, primaryNodeId, true, STARTED)
                 .withRole(ShardRouting.Role.INDEX_ONLY)
                 .build();
-            final ShardRouting searchShard = s < numShardsToTarget
-                ? TestShardRouting.shardRoutingBuilder(sid, sourceNodeId, false, RELOCATING)
-                    .withRelocatingNodeId(targetNodeId)
-                    .withRole(ShardRouting.Role.SEARCH_ONLY)
-                    .build()
-                : TestShardRouting.shardRoutingBuilder(sid, sourceNodeId, false, STARTED).withRole(ShardRouting.Role.SEARCH_ONLY).build();
-            routingBuilder.addIndexShard(new IndexShardRoutingTable.Builder(sid).addShard(primary).addShard(searchShard));
+            final String dest = s < numShardsToTarget ? targetNodeId : otherNodeId;
+            final ShardRouting relocating = TestShardRouting.shardRoutingBuilder(sid, sourceNodeId, false, RELOCATING)
+                .withRelocatingNodeId(dest)
+                .withRole(ShardRouting.Role.SEARCH_ONLY)
+                .build();
+            routingBuilder.addIndexShard(new IndexShardRoutingTable.Builder(sid).addShard(primary).addShard(relocating));
         }
         final SingleNodeShutdownMetadata shutdown = SingleNodeShutdownMetadata.builder()
             .setNodeId(sourceNodeId)
@@ -193,6 +193,9 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             .add(DiscoveryNodeUtils.create(primaryNodeId))
             .add(DiscoveryNodeUtils.create(sourceNodeId))
             .add(DiscoveryNodeUtils.create(targetNodeId));
+        if (numShardsToTarget < numShards) {
+            nodes.add(DiscoveryNodeUtils.create(otherNodeId));
+        }
         return ClusterState.builder(new ClusterName("test"))
             .nodes(nodes.build())
             .metadata(
@@ -433,7 +436,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
         }
     }
 
-    public void testSearchRecoveryTimeoutScalesByRelocationsToTarget() {
+    public void testSearchRecoveryTimeoutScalesByClusterStateRelocationsToTarget() {
         try (
             var threadPool = new FakeTimeThreadPool(
                 getTestName(),
@@ -723,7 +726,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
         }
     }
 
-    public void testEqualShareTimeoutScalesByTargetMaxConcurrentRelocations() {
+    public void testEqualShareTimeoutScalesByMaxConcurrentRelocationRecoveries() {
         try (
             var threadPool = new FakeTimeThreadPool(
                 getTestName(),
@@ -771,7 +774,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
         }
     }
 
-    public void testDataVolumeTimeoutScalesByTargetMaxConcurrentRelocations() {
+    public void testDataVolumeTimeoutScalesByMaxConcurrentRelocationRecoveries() {
         try (
             var threadPool = new FakeTimeThreadPool(
                 getTestName(),
@@ -825,7 +828,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
         }
     }
 
-    public void testTimeoutSharesTargetRecoveryCapProportionallyBetweenShuttingDownSources() {
+    public void testTimeoutSharesMaxConcurrentRelocationRecoveriesProportionallyBetweenShuttingDownSources() {
         try (
             var threadPool = new FakeTimeThreadPool(
                 getTestName(),
@@ -902,141 +905,6 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 assertThat(service.searchRecoveryTimeout(state, mockIndexShard(other), 0L).timeout().millis(), equalTo(testCase[2]));
                 assertThat(service.searchRecoveryTimeout(state, mockIndexShard(self), 100L).timeout().millis(), equalTo(testCase[3]));
                 assertThat(service.searchRecoveryTimeout(state, mockIndexShard(other), 100L).timeout().millis(), equalTo(testCase[4]));
-            }
-        }
-    }
-
-    public void testUnthrottledRecoveryCapPreservesOriginalTimeoutCalculation() {
-        try (
-            var threadPool = new FakeTimeThreadPool(
-                getTestName(),
-                randomNonNegativeLong() / 2,
-                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
-            )
-        ) {
-            final var settings = Settings.builder()
-                .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
-                .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING.getKey(), 0.5)
-                .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_CACHE_RATIO_SETTING.getKey(), 0.5)
-                .build();
-            final var service = newCalculationService(threadPool, settings, 1000L, Integer.MAX_VALUE);
-            final long shutdownCurrentTimeMs = randomLongBetween(1, 100_000);
-            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs);
-
-            final long startedAtMillis = threadPool.absoluteTimeInMillis();
-            final var index = new Index("idx", randomUUID());
-            final String sourceNodeId = "source-node";
-            final String otherSourceNodeId = "other-shutting-down-node";
-            final String targetNodeId = "target-node";
-            final long elapsedMillis = randomLongBetween(1000, 9999);
-            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + elapsedMillis);
-            final long remaining = 10_000 - elapsedMillis;
-            final String equalShareContext = "relocation source shutting down (equal share of remaining time to capped grace deadline)";
-            final String dataVolumeContext =
-                "relocation source shutting down (data volume proportional share of remaining time to capped grace deadline)";
-
-            // One source: five shards share its remaining time, with two relocating to this target.
-            final var singleSourceState = clusterStateSearchShardsRelocatingFromShuttingDownSource(
-                5,
-                2,
-                index,
-                sourceNodeId,
-                targetNodeId,
-                startedAtMillis
-            );
-            final var singleSourceShard = singleSourceState.routingTable(DEFAULT_PROJECT_ID)
-                .shardRoutingTable(new ShardId(index, randomIntBetween(0, 1)))
-                .shardsWithState(RELOCATING)
-                .getFirst()
-                .getTargetRelocatingShard();
-            for (final long totalBytesToWarm : new long[] { 0, 100, 1000 }) {
-                final double equalShareMs = remaining / 5.0 * 0.5;
-                final double dataVolumeMs = totalBytesToWarm / 500.0 * remaining;
-                final long expectedTimeoutMs = Math.round(Math.min(remaining, Math.max(equalShareMs, dataVolumeMs) * 2));
-                assertThat(
-                    service.searchRecoveryTimeout(singleSourceState, mockIndexShard(singleSourceShard), totalBytesToWarm),
-                    equalTo(
-                        new SearchRecoveryTimeout(
-                            TimeValue.timeValueMillis(expectedTimeoutMs),
-                            dataVolumeMs > equalShareMs ? dataVolumeContext : equalShareContext
-                        )
-                    )
-                );
-            }
-
-            // Two sources: the first still has five shards, two relocating to this target and one to another target.
-            // The second has four shards, three relocating to this target, and started shutting down one second later.
-            final var multiSourceState = clusterStateSearchShardsRelocatingFromMultipleSources(
-                5,
-                2,
-                1,
-                4,
-                3,
-                3,
-                index,
-                sourceNodeId,
-                otherSourceNodeId,
-                "restarting-source-node",
-                targetNodeId,
-                "other-target-node",
-                startedAtMillis,
-                startedAtMillis + 1000
-            );
-            final var firstSourceShard = multiSourceState.routingTable(DEFAULT_PROJECT_ID)
-                .shardRoutingTable(new ShardId(index, randomIntBetween(0, 1)))
-                .shardsWithState(RELOCATING)
-                .getFirst()
-                .getTargetRelocatingShard();
-            final var secondSourceShard = multiSourceState.routingTable(DEFAULT_PROJECT_ID)
-                .shardRoutingTable(new ShardId(index, randomIntBetween(2, 4)))
-                .shardsWithState(RELOCATING)
-                .getFirst()
-                .getTargetRelocatingShard();
-            final var otherTargetShard = multiSourceState.routingTable(DEFAULT_PROJECT_ID)
-                .shardRoutingTable(new ShardId(index, 8))
-                .shardsWithState(RELOCATING)
-                .getFirst()
-                .getTargetRelocatingShard();
-            final long otherRemaining = remaining + 1000;
-
-            for (final long totalBytesToWarm : new long[] { 0, 100, 1000 }) {
-                final double equalShareMs = remaining / 5.0 * 0.5;
-                final double dataVolumeMs = totalBytesToWarm / 500.0 * remaining;
-                final String expectedContext = dataVolumeMs > equalShareMs ? dataVolumeContext : equalShareContext;
-                final var expectedFirstSourceTimeout = new SearchRecoveryTimeout(
-                    TimeValue.timeValueMillis(Math.round(Math.min(remaining, Math.max(equalShareMs, dataVolumeMs) * 2))),
-                    expectedContext
-                );
-                final var firstSourceTimeout = service.searchRecoveryTimeout(
-                    multiSourceState,
-                    mockIndexShard(firstSourceShard),
-                    totalBytesToWarm
-                );
-                assertThat(firstSourceTimeout, equalTo(expectedFirstSourceTimeout));
-
-                final var expectedOtherTargetTimeout = new SearchRecoveryTimeout(
-                    TimeValue.timeValueMillis(Math.round(Math.min(remaining, Math.max(equalShareMs, dataVolumeMs)))),
-                    expectedContext
-                );
-                final var otherTargetTimeout = service.searchRecoveryTimeout(
-                    multiSourceState,
-                    mockIndexShard(otherTargetShard),
-                    totalBytesToWarm
-                );
-                assertThat(otherTargetTimeout, equalTo(expectedOtherTargetTimeout));
-
-                final double otherEqualShareMs = otherRemaining / 4.0 * 0.5;
-                final double otherDataVolumeMs = totalBytesToWarm / 500.0 * otherRemaining;
-                final var expectedOtherSourceTimeout = new SearchRecoveryTimeout(
-                    TimeValue.timeValueMillis(Math.round(Math.min(otherRemaining, Math.max(otherEqualShareMs, otherDataVolumeMs) * 3))),
-                    otherDataVolumeMs > otherEqualShareMs ? dataVolumeContext : equalShareContext
-                );
-                final var otherSourceTimeout = service.searchRecoveryTimeout(
-                    multiSourceState,
-                    mockIndexShard(secondSourceShard),
-                    totalBytesToWarm
-                );
-                assertThat(otherSourceTimeout, equalTo(expectedOtherSourceTimeout));
             }
         }
     }

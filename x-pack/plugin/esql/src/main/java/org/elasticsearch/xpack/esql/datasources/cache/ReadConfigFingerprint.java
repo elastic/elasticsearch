@@ -57,10 +57,9 @@ import java.util.Map;
  *   <li><b>NOT renames</b> — harvested statistic keys are physical on every rail, so encoding logical names would
  *       split a renamed dataset off from its own harvests. Renames are normalized away by physicalizing here; a pure
  *       rename changes no value a statistic measures.</li>
- *   <li><b>NOT {@code declaredTypeColumns}</b> — no reader reads it, so it changes no value a statistic measures.
- *       It used to license a narrowing coercion in the by-name columnar readers, which is the reason this exclusion
- *       was once a hole worth naming; a conversion is now decided by the type pair, and the read schema those types
- *       come from is hashed.</li>
+ *   <li><b>NOT {@code declaredTypeColumns}</b> — it licenses a narrowing coercion only in the by-name columnar
+ *       readers, and no columnar format stamps statistics. Should one ever start, this exclusion becomes a hole,
+ *       and nothing enforces it today.</li>
  * </ul>
  *
  * <h2>Encoding</h2>

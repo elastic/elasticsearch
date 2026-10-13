@@ -4365,15 +4365,6 @@ public class EsqlCapabilities {
          */
         FIX_DERIVED_EXTERNAL_GROUPING_MULTIVALUE,
 
-        /**
-         * A column whose file type differs from the type the query reads it as is converted value by value, whether or
-         * not the dataset declared that column. Older nodes converted only declared columns and replaced an undeclared
-         * one with nulls for its whole length, plus a warning. The read now follows {@code error_mode} for every column,
-         * and the refusal text names the type the query uses rather than a declared type. Used to gate the external
-         * csv-spec tests asserting the converted values and the new text, which such nodes still fail.
-         */
-        EXTERNAL_SOURCE_CONVERTS_UNDECLARED_COLUMNS,
-
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

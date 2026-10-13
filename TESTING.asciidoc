@@ -599,10 +599,10 @@ When running `./gradlew check`, minimal bwc checks are also run against compatib
 ==== Which older versions are compatible
 
 * *Wire compatibility* is the oldest version that can join a cluster with the
-current one. Nodes of both versions are in the cluster at the same time.
-The minimum is the last minor of the previous major.
+current one, and defined as the last minor of the previous major.
+For the 9.X.X series, wire compatibility starts at 8.19.0.
 * *Index compatibility* is the oldest index the current version can open. That
-reaches the previous major.
+covers the whole previous major. For the 9.X.X series, index compatibility is every 8.x index.
 * Lucene can still read indices two majors back.
 
 A rolling upgrade stays inside the wire-compatible range. A full restart can
@@ -621,7 +621,7 @@ distribution. Indices, data streams, templates, and repositories are kept.
 
 ==== Full cluster restart
 
-`ParameterizedFullClusterRestartTestCase` runs the suite twice: once on the old
+`ParameterizedFullClusterRestartTestCase` runs the suite twice, once on the old
 cluster (`OLD`), then once after every node has been stopped and restarted on
 the current version (`UPGRADED`). There is no mixed cluster. If the old version
 is older than the minimum wire-compatible version, the cluster is upgraded to
@@ -764,6 +764,9 @@ There are multiple base classes for tests:
 
 ==== What kind of tests should I write?
 
+In short, most new functionality should come with unit tests, and optionally
+REST tests to test integration.
+
 [cols="1,2,2,4"]
 |===
 |Test |Base class |Gradle Task |When to write it
@@ -771,27 +774,27 @@ There are multiple base classes for tests:
 |Unit
 |`ESTestCase`
 |`test`
-|Write a unit test when you can construct the class and check the behavior directly. This is the default, and new functionality should come with one. Unit tests are simpler to understand, easier to reproduce, and a change elsewhere in the system is less likely to break them. Use a real class. When that type is hard to construct, a small subclass in the test is enough. Use a mock or stub only when that is impractical, and say in the test why it was necessary.
+|Write a unit test when you can construct the class and check the behavior directly. This is the default, and the preference for new functionality. Unit tests are simpler to understand, easier to reproduce, and a change elsewhere in the system is less likely to break them
 
 |Single node
 |`ESSingleNodeTestCase`
 |`internalClusterTest`
-|Write a single-node test when the code needs a running node and the scenario only needs one node. Many Elasticsearch components are hard to construct on their own, so this base class starts one node and gives the test access to objects such as `IndicesService`. It is lighter than a multi-node cluster. Prefer a unit test when you can construct the code without starting a node.
+|The reason why `ESSingleNodeTestCase` exists is that all our components used to be very hard to set up in isolation, which had led us to having a number of integration tests but close to no unit tests. `ESSingleNodeTestCase` is a workaround for this issue which provides an easy way to spin up a node and get access to components that are hard to instantiate like `IndicesService`. Whenever practical, you should prefer unit tests. These tests are lighter than a multi-node cluster
 
 |Internal cluster
 |`ESIntegTestCase`
 |`internalClusterTest`
-|Write an internal cluster test when the behavior depends on several nodes working together, or when the assertion needs state that the REST API does not expose. The nodes run inside the test process. Many older tests use this style because that is how early Elasticsearch tests were written, and they are hard to debug. Write a unit test or a REST test when the behavior can be checked without cluster coordination.
+|Write an internal cluster test when the behavior depends on several nodes working together, or when the assertion needs state that the REST API does not expose. Many older tests use this style because that is how early Elasticsearch tests were written, and they are hard to debug. Whenever the functionality that is being tested isn't intimately dependent on how Elasticsearch behaves as a cluster, it is recommended to write unit tests or REST tests instead.
 
 |Java REST
 |`ESRestTestCase`
 |`javaRestTest`
-|Write a Java REST test when the behavior is visible over HTTP and the scenario needs something the YAML tests cannot express. That includes a custom cluster, such as several node roles, a second cluster, or a restart, along with polling, concurrent clients, or an assertion that has to be written in code. The server runs in its own process, which is closer to a production setup than an internal cluster. Add this test alongside the unit test when the public API is part of the behavior and the YAML language cannot describe the scenario.
+|Write a Java REST test when the behavior is visible over HTTP and the scenario needs something the YAML tests cannot express, such as several node roles, a second cluster, or a restart. The server runs in its own process, which is closer to a production setup than an internal cluster. Add this test alongside the unit test when the public API is part of the behavior and the YAML language cannot describe the scenario.
 
 |YAML REST
 |`ESClientYamlSuiteTestCase`
 |`yamlRestTest`
-|Write a YAML REST test for public API behavior that is one request followed by a stable response. These files are shared with the official clients, so prefer this form whenever the YAML language can describe the scenario. Add this test alongside the unit test when the public API is part of the behavior.
+|Write a YAML REST test for public API behavior that produces a stable response. These files are shared with the official clients, so prefer this form whenever the YAML language can describe the scenario. Add this test alongside the unit test when the public API is part of the behavior.
 |===
 
 ==== Refactor code to make it easier to test

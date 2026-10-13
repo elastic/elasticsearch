@@ -12,8 +12,10 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.compute.data.DocOriginTable;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.index.shard.ShardId;
@@ -207,7 +209,9 @@ public class QueryFetchClientTests extends ComputeTestCase {
     }
 
     private QueryFetchScope scope() {
-        return new QueryFetchScope(rootTask, "query-session", EsqlTestUtils.TEST_CFG, drivers);
+        // the client never numbers origins, so the table needs no breaker
+        DocOriginTable docOrigins = new DocOriginTable(NoopCircuitBreaker.INSTANCE);
+        return new QueryFetchScope(rootTask, "query-session", EsqlTestUtils.TEST_CFG, drivers, docOrigins);
     }
 
     private DiscoveryNodes nodes() {

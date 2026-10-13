@@ -152,21 +152,14 @@ public class GroupedTopNOperator implements Operator, Accountable {
     ) {
         BytesRefHashTable keysHash = null;
         GroupedQueue inputQueue = null;
-        List<TopNEncoder> operatorEncoders = null;
         boolean success = false;
         try {
-            operatorEncoders = TopNOperator.bindEncoders(encoders, breaker);
             keysHash = HashImplFactory.newBytesRefHash(blockFactory);
             inputQueue = new GroupedQueue(breaker, blockFactory.bigArrays(), topCount);
             success = true;
         } finally {
             if (success == false) {
-                Releasables.close(
-                    keyEncoder,
-                    keysHash,
-                    inputQueue,
-                    operatorEncoders == null ? null : TopNOperator.encodersReleasable(operatorEncoders)
-                );
+                Releasables.close(keyEncoder, keysHash, inputQueue);
             }
         }
         this.keyEncoder = keyEncoder;
@@ -179,7 +172,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
         this.jumboPageBytes = jumboPageBytes;
         this.topCount = topCount;
         this.elementTypes = elementTypes;
-        this.encoders = operatorEncoders;
+        this.encoders = encoders;
         this.sortOrders = sortOrders;
         this.channelInKey = new boolean[elementTypes.size()];
         for (TopNOperator.SortOrder so : sortOrders) {
@@ -269,7 +262,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
 
     @Override
     public void close() {
-        Releasables.closeExpectNoException(spare, inputQueue, output, keysHash, keyEncoder, TopNOperator.encodersReleasable(encoders));
+        Releasables.closeExpectNoException(spare, inputQueue, output, keysHash, keyEncoder);
         inputQueue = null;
         output = null;
     }
@@ -285,7 +278,6 @@ public class GroupedTopNOperator implements Operator, Accountable {
         size += RamUsageEstimator.sizeOf(channelInKey);
         size += sortOrders.size() * SORT_ORDER_SIZE;
         size += keyEncoder.ramBytesUsed();
-        size += TopNOperator.encodersRamBytesUsed(encoders);
         if (keysHash != null) {
             size += keysHash.ramBytesUsed();
         }

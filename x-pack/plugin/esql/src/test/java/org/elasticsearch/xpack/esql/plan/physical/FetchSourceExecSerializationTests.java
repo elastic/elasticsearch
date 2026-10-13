@@ -8,12 +8,17 @@
 package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 
 import java.io.IOException;
 
 public class FetchSourceExecSerializationTests extends AbstractPhysicalPlanSerializationTests<FetchSourceExec> {
     public static FetchSourceExec randomFetchSourceExec() {
-        return new FetchSourceExec(randomSource(), DocRefEncodeExecSerializationTests.randomDoc(), randomEstimatedRowSize());
+        return new FetchSourceExec(randomSource(), randomDoc(), randomEstimatedRowSize());
+    }
+
+    static Attribute randomDoc() {
+        return new FieldAttribute(randomSource(), null, null, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
     }
 
     @Override
@@ -26,7 +31,7 @@ public class FetchSourceExecSerializationTests extends AbstractPhysicalPlanSeria
         Attribute doc = instance.doc();
         Integer estimatedRowSize = instance.estimatedRowSize();
         switch (between(0, 1)) {
-            case 0 -> doc = randomValueOtherThan(doc, DocRefEncodeExecSerializationTests::randomDoc);
+            case 0 -> doc = randomValueOtherThan(doc, FetchSourceExecSerializationTests::randomDoc);
             case 1 -> estimatedRowSize = randomValueOtherThan(
                 estimatedRowSize,
                 AbstractPhysicalPlanSerializationTests::randomEstimatedRowSize

@@ -8,9 +8,10 @@
 package org.elasticsearch.xpack.esql.fetch;
 
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocOrigin;
-import org.elasticsearch.compute.data.DocRefBlock;
-import org.elasticsearch.compute.data.DocRefVector;
+import org.elasticsearch.compute.data.DocOrigins;
+import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -22,8 +23,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Groups the document references of a cut into one fetch request per node, and remembers which response row each row of
- * the cut reads.
+ * Groups the documents of a cut into one fetch request per node, and remembers which response row each row of the cut
+ * reads.
  * <p>
  * A node gets the documents of each of its shards sorted by segment and doc, the order it loads them fastest and
  * returns their rows in. A document that several rows reference is asked for once. The nodes answer with their rows in
@@ -63,9 +64,9 @@ final class FetchBatchPlanner {
 
     /**
      * @param pages         the rows of the cut
-     * @param docRefChannel the channel of the document references
+     * @param docChannel the channel of the documents, which left the nodes that read them
      */
-    static Batch plan(List<Page> pages, int docRefChannel) {
+    static Batch plan(List<Page> pages, int docChannel) {
         int rows = 0;
         for (Page page : pages) {
             rows += page.getPositionCount();
@@ -75,21 +76,24 @@ final class FetchBatchPlanner {
         long[] docOfRow = new long[rows];
         int row = 0;
         for (Page page : pages) {
-            Block block = page.getBlock(docRefChannel);
-            if (block instanceof DocRefBlock == false) {
-                throw new IllegalArgumentException("expected document references in channel [" + docRefChannel + "] but got " + block);
+            Block block = page.getBlock(docChannel);
+            DocOrigins origins = block instanceof DocBlock docBlock ? docBlock.asVector().origins() : null;
+            if (origins == null) {
+                throw new IllegalArgumentException(
+                    "expected documents that left their node in channel [" + docChannel + "] but got " + block
+                );
             }
-            DocRefVector references = ((DocRefBlock) block).asVector();
-            IntVector originOrdinals = references.originOrdinals();
-            IntVector segments = references.segments();
-            IntVector docs = references.docs();
+            DocVector documents = ((DocBlock) block).asVector();
+            IntVector originOrdinals = documents.shards();
+            IntVector segments = documents.segments();
+            IntVector docs = documents.docs();
             // each page has its own origins, usually a handful for many rows, so the shard is looked up once per origin
-            ShardAccumulator[] shardOfOrigin = new ShardAccumulator[references.origins().size()];
+            ShardAccumulator[] shardOfOrigin = new ShardAccumulator[origins.size()];
             for (int p = 0; p < page.getPositionCount(); p++) {
                 int ordinal = originOrdinals.getInt(p);
                 ShardAccumulator shard = shardOfOrigin[ordinal];
                 if (shard == null) {
-                    DocOrigin origin = references.origins().get(ordinal);
+                    DocOrigin origin = origins.get(ordinal);
                     NodeAccumulator node = nodes.computeIfAbsent(new NodeKey(origin.clusterAlias(), origin.nodeId()), NodeAccumulator::new);
                     shard = node.shards.computeIfAbsent(origin.contextId(), id -> new ShardAccumulator(origin));
                     shardOfOrigin[ordinal] = shard;

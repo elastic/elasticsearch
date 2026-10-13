@@ -8,18 +8,17 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.fetch;
 
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.expression.Nullability;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
+import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.fetch.FetchPhasePolicy.Outcome;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -30,13 +29,10 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.esql.plan.physical.DocRefEncodeExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
-import org.elasticsearch.xpack.esql.plan.physical.FetchSourceExec;
-import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
@@ -49,9 +45,7 @@ import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 import static org.elasticsearch.transport.RemoteClusterAware.isRemoteIndexName;
@@ -59,20 +53,14 @@ import static org.elasticsearch.transport.RemoteClusterAware.isRemoteIndexName;
 /**
  * Plans the fetch phase for a {@code LIMIT} or {@code TopN} that the data nodes and the coordinator both apply.
  * <p>
- * A <em>cut</em> is a {@code LIMIT} or a {@code TopN}: a pipeline breaker that only decides which rows survive. Both are
- * decomposable. The global top N is always among the top N rows of every part, so the plan applies the same cut at up
- * to three levels:
- * <ul>
- *     <li>the <em>fragment cut</em> ends the fragment. It runs per shard and is often pushed into Lucene.</li>
- *     <li>the <em>node cut</em> runs once per data node, in the node reduce stage, over the results of its shards.</li>
- *     <li>the <em>coordinator cut</em> runs once, over the results of every node. Only this one knows the global
- *     winners, so the fetch runs right after it.</li>
- * </ul>
+ * A <em>cut</em> is a {@code LIMIT} or a {@code TopN}: a pipeline breaker that only decides which rows survive. The
+ * global top N is always among the top N rows of every part, so the data nodes cut their own rows and the coordinator
+ * cuts what they send. Only the coordinator's cut knows the global winners.
  * <p>
  * Without the fetch phase every data node loads each column the query returns for every row that survives its own
- * cut, and the coordinator keeps only the global winners. With it the data nodes send a document reference plus the
- * columns the cut needs, the coordinator cuts, and then loads the other columns for the winners only, from the nodes
- * that own them.
+ * cut, and the coordinator keeps only the global winners. With it the data nodes send the {@code _doc} of each row
+ * plus the columns the cut needs, the coordinator cuts, and then loads the other columns for the winners only, from the
+ * nodes that own them.
  * <p>
  * {@code FROM idx | WHERE x > 1 | SORT ts DESC | LIMIT 10 | KEEP a, b, ts} before:
  * <pre>{@code
@@ -84,29 +72,21 @@ import static org.elasticsearch.transport.RemoteClusterAware.isRemoteIndexName;
  * and after:
  * <pre>{@code
  * ProjectExec[a, b, ts]
- * \_FetchExec[$$doc_ref, fetched=[a, b]]
- *   |_TopNExec[ts DESC, 10]                                    coordinator cut
- *   | \_ExchangeExec[$$doc_ref, ts]                            CLUSTER scope
- *   |   \_DocRefEncodeExec[_doc -> $$doc_ref]                  node reduce stage, planned here
- *   |     \_TopNExec[ts DESC, 10]                              node cut
- *   |       \_ExchangeExec[_doc, ts]                           NODE scope
- *   |         \_FragmentExec[Project[_doc, ts] <- TopN[ts DESC, 10] <- Filter[x > 1] <- EsRelation[idx]]
- *   \_ProjectExec[a, b]                                        fetch plan, runs where the documents are
- *     \_FieldExtractExec[a, b]
- *       \_FetchSourceExec[_doc]
+ * \_FetchExec[_doc, fetched=[a, b]]
+ *   \_TopNExec[ts DESC, 10]
+ *     \_ExchangeExec[_doc, ts]
+ *       \_FragmentExec[Project[_doc, ts] <- TopN[ts DESC, 10] <- Filter[x > 1] <- EsRelation[idx]]
  * }</pre>
- * {@link AttributeDemand} decides which columns cross the exchange as values. {@link #shape} lists the plans the rule
- * accepts. Every other plan keeps loading its columns eagerly, unchanged, and the reason is recorded in
+ * The data nodes plan the fragment as they plan any other. Node-level late materialization cuts the rows of a node's
+ * shards once more, and loads the eager columns the cut doesn't read for the survivors only. The rows leave the node
+ * with their {@code _doc}, which keeps naming the documents after it left.
+ * <p>
+ * {@link #demand} decides which columns cross the exchange as values. {@link #shape} lists the plans the rule accepts.
+ * Every other plan keeps loading its columns eagerly, unchanged, and the reason is recorded in
  * {@link FetchPhaseOutcomes}.
  */
 public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPlan, PhysicalOptimizerContext> {
     private static final Logger logger = LogManager.getLogger(PlanFetch.class);
-
-    /**
-     * Name of the document reference column. Nothing matches on it, the column is recognized by its type. A plan that
-     * already has a column with this name, a field of the index for example, gets a numbered variant.
-     */
-    public static final String DOC_REF_NAME = Attribute.rawTemporaryName("doc_ref");
 
     private final FetchPhaseOutcomes outcomes;
 
@@ -128,13 +108,21 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
                 yield plan;
             }
             case Candidate candidate -> {
-                PhysicalPlan rewritten = rewrite(plan, candidate, context.configuration().pragmas().nodeLevelReduction());
+                PhysicalPlan rewritten = rewrite(plan, candidate);
                 outcomes.record(Outcome.APPLIED, null);
                 logger.debug("fetch phase planned: eager {}, deferred {}", candidate.demand().eager(), candidate.demand().deferred());
                 yield rewritten;
             }
         };
     }
+
+    /**
+     * The split of the columns that cross the exchange.
+     *
+     * @param eager    columns that keep crossing the exchange as values, in exchange order
+     * @param deferred columns the fetch loads after the cut, in exchange order
+     */
+    record Demand(List<Attribute> eager, List<Attribute> deferred) {}
 
     private sealed interface Shape permits Declined, Candidate {}
 
@@ -152,7 +140,7 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
         Project fragmentRoot,
         UnaryExec coordinatorCut,
         EsRelation relation,
-        AttributeDemand.Demand demand
+        Demand demand
     ) implements Shape {}
 
     /**
@@ -236,7 +224,7 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
             return new Declined(Outcome.INCONSISTENT_PROJECTION, "the exchange carries columns nothing reads " + unread);
         }
 
-        AttributeDemand.Demand demand = AttributeDemand.analyze(fragmentRoot, relation, coordinatorCut);
+        Demand demand = demand(fragmentRoot, relation, coordinatorCut);
         if (demand.deferred().isEmpty()) {
             return new Declined(Outcome.INELIGIBLE_NO_DEFERRABLE_FIELDS, "the cut reads every column, or the others cannot be fetched");
         }
@@ -245,6 +233,73 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
 
     private static Declined ineligible(String reason) {
         return new Declined(Outcome.INELIGIBLE_SHAPE, reason);
+    }
+
+    /**
+     * Splits the columns that cross the exchange into the ones the coordinator needs as values to cut and the ones it
+     * only needs for the rows that survive. A column is deferred when all of these hold:
+     * <ul>
+     *     <li>the relation produces it, so the document is enough to load it,</li>
+     *     <li>{@link Fetchability#isFetchable} accepts it,</li>
+     *     <li>the coordinator cut does not read it. A sort key crosses the exchange even when the query does not return
+     *     it.</li>
+     *     <li>no {@link Eval} of the fragment reads its values. The data node loads those for every row the {@code Eval}
+     *     sees, so the fetch would read them a second time. In {@code SORT a + 1 | LIMIT 10 | KEEP a}, the sort key is
+     *     an {@code Eval} of {@code a}, so {@code a} is eager.</li>
+     * </ul>
+     * Everything else stays eager, which keeps the fetch partial rather than all or nothing: {@code _score}, values
+     * computed inside the fragment, and fields that may be unmapped all keep crossing as values. Renames are not
+     * followed: a rename after the cut reads its source column after the cut, so the source column is deferred.
+     *
+     * @param fragmentRoot   the {@link Project} at the root of the fragment. Its output is what crosses the exchange.
+     * @param coordinatorCut the coordinator half of the cut, the parent of the exchange
+     */
+    static Demand demand(Project fragmentRoot, EsRelation relation, PhysicalPlan coordinatorCut) {
+        AttributeSet relationOutput = relation.outputSet();
+        AttributeSet readByCut = coordinatorCut.references();
+        AttributeSet loadedBeforeTheCut = loadedByEvals(fragmentRoot.child());
+        List<Attribute> eager = new ArrayList<>();
+        List<Attribute> deferred = new ArrayList<>();
+        for (Attribute attribute : fragmentRoot.output()) {
+            boolean defer = relationOutput.contains(attribute)
+                && Fetchability.isFetchable(attribute)
+                && readByCut.contains(attribute) == false
+                && loadedBeforeTheCut.contains(attribute) == false;
+            (defer ? deferred : eager).add(attribute);
+        }
+        return new Demand(List.copyOf(eager), List.copyOf(deferred));
+    }
+
+    /**
+     * The attributes whose values an {@link Eval} of the fragment reads, so the data node loads them before the cut.
+     * <p>
+     * A field passed straight to a function the loader may compute itself, like {@code LENGTH(message)}, doesn't count.
+     * The data node may load the length and never the message, and only the data node can tell. Filters don't count
+     * either: Lucene usually answers them without loading values. Where these guesses are wrong, the column is read
+     * twice, once before the cut and once by the fetch.
+     */
+    private static AttributeSet loadedByEvals(LogicalPlan fragmentBody) {
+        AttributeSet.Builder loaded = AttributeSet.builder();
+        fragmentBody.forEachDown(Eval.class, eval -> {
+            for (Alias field : eval.fields()) {
+                collectValueReads(field.child(), loaded);
+            }
+        });
+        return loaded.build();
+    }
+
+    private static void collectValueReads(Expression expression, AttributeSet.Builder reads) {
+        if (expression instanceof Attribute attribute) {
+            reads.add(attribute);
+            return;
+        }
+        boolean mayFuseIntoTheLoad = expression instanceof BlockLoaderExpression;
+        for (Expression child : expression.children()) {
+            if (mayFuseIntoTheLoad && child instanceof FieldAttribute) {
+                continue;
+            }
+            collectValueReads(child, reads);
+        }
     }
 
     /**
@@ -291,8 +346,8 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
         return indexExpression.startsWith("-") ? isRemoteIndexName(indexExpression.substring(1)) : isRemoteIndexName(indexExpression);
     }
 
-    private static PhysicalPlan rewrite(PhysicalPlan plan, Candidate candidate, boolean nodeLevelReduction) {
-        // 1. the data drivers produce _doc next to the eager columns, and every projection inside the fragment keeps it
+    private static PhysicalPlan rewrite(PhysicalPlan plan, Candidate candidate) {
+        // the data drivers produce _doc next to the eager columns, and every projection inside the fragment keeps it
         Attribute doc = new FieldAttribute(Source.EMPTY, null, null, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
         LogicalPlan body = candidate.fragmentRoot().child();
         body = body.transformUp(
@@ -307,82 +362,28 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
             projections.addAll(project.projections());
             return project.withProjections(projections);
         });
-        List<Attribute> dataOutput = CollectionUtils.prependToCopy(doc, candidate.demand().eager());
-        FragmentExec fragment = candidate.fragment().withFragment(new Project(candidate.fragmentRoot().source(), body, dataOutput));
+        List<Attribute> exchanged = CollectionUtils.prependToCopy(doc, candidate.demand().eager());
+        FragmentExec fragment = candidate.fragment().withFragment(new Project(candidate.fragmentRoot().source(), body, exchanged));
+        ExchangeExec exchange = new ExchangeExec(candidate.exchange().source(), exchanged, false, fragment);
 
-        // 2. the node reduce stage: the node cut over the node exchange, then _doc becomes a document reference
+        // the coordinator cuts the narrow rows, then fetches the deferred columns of the winners
         UnaryExec coordinatorCut = candidate.coordinatorCut();
-        PhysicalPlan nodeStage = new ExchangeExec(candidate.exchange().source(), dataOutput, false, ExchangeExec.Scope.NODE, fragment);
-        if (nodeLevelReduction) {
-            nodeStage = switch (coordinatorCut) {
-                // each data driver emits its rows sorted, so the node cut merges sorted streams
-                case TopNExec topN -> new TopNExec(topN.source(), nodeStage, topN.order(), topN.limit(), null).withSortedInput();
-                case LimitExec limit -> new LimitExec(limit.source(), nodeStage, limit.limit(), null);
-                default -> throw new IllegalStateException("unexpected cut [" + coordinatorCut.nodeName() + "]");
-            };
-        }
-        ReferenceAttribute docRef = new ReferenceAttribute(
-            Source.EMPTY,
-            null,
-            docRefName(plan),
-            DataType.DOC_REF,
-            Nullability.FALSE,
-            null,
-            true
-        );
-        DocRefEncodeExec encode = new DocRefEncodeExec(Source.EMPTY, nodeStage, doc, docRef);
-        ExchangeExec clusterExchange = new ExchangeExec(
-            candidate.exchange().source(),
-            encode.output(),
-            false,
-            ExchangeExec.Scope.CLUSTER,
-            encode
-        );
-
-        // 3. the coordinator cuts on the narrow rows, then fetches the deferred columns of the winners
-        List<Attribute> deferred = candidate.demand().deferred();
-        Attribute fetchDoc = new FieldAttribute(Source.EMPTY, null, null, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
-        PhysicalPlan fetchPlan = new ProjectExec(
-            Source.EMPTY,
-            new FieldExtractExec(
-                Source.EMPTY,
-                new FetchSourceExec(Source.EMPTY, fetchDoc, null),
-                deferred,
-                MappedFieldType.FieldExtractPreference.NONE
-            ),
-            deferred
-        );
         FetchExec fetch = new FetchExec(
             coordinatorCut.source(),
-            coordinatorCut.replaceChild(clusterExchange),
-            fetchPlan,
-            docRef,
-            deferred,
+            coordinatorCut.replaceChild(exchange),
+            doc,
+            candidate.demand().deferred(),
             candidate.relation().indexPattern(),
             localIndices(candidate.relation()),
             null
         );
 
-        // 4. the coordinator returns what it returned before, never the document reference
+        // the coordinator returns what it returned before, never _doc
         PhysicalPlan rewritten = plan.transformDown(PhysicalPlan.class, node -> node == coordinatorCut ? fetch : node);
         if (sameIds(rewritten.output(), plan.output()) == false) {
             rewritten = new ProjectExec(plan.source(), rewritten, plan.output());
         }
         return rewritten;
-    }
-
-    /**
-     * The document reference sits next to the other columns of the plan, and a plan must not have two columns with the
-     * same name.
-     */
-    private static String docRefName(PhysicalPlan plan) {
-        Set<String> taken = new HashSet<>();
-        plan.forEachDown(node -> node.output().forEach(attribute -> taken.add(attribute.name())));
-        String name = DOC_REF_NAME;
-        for (int suffix = 1; taken.contains(name); suffix++) {
-            name = Attribute.rawTemporaryName("doc_ref", Integer.toString(suffix));
-        }
-        return name;
     }
 
     private static List<String> localIndices(EsRelation relation) {

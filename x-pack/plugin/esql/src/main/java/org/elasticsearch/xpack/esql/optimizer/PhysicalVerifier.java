@@ -11,19 +11,17 @@ import org.elasticsearch.xpack.esql.capabilities.PostPhysicalOptimizationVerific
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
-import org.elasticsearch.xpack.esql.plan.physical.DocRefEncodeExec;
+import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
-import org.elasticsearch.xpack.esql.plan.physical.FetchSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
-import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
@@ -65,11 +63,8 @@ public final class PhysicalVerifier extends PostOptimizationPhasePlanVerifier<Ph
                 );
             }
 
-            if (p instanceof DocRefEncodeExec encode) {
-                checkDocRefEncode(encode, failures);
-            }
-            if (p instanceof FetchExec fetch) {
-                checkFetch(fetch, failures);
+            if (p instanceof FetchExec fetch && EsQueryExec.isDocAttribute(fetch.doc()) == false) {
+                failures.add(fail(fetch, "[{}] must read a [_doc] attribute", fetch.nodeString()));
             }
 
             PlanConsistencyChecker.checkPlan(p, depFailures);
@@ -87,99 +82,29 @@ public final class PhysicalVerifier extends PostOptimizationPhasePlanVerifier<Ph
         });
 
         if (isLocal == false) {
-            checkExchangeScopes(optimizedPlan, false, failures, depFailures);
-            // the planner adds document references and must remove them before the results go back
-            if (optimizedPlan.output().stream().anyMatch(a -> a.dataType() == DataType.DOC_REF)) {
-                failures.add(fail(optimizedPlan, "document references cannot be returned, found {}", optimizedPlan.output()));
+            checkDocumentsLeaveTheirNodeOnlyForAFetch(optimizedPlan, failures);
+            if (optimizedPlan.output().stream().anyMatch(EsQueryExec::isDocAttribute)) {
+                failures.add(fail(optimizedPlan, "document identity [_doc] cannot be returned, found {}", optimizedPlan.output()));
             }
         }
     }
 
     /**
-     * A {@link ExchangeExec.Scope#CLUSTER} exchange sends rows over the network, which a {@code _doc} column cannot cross.
-     * A {@link ExchangeExec.Scope#NODE} exchange is split off on the data node without planning, so its fragment must be
-     * correct as the coordinator wrote it: nested in a cluster exchange, declaring exactly the fragment's output and
-     * internally consistent. Checking the fragment here turns a planner bug into a coordinator error instead of a data
-     * node failure.
+     * Rows carry their {@code _doc} across an exchange only for a {@link FetchExec} above it, which loads the documents
+     * from the nodes that own them. The data nodes then keep the readers of those documents open and detach them, so the
+     * documents still name their readers on the coordinator. Without the fetch, nothing would do either.
      */
-    private static void checkExchangeScopes(PhysicalPlan plan, boolean belowClusterExchange, Failures failures, Failures depFailures) {
-        boolean belowCluster = belowClusterExchange;
-        if (plan instanceof ExchangeExec exchange) {
-            switch (exchange.scope()) {
-                case CLUSTER -> {
-                    if (exchange.output().stream().anyMatch(a -> a.dataType() == DataType.DOC_DATA_TYPE)) {
-                        failures.add(
-                            fail(exchange, "document identity [_doc] cannot cross a cluster exchange [{}]", exchange.nodeString())
-                        );
-                    }
-                    belowCluster = true;
+    private static void checkDocumentsLeaveTheirNodeOnlyForAFetch(PhysicalPlan plan, Failures failures) {
+        Set<NameId> fetched = new HashSet<>();
+        plan.forEachDown(FetchExec.class, fetch -> fetched.add(fetch.doc().id()));
+        plan.forEachDown(ExchangeExec.class, exchange -> {
+            for (Attribute attribute : exchange.output()) {
+                if (EsQueryExec.isDocAttribute(attribute) && fetched.contains(attribute.id()) == false) {
+                    failures.add(
+                        fail(exchange, "document identity [_doc] can only cross an exchange for a fetch [{}]", exchange.nodeString())
+                    );
                 }
-                case NODE -> checkNodeExchange(exchange, belowClusterExchange, failures, depFailures);
-            }
-        }
-        for (PhysicalPlan child : plan.children()) {
-            checkExchangeScopes(child, belowCluster, failures, depFailures);
-        }
-    }
-
-    private static void checkNodeExchange(ExchangeExec exchange, boolean belowClusterExchange, Failures failures, Failures depFailures) {
-        if (belowClusterExchange == false) {
-            failures.add(fail(exchange, "a NODE exchange must be below a CLUSTER exchange [{}]", exchange.nodeString()));
-        }
-        if (exchange.child() instanceof FragmentExec fragment) {
-            if (sameIdsAndTypes(exchange.output(), fragment.output()) == false) {
-                failures.add(
-                    fail(exchange, "NODE exchange output {} does not match its fragment output {}", exchange.output(), fragment.output())
-                );
-            }
-            fragment.fragment().forEachDown(node -> PlanConsistencyChecker.checkPlan(node, depFailures));
-        } else {
-            failures.add(fail(exchange, "a NODE exchange must wrap a fragment, found [{}]", exchange.child().nodeName()));
-        }
-    }
-
-    private static void checkDocRefEncode(DocRefEncodeExec encode, Failures failures) {
-        if (encode.doc().dataType() != DataType.DOC_DATA_TYPE || encode.docRef().dataType() != DataType.DOC_REF) {
-            failures.add(fail(encode, "[{}] must replace a [_doc] with a [DOC_REF] attribute", encode.nodeString()));
-        }
-    }
-
-    /**
-     * The fetch plan runs on the nodes that own the documents, exactly as the coordinator built it: it must produce the
-     * fetched columns and nothing but loading may happen in it.
-     */
-    private static void checkFetch(FetchExec fetch, Failures failures) {
-        if (fetch.docRef().dataType() != DataType.DOC_REF) {
-            failures.add(fail(fetch, "[{}] must read a [DOC_REF] attribute", fetch.nodeString()));
-        }
-        if (sameIdsAndTypes(fetch.fetchPlan().output(), fetch.fetchedAttributes()) == false) {
-            failures.add(
-                fail(
-                    fetch,
-                    "fetch plan output {} does not match the fetched attributes {}",
-                    fetch.fetchPlan().output(),
-                    fetch.fetchedAttributes()
-                )
-            );
-        }
-        fetch.fetchPlan().forEachDown(node -> {
-            if (node instanceof ProjectExec == false
-                && node instanceof FieldExtractExec == false
-                && node instanceof FetchSourceExec == false) {
-                failures.add(fail(node, "[{}] cannot run in a fetch plan", node.nodeName()));
             }
         });
-    }
-
-    private static boolean sameIdsAndTypes(List<Attribute> left, List<Attribute> right) {
-        if (left.size() != right.size()) {
-            return false;
-        }
-        for (int i = 0; i < left.size(); i++) {
-            if (left.get(i).id().equals(right.get(i).id()) == false || left.get(i).dataType() != right.get(i).dataType()) {
-                return false;
-            }
-        }
-        return true;
     }
 }

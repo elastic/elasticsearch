@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator.topn;
 
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocOriginTable;
@@ -49,6 +50,21 @@ public class DocVectorEncoderTests extends ComputeTestCase {
                 () -> ValueExtractor.extractorFor(ElementType.DOC, withoutTable, false, detached)
             );
             assertThat(e.getMessage(), equalTo("expected documents of this node, but got documents that left their node"));
+        }
+    }
+
+    public void testNullBlocksCantStandInForDocuments() {
+        try (Block nulls = blockFactory().newConstantNullBlock(1)) {
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> ValueExtractor.extractorFor(ElementType.DOC, TopNEncoder.DEFAULT_UNSORTABLE, false, nulls)
+            );
+            assertThat(e.getMessage(), equalTo("[DOC] channels can't carry null blocks"));
+            e = expectThrows(
+                IllegalStateException.class,
+                () -> KeyExtractor.extractorFor(ElementType.DOC, TopNEncoder.DEFAULT_SORTABLE, true, (byte) 1, (byte) 2, nulls)
+            );
+            assertThat(e.getMessage(), equalTo("[DOC] channels can't carry null blocks"));
         }
     }
 }

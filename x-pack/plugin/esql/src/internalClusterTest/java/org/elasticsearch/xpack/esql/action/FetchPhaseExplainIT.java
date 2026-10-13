@@ -42,14 +42,15 @@ import static org.hamcrest.Matchers.not;
 
 /**
  * {@code EXPLAIN} runs the whole distributed query over empty sources, so every node plans its part of the fetch phase
- * into operators. Each data node turns {@code _doc} into document references in its node reduce stage, and the
- * coordinator fetches after its cut.
+ * into operators. Each data node cuts the rows of its shards in its node reduce stage and sends their {@code _doc}, and
+ * the coordinator fetches after its cut.
  */
 @ESIntegTestCase.ClusterScope(numDataNodes = 3)
 public class FetchPhaseExplainIT extends AbstractEsqlIntegTestCase {
     private static final String INDEX = "fetch_phase_explain";
     private static final String QUERY = "FROM " + INDEX + " | SORT ts DESC | LIMIT 10 | KEEP a, b, ts";
     private static final Pattern FIELD_EXTRACT = Pattern.compile("FieldExtractExec\\[\\[([^\\]]*)]");
+    private static final Pattern FETCH = Pattern.compile("FetchExec\\[[^,\\[]*,\\[([^\\]]*)]");
 
     @Before
     public void setupIndex() {
@@ -74,7 +75,7 @@ public class FetchPhaseExplainIT extends AbstractEsqlIntegTestCase {
         assertThat(plans(rows, "coordinator", "fetchPhase"), contains("APPLIED"));
         List<String> coordinatorPlans = plans(rows, "coordinator", "optimizedPhysicalPlan");
         assertThat(coordinatorPlans, contains(containsString("FetchExec")));
-        assertThat("the fetch plan loads the deferred columns", extractedFields(coordinatorPlans.getFirst()), equalTo(Set.of("a", "b")));
+        assertThat("the fetch loads the deferred columns", namesIn(FETCH, coordinatorPlans.getFirst()), equalTo(Set.of("a", "b")));
         assertThat(plans(rows, "final", "physicalPlan"), hasItem(containsString("FetchExec")));
         assertDataNodesLoadOnlyTheSortKey(rows);
 
@@ -86,9 +87,9 @@ public class FetchPhaseExplainIT extends AbstractEsqlIntegTestCase {
         }
         assertThat(nodeReducePlans.keySet(), equalTo(nodesWithShards()));
         for (List<String> plans : nodeReducePlans.values()) {
-            assertThat(plans, everyItem(containsString("DocRefEncodeExec")));
+            assertThat("each node cuts the rows of its shards", plans, everyItem(containsString("TopNExec")));
             for (String plan : plans) {
-                assertThat("the node reduce stage loads nothing", extractedFields(plan), empty());
+                assertThat("the node reduce stage loads nothing", namesIn(FIELD_EXTRACT, plan), empty());
             }
         }
     }
@@ -111,7 +112,7 @@ public class FetchPhaseExplainIT extends AbstractEsqlIntegTestCase {
         List<String> nodeReducePlans = plans(rows, "node_reduce", "physicalPlan");
         assertThat(nodeReducePlans, not(empty()));
         for (String plan : nodeReducePlans) {
-            assertThat("each node loads the other columns for its own top rows", extractedFields(plan), equalTo(Set.of("a", "b")));
+            assertThat("each node loads the other columns for its own top rows", namesIn(FIELD_EXTRACT, plan), equalTo(Set.of("a", "b")));
         }
     }
 
@@ -123,16 +124,16 @@ public class FetchPhaseExplainIT extends AbstractEsqlIntegTestCase {
         List<String> dataPlans = plans(rows, "data", "localPhysicalPlan");
         assertThat(dataPlans, not(empty()));
         for (String plan : dataPlans) {
-            assertThat(plan, extractedFields(plan), equalTo(Set.of("ts")));
+            assertThat(plan, namesIn(FIELD_EXTRACT, plan), equalTo(Set.of("ts")));
         }
     }
 
     /**
-     * The fields every {@code FieldExtractExec} of a plan loads, by name.
+     * The fields every node of a plan that {@code pattern} matches lists, by name. The pattern captures the list.
      */
-    private static Set<String> extractedFields(String plan) {
+    private static Set<String> namesIn(Pattern pattern, String plan) {
         Set<String> fields = new HashSet<>();
-        Matcher matcher = FIELD_EXTRACT.matcher(plan);
+        Matcher matcher = pattern.matcher(plan);
         while (matcher.find()) {
             for (String attribute : matcher.group(1).split(", ")) {
                 // attributes print as name{kind}#id

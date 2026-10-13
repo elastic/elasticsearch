@@ -31,31 +31,32 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
- * Runs {@link AttributeDemand} on real distributed plans, as {@code PlanFetch} sees them after {@code ProjectAwayColumns}.
+ * Runs {@link PlanFetch#demand} on real distributed plans, as {@code PlanFetch} sees them after {@code ProjectAwayColumns}.
  */
-public class AttributeDemandTests extends ESTestCase {
+public class PlanFetchDemandTests extends ESTestCase {
 
+    /** A filter column is read inside the fragment only, so it never crosses the exchange. */
     public void testSortKeyKept() {
-        assertDemand("FROM idx | WHERE x > 1 | SORT ts DESC | LIMIT 10 | KEEP a, b, ts", List.of("ts"), List.of("a", "b"), List.of("x"));
+        assertDemand("FROM idx | WHERE x > 1 | SORT ts DESC | LIMIT 10 | KEEP a, b, ts", List.of("ts"), List.of("a", "b"));
     }
 
     /** The cut reads the sort key, so it crosses the exchange even though the query does not return it. */
     public void testSortKeyNotKept() {
-        assertDemand("FROM idx | SORT ts | LIMIT 10 | KEEP a", List.of("ts"), List.of("a"), List.of());
+        assertDemand("FROM idx | SORT ts | LIMIT 10 | KEEP a", List.of("ts"), List.of("a"));
     }
 
     public void testPlainLimitDefersEverything() {
-        assertDemand("FROM idx | LIMIT 10 | KEEP a, b", List.of(), List.of("a", "b"), List.of());
+        assertDemand("FROM idx | LIMIT 10 | KEEP a, b", List.of(), List.of("a", "b"));
     }
 
     /** A value computed inside the fragment crosses as a value. Its input is read inside the fragment only. */
     public void testEvalBeforeTheCut() {
-        assertDemand("FROM idx | EVAL z = a + 1 | SORT ts | LIMIT 10 | KEEP z, b", List.of("ts", "z"), List.of("b"), List.of("a"));
+        assertDemand("FROM idx | EVAL z = a + 1 | SORT ts | LIMIT 10 | KEEP z, b", List.of("ts", "z"), List.of("b"));
     }
 
     /** A column an {@code EVAL} before the cut reads is loaded before the cut anyway, so it crosses as a value. */
     public void testEvalInputThatCrossesStaysEager() {
-        assertDemand("FROM idx | EVAL z = a + 1 | SORT ts | LIMIT 10 | KEEP a, z, b", List.of("a", "ts", "z"), List.of("b"), List.of());
+        assertDemand("FROM idx | EVAL z = a + 1 | SORT ts | LIMIT 10 | KEEP a, z, b", List.of("a", "ts", "z"), List.of("b"));
     }
 
     /**
@@ -63,7 +64,7 @@ public class AttributeDemandTests extends ESTestCase {
      * column crosses as a value and the fetch doesn't read it a second time.
      */
     public void testColumnOfAComputedSortKeyStaysEager() {
-        AttributeDemand.Demand demand = demand("FROM idx | SORT a + 1 | LIMIT 10 | KEEP a, b");
+        PlanFetch.Demand demand = demand("FROM idx | SORT a + 1 | LIMIT 10 | KEEP a, b");
         assertThat("eager", namedByTheUser(demand.eager()), equalTo(List.of("a")));
         assertThat("deferred", names(demand.deferred()), equalTo(List.of("b")));
     }
@@ -72,31 +73,26 @@ public class AttributeDemandTests extends ESTestCase {
      * The loader may compute {@code LENGTH(b)} itself and never read {@code b}, so {@code b} is still fetched.
      */
     public void testFieldOfAFunctionTheLoaderMayComputeIsDeferred() {
-        assertDemand("FROM idx | EVAL l = LENGTH(b) | SORT ts | LIMIT 10 | KEEP b, l", List.of("l", "ts"), List.of("b"), List.of());
+        assertDemand("FROM idx | EVAL l = LENGTH(b) | SORT ts | LIMIT 10 | KEEP b, l", List.of("l", "ts"), List.of("b"));
     }
 
     /** The loader can't compute {@code LENGTH} of a computed string, so the expression reads the column. */
     public void testFunctionOfAnExpressionReadsItsColumns() {
-        assertDemand(
-            "FROM idx | EVAL l = LENGTH(CONCAT(b, \"!\")) | SORT ts | LIMIT 10 | KEEP b, l",
-            List.of("b", "l", "ts"),
-            List.of(),
-            List.of()
-        );
+        assertDemand("FROM idx | EVAL l = LENGTH(CONCAT(b, \"!\")) | SORT ts | LIMIT 10 | KEEP b, l", List.of("b", "l", "ts"), List.of());
     }
 
     /** Lucene usually answers a filter without loading values, so a filtered column is still fetched. */
     public void testFilteredColumnIsDeferred() {
-        assertDemand("FROM idx | WHERE a > 1 | SORT ts | LIMIT 10 | KEEP a, b", List.of("ts"), List.of("a", "b"), List.of());
+        assertDemand("FROM idx | WHERE a > 1 | SORT ts | LIMIT 10 | KEEP a, b", List.of("ts"), List.of("a", "b"));
     }
 
     /** A filter after the cut reads its field after the cut, so the field is loaded for the surviving rows only. */
     public void testFilterAfterTheCut() {
-        assertDemand("FROM idx | SORT ts | LIMIT 10 | WHERE a > 0 | KEEP b", List.of("ts"), List.of("a", "b"), List.of());
+        assertDemand("FROM idx | SORT ts | LIMIT 10 | WHERE a > 0 | KEEP b", List.of("ts"), List.of("a", "b"));
     }
 
     public void testRenameAfterTheCut() {
-        assertDemand("FROM idx | SORT ts | LIMIT 10 | RENAME a AS renamed | KEEP renamed", List.of("ts"), List.of("a"), List.of());
+        assertDemand("FROM idx | SORT ts | LIMIT 10 | RENAME a AS renamed | KEEP renamed", List.of("ts"), List.of("a"));
     }
 
     /** {@code _score} is computed by the query and cannot be loaded from a document, it stays eager. */
@@ -104,23 +100,21 @@ public class AttributeDemandTests extends ESTestCase {
         assertDemand(
             "FROM idx METADATA _score | WHERE MATCH(kw, \"q\") | SORT _score DESC | LIMIT 10 | KEEP a, _score",
             List.of("_score"),
-            List.of("a"),
-            List.of("kw")
+            List.of("a")
         );
     }
 
     public void testSource() {
-        assertDemand("FROM idx METADATA _source | SORT ts | LIMIT 10 | KEEP _source", List.of("ts"), List.of("_source"), List.of());
+        assertDemand("FROM idx METADATA _source | SORT ts | LIMIT 10 | KEEP _source", List.of("ts"), List.of("_source"));
     }
 
-    private static void assertDemand(String query, List<String> eager, List<String> deferred, List<String> local) {
-        AttributeDemand.Demand demand = demand(query);
+    private static void assertDemand(String query, List<String> eager, List<String> deferred) {
+        PlanFetch.Demand demand = demand(query);
         assertThat("eager", names(demand.eager()), equalTo(eager));
         assertThat("deferred", names(demand.deferred()), equalTo(deferred));
-        assertThat("local", names(demand.local()), equalTo(local));
     }
 
-    private static AttributeDemand.Demand demand(String query) {
+    private static PlanFetch.Demand demand(String query) {
         PhysicalPlan plan = plan(query);
         List<ExchangeExec> exchanges = plan.collect(ExchangeExec.class);
         assertThat(plan.toString(), exchanges, hasSize(1));
@@ -131,7 +125,7 @@ public class AttributeDemandTests extends ESTestCase {
         EsRelation relation = fragmentRoot.collect(EsRelation.class).getFirst();
         PhysicalPlan cut = parentOf(plan, exchange);
 
-        return AttributeDemand.analyze(fragmentRoot, relation, cut);
+        return PlanFetch.demand(fragmentRoot, relation, cut);
     }
 
     private static PhysicalPlan parentOf(PhysicalPlan plan, PhysicalPlan child) {

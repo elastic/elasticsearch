@@ -893,11 +893,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                     }
                 }
                 if (stages.contains(Stage.NODE_REDUCE) || stages.contains(Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION)) {
-                    // A NODE exchange is nested in the CLUSTER one and is split off by the reduction planning below.
-                    List<ExchangeExec> exchanges = physicalPlan.collect(ExchangeExec.class)
-                        .stream()
-                        .filter(e -> e.scope() == ExchangeExec.Scope.CLUSTER)
-                        .toList();
+                    List<ExchangeExec> exchanges = physicalPlan.collect(ExchangeExec.class);
                     // Skip plans that terminate at the
                     // coordinator and produce no ExchangeExec;
                     // e.g. query that optimized data scan entirely like `time()`

@@ -34,7 +34,7 @@ class AcquiredSearchContexts implements Releasable {
     }
 
     /**
-     * @param originResolver names the reader of each shard for rows that leave the node as document references
+     * @param originResolver names the reader of each shard for the documents of rows that leave the node
      */
     AcquiredSearchContexts(int size, DocOriginResolver originResolver) {
         this.allContexts = new ComputeSearchContext[size];

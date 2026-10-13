@@ -30,7 +30,7 @@ import java.util.Set;
 
 /**
  * Decides on the coordinator whether the node that owns a document can load an attribute for it later, from the
- * document reference alone.
+ * document alone.
  * <p>
  * The fetch side runs no planning rule. It loads every attribute through the same per-shard block loader resolution
  * the data drivers use, so an attribute is fetchable only when that resolution alone produces the value the eager

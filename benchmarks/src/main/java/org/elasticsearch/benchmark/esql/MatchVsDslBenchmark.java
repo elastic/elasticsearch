@@ -37,7 +37,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.DocOrigin;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -709,11 +708,6 @@ public class MatchVsDslBenchmark {
         @Override
         public MappedFieldType fieldType(String name) {
             throw new UnsupportedOperationException("no field types resolved in a filter-context scan");
-        }
-
-        @Override
-        public DocOrigin origin() {
-            throw new UnsupportedOperationException("no document references in a filter-context scan");
         }
 
         @Override

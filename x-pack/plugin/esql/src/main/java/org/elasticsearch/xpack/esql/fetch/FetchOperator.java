@@ -30,12 +30,22 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
+import org.elasticsearch.xpack.esql.plan.physical.FetchSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -74,7 +84,7 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
         ThreadContext threadContext();
 
         /**
-         * The node a document reference names, or {@code null} once it left the cluster.
+         * The node the origin of a document names, or {@code null} once it left the cluster.
          */
         @Nullable
         DiscoveryNode node(String clusterAlias, String nodeId);
@@ -93,22 +103,42 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
     }
 
     /**
-     * @param docRefChannel       the input channel that holds the document references
+     * @param docChannel          the input channel that holds the documents of the rows
      * @param fetchedTypes        the element type of each fetched column
      * @param fetchPlan           the plan each node runs to load the fetched columns
      * @param maxOutstandingPages the pages of the cut that fetch at the same time
      */
-    public record Factory(int docRefChannel, List<ElementType> fetchedTypes, PhysicalPlan fetchPlan, int maxOutstandingPages, Client client)
+    public record Factory(int docChannel, List<ElementType> fetchedTypes, PhysicalPlan fetchPlan, int maxOutstandingPages, Client client)
         implements
             OperatorFactory {
+        /**
+         * The operator of {@code exec}. The nodes that own the documents load the fetched columns with a plan built here,
+         * without an extraction preference, so each column gets the element type of its data type.
+         */
+        static Factory forExec(FetchExec exec, int docChannel, Client client) {
+            List<Attribute> fetched = exec.fetchedAttributes();
+            Attribute doc = new FieldAttribute(Source.EMPTY, null, null, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
+            PhysicalPlan load = new FieldExtractExec(
+                Source.EMPTY,
+                new FetchSourceExec(Source.EMPTY, doc, null),
+                fetched,
+                MappedFieldType.FieldExtractPreference.NONE
+            );
+            PhysicalPlan fetchPlan = EstimatesRowSize.estimateRowSize(0, new ProjectExec(Source.EMPTY, load, fetched));
+            List<ElementType> fetchedTypes = fetched.stream()
+                .map(a -> PlannerUtils.toElementType(a.dataType(), MappedFieldType.FieldExtractPreference.NONE))
+                .toList();
+            return new Factory(docChannel, fetchedTypes, fetchPlan, MAX_OUTSTANDING_PAGES, client);
+        }
+
         @Override
         public Operator get(DriverContext driverContext) {
-            return new FetchOperator(driverContext, docRefChannel, fetchedTypes, fetchPlan, maxOutstandingPages, client);
+            return new FetchOperator(driverContext, docChannel, fetchedTypes, fetchPlan, maxOutstandingPages, client);
         }
 
         @Override
         public String describe() {
-            return "FetchOperator[docRefChannel=" + docRefChannel + ", fetchedTypes=" + fetchedTypes + "]";
+            return "FetchOperator[docChannel=" + docChannel + ", fetchedTypes=" + fetchedTypes + "]";
         }
     }
 
@@ -118,7 +148,7 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
      */
     record Fetched(Page cut, FetchBatchPlanner.Batch batch, List<Page> fetched) {}
 
-    private final int docRefChannel;
+    private final int docChannel;
     private final List<ElementType> fetchedTypes;
     private final PhysicalPlan fetchPlan;
     private final Client client;
@@ -140,14 +170,14 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
 
     FetchOperator(
         DriverContext driverContext,
-        int docRefChannel,
+        int docChannel,
         List<ElementType> fetchedTypes,
         PhysicalPlan fetchPlan,
         int maxOutstandingPages,
         Client client
     ) {
         super(driverContext, client.threadContext(), maxOutstandingPages);
-        this.docRefChannel = docRefChannel;
+        this.docChannel = docChannel;
         this.fetchedTypes = fetchedTypes;
         this.fetchPlan = fetchPlan;
         this.client = client;
@@ -160,7 +190,7 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
         FetchBatchPlanner.Batch batch;
         long planStart = System.nanoTime();
         try {
-            batch = FetchBatchPlanner.plan(List.of(cut), docRefChannel);
+            batch = FetchBatchPlanner.plan(List.of(cut), docChannel);
         } catch (Exception e) {
             listener.onFailure(e);
             return;
@@ -387,7 +417,7 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
 
     @Override
     public String toString() {
-        return "FetchOperator[docRefChannel=" + docRefChannel + ", fetchedTypes=" + fetchedTypes + "]";
+        return "FetchOperator[docChannel=" + docChannel + ", fetchedTypes=" + fetchedTypes + "]";
     }
 
     /**

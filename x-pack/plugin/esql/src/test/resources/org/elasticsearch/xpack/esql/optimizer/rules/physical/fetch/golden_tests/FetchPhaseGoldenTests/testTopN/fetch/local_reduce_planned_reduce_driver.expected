@@ -1,4 +1,4 @@
-ExchangeSinkExec[[$$doc_ref{r$}#0, hire_date{f}#1],false]
-\_DocRefEncodeExec[_doc{f}#2,$$doc_ref{r$}#0]
-  \_TopNExec[[Order[hire_date{f}#1,DESC,FIRST]],10[INTEGER],null]
-    \_ExchangeSourceExec[[_doc{f}#2, hire_date{f}#1],false]
+ExchangeSinkExec[[_doc{f}#0, hire_date{f}#1],false]
+\_ProjectExec[[_doc{f}#0, hire_date{f}#1]]
+  \_TopNExec[[Order[hire_date{f}#1,DESC,FIRST]],10[INTEGER],28]
+    \_ExchangeSourceExec[[_doc{f}#0, hire_date{f}#1],false]

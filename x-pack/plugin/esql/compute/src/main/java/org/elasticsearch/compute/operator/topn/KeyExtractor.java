@@ -52,7 +52,7 @@ interface KeyExtractor {
         if (false == (elementType == block.elementType() || ElementType.NULL == block.elementType())) {
             throw new IllegalArgumentException("Expected [" + elementType + "] but was [" + block.elementType() + "]");
         }
-        if (block.elementType() == ElementType.NULL && (elementType == ElementType.DOC_REF || elementType == ElementType.DOC)) {
+        if (block.elementType() == ElementType.NULL && elementType == ElementType.DOC) {
             // these rows have no null marker, so a null block would shift the bytes of the next channel
             throw new IllegalStateException("[" + elementType + "] channels can't carry null blocks");
         }

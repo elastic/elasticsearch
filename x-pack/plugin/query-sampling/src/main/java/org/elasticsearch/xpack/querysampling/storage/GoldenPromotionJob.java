@@ -23,9 +23,9 @@ import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 
 /**
- * Grows the golden dataset every so often, by what {@link GoldenGrower} does. Only the elected master does it. Every node has the
- * plugin, and a version that each of them makes would be a copy of the others, while the elected master is always exactly one node.
- * A round that finds the one before still going does nothing.
+ * Brings the golden dataset up to date every so often, by what {@link GoldenUpdater} does without computing anything again. Only the
+ * elected master does it. Every node has the plugin, and a version that each of them makes would be a copy of the others, while the
+ * elected master is always exactly one node. A round that finds the one before still going does nothing.
  */
 public final class GoldenPromotionJob {
 
@@ -36,7 +36,7 @@ public final class GoldenPromotionJob {
      */
     static final TimeValue MIN_INTERVAL = TimeValue.timeValueSeconds(1);
 
-    private final BiConsumer<Integer, ActionListener<GoldenGrower.Result>> grow;
+    private final BiConsumer<Integer, ActionListener<GoldenUpdater.Result>> grow;
     private final BooleanSupplier electedMaster;
     private final AtomicBoolean running = new AtomicBoolean();
     private final LongAdder promotions = new LongAdder();
@@ -47,7 +47,7 @@ public final class GoldenPromotionJob {
      * @param grow          grows the dataset by a version of at most the number of queries that it is given
      * @param electedMaster whether this node is the elected master
      */
-    public GoldenPromotionJob(BiConsumer<Integer, ActionListener<GoldenGrower.Result>> grow, BooleanSupplier electedMaster) {
+    public GoldenPromotionJob(BiConsumer<Integer, ActionListener<GoldenUpdater.Result>> grow, BooleanSupplier electedMaster) {
         this.grow = grow;
         this.electedMaster = electedMaster;
     }
@@ -74,7 +74,7 @@ public final class GoldenPromotionJob {
         if (electedMaster.getAsBoolean() == false || running.compareAndSet(false, true) == false) {
             return;
         }
-        ActionListener<GoldenGrower.Result> done = ActionListener.runAfter(ActionListener.wrap(result -> {
+        ActionListener<GoldenUpdater.Result> done = ActionListener.runAfter(ActionListener.wrap(result -> {
             if (result.version() > 0) {
                 promotions.increment();
                 logger.info(

@@ -1,8 +1,8 @@
 {
-  "query_sampling.golden_promote": {
+  "query_sampling.golden_update": {
     "documentation": {
       "url": null,
-      "description": "Promote stored sampled queries that have their ground truth to a new version of the golden dataset"
+      "description": "Bring the golden dataset up to date by a version: add the stored sampled queries that are not in it and compute again the ground truth of the queries whose data changed"
     },
     "stability": "experimental",
     "visibility": "feature_flag",
@@ -15,7 +15,7 @@
     "url": {
       "paths": [
         {
-          "path": "/_query_sampling/golden/promote",
+          "path": "/_query_sampling/golden/update",
           "methods": [
             "POST"
           ]
@@ -25,7 +25,7 @@
     "params": {
       "max": {
         "type": "number",
-        "description": "The most queries to promote",
+        "description": "The most queries of the version that is made",
         "default": 1000
       }
     }

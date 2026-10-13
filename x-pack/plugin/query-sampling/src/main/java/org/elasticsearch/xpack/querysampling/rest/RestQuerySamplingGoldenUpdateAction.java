@@ -13,38 +13,36 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.querysampling.action.QuerySamplingGoldenRefreshAction;
-import org.elasticsearch.xpack.querysampling.action.QuerySamplingGoldenRefreshRequest;
+import org.elasticsearch.xpack.querysampling.action.QuerySamplingGoldenUpdateAction;
+import org.elasticsearch.xpack.querysampling.action.QuerySamplingGoldenUpdateRequest;
 
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /**
- * Makes a new version of the golden dataset from one, in which the ground truth of the queries whose data changed is computed
- * again. Each of those costs an exact search over the index, so how many queries are looked at per call is bounded by {@code max}.
+ * Brings the golden dataset up to date by a version: stored sampled queries that are not in it are added, and the ground truth of the
+ * queries whose data changed is computed again. Each of those costs an exact search over the index, so how many queries a version
+ * has is bounded by {@code max}.
  */
 @ServerlessScope(Scope.INTERNAL)
-public final class RestQuerySamplingGoldenRefreshAction extends BaseRestHandler {
+public final class RestQuerySamplingGoldenUpdateAction extends BaseRestHandler {
 
     private static final int DEFAULT_MAX = 1000;
 
     @Override
     public String getName() {
-        return "query_sampling_golden_refresh_action";
+        return "query_sampling_golden_update_action";
     }
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_query_sampling/golden/refresh"));
+        return List.of(new Route(POST, "/_query_sampling/golden/update"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        QuerySamplingGoldenRefreshRequest refreshRequest = new QuerySamplingGoldenRefreshRequest(
-            request.paramAsLong("version", 0L),
-            request.paramAsInt("max", DEFAULT_MAX)
-        );
-        return channel -> client.execute(QuerySamplingGoldenRefreshAction.INSTANCE, refreshRequest, new RestToXContentListener<>(channel));
+        QuerySamplingGoldenUpdateRequest updateRequest = new QuerySamplingGoldenUpdateRequest(request.paramAsInt("max", DEFAULT_MAX));
+        return channel -> client.execute(QuerySamplingGoldenUpdateAction.INSTANCE, updateRequest, new RestToXContentListener<>(channel));
     }
 }

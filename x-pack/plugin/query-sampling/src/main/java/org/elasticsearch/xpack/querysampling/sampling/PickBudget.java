@@ -11,9 +11,9 @@ import java.util.function.LongSupplier;
 
 /**
  * Limits how many queries are picked per hour, as a token bucket: every pick takes a token, tokens come back at a
- * steady pace, and when there is none the sampler gives the queries that arrive no chance to be picked.
+ * steady pace, and when there is none the smapler gives the queries that arrive no chance to be picked.
  * <p>
- * The bucket holds what is earned in a minute, so a quiet spell does not store up more than a short burst. A limit of
+ * The bucket holds what is earned in minute, so a quiet spell does not store up more than a short burst. A limit of
  * zero means there is none.
  */
 public final class PickBudget {

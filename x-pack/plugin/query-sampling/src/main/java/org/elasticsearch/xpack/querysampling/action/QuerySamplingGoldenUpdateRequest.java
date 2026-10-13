@@ -15,30 +15,23 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 /**
- * Asks for a new version of the golden dataset to be made from one, with the ground truth of its stale queries computed again.
- * It is only run by the node that receives it, so it is never sent anywhere.
+ * Asks for the golden dataset to be brought up to date by a version. It is only run by the node that receives it, which reads the
+ * queries from the indices of the plugin, so it is never sent anywhere.
  */
-public final class QuerySamplingGoldenRefreshRequest extends ActionRequest {
+public final class QuerySamplingGoldenUpdateRequest extends ActionRequest {
 
     /**
-     * The most queries that can be looked at once, which is what one search of the golden dataset can return.
+     * The most queries that a version can have, which is what one search of the golden dataset can return.
      */
     public static final int MAX_QUERIES = 10_000;
 
-    private final long version;
     private final int max;
 
     /**
-     * @param version the version to refresh, 0 for the latest that is complete
-     * @param max     the most queries to look at, so that how many searches one call makes is bounded
+     * @param max the most queries of the version that is made, so that how much one call writes and computes is bounded
      */
-    public QuerySamplingGoldenRefreshRequest(long version, int max) {
-        this.version = version;
+    public QuerySamplingGoldenUpdateRequest(int max) {
         this.max = max;
-    }
-
-    public long version() {
-        return version;
     }
 
     public int max() {
@@ -47,16 +40,12 @@ public final class QuerySamplingGoldenRefreshRequest extends ActionRequest {
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException e = null;
-        if (version < 0) {
-            e = new ActionRequestValidationException();
-            e.addValidationError("[version] must not be negative but was [" + version + "]");
-        }
         if (max < 1 || max > MAX_QUERIES) {
-            e = e == null ? new ActionRequestValidationException() : e;
+            ActionRequestValidationException e = new ActionRequestValidationException();
             e.addValidationError("[max] must be between 1 and " + MAX_QUERIES + " but was [" + max + "]");
+            return e;
         }
-        return e;
+        return null;
     }
 
     @Override

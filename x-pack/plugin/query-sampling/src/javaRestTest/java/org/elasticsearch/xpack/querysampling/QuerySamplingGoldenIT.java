@@ -21,9 +21,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
- * Promotes stored sampled queries to the golden dataset against a real cluster: a version is made, it is complete and has
- * the queries with their ground truth and the state of the data it was computed on, and the next promotion makes another
- * version and leaves this one as it was.
+ * Brings the golden dataset up to date against a real cluster: a version is made, it is complete and has the queries with their
+ * ground truth and the state of the data it was computed on, and when the data changes the next update makes another version with the
+ * ground truth computed again and leaves this one as it was.
  */
 public class QuerySamplingGoldenIT extends QuerySamplingRestTestCase {
 
@@ -52,7 +52,7 @@ public class QuerySamplingGoldenIT extends QuerySamplingRestTestCase {
         return ObjectPath.createFromResponse(client().performRequest(search));
     }
 
-    public void testStoredQueriesArePromotedToVersionsThatStayAsTheyWere() throws Exception {
+    public void testTheDatasetIsBroughtUpToDateByVersionsThatStayAsTheyWere() throws Exception {
         setUpIndexAndSampling();
         float x = sampleOneQuery();
         // the index keeps what was sampled between tests, so ask until nothing is left to compute
@@ -66,82 +66,69 @@ public class QuerySamplingGoldenIT extends QuerySamplingRestTestCase {
         assertBusy(() -> assertThat(storedValue(x, "has_ground_truth"), equalTo(true)));
         refreshSampleIndex();
 
-        ObjectPath first = ObjectPath.createFromResponse(client().performRequest(new Request("POST", "/_query_sampling/golden/promote")));
-
+        // the stored queries that have ground truth make the first version
+        ObjectPath first = update();
         assertThat(((Number) first.evaluate("version")).longValue(), equalTo(1L));
-        int promoted = ((Number) first.evaluate("promoted")).intValue();
-        assertThat(promoted, greaterThanOrEqualTo(1));
+        int added = ((Number) first.evaluate("added")).intValue();
+        assertThat(added, greaterThanOrEqualTo(1));
+        assertNull("it is not made from another", first.evaluate("source_version"));
         assertThat(((Number) first.evaluate("failed")).intValue(), equalTo(0));
         ObjectPath manifest = searchGolden("version", 1);
         assertThat(((Number) manifest.evaluate("hits.total.value")).intValue(), equalTo(1));
         assertThat(manifest.evaluate("hits.hits.0._source.completed"), equalTo(true));
-        assertThat(((Number) manifest.evaluate("hits.hits.0._source.records")).intValue(), equalTo(promoted));
+        assertThat(((Number) manifest.evaluate("hits.hits.0._source.records")).intValue(), equalTo(added));
         ObjectPath records = searchGolden("record", 1);
-        assertThat(((Number) records.evaluate("hits.total.value")).intValue(), equalTo(promoted));
+        assertThat(((Number) records.evaluate("hits.total.value")).intValue(), equalTo(added));
         // a copy of what was stored, with the state of the data its ground truth is of: the five documents of the index
         assertThat(((Number) records.evaluate("hits.hits.0._source.ground_truth.data_state.documents")).longValue(), equalTo(5L));
         assertNotNull(records.evaluate("hits.hits.0._source.query.query_vector"));
 
-        ObjectPath second = ObjectPath.createFromResponse(client().performRequest(new Request("POST", "/_query_sampling/golden/promote")));
-
-        assertThat(((Number) second.evaluate("version")).longValue(), equalTo(2L));
-        assertThat(
-            "the first version is as it was",
-            ((Number) searchGolden("record", 1).evaluate("hits.total.value")).intValue(),
-            equalTo(promoted)
-        );
-        assertThat(((Number) searchGolden("record", 2).evaluate("hits.total.value")).intValue(), equalTo(promoted));
+        // nothing is new and nothing changed, which makes no version
+        ObjectPath nothing = update();
+        assertNull(nothing.evaluate("version"));
+        assertThat(((Number) nothing.evaluate("copied")).intValue(), equalTo(added));
 
         // the ground truth was computed on the data as it is, so nothing is out of date
         ObjectPath fresh = check("?version=1");
         assertThat(((Number) fresh.evaluate("version")).longValue(), equalTo(1L));
-        assertThat(((Number) fresh.evaluate("checked")).intValue(), equalTo(promoted));
-        assertThat(((Number) fresh.evaluate("fresh")).intValue(), equalTo(promoted));
+        assertThat(((Number) fresh.evaluate("checked")).intValue(), equalTo(added));
+        assertThat(((Number) fresh.evaluate("fresh")).intValue(), equalTo(added));
         assertThat(((Number) fresh.evaluate("stale")).intValue(), equalTo(0));
 
         // a document changes, which every query of the dataset has among the documents that it is over
-        Request update = new Request("PUT", "/vectors/_doc/0");
-        update.setJsonEntity("{\"vec\": [9, 9]}");
-        client().performRequest(update);
+        Request change = new Request("PUT", "/vectors/_doc/0");
+        change.setJsonEntity("{\"vec\": [9, 9]}");
+        client().performRequest(change);
         client().performRequest(new Request("POST", "/vectors/_refresh"));
-
         ObjectPath stale = check("");
-        assertThat("the latest version, when none is asked for", ((Number) stale.evaluate("version")).longValue(), equalTo(2L));
-        assertThat(((Number) stale.evaluate("stale")).intValue(), equalTo(promoted));
+        assertThat("the latest version, when none is asked for", ((Number) stale.evaluate("version")).longValue(), equalTo(1L));
+        assertThat(((Number) stale.evaluate("stale")).intValue(), equalTo(added));
         assertThat(((Number) stale.evaluate("fresh")).intValue(), equalTo(0));
-        assertThat(
-            "the version that was promoted is still as it was",
-            ((Number) searchGolden("record", 1).evaluate("hits.total.value")).intValue(),
-            equalTo(promoted)
-        );
 
-        // a new version is made in which the ground truth of what is stale is computed again, and the version it is made from stays
-        ObjectPath refreshed = ObjectPath.createFromResponse(
-            client().performRequest(new Request("POST", "/_query_sampling/golden/refresh"))
-        );
-        assertThat(((Number) refreshed.evaluate("source_version")).longValue(), equalTo(2L));
-        assertThat(((Number) refreshed.evaluate("version")).longValue(), equalTo(3L));
-        assertThat(((Number) refreshed.evaluate("recomputed")).intValue(), equalTo(promoted));
-        assertThat(((Number) refreshed.evaluate("copied")).intValue(), equalTo(0));
-        assertThat(((Number) refreshed.evaluate("failed")).intValue(), equalTo(0));
-        assertThat(((Number) searchGolden("version", 3).evaluate("hits.hits.0._source.source_version")).longValue(), equalTo(2L));
-        // the sequence numbers of the five documents, of which one was updated, and as it was in the version it was made from
+        // the next version has the ground truth of what is stale computed again, and the version it is made from stays
+        ObjectPath updated = update();
+        assertThat(((Number) updated.evaluate("source_version")).longValue(), equalTo(1L));
+        assertThat(((Number) updated.evaluate("version")).longValue(), equalTo(2L));
+        assertThat(((Number) updated.evaluate("recomputed")).intValue(), equalTo(added));
+        assertThat(((Number) updated.evaluate("copied")).intValue(), equalTo(0));
+        assertThat(((Number) updated.evaluate("failed")).intValue(), equalTo(0));
+        assertThat(((Number) searchGolden("version", 2).evaluate("hits.hits.0._source.source_version")).longValue(), equalTo(1L));
+        // the sequence numbers of the five documents, of which one was changed, and as it was in the version it was made from
         assertThat(
-            ((Number) searchGolden("record", 3).evaluate("hits.hits.0._source.ground_truth.data_state.seq_no_sum")).doubleValue(),
+            ((Number) searchGolden("record", 2).evaluate("hits.hits.0._source.ground_truth.data_state.seq_no_sum")).doubleValue(),
             equalTo(15.0)
         );
         assertThat(
-            ((Number) searchGolden("record", 2).evaluate("hits.hits.0._source.ground_truth.data_state.seq_no_sum")).doubleValue(),
+            ((Number) searchGolden("record", 1).evaluate("hits.hits.0._source.ground_truth.data_state.seq_no_sum")).doubleValue(),
             equalTo(10.0)
         );
         ObjectPath freshAgain = check("");
-        assertThat(((Number) freshAgain.evaluate("version")).longValue(), equalTo(3L));
-        assertThat(((Number) freshAgain.evaluate("fresh")).intValue(), equalTo(promoted));
+        assertThat(((Number) freshAgain.evaluate("version")).longValue(), equalTo(2L));
+        assertThat(((Number) freshAgain.evaluate("fresh")).intValue(), equalTo(added));
+    }
 
-        // nothing is stale now, which makes no version
-        ObjectPath nothing = ObjectPath.createFromResponse(client().performRequest(new Request("POST", "/_query_sampling/golden/refresh")));
-        assertNull(nothing.evaluate("version"));
-        assertThat(((Number) nothing.evaluate("copied")).intValue(), equalTo(promoted));
+    private static ObjectPath update() throws IOException {
+        return ObjectPath.createFromResponse(client().performRequest(new Request("POST", "/_query_sampling/golden/update")));
     }
 
     private static ObjectPath check(String parameters) throws IOException {
@@ -156,7 +143,7 @@ public class QuerySamplingGoldenIT extends QuerySamplingRestTestCase {
     }
 
     public void testBoundsOfTheRequestAreChecked() {
-        Request request = new Request("POST", "/_query_sampling/golden/promote");
+        Request request = new Request("POST", "/_query_sampling/golden/update");
         request.addParameter("max", "0");
 
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));

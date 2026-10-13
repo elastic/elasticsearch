@@ -19,55 +19,56 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.querysampling.storage.GoldenReader;
-import org.elasticsearch.xpack.querysampling.storage.GoldenRefresher;
 import org.elasticsearch.xpack.querysampling.storage.GoldenStaleness;
+import org.elasticsearch.xpack.querysampling.storage.GoldenUpdater;
 import org.elasticsearch.xpack.querysampling.storage.GoldenWriter;
+import org.elasticsearch.xpack.querysampling.storage.StoredSamples;
 
 import static org.elasticsearch.xpack.core.ClientHelper.QUERY_SAMPLING_ORIGIN;
 
 /**
- * Makes a new version of the golden dataset in which the ground truth of the stale queries is computed again. The golden
- * dataset is read and written as the plugin, as nobody else may touch it, while the searches that look at the data and the exact
- * searches go through the node client with the thread context still holding the caller, so they see what the caller is allowed
- * to see and nothing more.
+ * Brings the golden dataset up to date by a version. The golden dataset and the sample are read and written as the plugin, as nobody
+ * else may touch them, while the searches that look at the data and the exact searches go through the node client with the thread
+ * context still holding the caller, so they see what the caller is allowed to see and nothing more.
  */
-public final class TransportQuerySamplingGoldenRefreshAction extends TransportAction<
-    QuerySamplingGoldenRefreshRequest,
-    QuerySamplingGoldenRefreshResponse> {
+public final class TransportQuerySamplingGoldenUpdateAction extends TransportAction<
+    QuerySamplingGoldenUpdateRequest,
+    QuerySamplingGoldenUpdateResponse> {
 
-    private final GoldenRefresher refresher;
+    private final GoldenUpdater updater;
 
     @Inject
-    public TransportQuerySamplingGoldenRefreshAction(
+    public TransportQuerySamplingGoldenUpdateAction(
         TransportService transportService,
         ActionFilters actionFilters,
         ThreadPool threadPool,
         Client client,
         NamedXContentRegistry xContentRegistry
     ) {
-        super(QuerySamplingGoldenRefreshAction.NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(QuerySamplingGoldenUpdateAction.NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         OriginSettingClient pluginClient = new OriginSettingClient(client, QUERY_SAMPLING_ORIGIN);
         GoldenReader reader = new GoldenReader(pluginClient::search, xContentRegistry);
-        this.refresher = new GoldenRefresher(
+        this.updater = new GoldenUpdater(
             reader,
-            new GoldenStaleness(reader, client::search),
-            client::search,
+            new StoredSamples(pluginClient::search, xContentRegistry),
             new GoldenWriter(
                 pluginClient::search,
                 pluginClient::index,
                 pluginClient::bulk,
                 pluginClient::update,
                 threadPool::absoluteTimeInMillis
-            )
+            ),
+            new GoldenStaleness(reader, client::search),
+            client::search
         );
     }
 
     @Override
     protected void doExecute(
         Task task,
-        QuerySamplingGoldenRefreshRequest request,
-        ActionListener<QuerySamplingGoldenRefreshResponse> listener
+        QuerySamplingGoldenUpdateRequest request,
+        ActionListener<QuerySamplingGoldenUpdateResponse> listener
     ) {
-        refresher.refresh(request.version(), request.max(), listener.map(QuerySamplingGoldenRefreshResponse::new));
+        updater.update(request.max(), listener.map(QuerySamplingGoldenUpdateResponse::new));
     }
 }

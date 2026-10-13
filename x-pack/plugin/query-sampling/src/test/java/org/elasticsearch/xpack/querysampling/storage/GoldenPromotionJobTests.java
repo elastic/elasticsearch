@@ -23,10 +23,10 @@ import static org.hamcrest.Matchers.equalTo;
 public class GoldenPromotionJobTests extends ESTestCase {
 
     private final List<Integer> limits = new ArrayList<>();
-    private final List<ActionListener<GoldenGrower.Result>> held = new ArrayList<>();
+    private final List<ActionListener<GoldenUpdater.Result>> held = new ArrayList<>();
     private boolean master = true;
     private boolean completeAtOnce = true;
-    private GoldenGrower.Result outcome = new GoldenGrower.Result(1, 2, 3, 0, 0);
+    private GoldenUpdater.Result outcome = new GoldenUpdater.Result(1, 2, 0, 0, 3, 0, 0);
     private Exception failure;
 
     private GoldenPromotionJob job() {
@@ -70,7 +70,7 @@ public class GoldenPromotionJobTests extends ESTestCase {
     }
 
     public void testARoundThatMadeNoVersionIsNotCountedAsAPromotion() {
-        outcome = new GoldenGrower.Result(1, 0, 0, 0, 0);
+        outcome = new GoldenUpdater.Result(1, 0, 3, 0, 0, 0, 0);
         GoldenPromotionJob job = job();
 
         job.run();

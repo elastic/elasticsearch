@@ -29,14 +29,12 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.xpack.querysampling.action.QuerySamplingGoldenCheckAction;
-import org.elasticsearch.xpack.querysampling.action.QuerySamplingGoldenPromoteAction;
-import org.elasticsearch.xpack.querysampling.action.QuerySamplingGoldenRefreshAction;
+import org.elasticsearch.xpack.querysampling.action.QuerySamplingGoldenUpdateAction;
 import org.elasticsearch.xpack.querysampling.action.QuerySamplingGroundTruthAction;
 import org.elasticsearch.xpack.querysampling.action.QuerySamplingRecallAction;
 import org.elasticsearch.xpack.querysampling.action.QuerySamplingStatsAction;
 import org.elasticsearch.xpack.querysampling.action.TransportQuerySamplingGoldenCheckAction;
-import org.elasticsearch.xpack.querysampling.action.TransportQuerySamplingGoldenPromoteAction;
-import org.elasticsearch.xpack.querysampling.action.TransportQuerySamplingGoldenRefreshAction;
+import org.elasticsearch.xpack.querysampling.action.TransportQuerySamplingGoldenUpdateAction;
 import org.elasticsearch.xpack.querysampling.action.TransportQuerySamplingGroundTruthAction;
 import org.elasticsearch.xpack.querysampling.action.TransportQuerySamplingRecallAction;
 import org.elasticsearch.xpack.querysampling.action.TransportQuerySamplingStatsAction;
@@ -46,8 +44,7 @@ import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
 import org.elasticsearch.xpack.querysampling.groundtruth.CostBudget;
 import org.elasticsearch.xpack.querysampling.groundtruth.GroundTruthWorker;
 import org.elasticsearch.xpack.querysampling.rest.RestQuerySamplingGoldenCheckAction;
-import org.elasticsearch.xpack.querysampling.rest.RestQuerySamplingGoldenPromoteAction;
-import org.elasticsearch.xpack.querysampling.rest.RestQuerySamplingGoldenRefreshAction;
+import org.elasticsearch.xpack.querysampling.rest.RestQuerySamplingGoldenUpdateAction;
 import org.elasticsearch.xpack.querysampling.rest.RestQuerySamplingGroundTruthAction;
 import org.elasticsearch.xpack.querysampling.rest.RestQuerySamplingRecallAction;
 import org.elasticsearch.xpack.querysampling.rest.RestQuerySamplingStatsAction;
@@ -56,10 +53,10 @@ import org.elasticsearch.xpack.querysampling.sampling.PickBudget;
 import org.elasticsearch.xpack.querysampling.sampling.QuerySampler;
 import org.elasticsearch.xpack.querysampling.sampling.SelectivityStrata;
 import org.elasticsearch.xpack.querysampling.sampling.SpatialStrata;
-import org.elasticsearch.xpack.querysampling.storage.GoldenGrower;
 import org.elasticsearch.xpack.querysampling.storage.GoldenIndex;
 import org.elasticsearch.xpack.querysampling.storage.GoldenPromotionJob;
 import org.elasticsearch.xpack.querysampling.storage.GoldenReader;
+import org.elasticsearch.xpack.querysampling.storage.GoldenUpdater;
 import org.elasticsearch.xpack.querysampling.storage.GoldenWriter;
 import org.elasticsearch.xpack.querysampling.storage.QuerySamplingIndex;
 import org.elasticsearch.xpack.querysampling.storage.SampleRetention;
@@ -156,13 +153,17 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
             retention.start(services.threadPool(), services.threadPool().generic());
         }
         GoldenReader goldenReader = new GoldenReader(client::search, services.xContentRegistry());
-        GoldenGrower goldenGrower = new GoldenGrower(
+        // the schedule only adds: computing the ground truth again is a search over the data of the users, which is done as
+        // whoever asks for it
+        GoldenUpdater goldenUpdater = new GoldenUpdater(
             goldenReader,
             new StoredSamples(client::search, services.xContentRegistry()),
-            new GoldenWriter(client::search, client::index, client::bulk, client::update, services.threadPool()::absoluteTimeInMillis)
+            new GoldenWriter(client::search, client::index, client::bulk, client::update, services.threadPool()::absoluteTimeInMillis),
+            null,
+            null
         );
         GoldenPromotionJob goldenPromotion = new GoldenPromotionJob(
-            goldenGrower::grow,
+            goldenUpdater::update,
             () -> services.clusterService().state().nodes().isLocalNodeElectedMaster()
         );
         goldenPromotion.watch(clusterSettings);
@@ -217,9 +218,8 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
             new ActionHandler(QuerySamplingStatsAction.INSTANCE, TransportQuerySamplingStatsAction.class),
             new ActionHandler(QuerySamplingGroundTruthAction.INSTANCE, TransportQuerySamplingGroundTruthAction.class),
             new ActionHandler(QuerySamplingRecallAction.INSTANCE, TransportQuerySamplingRecallAction.class),
-            new ActionHandler(QuerySamplingGoldenPromoteAction.INSTANCE, TransportQuerySamplingGoldenPromoteAction.class),
-            new ActionHandler(QuerySamplingGoldenCheckAction.INSTANCE, TransportQuerySamplingGoldenCheckAction.class),
-            new ActionHandler(QuerySamplingGoldenRefreshAction.INSTANCE, TransportQuerySamplingGoldenRefreshAction.class)
+            new ActionHandler(QuerySamplingGoldenUpdateAction.INSTANCE, TransportQuerySamplingGoldenUpdateAction.class),
+            new ActionHandler(QuerySamplingGoldenCheckAction.INSTANCE, TransportQuerySamplingGoldenCheckAction.class)
         );
     }
 
@@ -236,9 +236,8 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
             new RestQuerySamplingStatsAction(),
             new RestQuerySamplingGroundTruthAction(),
             new RestQuerySamplingRecallAction(),
-            new RestQuerySamplingGoldenPromoteAction(),
-            new RestQuerySamplingGoldenCheckAction(),
-            new RestQuerySamplingGoldenRefreshAction()
+            new RestQuerySamplingGoldenUpdateAction(),
+            new RestQuerySamplingGoldenCheckAction()
         );
     }
 

@@ -13,22 +13,22 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.querysampling.storage.GoldenRefresher;
+import org.elasticsearch.xpack.querysampling.storage.GoldenUpdater;
 
 import java.io.IOException;
 
 /**
- * What a refresh of the golden dataset did. Like the request it stays on the node that ran it.
+ * What an update of the golden dataset did. Like the request it stays on the node that ran it.
  */
-public final class QuerySamplingGoldenRefreshResponse extends ActionResponse implements ToXContentObject {
+public final class QuerySamplingGoldenUpdateResponse extends ActionResponse implements ToXContentObject {
 
-    private final GoldenRefresher.Result result;
+    private final GoldenUpdater.Result result;
 
-    public QuerySamplingGoldenRefreshResponse(GoldenRefresher.Result result) {
+    public QuerySamplingGoldenUpdateResponse(GoldenUpdater.Result result) {
         this.result = result;
     }
 
-    public GoldenRefresher.Result result() {
+    public GoldenUpdater.Result result() {
         return result;
     }
 
@@ -49,6 +49,8 @@ public final class QuerySamplingGoldenRefreshResponse extends ActionResponse imp
             .field("version", orNull(result.version()))
             .field("copied", result.copied())
             .field("recomputed", result.recomputed())
+            .field("added", result.added())
+            .field("dropped", result.dropped())
             .field("failed", result.failed())
             .endObject();
     }

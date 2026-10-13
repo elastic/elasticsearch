@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -90,9 +91,9 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         client().execute(PutFollowAction.INSTANCE, getPutFollowRequest("leader", "follower")).get();
         assertBusy(() -> assertHitCount(client().prepareSearch("follower"), 1));
 
-        var settings = client().admin().indices().prepareGetSettings(TEST_REQUEST_TIMEOUT, "leader", "follower").get().getIndexToSettings();
-        assertFalse(IndexSettings.RETAINS_UNMAPPED_FIELDS_SETTING.get(settings.get("leader")));
-        assertTrue(IndexSettings.RETAINS_UNMAPPED_FIELDS_SETTING.get(settings.get("follower")));
+        var metadata = getInstanceFromNode(ClusterService.class).state().metadata().getProject();
+        assertFalse(IndexSettings.RETAINS_UNMAPPED_FIELDS_SETTING.get(metadata.index("leader").getSettings()));
+        assertTrue(IndexSettings.RETAINS_UNMAPPED_FIELDS_SETTING.get(metadata.index("follower").getSettings()));
 
         client().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request(TEST_REQUEST_TIMEOUT, "follower")).get();
         prepareIndex("leader").setSource("{}", XContentType.JSON).get();

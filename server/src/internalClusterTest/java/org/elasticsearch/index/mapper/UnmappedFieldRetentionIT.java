@@ -234,13 +234,17 @@ public class UnmappedFieldRetentionIT extends AbstractSnapshotIntegTestCase {
     }
 
     private void assertRetains(String index, boolean expected) {
-        Settings settings = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, index).get().getIndexToSettings().get(index);
-        assertThat(index, IndexSettings.RETAINS_UNMAPPED_FIELDS_SETTING.get(settings), equalTo(expected));
-        assertThat(index, settings.hasValue(SETTING), equalTo(expected));
-        if (clusterService().state().metadata().getProject().index(index).getState() == IndexMetadata.State.OPEN) {
+        IndexMetadata metadata = clusterService().state().metadata().getProject().index(index);
+        assertThat(index, IndexSettings.RETAINS_UNMAPPED_FIELDS_SETTING.get(metadata.getSettings()), equalTo(expected));
+        assertThat(index, metadata.getSettings().hasValue(SETTING), equalTo(expected));
+        if (metadata.getState() == IndexMetadata.State.OPEN) {
             assertThat(index, shardSettings(index).retainsUnmappedFields(), equalTo(expected));
         }
-        // The mapping does not carry it, so it can be copied to another index as it is.
+        // Neither the mapping nor the settings an API returns carry it, so they can be copied to another index as they are.
         assertThat(index, mapping(index), not(containsString("retains_unmapped_fields")));
+        Settings returned = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, index).get().getIndexToSettings().get(index);
+        assertFalse(index, returned.hasValue(SETTING));
+        var getIndex = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices(index).get();
+        assertFalse(index, getIndex.getSettings().get(index).hasValue(SETTING));
     }
 }

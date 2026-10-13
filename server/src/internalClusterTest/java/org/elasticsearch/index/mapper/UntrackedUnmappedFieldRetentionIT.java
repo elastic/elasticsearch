@@ -66,7 +66,7 @@ public class UntrackedUnmappedFieldRetentionIT extends ESIntegTestCase {
     }
 
     private void assertNotRecorded(String index) {
-        Settings settings = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, index).get().getIndexToSettings().get(index);
+        Settings settings = clusterService().state().metadata().getProject().index(index).getSettings();
         assertFalse(index, settings.hasValue(IndexSettings.RETAINS_UNMAPPED_FIELDS_SETTING.getKey()));
         ensureGreen(index);
         for (IndicesService indicesService : internalCluster().getDataNodeInstances(IndicesService.class)) {

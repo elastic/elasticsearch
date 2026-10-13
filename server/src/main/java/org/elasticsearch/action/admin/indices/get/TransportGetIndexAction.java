@@ -149,7 +149,7 @@ public class TransportGetIndexAction extends TransportLocalProjectMetadataAction
                         Map<String, Settings> defaultSettingsMapBuilder = new HashMap<>();
                         for (String index : concreteIndices) {
                             checkCancellation(task);
-                            Settings indexSettings = project.index(index).getSettings();
+                            Settings indexSettings = settingsFilter.filter(project.index(index).getSettings());
                             if (request.humanReadable()) {
                                 indexSettings = IndexMetadata.addHumanReadableSettings(indexSettings);
                             }

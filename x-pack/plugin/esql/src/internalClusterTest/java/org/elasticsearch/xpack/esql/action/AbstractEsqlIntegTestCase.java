@@ -11,6 +11,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -28,6 +29,7 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
@@ -304,6 +306,24 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
         };
     }
 
+    /**
+     * Asserts local-cluster shard accounting. Callers that need these counts should set {@code include_execution_metadata} on the request
+     * so the local cluster is present.
+     */
+    protected static void assertLocalShardCounts(EsqlQueryResponse resp, int total, int successful, int failed) {
+        EsqlExecutionInfo.Cluster local = resp.getExecutionInfo().getCluster(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY);
+        assertNotNull(local);
+        assertThat("total shards", local.getTotalShards(), equalTo(total));
+        assertThat("successful shards", local.getSuccessfulShards(), equalTo(successful));
+        assertThat("failed shards", local.getFailedShards(), equalTo(failed));
+    }
+
+    protected static void assertLocalClusterStatus(EsqlQueryResponse resp, EsqlExecutionInfo.Cluster.Status expected) {
+        EsqlExecutionInfo.Cluster local = resp.getExecutionInfo().getCluster(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY);
+        assertNotNull(local);
+        assertThat("local cluster status", local.getStatus(), equalTo(expected));
+    }
+
     public static void assertOk(EsqlQueryResponse response) {
         assertThat(response.isPartial(), equalTo(false));
     }
@@ -327,6 +347,11 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
                 return c;
             }
         }
-        throw new AssertionError("no _index column found");
+        throw new AssertionError("no [" + column + "] column found");
+    }
+
+    /** The values of the column called {@code name}, in row order. */
+    public static List<Object> column(EsqlQueryResponse response, String name) {
+        return Iterators.toList(response.column(findColumnIndex(response, name)));
     }
 }

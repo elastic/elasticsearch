@@ -32,7 +32,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /** Handles synchronous and task-backed kNN recall evaluations for DiskBBQ vector fields. */
-@ServerlessScope(Scope.INTERNAL)
+@ServerlessScope(Scope.PUBLIC)
 final class RestKnnEvalAction extends BaseRestHandler {
 
     static final String ENDPOINT = "_knn_eval";

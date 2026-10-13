@@ -140,6 +140,18 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     }
 
     @Override
+    public FormatReader withSchemaSampleShare(int files) {
+        // Delegate: a compressed .csv.gz is sampled exactly like the plain file, so it must share the budget too.
+        FormatReader configured = inner.withSchemaSampleShare(files);
+        return configured == inner ? this : new CompressionDelegatingFormatReader(configured, codec, maxDecompressionRatio);
+    }
+
+    @Override
+    public int schemaSampleSize() {
+        return inner.schemaSampleSize();
+    }
+
+    @Override
     public FormatReader withDeclaredProvenanceBinding(boolean declaredProvenanceBinding) {
         // Delegate to the wrapped text reader: a compressed .csv.gz binds its declared columns exactly like the plain
         // file. Without this the interface default would return the wrapper and every compressed read would silently

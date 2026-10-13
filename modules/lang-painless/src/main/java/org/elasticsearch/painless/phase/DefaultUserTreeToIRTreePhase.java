@@ -208,7 +208,6 @@ import org.elasticsearch.painless.symbol.IRDecorations.IRCRead;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCRecordAllocationMetrics;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCScriptAware;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCStatic;
-import org.elasticsearch.painless.symbol.IRDecorations.IRCStaticCancellationCheck;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCStaticScriptCapture;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCSynthetic;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCVarArgs;
@@ -1465,18 +1464,15 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         attachAllocationLimit(irFunctionNode, scriptScope);
         irClassNode.addFunctionNode(irFunctionNode);
 
-        // Inject #scriptThis into a static typed lambda when cancellation or allocation tracking needs it, so its body can
-        // reach $checkAllocBytes. def-typed static lambdas (no TargetType) are not covered, matching the cancellation gap.
-        boolean supportsCancellation = scriptScope.getScriptClassInfo().supportsCancellation();
+        // Inject #scriptThis into a static typed lambda under allocation tracking, so its body can reach $checkAllocBytes.
+        // A def lambda (no TargetType) captures the script as an instance instead, and under cancellation every lambda is
+        // an instance lambda already, so only tracking needs this.
         boolean allocationTracking = scriptScope.getCompilerSettings().isAllocationTrackingEnabled();
         boolean injectScriptThis = irFunctionNode.hasCondition(IRCStatic.class)
             && scriptScope.hasDecoration(userLambdaNode, TargetType.class)
-            && (supportsCancellation || allocationTracking);
+            && allocationTracking;
         if (injectScriptThis) {
             irFunctionNode.attachCondition(IRCStaticScriptCapture.class);
-            if (supportsCancellation) {
-                irFunctionNode.attachCondition(IRCStaticCancellationCheck.class);
-            }
 
             Class<?> scriptClass = scriptScope.getScriptClassInfo().getBaseClass();
             List<Class<?>> augTypes = new ArrayList<>();

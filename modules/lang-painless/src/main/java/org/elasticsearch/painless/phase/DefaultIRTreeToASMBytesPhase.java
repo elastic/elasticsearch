@@ -112,7 +112,6 @@ import org.elasticsearch.painless.symbol.IRDecorations.IRCInstanceCapture;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCRecordAllocationMetrics;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCScriptAware;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCStatic;
-import org.elasticsearch.painless.symbol.IRDecorations.IRCStaticCancellationCheck;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCStaticScriptCapture;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCSynthetic;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCVarArgs;
@@ -423,7 +422,6 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         methodWriter.visitCode();
 
         boolean instanceCancellation = irFunctionNode.hasCondition(IRCInstanceCancellationCheck.class);
-        boolean staticCancellation = irFunctionNode.hasCondition(IRCStaticCancellationCheck.class);
         boolean staticScriptCapture = irFunctionNode.hasCondition(IRCStaticScriptCapture.class);
         boolean hasThis = irFunctionNode.hasCondition(IRCStatic.class) == false;
         long maxAllocationBytes = irFunctionNode.getDecorationValueOrDefault(IRDMaxAllocationBytes.class, -1L);
@@ -440,8 +438,8 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             methodWriter.visitVarInsn(Opcodes.ASTORE, scriptThis.getSlot());
         }
 
-        // Cancellation entry poll via #scriptThis (defined above, or parameter 0 for static cancellation lambdas).
-        if (instanceCancellation || staticCancellation) {
+        // Cancellation entry poll via #scriptThis, defined above.
+        if (instanceCancellation) {
             Variable scriptThis = writeScope.getInternalVariable("scriptThis");
             Variable cancelRunnable = writeScope.defineInternalVariable(Runnable.class, "cancelRunnable");
             methodWriter.visitVarInsn(Opcodes.ALOAD, scriptThis.getSlot());

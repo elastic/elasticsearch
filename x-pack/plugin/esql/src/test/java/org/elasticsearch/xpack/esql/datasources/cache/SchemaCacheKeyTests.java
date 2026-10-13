@@ -64,7 +64,7 @@ public class SchemaCacheKeyTests extends ESTestCase {
 
         // Header + six longs + the cached hash. A nested object or a retained string makes this 72.
         assertEquals("DatasetIdentity must stay six longs and an int behind one reference", 64L, identityShallow);
-        // Header, one identity reference, one path reference, a long and a boolean. A fifth component makes
+        // Header, one identity reference, one path reference, a long and an int. A fifth component makes
         // this 40, which is what it measured while the key still carried the read-addressing it no longer
         // needs - the statistics address is a StatisticsKey now.
         assertEquals("the per-file key must stay at four components", 32L, keyShallow);
@@ -152,4 +152,44 @@ public class SchemaCacheKeyTests extends ESTestCase {
         assertNotEquals(usEast, euWest);
     }
 
+    /**
+     * A schema inferred from a shared sample is a shallower answer about the same bytes, so it must not be served to
+     * a read sampling to another depth. It keeps the unshared dataset identity, so a harvest of the file still
+     * reaches it, and it is never the strict-declared record.
+     */
+    public void testSharedSampleRecordsDoNotShareTheWholeSampleAddress() {
+        DatasetIdentity identity = TestDatasetIdentities.identity("csv", "endpoint=a", Map.of());
+        SchemaCacheKey whole = SchemaCacheKey.build("s3://b/f.csv", 1000L, identity, false);
+        SchemaCacheKey sample400 = SchemaCacheKey.buildShared("s3://b/f.csv", 1000L, identity, 400);
+        SchemaCacheKey sample200 = SchemaCacheKey.buildShared("s3://b/f.csv", 1000L, identity, 200);
+
+        assertNotEquals(whole, sample400);
+        assertNotEquals(sample400, sample200);
+        assertNotEquals(SchemaCacheKey.build("s3://b/f.csv", 1000L, identity, true), sample400);
+        assertEquals(sample400, SchemaCacheKey.buildShared("s3://b/f.csv", 1000L, identity, 400));
+        assertEquals(whole.dataset(), sample400.dataset());
+        assertFalse(sample400.declaredStrict());
+        expectThrows(IllegalArgumentException.class, () -> SchemaCacheKey.buildShared("s3://b/f.csv", 1000L, identity, 0));
+    }
+
+    /** {@code answer} has three meanings and none below {@link SchemaCacheKey#DECLARED_STRICT}. */
+    public void testAnAnswerBelowStrictDeclaredIsRejected() {
+        DatasetIdentity identity = TestDatasetIdentities.identity("csv", "", Map.of());
+        int answer = randomIntBetween(Integer.MIN_VALUE, SchemaCacheKey.DECLARED_STRICT - 1);
+        expectThrows(IllegalArgumentException.class, () -> new SchemaCacheKey(identity, "s3://b/f.csv", 1000L, answer));
+    }
+
+    /**
+     * Dropping the sample depth folds a shared-sample address onto the whole-sample one, and leaves the inferred and
+     * strict-declared addresses as they are.
+     */
+    public void testWithoutSampleDepthFoldsOnlyTheSharedSample() {
+        DatasetIdentity identity = TestDatasetIdentities.identity("csv", "", Map.of());
+        SchemaCacheKey whole = SchemaCacheKey.build("s3://b/f.csv", 1000L, identity, false);
+        SchemaCacheKey strict = SchemaCacheKey.build("s3://b/f.csv", 1000L, identity, true);
+
+        assertEquals(whole, SchemaCacheKey.buildShared("s3://b/f.csv", 1000L, identity, randomIntBetween(1, 40_000)).withoutSampleDepth());
+        assertSame(whole, whole.withoutSampleDepth());
+        assertSame(strict, strict.withoutSampleDepth());
+    }
 }

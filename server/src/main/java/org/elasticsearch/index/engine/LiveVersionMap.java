@@ -341,6 +341,14 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
     }
 
     boolean isUnsafe() {
+        // Archive is only relevant for realtime gets in stateless and so for writes the map can be marked safe
+        // after an internal refresh.
+        return maps.current.isUnsafe() || maps.old.isUnsafe();
+    }
+
+    /// Returns if the map is unsafe specifically in the context of executing a realtime get.
+    /// See `StatelessLiveVersionMap`, [InternalEngine#getVersionForRead], [org.elasticsearch.action.get.TransportGetFromTranslogAction].
+    boolean isUnsafeForGets() {
         return maps.current.isUnsafe() || maps.old.isUnsafe() || archive.isUnsafe();
     }
 

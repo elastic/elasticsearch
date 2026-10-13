@@ -1405,7 +1405,7 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code exemplars} query setting.
          */
-        EXEMPLARS_SETTING_DEVELOPMENT_V1(Build.current().isSnapshot()),
+        EXEMPLARS_SETTING_DEVELOPMENT_V2(Build.current().isSnapshot()),
 
         /**
          * Are the {@code documents_found} and {@code values_loaded} fields available
@@ -1520,7 +1520,6 @@ public class EsqlCapabilities {
          * identifiers through an aggregation, so the name-and-id match used to collect push-down candidates falsely matched
          * conversions that read aggregate output rather than union branch columns. The synthetic pushed-down reference was then
          * unreachable from the consumer, causing {@code PlanConsistencyChecker} to throw {@code IllegalStateException}.
-         * esql-planning#1987
          */
         SUBQUERY_IN_FROM_COMMAND_FIX_CONVERT_GROUP_KEY,
 
@@ -3080,9 +3079,6 @@ public class EsqlCapabilities {
          * Support for projecting nested STRUCT subfields (e.g. {@code event.action}) from
          * Parquet (Java) and ORC external sources. Gated so format readers that do not yet
          * implement nested support (csv, ndjson, etc.) skip the csv-spec tests until they catch up.
-         *
-         * <p>Tracks: elastic/esql-planning#435 (this PR) and elastic/esql-planning#320
-         * (correctness gap for Parquet-Java MAP/STRUCT/nested LIST).
          */
         EXTERNAL_SOURCE_NESTED_STRUCT_PROJECTION,
 
@@ -3093,8 +3089,6 @@ public class EsqlCapabilities {
          * (Java) reader; this capability gates the csv-spec tests that assert the multivalues now
          * round-trip. Separate from {@link #EXTERNAL_SOURCE_NESTED_STRUCT_PROJECTION} so nodes that
          * predate the fix (and other format readers) skip the tests instead of failing them.
-         *
-         * <p>Tracks: elastic/esql-planning#1055 (correctness gap for Parquet-Java list-under-struct).
          */
         EXTERNAL_SOURCE_LIST_UNDER_STRUCT,
 
@@ -3103,7 +3097,6 @@ public class EsqlCapabilities {
          * instead of throwing at planning time. The reconciler emits a warning header per
          * affected column, the per-file ColumnMapping carries a stringification cast, and the
          * reader's output is adapted via SchemaAdaptingIterator. STRICT mode still throws.
-         * See esql-planning#794.
          */
         EXTERNAL_UNION_BY_NAME_KEYWORD_FALLBACK,
 
@@ -3161,10 +3154,14 @@ public class EsqlCapabilities {
         FEDERATION_ENABLED_SETTING,
 
         /**
-         * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantAggregateGroupings} rebuilds a pruned
+         * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantAggregateGroupings} rebuilt a pruned
          * derived external grouping reading the attribute the aggregate actually exposes (e.g. a rename alias) instead of the
          * pre-aggregate attribute it no longer surfaces, fixing the {@code optimized incorrectly due to missing references}
          * verification failure that old coordinators in a mixed cluster still hit.
+         * <p>
+         * Derived external groupings are no longer pruned at all (see {@link #FIX_DERIVED_EXTERNAL_GROUPING_MULTIVALUE}),
+         * so the rebuilt expression this describes no longer exists; the capability still gates the spec that used to
+         * fail with the verification error above, which older coordinators can still produce.
          */
         FIX_PRUNE_RENAMED_DERIVED_EXTERNAL_GROUPING,
 
@@ -4036,6 +4033,11 @@ public class EsqlCapabilities {
         PROMQL_LABEL_FUNCTIONS(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * Support for the PromQL {@code sort} and {@code sort_desc} functions, which order an instant vector by sample value.
+         */
+        PROMQL_SORT(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Fix mixing of millisecond roundings with nanosecond timestamps in time-series aggregations over
          * {@code date_nanos} indices. This covers window bucket expansion, the window merge in the final
          * aggregation, the window row filter for windows smaller than the time bucket, and the neighbor-bucket
@@ -4141,12 +4143,6 @@ public class EsqlCapabilities {
          * {@code CombineProjections} drops it.
          */
         TS_STATS_LITERAL_AGG_FIX,
-
-        /**
-         * Coordinator-driven remote fetch phase for deferred TopN fields after node-level reduction.
-         * Runtime enablement is gated by {@code esql.query.remote_fetch_topn.enabled}.
-         */
-        REMOTE_FETCH_TOPN_FETCH_PHASE,
 
         /**
          * KNN function support for runtime expressions, not just ES mapped fields.
@@ -4269,7 +4265,6 @@ public class EsqlCapabilities {
          * null-fills it above the reader; no pattern matches null, so zero rows must survive. Also fixes a
          * second route: {@code readerForMapping} no longer discards YES conjuncts when the per-file filter
          * adaptation empties the list (e.g. when a co-conjunct references a column widened via a one-way cast).
-         * See elastic/esql-planning#2052.
          */
         EXTERNAL_PARQUET_LIKE_MISSING_COLUMN_REJECTS_ROWS,
 
@@ -4327,6 +4322,25 @@ public class EsqlCapabilities {
         USAGE_CONTAINS_DATASOURCES_FAILURE_REASONS,
 
         /**
+         * Does the usage information for ESQL contain the datasource per-client query counters
+         * ({@code datasources.queries.by_client.<client>})?
+         */
+        USAGE_CONTAINS_DATASOURCES_CLIENT,
+
+        /**
+         * Does the usage information for ESQL contain the datasource per-storage-type and per-format query counters
+         * ({@code datasources.queries.by_type.<type>.by_outcome.<outcome>} and
+         * {@code datasources.queries.by_format.<format>.by_outcome.<outcome>})?
+         */
+        USAGE_CONTAINS_DATASOURCES_QUERY_BY_TYPE_FORMAT,
+
+        /**
+         * Does the usage information for ESQL contain the per-error-type terminal storage give-up counters
+         * ({@code datasources.storage.errors.by_error_type.<error_type>})?
+         */
+        USAGE_CONTAINS_DATASOURCES_STORAGE_ERROR_TYPES,
+
+        /**
          * Fix for {@code DocumentParser#parseArrayDynamic}: with {@code subobjects:false} and {@code dynamic:false},
          * arrays of objects now correctly walk mapped dotted fields (e.g. {@code "objarr.k"}), consistent
          * with the plain-object path. Previously the array was silently skipped and the values dropped.
@@ -4341,6 +4355,15 @@ public class EsqlCapabilities {
          * nanoseconds, so tests that assert the millisecond read require this capability to skip against them.
          */
         EXTERNAL_DATASET_DATE_NANOS_BARE_NUMBER_IS_EPOCH_MILLIS,
+
+        /**
+         * A {@code STATS BY} key derived from other external integral keys with {@code +}, {@code -} or unary minus
+         * (e.g. {@code EVAL s = emp_no + salary_change.int | STATS ... BY emp_no, salary_change.int, s}) is kept as a
+         * grouping and evaluated on the row, so it is {@code null} where an input column holds a list. Older nodes
+         * pruned it from the aggregate and recomputed it per group, returning one number per list element. Used to
+         * gate the external csv-spec tests asserting the {@code null}, which such nodes still fail.
+         */
+        FIX_DERIVED_EXTERNAL_GROUPING_MULTIVALUE,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

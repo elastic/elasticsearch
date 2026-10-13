@@ -22,6 +22,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -42,9 +43,11 @@ import java.util.regex.Pattern;
  * to a guard, which is the {@code planConfig(onTheWire)} transform shape. Resolution before name, because
  * {@code splitConfig()} is a leak and {@code planConfig(onTheWire)} is not.
  * <p>
- * <b>What it does not cover, as a LOWER BOUND.</b> Three rounds of adversarial probing have each presented this
- * list as closed and each found a shape it had missed, so it is not closed now either: these are the leaks known
- * to be reported as guarded, and a probe is the only thing that has ever found a new one.
+ * <b>What a green census LETS THROUGH, as a lower bound.</b> Four rounds of adversarial probing have each taken
+ * this list as closed and each found a shape it had missed, so it is not closed now either, and a probe is the
+ * only thing that has ever found a new one. "Lets through" rather than "reports as guarded" because the two
+ * failure modes are indistinguishable to a reader: some of these are judged and called guarded, others are
+ * skipped before they are judged at all, and the census is green either way.
  * <ul>
  *   <li>a resolved local MUTATED after assignment, since {@code onTheWire.putAll(config)} is not an assignment;</li>
  *   <li>a field aliased to ITSELF through a local - {@code Map&lt;String, Object&gt; rawConfig = this.rawConfig;}
@@ -52,7 +55,9 @@ import java.util.regex.Pattern;
  *       still open; it is listed rather than asserted, because a case asserting the wrong answer is worse than
  *       a gap written down;</li>
  *   <li>an alias not named config and assigned outside the method body, a constructor say;</li>
- *   <li>a guard or leak more than two hops away - resolution goes one hop, and the name rule one further;</li>
+ *   <li>a guard or leak more than one hop away: resolution follows one hop, and the name rule judges the
+ *       identifiers it finds there rather than following them further, so {@code a = config; b = a; write(b)}
+ *       is skipped;</li>
  *   <li>a write whose expression names nothing containing "config", such as {@code Splits.wireMap(this)}, which
  *       is skipped rather than judged;</li>
  *   <li>a guard called on the wrong receiver: {@code Other.wireConfig(config)} counts as the guard;</li>
@@ -60,13 +65,22 @@ import java.util.regex.Pattern;
  *   <li>a wire method whose {@code StreamOutput} is not its first parameter;</li>
  *   <li>any source root outside the esql plugin and the {@code esql-datasource-*} modules.</li>
  * </ul>
- * The first two are leaks reported as guarded. So a green census is evidence about the shapes
- * {@link #testWhatTheCensusDecides} pins, and about nothing else - least of all about a shape nobody has tried.
+ * So a green census is evidence about the shapes {@link #testWhatTheCensusDecides} pins, and about nothing else
+ * - least of all about a shape nobody has tried.
  */
 public class ConfigWireBoundaryCensusTests extends ESTestCase {
 
     /** The forms that put a map on the wire value-by-value. {@code writeMap} takes the writer as a second argument. */
     private static final Pattern GENERIC_WRITE = Pattern.compile("out\\.write(?:GenericValue|GenericMap|Map)\\(");
+
+    /**
+     * An assignment to one name, capturing its right-hand side. {@code =(?!=)} so that a {@code NAME == null}
+     * guard clause is not read as an assignment, which resolved the very field it was guarding. One function
+     * because two readers asked this question with two patterns and disagreed about that case.
+     */
+    private static final Function<String, Pattern> ASSIGNMENT = name -> Pattern.compile(
+        "\\b" + Pattern.quote(name) + "\\s*=(?!=)\\s*([^;]*);"
+    );
 
     /** Comments are not code: a {@code writeTo} naming {@code wireConfig} in prose has not called it. */
     private static final Pattern COMMENTS = Pattern.compile("//[^\\n]*|/\\*.*?\\*/", Pattern.DOTALL);
@@ -183,7 +197,7 @@ public class ConfigWireBoundaryCensusTests extends ESTestCase {
             if (seen.add(name.group()) == false) {
                 continue;
             }
-            Matcher assigned = Pattern.compile("\\b" + Pattern.quote(name.group()) + "\\s*=\\s*([^;]*);").matcher(body);
+            Matcher assigned = ASSIGNMENT.apply(name.group()).matcher(body);
             while (assigned.find()) {
                 found.append(assigned.group(1)).append(' ');
             }
@@ -282,9 +296,7 @@ public class ConfigWireBoundaryCensusTests extends ESTestCase {
             if (callArgumentResolvesToAGuard(body, fileSource, expression, identifier)) {
                 continue; // its argument IS the already-stripped map: the transform shape, not a leak
             }
-            // =(?!=) so that a `NAME == null` guard clause is not read as an assignment, which resolved the field
-            // it was guarding.
-            boolean assigned = Pattern.compile("\\b" + Pattern.quote(identifier) + "\\s*=(?!=)\\s*[^;]*;").matcher(body).find();
+            boolean assigned = ASSIGNMENT.apply(identifier).matcher(body).find();
             if (assigned == false && returnsOf(fileSource, identifier).isEmpty()) {
                 unresolved.add(identifier);
             }
@@ -381,6 +393,10 @@ public class ConfigWireBoundaryCensusTests extends ESTestCase {
                 + "        return config;\n    }\n"
         );
         assertUnguarded("a call whose name ends in the guard's", "        out.writeGenericMap(rewireConfig(config));");
+        assertGuarded(
+            "a commented-out raw write beside a wrapped one",
+            "        out.writeGenericMap(ExternalSourceResolver.wireConfig(config));\n" + "        // out.writeGenericMap(config);"
+        );
         // An unresolvable accessor assigned to a local first. The name rule saw it at hop 0 and then missed it at
         // hop 1, so it is now asked of the resolution text too.
         assertUnguarded(

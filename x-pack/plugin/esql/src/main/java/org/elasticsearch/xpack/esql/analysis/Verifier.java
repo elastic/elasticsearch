@@ -73,6 +73,8 @@ import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.FieldNameUtils;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
@@ -160,8 +162,9 @@ public class Verifier {
         checkDenseVectorSupported(plan, failures, context.minimumVersion());
 
         // collect plan checkers
+        QueryPragmas pragmas = context.configuration() == null ? QueryPragmas.EMPTY : context.configuration().pragmas();
         Consumer<String> warnings = context.deferredHeaderWarnings()::add;
-        var planCheckers = planCheckers(plan, context.analysisRegistry(), warnings);
+        var planCheckers = planCheckers(plan, context.analysisRegistry(), warnings, pragmas, context.flags());
         planCheckers.addAll(extraCheckers);
 
         // Concrete verifications
@@ -379,12 +382,14 @@ public class Verifier {
     private static List<BiConsumer<LogicalPlan, Failures>> planCheckers(
         LogicalPlan plan,
         AnalysisRegistry analysisRegistry,
-        Consumer<String> warnings
+        Consumer<String> warnings,
+        QueryPragmas pragmas,
+        EsqlFlags flags
     ) {
         List<BiConsumer<LogicalPlan, Failures>> planCheckers = new ArrayList<>();
         Consumer<? super Node<?>> collectPlanCheckers = p -> {
             if (p instanceof PostAnalysisPlanVerificationAware pva) {
-                planCheckers.add(pva.postAnalysisPlanVerification(analysisRegistry));
+                planCheckers.add(pva.postAnalysisPlanVerification(analysisRegistry, pragmas, flags));
             }
         };
         plan.forEachDown(p -> {

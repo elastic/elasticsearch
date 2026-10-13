@@ -463,11 +463,11 @@ spec:
 apiVersion: backstage.io/v1alpha1
 kind: Resource
 metadata:
-  name: buildkite-pipeline-elasticsearch-pull-request-validate-prometheus-compliance
+  name: buildkite-pipeline-elasticsearch-pull-request-promql-coverage
   description: Elasticsearch pull request PromQL compliance validation
   links:
     - title: Pipeline
-      url: https://buildkite.com/elastic/elasticsearch-pull-request-validate-prometheus-compliance
+      url: https://buildkite.com/elastic/elasticsearch-pull-request-promql-coverage
 spec:
   type: buildkite-pipeline
   system: buildkite
@@ -477,10 +477,10 @@ spec:
     kind: Pipeline
     metadata:
       description: ":elasticsearch: Compares PromQL compliance with Prometheus between a pull request and its merge base"
-      name: elasticsearch / pull-request / validate-prometheus-compliance
+      name: elasticsearch / pull-request / promql-coverage
     spec:
       repository: elastic/elasticsearch
-      pipeline_file: .buildkite/pipelines/pull-request-validate-prometheus-compliance.yml
+      pipeline_file: .buildkite/pipelines/pull-request-promql-coverage.yml
       env:
         ELASTIC_PR_COMMENTS_ENABLED: "true"
         ELASTIC_SLACK_NOTIFICATIONS_ENABLED: "false"

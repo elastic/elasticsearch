@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.highlight;
 
+import org.elasticsearch.compute.operator.HighlightConfig;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -236,7 +237,7 @@ public final class HighlightAnalyzers {
                 "HIGHLIGHT on ["
                     + fieldName
                     + "] falls back to [standard]"
-                    + (indices.isEmpty() ? "" : " for indices " + new TreeSet<>(indices))
+                    + (indices.isEmpty() ? "" : " for indices " + HighlightConfig.describeIndices(new TreeSet<>(indices)))
                     + ": "
                     + fallbackReason
                     + ". Highlights may differ from what matched; specify WITH {\"analyzer\": <registered analyzer>} to control this."

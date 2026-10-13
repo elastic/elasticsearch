@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ChannelActionListener;
@@ -366,10 +367,14 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         observer.waitForNextChange(new ClusterStateObserver.Listener() {
             @Override
             public void onNewClusterState(ClusterState state) {
-                ShardIterator shardIt = getShardIterator(index, state, outListener);
-                if (shardIt != null) {
-                    lookupOnNextShardCopy(index, parentTask, state, shardIt, transportRequest, lastFailure, true, outListener);
-                }
+                // Fork off the cluster applier thread. On that thread ClusterStateObserver catches and logs exceptions thrown
+                // from here, so ActionRunnable must pass failures such as a deleted index to the listener instead.
+                executor.execute(ActionRunnable.wrap(outListener, l -> {
+                    ShardIterator shardIt = getShardIterator(index, state, l);
+                    if (shardIt != null) {
+                        lookupOnNextShardCopy(index, parentTask, state, shardIt, transportRequest, lastFailure, true, l);
+                    }
+                }));
             }
 
             @Override

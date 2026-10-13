@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -84,6 +85,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class EnrichIT extends AbstractEsqlIntegTestCase {
 
@@ -513,18 +515,7 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(2);
         ensureGreen();
         int copies = clusterService().state().nodes().getDataNodes().size();
-        AtomicInteger failures = new AtomicInteger();
-        for (var ts : internalCluster().getInstances(TransportService.class)) {
-            AtomicBoolean failedOnce = new AtomicBoolean();
-            ((MockTransportService) ts).addRequestHandlingBehavior(EnrichLookupService.LOOKUP_ACTION_NAME, (h, r, channel, t) -> {
-                if (failedOnce.compareAndSet(false, true)) {
-                    failures.incrementAndGet();
-                    channel.sendResponse(shardCopyUnavailable(ts));
-                } else {
-                    h.messageReceived(r, channel, t);
-                }
-            });
-        }
+        AtomicInteger failures = failFirstLookupOnEveryNode();
         try {
             var future = client().execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(rowEnrichQuery()));
             assertBusy(() -> assertThat(failures.get(), equalTo(copies)));
@@ -537,6 +528,58 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
                 ((MockTransportService) ts).clearAllRules();
             }
         }
+    }
+
+    /**
+     * The enrich index can be deleted while a lookup waits to resolve its copies again, for example after a policy
+     * re-execution replaced it. The lookup must then fail with the missing index instead of waiting forever.
+     */
+    public void testLookupFailsWhenIndexIsDeletedAfterAllCopiesFail() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        ensureGreen();
+        int copies = clusterService().state().nodes().getDataNodes().size();
+        String enrichIndex = clusterService().state()
+            .metadata()
+            .getProject(ProjectId.DEFAULT)
+            .getIndicesLookup()
+            .get(EnrichPolicy.getBaseName("songs"))
+            .getIndices()
+            .getFirst()
+            .getName();
+        AtomicInteger failures = failFirstLookupOnEveryNode();
+        try {
+            var future = client().execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(rowEnrichQuery()));
+            assertBusy(() -> assertThat(failures.get(), equalTo(copies)));
+            assertAcked(client().admin().indices().prepareDelete(enrichIndex));
+            Exception e = expectThrows(Exception.class, () -> future.actionGet(30, TimeUnit.SECONDS));
+            var indexNotFound = (IndexNotFoundException) ExceptionsHelper.unwrap(e, IndexNotFoundException.class);
+            assertThat(indexNotFound, notNullValue());
+            assertThat(indexNotFound.getIndex().getName(), equalTo(enrichIndex));
+        } finally {
+            for (var ts : internalCluster().getInstances(TransportService.class)) {
+                ((MockTransportService) ts).clearAllRules();
+            }
+        }
+    }
+
+    /**
+     * Makes every node fail the first lookup it receives as if its copy of the enrich index were gone,
+     * and returns the count of lookups failed this way.
+     */
+    private static AtomicInteger failFirstLookupOnEveryNode() {
+        AtomicInteger failures = new AtomicInteger();
+        for (var ts : internalCluster().getInstances(TransportService.class)) {
+            AtomicBoolean failedOnce = new AtomicBoolean();
+            ((MockTransportService) ts).addRequestHandlingBehavior(EnrichLookupService.LOOKUP_ACTION_NAME, (h, r, channel, t) -> {
+                if (failedOnce.compareAndSet(false, true)) {
+                    failures.incrementAndGet();
+                    channel.sendResponse(shardCopyUnavailable(ts));
+                } else {
+                    h.messageReceived(r, channel, t);
+                }
+            });
+        }
+        return failures;
     }
 
     // ROW runs on the coordinator only, so no data-node retry on another copy of a source index can hide a failed lookup.

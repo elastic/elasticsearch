@@ -113,6 +113,6 @@ if [ "$ES_FIPS_MODE" = "true" ]; then
 -Djavax.net.ssl.trustStorePassword=passwordcacert"
   # the server launcher puts lib/fips on the server module path when es.fips.enabled is set
   CLI_JAVA_OPTS="--module-path $ES_FIPS_LIB --add-modules=ALL-MODULE-PATH $ES_FIPS_JAVA_OPTS \
--Des.fips.enabled=true -Dorg.bouncycastle.jsse.client.assumeOriginalHostName=true $CLI_JAVA_OPTS"
+-Des.fips.enabled=true $CLI_JAVA_OPTS"
   export ES_JAVA_OPTS="$ES_FIPS_JAVA_OPTS $ES_JAVA_OPTS"
 fi

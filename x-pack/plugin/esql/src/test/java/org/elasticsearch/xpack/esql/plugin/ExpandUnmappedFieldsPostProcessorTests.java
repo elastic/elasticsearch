@@ -8,16 +8,15 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -29,6 +28,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -42,10 +42,8 @@ import org.elasticsearch.xpack.esql.session.Result;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
@@ -56,14 +54,19 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
+/**
+ * Tests the coordinator-side flattening of {@code SET unmapped_fields="LOAD_ALL"} into a single {@code _unmapped_fields}
+ * {@link DataType#SOURCE} column (see <a href="https://github.com/elastic/elasticsearch/issues/161717">#161717</a>). The synthetic
+ * {@code $$unmapped_fields} column is replaced in place by a {@code _unmapped_fields} column holding one flattened JSON object per row,
+ * dotted leaf names and all; a row that contributes no surviving leaf gets a {@code null}. JSON scalar types are preserved (a number
+ * stays a number), unlike the stringified-to-keyword expansion this replaced.
+ */
 public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
-    public void testExpandsAcrossPagesUnioningFieldNames() {
+    public void testFlattensAcrossPagesIntoSourceColumn() {
         BlockFactory bf = blockFactory();
         Result result = result(
             List.of(intAttr(), unmappedAttr()),
@@ -76,13 +79,13 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         Result expanded = expand(result, bf);
         try {
             assertThat(expanded, not(sameInstance(result)));
-            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "city", "pet", "zip")));
-            assertThat(dataTypes(expanded), equalTo(List.of(DataType.INTEGER, DataType.KEYWORD, DataType.KEYWORD, DataType.KEYWORD)));
+            assertThat(names(expanded), equalTo(List.of(INT_ATTR, UNMAPPED)));
+            assertThat(dataTypes(expanded), equalTo(List.of(DataType.INTEGER, DataType.SOURCE)));
             assertThat(
-                nonNullRows(expanded),
+                rows(expanded),
                 contains(
-                    matchesMap().entry(INT_ATTR, 1).entry("city", "Berlin").entry("pet", "Rex"),
-                    matchesMap().entry(INT_ATTR, 2).entry("pet", "Max").entry("zip", "10115")
+                    matchesMap().entry(INT_ATTR, 1).entry(UNMAPPED, matchesMap().entry("pet", "Rex").entry("city", "Berlin")),
+                    matchesMap().entry(INT_ATTR, 2).entry(UNMAPPED, matchesMap().entry("pet", "Max").entry("zip", "10115"))
                 )
             );
             assertThat(expanded.configuration(), sameInstance(result.configuration()));
@@ -104,7 +107,7 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         }
     }
 
-    public void testNullAndEmptyUnmappedValuesContributeNoFields() {
+    public void testNullAndEmptyUnmappedValuesBecomeNullSourceCells() {
         BlockFactory bf = blockFactory();
         Result result = singlePage(
             bf,
@@ -116,89 +119,35 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
         Result expanded = expand(result, bf);
         try {
-            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "a")));
+            // The SOURCE column is always present under LOAD_ALL; a row with no surviving leaf is simply null in it.
+            assertThat(names(expanded), equalTo(List.of(INT_ATTR, UNMAPPED)));
             assertThat(
-                nonNullRows(expanded),
-                contains(matchesMap().entry(INT_ATTR, 1), matchesMap().entry(INT_ATTR, 2), matchesMap().entry(INT_ATTR, 3).entry("a", "x"))
+                rows(expanded),
+                contains(
+                    matchesMap().entry(INT_ATTR, 1),
+                    matchesMap().entry(INT_ATTR, 2),
+                    matchesMap().entry(INT_ATTR, 3).entry(UNMAPPED, matchesMap().entry("a", "x"))
+                )
             );
         } finally {
             Releasables.close(expanded.pages());
         }
     }
 
-    public void testAllNullUnmappedProducesNoExpandedColumns() {
+    public void testAllNullUnmappedKeepsSourceColumnAllNull() {
         BlockFactory bf = blockFactory();
         Result result = singlePage(bf, List.of(intAttr(), unmappedAttr()), row(1, null), row(2, null));
 
         Result expanded = expand(result, bf);
         try {
-            // _unmapped_fields is dropped and nothing replaces it.
-            assertThat(names(expanded), equalTo(List.of(INT_ATTR)));
-            assertThat(nonNullRows(expanded), contains(matchesMap().entry(INT_ATTR, 1), matchesMap().entry(INT_ATTR, 2)));
+            assertThat(names(expanded), equalTo(List.of(INT_ATTR, UNMAPPED)));
+            assertThat(rows(expanded), contains(matchesMap().entry(INT_ATTR, 1), matchesMap().entry(INT_ATTR, 2)));
         } finally {
             Releasables.close(expanded.pages());
         }
     }
 
-    public void testNetZeroProjectionEmptyJsonProducesZeroColumns() {
-        BlockFactory bf = blockFactory();
-        Result result = singlePage(bf, List.of(unmappedAttr()), row(jsonObject("{}")), row(jsonObject("{}")), row(jsonObject("{}")));
-
-        Result expanded = expand(result, bf);
-        try {
-            assertThat(names(expanded), equalTo(List.of()));
-            assertThat(rowCount(expanded), equalTo(3));
-        } finally {
-            Releasables.close(expanded.pages());
-        }
-    }
-
-    public void testNetZeroProjectionAllNullUnmappedProducesZeroColumns() {
-        BlockFactory bf = blockFactory();
-        Page page;
-        try (BytesRefBlock.Builder builder = bf.newBytesRefBlockBuilder(2)) {
-            builder.appendNull();
-            builder.appendNull();
-            page = new Page(builder.build());
-        }
-        Result result = result(List.of(unmappedAttr()), List.of(page));
-
-        Result expanded = expand(result, bf);
-        try {
-            assertThat(names(expanded), equalTo(List.of()));
-            assertThat(rowCount(expanded), equalTo(2));
-        } finally {
-            Releasables.close(expanded.pages());
-        }
-    }
-
-    public void testNetZeroProjectionWithUnmappedNamesExpandsToUnmappedColumnsOnly() {
-        BlockFactory bf = blockFactory();
-        Result result = singlePage(bf, List.of(unmappedAttr()), row(jsonObject("{'a':'x','b':'y'}")), row(jsonObject("{'a':'z'}")));
-
-        Result expanded = expand(result, bf);
-        try {
-            assertThat(names(expanded), equalTo(List.of("a", "b")));
-            assertThat(nonNullRows(expanded), contains(matchesMap().entry("a", "x").entry("b", "y"), matchesMap().entry("a", "z")));
-        } finally {
-            Releasables.close(expanded.pages());
-        }
-    }
-
-    public void testRetainedColumnWithEmptyJsonRowsProducesNoExpandedColumns() {
-        BlockFactory bf = blockFactory();
-        Result result = singlePage(bf, List.of(intAttr(), unmappedAttr()), row(1, jsonObject("{}")), row(2, jsonObject("{}")));
-
-        Result expanded = expand(result, bf);
-        try {
-            assertThat(names(expanded), equalTo(List.of(INT_ATTR)));
-            assertThat(nonNullRows(expanded), contains(matchesMap().entry(INT_ATTR, 1), matchesMap().entry(INT_ATTR, 2)));
-        } finally {
-            Releasables.close(expanded.pages());
-        }
-    }
-
-    public void testExpansionStaysBeforeApproximationColumns() {
+    public void testSourceColumnStaysInPlaceAmongApproximationColumns() {
         BlockFactory bf = blockFactory();
         String ci = ApproximationPlan.CONFIDENCE_INTERVAL_COLUMN_PREFIX + "extra)";
         String certified = ApproximationPlan.CERTIFIED_COLUMN_PREFIX + "extra)";
@@ -210,14 +159,14 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
         Result expanded = expand(result, bf);
         try {
-            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "extra", "city", "pet", ci, certified)));
+            // The column takes the synthetic column's slot; the surrounding columns (including approximation ones) keep their place.
+            assertThat(names(expanded), equalTo(List.of(INT_ATTR, UNMAPPED, "extra", ci, certified)));
             assertThat(
-                nonNullRows(expanded),
+                rows(expanded),
                 contains(
                     matchesMap().entry(INT_ATTR, 1)
+                        .entry(UNMAPPED, matchesMap().entry("pet", "Rex").entry("city", "Berlin"))
                         .entry("extra", "after")
-                        .entry("city", "Berlin")
-                        .entry("pet", "Rex")
                         .entry(ci, "ci")
                         .entry(certified, "yes")
                 )
@@ -227,147 +176,7 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         }
     }
 
-    public void testNetZeroProjectionAcrossMultiplePagesPreservesRowCount() {
-        BlockFactory bf = blockFactory();
-        Result result = result(
-            List.of(unmappedAttr()),
-            List.of(page(bf, List.of(row(jsonObject("{}")), row(jsonObject("{}")))), page(bf, List.of(row(jsonObject("{}")))))
-        );
-
-        Result expanded = expand(result, bf);
-        try {
-            assertThat(names(expanded), equalTo(List.of()));
-            assertThat(rowCount(expanded), equalTo(3));
-        } finally {
-            Releasables.close(expanded.pages());
-        }
-    }
-
-    /**
-     * The coordinator trusts the data node to only send keys that hold a value - {@code UnmappedFieldsBlockLoaderTests} pins down that
-     * end of the contract. This is the guard rail for the other end: were a value-less key to arrive anyway, it would expand into a
-     * column that is null in every row, which reads as "every document has this field, with no value" where the truth is "no document
-     * has this field". That must not pass silently.
-     */
-    public void testAllNullExpandedColumnTripsGuardRail() {
-        BlockFactory bf = blockFactory();
-        Result result = result(
-            List.of(intAttr(), unmappedAttr()),
-            List.of(page(bf, List.of(row(1, jsonObject("{'a':null}")), row(2, jsonObject("{'a':null,'b':'y'}")))))
-        );
-
-        AssertionError e = expectThrows(AssertionError.class, () -> expand(result, bf));
-        assertThat(e.getMessage(), containsString("Expanded unmapped field 'a' into a column that is null in every row"));
-
-        // No manual release here: the point is that expand must have released both the input pages and the half-built expansion.
-        assertThat("the guard rail leaked pages", bf.breaker().getUsed(), equalTo(0L));
-    }
-
-    /**
-     * Approximation columns are copied after the expansion, so the expanded columns are neither first nor last in the schema. The
-     * guard rail has to find them wherever they landed, rather than at some fixed offset that only holds without approximation.
-     */
-    public void testAllNullExpandedColumnTripsGuardRailBehindApproximationColumns() {
-        BlockFactory bf = blockFactory();
-        String ci = ApproximationPlan.CONFIDENCE_INTERVAL_COLUMN_PREFIX + "extra)";
-        String certified = ApproximationPlan.CERTIFIED_COLUMN_PREFIX + "extra)";
-        Result result = result(
-            List.of(intAttr(), unmappedAttr(), keywordAttr(ci), keywordAttr(certified)),
-            List.of(page(bf, List.of(row(1, jsonObject("{'a':null}"), "ci", "yes"), row(2, jsonObject("{'a':null,'b':'y'}"), "ci", "yes"))))
-        );
-
-        AssertionError e = expectThrows(AssertionError.class, () -> expand(result, bf));
-        assertThat(e.getMessage(), containsString("Expanded unmapped field 'a' into a column that is null in every row"));
-        assertThat("the guard rail leaked pages", bf.breaker().getUsed(), equalTo(0L));
-    }
-
-    /** The column has to be null in every row of every page, so the guard rail only trips once all pages agree. */
-    public void testAllNullExpandedColumnAcrossPagesTripsGuardRail() {
-        BlockFactory bf = blockFactory();
-        Result result = result(
-            List.of(intAttr(), unmappedAttr()),
-            List.of(
-                page(bf, List.of(row(1, jsonObject("{'a':null}")))),
-                page(bf, List.of(row(2, jsonObject("{'a':null,'b':'y'}")))),
-                page(bf, List.of(row(3, jsonObject("{'b':'z'}"))))
-            )
-        );
-
-        AssertionError e = expectThrows(AssertionError.class, () -> expand(result, bf));
-        assertThat(e.getMessage(), containsString("Expanded unmapped field 'a' into a column that is null in every row"));
-        assertThat("the guard rail leaked pages", bf.breaker().getUsed(), equalTo(0L));
-    }
-
-    /**
-     * The flip side of {@link #testAllNullExpandedColumnAcrossPagesTripsGuardRail}: a single value in a single page is enough to
-     * justify the column, so the guard rail must stay quiet however many other pages are null throughout.
-     */
-    public void testValueInOnePageOnlyDoesNotTripGuardRail() {
-        BlockFactory bf = blockFactory();
-        Result result = result(
-            List.of(intAttr(), unmappedAttr()),
-            List.of(
-                page(bf, List.of(row(1, jsonObject("{'b':'y'}")))),
-                page(bf, List.of(row(2, jsonObject("{'a':'x'}")), row(3, jsonObject("{'b':'z'}")))),
-                page(bf, List.of(row(4, jsonObject("{'b':'w'}"))))
-            )
-        );
-
-        Result expanded = expand(result, bf);
-        try {
-            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "a", "b")));
-            assertThat(
-                nonNullRows(expanded),
-                contains(
-                    matchesMap().entry(INT_ATTR, 1).entry("b", "y"),
-                    matchesMap().entry(INT_ATTR, 2).entry("a", "x"),
-                    matchesMap().entry(INT_ATTR, 3).entry("b", "z"),
-                    matchesMap().entry(INT_ATTR, 4).entry("b", "w")
-                )
-            );
-        } finally {
-            Releasables.close(expanded.pages());
-        }
-    }
-
-    /**
-     * The data node strips nulls out of the arrays it keeps, because appendRow renders the whole value and a surviving null would
-     * reach the user as a literal "null" inside a stringified array. This is the guard rail for that half of the contract.
-     */
-    public void testNullInsideArrayTripsGuardRail() {
-        BlockFactory bf = blockFactory();
-        Result result = result(List.of(intAttr(), unmappedAttr()), List.of(page(bf, List.of(row(1, jsonObject("{'a':[null,'x']}"))))));
-
-        AssertionError e = expectThrows(AssertionError.class, () -> expand(result, bf));
-        assertThat(e.getMessage(), containsString("Unmapped field 'a' carries a null or an empty array or object"));
-        assertThat("the guard rail leaked pages", bf.breaker().getUsed(), equalTo(0L));
-    }
-
-    /** Same guard rail, for a null buried under an object rather than sitting in an array. */
-    public void testNullInsideObjectTripsGuardRail() {
-        BlockFactory bf = blockFactory();
-        Result result = result(
-            List.of(intAttr(), unmappedAttr()),
-            List.of(page(bf, List.of(row(1, jsonObject("{'a':{'keep':'me','drop':[]}}")))))
-        );
-
-        AssertionError e = expectThrows(AssertionError.class, () -> expand(result, bf));
-        // The streaming walk pinpoints the exact offending leaf path rather than the top-level key it sits under.
-        assertThat(e.getMessage(), containsString("Unmapped field 'a.drop' carries a null or an empty array or object"));
-        assertThat("the guard rail leaked pages", bf.breaker().getUsed(), equalTo(0L));
-    }
-
-    /** An object that pruned away to nothing should never have been sent, let alone rendered as a literal "{}". */
-    public void testEmptyObjectTripsGuardRail() {
-        BlockFactory bf = blockFactory();
-        Result result = result(List.of(intAttr(), unmappedAttr()), List.of(page(bf, List.of(row(1, jsonObject("{'a':{}}"))))));
-
-        AssertionError e = expectThrows(AssertionError.class, () -> expand(result, bf));
-        assertThat(e.getMessage(), containsString("Unmapped field 'a' carries a null or an empty array or object"));
-        assertThat("the guard rail leaked pages", bf.breaker().getUsed(), equalTo(0L));
-    }
-
-    public void testNestedObjectFlattensToLeafAndScalarsStringify() {
+    public void testNestedObjectFlattensToDottedLeafAndScalarTypesArePreserved() {
         BlockFactory bf = blockFactory();
         Result result = singlePage(
             bf,
@@ -377,42 +186,18 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
         Result expanded = expand(result, bf);
         try {
-            // A nested object contributes no column of its own; its leaf becomes a dotted column (nested.x). Non-string scalars
-            // (number, boolean) still render through toString.
-            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "active", "count", "nested.x")));
+            // A nested object contributes no key of its own; its leaf becomes a dotted key (nested.x). Non-string scalars keep their
+            // JSON type inside the SOURCE blob (number stays a number, boolean stays a boolean).
             assertThat(
-                nonNullRows(expanded),
-                contains(matchesMap().entry(INT_ATTR, 1).entry("active", "true").entry("count", "5").entry("nested.x", "1"))
+                rows(expanded),
+                contains(
+                    matchesMap().entry(INT_ATTR, 1)
+                        .entry(UNMAPPED, matchesMap().entry("count", 5).entry("active", true).entry("nested.x", 1))
+                )
             );
         } finally {
             Releasables.close(expanded.pages());
         }
-    }
-
-    public void testExpandUnderCrankyBreakerDoesNotLeak() {
-        testWithCrankyBlockFactory(bf -> {
-            List<String> fieldNames = new ArrayList<>();
-            for (int i = 0; i < 50; i++) {
-                fieldNames.add("field_" + i);
-            }
-            StringBuilder json = new StringBuilder("{");
-            for (int i = 0; i < fieldNames.size(); i++) {
-                if (i > 0) {
-                    json.append(',');
-                }
-                json.append('"').append(fieldNames.get(i)).append("\":\"v").append(i).append('"');
-            }
-            json.append('}');
-
-            List<List<Object>> rows = new ArrayList<>();
-            for (int row = 0; row < 20; row++) {
-                rows.add(row(row, json.toString()));
-            }
-            Result result = result(List.of(intAttr(), unmappedAttr()), List.of(page(bf, rows)));
-            // testWithCrankyBlockFactory catches the CircuitBreakingException and asserts its message; ComputeTestCase then
-            // asserts every breaker is back to zero, which is what this test is about.
-            Releasables.close(expand(result, bf).pages());
-        });
     }
 
     public void testFlattenedLeafCollidingWithQueryColumnIsDropped() {
@@ -425,10 +210,13 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
         Result expanded = expand(result, bf);
         try {
-            assertThat(names(expanded), equalTo(List.of("network.eth0.rx", "network.bytes_in", "network.eth0.tx")));
+            // network.eth0.rx collides with the query column, so it is dropped from the blob; the other leaves survive.
             assertThat(
-                nonNullRows(expanded),
-                contains(matchesMap().entry("network.eth0.rx", "7").entry("network.bytes_in", "10").entry("network.eth0.tx", "5"))
+                rows(expanded),
+                contains(
+                    matchesMap().entry("network.eth0.rx", "7")
+                        .entry(UNMAPPED, matchesMap().entry("network.bytes_in", 10).entry("network.eth0.tx", 5))
+                )
             );
         } finally {
             Releasables.close(expanded.pages());
@@ -445,34 +233,11 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
         Result expanded = expand(result, bf);
         try {
-            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "samples.nested", "tags")));
             assertThat(
-                nonNullRows(expanded),
+                rows(expanded),
                 contains(
                     matchesMap().entry(INT_ATTR, 1)
-                        .entry("samples.nested", List.of(new BytesRef("x"), new BytesRef("y")))
-                        .entry("tags", List.of(new BytesRef("a"), new BytesRef("b")))
-                )
-            );
-        } finally {
-            Releasables.close(expanded.pages());
-        }
-    }
-
-    public void testArrayRecursionFlattensNestedArraysAndMixedScalarObjectElements() {
-        BlockFactory bf = blockFactory();
-        Result result = singlePage(bf, List.of(intAttr(), unmappedAttr()), row(1, jsonObject("{'a':['s',{'b':'o'}],'nums':[[1,2],[3]]}")));
-
-        Result expanded = expand(result, bf);
-        try {
-            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "a", "a.b", "nums")));
-            assertThat(
-                nonNullRows(expanded),
-                contains(
-                    matchesMap().entry(INT_ATTR, 1)
-                        .entry("a", "s")
-                        .entry("a.b", "o")
-                        .entry("nums", List.of(new BytesRef("1"), new BytesRef("2"), new BytesRef("3")))
+                        .entry(UNMAPPED, matchesMap().entry("tags", List.of("a", "b")).entry("samples.nested", List.of("x", "y")))
                 )
             );
         } finally {
@@ -486,34 +251,16 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
         Result expanded = expand(result, bf);
         try {
-            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "a.b")));
             assertThat(
-                nonNullRows(expanded),
-                contains(matchesMap().entry(INT_ATTR, 1).entry("a.b", List.of(new BytesRef("literal"), new BytesRef("nested"))))
+                rows(expanded),
+                contains(matchesMap().entry(INT_ATTR, 1).entry(UNMAPPED, matchesMap().entry("a.b", List.of("literal", "nested"))))
             );
         } finally {
             Releasables.close(expanded.pages());
         }
     }
 
-    public void testExactExcludeOfParentStillKeepsObjectDottedLeaves() {
-        BlockFactory bf = blockFactory();
-        Result result = singlePage(
-            bf,
-            List.of(intAttr(), unmappedAttr(UnmappedFieldsPattern.excludes(List.of("unmapped", INT_ATTR)))),
-            row(1, jsonObject("{'unmapped':{'deep':{'leaf':'v'}}}"))
-        );
-
-        Result expanded = expand(result, bf);
-        try {
-            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "unmapped.deep.leaf")));
-            assertThat(nonNullRows(expanded), contains(matchesMap().entry(INT_ATTR, 1).entry("unmapped.deep.leaf", "v")));
-        } finally {
-            Releasables.close(expanded.pages());
-        }
-    }
-
-    public void testChildWildcardIncludeExpandsObjectLeavesAndDropsSiblings() {
+    public void testChildWildcardIncludeKeepsObjectLeavesAndDropsSiblings() {
         BlockFactory bf = blockFactory();
         Result result = singlePage(
             bf,
@@ -523,69 +270,19 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
         Result expanded = expand(result, bf);
         try {
-            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "unmapped.deep.leaf", "unmapped.foo")));
             assertThat(
-                nonNullRows(expanded),
-                contains(matchesMap().entry(INT_ATTR, 1).entry("unmapped.deep.leaf", "v").entry("unmapped.foo", "f"))
+                rows(expanded),
+                contains(
+                    matchesMap().entry(INT_ATTR, 1)
+                        .entry(UNMAPPED, matchesMap().entry("unmapped.deep.leaf", "v").entry("unmapped.foo", "f"))
+                )
             );
         } finally {
             Releasables.close(expanded.pages());
         }
     }
 
-    public void testNestedWildcardDropRemovesOnlyItsSubtree() {
-        BlockFactory bf = blockFactory();
-        Result result = singlePage(
-            bf,
-            List.of(intAttr(), unmappedAttr(UnmappedFieldsPattern.excludes(List.of("unmapped.deep*", INT_ATTR)))),
-            row(1, jsonObject("{'unmapped':{'deep':{'leaf':'v'},'foo':'f'}}"))
-        );
-
-        Result expanded = expand(result, bf);
-        try {
-            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "unmapped.foo")));
-            assertThat(nonNullRows(expanded), contains(matchesMap().entry(INT_ATTR, 1).entry("unmapped.foo", "f")));
-        } finally {
-            Releasables.close(expanded.pages());
-        }
-    }
-
-    public void testFixedSuffixExcludeKeepsObjectLeavesThatDoNotShareTheSuffix() {
-        BlockFactory bf = blockFactory();
-        Result result = singlePage(
-            bf,
-            List.of(intAttr(), unmappedAttr(UnmappedFieldsPattern.excludes(List.of("*ped", INT_ATTR)))),
-            row(1, jsonObject("{'unmapped':{'deep':{'leaf':'v'}}}"))
-        );
-
-        Result expanded = expand(result, bf);
-        try {
-            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "unmapped.deep.leaf")));
-            assertThat(nonNullRows(expanded), contains(matchesMap().entry(INT_ATTR, 1).entry("unmapped.deep.leaf", "v")));
-        } finally {
-            Releasables.close(expanded.pages());
-        }
-    }
-
-    public void testPrefixConstrainedChildWildcardExpandsOnlyMatchingLeaves() {
-        BlockFactory bf = blockFactory();
-        // "samples.n*" should expand "samples.nested" but not "samples.value".
-        Result result = singlePage(
-            bf,
-            List.of(intAttr(), unmappedAttr(UnmappedFieldsPattern.includes(List.of("samples.n*")))),
-            row(1, jsonObject("{'samples':{'nested':'x','value':'y'}}"))
-        );
-
-        Result expanded = expand(result, bf);
-        try {
-            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "samples.nested")));
-            assertThat(nonNullRows(expanded), contains(matchesMap().entry(INT_ATTR, 1).entry("samples.nested", "x")));
-        } finally {
-            Releasables.close(expanded.pages());
-        }
-    }
-
-    public void testExactObjectFieldNameProducesNoColumn() {
+    public void testExactObjectFieldNameProducesNoLeaf() {
         BlockFactory bf = blockFactory();
         Result result = singlePage(
             bf,
@@ -595,14 +292,71 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
         Result expanded = expand(result, bf);
         try {
-            assertThat(names(expanded), equalTo(List.of(INT_ATTR)));
-            assertThat(nonNullRows(expanded), contains(matchesMap().entry(INT_ATTR, 1)));
+            // "samples" matches the object, but only its dotted leaf "samples.nested" could be a leaf, and that does not match.
+            assertThat(rows(expanded), contains(matchesMap().entry(INT_ATTR, 1)));
         } finally {
             Releasables.close(expanded.pages());
         }
     }
 
-    public void testExpandReleasesInputPagesWhenExpansionFails() {
+    /**
+     * The coordinator trusts the data node to only send pruned values - {@code UnmappedFieldsBlockLoaderTests} pins that end of the
+     * contract. These guard rails hold the other end: a value-less part that arrived anyway (a null inside an array or object, an empty
+     * container) must not pass silently, since it would otherwise render as a literal {@code "null"} or {@code "{}"}.
+     */
+    public void testNullInsideArrayTripsGuardRail() {
+        BlockFactory bf = blockFactory();
+        Result result = result(List.of(intAttr(), unmappedAttr()), List.of(page(bf, List.of(row(1, jsonObject("{'a':[null,'x']}"))))));
+
+        AssertionError e = expectThrows(AssertionError.class, () -> expand(result, bf));
+        assertThat(e.getMessage(), containsString("Unmapped field 'a' carries a null or an empty array or object"));
+        assertThat("the guard rail leaked pages", bf.breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testNullInsideObjectTripsGuardRail() {
+        BlockFactory bf = blockFactory();
+        Result result = result(
+            List.of(intAttr(), unmappedAttr()),
+            List.of(page(bf, List.of(row(1, jsonObject("{'a':{'keep':'me','drop':[]}}")))))
+        );
+
+        AssertionError e = expectThrows(AssertionError.class, () -> expand(result, bf));
+        assertThat(e.getMessage(), containsString("Unmapped field 'a' carries a null or an empty array or object"));
+        assertThat("the guard rail leaked pages", bf.breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testEmptyObjectTripsGuardRail() {
+        BlockFactory bf = blockFactory();
+        Result result = result(List.of(intAttr(), unmappedAttr()), List.of(page(bf, List.of(row(1, jsonObject("{'a':{}}"))))));
+
+        AssertionError e = expectThrows(AssertionError.class, () -> expand(result, bf));
+        assertThat(e.getMessage(), containsString("Unmapped field 'a' carries a null or an empty array or object"));
+        assertThat("the guard rail leaked pages", bf.breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testFlattenUnderCrankyBreakerDoesNotLeak() {
+        testWithCrankyBlockFactory(bf -> {
+            StringBuilder json = new StringBuilder("{");
+            for (int i = 0; i < 50; i++) {
+                if (i > 0) {
+                    json.append(',');
+                }
+                json.append("\"field_").append(i).append("\":\"v").append(i).append('"');
+            }
+            json.append('}');
+
+            List<List<Object>> rows = new ArrayList<>();
+            for (int row = 0; row < 20; row++) {
+                rows.add(row(row, json.toString()));
+            }
+            Result result = result(List.of(intAttr(), unmappedAttr()), List.of(page(bf, rows)));
+            // testWithCrankyBlockFactory catches the CircuitBreakingException and asserts its message; ComputeTestCase then
+            // asserts every breaker is back to zero, which is what this test is about.
+            Releasables.close(expand(result, bf).pages());
+        });
+    }
+
+    public void testFlattenReleasesInputPagesWhenItFails() {
         BlockFactory bf = blockFactory();
         Block intBlock;
         try (var builder = bf.newIntBlockBuilder(1)) {
@@ -628,12 +382,10 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
     }
 
     /**
-     * Pins {@code EsqlSession}'s LOAD_ALL dispatch contract: the expansion is handed to the {@code esql_worker} pool wrapped in
+     * Pins {@code EsqlSession}'s LOAD_ALL dispatch contract: the flattening is handed to the {@code esql_worker} pool wrapped in
      * {@link ActionRunnable#wrapReleasing}, so the buffered result pages are released if that pool rejects the task (e.g. the node is
      * shutting down or the worker queue is saturated). Here a one-thread, zero-queue worker is saturated so the dispatch is rejected;
-     * the test asserts the pages are freed (breaker back to zero) and the listener observes the rejection rather than a leak. The generic
-     * {@code wrapReleasing}-on-rejection behaviour is covered by {@code ActionRunnableTests#testWrapReleasingRejected}; this adds the
-     * esql-specific guarantee that the released resource is the result pages.
+     * the test asserts the pages are freed (breaker back to zero) and the listener observes the rejection rather than a leak.
      */
     public void testDispatchReleasesPagesWhenWorkerRejects() throws Exception {
         BlockFactory bf = blockFactory();
@@ -660,7 +412,7 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
             executor.execute(ActionRunnable.wrapReleasing(new ActionListener<Void>() {
                 @Override
                 public void onResponse(Void unused) {
-                    fail("expansion must not run once the worker has rejected the task");
+                    fail("flattening must not run once the worker has rejected the task");
                 }
 
                 @Override
@@ -670,7 +422,7 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
                 }
             },
                 () -> Releasables.closeExpectNoException(pages),
-                ll -> fail("expansion body must not run once the worker has rejected the task")
+                ll -> fail("flattening body must not run once the worker has rejected the task")
             ));
 
             safeGet(rejection);
@@ -681,7 +433,7 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         }
     }
 
-    public void testCancellationDuringExpansionThrowsAndReleasesPages() {
+    public void testCancellationThrowsAndReleasesPages() {
         BlockFactory bf = blockFactory();
         Result result = result(
             List.of(intAttr(), unmappedAttr()),
@@ -689,46 +441,19 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         );
         assertThat("input pages should reserve breaker memory before expand runs", bf.breaker().getUsed(), greaterThan(0L));
 
-        // Stands in for a task cancelled mid-expansion: the checker reports cancelled as soon as the expansion polls it.
+        // Stands in for a task cancelled mid-flattening: the checker reports cancelled as soon as the flattening polls it.
         expectThrows(
             TaskCancelledException.class,
-            () -> ExpandUnmappedFieldsPostProcessor.expand(result, null, bf, PlannerSettings.DEFAULTS, () -> true)
+            () -> ExpandUnmappedFieldsPostProcessor.expand(result, bf, PlannerSettings.DEFAULTS, () -> true)
         );
 
-        // expand must release the input pages on the cancellation path, just as it does for any other failure.
         assertThat("expand leaked pages when cancelled", bf.breaker().getUsed(), equalTo(0L));
     }
 
     /**
-    * The manual "graceful termination" test on flagged both expansion loops - {@code collectFieldNames} and
-     * {@code rewritePages} - as running to completion without checking for cancellation. {@link
-     * #testCancellationDuringExpansionThrowsAndReleasesPages} pins the first loop: a checker that reports cancelled up front trips on
-     * {@code collectFieldNames}' opening poll, before {@code rewritePage} ever runs. This pins the second: name collection scans every
-     * row first and only then does {@code rewritePage}, so with a single-row page the checker is polled once while collecting names and
-     * again while rewriting. Reporting cancelled only from the second poll lets collection finish and lands the cancellation inside
-     * {@code rewritePage}, proving that loop's checkpoint both throws and releases the input page together with the half-built expansion.
-     */
-    public void testCancellationDuringPageRewriteThrowsAndReleasesPages() {
-        BlockFactory bf = blockFactory();
-        Result result = singlePage(bf, List.of(intAttr(), unmappedAttr()), row(1, jsonObject("{'pet':'Rex'}")));
-        assertThat("input page should reserve breaker memory before expand runs", bf.breaker().getUsed(), greaterThan(0L));
-
-        AtomicInteger polls = new AtomicInteger();
-        expectThrows(
-            TaskCancelledException.class,
-            () -> ExpandUnmappedFieldsPostProcessor.expand(result, null, bf, PlannerSettings.DEFAULTS, () -> polls.incrementAndGet() > 1)
-        );
-
-        assertThat("cancellation should have been observed during rewritePage, not name collection", polls.get(), greaterThan(1));
-        assertThat("expand leaked pages when cancelled during rewrite", bf.breaker().getUsed(), equalTo(0L));
-    }
-
-    /**
-     * Every other test uses a handful of rows, so the {@code (row & mask) == 0} cadence only ever fires on row 0 and the bit-mask
-     * arithmetic past the first row is never exercised. This scans a page wide enough to cross the 1024-row threshold several times and
-     * pins the exact number of polls: {@code collectFieldNames} and {@code rewritePage} each scan the page once, polling at rows
-     * {@code 0, 1024, 2048, ...}, i.e. {@code ceil(rows / 1024)} times apiece. It would catch a regression that polled every row (far
-     * too often) or only once per scan (defeating the point of a mid-scan checkpoint).
+     * The flattening is a single scan over every row of every page, polling {@code isCancelled} at rows {@code 0, 1024, 2048, ...},
+     * i.e. {@code ceil(rows / 1024)} times. This scans a page wide enough to cross the 1024-row threshold several times and pins the
+     * poll count, catching a regression that polled every row (far too often) or only once (defeating a mid-scan checkpoint).
      */
     public void testCancellationPollCadenceMatchesRowThreshold() {
         BlockFactory bf = blockFactory();
@@ -740,305 +465,25 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         Result result = result(List.of(intAttr(), unmappedAttr()), List.of(page(bf, pageRows)));
 
         AtomicInteger polls = new AtomicInteger();
-        Result expanded = ExpandUnmappedFieldsPostProcessor.expand(result, null, bf, PlannerSettings.DEFAULTS, () -> {
+        Result expanded = ExpandUnmappedFieldsPostProcessor.expand(result, bf, PlannerSettings.DEFAULTS, () -> {
             polls.incrementAndGet();
             return false;
         });
         try {
             // 1024 mirrors the production ROWS_PER_CANCELLATION_CHECK, which is private to the post-processor.
             int perScan = (rows + 1023) / 1024;
-            assertThat(polls.get(), equalTo(2 * perScan));
+            assertThat(polls.get(), equalTo(perScan));
         } finally {
             Releasables.close(expanded.pages());
         }
     }
 
-    public void testExpansionPollsForCancellation() {
-        BlockFactory bf = blockFactory();
-        Result result = result(
-            List.of(intAttr(), unmappedAttr()),
-            List.of(page(bf, List.of(row(1, jsonObject("{'pet':'Rex'}")))), page(bf, List.of(row(2, jsonObject("{'pet':'Max'}")))))
-        );
-
-        // Guards the wiring: collectFieldNames and rewritePage both poll at least once per page, so expansion must poll the checker.
-        AtomicInteger checks = new AtomicInteger();
-        Result expanded = ExpandUnmappedFieldsPostProcessor.expand(result, null, bf, PlannerSettings.DEFAULTS, () -> {
-            checks.incrementAndGet();
-            return false;
-        });
-        try {
-            assertThat(checks.get(), greaterThan(0));
-        } finally {
-            Releasables.close(expanded.pages());
-        }
-    }
-
-    /**
-     * More than {@link PlannerSettings#LOAD_ALL_MAX_FIELDS} distinct names, arriving in random order across random
-     * rows and pages and with repeats, expand to exactly the alphabetically first ones - whatever order they arrived in - plus a
-     * warning.
-     */
-    public void testCapsExpandedFieldsToAlphabeticallyFirstRegardlessOfArrivalOrder() {
-        BlockFactory bf = blockFactory();
-        List<String> fieldNames = paddedNames("f", DEFAULT_MAX_FIELDS + between(1, 200));
-        List<String> arrivalOrder = new ArrayList<>(fieldNames);
-        Collections.shuffle(arrivalOrder, random());
-
-        List<List<Object>> rows = new ArrayList<>();
-        int next = 0;
-        while (next < arrivalOrder.size()) {
-            int end = Math.min(arrivalOrder.size(), next + between(1, 50));
-            List<String> rowNames = new ArrayList<>(arrivalOrder.subList(next, end));
-            if (next > 0 && randomBoolean()) {
-                // Repeat a name an earlier row already brought: kept or not, it must not count twice.
-                rowNames.add(arrivalOrder.get(between(0, next - 1)));
-            }
-            rows.add(row(rows.size(), jsonWithFields(rowNames)));
-            next = end;
-        }
-        List<Page> pages = new ArrayList<>();
-        int rowIdx = 0;
-        while (rowIdx < rows.size()) {
-            int end = Math.min(rows.size(), rowIdx + between(1, 10));
-            pages.add(page(bf, rows.subList(rowIdx, end)));
-            rowIdx = end;
-        }
-
-        Result expanded = expand(result(List.of(intAttr(), unmappedAttr()), pages), bf);
-        try {
-            List<String> expected = new ArrayList<>();
-            expected.add(INT_ATTR);
-            expected.addAll(fieldNames.subList(0, DEFAULT_MAX_FIELDS));
-            assertThat(names(expanded), equalTo(expected));
-            assertThat(rowCount(expanded), equalTo(rows.size()));
-        } finally {
-            Releasables.close(expanded.pages());
-        }
-        assertWarnings(truncationWarning(DEFAULT_MAX_FIELDS));
-    }
-
-    /** The limit is the configured one: a small one cuts the fields off after the alphabetically first few, with a warning. */
-    public void testConfiguredLimitIsApplied() {
-        BlockFactory bf = blockFactory();
-        int limit = between(1, 5);
-        List<String> fieldNames = paddedNames("f", limit + between(1, 5));
-        List<String> arrivalOrder = new ArrayList<>(fieldNames);
-        Collections.shuffle(arrivalOrder, random());
-        Result result = singlePage(bf, List.of(intAttr(), unmappedAttr()), row(1, jsonWithFields(arrivalOrder)));
-
-        Result expanded = expand(result, bf, PlannerSettings.DEFAULTS.loadAllMaxFields(limit));
-        try {
-            List<String> expected = new ArrayList<>();
-            expected.add(INT_ATTR);
-            expected.addAll(fieldNames.subList(0, limit));
-            assertThat(names(expanded), equalTo(expected));
-        } finally {
-            Releasables.close(expanded.pages());
-        }
-        assertWarnings(truncationWarning(limit));
-    }
-
-    /** The limit can be raised above the default: that many fields are all returned, with nothing cut off and no warning. */
-    public void testLimitCanBeRaisedAboveTheDefault() {
-        BlockFactory bf = blockFactory();
-        int total = DEFAULT_MAX_FIELDS + between(1, 100);
-        List<String> fieldNames = paddedNames("f", total);
-        Result result = singlePage(bf, List.of(intAttr(), unmappedAttr()), row(1, jsonWithFields(fieldNames)));
-
-        Result expanded = expand(result, bf, PlannerSettings.DEFAULTS.loadAllMaxFields(total));
-        try {
-            assertThat(names(expanded).subList(1, names(expanded).size()), equalTo(fieldNames));
-        } finally {
-            Releasables.close(expanded.pages());
-        }
-        // ESTestCase fails the test on any warning left unasserted, so not asserting one checks that there is none.
-    }
-
-    /** Exactly {@link PlannerSettings#LOAD_ALL_MAX_FIELDS} names all fit, so nothing is cut off or warned about. */
-    public void testExactlyMaxExpandedFieldsAreAllKept() {
-        BlockFactory bf = blockFactory();
-        List<String> fieldNames = paddedNames("f", DEFAULT_MAX_FIELDS);
-        Result result = singlePage(bf, List.of(intAttr(), unmappedAttr()), row(1, jsonWithFields(fieldNames)));
-
-        Result expanded = expand(result, bf);
-        try {
-            assertThat(names(expanded).subList(1, names(expanded).size()), equalTo(fieldNames));
-        } finally {
-            Releasables.close(expanded.pages());
-        }
-        // ESTestCase fails the test on any warning left unasserted, so not asserting one checks that there is none.
-    }
-
-    /** Names the {@code KEEP}/{@code DROP} pattern rejects are dropped before the cap, so they cannot crowd out wanted ones. */
-    public void testNamesExcludedByPatternDoNotCountTowardsCap() {
-        BlockFactory bf = blockFactory();
-        List<String> kept = paddedNames("keep_", DEFAULT_MAX_FIELDS);
-        // Sort before every kept name, so they would take all the slots if they counted.
-        List<String> dropped = paddedNames("a_drop_", between(1, 500));
-        List<String> rowNames = new ArrayList<>(dropped);
-        rowNames.addAll(kept);
-        Result result = singlePage(
-            bf,
-            List.of(intAttr(), unmappedAttr(UnmappedFieldsPattern.excludes(List.of("a_drop_*")))),
-            row(1, jsonWithFields(rowNames))
-        );
-
-        Result expanded = expand(result, bf);
-        try {
-            assertThat(names(expanded).subList(1, names(expanded).size()), equalTo(kept));
-        } finally {
-            Releasables.close(expanded.pages());
-        }
-    }
-
-    /** A name colliding with a query column is dropped (see {@link #testFlattenedLeafCollidingWithQueryColumnIsDropped}) before the cap. */
-    public void testNamesCollidingWithExistingColumnsDoNotCountTowardsCap() {
-        BlockFactory bf = blockFactory();
-        List<String> discovered = paddedNames("f", DEFAULT_MAX_FIELDS);
-        // Sorts before every discovered name, so it would take a slot if it counted.
-        String existing = "a_existing";
-        List<String> rowNames = new ArrayList<>(discovered);
-        rowNames.add(existing);
-        Result result = singlePage(bf, List.of(keywordAttr(existing), unmappedAttr()), row("v", jsonWithFields(rowNames)));
-
-        Result expanded = expand(result, bf);
-        try {
-            List<String> expected = new ArrayList<>();
-            expected.add(existing);
-            expected.addAll(discovered);
-            assertThat(names(expanded), equalTo(expected));
-        } finally {
-            Releasables.close(expanded.pages());
-        }
-    }
-
-    /**
-     * {@link ExpandUnmappedFieldsPostProcessor.FieldNameCollector#PER_NAME_CONTAINER_OVERHEAD} is assembled from
-     * {@link RamUsageEstimator} primitives, so nothing else
-     * would catch a typo - a dropped {@code alignObjectSize} or a wrong reference count - that silently shrinks it toward zero and makes
-     * the field-name reservation too small to protect anything. Assert it is a positive, 8-byte-aligned value within the order of
-     * magnitude a small heap object occupies, not an exact footprint.
-     */
-    public void testPerNameContainerOverheadIsSanePositiveMagnitude() {
-        long bytes = ExpandUnmappedFieldsPostProcessor.FieldNameCollector.PER_NAME_CONTAINER_OVERHEAD;
-        // At least one object header: anything smaller is a derivation slip, not a real heap-object overhead.
-        assertThat(
-            "PER_NAME_CONTAINER_OVERHEAD is implausibly small",
-            bytes,
-            greaterThanOrEqualTo((long) RamUsageEstimator.NUM_BYTES_OBJECT_HEADER)
-        );
-        // A handful of small objects is tens of bytes; into the kilobytes means a wrong multiplier.
-        assertThat("PER_NAME_CONTAINER_OVERHEAD is implausibly large", bytes, lessThanOrEqualTo(4096L));
-        // It is a sum of alignObjectSize(...) terms plus whole references, so it must stay 8-aligned; a stray unaligned term flags a
-        // dropped alignObjectSize.
-        assertThat("PER_NAME_CONTAINER_OVERHEAD is not 8-byte aligned (dropped alignObjectSize?)", bytes % 8, equalTo(0L));
-    }
-
-    /**
-     * The collector never keeps more than {@code maxFields} names: every insert past the cap evicts the alphabetically-largest kept name
-     * and must hand its bytes back, so the reservation plateaus at {@code maxFields} names rather than climbing with the total seen.
-     * Feeds half again as many equal-length distinct names, in random order, and asserts the breaker holds exactly the first
-     * {@code maxFields} names' worth - then that {@code close} returns every byte.
-     */
-    public void testFieldNameCollectorReservationPlateausAtCapAndReleasesEvicted() {
-        BlockFactory bf = blockFactory();
-        var breaker = bf.breaker();
-        List<String> names = paddedNames("f", DEFAULT_MAX_FIELDS + 500);
-        List<String> arrival = new ArrayList<>(names);
-        Collections.shuffle(arrival, random());
-
-        try (
-            var collector = new ExpandUnmappedFieldsPostProcessor.FieldNameCollector(
-                DEFAULT_MAX_FIELDS,
-                UnmappedFieldsPattern.ALL,
-                Collections.emptySet(),
-                breaker
-            )
-        ) {
-            for (String name : arrival) {
-                collector.accept(name, 1);
-            }
-            // Every name is the same length, so the kept set's reservation is exactly maxFields names' worth, not the (maxFields + 500)
-            // seen: the overflowing inserts each evicted and released the largest name they displaced.
-            long perName = RamUsageEstimator.sizeOf(names.get(0))
-                + ExpandUnmappedFieldsPostProcessor.FieldNameCollector.PER_NAME_CONTAINER_OVERHEAD;
-            assertThat(breaker.getUsed(), equalTo((long) DEFAULT_MAX_FIELDS * perName));
-        }
-        assertThat("close must hand back every reserved byte", breaker.getUsed(), equalTo(0L));
-    }
-
-    /**
-     * {@link #testCancellationDuringExpansionThrowsAndReleasesPages} lands its cancellation on {@code collectFieldNames}' opening poll,
-     * before any field name has been reserved, so it proves the pages are freed but not that the name accounting is. This lands the
-     * cancellation on the second poll instead - after a full {@code ROWS_PER_CANCELLATION_CHECK} rows of distinct names have been
-     * collected and charged to the breaker - and asserts the throw still leaves the breaker at zero, i.e. the collector's
-     * try-with-resources handed its reservation back on the cancellation path, not only on the normal return.
-     */
-    public void testCancellationMidCollectionReleasesReservedFieldNames() {
-        BlockFactory bf = blockFactory();
-        int rows = 2048; // two collectFieldNames polls, at rows 0 and 1024
-        List<List<Object>> pageRows = new ArrayList<>(rows);
-        for (int i = 0; i < rows; i++) {
-            pageRows.add(row(i, jsonWithFields(List.of(String.format(Locale.ROOT, "f%06d", i)))));
-        }
-        Result result = result(List.of(intAttr(), unmappedAttr()), List.of(page(bf, pageRows)));
-
-        AtomicInteger polls = new AtomicInteger();
-        expectThrows(
-            TaskCancelledException.class,
-            () -> ExpandUnmappedFieldsPostProcessor.expand(result, null, bf, PlannerSettings.DEFAULTS, () -> polls.incrementAndGet() > 1)
-        );
-
-        // Cancelled on the second poll (row 1024), so the first 1024 distinct names were collected and reserved before the throw.
-        assertThat("cancellation should land on the second collectFieldNames poll", polls.get(), equalTo(2));
-        assertThat("expand leaked the reserved field names when cancelled mid-collection", bf.breaker().getUsed(), equalTo(0L));
-    }
-
-    /**
-     * A single row whose {@code _source} is a large array that collapses to one leaf (every {@code {"x":"..."}} flattens to the same
-     * {@code a.x}) builds one massive multivalue column. This checks that the output builder trips a {@link CircuitBreakingException} as
-     * it grows rather than OOMing, and {@code tearDown}'s breaker check confirms the failure path leaks nothing.
-     */
-    public void testSingleRowFlatteningToHugeMultivalueCircuitBreaksGracefully() {
-        int elements = 100_000;
-        ByteSizeValue limit = ByteSizeValue.ofKb(512);
-        // Each element flattens to the same a.x leaf, so the row builds one multivalue of {@code elements} values. The values carry
-        // real bytes (a 16-char string each) so the output builder's accounting outgrows the limit well before the row finishes.
-        String value = "v".repeat(16);
-        StringBuilder arrayToOneLeaf = new StringBuilder("{'a':[");
-        for (int i = 0; i < elements; i++) {
-            if (i > 0) {
-                arrayToOneLeaf.append(',');
-            }
-            arrayToOneLeaf.append("{'x':'").append(value).append("'}");
-        }
-        arrayToOneLeaf.append("]}");
-
-        expectThrows(CircuitBreakingException.class, () -> runExpandSingleRowUnderLimit(limit, jsonObject(arrayToOneLeaf.toString())));
-    }
-
-    /**
-     * Builds a single-row page carrying {@code json} as its {@code _unmapped_fields} value against a generous breaker, then runs the
-     * expansion against one capped at {@code limit}, so only the expansion's own allocations are charged to the tight breaker. Releases
-     * the expanded pages on success; on a break the expansion releases everything itself and {@code tearDown} asserts no leak.
-     */
-    private void runExpandSingleRowUnderLimit(ByteSizeValue limit, String json) {
-        BlockFactory inputFactory = blockFactory();
-        Result result = result(List.of(intAttr(), unmappedAttr()), List.of(page(inputFactory, List.of(row(1, json)))));
-
-        BlockFactory tightFactory = blockFactory(limit);
-        Result expanded = ExpandUnmappedFieldsPostProcessor.expand(result, null, tightFactory, PlannerSettings.DEFAULTS, () -> false);
-        Releasables.close(expanded.pages());
-    }
-
-    // No ordering recipe: these exercise the expansion mechanics, so the natural real-then-discovered fallback applies. The ordering
-    // itself is covered against real plans in DetermineUnmappedFieldsToKeepTests.
     private static Result expand(Result result, BlockFactory blockFactory) {
         return expand(result, blockFactory, PlannerSettings.DEFAULTS);
     }
 
     private static Result expand(Result result, BlockFactory blockFactory, PlannerSettings plannerSettings) {
-        return ExpandUnmappedFieldsPostProcessor.expand(result, null, blockFactory, plannerSettings, () -> false);
+        return ExpandUnmappedFieldsPostProcessor.expand(result, blockFactory, plannerSettings, () -> false);
     }
 
     private static Result result(List<Attribute> schema, List<Page> pages) {
@@ -1083,50 +528,31 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         return singleQuoted.replace('\'', '"');
     }
 
-    /** {@code count} distinct names starting with {@code prefix}, zero-padded so that their alphabetical order is their numeric one. */
-    private static List<String> paddedNames(String prefix, int count) {
-        List<String> names = new ArrayList<>(count);
-        for (int i = 0; i < count; i++) {
-            names.add(String.format(Locale.ROOT, "%s%05d", prefix, i));
-        }
-        return names;
-    }
-
-    /** A flat JSON object with one numeric value per name. */
-    private static String jsonWithFields(List<String> names) {
-        StringBuilder json = new StringBuilder("{");
-        for (int i = 0; i < names.size(); i++) {
-            if (i > 0) {
-                json.append(',');
-            }
-            json.append('"').append(names.get(i)).append("\":").append(i);
-        }
-        return json.append('}').toString();
-    }
-
     private static List<String> names(Result r) {
         return r.schema().stream().map(Attribute::name).toList();
-    }
-
-    private static int rowCount(Result r) {
-        return r.pages().stream().mapToInt(Page::getPositionCount).sum();
     }
 
     private static List<DataType> dataTypes(Result r) {
         return r.schema().stream().map(Attribute::dataType).toList();
     }
 
-    /** One map per row holding only the non-null cells (a null expanded cell means the row lacked that field). */
-    private static List<Map<String, Object>> nonNullRows(Result r) {
+    /**
+     * One map per row holding only the non-null cells. The {@code _unmapped_fields} SOURCE cell is parsed back from its JSON bytes into
+     * a nested map so tests can assert its flattened leaves (a null cell is omitted, like the row never having that column).
+     */
+    private static List<Map<String, Object>> rows(Result r) {
         List<Attribute> schema = r.schema();
         List<Map<String, Object>> rows = new ArrayList<>();
         for (Page page : r.pages()) {
             for (int row = 0; row < page.getPositionCount(); row++) {
                 Map<String, Object> cells = new LinkedHashMap<>();
                 for (int col = 0; col < schema.size(); col++) {
-                    Object value = valueAt(page.getBlock(col), row);
+                    Attribute attribute = schema.get(col);
+                    Object value = attribute.dataType() == DataType.SOURCE
+                        ? parseSource(page.getBlock(col), row)
+                        : valueAt(page.getBlock(col), row);
                     if (value != null) {
-                        cells.put(schema.get(col).name(), value);
+                        cells.put(attribute.name(), value);
                     }
                 }
                 rows.add(cells);
@@ -1140,15 +566,15 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         return value instanceof BytesRef bytesRef ? bytesRef.utf8ToString() : value;
     }
 
-    private static final String INT_ATTR = "emp_no";
-
-    private static final int DEFAULT_MAX_FIELDS = PlannerSettings.LOAD_ALL_MAX_FIELDS.getDefault(Settings.EMPTY);
-
-    private static String truncationWarning(int maxFields) {
-        return "unmapped_fields=\"LOAD_ALL\" found more than ["
-            + maxFields
-            + "] fields in _source; only the first ["
-            + maxFields
-            + "] in alphabetical order are returned. Use KEEP or DROP to select the others.";
+    /** Parses the JSON object held in a SOURCE cell back into a map, or {@code null} if the cell is null. */
+    private static @Nullable Map<String, Object> parseSource(Block block, int row) {
+        if (block.isNull(row)) {
+            return null;
+        }
+        BytesRef json = ((BytesRefBlock) block).getBytesRef(((BytesRefBlock) block).getFirstValueIndex(row), new BytesRef());
+        return XContentHelper.convertToMap(new BytesArray(json.bytes, json.offset, json.length), true, XContentType.JSON).v2();
     }
+
+    private static final String INT_ATTR = "emp_no";
+    private static final String UNMAPPED = ExpandUnmappedFieldsPostProcessor.UNMAPPED_FIELDS_COLUMN_NAME;
 }

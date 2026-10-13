@@ -58,7 +58,7 @@ The general query performance advice in [optimize {{esql}} query performance](es
 {{es}} caches dataset metadata on each node so that repeated queries against the same dataset don't discover files and read file metadata again each time:
 
 - **File listings** are reused for a fixed time before {{es}} lists the storage again. A file added to or removed from the bucket becomes visible once the listing expires.
-- **Inferred schemas** are invalidated when the underlying file changes. 
+- **Inferred schemas** are invalidated when the underlying file changes.
   - {applies_to}`stack: experimental 9.6+` Additionally, a schema is reused for at most 20 minutes by default.
 - {applies_to}`stack: experimental 9.6+` **Footers of columnar files**, such as Parquet footers, are reused for 5 minutes by default.
 
@@ -164,7 +164,7 @@ The limitations below include operations that require structures available only 
 | `LOOKUP JOIN`, with a dataset as the lookup target | A dataset works as the left (source) side of the join. The lookup target must be an {{es}} index. | `LOOKUP JOIN against a dataset is not supported; dataset(s) requested: [...]` |
 | `TS` (time series) | A time-series source must be an {{es}} index. | `TS command is not supported for datasets; dataset(s) requested: [...]` |
 | Search functions | Search functions work on datasets as runtime search functions, scanning values row by row without an inverted index. Availability varies by version and deployment type. Refer to the [availability table](#use-search-functions). | `… cannot operate on [<field>], which is not a field from an index mapping (the source is a federated data source, not an index)` |
-| `KNN` | `KNN` requires a vector field from an index mapping, which a dataset does not have. | `… cannot operate on [<field>], which is not a field from an index mapping (the source is a federated data source, not an index)` |
+| `KNN` | `KNN` on vectors in a dataset performs exact, brute-force search, as opposed to approximate kNN search on a vector field from an index mapping. | |
 | More than 8 sources in one `FROM` {applies_to}`stack: experimental =9.5` | A `FROM` that includes datasets runs one execution branch per resolved source, up to a limit of 8 branches. Query fewer sources together. | |
 | More sources in one `FROM` than `max_branch_count_per_merge` allows {applies_to}`stack: experimental 9.6+` | A `FROM` that includes datasets runs one execution branch per resolved source. The limit is the `esql.query.max_branch_count_per_merge` cluster setting (default 8). Query fewer sources together, or raise the limit. | |
 | A column with conflicting types across sources | When you query a dataset together with other sources and the same column has types that cannot be reconciled, the query fails rather than returning mixed types. | `Column [<name>] has conflicting data types in subqueries` |

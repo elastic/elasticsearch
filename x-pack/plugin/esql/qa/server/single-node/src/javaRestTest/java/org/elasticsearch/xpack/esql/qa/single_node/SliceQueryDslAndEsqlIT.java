@@ -197,7 +197,8 @@ public class SliceQueryDslAndEsqlIT extends ESRestTestCase {
         for (List<String> slices : SELECTIONS) {
             List<String> fromSearch = searchKeys(
                 slices,
-                "\"sort\": [ { \"position\": \"desc\" }, { \"key\": \"asc\" } ], \"size\": 5, \"query\": { \"term\": { \"parity\": \"even\" } }"
+                "\"sort\": [ { \"position\": \"desc\" }, { \"key\": \"asc\" } ], \"size\": 5, "
+                    + "\"query\": { \"term\": { \"parity\": \"even\" } }"
             );
             List<String> fromEsql = esqlKeys(
                 "FROM tenants METADATA _slice | WHERE "

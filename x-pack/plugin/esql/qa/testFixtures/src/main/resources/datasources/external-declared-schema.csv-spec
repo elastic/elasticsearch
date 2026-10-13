@@ -40,7 +40,7 @@ id:long | name:keyword | pay:long
 ;
 
 // A declaration binds BY NAME even with no `path` on any column, on every format: binding is keyed on schema
-// provenance, not on whether a path was written (esql-planning#1307). The declaration is deliberately NOT in file
+// provenance, not on whether a path was written . The declaration is deliberately NOT in file
 // order -- the file leads with birth_date -- so binding by declaration POSITION would serve the wrong column's
 // values. It also pins that declared property order survives into the PUT body, since output order is declared
 // order.
@@ -141,7 +141,7 @@ dataset: shared_declared_absent: "{{employees_no_mv}}" WITH {"mappings": {"dynam
 FROM shared_declared_absent
 | SORT id
 | LIMIT 3;
-warningRegex:declared column \[department\] is not present in some source files and reads null there
+warningRegex:column \[department\] is not present in some source files and reads null there
 
 id:long | dept:keyword
 10001   | null
@@ -161,7 +161,7 @@ FROM shared_overlay_absent
 | KEEP id, dept
 | SORT id
 | LIMIT 3;
-warningRegex:declared column \[department\] is not present in some source files and reads null there
+warningRegex:column \[department\] is not present in some source files and reads null there
 
 id:long | dept:keyword
 10001   | null

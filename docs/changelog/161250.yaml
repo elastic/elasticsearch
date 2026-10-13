@@ -2,5 +2,5 @@ area: Data streams
 issues:
  - 125685
 pr: 161250
-summary: Apply index setting providers to get data streams
+summary: Show the effective index mode and settings of the next backing index in `GET _data_stream`, and honor settings that a request explicitly unsets.
 type: bug

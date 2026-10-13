@@ -87,7 +87,8 @@ public class ServiceAccountIT extends ESRestTestCase {
             "cluster": [
                 "monitor",
                 "read_ilm",
-                "read_slm"
+                "read_slm",
+                "cluster:admin/xpack/searchable_snapshots/cache/stats"
             ],
             "indices": [
                 {

@@ -13,6 +13,9 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.TransportRestore
 import org.elasticsearch.action.support.master.MasterNodeRequestHelper;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.settings.Settings;
@@ -43,7 +46,9 @@ import org.elasticsearch.xpack.stateless.engine.RefreshManagerService;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -512,7 +517,7 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
      * clone is finished: it is submitted as soon as the resharding metadata appears, so it races with the copy that is in progress.
      */
     public void testRestoreOverOpenIndexWhileResharding_targetsInClone() throws Exception {
-        restoreOverOpenIndexWhileResharding(IndexReshardingState.Split.TargetShardState.CLONE, false);
+        restoreOverOpenIndexWhileResharding(IndexReshardingState.Split.TargetShardState.CLONE, false, false);
     }
 
     /**
@@ -522,17 +527,51 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
      * index.
      */
     public void testRestoreOverOpenIndexWhileResharding_handoffInFlight() throws Exception {
-        restoreOverOpenIndexWhileResharding(IndexReshardingState.Split.TargetShardState.CLONE, true);
+        restoreOverOpenIndexWhileResharding(IndexReshardingState.Split.TargetShardState.CLONE, true, false);
     }
 
     /** Restores once all targets have received the handoff and are in the HANDOFF state, before they move to SPLIT. */
     public void testRestoreOverOpenIndexWhileResharding_targetsInHandoff() throws Exception {
-        restoreOverOpenIndexWhileResharding(IndexReshardingState.Split.TargetShardState.HANDOFF, true);
+        restoreOverOpenIndexWhileResharding(IndexReshardingState.Split.TargetShardState.HANDOFF, true, false);
     }
 
     /** Restores once the handoff is complete and the targets are in the split state, waiting to be marked as done. */
     public void testRestoreOverOpenIndexWhileResharding_targetsInSplit() throws Exception {
-        restoreOverOpenIndexWhileResharding(IndexReshardingState.Split.TargetShardState.SPLIT, true);
+        restoreOverOpenIndexWhileResharding(IndexReshardingState.Split.TargetShardState.SPLIT, true, false);
+    }
+
+    /**
+     * As {@link #testRestoreOverOpenIndexWhileResharding_handoffInFlight}, but the source and the target are on different nodes, so the
+     * handoff request and the target's state change requests cross the network, and each node has to clean up its own side of the split.
+     */
+    public void testRestoreOverOpenIndexWhileResharding_onSeparateNodes_handoffInFlight() throws Exception {
+        restoreOverOpenIndexWhileResharding(IndexReshardingState.Split.TargetShardState.CLONE, true, true);
+    }
+
+    /** As {@link #testRestoreOverOpenIndexWhileResharding_targetsInHandoff}, but the source and the target are on different nodes. */
+    public void testRestoreOverOpenIndexWhileResharding_onSeparateNodes_targetsInHandoff() throws Exception {
+        restoreOverOpenIndexWhileResharding(IndexReshardingState.Split.TargetShardState.HANDOFF, true, true);
+    }
+
+    /** As {@link #testRestoreOverOpenIndexWhileResharding_targetsInSplit}, but the source and the target are on different nodes. */
+    public void testRestoreOverOpenIndexWhileResharding_onSeparateNodes_targetsInSplit() throws Exception {
+        restoreOverOpenIndexWhileResharding(IndexReshardingState.Split.TargetShardState.SPLIT, true, true);
+    }
+
+    /**
+     * Restores once every target is done, while the sources have not started their cleanup: each source's request to move to
+     * READY_FOR_CLEANUP is held back.
+     */
+    public void testRestoreOverOpenIndexWhileResharding_sourceCleanupNotStarted() throws Exception {
+        restoreOverOpenIndexDuringSourceCleanup(IndexReshardingState.Split.SourceShardState.READY_FOR_CLEANUP);
+    }
+
+    /**
+     * Restores once every target is done and the sources have deleted the documents they no longer own, while each source's request
+     * to move to DONE is held back, so that the source is still in READY_FOR_CLEANUP.
+     */
+    public void testRestoreOverOpenIndexWhileResharding_sourceCleanupComplete() throws Exception {
+        restoreOverOpenIndexDuringSourceCleanup(IndexReshardingState.Split.SourceShardState.DONE);
     }
 
     /**
@@ -544,9 +583,14 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
      * @param heldState         the state the targets are held in
      * @param awaitHeldRequests whether to wait until every target's request to leave {@code heldState} has been held back before
      *                          restoring. If not, the restore races with whatever the targets are doing in that state.
+     * @param targetOnSeparateNode whether the target shard is on a different index node than its source. That limits the index to a
+     *                          single shard, so that the one target shard is the only one that can be placed on the second node.
      */
-    private void restoreOverOpenIndexWhileResharding(IndexReshardingState.Split.TargetShardState heldState, boolean awaitHeldRequests)
-        throws Exception {
+    private void restoreOverOpenIndexWhileResharding(
+        IndexReshardingState.Split.TargetShardState heldState,
+        boolean awaitHeldRequests,
+        boolean targetOnSeparateNode
+    ) throws Exception {
         final IndexReshardingState.Split.TargetShardState blockedTransition = switch (heldState) {
             case CLONE -> IndexReshardingState.Split.TargetShardState.HANDOFF;
             case HANDOFF -> IndexReshardingState.Split.TargetShardState.SPLIT;
@@ -558,17 +602,39 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
         // executed directly instead of being sent over the transport, which would bypass the send behavior used below to hold it.
         startMasterOnlyNode();
         var indexNode = startIndexNode();
-        startSearchNode();
-        ensureStableCluster(3);
-
-        createRepository("test-repo", "fs");
-
-        // Each held request occupies a thread until it is released. Keep the number of targets low enough that all of them can be held
-        // at once, since a request that can't get a thread would never be seen to be held.
-        final int shards = between(1, 3);
-        var indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        // Need at least one search replica so the restored index is searchable.
-        createIndex(indexName, shards, 1);
+        // The node the target shard is on, which is where its state change requests are sent from and so where they are held
+        var targetNode = indexNode;
+        final int shards;
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        if (targetOnSeparateNode) {
+            // Allowing a single shard per node keeps the target off the source's node. After the split there are two shards (and two
+            // replicas), so there need to be two search nodes for the index to be green.
+            startSearchNodes(2);
+            ensureStableCluster(4);
+            createRepository("test-repo", "fs");
+            shards = 1;
+            createIndex(
+                indexName,
+                indexSettings(1, 1).put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1).build()
+            );
+            ensureGreen(indexName);
+            // The source must stay where it is when the second index node joins
+            updateClusterSettings(
+                Settings.builder()
+                    .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
+            );
+            targetNode = startIndexNode();
+            ensureStableCluster(5);
+        } else {
+            startSearchNode();
+            ensureStableCluster(3);
+            createRepository("test-repo", "fs");
+            // Each held request occupies a thread until it is released. Keep the number of targets low enough that all of them can be
+            // held at once, since a request that can't get a thread would never be seen to be held.
+            shards = between(1, 3);
+            // Need at least one search replica so the restored index is searchable.
+            createIndex(indexName, shards, 1);
+        }
         ensureGreen();
         final int numDocs = randomIntBetween(10, 100);
         indexDocs(indexName, numDocs);
@@ -589,8 +655,8 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
         // restore has been applied. The count of blocked requests lets the test know when every target has reached that point.
         var latch = new CountDownLatch(1);
         var blockedRequests = new AtomicInteger();
-        MockTransportService indexTransportService = MockTransportService.getInstance(indexNode);
-        indexTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+        MockTransportService targetTransportService = MockTransportService.getInstance(targetNode);
+        targetTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
             try {
                 if (TransportUpdateSplitTargetShardStateAction.TYPE.name().equals(action)) {
                     TransportRequest actualRequest = MasterNodeRequestHelper.unwrapTermOverride(request);
@@ -620,6 +686,17 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
             .targetStates()
             .toList()
             .size();
+        if (targetOnSeparateNode) {
+            // Guard the premise of the test: the source and the target are on different nodes
+            final var finalTargetNode = targetNode;
+            awaitClusterState(indexNode, state -> {
+                final var shardRoutingTable = state.routingTable(ProjectId.DEFAULT).index(index).shard(1);
+                return shardRoutingTable != null
+                    && shardRoutingTable.primaryShard().currentNodeId() != null
+                    && state.nodes().get(shardRoutingTable.primaryShard().currentNodeId()).getName().equals(finalTargetNode);
+            });
+            assertNotEquals(indexNode, targetNode);
+        }
 
         // Cluster state listeners of the abandoned split, such as the source's handoff observer, must cope with the restored state.
         // An exception from one of them is only logged by the cluster applier, so look for that.
@@ -663,16 +740,17 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
                 latch.countDown();
             }
 
-            assertRestoredAndAbandonedSplitCleanedUp(indexNode, indexName, shards, numDocs);
+            assertRestoredAndAbandonedSplitCleanedUp(indexName, shards, numDocs, indexNode, targetNode);
             mockLog.assertAllExpectationsMatched();
         }
     }
 
     /**
      * Verifies that the index was restored to {@code shards} shards without any resharding metadata, still has all its documents, and
-     * that the abandoned split left no state behind in the split services of {@code indexNode}.
+     * that the abandoned split left no state behind in the split services of any of {@code indexNodes}.
      */
-    private void assertRestoredAndAbandonedSplitCleanedUp(String indexNode, String indexName, int shards, int numDocs) throws Exception {
+    private void assertRestoredAndAbandonedSplitCleanedUp(String indexName, int shards, int numDocs, String... indexNodes)
+        throws Exception {
         ensureGreen(indexName);
 
         var restoredMetadata = clusterService().state().metadata().indexMetadata(resolveIndex(indexName));
@@ -685,12 +763,106 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
         );
 
         // The abandoned split must leave no state behind on either service, or it leaks memory.
-        final var splitTargetService = internalCluster().getInstance(SplitTargetService.class, indexNode);
-        final var splitSourceService = internalCluster().getInstance(SplitSourceService.class, indexNode);
-        assertBusy(() -> {
-            assertThat("Split target state left behind", splitTargetService.getShardsWithOngoingSplits(), empty());
-            assertThat("Split source state left behind", splitSourceService.getShardsWithActiveSplitState(), empty());
+        for (String indexNode : new LinkedHashSet<>(Arrays.asList(indexNodes))) {
+            final var splitTargetService = internalCluster().getInstance(SplitTargetService.class, indexNode);
+            final var splitSourceService = internalCluster().getInstance(SplitSourceService.class, indexNode);
+            assertBusy(() -> {
+                assertThat("Split target state left behind on " + indexNode, splitTargetService.getShardsWithOngoingSplits(), empty());
+                assertThat("Split source state left behind on " + indexNode, splitSourceService.getShardsWithActiveSplitState(), empty());
+            });
+        }
+    }
+
+    /**
+     * Starts a split, lets every target finish, holds the sources' request to leave their cleanup stage at {@code heldTransition}, and
+     * restores the pre-split snapshot over the index. The restore must succeed and leave nothing of the split behind, in particular
+     * not the sources' cleanup, which is by then waiting for, or has sent, a state change request for a source that no longer exists.
+     *
+     * @param heldTransition the source state whose request is held back: READY_FOR_CLEANUP (cleanup not started) or DONE (cleanup of
+     *                       unowned documents complete)
+     */
+    private void restoreOverOpenIndexDuringSourceCleanup(IndexReshardingState.Split.SourceShardState heldTransition) throws Exception {
+        // As elsewhere, the master is a separate node so that the state change requests go over the transport, where they are held.
+        startMasterOnlyNode();
+        var indexNode = startIndexNode();
+        startSearchNode();
+        ensureStableCluster(3);
+
+        createRepository("test-repo", "fs");
+
+        final int shards = between(1, 3);
+        var indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, shards, 1);
+        ensureGreen();
+        final int numDocs = randomIntBetween(10, 100);
+        indexDocs(indexName, numDocs);
+
+        var preSplitSnapshotName = indexName + "-pre-split-snap";
+        var preSplitSnapshot = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", preSplitSnapshotName)
+            .setWaitForCompletion(true)
+            .setIndices(indexName)
+            .get();
+        assertEquals(SnapshotState.SUCCESS, preSplitSnapshot.getSnapshotInfo().state());
+
+        var index = resolveIndex(indexName);
+
+        var latch = new CountDownLatch(1);
+        var blockedRequests = new AtomicInteger();
+        MockTransportService.getInstance(indexNode).addSendBehavior((connection, requestId, action, request, options) -> {
+            try {
+                if (TransportUpdateSplitSourceShardStateAction.TYPE.name().equals(action)) {
+                    TransportRequest actualRequest = MasterNodeRequestHelper.unwrapTermOverride(request);
+                    if (actualRequest instanceof TransportUpdateSplitSourceShardStateAction.Request sourceStateRequest
+                        && sourceStateRequest.getState() == heldTransition
+                        && latch.getCount() > 0) {
+                        blockedRequests.incrementAndGet();
+                        latch.await();
+                    }
+                }
+                connection.sendRequest(requestId, action, request, options);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
         });
+
+        try (var mockLog = MockLog.capture(ClusterApplierService.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "cluster state listener failed",
+                    ClusterApplierService.class.getCanonicalName(),
+                    Level.WARN,
+                    "failed to notify ClusterStateListener"
+                )
+            );
+
+            client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+            try {
+                // Every target finishes, and then every source reaches the held request
+                awaitClusterState(indexNode, state -> {
+                    var resharding = state.metadata().projectFor(index).index(indexName).getReshardingMetadata();
+                    return resharding != null
+                        && resharding.getSplit().targetStates().allMatch(t -> t == IndexReshardingState.Split.TargetShardState.DONE);
+                });
+                assertBusy(() -> assertEquals(shards, blockedRequests.get()));
+
+                var restoreRequest = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, "test-repo", preSplitSnapshotName).indices(indexName)
+                    .restoreOverExisting(true)
+                    .waitForCompletion(true);
+                var restoreResponse = client().execute(TransportRestoreSnapshotAction.TYPE, restoreRequest).actionGet();
+                assertEquals(shards, restoreResponse.getRestoreInfo().totalShards());
+                assertEquals(shards, restoreResponse.getRestoreInfo().successfulShards());
+                assertEquals(0, restoreResponse.getRestoreInfo().failedShards());
+            } finally {
+                // Released only after the restore, so that the held requests reach the master as stale requests from sources that
+                // no longer exist.
+                latch.countDown();
+            }
+
+            assertRestoredAndAbandonedSplitCleanedUp(indexName, shards, numDocs, indexNode);
+            mockLog.assertAllExpectationsMatched();
+        }
     }
 
     /**
@@ -758,7 +930,7 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
             assertEquals(shards, restoreResponse.getRestoreInfo().successfulShards());
             assertEquals(0, restoreResponse.getRestoreInfo().failedShards());
 
-            assertRestoredAndAbandonedSplitCleanedUp(indexNode, indexName, shards, numDocs);
+            assertRestoredAndAbandonedSplitCleanedUp(indexName, shards, numDocs, indexNode);
             mockLog.assertAllExpectationsMatched();
         } finally {
             releaseFlush.countDown();

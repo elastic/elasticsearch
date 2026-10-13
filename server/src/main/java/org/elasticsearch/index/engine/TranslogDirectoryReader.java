@@ -422,6 +422,12 @@ final class TranslogDirectoryReader extends DirectoryReader {
                 if (field.equals(SeqNoFieldMapper.PRIMARY_TERM_NAME)) {
                     return new FakeNumericDocValues(operation.primaryTerm());
                 }
+                // The in-place doc-values update companion columns are always absent for a translog operation: a doc-values update is
+                // served from the searcher, never from the translog. Answer as "no such column" so VersionsAndSeqNoResolver does not
+                // materialize the in-memory segment just to read them.
+                if (field.equals(SeqNoFieldMapper.DV_UPDATE_SEQ_NO_NAME) || field.equals(SeqNoFieldMapper.DV_UPDATE_PRIMARY_TERM_NAME)) {
+                    return null;
+                }
             }
             return getDelegate().getNumericDocValues(field);
         }

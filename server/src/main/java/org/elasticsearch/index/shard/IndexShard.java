@@ -210,6 +210,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.cluster.metadata.DataStream.TIMESERIES_LEAF_READERS_SORTER;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.indices.recovery.FailureStrategy.ABORT;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SEND;
@@ -1043,6 +1044,91 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         );
     }
 
+    /**
+     * Apply an in-place doc-values update on the primary (see {@code doc_values.updatable}). {@code version} is the current version of
+     * the document, carried through so the replica records the same value. {@code ifSeqNo}/{@code ifPrimaryTerm} are the document's
+     * identity captured when the update was prepared; the engine checks them against the live document at apply time and conflicts if it
+     * changed in between.
+     */
+    public Engine.DocValuesUpdateResult applyDocValuesUpdateOnPrimary(
+        long version,
+        String id,
+        List<Translog.DocValuesUpdate.FieldUpdate> updates,
+        long ifSeqNo,
+        long ifPrimaryTerm
+    ) throws IOException {
+        return applyDocValuesUpdate(
+            getEngine(),
+            UNASSIGNED_SEQ_NO,
+            getOperationPrimaryTerm(),
+            version,
+            id,
+            updates,
+            VersionType.INTERNAL,
+            Engine.Operation.Origin.PRIMARY,
+            ifSeqNo,
+            ifPrimaryTerm
+        );
+    }
+
+    /**
+     * Apply an in-place doc-values update on a replica, replaying the primary's {@code seqNo}, {@code opPrimaryTerm}, and {@code version}.
+     * The optimistic-concurrency check was already performed on the primary, so none is repeated here.
+     */
+    public Engine.DocValuesUpdateResult applyDocValuesUpdateOnReplica(
+        long seqNo,
+        long opPrimaryTerm,
+        long version,
+        String id,
+        List<Translog.DocValuesUpdate.FieldUpdate> updates
+    ) throws IOException {
+        return applyDocValuesUpdate(
+            getEngine(),
+            seqNo,
+            opPrimaryTerm,
+            version,
+            id,
+            updates,
+            null,
+            Engine.Operation.Origin.REPLICA,
+            UNASSIGNED_SEQ_NO,
+            UNASSIGNED_PRIMARY_TERM
+        );
+    }
+
+    private Engine.DocValuesUpdateResult applyDocValuesUpdate(
+        Engine engine,
+        long seqNo,
+        long opPrimaryTerm,
+        long version,
+        String id,
+        List<Translog.DocValuesUpdate.FieldUpdate> updates,
+        @Nullable VersionType versionType,
+        Engine.Operation.Origin origin,
+        long ifSeqNo,
+        long ifPrimaryTerm
+    ) throws IOException {
+        ensureWriteAllowed(origin);
+        try {
+            final Engine.DocValuesUpdate engineOp = new Engine.DocValuesUpdate(
+                id,
+                Uid.encodeId(id),
+                seqNo,
+                opPrimaryTerm,
+                version,
+                versionType,
+                origin,
+                System.nanoTime(),
+                updates,
+                ifSeqNo,
+                ifPrimaryTerm
+            );
+            return engine.docValuesUpdate(engineOp);
+        } finally {
+            active.set(true);
+        }
+    }
+
     private Engine.IndexResult applyIndexOperation(
         Engine engine,
         long seqNo,
@@ -1418,6 +1504,26 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         long ifPrimaryTerm
     ) {
         return prepareDelete(id, null, false, seqNo, primaryTerm, version, versionType, origin, ifSeqNo, ifPrimaryTerm);
+    }
+
+    private Engine.DocValuesUpdateResult applyDocValuesUpdateOperation(
+        Engine engine,
+        Translog.DocValuesUpdate update,
+        @Nullable VersionType versionType,
+        Engine.Operation.Origin origin
+    ) throws IOException {
+        return applyDocValuesUpdate(
+            engine,
+            update.seqNo(),
+            update.primaryTerm(),
+            update.version(),
+            Uid.decodeId(update.uid()),
+            update.updates(),
+            versionType,
+            origin,
+            UNASSIGNED_SEQ_NO,
+            UNASSIGNED_PRIMARY_TERM
+        );
     }
 
     public Engine.GetResult get(Engine.Get get, SplitShardCountSummary splitShardCountSummary) {
@@ -2422,6 +2528,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             case NO_OP -> {
                 final Translog.NoOp noOp = (Translog.NoOp) operation;
                 result = markSeqNoAsNoop(engine, noOp.seqNo(), noOp.primaryTerm(), noOp.reason(), origin);
+            }
+            case DOC_VALUES_UPDATE -> {
+                final Translog.DocValuesUpdate update = (Translog.DocValuesUpdate) operation;
+                result = applyDocValuesUpdateOperation(engine, update, versionType, origin);
             }
             default -> throw new IllegalStateException("No operation defined for [" + operation + "]");
         }

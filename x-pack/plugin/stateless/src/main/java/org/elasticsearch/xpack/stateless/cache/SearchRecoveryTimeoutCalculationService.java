@@ -150,9 +150,13 @@ public class SearchRecoveryTimeoutCalculationService {
     /// with `deadline = start + min(metadata grace, cap)`.
     /// `concurrentRelocations` is the source's proportional share of the target's concurrent relocation slots:
     /// `min(sourceToTarget, relocationCap * sourceToTarget / allToTarget)`, with `sourceToTarget` and `allToTarget`
-    /// counting relocations from the cluster state and relocationCap derived from .
+    /// counting the relocations to the target (from this and all source(s) respectively) in the cluster state.
+    /// `relocationCap` is [org.elasticsearch.indices.recovery.ThrottlingRecoveryService#maxConcurrentRelocationRecoveries]
+    /// on this target node. The share may be below one slot when several sources compete for a small cap.
     ///
-    /// The resulting timeout is capped at the remaining grace period.
+    /// The resulting timeout is capped at the remaining grace period. It may round down to zero (skipping warming) when the
+    /// source's slot-time budget is too small to warm its remaining shards before the deadline, e.g. close to the deadline or
+    /// with many shards competing for a small cap.
     ///
     /// This is a rough estimate: it ignores other recoveries that compete for the target's slots (which would reduce
     /// `concurrentRelocations`). This should be good enough for now: relocations off shutting-down nodes are prioritized
@@ -189,16 +193,19 @@ public class SearchRecoveryTimeoutCalculationService {
         // Instead, this uses the same fixed baseline (which itself is of dubious inspiration).
         // But it's hard to do the accounting of the bytes warmed for shards for all the relocations of a given node shutting down.
         final double dataVolumeMs = warmingCacheBytes > 0 ? ((double) totalBytesToWarm / warmingCacheBytes) * remaining : 0;
-        int relocationsFromSourceToTarget = countOngoingRelocationsBetween(state, sourceNodeId, targetNodeId);
-        // The current shard is itself one such relocation; floor at 1 in case it is not yet visible on the source's RoutingNode.
-        if (relocationsFromSourceToTarget <= 0) {
-            relocationsFromSourceToTarget = 1;
-        }
-        // Share the target's cap between shutting-down sources.
+
+        // The current shard is itself one such relocation, floor at 1 in case it is not yet visible on the source's RoutingNode.
+        final int relocationsFromSourceToTarget = Math.max(1, countOngoingRelocationsBetween(state, sourceNodeId, targetNodeId));
+        // Relocations from this source are a subset of those from all shutting-down nodes, so the share below is at most one.
         final int allRelocationsToTarget = Math.max(1, countRelocationsFromShuttingDownNodesTo(state, targetNodeId));
-        double concurrentRelocations = Math.min(
+
+        final int maxConcurrentRelocations = maxConcurrentRelocationRecoveriesSupplier.getAsInt();
+        assert maxConcurrentRelocations > 0 : "max concurrent relocation recoveries must be positive but was " + maxConcurrentRelocations;
+
+        // Share the target's cap between shutting-down sources, preserving fractional shares below one slot.
+        final double concurrentRelocations = Math.min(
             relocationsFromSourceToTarget,
-            (double) maxConcurrentRelocationRecoveriesSupplier.getAsInt() * relocationsFromSourceToTarget / allRelocationsToTarget
+            (double) maxConcurrentRelocations * relocationsFromSourceToTarget / allRelocationsToTarget
         );
 
         final double timeoutMs;

@@ -212,7 +212,8 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
     /// from `sourceNodeId` to `targetNodeId`, followed by `numShardsFromOtherSourceToTarget` from `otherSourceNodeId`.
     /// Remaining source shards are started, except for `numShardsToOtherTarget` relocating from `sourceNodeId` to `otherTargetNodeId`.
     /// The restarting source's shards all relocate to `targetNodeId`, but do not compete for shutdown relocation slots.
-    /// The index-only primaries and stale shutdown metadata also exercise exclusions from the relocation count.
+    /// The index-only primaries sit on a node that is also marked for removal, and stale shutdown metadata is present, so these
+    /// nodes are visited when counting relocations from shutting-down nodes but contribute none.
     private static ClusterState clusterStateSearchShardsRelocatingFromMultipleSources(
         int numShards,
         int numShardsToTarget,
@@ -244,7 +245,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
         );
         searchShards.addAll(Collections.nCopies(numShardsToOtherTarget, new Tuple<>(sourceNodeId, otherTargetNodeId)));
 
-        // Balancing relocations do not affect the timeout computation.
+        // Relocations off a node that is not marked for removal (here a RESTART shutdown) do not affect the timeout computation.
         searchShards.addAll(Collections.nCopies(numShardsFromRestartingSource, new Tuple<>(restartingSourceNodeId, targetNodeId)));
 
         final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
@@ -436,6 +437,9 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
         }
     }
 
+    /// When the relocation source is shutting down and the target does not throttle relocation recoveries, the per-target
+    /// warming timeout scales linearly with the number of search shards relocating from that source to the same target
+    /// in the cluster state.
     public void testSearchRecoveryTimeoutScalesByClusterStateRelocationsToTarget() {
         try (
             var threadPool = new FakeTimeThreadPool(
@@ -568,8 +572,8 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             final String sourceNodeId = "source-node";
             final String targetNodeId = "target-node";
 
-            // 3 shards total: only 1 relocates to targetNodeId, 2 not relocating yet
-            // so pendingRelocations=3 and concurrentRelocations=1
+            // 3 shards total: only 1 relocates to targetNodeId, the other 2 relocate to another node
+            // so shardsOnSource=3 and concurrentRelocations=1
             final ClusterState stateUncapped = clusterStateSearchShardsRelocatingFromShuttingDownSource(
                 3,
                 1,
@@ -578,7 +582,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 targetNodeId,
                 startedAtMillis
             );
-            // 3 shards total, all relocating to targetNodeId so pendingRelocations=3 and concurrentRelocations=3
+            // 3 shards total, all relocating to targetNodeId so shardsOnSource=3 and concurrentRelocations=3
             final ClusterState stateCapped = clusterStateSearchShardsRelocatingFromShuttingDownSource(
                 3,
                 3,
@@ -658,8 +662,8 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             final String sourceNodeId = "source-node";
             final String targetNodeId = "target-node";
 
-            // 4 shards total; 1 relocates to targetNodeId, 3 not relocating yet
-            // so pendingRelocations=4 and concurrentRelocations=1
+            // 4 shards total; 1 relocates to targetNodeId, the other 3 relocate to another node
+            // so shardsOnSource=4 and concurrentRelocations=1
             final ClusterState stateUncapped = clusterStateSearchShardsRelocatingFromShuttingDownSource(
                 4,
                 1,
@@ -668,8 +672,8 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 targetNodeId,
                 startedAtMillis
             );
-            // 4 shards total; 3 relocate to targetNodeId, 1 not relocating yet
-            // so pendingRelocations=4 and concurrentRelocations=3
+            // 4 shards total; 3 relocate to targetNodeId, 1 relocates to another node
+            // so shardsOnSource=4 and concurrentRelocations=3
             final ClusterState stateCapped = clusterStateSearchShardsRelocatingFromShuttingDownSource(
                 4,
                 3,

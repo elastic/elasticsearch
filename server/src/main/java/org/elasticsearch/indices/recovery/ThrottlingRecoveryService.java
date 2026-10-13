@@ -645,6 +645,8 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
 
         /// Effective max concurrent relocation recoveries, derived from [#effectiveMaxConcurrentRecoveries] and
         /// [DataNodeRecoveryThrottlingSettings#INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING].
+        /// Volatile so that [ThrottlingRecoveryService#maxConcurrentRelocationRecoveries] can read it without locking,
+        /// writes still happen under the enclosing instance lock.
         private volatile int effectiveMaxConcurrentRelocationRecoveries;
 
         /// The number of concurrent recoveries currently running, including recoveries from unassigned + relocations. Must

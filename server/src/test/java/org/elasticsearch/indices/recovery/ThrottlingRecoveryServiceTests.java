@@ -532,6 +532,36 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertThat(service.currentQueueSize(), equalTo(0));
     }
 
+    public void testMaxConcurrentRelocationRecoveries() {
+        final var clusterService = newClusterService(
+            Settings.builder()
+                .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 10)
+                .put(INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.getKey(), "25%")
+                .build()
+        );
+        final var service = newStartedService(threadPool, DefaultProjectResolver.INSTANCE, clusterService);
+        assertThat(service.maxConcurrentRelocationRecoveries(), equalTo(3));
+
+        clusterService.getClusterSettings()
+            .applySettings(
+                Settings.builder()
+                    .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 4)
+                    .put(INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.getKey(), "50%")
+                    .build()
+            );
+        assertThat(service.maxConcurrentRelocationRecoveries(), equalTo(2));
+        service.close();
+    }
+
+    public void testMaxConcurrentRelocationRecoveriesWithoutRegisteredSettings() {
+        final var clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(Settings.EMPTY, Set.of()));
+        when(clusterService.localNode()).thenReturn(localNode);
+        final var service = newStartedService(threadPool, DefaultProjectResolver.INSTANCE, clusterService);
+        assertThat(service.maxConcurrentRelocationRecoveries(), equalTo(Integer.MAX_VALUE));
+        service.close();
+    }
+
     public void testHeapBasedLimitRejectsZero() {
         expectThrows(
             IllegalArgumentException.class,

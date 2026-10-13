@@ -264,8 +264,10 @@ public abstract class FieldMapper extends Mapper {
             // this far reports FALLBACK today (copy_to, scripts and normalizers are refused above or by the mapper), so that half of the
             // check guards mappers added later.
             if (indexSettings.getMode().isStrictColumnar() == false
-                && (sourceKeepMode().orElse(indexSettings.sourceKeepMode()) == SourceKeepMode.ALL
-                    || syntheticSourceMode() == SyntheticSourceMode.FALLBACK)) {
+                && FallbackPostMapper.capturesScalarValues(
+                    syntheticSourceMode() == SyntheticSourceMode.FALLBACK,
+                    FallbackPostMapper.effectiveKeepMode(sourceKeepMode(), indexSettings)
+                )) {
                 return false;
             }
         }
@@ -350,7 +352,10 @@ public abstract class FieldMapper extends Mapper {
         // objects with keep: all; arrays under keep: arrays are the case that can only be recognised per batch, here.
         if (source.kind() == EscfColumnKind.ARRAY
             && ctx.indexSettings().getMode().isStrictColumnar() == false
-            && sourceKeepMode().orElse(ctx.indexSettings().sourceKeepMode()) != SourceKeepMode.NONE) {
+            && FallbackPostMapper.mayKeepArraySource(
+                syntheticSourceMode() == SyntheticSourceMode.FALLBACK,
+                FallbackPostMapper.effectiveKeepMode(sourceKeepMode(), ctx.indexSettings())
+            )) {
             throw new UnsupportedOperationException(
                 "mapColumnBatch: field [" + fullPath() + "] keeps array source outside a strict-columnar index mode"
             );

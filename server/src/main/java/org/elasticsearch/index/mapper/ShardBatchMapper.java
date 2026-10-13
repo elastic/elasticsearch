@@ -344,7 +344,8 @@ public final class ShardBatchMapper {
         while ((dot = current.lastIndexOf('.')) > 0) {
             current = current.substring(0, dot);
             final ObjectMapper parent = lookup.objectMappers().get(current);
-            if (parent != null && parent.sourceKeepMode().orElse(null) == Mapper.SourceKeepMode.ALL) {
+            if (parent != null
+                && FallbackPostMapper.capturesWholeObject(FallbackPostMapper.effectiveKeepMode(parent.sourceKeepMode(), indexSettings))) {
                 return true;
             }
         }

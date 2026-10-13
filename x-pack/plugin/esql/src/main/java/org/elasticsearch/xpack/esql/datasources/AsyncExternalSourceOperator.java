@@ -251,7 +251,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
      * {@code ThreadContext} response headers only reach the client when the driver happens to run on the coordinator.
      * {@code DriverCompletionInfo} ships this sink's contents back from whatever node ran the scan and the coordinator
      * re-emits them once, which is how every other ES|QL warning already travels. A read shipped to a data node
-     * (elastic/esql-planning#1837) otherwise returned the right values with no warning at all.
+    * otherwise returned the right values with no warning at all.
      */
     private void emitPendingWarnings() {
         String warning;

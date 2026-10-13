@@ -649,6 +649,71 @@ setup:
   - match: { aggregations.number_terms.buckets.2.doc_count: 1 }
 
 ---
+"Mixing ip and keyword":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ terms_agg_ip_keyword_mismatch_bad_request ]
+      test_runner_features: [capabilities]
+      reason: "terms over ip and keyword in different indices is a bad request"
+
+  - do:
+      indices.create:
+          index: mixed_ip
+          body:
+            mappings:
+              properties:
+                field:
+                  type: ip
+
+  - do:
+      indices.create:
+          index: mixed_keyword
+          body:
+            mappings:
+              properties:
+                field:
+                  type: keyword
+
+  - do:
+      index:
+        index: mixed_keyword
+        id: "1"
+        body: { "field": "foo" }
+
+  - do:
+      indices.refresh: {}
+
+  # the ip index has no documents, so the keys keep the keyword format
+  - do:
+      search:
+        index: mixed_*
+        body: { "size": 0, "aggs": { "field_terms": { "terms": { "field": "field" } } } }
+
+  - length: { aggregations.field_terms.buckets: 1 }
+  - match: { aggregations.field_terms.buckets.0.key: "foo" }
+  - match: { aggregations.field_terms.buckets.0.doc_count: 1 }
+
+  - do:
+      index:
+        index: mixed_ip
+        id: "1"
+        body: { "field": "192.168.0.1" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      catch: bad_request
+      search:
+        index: mixed_*
+        body: { "size": 0, "aggs": { "field_terms": { "terms": { "field": "field" } } } }
+
+  - match: { error.caused_by.type: illegal_argument_exception }
+  - match: { error.caused_by.reason: "/existed.as.two.different.types.in.two.different.indices/" }
+
+---
 "Global ordinals are not loaded with the map execution hint":
 
   - do:

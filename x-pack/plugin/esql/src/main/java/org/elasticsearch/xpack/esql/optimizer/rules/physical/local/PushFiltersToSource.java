@@ -270,7 +270,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         //
         // The question is whether reading a value can fail, which is a fact about this source's files and is
         // stamped at resolution; it was previously answered by asking whether the user had declared any column
-        // types, so the identical read pushed or withheld by declaration alone (esql-planning#2076).
+        // types, so the identical read pushed or withheld by declaration alone.
         ErrorPolicy errorPolicy = ErrorPolicy.forReader(externalExec.config(), formatReader);
         if (formatReader.dropsRowsUnderPushedFilter() == false && externalExec.dropsRowsOnConversionFailure(errorPolicy)) {
             return filterExec;

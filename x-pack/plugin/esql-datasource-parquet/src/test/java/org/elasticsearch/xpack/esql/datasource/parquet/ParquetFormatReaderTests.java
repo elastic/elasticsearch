@@ -2364,7 +2364,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     /**
      * The width cap bounds a declared read too. It used to be lifted for one, so the same wide file was refused when
      * its types were inferred and read when they were declared - one file, two outcomes, decided by how the dataset
-     * was written down rather than by anything about the file (esql-planning#2076). Raising the cap is the way to
+     * was written down rather than by anything about the file. Raising the cap is the way to
      * read a wide file, and it works the same either way.
      */
     public void testTheWidthCapBoundsADeclaredReadToo() throws Exception {
@@ -2393,7 +2393,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             }
         };
         // Raise the width cap directly. This exercises the schema budget, not the binding mode; the cap used to be
-        // lifted here by claiming a declared read, which is the read esql-planning#2076 removed.
+        // lifted here by claiming a declared read, which no longer lifts it.
         ParquetFormatReader reader = new ParquetFormatReader(new BlockFactory(roomy, blockFactory.bigArrays())).withSchemaMaxFields(
             Integer.MAX_VALUE
         );
@@ -6374,7 +6374,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
      * column must read the same across all three paths.
      * <p>
      * Under {@code fail_fast} this read used to return a column of nulls and a warning, for values a 32-bit integer
-     * holds comfortably, because nobody had declared the target type (esql-planning#2076).
+     * holds comfortably, because nobody had declared the target type.
      */
     public void testInt64ReadAsIntegerNarrowsPerValue() throws Exception {
         MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("x").named("test_schema");
@@ -6411,8 +6411,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
      * Both the optimized and the baseline row-at-a-time iterator.
      * <p>
      * This held only for a column the dataset declared a type for. An inferred column was filled with nulls under
-     * all three modes, so {@code fail_fast} returned a column of nulls for data it could not read
-     * (esql-planning#2076); the test that pinned that is gone with the behaviour.
+     * all three modes, so {@code fail_fast} returned a column of nulls for data it could not read; the test
+     * that pinned that is gone with the behaviour.
      */
     public void testUncoercibleColumnFollowsErrorMode() throws Exception {
         assertUncoercibleColumnFollowsErrorMode(new ParquetFormatReader(blockFactory));
@@ -7242,7 +7242,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     /**
      * A {@code boolean} column read as {@code double} is a pair nothing can convert, so {@code fail_fast} fails the
      * read naming the column, and {@code null_field} nulls it. Both arms used to null it: the failure arm was
-     * reachable only for a column the dataset declared a type for (esql-planning#2076).
+     * reachable only for a column the dataset declared a type for.
      */
     public void testSchemaMismatchBooleanVsDoubleFollowsErrorMode() throws Exception {
         MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.BOOLEAN).named("x").named("test_schema");

@@ -4372,7 +4372,6 @@ public class EsqlCapabilities {
          * one with nulls for its whole length, plus a warning. The read now follows {@code error_mode} for every column,
          * and the refusal text names the type the query uses rather than a declared type. Used to gate the external
          * csv-spec tests asserting the converted values and the new text, which such nodes still fail.
-         * See elastic/esql-planning#2076.
          */
         EXTERNAL_SOURCE_CONVERTS_UNDECLARED_COLUMNS,
 

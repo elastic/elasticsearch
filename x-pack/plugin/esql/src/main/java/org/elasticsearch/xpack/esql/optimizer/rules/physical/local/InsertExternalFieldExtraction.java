@@ -119,7 +119,7 @@ public class InsertExternalFieldExtraction extends PhysicalOptimizerRules.Parame
         // out of range [0, 0)". Resolve the policy against the reader's own default, exactly as the
         // factory does, so the two cannot reach different verdicts for the same read.
         // Whether a value can fail to convert is a fact about the files, stamped at resolution; asking instead
-        // whether any column was declared gave two reads of the same files different plans (esql-planning#2076).
+        // whether any column was declared gave two reads of the same files different plans.
         ErrorPolicy errorPolicy = ErrorPolicy.forReader(externalSource.config(), reader);
         if (externalSource.dropsRowsOnConversionFailure(errorPolicy)) {
             return topN;

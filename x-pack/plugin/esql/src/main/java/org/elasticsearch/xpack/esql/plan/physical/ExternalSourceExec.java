@@ -510,7 +510,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
      * from a coordinator that predates the stamp and is read conservatively: a value may fail, so the filter is
      * withheld and extraction is not deferred. That costs speed for the length of a rolling upgrade and nothing
      * else. It deliberately does not instead ask whether the dataset declared any column types, which would answer
-     * a read from how the schema was authored - the defect esql-planning#2076 removes.
+     * a read from how the schema was authored - the defect this predicate exists to avoid.
      */
     public boolean dropsRowsOnConversionFailure(ErrorPolicy errorPolicy) {
         return SourceStatisticsSerializer.dropsRowsOnConversionFailure(errorPolicy, sourceMetadata);

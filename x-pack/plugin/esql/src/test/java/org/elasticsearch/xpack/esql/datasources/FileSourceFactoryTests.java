@@ -195,7 +195,7 @@ public class FileSourceFactoryTests extends ESTestCase {
      * plan and the factory cannot reach different verdicts for one read.
      * <p>
      * The second half used to be "does the dataset declare any column types", which is why a declared read lost
-     * deferred extraction and an inferred read over the same files kept it (esql-planning#2076). The declared
+     * deferred extraction and an inferred read over the same files kept it. The declared
      * spec is now passed on both axes to show it no longer moves the answer.
      */
     public void testDeferredExtractionFollowsWhetherAValueCanFailToConvert() {

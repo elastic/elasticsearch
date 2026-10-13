@@ -180,7 +180,7 @@ public class ExternalSchemaMaxFieldsRestIT extends ESRestTestCase {
      * {@code first_file_wins} resolves a schema from the anchor alone, so the cap is met there and nowhere else. A wide
      * later file is read: the schema is already settled, and that file's header is split only to locate the anchor's two
      * columns in it, which is bounded separately. CSV and TSV used to refuse that file unless the dataset declared its
-     * columns, so the same glob was readable or not by how it was written down (esql-planning#2076).
+     * columns, so the same glob was readable or not by how it was written down.
      * <p>
      * {@code COUNT(*)} runs first, before anything has warmed this glob's files, and with every column pruned - the one
      * shape where the reader is pinned to nothing and so cannot tell a settled schema from none. A {@code KEEP} ahead of
@@ -203,7 +203,7 @@ public class ExternalSchemaMaxFieldsRestIT extends ESRestTestCase {
     /**
      * The same glob gzipped. A compressed file is read by the streaming parse coordinator, which resolves the first
      * chunk's schema after the planner has settled one, so holding that resolve to the cap refused a file the
-     * uncompressed read admitted: one file, two outcomes, decided by how it was compressed (esql-planning#2076).
+     * uncompressed read admitted: one file, two outcomes, decided by how it was compressed.
      */
     public void testMultiFileFirstFileWinsWithWideLaterGzippedFile() throws IOException {
         for (String ext : List.of("csv", "tsv", "ndjson")) {
@@ -292,7 +292,7 @@ public class ExternalSchemaMaxFieldsRestIT extends ESRestTestCase {
     /**
      * The same declared read of a gzipped file. A compressed file is read by the streaming parse coordinator, whose
      * resolve of the first chunk runs after the planner has settled the declared schema, so the file's own width must
-     * not decide the read there either (esql-planning#2076). {@code COUNT(*)} runs first, with every column pruned and
+     * not decide the read there either. {@code COUNT(*)} runs first, with every column pruned and
      * nothing warmed: the state in which the reader carries no schema of its own, so only the schema the planner
      * settled can bound that resolve. The first-file-wins twin above is the case that was refused before the bound
      * moved; this one guards the declared side of the same decision against a later change to how the pin travels.

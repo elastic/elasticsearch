@@ -149,7 +149,7 @@ public class CsvDeclaredHeaderMultiChunkTests extends ESTestCase {
     /**
      * Every chunk after the first charges the scratch it builds to bind the declaration against the header names
      * chunk 0 passed down, and releases it once bound. The file is five times the cap and the cap is left at its
-     * default: a read whose schema the planner pinned is not bounded by the file's width (esql-planning#2076).
+     * default: a read whose schema the planner pinned is not bounded by the file's width.
      */
     public void testLaterChunksChargeTheDeclaredHeaderBinding() throws Exception {
         int columns = ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS * 5;

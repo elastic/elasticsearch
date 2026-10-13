@@ -1351,7 +1351,7 @@ public class SchemaReconciliationTests extends ESTestCase {
             assertThat(result.perFileInfo().get(f1).mapping().cast(0), nullValue());
             // The pinned file carries its pre-pin (inferred) types so the resolve-side stats boundary can identify the
             // pinned column and safe-miss its read-schema-blind cached stats. The already-LONG file is not pinned, but
-            // it was opened, so its own types are recorded too: null means a file nobody read (esql-planning#2076).
+            // it was opened, so its own types are recorded too: null means a file nobody read.
             assertThat(result.perFileInfo().get(f1).inferredTypes(), equalTo(Map.of("c", DataType.INTEGER)));
             assertThat(result.perFileInfo().get(f2).inferredTypes(), equalTo(Map.of("c", DataType.LONG)));
         }

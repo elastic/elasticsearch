@@ -712,7 +712,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 // Additionally, deferred extraction is disabled when skip_row is active over files whose values the
                 // scan may have to convert: the extractor runs after the page shape is fixed and cannot drop rows
                 // that fail, so the columnar iterator must do the filtering at emit time instead. Keyed on the
-                // resolution-time stamp, not on whether any column was declared (esql-planning#2076).
+                // resolution-time stamp, not on whether any column was declared.
                 boolean deferredExtraction = format instanceof ColumnExtractorAware
                     && context.deferredExtraction()
                     && dropsRowsOnCoercionFailure == false;

@@ -336,7 +336,7 @@ public final class SchemaReconciliation {
             // Strict read every file's schema to compare them, so each file's own types are known here.
             // Recording them keeps null meaning "never examined" rather than "examined by a rail that
             // did not bother to write it down", which is what made the read decision depend on whether a
-            // declaration happened to exist (esql-planning#2076).
+            // declaration happened to exist.
             perFileInfo.put(filePath, new FileSchemaInfo(interner.intern(canonical), mapping, stats, sharedTypeMap(typeMaps, canonical)));
         }
 
@@ -619,8 +619,7 @@ public final class SchemaReconciliation {
             List<Attribute> fileSchema = meta.schema();
             // This file's own types, before any pin below retypes the read schema. Union-by-name read every
             // file's schema to merge them, so they are known for every file and every format, not only for the
-            // text formats that pin. Recording them unconditionally keeps null meaning "never examined"
-            // (esql-planning#2076).
+            // text formats that pin. Recording them unconditionally keeps null meaning "never examined".
             Map<String, DataType> inferredTypes = sharedTypeMap(typeMaps, fileSchema);
             if (readsColumnsAtReconciledType(meta.sourceType())) {
                 // Text readers parse each token at the pinned read type, so pin every widened column

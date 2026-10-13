@@ -280,7 +280,7 @@ public class ParquetColumnExtractorTests extends ESTestCase {
      * extraction was deferred.
      * <p>
      * This was two tests, one asserting that the same read null-filled the whole column when nobody had declared
-     * the target type (esql-planning#2076). Nothing about the file or the query differed between them.
+     * the target type. Nothing about the file or the query differed between them.
      */
     public void testDeferredIntegerOverInt64NarrowsPerValue() throws IOException {
         byte[] data = writeSingleInt64File(new long[] { 5L, 7L, 9L });

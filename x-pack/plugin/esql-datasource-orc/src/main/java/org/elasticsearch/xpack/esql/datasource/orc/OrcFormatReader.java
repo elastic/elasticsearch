@@ -894,7 +894,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
      * Projected columns whose decode can turn a present cell into a null for this file, which is what makes an
      * {@code IS NULL} unpushable over them: the stripe statistics describe the stored values, where the cell is
      * not null. Two causes, and both are facts about this file against the types being read, not about who
-     * supplied those types (esql-planning#2076):
+     * supplied those types:
      * <ul>
      *     <li>a declared date {@code format}, which parses per value and nulls what it cannot parse;</li>
      *     <li>a type pair that does not read losslessly - a narrowing nulls an out-of-range value, and a pair
@@ -1552,7 +1552,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
          * <p>
          * Whether the pair can be converted is {@code DeclaredTypeCoercions#supports} and nothing else. The escape it
          * admits, which includes narrowing, used to be reserved for columns the user had declared, so an inferred
-         * column whose file type could not be read was filled with nulls under every error mode (esql-planning#2076).
+         * column whose file type could not be read was filled with nulls under every error mode.
          * <p>
          * A pair nothing can convert follows the read's error policy
          * ({@link DeclaredTypeCoercions#onUncoercibleColumn}): {@code fail_fast} fails the read, {@code null_field} nulls

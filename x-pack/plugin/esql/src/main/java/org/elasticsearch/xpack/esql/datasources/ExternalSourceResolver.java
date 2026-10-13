@@ -1717,7 +1717,7 @@ public class ExternalSourceResolver {
      * <p>
      * Narrowing is possible when the read type of a column is not reachable losslessly from the type the file
      * holds it as, and also whenever a file's own types were never read - an unexamined file may hold anything.
-     * Every rail passes through here, so no rail can be left answering from provenance (esql-planning#2076).
+     * Every rail passes through here, so no rail can be left answering from provenance.
      * Written on every resolve, true or false, so a data node can tell "this coordinator says no" from "this
      * coordinator never said" - the second is a pre-stamp plan and is read conservatively.
      */
@@ -1745,12 +1745,12 @@ public class ExternalSourceResolver {
         // to come from the read schema rather than from each file's own entry: fileSchema is the pinned read schema
         // on a first-file-wins read but the file's own schema under union-by-name, so comparing a file's types with
         // its own entry asked whether the file converts to itself and answered "lossless" for every rail that does
-        // not pin (esql-planning#2076).
+        // not pin.
         List<Attribute> readSchema = source.metadata().schema();
         for (SchemaReconciliation.FileSchemaInfo info : schemaMap.values()) {
             // No snapshot means nobody recorded what this file holds, so it may hold anything. Every rail that
             // opens a file records them, so this asks the record rather than working it out from how the schema
-            // was authored (esql-planning#2076).
+            // was authored.
             Map<String, DataType> nativeTypes = info.inferredTypes();
             if (nativeTypes == null) {
                 return true;
@@ -3817,7 +3817,7 @@ public class ExternalSourceResolver {
      * Whether the scan converts this column's values rather than discarding the column. True when the
      * file type can be converted to the planner's type, which is a property of the two types and of
      * nothing else - asking in addition whether the column was declared gave two reads of the same
-     * file different statistics (esql-planning#2076).
+     * file different statistics.
      */
     private static boolean scanCoercesPerValue(DataType fileType, DataType plannerType) {
         return DeclaredTypeCoercions.supports(fileType, plannerType);
@@ -3938,7 +3938,7 @@ public class ExternalSourceResolver {
      * whole file list.
      * <p>
      * Deliberately does not ask how the schema was declared. A declared schema pinned across many files
-     * says no more about the second file's types than an inferred one does (esql-planning#2076).
+     * says no more about the second file's types than an inferred one does.
      */
     public static boolean isSchemaPinnedFromAnchorFile(@Nullable String sourcePath, @Nullable Map<String, Object> config) {
         if (GlobExpander.isMultiFile(sourcePath) == false) {
@@ -3952,7 +3952,7 @@ public class ExternalSourceResolver {
      * interpreted against them. Unknown is not incompatible: it means nobody looked.
      * <p>
      * Asks the record whether its own types were read rather than inferring it from how the schema was
-     * declared, which gave two reads of the same bytes different answers (esql-planning#2076). The
+     * declared, which gave two reads of the same bytes different answers. The
      * structural question of whether the pinned schema can even describe this file is separate and is
      * {@link #isSchemaPinnedFromAnchorFile}; a caller needs both.
      */
@@ -3991,7 +3991,7 @@ public class ExternalSourceResolver {
      * {@link #isSchemaPinnedFromAnchorFile}: a read whose schema was pinned from one file, over a file whose own
      * types were never read, protects every file-backed read column. The two questions are the same pair
      * {@code FileSplitProvider.resolveSurvivor} asks, and neither is about how the schema was authored - asking
-     * that instead let a declared read commit values a narrower read then served (esql-planning#2076).
+     * that instead let a declared read commit values a narrower read then served.
      */
     public static Set<String> pinnedColumnsOf(
         SchemaReconciliation.FileSchemaInfo info,
@@ -4921,8 +4921,8 @@ public class ExternalSourceResolver {
         // same as resolveStrictMultiFile.
         // The schema recorded is the declaration, so it is NOT the file's own types - but the footer check above
         // just read those, so they are recorded separately rather than discarded. Without them the may-narrow
-        // question could only be answered from the fact that a declaration exists, which is the defect
-        // esql-planning#2076 removes; with them it is answered by comparing the two.
+        // question could only be answered from the fact that a declaration exists, which is the defect this
+        // removes; with them it is answered by comparing the two.
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(
             storagePath,
             logicalSchema,
@@ -5467,7 +5467,7 @@ public class ExternalSourceResolver {
             rejectUncoercibleFileTypedRetypes(metadata.schema(), sourceType, declaredMapping);
             // Hand the anchor's OWN types back rather than discarding them. This read already happened for the
             // coercibility check; keeping it is what lets the anchor's statistics survive and what stops the
-            // may-narrow question having to be answered from the declaration (esql-planning#2076).
+            // may-narrow question having to be answered from the declaration.
             listener.onResponse(attributesToTypeMap(metadata.schema()));
         }, listener::onFailure);
         Map<String, Object> probeConfig = declaredProbeConfig(sourceType, config);
@@ -5513,7 +5513,7 @@ public class ExternalSourceResolver {
         rejectUncoercibleFileTypedRetypes(physicalSchema, sourceType, declaredMapping);
         // Hand back the file's OWN types, physically keyed, rather than discarding what this read already cost.
         // Returning null above means the footer was never read, which is not the same as reading it and finding
-        // nothing; the caller records the difference (esql-planning#2076).
+        // nothing; the caller records the difference.
         return attributesToTypeMap(physicalSchema);
     }
 
@@ -5523,8 +5523,8 @@ public class ExternalSourceResolver {
      * flattens to the breaker instead. The key is part of the reader's config identity, so the probe's schema cache
      * entry is kept apart from the inferred one, which stays capped.
      * <p>
-     * This is the one width bound declaredness still decides, and it is deliberate rather than overlooked
-     * (esql-planning#2076). The probe is checking whether declared types can be read from the file's own types, not
+     * This is the one width bound declaredness still decides, and it is deliberate rather than overlooked.
+     * The probe is checking whether declared types can be read from the file's own types, not
      * resolving a schema the query uses, and a dataset naming three columns of a very wide file is a legitimate thing
      * to write; what the cap is for is the question, so it is not a straight removal. Every other width bound asks what
      * this read's schema is, never where it came from.

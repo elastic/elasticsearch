@@ -124,7 +124,7 @@ public class PushFiltersToSourceTests extends ESTestCase {
      * leak unfiltered rows instead.
      * <p>
      * Both arms below read the same files; only the declared column set differs, and it used to decide this on its
-     * own (esql-planning#2076).
+     * own.
      */
     public void testDoesNotPushWhenReaderCannotDropRowsUnderPushedFilter() {
         for (Set<String> declaredTypeColumns : List.of(Set.of("salary"), Set.<String>of())) {

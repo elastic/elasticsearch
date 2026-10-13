@@ -81,8 +81,8 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
 
     /**
      * The licence an inferred column has today is {@link TypeWidening}'s lossless promotion; the licence a declared
-     * column has is {@link DeclaredTypeCoercions#supports}. esql-planning#2076 collapses the two so a file's column
-     * type is read the same way whatever produced the schema, and that collapse is only safe in one direction: every
+     * column has is {@link DeclaredTypeCoercions#supports}. These are now collapsed, so a file's column type is
+     * read the same way whatever produced the schema, and that collapse is only safe in one direction: every
      * pair an inferred column may widen through must already be a supported pair, or giving both columns the
      * {@code supports} licence would silently REFUSE a read that works today.
      * <p>

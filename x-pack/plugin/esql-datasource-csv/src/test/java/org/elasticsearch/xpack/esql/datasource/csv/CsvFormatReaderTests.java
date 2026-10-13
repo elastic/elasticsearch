@@ -360,7 +360,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     /**
      * Resolving a schema from a headerless file wider than the cap is refused whatever the reader was told about where
      * its types came from. Declaring the columns used to lift the cap here, so the same file was refused when its types
-     * were inferred and resolved when they were declared (esql-planning#2076); what decides the bound now is whether a
+     * were inferred and resolved when they were declared; what decides the bound now is whether a
      * schema is already pinned, and nothing is pinned on this reader - {@code schema()} is what settles the schema.
      * A read that does carry a pin is bounded by {@link CsvFormatReader#MAX_HEADER_SPLIT_COLUMNS} instead, which
      * {@code CsvDeclaredHeaderMultiChunkTests} pins. Raising the cap resolves it, and the streaming read's headerless
@@ -569,7 +569,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     /**
      * Below the ceiling the refusal points at raising the cap. At the ceiling raising it is refused too, and the same
      * number bounds a header split, which no setting raises, so the refusal states the width instead of offering a
-     * remedy that does not work (esql-planning#2076).
+     * remedy that does not work.
      */
     public void testColumnCapMessageAtTheCeiling() {
         int ceiling = ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS;

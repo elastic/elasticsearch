@@ -162,8 +162,8 @@ public final class SourceStatisticsSerializer {
      * <p>
      * It deliberately does NOT fall back to asking whether the dataset declared any column types. That question
      * would reproduce the old plan exactly, and it is schema provenance wearing another name: a signal whose value
-     * is decided by how the schema was produced, consulted while reading. Reintroducing it here would undo the
-     * point of esql-planning#2076 for every plan in the upgrade window.
+     * is decided by how the schema was produced, consulted while reading. Reintroducing it here would put that
+     * read back for every plan in the upgrade window.
      */
     public static boolean conversionMayNarrowOrIsUnstamped(Map<String, Object> sourceMetadata) {
         return conversionNarrowingStamped(sourceMetadata) == false || conversionMayNarrow(sourceMetadata);

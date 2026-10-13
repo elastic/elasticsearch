@@ -1671,7 +1671,7 @@ public class FileSplitProvider implements SplitProvider {
         }
         // Two questions, neither about provenance: could the pinned schema fail to describe this file,
         // and were this file's own types read. A declared schema pinned across many files answers the
-        // first exactly as an inferred one does (esql-planning#2076).
+        // first exactly as an inferred one does.
         boolean unknownNativeTypes = batch.schemaPinnedFromAnchorFile() && ExternalSourceResolver.nativeTypesUnknown(fileSchemaInfo);
         return new ResolvedFile(
             filePath,
@@ -3670,7 +3670,7 @@ public class FileSplitProvider implements SplitProvider {
                 Map<String, DataType> overlaidTypes = attributesToTypeMap(readSchema); // logical, declared types
                 // Every read column, not just the declared ones: what makes a footer stat untrustworthy is
                 // that the file's type differs from the type the scan reads it as, which is visible here
-                // without asking who supplied the latter (esql-planning#2076).
+                // without asking who supplied the latter.
                 for (Map.Entry<String, DataType> overlaid : overlaidTypes.entrySet()) {
                     String logical = overlaid.getKey();
                     String physical = declaredReadSpec.renames().getOrDefault(logical, logical);
@@ -3692,7 +3692,7 @@ public class FileSplitProvider implements SplitProvider {
                 // read and the declared-vs-inferred comparison above is impossible. Poison every column the file
                 // backs - the structural answer, and the one unknownNativeTypes already gives - rather than the
                 // set of columns a declaration happened to name, which answered from declaredness and left an
-                // undeclared column's stale footer statistic in place (esql-planning#2076). row_count survives.
+                // undeclared column's stale footer statistic in place. row_count survives.
                 for (Attribute attr : readSchema) {
                     poison.add(attr.name());
                 }

@@ -144,7 +144,7 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
     /**
      * {@code skip_row} over files whose values the scan may have to convert drops rows at emit time, which the
      * extract operator cannot do, so no extract exec is inserted. Both arms carry the same files; the declared
-     * column set differs, and used to be what decided this on its own (esql-planning#2076).
+     * column set differs, and used to be what decided this on its own.
      */
     public void testNoOpWhenSkipRowOverFilesThatMayNarrow() {
         for (Set<String> declaredTypeColumns : List.of(Set.of("a"), Set.<String>of())) {

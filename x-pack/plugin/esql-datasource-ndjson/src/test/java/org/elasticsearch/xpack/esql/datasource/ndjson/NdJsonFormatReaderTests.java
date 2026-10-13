@@ -144,7 +144,7 @@ public class NdJsonFormatReaderTests extends ESTestCase {
     /**
      * The field cap bounds a declared read too. It used to be lifted for one, so the same wide file was refused when
      * its types were inferred and read when they were declared - one file, two behaviours, decided by how the
-     * dataset was written down rather than by anything about the file (esql-planning#2076). Raising the cap is the
+     * dataset was written down rather than by anything about the file. Raising the cap is the
      * way to read a wide file, and it works the same either way.
      */
     public void testTheFieldCapBoundsADeclaredReadToo() throws IOException {
@@ -162,8 +162,8 @@ public class NdJsonFormatReaderTests extends ESTestCase {
      * read resolves; a read carrying a pin resolves none, and samples the file only to locate the pinned schema's
      * fields, so {@link NdJsonFormatReader#MAX_SETTLED_SCHEMA_FIELDS} bounds the sample instead. The streaming
      * coordinator samples a first chunk after the planner has pinned a schema, so holding that sample to the cap
-     * refused a file the single-threaded path read - the same file read or not by how it was compressed
-     * (esql-planning#2076). An empty pin settles nothing and is bounded by the cap again.
+     * refused a file the single-threaded path read - the same file read or not by how it was compressed. An
+     * empty pin settles nothing and is bounded by the cap again.
      */
     public void testAPinnedSchemaSamplesPastTheFieldCap() throws IOException {
         byte[] record = flatRecord(4);
@@ -194,7 +194,7 @@ public class NdJsonFormatReaderTests extends ESTestCase {
     /**
      * Below the ceiling the refusal points at raising the cap. At the ceiling raising it is refused too, and the same
      * number bounds a sample taken to locate a settled schema's fields, which no setting raises, so the refusal states
-     * the width instead of offering a remedy that does not work (esql-planning#2076).
+     * the width instead of offering a remedy that does not work.
      */
     public void testFieldCapAtCeilingDoesNotSuggestRaisingIt() throws IOException {
         int ceiling = ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS;

@@ -964,7 +964,7 @@ public class OrcFormatReaderTests extends ESTestCase {
      * {@code IS NULL} pushes to stripe statistics, which describe the STORED values. A column read at a narrower
      * type is converted per value and an out-of-range value becomes a null the statistics never saw, so the
      * pushdown has to be withheld - and the same file read at its own type pushes. This is the arm that protects a
-     * column nobody declared, which is what esql-planning#2076 made reachable.
+     * column nobody declared, which this reader now converts rather than nulling.
      */
     public void testIsNullPushdownWithheldOverANarrowingReadSchema() throws Exception {
         TypeDescription schema = TypeDescription.createStruct().addField("n", TypeDescription.createLong());
@@ -1005,7 +1005,7 @@ public class OrcFormatReaderTests extends ESTestCase {
      * named in a declaration does not.
      * <p>
      * It used to be withheld for any column the dataset declared a type for, even one read at its own type where no
-     * conversion happens at all, which cost the pruning for nothing (esql-planning#2076).
+     * conversion happens at all, which cost the pruning for nothing.
      */
     public void testIsNullPushdownWithheldOnlyWhereDecodeCanNull() throws Exception {
         TypeDescription schema = TypeDescription.createStruct()
@@ -2126,7 +2126,7 @@ public class OrcFormatReaderTests extends ESTestCase {
      * value can be read as the query's type turns on the two types.
      * <p>
      * This read used to return a column of nulls, under {@code fail_fast}, with a warning saying the column had a
-     * type the query could not read - for values a 32-bit integer holds comfortably (esql-planning#2076).
+     * type the query could not read - for values a 32-bit integer holds comfortably.
      */
     public void testBigintReadAsIntegerNarrowsPerValue() throws Exception {
         TypeDescription schema = TypeDescription.createStruct().addField("n", TypeDescription.createLong());

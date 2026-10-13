@@ -3534,8 +3534,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * A reader's own schema is the query's <em>projection</em> and must never reach the resolve. It is empty under
      * {@code COUNT(*)} with a pin settled, and non-empty on a read with no pin at all, so a resolve left to read it
      * bounded the file by what the query asked for - refusing a file under {@code COUNT(*)} that it read under a
-     * {@code KEEP}, and admitting one to the ceiling where {@code schema_max_fields} should have held it
-     * (esql-planning#2076). Resolving through the reader's own schema, or dropping the settled one, turns this
+     * {@code KEEP}, and admitting one to the ceiling where {@code schema_max_fields} should have held it.
+     * Resolving through the reader's own schema, or dropping the settled one, turns this
      * red; passing an empty pin straight through is width-equivalent and passes, which is what the unsettled arms
      * assert rather than asserting which of {@code null} or empty carried the absence.
      */

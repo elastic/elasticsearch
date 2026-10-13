@@ -155,7 +155,7 @@ import java.util.function.IntFunction;
  *       of the whole column in that file and follows the {@link ErrorPolicy} through
  *       {@link #onUncoercibleColumn}. Nothing about this turns on whether the type was declared or
  *       inferred: a column whose file type {@link #supports} admits is converted per value either way,
- *       and one it refuses follows the policy either way (esql-planning#2076).</li>
+ *       and one it refuses follows the policy either way.</li>
  *   <li><b>Text formats</b> (CSV/TSV, NDJSON) have no physical schema — every value is a string,
  *       so the parse into the declared type <i>is</i> the coercion and a bad token follows the
  *       reader's own per-value error policy. Their declared date {@code format} parse goes
@@ -516,8 +516,7 @@ public final class DeclaredTypeCoercions {
      * file's rows).
      * <p>
      * Reached for a column whose type was inferred as readily as for a declared one. It used to be declared-only,
-     * which is why an inferred column was null-filled under every mode including {@code fail_fast}
-     * (esql-planning#2076).
+     * which is why an inferred column was null-filled under every mode including {@code fail_fast}.
      */
     public static void onUncoercibleColumn(
         String columnName,
@@ -537,7 +536,7 @@ public final class DeclaredTypeCoercions {
      * it already knows, so a query fails with the same text wherever the drift is caught.
      * <p>
      * Names the type the query reads the column as, without saying where that type came from: the same failure now
-     * reaches a column whose type was inferred, and "its declared type" was untrue of those (esql-planning#2076).
+     * reaches a column whose type was inferred, and "its declared type" was untrue of those.
      */
     public static String uncoercibleColumnFailure(String columnName, String fileLocation, DataType fileType, DataType queryType) {
         return "column ["

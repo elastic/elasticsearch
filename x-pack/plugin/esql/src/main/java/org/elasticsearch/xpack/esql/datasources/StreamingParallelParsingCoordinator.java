@@ -1348,7 +1348,7 @@ public final class StreamingParallelParsingCoordinator {
          * pin at all, where the file's own schema is what this inference resolves. A reader left to read its own
          * {@code resolvedSchema} therefore bounded the file by what the query asked for - refusing a file under
          * {@code COUNT(*)} that it read under a {@code KEEP}, and admitting one up to the ceiling where the cap
-         * should have held it (esql-planning#2076).
+         * should have held it.
          * <p>
          * So the width is taken off {@link #readSchema} in both directions: the settled schema when there is
          * one, and nothing when there is not, which leaves the reader on {@code schema_max_fields} - correct,

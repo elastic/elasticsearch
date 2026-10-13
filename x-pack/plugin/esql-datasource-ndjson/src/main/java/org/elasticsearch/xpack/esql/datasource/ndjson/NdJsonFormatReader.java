@@ -512,7 +512,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
      * fields in the file rather than deciding what the schema is, so {@link #MAX_SETTLED_SCHEMA_FIELDS} bounds it
      * instead and the file's own width does not decide whether a narrower schema can be read. What it reads is the pin,
      * never where the pin came from: a declared schema and an anchor file's inferred schema arrive through the same
-     * field and are bounded alike (esql-planning#2076).
+     * field and are bounded alike.
      */
     private int widthBound() {
         return resolvedSchema != null && resolvedSchema.isEmpty() == false ? MAX_SETTLED_SCHEMA_FIELDS : schemaMaxFields;

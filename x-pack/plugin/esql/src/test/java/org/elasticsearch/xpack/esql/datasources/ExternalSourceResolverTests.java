@@ -1134,8 +1134,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
     /**
      * A column the scan converts per value has a harvest describing neither the file's values nor the
      * converted ones, so its extrema and counts both go. {@code row_count} is the file's shape, not a
-     * claim about the column, and survives. This held only for declared columns before
-     * esql-planning#2076, which let the same harvest be served or dropped by declaration alone.
+     * claim about the column, and survives. This held only for declared columns before, which let the
+     * same harvest be served or dropped by declaration alone.
      */
     public void testAlignHarvestWithAnchorTypesDropsAConvertedColumnsCounts() {
         Map<String, Object> later = new HashMap<>();
@@ -4827,7 +4827,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
     /**
      * With the schema pinned from one file, a file carrying no type snapshot was never examined and may hold
      * anything, so the stamp goes on. This is the arm that used to be answered from provenance, where a declared
-     * read asserted the types rather than having read them (esql-planning#2076).
+     * read asserted the types rather than having read them.
      */
     public void testConversionMayNarrowStampIsOnForAnUnexaminedFileOfAPinnedRead() {
         ExternalSchema readAsLong = new ExternalSchema(List.of(attr("x", DataType.LONG)));
@@ -4970,8 +4970,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
     /**
      * A plan carrying no stamp came from a coordinator that predates it, and is read conservatively: a value may
      * fail, so the filter is withheld. It deliberately does NOT fall back to asking whether the dataset declared
-     * any column types - that question is schema provenance under another name, and answering a read with it is
-     * what esql-planning#2076 removes. Both arms below answer the same way for that reason.
+     * any column types - that question is schema provenance under another name, and a read must not be
+     * answered with it. Both arms below answer the same way for that reason.
      */
     public void testAnUnstampedPlanIsReadConservatively() {
         List<Attribute> schema = List.of(attr("x", DataType.LONG));
@@ -5036,8 +5036,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * A strict single-file read reads that file's footer for the coercibility check, so its types are recorded and
      * the stamp is computed by comparing them with the declared types - it is NOT decided by the declaration
      * merely existing. The sync footer check used to discard what it read, which made every {@code dynamic: false}
-     * single-file dataset answer "a value may fail" whatever the file held: the flag renamed, which is what
-     * esql-planning#2076 forbids.
+     * single-file dataset answer "a value may fail" whatever the file held: the flag renamed, which is exactly
+     * the proxy this must not establish.
      */
 
     public void testAStrictSingleFileStampsFromTheFilesTypesNotFromTheDeclaration() throws Exception {

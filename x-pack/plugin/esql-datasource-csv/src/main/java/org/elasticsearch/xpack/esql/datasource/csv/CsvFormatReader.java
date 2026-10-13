@@ -3074,7 +3074,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * <p>
      * The pin is what this reads, never where the pin came from: the planner pins a declared schema and an anchor
      * file's inferred schema through the same field, so a {@code first_file_wins} glob's wide later file and a
-     * {@code dynamic: false} dataset's wide file are bounded alike (esql-planning#2076). A streaming read asks this
+     * {@code dynamic: false} dataset's wide file are bounded alike. A streaming read asks this
      * reader for its first chunk's metadata after the pin, which is why the bound has to follow the pin rather than the
      * call site; the two sites that can only ever be locating names take {@link #MAX_HEADER_SPLIT_COLUMNS} directly.
      */

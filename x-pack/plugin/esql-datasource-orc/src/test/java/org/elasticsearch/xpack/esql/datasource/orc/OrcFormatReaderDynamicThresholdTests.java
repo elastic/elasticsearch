@@ -93,7 +93,7 @@ public class OrcFormatReaderDynamicThresholdTests extends ESTestCase {
      * <p>
      * It used to decline for any column the dataset declared a type for, without comparing that type to the file's,
      * so {@code id} declared and read at its own {@code bigint} read all three stripes while the same bytes read
-     * without a declaration read one (esql-planning#2076).
+     * without a declaration read one.
      */
     public void testStripeSkipDeclinedOnlyWhereDecodeCanNull() throws Exception {
         byte[] data = createMultiStripeOrcFile(3, (stripeIndex, batch) -> {

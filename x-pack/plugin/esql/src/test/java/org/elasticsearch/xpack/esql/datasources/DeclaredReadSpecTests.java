@@ -83,7 +83,7 @@ public class DeclaredReadSpecTests extends AbstractWireSerializingTestCase<Decla
 
     /**
      * The statistics-side predicate must answer from what the mapping instructs and never from how the schema was
-     * produced, which is the whole of esql-planning#2076 at this chokepoint: asking {@link DeclaredReadSpec#isEmpty()}
+     * produced, which is the whole of the rule at this chokepoint: asking {@link DeclaredReadSpec#isEmpty()}
      * here is what used to make a split's statistics turn on whether a declaration existed. Both provenances are
      * asserted for each shape, so reintroducing the {@code provenance} term goes red rather than passing on the arm
      * that happens to be exercised elsewhere.

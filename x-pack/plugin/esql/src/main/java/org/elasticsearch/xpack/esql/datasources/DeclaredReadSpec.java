@@ -35,8 +35,8 @@ import java.util.Set;
  *       declaration (as opposed to inference). <b>No reader reads this.</b> Whether a value is converted or the column
  *       is nulled is decided from the type pair alone, by
  *       {@link org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions}: who typed a column does not
- *       change whether a conversion can fail, and keying a read on it made one set of bytes behave two ways
- *       (esql-planning#2076). Nothing left asks <em>which</em> columns are in the set; every reader asks only
+ *       change whether a conversion can fail, and keying a read on it made one set of bytes behave two ways.
+ *       Nothing left asks <em>which</em> columns are in the set; every reader asks only
  *       whether it is <em>empty</em>, through {@link #isEmpty()} or
  *       {@link #declaresNoStatsAffectingInstructions()} — the latter is how a split decides whether a footer
  *       statistic still describes the read. Retiring the field needs a transport version, so it still crosses
@@ -130,7 +130,7 @@ public record DeclaredReadSpec(
      * Deliberately blind to {@link #provenance}, unlike {@link #isEmpty()}. The binding mode is an instruction to
      * the text readers and has to survive the wire, which is why {@code isEmpty()} consults it; it says nothing
      * about whether a footer statistic still describes the read. Asking {@code isEmpty()} here made the split-side
-     * statistics decision turn on whether a declaration existed (esql-planning#2076).
+     * statistics decision turn on whether a declaration existed.
      */
     public boolean declaresNoStatsAffectingInstructions() {
         return renames.isEmpty() && dateFormats.isEmpty() && declaredTypeColumns.isEmpty();

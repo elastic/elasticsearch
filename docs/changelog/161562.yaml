@@ -19,7 +19,9 @@ breaking:
     wide file was refused when its types were inferred and read when they were declared. A declared
     read that still resolves a schema from the file is now held to the cap like any other: a
     headerless CSV or TSV, whose width can only be learned by synthesizing one, and a Parquet or
-    NDJSON file whose schema the read builds.
+    NDJSON file whose schema the read builds. A header-bearing CSV or TSV file wider than the cap,
+    reached under `first_file_wins` behind a narrower first file, is now read rather than refused:
+    the schema came from the first file, and this file's header is read only to locate its columns.
   impact: >-
     Queries over external datasets whose files disagree with the query's column types, or whose
     files drift from the first file under first-file-wins schema resolution, may now fail where
@@ -28,6 +30,7 @@ breaking:
     NDJSON file, with more columns than `esql.external.schema_max_fields` allows, on a dataset that
     declares its columns, is now refused; raise that setting or the dataset's `schema_max_fields`
     to read it. A header-bearing file is unaffected, because its header is read to locate the
-    declared columns rather than to resolve a schema. Affects deployments where ES|QL federation
-    is enabled.
+    already-settled columns rather than to resolve a schema, and under `first_file_wins` such a
+    file wider than the cap is now read where it was refused. Affects deployments where ES|QL
+    federation is enabled.
   notable: false

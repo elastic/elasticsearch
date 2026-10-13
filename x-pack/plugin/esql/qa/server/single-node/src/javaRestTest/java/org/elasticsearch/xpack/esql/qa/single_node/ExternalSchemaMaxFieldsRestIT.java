@@ -175,9 +175,13 @@ public class ExternalSchemaMaxFieldsRestIT extends ESRestTestCase {
     }
 
     /**
-     * {@code first_file_wins} infers only the anchor, so a wide later file is only met when a query reads it. The text
-     * formats refuse it then and NDJSON refuses it when the query needs its statistics, but an NDJSON {@code KEEP} that
-     * skips the statistics path still reads the wide file with no cap, so that query is not asserted here.
+     * {@code first_file_wins} resolves a schema from the anchor alone, so the cap is met there and nowhere else. A wide
+     * later file is read: the schema is already settled, and that file's header is split only to locate the anchor's two
+     * columns in it, which is bounded separately. CSV and TSV used to refuse that file unless the dataset declared its
+     * columns, so the same glob was readable or not by how it was written down (esql-planning#2076); NDJSON always read
+     * it. NDJSON's statistics path does still resolve the later file's own schema and so still meets the cap there,
+     * which is a difference between the formats rather than between two ways of supplying a type, so {@code COUNT(*)} is
+     * asserted only where the statistics come from a header.
      */
     public void testMultiFileFirstFileWinsWithWideLaterFile() throws IOException {
         for (String ext : List.of("csv", "tsv", "ndjson")) {
@@ -185,10 +189,10 @@ public class ExternalSchemaMaxFieldsRestIT extends ESRestTestCase {
             putGlobDataset(dataset, "wide_last_" + ext, ext, "first_file_wins", Map.of());
             // LIMIT 1 is answered by the narrow anchor alone, so the wide file is never opened.
             assertThat(ext, values(esql("FROM " + dataset + " | LIMIT 1")), hasSize(1));
+            // Two rows in the narrow anchor and one in the wide file, which the pinned two-column schema reads as nulls.
+            assertThat(ext, values(esql("FROM " + dataset + " | KEEP a, b | LIMIT 100")), hasSize(3));
             if (ext.equals("ndjson") == false) {
-                // NDJSON does not check a wide later file's width at read time yet, so a KEEP that skips stats reads it.
-                assertQueryRefused("FROM " + dataset + " | STATS c = COUNT(*)");
-                assertQueryRefused("FROM " + dataset + " | KEEP a, b | LIMIT 100");
+                assertThat(ext, values(esql("FROM " + dataset + " | STATS c = COUNT(*)")), equalTo(List.of(List.of(3))));
             }
             assertNodeStillServes();
         }

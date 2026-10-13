@@ -14,10 +14,12 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -505,6 +507,79 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
             "TSDB keyword dimensions now take the columnar path via SORTED_SET emission",
             mapper.supportsColumnarParse(mapperService.getIndexSettings())
         );
+    }
+
+    /** A stored keyword records no offsets, so index-level {@code keep: arrays} sends the array to {@code _ignored_source}. */
+    public void testTsdbKeepArraysStoredArrayBailsOut() throws IOException {
+        assertTsdbKeepModeArrayBailsOut(
+            tsdbKeepSettings("arrays"),
+            b -> b.field("type", "keyword").field("store", true),
+            "[\"b\",\"a\",\"b\"]"
+        );
+    }
+
+    /** As above, for a field-level keep mode, which does not propagate to the sub-field that would otherwise record offsets. */
+    public void testTsdbFieldKeepArraysStoredArrayBailsOut() throws IOException {
+        assertTsdbKeepModeArrayBailsOut(
+            tsdbKeepSettings(null),
+            b -> b.field("type", "keyword").field("store", true).field("synthetic_source_keep", "arrays"),
+            "[\"b\",\"a\",\"b\"]"
+        );
+    }
+
+    public void testTsdbFieldKeepArraysMultiFieldArrayBailsOut() throws IOException {
+        assertTsdbKeepModeArrayBailsOut(tsdbKeepSettings(null), b -> {
+            b.field("type", "keyword").field("synthetic_source_keep", "arrays");
+            b.startObject("fields").startObject("sub").field("type", "keyword").endObject().endObject();
+        }, "[\"b\",\"a\",\"b\"]");
+    }
+
+    /** Under {@code synthetic_source_keep: all} the row path keeps every value of the field in {@code _ignored_source}. */
+    public void testTsdbFieldKeepAllArrayBailsOut() throws IOException {
+        assertTsdbKeepModeArrayBailsOut(
+            tsdbKeepSettings(null),
+            b -> b.field("type", "keyword").field("synthetic_source_keep", "all"),
+            "[\"b\",\"a\"]"
+        );
+    }
+
+    /**
+     * {@code f} is a plain {@code keyword} field next to a keyword dimension, so its row-path handling of arrays is decided by
+     * {@code synthetic_source_keep} rather than by being a dimension.
+     */
+    private static Settings tsdbKeepSettings(String indexKeep) {
+        final Settings.Builder builder = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), "dim")
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "-9999-01-01T00:00:00Z")
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "9999-01-01T00:00:00Z");
+        if (indexKeep != null) {
+            builder.put(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING.getKey(), indexKeep);
+        }
+        return builder.build();
+    }
+
+    /**
+     * Maps one {@code f} array under a keep mode the row path honours by writing {@code _ignored_source} (or offsets), which the
+     * columnar path does not, and asserts the batch is refused so it falls back to the row path.
+     */
+    private void assertTsdbKeepModeArrayBailsOut(
+        Settings settings,
+        CheckedConsumer<XContentBuilder, IOException> fieldMapping,
+        String array
+    ) throws IOException {
+        final var mapperService = createMapperService(settings, mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject(FIELD);
+            fieldMapping.accept(b);
+            b.endObject();
+        }));
+        final UnsupportedOperationException ex = expectThrows(
+            UnsupportedOperationException.class,
+            () -> mapColumnarLeaf(mapperService, FIELD, "{\"@timestamp\":1705320000000,\"f\":" + array + "}")
+        );
+        assertTrue(ex.getMessage(), ex.getMessage().contains("keeps array source outside a strict-columnar index mode"));
     }
 
     /** TIME_SERIES settings listing {@code f} under the given dimension-source setting. */

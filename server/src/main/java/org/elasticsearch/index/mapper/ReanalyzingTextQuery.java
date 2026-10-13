@@ -157,6 +157,15 @@ public final class ReanalyzingTextQuery extends Query {
     }
 
     /**
+     * The text of one value a field holds, as the fetchers of those values spell it. A value read from a binary
+     * column or from field data arrives as a string, and one read from a stored field as the bytes that were
+     * stored, whose own {@code toString} spells them in hex rather than as text.
+     */
+    static String textOf(Object value) {
+        return value instanceof BytesRef bytes ? bytes.utf8ToString() : value.toString();
+    }
+
+    /**
      * How often {@code terms} occur in order and adjacent across {@code values}, which is the frequency an index of
      * them reports. Positions run on from one value to the next, as that index joins them.
      *
@@ -168,6 +177,12 @@ public final class ReanalyzingTextQuery extends Query {
     static int walkPhraseFreq(Term[] terms, String field, Analyzer analyzer, List<Object> values) throws IOException {
         final int[] endedBefore = new int[terms.length];
         final int[] endedHere = new int[terms.length];
+        // How many phrases a prefix ending at that position stands for, which is how often the phrase's first term
+        // was left at the position it started on.
+        final int[] standsForBefore = new int[terms.length];
+        final int[] standsForHere = new int[terms.length];
+        // The position the last phrase counted ended at, which no other token ending there counts again.
+        int countedAt = Integer.MIN_VALUE;
         Arrays.fill(endedBefore, Integer.MIN_VALUE);
         Arrays.fill(endedHere, Integer.MIN_VALUE);
         final int gap = analyzer.getPositionIncrementGap(field);
@@ -185,7 +200,7 @@ public final class ReanalyzingTextQuery extends Query {
                 // The analyzer's gap sits between two values, as it does when the same values are indexed.
                 position += gap;
             }
-            final String text = value instanceof BytesRef bytes ? bytes.utf8ToString() : value.toString();
+            final String text = textOf(value);
             try (TokenStream stream = analyzer.tokenStream(field, text)) {
                 final TermToBytesRefAttribute term = stream.addAttribute(TermToBytesRefAttribute.class);
                 final PositionIncrementAttribute increment = stream.addAttribute(PositionIncrementAttribute.class);
@@ -196,6 +211,7 @@ public final class ReanalyzingTextQuery extends Query {
                         for (int length = 0; length < terms.length; length++) {
                             if (endedHere[length] != Integer.MIN_VALUE) {
                                 endedBefore[length] = endedHere[length];
+                                standsForBefore[length] = standsForHere[length];
                                 endedHere[length] = Integer.MIN_VALUE;
                             }
                         }
@@ -205,16 +221,27 @@ public final class ReanalyzingTextQuery extends Query {
                     if (terms[0].bytes().equals(token)) {
                         if (terms.length == 1) {
                             freq++;
+                        } else if (endedHere[0] == position) {
+                            // An analyzer can leave the same term at one position more than once, and an index
+                            // counts a phrase starting on each of them.
+                            standsForHere[0]++;
                         } else {
                             endedHere[0] = position;
+                            standsForHere[0] = 1;
                         }
                     }
                     for (int length = 1; length < terms.length; length++) {
                         if (endedBefore[length - 1] == position - 1 && terms[length].bytes().equals(token)) {
                             if (length == terms.length - 1) {
-                                freq++;
-                            } else {
+                                // Only the first term repeating multiplies the phrase; a later one repeating at the
+                                // position the phrase ends on is the same phrase ending there.
+                                if (position != countedAt) {
+                                    countedAt = position;
+                                    freq += standsForBefore[length - 1];
+                                }
+                            } else if (endedHere[length] != position) {
                                 endedHere[length] = position;
+                                standsForHere[length] = standsForBefore[length - 1];
                             }
                         }
                     }
@@ -546,13 +573,7 @@ public final class ReanalyzingTextQuery extends Query {
                     if (value == null) {
                         continue;
                     }
-                    String valueStr;
-                    if (value instanceof BytesRef valueRef) {
-                        valueStr = valueRef.utf8ToString();
-                    } else {
-                        valueStr = value.toString();
-                    }
-                    cacheEntry.memoryIndex.addField(field, valueStr, indexAnalyzer);
+                    cacheEntry.memoryIndex.addField(field, textOf(value), indexAnalyzer);
                 }
             }
             return cacheEntry.memoryIndex;

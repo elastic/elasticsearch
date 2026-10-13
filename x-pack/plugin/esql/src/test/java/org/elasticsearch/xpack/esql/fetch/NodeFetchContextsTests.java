@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.fetch.lifetime;
+package org.elasticsearch.xpack.esql.fetch;
 
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.compute.data.DocRefOrigin;

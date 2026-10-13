@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.fetch;
 
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.xpack.esql.fetch.lifetime.FetchContextService;
 import org.elasticsearch.xpack.esql.planner.FetchOperatorProvider;
 
 /**

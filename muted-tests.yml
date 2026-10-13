@@ -610,3 +610,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/161762
 - class: org.elasticsearch.xpack.esql.datasource.http.HttpStorageObjectCancelTests
   issue: https://github.com/elastic/elasticsearch/issues/161773
+- class: org.elasticsearch.xpack.wildcard.heappressure.WildcardFieldWildcardHeapPressureIT
+  method: testPausedHeavyWildcardsTripBreaker
+  issue: https://github.com/elastic/elasticsearch/issues/161775

@@ -291,7 +291,8 @@ public final class DatasetListingService {
         // the drain counts a file toward the bound when the glob matches its path, and a partition-value filter, a
         // closed-range narrowing and a _file.* hint each drop entries after that, so the count that comes out is
         // not the count that stopped the drain. Every rule written to detect "nothing narrowed" from the outside
-        // was a proxy that missed one of those three. Strictly fewer, because reaching the bound is what sets the
+        // was a proxy that missed two of those three: the guard this replaced tested only the value filter. Strictly fewer, because
+        // reaching the bound is what sets the
         // truncation flag.
         FileList cached = cacheService.getListingIfPresent(listingKey);
         if (servesThisBound(cached, extents)) {
@@ -350,7 +351,8 @@ public final class DatasetListingService {
         // the drain counts a file toward the bound when the glob matches its path, and a partition-value filter, a
         // closed-range narrowing and a _file.* hint each drop entries after that, so the count that comes out is
         // not the count that stopped the drain. Every rule written to detect "nothing narrowed" from the outside
-        // was a proxy that missed one of those three. Strictly fewer, because reaching the bound is what sets the
+        // was a proxy that missed two of those three: the guard this replaced tested only the value filter. Strictly fewer, because
+        // reaching the bound is what sets the
         // truncation flag.
         FileList cached = cacheService.getListingIfPresent(listingKey);
         if (servesThisBound(cached, extents)) {

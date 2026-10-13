@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
@@ -960,7 +961,7 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
 
     /**
      * Regression test: a view referenced from an IN subquery whose body is a very long pipeline must not
-     * overflow the stack while views are being resolved.
+     * overflow the stack while views are being resolved: the request must fail with a clean error instead of hanging.
      */
     public void testViewReferencedFromInSubqueryWithDeepPipeline() {
         assumeTrue("Requires views in cluster state", EsqlCapabilities.Cap.VIEWS_IN_CLUSTER_STATE.isEnabled());
@@ -969,11 +970,8 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
             installView("deep_ids", "FROM test | KEEP id");
 
             String query = "FROM test | WHERE id IN (FROM deep_ids" + " | LIMIT 1".repeat(5_000) + ") | KEEP id";
-            try (var resp = run(query)) {
-                assertColumnNames(resp.columns(), List.of("id"));
-                // The subquery yields a single, arbitrary id, so only the cardinality is deterministic.
-                assertTrue(getValuesList(resp).size() <= 1);
-            }
+            var e = expectThrows(ParsingException.class, () -> run(query).close());
+            assertTrue(e.getMessage(), e.getMessage().contains("stack overflow"));
         } finally {
             deleteViews("deep_ids");
         }

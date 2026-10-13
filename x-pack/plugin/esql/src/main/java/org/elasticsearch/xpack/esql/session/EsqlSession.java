@@ -32,6 +32,7 @@ import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.IndexModeFieldMapper;
@@ -406,6 +407,7 @@ public class EsqlSession {
     /**
      * Execute an ESQL request.
      */
+    @SuppressForbidden(reason = "TODO: replace with better controls on how much a query expanded with views can grow")
     public void execute(
         EsqlQueryRequest request,
         EsqlExecutionInfo executionInfo,
@@ -469,20 +471,26 @@ public class EsqlSession {
         // rewritten away into SemiJoin/AntiJoin/MarkJoin — during resolution. The WHERE counter is set by the analyzer/verifier plan
         // walk via FeatureMetric.WHERE matching SemiJoin/AntiJoin/MarkJoin too.
         boolean preserveViewBoundaries = ViewRequestFilterRewriter.appliesToViewOutputs(request.filter());
-        viewResolver.replaceViews(
-            parsedPlan,
-            QuerySettings.PROJECT_ROUTING.get(resolved),
-            QuerySettings.WILDCARDS_MATCH_VIEWS.get(resolved),
-            (query, viewName) -> parser.parseView(query, request.params(), inferenceService.inferenceSettings(), viewName).plan(),
-            preserveViewBoundaries,
-            listener.delegateFailureAndWrap((l, viewResolution) -> {
-                // Validate: no InSubquery expressions should survive view and subquery resolution.
-                InSubqueryResolver.verify(viewResolution.plan());
-                rejectViewsForExemplars(resolved, viewResolution);
-                viewResolutionProfile.stop();
-                analyseAndExecute(request, executionInfo, planRunner, statement, resolved, viewResolution, cancellation, l);
-            })
-        );
+        try {
+            viewResolver.replaceViews(
+                parsedPlan,
+                QuerySettings.PROJECT_ROUTING.get(resolved),
+                QuerySettings.WILDCARDS_MATCH_VIEWS.get(resolved),
+                (query, viewName) -> parser.parseView(query, request.params(), inferenceService.inferenceSettings(), viewName).plan(),
+                preserveViewBoundaries,
+                listener.delegateFailureAndWrap((l, viewResolution) -> {
+                    // Validate: no InSubquery expressions should survive view and subquery resolution.
+                    InSubqueryResolver.verify(viewResolution.plan());
+                    rejectViewsForExemplars(resolved, viewResolution);
+                    viewResolutionProfile.stop();
+                    analyseAndExecute(request, executionInfo, planRunner, statement, resolved, viewResolution, cancellation, l);
+                })
+            );
+        } catch (StackOverflowError e) {
+            // View and IN subquery resolution recurse over the plan, whose depth grows with the query (and with the views it expands).
+            // An Error is not routed to the listener by the callers, so without this the request would hang until it times out.
+            listener.onFailure(new VerificationException("Stack overflow was thrown when resolving views in the ESQL statement", e));
+        }
     }
 
     /**
@@ -2938,6 +2946,7 @@ public class EsqlSession {
         return physicalPlan;
     }
 
+    @SuppressForbidden(reason = "TODO: replace with better depth tracking when analyzing a query")
     private LogicalPlan analyzedPlan(
         LogicalPlan parsed,
         UnmappedResolution unmappedResolution,
@@ -2966,7 +2975,13 @@ public class EsqlSession {
             flags
         );
         Analyzer analyzer = new Analyzer(analyzerContext, verifier);
-        LogicalPlan plan = analyzer.analyze(parsed);
+        LogicalPlan plan;
+        try {
+            plan = analyzer.analyze(parsed);
+        } catch (StackOverflowError e) {
+            // Same as below, for the synchronous part of analysis and planning, which may run on a later callback thread.
+            throw new VerificationException("Stack overflow was thrown when analyzing the ESQL statement", e);
+        }
         ExemplarsSettings exemplarsSettings = QuerySettings.EXEMPLARS.get(configuration.resolvedSettings());
         if (exemplarsSettings.enabled()) {
             // The analyzed metrics query is not executed. The initial rewrite replaces it with the relation over all resolved exemplar

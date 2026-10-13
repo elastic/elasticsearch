@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
@@ -206,6 +207,28 @@ public class CaptureTests extends ESTestCase {
         assertThat(filter.knnSearches(), equalTo(0L));
     }
 
+    public void testIgnoresSearchesThatAreNotOverAllTheDocumentsOfTheirIndicesOrDoNotReturnTheNearestK() {
+        QueryCaptureFilter filter = filter(true, 1.0, captured::add);
+        List<SearchRequest> notComparable = new ArrayList<>();
+        notComparable.add(knnSearch(randomVector(8)).routing("a"));
+        notComparable.add(knnSearch(randomVector(8)).preference("_shards:0"));
+        notComparable.add(knnSearch(randomVector(8)).scroll(TimeValue.timeValueMinutes(1)));
+        notComparable.add(knnSearch(randomVector(8)).source(knnSource().from(5)));
+        notComparable.add(knnSearch(randomVector(8)).source(knnSource().size(5)));
+        notComparable.add(knnSearch(randomVector(8)).source(knnSource().minScore(0.5f)));
+        notComparable.add(knnSearch(randomVector(8)).source(knnSource().postFilter(QueryBuilders.termQuery("category", 1))));
+        for (SearchRequest request : notComparable) {
+            assertTrue(queryCaptureFilterApply(filter, request, TaskId.EMPTY_TASK_ID));
+        }
+
+        assertTrue(captured.isEmpty());
+        assertThat(filter.knnSearches(), equalTo(0L));
+        // a shard preference that does not leave shards out, and a size of at least k, are still searches of everything
+        assertTrue(queryCaptureFilterApply(filter, knnSearch(randomVector(8)).preference("_local"), TaskId.EMPTY_TASK_ID));
+        assertTrue(queryCaptureFilterApply(filter, knnSearch(randomVector(8)).source(knnSource().size(20)), TaskId.EMPTY_TASK_ID));
+        assertThat(filter.knnSearches(), equalTo(2L));
+    }
+
     public void testIgnoresChildSearches() {
         QueryCaptureFilter filter = filter(true, 1.0, captured::add);
         assertTrue(queryCaptureFilterApply(filter, knnSearch(randomVector(8)), new TaskId("remote-node", randomNonNegativeLong())));
@@ -248,6 +271,11 @@ public class CaptureTests extends ESTestCase {
             settings,
             Set.of(QuerySamplingSettings.ENABLED, QuerySamplingSettings.CAPTURE_RATE, QuerySamplingSettings.MIN_CAPTURES_PER_HOUR)
         );
+    }
+
+    private static SearchSourceBuilder knnSource() {
+        KnnSearchBuilder knn = new KnnSearchBuilder("vec", randomVector(8), 10, 100, null, null, null);
+        return new SearchSourceBuilder().knnSearch(List.of(knn));
     }
 
     private static SearchRequest knnSearch(float[] vector) {

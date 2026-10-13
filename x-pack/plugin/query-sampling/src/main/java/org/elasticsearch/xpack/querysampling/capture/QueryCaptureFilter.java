@@ -43,13 +43,20 @@ import java.util.function.Supplier;
  * that is not captured is a couple of field reads and one random draw.
  * <p>
  * For now only searches with a single top-level {@code knn} section, a literal float query vector, no
- * additional {@code query} and no {@code similarity} threshold are eligible. Searches with a parent task
+ * additional {@code query}, no {@code similarity} threshold and no other change to which documents are searched or which hits
+ * come back (routing, shard preference, point in time, scroll, offset, minimum score, post filter, collapse, rescore, or fewer hits
+ * than {@code k}) are eligible. Searches with a parent task
  * are skipped: those are the remote side of a cross-cluster search or searches issued internally by other
  * features, not user traffic arriving at this node.
  */
 public final class QueryCaptureFilter implements MappedActionFilter {
 
     private static final Logger logger = LogManager.getLogger(QueryCaptureFilter.class);
+
+    /**
+     * How many hits a search returns when it does not say.
+     */
+    private static final int DEFAULT_SIZE = 10;
 
     private final Consumer<CapturedSearch> consumer;
     private final Supplier<Random> random;
@@ -196,6 +203,9 @@ public final class QueryCaptureFilter implements MappedActionFilter {
         if (source == null || source.knnSearch().size() != 1 || source.query() != null) {
             return null;
         }
+        if (searchesOtherDocumentsThanTheIndicesHold(request) || returnsOtherHitsThanTheNearestK(source)) {
+            return null;
+        }
         KnnSearchBuilder knn = source.knnSearch().get(0);
         VectorData vector = knn.getQueryVector();
         if (knn.getQueryVectorBuilder() != null || vector == null || vector.isFloat() == false) {
@@ -206,6 +216,32 @@ public final class QueryCaptureFilter implements MappedActionFilter {
             return null;
         }
         return knn;
+    }
+
+    /**
+     * The exact search that makes the ground truth scans the indices of the search, so a search that is not over all the
+     * documents of its indices has no ground truth that it can be compared with: a routing or a shard preference leaves out
+     * shards, and a point in time or a scroll searches what its own snapshot of the indices holds, with no indices in the request.
+     */
+    private static boolean searchesOtherDocumentsThanTheIndicesHold(SearchRequest request) {
+        return request.routing() != null
+            || (request.preference() != null && request.preference().startsWith("_shards:"))
+            || request.pointInTimeBuilder() != null
+            || request.scroll() != null;
+    }
+
+    /**
+     * The recall compares the nearest k that the search returned with the exact nearest k, so what comes back has to be those:
+     * hits that start further down, that are fewer than k, or that are cut, collapsed or reordered after the kNN are not.
+     */
+    private static boolean returnsOtherHitsThanTheNearestK(SearchSourceBuilder source) {
+        int size = source.size() < 0 ? DEFAULT_SIZE : source.size();
+        return source.from() > 0
+            || size < source.knnSearch().get(0).k()
+            || source.minScore() != null
+            || source.postFilter() != null
+            || source.collapse() != null
+            || (source.rescores() != null && source.rescores().isEmpty() == false);
     }
 
     private static CapturedQuery capture(Task task, SearchRequest request, KnnSearchBuilder knn) {

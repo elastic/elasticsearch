@@ -18,6 +18,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.DrainSimulatingStorageObject;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
@@ -155,6 +157,28 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         assertEquals(4, raised.metadata(new BytesObject(flatRecord(4))).schema().size());
     }
 
+    /**
+     * What lifts the width bound is a pinned schema, never where that schema came from. The cap bounds the schema a
+     * read resolves; a read carrying a pin resolves none, and samples the file only to locate the pinned schema's
+     * fields, so {@link NdJsonFormatReader#MAX_SETTLED_SCHEMA_FIELDS} bounds the sample instead. The streaming
+     * coordinator samples a first chunk after the planner has pinned a schema, so holding that sample to the cap
+     * refused a file the single-threaded path read - the same file read or not by how it was compressed
+     * (esql-planning#2076). An empty pin settles nothing and is bounded by the cap again.
+     */
+    public void testAPinnedSchemaSamplesPastTheFieldCap() throws IOException {
+        byte[] record = flatRecord(4);
+        FormatReader capped = new NdJsonFormatReader(Settings.EMPTY, blockFactory).withConfigTrackingConsumedKeys(
+            Map.of(NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, 3)
+        ).value();
+        expectThrows(ExternalClientException.class, () -> capped.metadata(new BytesObject(record)));
+
+        List<Attribute> pinned = List.of(new ReferenceAttribute(Source.EMPTY, null, "c1", DataType.LONG));
+        assertEquals(4, capped.withSchema(pinned).metadata(new BytesObject(record)).schema().size());
+
+        FormatReader emptyPin = capped.withSchema(List.of());
+        expectThrows(ExternalClientException.class, () -> emptyPin.metadata(new BytesObject(record)));
+    }
+
     /** A value that is not a number at all is refused with a message naming the key, not the JDK's bare one. */
     public void testSchemaMaxFieldsRejectsNonIntegerNamingTheKey() {
         for (Object value : new Object[] { "abc", "", 500.0 }) {
@@ -167,7 +191,11 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         assertEquals(500, ExternalSourceSettings.parseDatasetSchemaMaxFields("500", NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, 1));
     }
 
-    /** At the ceiling, the refusal does not tell the user to raise a cap that cannot go higher. */
+    /**
+     * Below the ceiling the refusal points at raising the cap. At the ceiling raising it is refused too, and the same
+     * number bounds a sample taken to locate a settled schema's fields, which no setting raises, so the refusal states
+     * the width instead of offering a remedy that does not work (esql-planning#2076).
+     */
     public void testFieldCapAtCeilingDoesNotSuggestRaisingIt() throws IOException {
         int ceiling = ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS;
         FormatReader atCeiling = new NdJsonFormatReader(null, blockFactory).withConfigTrackingConsumedKeys(
@@ -177,7 +205,8 @@ public class NdJsonFormatReaderTests extends ESTestCase {
             ExternalClientException.class,
             () -> atCeiling.metadata(new BytesObject(flatRecord(ceiling + 1)))
         );
-        assertThat(e.getMessage(), containsString("the most [schema_max_fields] allows"));
+        assertThat(e.getMessage(), containsString("the most that can be read"));
+        assertThat(e.getMessage(), not(containsString("dynamic: false")));
         assertThat(e.getMessage(), not(containsString("raise")));
 
         FormatReader below = new NdJsonFormatReader(null, blockFactory).withConfigTrackingConsumedKeys(
@@ -185,6 +214,7 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         ).value();
         e = expectThrows(ExternalClientException.class, () -> below.metadata(new BytesObject(flatRecord(3))));
         assertThat(e.getMessage(), containsString("raise [esql.external.schema_max_fields] or the dataset's [schema_max_fields]"));
+        assertThat(e.getMessage(), not(containsString("the most that can be read")));
     }
 
     /** The node setting is bounded like the dataset key, so neither can lift the cap past the ceiling. */

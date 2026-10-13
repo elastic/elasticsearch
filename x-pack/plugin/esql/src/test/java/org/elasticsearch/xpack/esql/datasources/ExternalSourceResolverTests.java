@@ -1507,8 +1507,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * The readers no longer care - they compare the file's actual type to the one being read, per file, at read time.
      * What this costs is statistics for the files nobody opened: they safe-miss their extrema, because nothing has
      * established what they hold. The ANCHOR is different, and that is what this pins: its footer was read at
-     * resolution for the coercibility check, so its types are recorded and it keeps its statistics. Discarding what
-     * that check read is what used to make the whole read answer from the declaration instead.
+     * resolution for the coercibility check, so its own types are recorded rather than discarded, which is what used
+     * to make the whole read answer from the declaration instead. Neither file carries statistics out of resolution -
+     * this rail harvests none, as the assertions below state; what the anchor keeps is its types.
      */
     public void testStrictDeclaredMultiFileRecordsOnlyTheAnchorsTypes() throws Exception {
         String anchorPath = "s3://bucket/data/a.parquet";
@@ -1549,7 +1550,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals("the anchor keeps the types its footer check read", Map.of("x", DataType.INTEGER), anchorInfo.inferredTypes());
         assertNull("the unopened file records none", driftInfo.inferredTypes());
         assertNull("the strict rail harvests no statistics", driftInfo.statistics());
-        assertNull(anchorInfo.statistics());
+        assertNull("not even from the anchor it opened", anchorInfo.statistics());
         assertEquals(
             "the read schema is the declaration, not the file's",
             DataType.LONG,
@@ -5100,6 +5101,43 @@ public class ExternalSourceResolverTests extends ESTestCase {
                         stamped
                     );
                 }
+            }
+        }
+    }
+
+    /**
+     * A glob matching one file under {@code dynamic: false}: the strict rail opens that file for its coercibility
+     * check, so its own types are recorded and the stamp is answered from them. No later file is left unexamined, so
+     * the answer is the file's, which is the whole point - a one-file glob and a one-file path state the same thing
+     * about the same bytes, and so must stamp alike whether or not the columns were written down
+     * ({@link #testFirstFileWinsOneFileGlobStampsAnchorNativeTypes} pins the undeclared side of the same shape).
+     */
+    public void testStrictDeclaredOneFileGlobStampsFromTheAnchorsOwnTypes() throws Exception {
+        String anchorPath = "s3://bucket/data/a.parquet";
+        for (DataType declaredAs : List.of(DataType.LONG, DataType.INTEGER)) {
+            Map<String, List<Attribute>> schemasByPath = Map.of(anchorPath, List.of(attr("x", DataType.LONG)));
+            Map<String, List<StorageEntry>> listingsByPrefix = Map.of(
+                StoragePath.of(DECLARED_GLOB).patternPrefix().toString(),
+                List.of(entry(anchorPath, 100))
+            );
+            ExternalSourceResolver resolver = createResolver(schemasByPath, listingsByPrefix);
+            DatasetMapping mapping = new DatasetMapping(
+                new DatasetMapping.Mappings(
+                    DatasetMapping.Dynamic.FALSE,
+                    Map.of("x", new DatasetFieldMapping(declaredAs == DataType.LONG ? "long" : "integer", null))
+                )
+            );
+            Map<String, Map<String, Object>> configs = Map.of(DECLARED_GLOB, new HashMap<>(Map.of("schema_resolution", "strict")));
+            PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+            resolver.resolve(List.of(DECLARED_GLOB), configs, null, Map.of(DECLARED_GLOB, mapping), null, future);
+            ExternalSourceResolution.ResolvedSource resolved = future.actionGet().resolvedSource(DECLARED_GLOB);
+
+            assertNotNull("declared as " + declaredAs, resolved);
+            boolean stamped = SourceStatisticsSerializer.conversionMayNarrow(resolved.metadata().sourceMetadata());
+            if (declaredAs == DataType.LONG) {
+                assertFalse("the one file holds long and is read as long, so nothing is converted", stamped);
+            } else {
+                assertTrue("the one file holds long and is read as a 32-bit integer, which narrows", stamped);
             }
         }
     }

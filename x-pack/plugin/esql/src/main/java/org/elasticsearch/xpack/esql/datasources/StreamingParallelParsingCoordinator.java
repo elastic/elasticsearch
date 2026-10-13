@@ -1337,10 +1337,20 @@ public final class StreamingParallelParsingCoordinator {
          * Infers the schema from the first chunk and swaps {@link #reader} for the schema-bound variant
          * returned by {@link FormatReader#withSchema(List)}, so parser threads skip per-chunk inference.
          * Same approach as ClickHouse / DuckDB / Spark.
+         * <p>
+         * The inference is held to the width of the schema the planner settled for this split, and
+         * {@link #readSchema} is where that schema is. The reader as the factory configured it carries the
+         * query's projection of it, which is empty when the optimizer pruned every column ({@code COUNT(*)}),
+         * so a reader asked for no column cannot tell a settled schema from none and would hold the file to
+         * {@code schema_max_fields} - refusing a file it reads under any other projection (esql-planning#2076).
+         * Resolving through a reader carrying the settled schema takes the width off the pin for every
+         * projection alike. The pin is all that is read, never where it came from.
          */
         private void bindInferredSchema(byte[] buffer, int length) throws IOException {
             ByteArrayStorageObject firstChunkObj = chunkStorageObject(0, buffer, 0, length);
-            SourceMetadata metadata = reader.metadata(firstChunkObj);
+            boolean settled = readSchema != null && readSchema.isEmpty() == false;
+            FormatReader resolving = settled ? reader.withSchema(readSchema) : reader;
+            SourceMetadata metadata = resolving.metadata(firstChunkObj);
             List<Attribute> schema = metadata == null ? null : metadata.schema();
             if (schema == null) {
                 return;
@@ -1350,10 +1360,10 @@ public final class StreamingParallelParsingCoordinator {
                 return;
             }
             if (bound instanceof SegmentableFormatReader segBound) {
-                // A planner-bound read is one whose schema is already settled, so the reader resolves this chunk's
-                // schema under the width a locating split is bounded by rather than under schema_max_fields, and what
-                // it binds can be as wide as the file. Charge it. Without a pin the cap bounds it already.
-                if (readSchema != null) {
+                // A settled schema lifted the width above schema_max_fields, so what was bound can be as wide as
+                // the file. Charge it. One derivation with the bound above, so the two cannot disagree: without a
+                // settled schema the cap bounds the inference already.
+                if (settled) {
                     long bytes = 0;
                     for (Attribute attribute : schema) {
                         bytes += HeapEstimates.columnBytes(attribute.name().length());

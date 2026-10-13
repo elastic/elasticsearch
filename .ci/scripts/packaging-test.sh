@@ -88,7 +88,7 @@ resolve_system_java_home() {
   if [[ "$BUILD_JAVA_HOME" == *"openjdk17"* ]]; then
     if [ -f "/etc/os-release" ]; then
         . /etc/os-release
-        if [[ "$ID" == "ubuntu" && "$VERSION_ID" == "24.04" ]]; then
+        if [[ "$ID" == "ubuntu" && ( "$VERSION_ID" == "24.04" || "$VERSION_ID" == "26.04" ) ]]; then
           echo "$HOME/.java/adoptopenjdk17"
           return
         fi

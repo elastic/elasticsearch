@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 161813
+summary: "ESQLDS: Split quote-free CSV on newlines"
+type: bug

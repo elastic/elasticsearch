@@ -14,9 +14,13 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
@@ -55,6 +59,39 @@ import static org.mockito.Mockito.when;
 public class ConcurrencyLimitedStorageObjectTests extends ESTestCase {
 
     private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(NoopCircuitBreaker.INSTANCE);
+
+    /**
+     * Production wraps remote schemes as {@code Retryable -> ConcurrencyLimited -> leaf}, so this decorator sits directly
+     * above a metered leaf. {@link ConcurrencyLimitedStorageObject#attachMetrics} must reach that leaf or its
+     * {@code storage.*} counters publish to nowhere.
+     */
+    public void testAttachMetricsReachesMeteredLeaf() throws Exception {
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(3, false));
+        byte[] data = "hello".getBytes(StandardCharsets.UTF_8);
+        ConcurrencyLimitedStorageObject obj = new ConcurrencyLimitedStorageObject(
+            TestStorageObjects.meteredLeaf(StoragePath.of("s3://bucket/key"), data),
+            limiter
+        );
+
+        obj.attachMetrics(new ExternalSourceMetrics(registry), "s3");
+        try (InputStream stream = obj.newStream(0, data.length)) {
+            assertArrayEquals(data, stream.readAllBytes());
+        }
+
+        Measurement requests = TestStorageObjects.singleMeasurement(
+            registry,
+            InstrumentType.LONG_COUNTER,
+            ExternalSourceMetrics.STORAGE_REQUESTS_TOTAL
+        );
+        assertEquals(1L, requests.getLong());
+        assertEquals("s3", requests.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE));
+        assertEquals(
+            5L,
+            TestStorageObjects.singleMeasurement(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_BYTES_READ_TOTAL)
+                .getLong()
+        );
+    }
 
     public void testStreamCloseReleasesPermit() throws Exception {
         ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(3, false));

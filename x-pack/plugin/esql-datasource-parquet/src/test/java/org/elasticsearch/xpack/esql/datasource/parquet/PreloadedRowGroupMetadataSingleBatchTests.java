@@ -65,7 +65,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
- * Guards the single-GET preload for small spans (PR-B v3 1.5). VPC-sized files stay on one
+ * Guards the single-GET preload for small spans. VPC-sized files stay on one
  * unadmitted GET. Spans up to 1 MiB take one admitted GET when the budget has room, and v3's
  * split when it does not.
  */
@@ -73,7 +73,7 @@ public class PreloadedRowGroupMetadataSingleBatchTests extends ESTestCase {
 
     private static final long FLOOR = ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES;
     private static final long CEILING = CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP;
-    private static final int LANE_O_THREADS = 24;
+    private static final int EXTERNAL_IO_THREADS = 24;
     private static final List<String> VPC_COLUMNS = List.of(
         "start",
         "action",
@@ -122,14 +122,14 @@ public class PreloadedRowGroupMetadataSingleBatchTests extends ESTestCase {
     }
 
     public void testSingleBatchAllowanceStepsAndWaiters() throws Exception {
-        assertEquals(FLOOR, PreloadedRowGroupMetadata.singleBatchAllowance(null, LANE_O_THREADS));
+        assertEquals(FLOOR, PreloadedRowGroupMetadata.singleBatchAllowance(null, EXTERNAL_IO_THREADS));
         assertEquals(FLOOR, PreloadedRowGroupMetadata.singleBatchAllowance(new ParquetIoWatermark(110L << 20), 0));
 
-        assertEquals(CEILING, PreloadedRowGroupMetadata.singleBatchAllowance(new ParquetIoWatermark(110L << 20), LANE_O_THREADS));
-        assertEquals(512L << 10, PreloadedRowGroupMetadata.singleBatchAllowance(new ParquetIoWatermark(20L << 20), LANE_O_THREADS));
-        assertEquals(256L << 10, PreloadedRowGroupMetadata.singleBatchAllowance(new ParquetIoWatermark(8L << 20), LANE_O_THREADS));
-        assertEquals(128L << 10, PreloadedRowGroupMetadata.singleBatchAllowance(new ParquetIoWatermark(4L << 20), LANE_O_THREADS));
-        assertEquals(FLOOR, PreloadedRowGroupMetadata.singleBatchAllowance(new ParquetIoWatermark(2L << 20), LANE_O_THREADS));
+        assertEquals(CEILING, PreloadedRowGroupMetadata.singleBatchAllowance(new ParquetIoWatermark(110L << 20), EXTERNAL_IO_THREADS));
+        assertEquals(512L << 10, PreloadedRowGroupMetadata.singleBatchAllowance(new ParquetIoWatermark(20L << 20), EXTERNAL_IO_THREADS));
+        assertEquals(256L << 10, PreloadedRowGroupMetadata.singleBatchAllowance(new ParquetIoWatermark(8L << 20), EXTERNAL_IO_THREADS));
+        assertEquals(128L << 10, PreloadedRowGroupMetadata.singleBatchAllowance(new ParquetIoWatermark(4L << 20), EXTERNAL_IO_THREADS));
+        assertEquals(FLOOR, PreloadedRowGroupMetadata.singleBatchAllowance(new ParquetIoWatermark(2L << 20), EXTERNAL_IO_THREADS));
 
         NodeByteBudgetService budget = new NodeByteBudgetService(64L << 20);
         ParquetIoWatermark watermark = new ParquetIoWatermark(budget);

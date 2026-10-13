@@ -267,32 +267,48 @@ public class ESClientYamlSuiteTestCaseTests extends ESTestCase {
         assertThat(e.getMessage(), containsString(UnnamedSuiteWithLeadingParameter.class.getName()));
     }
 
-    /** A compliant suite. The candidate is null because the guard runs before it is used. */
+    /**
+     * A compliant suite. Tests pass a null candidate: the constructor only stores it and the suite never actually runs, so no real
+     * {@link ClientYamlTestCandidate} is needed.
+     */
     public static class NamedSuite extends ESClientYamlSuiteTestCase {
         public NamedSuite(@Name("yaml") ClientYamlTestCandidate candidate) {
             super(candidate);
         }
     }
 
-    /** A compliant suite with the candidate after another parameter, like {@code UpgradeClusterClientYamlTestSuiteIT}. */
+    /**
+     * A compliant suite with the candidate after another parameter, like {@code UpgradeClusterClientYamlTestSuiteIT}. As with
+     * {@link NamedSuite}, tests pass a null candidate.
+     */
     public static class NamedSuiteWithLeadingParameter extends ESClientYamlSuiteTestCase {
         public NamedSuiteWithLeadingParameter(@Name("other") int other, @Name("yaml") ClientYamlTestCandidate candidate) {
             super(candidate);
         }
     }
 
+    /**
+     * Has no {@code @Name} on the candidate parameter. The guard throws before the (null) candidate is stored.
+     */
     public static class UnnamedSuite extends ESClientYamlSuiteTestCase {
         public UnnamedSuite(ClientYamlTestCandidate candidate) {
             super(candidate);
         }
     }
 
+    /**
+     * Names the candidate parameter something other than {@code yaml}. The guard throws before the (null) candidate is stored.
+     */
     public static class WronglyNamedSuite extends ESClientYamlSuiteTestCase {
         public WronglyNamedSuite(@Name("candidate") ClientYamlTestCandidate candidate) {
             super(candidate);
         }
     }
 
+    /**
+     * Puts {@code @Name("yaml")} on the wrong parameter, leaving the candidate unnamed. The guard throws before the (null) candidate is
+     * stored.
+     */
     public static class UnnamedSuiteWithLeadingParameter extends ESClientYamlSuiteTestCase {
         public UnnamedSuiteWithLeadingParameter(@Name("yaml") int other, ClientYamlTestCandidate candidate) {
             super(candidate);

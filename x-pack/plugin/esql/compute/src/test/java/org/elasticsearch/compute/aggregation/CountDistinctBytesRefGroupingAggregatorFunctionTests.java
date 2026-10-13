@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.operator.blocksource.LongBytesRefTupleBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 
@@ -49,6 +50,23 @@ public class CountDistinctBytesRefGroupingAggregatorFunctionTests extends Groupi
             ((LongBlock) result).getLong(position),
             input.stream().flatMap(p -> allBytesRefs(p, group)).distinct().mapToLong(CountDistinctTestUtils::hash)
         );
+    }
+
+    /**
+     * {@code "338"} and {@code "2351"} share the top 25 bits of their hash, so linear counting stores them as one entry
+     * and counts this group as 1. {@link #assertSimpleGroup} must accept that as a hash collision.
+     */
+    public void testHashCollisionInSmallGroup() {
+        var runner = new TestDriverRunner().builder(driverContext()).collectDeepCopy();
+        runner.input(
+            new LongBytesRefTupleBlockSourceOperator(
+                runner.blockFactory(),
+                List.of(Tuple.tuple(0L, new BytesRef("338")), Tuple.tuple(0L, new BytesRef("2351")))
+            )
+        );
+        List<Page> results = runner.run(simple());
+        assertSimpleOutput(runner.deepCopy(), results);
+        assertThat(((LongBlock) results.getFirst().getBlock(1)).getLong(0), equalTo(1L));
     }
 
     @Override

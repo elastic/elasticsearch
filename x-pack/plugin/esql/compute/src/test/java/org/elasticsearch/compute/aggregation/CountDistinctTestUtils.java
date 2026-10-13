@@ -64,7 +64,7 @@ final class CountDistinctTestUtils {
 
     static long hash(BytesRef v) {
         MurmurHash3.Hash128 hash = MurmurHash3.hash128(v.bytes, v.offset, v.length, 0, new MurmurHash3.Hash128());
-        return hash.h1;
+        return hash(hash.h1);
     }
 
     private static long encodeHash(long hash, int p) {

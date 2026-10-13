@@ -48,7 +48,6 @@ import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
@@ -178,7 +177,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         safeAwait(uuidChangedListener);
         ensureGreen("test");
         final var finalClusterStateVersion = masterClusterService.state().version();
-        assertBusy(() -> assertThat(dataNodeClusterService.state().version(), greaterThanOrEqualTo(finalClusterStateVersion)));
+        awaitClusterState(dataNode, state -> state.version() >= finalClusterStateVersion);
         assertHitCount(prepareSearch("test"), 0);
     }
 

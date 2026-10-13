@@ -282,7 +282,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return "views".equals(groupName)
             || "approximation".equals(groupName)
             || "unmapped-load".equals(groupName)
-            || "metadata-views-and-subqueries".equals(groupName);
+            || "metadata-views-and-subqueries".equals(groupName)
+            || "named_subquery".equals(groupName);
     }
 
     private boolean allTestsInGroupNeedViews() {

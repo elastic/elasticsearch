@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Mul
 import org.elasticsearch.xpack.esql.parser.promql.PromqlParserUtils;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.LetBinding;
 import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
@@ -189,8 +190,31 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             settings.add(visitSetCommand(setCommandContext));
         }
 
+        List<LetBinding> letBindings = new ArrayList<>(ctx.letCommand().size());
+        Set<String> seenNames = new HashSet<>();
+        for (EsqlBaseParser.LetCommandContext letCommandContext : ctx.letCommand()) {
+            LetBinding binding = visitLetCommand(letCommandContext);
+            if (seenNames.add(binding.name()) == false) {
+                throw new ParsingException(source(letCommandContext), "duplicate LET binding name [{}]", binding.name());
+            }
+            letBindings.add(binding);
+        }
+
         LogicalPlan query = visitSingleStatement(ctx.singleStatement());
-        return new EsqlStatement(query, settings);
+        return new EsqlStatement(query, settings, letBindings);
+    }
+
+    @Override
+    public LetBinding visitLetCommand(EsqlBaseParser.LetCommandContext ctx) {
+        return visitLetBinding(ctx.letBinding());
+    }
+
+    @Override
+    public LetBinding visitLetBinding(EsqlBaseParser.LetBindingContext ctx) {
+        Source source = source(ctx);
+        String name = ctx.UNQUOTED_IDENTIFIER().getText();
+        LogicalPlan plan = visitSubquery(ctx.subquery());
+        return new LetBinding(source, name, plan);
     }
 
     protected List<LogicalPlan> plans(List<? extends ParserRuleContext> ctxs) {

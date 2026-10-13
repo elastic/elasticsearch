@@ -96,6 +96,25 @@ public abstract class AbstractShardBatchMapperResolveTestCase extends MapperServ
     }
 
     /**
+     * Creates a {@link MapperService} configured for time-series mode, with recovery source disabled, a single keyword dimension
+     * {@code dim} for the caller's mapping to declare, and {@code extra} settings applied.
+     */
+    protected final MapperService tsdbMapperService(Settings extra, XContentBuilder mapping) throws IOException {
+        return createMapperService(
+            Settings.builder()
+                .put(extra)
+                .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+                .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), "dim")
+                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "-9999-01-01T00:00:00Z")
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "9999-01-01T00:00:00Z")
+                .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
+                .put(IndexSettings.SYNTHETIC_ID.getKey(), false)
+                .build(),
+            mapping
+        );
+    }
+
+    /**
      * Builds a flat {@link SourceSchema} from simple (non-dotted) leaf names. The leaf values are
      * arbitrary — {@link ShardBatchMapper#resolveMappers} reads paths only, not values.
      */

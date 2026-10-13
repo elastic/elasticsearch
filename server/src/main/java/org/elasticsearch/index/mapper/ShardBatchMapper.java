@@ -203,8 +203,9 @@ public final class ShardBatchMapper {
                         logger.debug("batch indexing disabled: unmapped leaf [{}] matches routing_path", fullPath);
                         return null;
                     }
-                    // The sequential path copies the value of an unmapped leaf under dynamic: false into _ignored_source, whenever it
-                    // writes that field at all, so that synthetic source still returns it. The batch path writes no such entry, so
+                    // The sequential path copies the value of an unmapped leaf under dynamic: false into _ignored_source, when it
+                    // records ignored source for this index at all, so that synthetic source still returns it. The batch path writes no
+                    // such entry, so
                     // dropping the leaf here would lose the value; leave those batches to the sequential path. Where it does not
                     // capture (stored source, strict-columnar modes), the value stays in _source and dropping the leaf is correct.
                     if (sequentialPathCapturesDynamicFalseLeaves(lookup, indexSettings)) {

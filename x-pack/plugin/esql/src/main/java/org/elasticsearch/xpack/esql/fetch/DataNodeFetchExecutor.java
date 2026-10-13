@@ -21,7 +21,6 @@ import org.elasticsearch.compute.lucene.read.FetchDocsSourceOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
-import org.elasticsearch.compute.operator.fetch.PageCollectorSinkOperator;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -49,7 +48,6 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.fetch.FetchResponse.ShardResult;
 import org.elasticsearch.xpack.esql.fetch.lifetime.FetchContextListener;
-import org.elasticsearch.xpack.esql.fetch.lifetime.FetchContextService;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.DefaultShardContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -86,7 +84,6 @@ final class DataNodeFetchExecutor {
     private final TransportService transportService;
     private final ClusterService clusterService;
     private final SearchService searchService;
-    private final FetchContextService contextService;
     private final BlockFactory blockFactory;
     private final Executor driverExecutor;
     private final Supplier<PlannerSettings> plannerSettings;
@@ -97,7 +94,6 @@ final class DataNodeFetchExecutor {
         TransportService transportService,
         ClusterService clusterService,
         SearchService searchService,
-        FetchContextService contextService,
         BlockFactory blockFactory,
         Executor driverExecutor,
         Supplier<PlannerSettings> plannerSettings,
@@ -107,7 +103,6 @@ final class DataNodeFetchExecutor {
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.searchService = searchService;
-        this.contextService = contextService;
         this.blockFactory = blockFactory;
         this.driverExecutor = driverExecutor;
         this.plannerSettings = plannerSettings;
@@ -137,7 +132,7 @@ final class DataNodeFetchExecutor {
         private final List<DefaultShardContext> contexts;
         private final AtomicReferenceArray<Exception> driverFailures;
         @Nullable
-        private PageCollectorSinkOperator.PageCollector collector;
+        private ShardPages shardPages;
         private List<ShardDriver> shardDrivers = List.of();
         private long setupNanos;
         private final AtomicBoolean released = new AtomicBoolean();
@@ -245,14 +240,14 @@ final class DataNodeFetchExecutor {
                 shardContexts,
                 assignment
             );
-            collector = new PageCollectorSinkOperator.PageCollector(request.shards().size());
+            shardPages = new ShardPages(request.shards().size());
             LocalExecutionPlanner.LocalExecutionPlan plan = planner.plan(
                 DESCRIPTION,
                 foldCtx,
                 plannerSettings.get(),
                 request.fetchPlan(),
                 shardContexts,
-                new PageCollectorSinkOperator.Factory(collector, assignment::shardOf)
+                shardPages.sinks(assignment::shardOf)
             );
             List<Driver> created = plan.createDrivers(new TaskId(clusterService.localNode().getId(), task.getId()).toString());
             List<ShardDriver> byShard = new ArrayList<>(created.size());
@@ -303,10 +298,10 @@ final class DataNodeFetchExecutor {
                         continue;
                     }
                     FetchRequest.ShardDocs shard = request.shards().get(position);
-                    List<Page> shardPages = collector.take(position);
+                    List<Page> loaded = shardPages.take(position);
                     Exception failure = driverFailures.get(position);
                     int rows = 0;
-                    for (Page page : shardPages) {
+                    for (Page page : loaded) {
                         rows += page.getPositionCount();
                     }
                     if (failure == null && rows != shard.docCount()) {
@@ -316,10 +311,10 @@ final class DataNodeFetchExecutor {
                     }
                     if (failure == null) {
                         results[position] = ShardResult.succeeded(shard.shardId(), rows);
-                        pages.addAll(shardPages);
+                        pages.addAll(loaded);
                     } else {
                         results[position] = ShardResult.failed(shard.shardId(), failure);
-                        FetchResponse.releasePages(shardPages);
+                        FetchResponse.releasePages(loaded);
                     }
                 }
                 completionInfo = completionInfo();
@@ -399,35 +394,27 @@ final class DataNodeFetchExecutor {
         }
 
         /**
-         * Drops the request's references on its shards and frees the contexts the request names, on the generic pool.
-         * Once, whichever way the request ended.
+         * Drops the request's references on its shards, on the generic pool. Once, whichever way the request ended.
          */
         private void release() {
             if (released.compareAndSet(false, true) == false) {
                 return;
             }
-            // the generic pool runs this in the thread context of the request, so only the contexts of its user are freed
             transportService.getThreadPool().executor(ThreadPool.Names.GENERIC).execute(new AbstractRunnable() {
                 @Override
                 protected void doRun() {
                     List<Releasable> references = new ArrayList<>(contexts.size() + 1);
-                    references.add(collector);
+                    references.add(shardPages);
                     for (DefaultShardContext context : contexts) {
                         if (context != null) {
                             references.add(context::decRef);
                         }
                     }
-                    try {
-                        Releasables.close(references);
-                    } finally {
-                        // after the references, so a freed reader closes here instead of on a later thread
-                        contextService.freeFetchContexts(request.releaseAfter(), request);
-                    }
+                    Releasables.close(references);
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    // the reaper frees the contexts once their keep-alive passes
                     logger.warn("failed to release the shards of a fetch request", e);
                 }
             });

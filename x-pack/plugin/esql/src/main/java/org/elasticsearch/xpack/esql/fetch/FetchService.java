@@ -23,7 +23,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
-import org.elasticsearch.xpack.esql.fetch.lifetime.FetchContextService;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 
 import java.util.concurrent.Executor;
@@ -61,7 +60,6 @@ public final class FetchService {
     private volatile int maxConcurrentShardTasks;
 
     /**
-     * @param contextService frees the contexts a request names once the node answered it
      * @param blockFactory   the root block factory of the node, which accounts the responses while they are serialized
      * @param driverExecutor runs the drivers that load the documents, next to the drivers of the query phase
      * @param plannerFactory builds the planner of each fetch request
@@ -70,7 +68,6 @@ public final class FetchService {
         TransportService transportService,
         ClusterService clusterService,
         SearchService searchService,
-        FetchContextService contextService,
         BlockFactory blockFactory,
         Executor driverExecutor,
         Supplier<PlannerSettings> plannerSettings,
@@ -82,7 +79,6 @@ public final class FetchService {
             transportService,
             clusterService,
             searchService,
-            contextService,
             blockFactory,
             driverExecutor,
             plannerSettings,

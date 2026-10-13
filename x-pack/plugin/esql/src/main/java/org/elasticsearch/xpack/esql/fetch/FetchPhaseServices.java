@@ -39,10 +39,10 @@ public interface FetchPhaseServices {
                     docRefChannel,
                     fetchedTypes,
                     exec.fetchPlan(),
-                    exec.stage() == scope.fetchStages(),
+                    FetchOperator.MAX_OUTSTANDING_PAGES,
                     new QueryFetchClient(
                         fetchService::sendFetch,
-                        (nodeId, ids) -> contextService.forgetFreedByFetch(scope.rootTask().getId(), nodeId, ids),
+                        clusterService.threadPool().getThreadContext(),
                         () -> clusterService.state().nodes(),
                         scope,
                         exec.originalIndices()

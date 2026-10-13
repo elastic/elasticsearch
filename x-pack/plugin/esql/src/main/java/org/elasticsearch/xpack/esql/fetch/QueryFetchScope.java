@@ -19,7 +19,6 @@ import java.util.function.Supplier;
  * What the fetch operators of one query need on its coordinator, beyond the plan.
  *
  * @param rootTask       the task of the query. Every fetch request is its child, so cancelling the query cancels them.
- * @param fetchStages    how many fetches the coordinator plan runs. Only the last one frees the contexts it read.
  * @param completionInfo acquires a listener for the drivers of one fetch request. The query adds them to its own
  *                       counters and profile.
  */
@@ -27,7 +26,6 @@ public record QueryFetchScope(
     CancellableTask rootTask,
     String sessionId,
     Configuration configuration,
-    int fetchStages,
     Supplier<ActionListener<DriverCompletionInfo>> completionInfo
 ) {
     public QueryFetchScope {

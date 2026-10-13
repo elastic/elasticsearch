@@ -21,7 +21,6 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -70,32 +69,9 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
     }
 
     /**
-     * The last fetch of a query tells each node it reads to free the contexts it read once it answered. The lease forgets
-     * them, and frees only the others when the query ends.
+     * The contexts of one node and index expressions go in one free request.
      */
-    public void testFreesOnlyTheContextsNoFetchFreed() throws Exception {
-        createIndexWithDocs(INDEX);
-        CancellableTask task = rootTask();
-        List<OpenContextInfo> open = respond(INDEX);
-        service.leaseFor(task).add(localNode(), originalIndices(INDEX), open);
-        List<ShardSearchContextId> ids = open.stream().map(OpenContextInfo::contextId).toList();
-        List<ShardSearchContextId> fetched = randomSubsetOf(between(1, ids.size() - 1), ids);
-        List<List<ShardSearchContextId>> freeRequests = recordFreeRequests();
-
-        service.forgetFreedByFetch(task.getId(), localNode().getId(), fetched);
-        service.closeLease(task.getId());
-
-        assertBusy(() -> assertThat(freeRequests, hasSize(1)));
-        assertThat(freeRequests.getFirst(), containsInAnyOrder(ids.stream().filter(id -> fetched.contains(id) == false).toArray()));
-        // the contexts the fetch read are still open here, because only the fetch request frees them
-        sendFreeIds(fetched);
-        assertAllFreed();
-    }
-
-    /**
-     * Contexts of another node, or ids the lease doesn't hold, leave the lease as it is.
-     */
-    public void testForgetsOnlyTheContextsOfTheNodeThatFreedThem() throws Exception {
+    public void testFreesTheContextsOfANodeInOneRequest() throws Exception {
         createIndexWithDocs(INDEX);
         CancellableTask task = rootTask();
         List<OpenContextInfo> open = respond(INDEX);
@@ -103,9 +79,6 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
         List<ShardSearchContextId> ids = open.stream().map(OpenContextInfo::contextId).toList();
         List<List<ShardSearchContextId>> freeRequests = recordFreeRequests();
 
-        service.forgetFreedByFetch(task.getId(), "another-node", ids);
-        service.forgetFreedByFetch(task.getId(), localNode().getId(), List.of(new ShardSearchContextId("unknown", 1)));
-        service.forgetFreedByFetch(randomValueOtherThan(task.getId(), ESTestCase::randomNonNegativeLong), localNode().getId(), ids);
         service.closeLease(task.getId());
 
         assertBusy(() -> assertThat(freeRequests, hasSize(1)));

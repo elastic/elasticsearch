@@ -74,8 +74,7 @@ public class FetchRequestTests extends AbstractWireSerializingTestCase<FetchRequ
             ),
             randomList(0, 5, FetchRequestTests::randomShardDocs),
             randomConfiguration(),
-            fetchPlan(randomList(1, 4, FetchRequestTests::randomField)),
-            randomList(0, 5, FetchRequestTests::randomContextId)
+            fetchPlan(randomList(1, 4, FetchRequestTests::randomField))
         );
         request.setParentTask(randomAlphaOfLength(10), randomNonNegativeLong());
         return request;
@@ -87,13 +86,11 @@ public class FetchRequestTests extends AbstractWireSerializingTestCase<FetchRequ
         String clusterAlias = instance.clusterAlias();
         List<FetchRequest.ShardDocs> shards = instance.shards();
         PhysicalPlan fetchPlan = instance.fetchPlan();
-        List<ShardSearchContextId> releaseAfter = instance.releaseAfter();
-        switch (between(0, 4)) {
+        switch (between(0, 3)) {
             case 0 -> sessionId = randomValueOtherThan(sessionId, () -> randomAlphaOfLength(10));
             case 1 -> clusterAlias = randomValueOtherThan(clusterAlias, () -> randomAlphaOfLength(5));
             case 2 -> shards = randomValueOtherThan(shards, () -> randomList(0, 5, FetchRequestTests::randomShardDocs));
             case 3 -> fetchPlan = randomValueOtherThan(fetchPlan, () -> fetchPlan(randomList(1, 4, FetchRequestTests::randomField)));
-            case 4 -> releaseAfter = randomValueOtherThan(releaseAfter, () -> randomList(0, 5, FetchRequestTests::randomContextId));
             default -> throw new AssertionError("unknown mutation");
         }
         FetchRequest mutated = new FetchRequest(
@@ -102,8 +99,7 @@ public class FetchRequestTests extends AbstractWireSerializingTestCase<FetchRequ
             new OriginalIndices(instance.indices(), instance.indicesOptions()),
             shards,
             instance.configuration(),
-            fetchPlan,
-            releaseAfter
+            fetchPlan
         );
         mutated.setParentTask(instance.getParentTask());
         return mutated;
@@ -173,16 +169,15 @@ public class FetchRequestTests extends AbstractWireSerializingTestCase<FetchRequ
 
     /**
      * When authorization leaves no index the request keeps its shards, so the data node fails each of them instead of
-     * returning fewer rows. It frees nothing, like a free request without an index.
+     * returning fewer rows.
      */
-    public void testKeepsItsShardsAndFreesNothingWhenAuthorizationLeavesNoIndex() {
+    public void testKeepsItsShardsWhenAuthorizationLeavesNoIndex() {
         FetchRequest request = randomValueOtherThanMany(r -> r.shards().isEmpty(), this::createTestInstance);
         List<FetchRequest.ShardDocs> shards = request.shards();
 
         request.indices(NO_INDICES_OR_ALIASES_ARRAY);
 
         assertThat(request.shards(), equalTo(shards));
-        assertThat(request.releaseAfter(), empty());
     }
 
     /**
@@ -195,8 +190,7 @@ public class FetchRequestTests extends AbstractWireSerializingTestCase<FetchRequ
             new OriginalIndices(new String[] { "index" }, IndicesOptions.strictExpandOpen()),
             List.of(),
             randomConfiguration("FROM index", randomValueOtherThanMany(Map::isEmpty, () -> randomTables())),
-            fetchPlan(List.of(randomField())),
-            List.of()
+            fetchPlan(List.of(randomField()))
         );
         assertThat(request.configuration().tables(), anEmptyMap());
     }

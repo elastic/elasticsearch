@@ -95,7 +95,7 @@ public class PhysicalVerifierFetchTests extends ESTestCase {
     }
 
     private FetchExec fetch(PhysicalPlan fetchPlan) {
-        return new FetchExec(Source.EMPTY, rows, fetchPlan, docRef, List.of(fetched), 1, "idx", List.of("idx"), null);
+        return new FetchExec(Source.EMPTY, rows, fetchPlan, docRef, List.of(fetched), "idx", List.of("idx"), null);
     }
 
     private static PhysicalPlan fetchPlan(List<Attribute> fields) {

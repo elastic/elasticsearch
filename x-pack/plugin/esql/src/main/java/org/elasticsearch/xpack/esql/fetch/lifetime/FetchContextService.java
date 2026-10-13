@@ -192,17 +192,6 @@ public final class FetchContextService {
     }
 
     /**
-     * Tells the lease of the query that runs under the task {@code rootTaskId} that {@code nodeId} freed {@code ids}, because
-     * a fetch request told it to. A query without a lease, or whose lease is already closed, has nothing to forget.
-     */
-    public void forgetFreedByFetch(long rootTaskId, String nodeId, Collection<ShardSearchContextId> ids) {
-        FetchContextLease lease = leases.get(rootTaskId);
-        if (lease != null) {
-            lease.forget(nodeId, ids);
-        }
-    }
-
-    /**
      * Frees every context of the query that ran under the task {@code rootTaskId}, if it opened any.
      */
     public void closeLease(long rootTaskId) {
@@ -276,7 +265,7 @@ public final class FetchContextService {
      * @param request a request of the fetch phase. This runs in its thread context, which names its user.
      * @return how many contexts it freed
      */
-    public <R extends TransportRequest & FetchContextRequest> int freeFetchContexts(Collection<ShardSearchContextId> ids, R request) {
+    private <R extends TransportRequest & FetchContextRequest> int freeFetchContexts(Collection<ShardSearchContextId> ids, R request) {
         int freed = 0;
         for (ShardSearchContextId id : ids) {
             try {

@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocRefBlock;
@@ -38,9 +39,8 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -74,44 +74,66 @@ public class FetchOperatorTests extends ComputeTestCase {
     }
 
     /**
-     * The rows keep their order and their columns, and get the values of their own documents appended.
+     * The rows keep their order and their columns, and get the values of their own documents appended. Each page of the
+     * cut sends one request to each node that holds some of its documents.
      */
     public void testAppendsTheFetchedColumnsInTheOrderOfTheCut() throws Exception {
         BlockFactory blockFactory = blockFactory();
         FakeClient client = new FakeClient(blockFactory);
         List<List<Ref>> input = randomInput();
-        List<Page> output = run(blockFactory, client, true, input);
+        List<Page> output = run(blockFactory, client, input);
         try {
             assertThat(rows(output), equalTo(input.stream().flatMap(List::stream).toList()));
             assertThat(output.size(), equalTo(input.size()));
         } finally {
             output.forEach(Page::releaseBlocks);
         }
-        Set<String> nodes = new HashSet<>();
-        input.forEach(page -> page.forEach(ref -> nodes.add(ref.origin().nodeId())));
-        assertThat("one request per node", client.requests.stream().map(Request::nodeId).toList(), containsInAnyOrder(nodes.toArray()));
+        List<String> nodes = new ArrayList<>();
+        for (List<Ref> page : input) {
+            page.stream().map(ref -> ref.origin().nodeId()).distinct().forEach(nodes::add);
+        }
+        assertThat(
+            "one request per node and page",
+            client.requests.stream().map(Request::nodeId).toList(),
+            containsInAnyOrder(nodes.toArray())
+        );
     }
 
     /**
-     * The last fetch of a query frees the contexts it read once each node answered. An earlier one leaves them for the
-     * fetch that follows.
+     * A page of the cut sends its requests as soon as it arrives, without waiting for the rest of the cut.
      */
-    public void testOnlyTheLastStageFreesTheContexts() throws Exception {
-        for (boolean finalStage : new boolean[] { true, false }) {
-            BlockFactory blockFactory = blockFactory();
-            FakeClient client = new FakeClient(blockFactory);
-            List<Page> output = run(
-                blockFactory,
-                client,
-                finalStage,
-                List.of(List.of(new Ref(ORIGINS.get(0), 1, 1), new Ref(ORIGINS.get(1), 0, 3)))
+    public void testFetchesEachPageAsItArrives() throws Exception {
+        BlockFactory blockFactory = blockFactory();
+        FakeClient client = new FakeClient(blockFactory);
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        Operator operator = factory(client).get(driverContext);
+        try {
+            operator.addInput(page(blockFactory, List.of(new Ref(ORIGINS.get(0), 0, 1), new Ref(ORIGINS.get(2), 0, 2))));
+            assertThat(client.requests.stream().map(Request::nodeId).toList(), containsInAnyOrder("n1", "n2"));
+            awaitUnblocked(operator);
+            Page page = operator.getOutput();
+            assertThat(page.getPositionCount(), equalTo(2));
+            page.releaseBlocks();
+        } finally {
+            operator.close();
+            awaitResponses(driverContext);
+        }
+    }
+
+    /**
+     * Each node can return response headers, like warnings. The operator gives the driver thread the headers of every
+     * node, not only those of the node that answered last.
+     */
+    public void testMergesTheResponseHeadersOfEveryNode() throws Exception {
+        BlockFactory blockFactory = blockFactory();
+        FakeClient client = new FakeClient(blockFactory);
+        client.responseHeader = "X-Fetched-By";
+        try (ThreadContext.StoredContext ignored = threadPool.getThreadContext().stashContext()) {
+            List<List<Ref>> input = List.of(
+                List.of(new Ref(ORIGINS.get(0), 0, 1), new Ref(ORIGINS.get(2), 0, 2), new Ref(ORIGINS.get(3), 0, 3))
             );
-            output.forEach(Page::releaseBlocks);
-            Request request = client.requests.getFirst();
-            List<ShardSearchContextId> expected = finalStage
-                ? request.shards().stream().map(FetchRequest.ShardDocs::contextId).toList()
-                : List.of();
-            assertThat(request.releaseAfter(), equalTo(expected));
+            run(blockFactory, client, input).forEach(Page::releaseBlocks);
+            assertThat(threadPool.getThreadContext().getResponseHeaders().get("X-Fetched-By"), containsInAnyOrder("n1", "n2", "n3"));
         }
     }
 
@@ -122,7 +144,7 @@ public class FetchOperatorTests extends ComputeTestCase {
     public void testAnEmptyCutSendsNothing() throws Exception {
         BlockFactory blockFactory = blockFactory();
         FakeClient client = new FakeClient(blockFactory);
-        List<Page> output = run(blockFactory, client, true, List.of(List.of()));
+        List<Page> output = run(blockFactory, client, List.of(List.of()));
         try {
             assertThat(output.size(), equalTo(1));
             assertThat(output.getFirst().getPositionCount(), equalTo(0));
@@ -130,7 +152,7 @@ public class FetchOperatorTests extends ComputeTestCase {
         } finally {
             output.forEach(Page::releaseBlocks);
         }
-        assertThat(run(blockFactory, client, true, List.of()), empty());
+        assertThat(run(blockFactory, client, List.of()), empty());
         assertThat(client.requests, empty());
     }
 
@@ -144,28 +166,28 @@ public class FetchOperatorTests extends ComputeTestCase {
 
         FakeClient missingShard = new FakeClient(blockFactory);
         missingShard.failingShard = ORIGINS.get(2).contextId();
-        Exception e = expectThrows(Exception.class, () -> run(blockFactory, missingShard, true, input));
+        Exception e = expectThrows(Exception.class, () -> run(blockFactory, missingShard, input));
         assertThat(e, instanceOf(SearchContextMissingException.class));
 
         FakeClient rejected = new FakeClient(blockFactory);
         rejected.failingNode = "n1";
-        e = expectThrows(Exception.class, () -> run(blockFactory, rejected, true, input));
+        e = expectThrows(Exception.class, () -> run(blockFactory, rejected, input));
         assertThat(e.getMessage(), equalTo("rejected by [n1]"));
 
         FakeClient nodeLeft = new FakeClient(blockFactory);
         nodeLeft.goneNode = "n2";
-        e = expectThrows(Exception.class, () -> run(blockFactory, nodeLeft, true, input));
+        e = expectThrows(Exception.class, () -> run(blockFactory, nodeLeft, input));
         assertThat(e, instanceOf(NoNodeAvailableException.class));
 
         FakeClient notSent = new FakeClient(blockFactory);
         notSent.throwingNode = "n1";
-        e = expectThrows(Exception.class, () -> run(blockFactory, notSent, true, input));
+        e = expectThrows(Exception.class, () -> run(blockFactory, notSent, input));
         assertThat(e.getMessage(), equalTo("can't send to [n1]"));
         assertThat("the query fails, so the other nodes get nothing to load", notSent.requests, empty());
 
         FakeClient missingRows = new FakeClient(blockFactory);
         missingRows.shortNode = "n2";
-        e = expectThrows(Exception.class, () -> run(blockFactory, missingRows, true, input));
+        e = expectThrows(Exception.class, () -> run(blockFactory, missingRows, input));
         assertThat(e.getMessage(), equalTo("node [n2] returned [0] rows for [1] documents"));
         // the test case checks that the failures released every page
     }
@@ -178,7 +200,7 @@ public class FetchOperatorTests extends ComputeTestCase {
         FakeClient client = new FakeClient(blockFactory);
         client.failingNode = "n2";
         DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
-        Operator operator = factory(client, true).get(driverContext);
+        Operator operator = factory(client).get(driverContext);
         try {
             operator.addInput(page(blockFactory, List.of(new Ref(ORIGINS.get(0), 0, 1), new Ref(ORIGINS.get(2), 0, 2))));
             operator.finish();
@@ -199,7 +221,7 @@ public class FetchOperatorTests extends ComputeTestCase {
         FakeClient client = new FakeClient(blockFactory);
         client.completeTwice = true;
         List<List<Ref>> input = List.of(List.of(new Ref(ORIGINS.get(0), 0, 1), new Ref(ORIGINS.get(2), 0, 2)));
-        List<Page> output = run(blockFactory, client, true, input);
+        List<Page> output = run(blockFactory, client, input);
         try {
             assertThat(rows(output), equalTo(input.getFirst()));
         } finally {
@@ -214,7 +236,7 @@ public class FetchOperatorTests extends ComputeTestCase {
         BlockFactory blockFactory = blockFactory();
         FakeClient client = new FakeClient(blockFactory);
         DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
-        Operator operator = factory(client, true).get(driverContext);
+        Operator operator = factory(client).get(driverContext);
         operator.addInput(page(blockFactory, List.of(new Ref(ORIGINS.get(0), 0, 1), new Ref(ORIGINS.get(2), 0, 2))));
         operator.finish();
         awaitUnblocked(operator);
@@ -234,7 +256,7 @@ public class FetchOperatorTests extends ComputeTestCase {
         CountDownLatch release = new CountDownLatch(1);
         client.holdResponses = release;
         DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
-        Operator operator = factory(client, true).get(driverContext);
+        Operator operator = factory(client).get(driverContext);
         operator.addInput(page(blockFactory, List.of(new Ref(ORIGINS.get(0), 0, 1))));
         operator.finish();
         assertFalse(operator.isBlocked().listener().isDone());
@@ -255,46 +277,51 @@ public class FetchOperatorTests extends ComputeTestCase {
             List.of(new Ref(ORIGINS.get(0), 0, 1), new Ref(ORIGINS.get(1), 0, 2), new Ref(ORIGINS.get(0), 0, 1)),
             List.of(new Ref(ORIGINS.get(2), 3, 4))
         );
-        run(blockFactory, client, true, input).forEach(Page::releaseBlocks);
+        run(blockFactory, client, input).forEach(Page::releaseBlocks);
 
+        assertThat(lastStatus.receivedPages(), equalTo(2L));
+        assertThat(lastStatus.completedPages(), equalTo(2L));
         assertThat(lastStatus.rowsReceived(), equalTo(4L));
         assertThat("rows of the same document fetch it once", lastStatus.documents(), equalTo(3L));
         assertThat(lastStatus.pagesEmitted(), equalTo(2));
-        assertThat(lastStatus.nodes().stream().map(FetchOperator.NodeRequest::node).toList(), containsInAnyOrder("n1", "n2"));
-        for (FetchOperator.NodeRequest node : lastStatus.nodes()) {
-            assertThat(node.shards(), equalTo(node.node().equals("n1") ? 2 : 1));
-            assertThat(node.documents(), equalTo(node.node().equals("n1") ? 2 : 1));
-            assertThat(node.tookNanos(), equalTo(FakeClient.TOOK_NANOS));
-            assertThat(node.setupNanos(), equalTo(FakeClient.SETUP_NANOS));
-            assertThat(node.requestNanos(), greaterThan(0L));
+        assertThat(lastStatus.requests().stream().map(FetchOperator.NodeRequest::node).toList(), containsInAnyOrder("n1", "n2"));
+        for (FetchOperator.NodeRequest request : lastStatus.requests()) {
+            assertThat(request.shards(), equalTo(request.node().equals("n1") ? 2 : 1));
+            assertThat(request.documents(), equalTo(request.node().equals("n1") ? 2 : 1));
+            assertThat(request.tookNanos(), equalTo(FakeClient.TOOK_NANOS));
+            assertThat(request.setupNanos(), equalTo(FakeClient.SETUP_NANOS));
+            assertThat(request.requestNanos(), greaterThan(0L));
         }
-        assertThat(lastStatus.waitNanos(), greaterThan(0L));
+        assertThat(lastStatus.processNanos(), greaterThan(0L));
         assertThat(lastStatus.planNanos(), greaterThan(0L));
         assertThat(lastStatus.gatherNanos(), greaterThan(0L));
     }
 
     public void testDescribe() {
         assertThat(
-            factory(new FakeClient(blockFactory()), true).describe(),
+            factory(new FakeClient(blockFactory())).describe(),
             equalTo("FetchOperator[docRefChannel=0, fetchedTypes=[BYTES_REF, LONG]]")
         );
     }
 
     /**
-     * Runs the cut through the operator and returns its output, waiting for the responses like a driver does.
+     * Runs the cut through the operator and returns its output, like a driver does: it adds a page while the operator
+     * takes one, waits while it is blocked, and finishes it after the last page.
      */
-    private List<Page> run(BlockFactory blockFactory, FakeClient client, boolean finalStage, List<List<Ref>> input) throws Exception {
+    private List<Page> run(BlockFactory blockFactory, FakeClient client, List<List<Ref>> input) throws Exception {
         DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
         List<Page> output = new ArrayList<>();
-        Operator operator = factory(client, finalStage).get(driverContext);
+        Operator operator = factory(client).get(driverContext);
         try {
-            for (List<Ref> refs : input) {
-                assertTrue(operator.needsInput());
-                operator.addInput(page(blockFactory, refs));
-            }
-            operator.finish();
-            assertFalse(operator.needsInput());
+            Iterator<List<Ref>> pages = input.iterator();
             while (operator.isFinished() == false) {
+                if (pages.hasNext() && operator.needsInput()) {
+                    operator.addInput(page(blockFactory, pages.next()));
+                    continue;
+                }
+                if (pages.hasNext() == false) {
+                    operator.finish();
+                }
                 IsBlockedResult blocked = operator.isBlocked();
                 if (blocked.listener().isDone() == false) {
                     PlainActionFuture<Void> unblocked = new PlainActionFuture<>();
@@ -334,8 +361,8 @@ public class FetchOperatorTests extends ComputeTestCase {
         responded.actionGet(TimeValue.timeValueSeconds(10));
     }
 
-    private static FetchOperator.Factory factory(FetchOperator.Client client, boolean finalStage) {
-        return new FetchOperator.Factory(0, FETCHED_TYPES, null, finalStage, client);
+    private static FetchOperator.Factory factory(FetchOperator.Client client) {
+        return new FetchOperator.Factory(0, FETCHED_TYPES, null, between(1, FetchOperator.MAX_OUTSTANDING_PAGES), client);
     }
 
     private record Ref(DocRefOrigin origin, int segment, int doc) {
@@ -348,7 +375,7 @@ public class FetchOperatorTests extends ComputeTestCase {
         }
     }
 
-    private record Request(String nodeId, List<FetchRequest.ShardDocs> shards, List<ShardSearchContextId> releaseAfter) {}
+    private record Request(String nodeId, List<FetchRequest.ShardDocs> shards) {}
 
     /**
      * Answers like a data node, on another thread.
@@ -367,9 +394,16 @@ public class FetchOperatorTests extends ComputeTestCase {
         private String shortNode;
         private boolean completeTwice;
         private CountDownLatch holdResponses;
+        /** Each node answers with this response header, its id as the value. */
+        private String responseHeader;
 
         FakeClient(BlockFactory blockFactory) {
             this.blockFactory = blockFactory;
+        }
+
+        @Override
+        public ThreadContext threadContext() {
+            return threadPool.getThreadContext();
         }
 
         @Override
@@ -383,17 +417,19 @@ public class FetchOperatorTests extends ComputeTestCase {
             String clusterAlias,
             List<FetchRequest.ShardDocs> shards,
             PhysicalPlan fetchPlan,
-            List<ShardSearchContextId> releaseAfter,
             ActionListener<FetchResponse> listener
         ) {
             if (node.getId().equals(throwingNode)) {
                 throw new IllegalStateException("can't send to [" + node.getId() + "]");
             }
-            requests.add(new Request(node.getId(), shards, releaseAfter));
+            requests.add(new Request(node.getId(), shards));
             threadPool.generic().execute(() -> {
                 try {
                     if (holdResponses != null) {
                         holdResponses.await(10, TimeUnit.SECONDS);
+                    }
+                    if (responseHeader != null) {
+                        threadPool.getThreadContext().addResponseHeader(responseHeader, node.getId());
                     }
                     if (node.getId().equals(failingNode)) {
                         listener.onFailure(new IllegalStateException("rejected by [" + node.getId() + "]"));

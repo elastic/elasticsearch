@@ -1339,17 +1339,24 @@ public final class StreamingParallelParsingCoordinator {
          * Same approach as ClickHouse / DuckDB / Spark.
          * <p>
          * The inference is held to the width of the schema the planner settled for this split, and
-         * {@link #readSchema} is where that schema is. The reader as the factory configured it carries the
-         * query's projection of it, which is empty when the optimizer pruned every column ({@code COUNT(*)}),
-         * so a reader asked for no column cannot tell a settled schema from none and would hold the file to
-         * {@code schema_max_fields} - refusing a file it reads under any other projection (esql-planning#2076).
-         * Resolving through a reader carrying the settled schema takes the width off the pin for every
-         * projection alike. The pin is all that is read, never where it came from.
+         * {@link #readSchema} is the only place that schema is. The reader as the factory configured it carries
+         * the query's <em>projection</em> of it ({@code FileSourceFactory} binds {@code context.attributes()}),
+         * which neither says a schema is settled nor says one is not: it is empty when the optimizer pruned
+         * every column ({@code COUNT(*)}) even though the planner settled one, and non-empty on a read with no
+         * pin at all, where the file's own schema is what this inference resolves. A reader left to read its own
+         * {@code resolvedSchema} therefore bounded the file by what the query asked for - refusing a file under
+         * {@code COUNT(*)} that it read under a {@code KEEP}, and admitting one up to the ceiling where the cap
+         * should have held it (esql-planning#2076).
+         * <p>
+         * So the width is taken off {@link #readSchema} in both directions: the settled schema when there is
+         * one, and nothing when there is not, which leaves the reader on {@code schema_max_fields} - correct,
+         * because then this inference is resolving the schema the read uses. The pin is all that is read, never
+         * where it came from and never what the query projected out of it.
          */
         private void bindInferredSchema(byte[] buffer, int length) throws IOException {
             ByteArrayStorageObject firstChunkObj = chunkStorageObject(0, buffer, 0, length);
             boolean settled = readSchema != null && readSchema.isEmpty() == false;
-            FormatReader resolving = settled ? reader.withSchema(readSchema) : reader;
+            FormatReader resolving = reader.withSchema(settled ? readSchema : null);
             SourceMetadata metadata = resolving.metadata(firstChunkObj);
             List<Attribute> schema = metadata == null ? null : metadata.schema();
             if (schema == null) {
@@ -1361,8 +1368,9 @@ public final class StreamingParallelParsingCoordinator {
             }
             if (bound instanceof SegmentableFormatReader segBound) {
                 // A settled schema lifted the width above schema_max_fields, so what was bound can be as wide as
-                // the file. Charge it. One derivation with the bound above, so the two cannot disagree: without a
-                // settled schema the cap bounds the inference already.
+                // the file. Charge it. Same condition as the bound above, read off the same field, so the charge
+                // cannot be skipped on a read the cap did not bound: without a settled schema the resolve runs on
+                // schema_max_fields and the cap bounds what is bound here already.
                 if (settled) {
                     long bytes = 0;
                     for (Attribute attribute : schema) {

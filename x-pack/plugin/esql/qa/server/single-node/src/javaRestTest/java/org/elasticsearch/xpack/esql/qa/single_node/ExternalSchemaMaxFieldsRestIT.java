@@ -293,7 +293,9 @@ public class ExternalSchemaMaxFieldsRestIT extends ESRestTestCase {
      * The same declared read of a gzipped file. A compressed file is read by the streaming parse coordinator, whose
      * resolve of the first chunk runs after the planner has settled the declared schema, so the file's own width must
      * not decide the read there either (esql-planning#2076). {@code COUNT(*)} runs first, with every column pruned and
-     * nothing warmed, which is the shape the resolve was bounded wrongly for.
+     * nothing warmed: the state in which the reader carries no schema of its own, so only the schema the planner
+     * settled can bound that resolve. The first-file-wins twin above is the case that was refused before the bound
+     * moved; this one guards the declared side of the same decision against a later change to how the pin travels.
      */
     public void testDeclaredSchemaOverWideGzippedFileIsRead() throws IOException {
         Map<String, Object> mappings = Map.of(

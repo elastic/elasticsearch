@@ -676,7 +676,11 @@ public class SplitSourceService {
 
         var indexMetadata = clusterService.state().metadata().projectFor(index).getIndexSafe(index);
         var reshardingMetadata = indexMetadata.getReshardingMetadata();
-        assert reshardingMetadata != null && reshardingMetadata.isSplit() : "Unexpected resharding state";
+        if (reshardingMetadata == null || reshardingMetadata.isSplit() == false) {
+            // The split was discarded while the source was preparing for handoff, e.g. by a restore over the index. Callers fail the
+            // handoff, which releases their permits.
+            throw new StaleSplitRequestException("%s split is no longer in progress", targetShardId);
+        }
         int sourceShardIndex = reshardingMetadata.getSplit().sourceShard(targetShardId.getId());
 
         return new ShardId(index, sourceShardIndex);

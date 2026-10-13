@@ -218,6 +218,24 @@ movies:
         name: movies
 
   - do:
+      indices.create:
+        index: esql-movie-logs-1
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              "@timestamp":
+                type: date
+              message:
+                type: text
+              kubernetes:
+                properties:
+                  pod:
+                    properties:
+                      name:
+                        type: text
+
+  - do:
       bulk:
         index: esql-movie-logs-1
         refresh: true

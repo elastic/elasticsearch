@@ -5,6 +5,24 @@
       reason: "fixes in 8.12 or later"
       test_runner_features: allowed_warnings_regex
   - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              emp_no:
+                type: long
+              ip1:
+                type: text
+                fields:
+                  keyword:
+                    type: keyword
+              ip2:
+                type: text
+                fields:
+                  keyword:
+                    type: keyword
+  - do:
       bulk:
         index: test
         refresh: true

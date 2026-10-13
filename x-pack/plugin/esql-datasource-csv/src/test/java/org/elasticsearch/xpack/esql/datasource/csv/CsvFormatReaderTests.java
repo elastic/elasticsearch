@@ -147,8 +147,9 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * The same cell with a trailing {@code Z}, which the {@code date_nanos} template now accepts; both types
-     * reach the template and agree about the instant, with no general parser needed.
+     * The same cell with a trailing {@code Z}. The {@code date_nanos} template strips the {@code Z} and reads the
+     * instant directly; the millisecond template refuses the suffix, so {@code date} reaches {@code DateUtils.asDateTime}.
+     * Both agree on the instant.
      */
     public void testCsvSpaceSeparatedTimestampWithZoneReadsAsBothTemporalTypes() throws Exception {
         String cell = "2021-01-01 10:00:00.123456789Z\n";

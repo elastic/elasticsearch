@@ -156,6 +156,7 @@ import org.elasticsearch.xpack.stateless.cache.EvictionPolicyFactory;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeoutCalculationService;
+import org.elasticsearch.xpack.stateless.cache.ShardWarmVolumes;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
@@ -856,10 +857,20 @@ public class StatelessPlugin extends Plugin
             ? warmingRatioProviderFactoryRef.get()
             : new DefaultWarmingRatioProviderFactory();
         final WarmingRatioProvider warmingRatioProvider = warmingRatioProviderFactory.create(clusterService.getClusterSettings());
+        components.add(new PluginComponentBinding<>(WarmingRatioProvider.class, warmingRatioProvider));
+        final ShardWarmVolumes warmVolumes;
+        if (hasSearchRole) {
+            warmVolumes = new ShardWarmVolumes(clusterService.getClusterSettings());
+            clusterService.addListener(warmVolumes);
+        } else {
+            warmVolumes = ShardWarmVolumes.NOOP;
+        }
         final var searchRecoveryTimeoutCalculationService = new SearchRecoveryTimeoutCalculationService(
             cacheService,
             threadPool,
-            clusterService.getClusterSettings()
+            clusterService.getClusterSettings(),
+            warmVolumes,
+            services.telemetryProvider()
         );
         components.add(searchRecoveryTimeoutCalculationService);
         var cacheWarmingService = createSharedBlobCacheWarmingService(
@@ -1148,7 +1159,9 @@ public class StatelessPlugin extends Plugin
                     client,
                     shardInformationMetricsCollector,
                     clusterService.getClusterSettings(),
-                    threadPool.relativeTimeInMillisSupplier()
+                    threadPool.relativeTimeInMillisSupplier(),
+                    clusterService,
+                    warmVolumes
                 )
             );
             final var shuttingDown = setAndGet(isNodeShuttingDown, new AtomicBoolean());
@@ -1503,6 +1516,7 @@ public class StatelessPlugin extends Plugin
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_CACHE_RATIO_SETTING,
+            SearchRecoveryTimeoutCalculationService.SEARCH_OFFLINE_WARMING_WARM_VOLUMES_ENABLED_SETTING,
             AutoCreateAction.AUTO_CREATE_INDEX_PRIORITY_SETTING,
             AutoCreateAction.AUTO_CREATE_INDEX_MAX_TIMEOUT_SETTING,
             MetadataCreateIndexService.CREATE_INDEX_PRIORITY_SETTING,

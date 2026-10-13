@@ -42,18 +42,26 @@ import java.util.regex.Pattern;
  * to a guard, which is the {@code planConfig(onTheWire)} transform shape. Resolution before name, because
  * {@code splitConfig()} is a leak and {@code planConfig(onTheWire)} is not.
  * <p>
- * <b>What it does not cover.</b> Not the design's intended omissions - what an external probe actually got past
- * it, so the next reader does not trust the paragraph above instead:
+ * <b>What it does not cover, as a LOWER BOUND.</b> Three rounds of adversarial probing have each presented this
+ * list as closed and each found a shape it had missed, so it is not closed now either: these are the leaks known
+ * to be reported as guarded, and a probe is the only thing that has ever found a new one.
  * <ul>
  *   <li>a resolved local MUTATED after assignment, since {@code onTheWire.putAll(config)} is not an assignment;</li>
+ *   <li>a field aliased to ITSELF through a local - {@code Map&lt;String, Object&gt; rawConfig = this.rawConfig;}
+ *       is a real assignment, so the name counts as resolved though it resolved to itself. Probed and confirmed
+ *       still open; it is listed rather than asserted, because a case asserting the wrong answer is worse than
+ *       a gap written down;</li>
  *   <li>an alias not named config and assigned outside the method body, a constructor say;</li>
- *   <li>a guard or leak more than one hop away;</li>
+ *   <li>a guard or leak more than two hops away - resolution goes one hop, and the name rule one further;</li>
+ *   <li>a write whose expression names nothing containing "config", such as {@code Splits.wireMap(this)}, which
+ *       is skipped rather than judged;</li>
+ *   <li>a guard called on the wrong receiver: {@code Other.wireConfig(config)} counts as the guard;</li>
  *   <li>a write outside {@link #GENERIC_WRITE}, or through a receiver not named {@code out};</li>
  *   <li>a wire method whose {@code StreamOutput} is not its first parameter;</li>
  *   <li>any source root outside the esql plugin and the {@code esql-datasource-*} modules.</li>
  * </ul>
- * The first two are leaks reported as guarded, so a green census is evidence about the shapes
- * {@link #testWhatTheCensusDecides} pins and nothing more.
+ * The first two are leaks reported as guarded. So a green census is evidence about the shapes
+ * {@link #testWhatTheCensusDecides} pins, and about nothing else - least of all about a shape nobody has tried.
  */
 public class ConfigWireBoundaryCensusTests extends ESTestCase {
 
@@ -123,21 +131,24 @@ public class ConfigWireBoundaryCensusTests extends ESTestCase {
      */
     private static void censusOf(String source, String site, List<String> guarded, List<String> unguarded) {
         String stripped = COMMENTS.matcher(source).replaceAll(" ");
-        Matcher write = GENERIC_WRITE.matcher(source);
+        Matcher write = GENERIC_WRITE.matcher(stripped);
         while (write.find()) {
-            int signature = source.lastIndexOf("(StreamOutput ", write.start());
+            int signature = stripped.lastIndexOf("(StreamOutput ", write.start());
             if (signature < 0) {
                 continue; // nothing takes a StreamOutput above this, so it is not a wire boundary
             }
             // What is WRITTEN decides this, not whether the word appears in the method - which also matched an
             // unrelated `configuration` parameter, as DataNodeRequest's alias filters did.
-            String body = COMMENTS.matcher(source.substring(signature, write.start())).replaceAll(" ");
-            String written = COMMENTS.matcher(argumentOf(source, write.end() - 1)).replaceAll(" ");
+            String body = stripped.substring(signature, write.start());
+            String written = argumentOf(stripped, write.end() - 1);
             String effective = written + " " + oneHopBehind(body, stripped, written);
             if (effective.toLowerCase(Locale.ROOT).contains("config") == false) {
                 continue; // this write carries something else
             }
+            // The name rule is asked of the resolution text as well, not only of what is written: assigning an
+            // unresolvable accessor to a local hid it at hop 0 and then again at hop 1.
             Set<String> unresolved = unresolvedConfigNames(body, stripped, written);
+            unresolved.addAll(unresolvedConfigNames(body, stripped, oneHopBehind(body, stripped, written)));
             // Guarded means nothing survives span removal. Asking only whether the text appears would pass a
             // conditional wrapping one arm and not the other, and the raw arm can be the live one.
             (unwrappedConfigReference(effective, unresolved) ? unguarded : guarded).add(site);
@@ -197,25 +208,24 @@ public class ConfigWireBoundaryCensusTests extends ESTestCase {
         Matcher declaration = Pattern.compile(
             "[A-Za-z_$][\\w.$<>\\[\\], ]*\\s" + Pattern.quote(methodName) + "\\s*\\([^)]*\\)\\s*(?:throws [^{]*)?\\{"
         ).matcher(fileSource);
-        if (declaration.find() == false) {
-            return "";
-        }
-        int open = fileSource.indexOf('{', declaration.end() - 1);
-        int depth = 0;
-        int close = fileSource.length();
-        for (int i = open; i < fileSource.length(); i++) {
-            char ch = fileSource.charAt(i);
-            if (ch == '{') {
-                depth++;
-            } else if (ch == '}' && --depth == 0) {
-                close = i;
-                break;
-            }
-        }
         StringBuilder found = new StringBuilder();
-        Matcher returned = Pattern.compile("\\breturn\\s+([^;]*);").matcher(fileSource.substring(open, close));
-        while (returned.find()) {
-            found.append(returned.group(1)).append(' ');
+        while (declaration.find()) {
+            int open = fileSource.indexOf('{', declaration.end() - 1);
+            int depth = 0;
+            int close = fileSource.length();
+            for (int i = open; i < fileSource.length(); i++) {
+                char ch = fileSource.charAt(i);
+                if (ch == '{') {
+                    depth++;
+                } else if (ch == '}' && --depth == 0) {
+                    close = i;
+                    break;
+                }
+            }
+            Matcher returned = Pattern.compile("\\breturn\\s+([^;]*);").matcher(fileSource.substring(open, close));
+            while (returned.find()) {
+                found.append(returned.group(1)).append(' ');
+            }
         }
         return found.toString();
     }
@@ -225,15 +235,6 @@ public class ConfigWireBoundaryCensusTests extends ESTestCase {
         return identifier.toLowerCase(Locale.ROOT).contains("config");
     }
 
-    /**
-     * The config-named identifiers that resolved to NOTHING - no assignment in the method, no {@code return} in a
-     * same-file method of that name - so whatever each stands for is written where this scan cannot see it.
-     * Counting the unseeable as guarded let two probed shapes through.
-     * <p>
-     * Which of them matters is decided after the {@code wireConfig(...)} spans are removed, not here: the raw
-     * field is unresolved at every site including the wrapped ones, and deciding before removal reported all three
-     * live boundaries unguarded.
-     */
     /**
      * Where a call to {@code wireConfig} starts, or -1. On a word boundary: a plain substring search erased
      * {@code rewireConfig(config)} as though it were the guard.
@@ -261,6 +262,15 @@ public class ConfigWireBoundaryCensusTests extends ESTestCase {
         return guardCallAt(argument + " " + oneHopBehind(body, fileSource, argument)) >= 0;
     }
 
+    /**
+     * The config-named identifiers that resolved to NOTHING - no assignment in the method, no {@code return} in a
+     * same-file method of that name - so whatever each stands for is written where this scan cannot see it.
+     * Counting the unseeable as guarded let two probed shapes through.
+     * <p>
+     * Which of them matters is decided after the {@code wireConfig(...)} spans are removed, not here: the raw
+     * field is unresolved at every site including the wrapped ones, and deciding before removal reported all three
+     * live boundaries unguarded.
+     */
     private static Set<String> unresolvedConfigNames(String body, String fileSource, String expression) {
         Set<String> unresolved = new HashSet<>();
         Matcher name = Pattern.compile("[A-Za-z_$][A-Za-z0-9_$]*").matcher(expression);
@@ -272,7 +282,9 @@ public class ConfigWireBoundaryCensusTests extends ESTestCase {
             if (callArgumentResolvesToAGuard(body, fileSource, expression, identifier)) {
                 continue; // its argument IS the already-stripped map: the transform shape, not a leak
             }
-            boolean assigned = Pattern.compile("\\b" + Pattern.quote(identifier) + "\\s*=\\s*[^;]*;").matcher(body).find();
+            // =(?!=) so that a `NAME == null` guard clause is not read as an assignment, which resolved the field
+            // it was guarding.
+            boolean assigned = Pattern.compile("\\b" + Pattern.quote(identifier) + "\\s*=(?!=)\\s*[^;]*;").matcher(body).find();
             if (assigned == false && returnsOf(fileSource, identifier).isEmpty()) {
                 unresolved.add(identifier);
             }
@@ -369,6 +381,31 @@ public class ConfigWireBoundaryCensusTests extends ESTestCase {
                 + "        return config;\n    }\n"
         );
         assertUnguarded("a call whose name ends in the guard's", "        out.writeGenericMap(rewireConfig(config));");
+        // An unresolvable accessor assigned to a local first. The name rule saw it at hop 0 and then missed it at
+        // hop 1, so it is now asked of the resolution text too.
+        assertUnguarded(
+            "an accessor declared elsewhere, through a local",
+            "        Map<String, Object> m = getConfig();\n        out.writeGenericMap(m);"
+        );
+        assertUnguarded(
+            "a cross-file helper, through a local",
+            "        Map<String, Object> m = Splits.splitConfig(this);\n        out.writeGenericMap(m);"
+        );
+        // A `== null` guard clause read as an assignment marked the field it guarded resolved.
+        assertUnguarded(
+            "a field guarded by an equality test",
+            "        if (rawConfig == null) {\n            throw new IllegalStateException();\n        }\n"
+                + "        out.writeGenericMap(rawConfig);",
+            "    private Map<String, Object> rawConfig;\n"
+        );
+        // Overloads: the clean one is declared first, so reading only the first declaration passed the leak.
+        assertUnguarded(
+            "an overload whose other declaration leaks",
+            "        out.writeGenericMap(splitConfig());",
+            "    private Map<String, Object> splitConfig(int n) {\n"
+                + "        return ExternalSourceResolver.wireConfig(config);\n    }\n"
+                + "    private Map<String, Object> splitConfig() {\n        return config;\n    }\n"
+        );
     }
 
     /**

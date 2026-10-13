@@ -709,14 +709,14 @@ public class DefinitionVersionTests extends ESTestCase {
         return names;
     }
 
+    /** A run of annotations, each optionally parenthesised, as they may appear before or after the modifiers. */
+    private static final String ANNOTATIONS = "(?:@\\w+(?:\\([^)]*\\))?\\s+)*";
+
     /**
      * The parser, separated from the file it reads so {@link #testTheFieldScannerSeesEveryDeclarationShape} can hold it to a
      * fixture. It was wrong once - splitting a record header on every comma tore {@code Map<String, V>} in half -
      * and a scanner that silently finds the wrong set makes the census above pass while checking nothing.
      */
-    /** A run of annotations, each optionally parenthesised, as they may appear before or after the modifiers. */
-    private static final String ANNOTATIONS = "(?:@\\w+(?:\\([^)]*\\))?\\s+)*";
-
     static Set<String> declaredFieldsIn(String source) {
         Set<String> names = new TreeSet<>();
         // {4,} not {4}: a field declared on a NESTED type is indented deeper. The declaration may end at an

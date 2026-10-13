@@ -85,13 +85,31 @@ public class EsqlFlags {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Cap on the columns all {@code FILLNULL} commands of a query fill, counting each FORK branch and view reference that runs one; an IN
+     * subquery runs as a query of its own with its own cap. Each filled column is an operator copying the page's block array, a cost no
+     * breaker tracks that grows with columns times page width, and consecutive FILLNULLs chain into one pipeline, so they add up.
+     */
+    // Operator-only where operator privileges are enabled (Cloud, Serverless) while FILLNULL is snapshot-only; make it Dynamic once
+    // FILLNULL ships.
+    public static final Setting<Integer> ESQL_MAX_FILLNULL_FIELDS = Setting.intSetting(
+        "esql.query.max_fillnull_fields",
+        // the default of index.mapping.total_fields.limit; HeapAttackFillNullSweepIT measures the cost
+        1000,
+        1,
+        100_000,
+        Setting.Property.NodeScope,
+        Setting.Property.OperatorDynamic
+    );
+
     // this is only used for testing purposes right now
     public static List<Setting<?>> ALL_ESQL_FLAGS_SETTINGS = List.of(
         ESQL_STRING_LIKE_ON_INDEX,
         ESQL_ROUNDTO_PUSHDOWN_THRESHOLD,
         ESQL_REMOTE_FETCH_TOPN,
         ESQL_MAX_BRANCH_COUNT,
-        ESQL_MAX_BRANCH_LEVEL
+        ESQL_MAX_BRANCH_LEVEL,
+        ESQL_MAX_FILLNULL_FIELDS
     );
 
     /**
@@ -103,7 +121,8 @@ public class EsqlFlags {
         ESQL_ROUNDTO_PUSHDOWN_THRESHOLD.getDefault(Settings.EMPTY),
         ESQL_REMOTE_FETCH_TOPN.getDefault(Settings.EMPTY),
         ESQL_MAX_BRANCH_COUNT.getDefault(Settings.EMPTY),
-        ESQL_MAX_BRANCH_LEVEL.getDefault(Settings.EMPTY)
+        ESQL_MAX_BRANCH_LEVEL.getDefault(Settings.EMPTY),
+        ESQL_MAX_FILLNULL_FIELDS.getDefault(Settings.EMPTY)
     );
 
     private final boolean stringLikeOnIndex;
@@ -115,6 +134,8 @@ public class EsqlFlags {
     private final int maxBranchCount;
 
     private final int maxBranchLevel;
+
+    private final int maxFillNullFields;
 
     /**
      * Constructor for tests.
@@ -154,7 +175,8 @@ public class EsqlFlags {
             roundToPushdownThreshold,
             remoteFetchTopN,
             ESQL_MAX_BRANCH_COUNT.getDefault(Settings.EMPTY),
-            ESQL_MAX_BRANCH_LEVEL.getDefault(Settings.EMPTY)
+            ESQL_MAX_BRANCH_LEVEL.getDefault(Settings.EMPTY),
+            ESQL_MAX_FILLNULL_FIELDS.getDefault(Settings.EMPTY)
         );
     }
 
@@ -174,7 +196,22 @@ public class EsqlFlags {
             ESQL_ROUNDTO_PUSHDOWN_THRESHOLD.getDefault(Settings.EMPTY),
             ESQL_REMOTE_FETCH_TOPN.getDefault(Settings.EMPTY),
             maxBranchCount,
-            maxBranchLevel
+            maxBranchLevel,
+            ESQL_MAX_FILLNULL_FIELDS.getDefault(Settings.EMPTY)
+        );
+    }
+
+    /**
+     * Test helper that leaves the other flags at their defaults.
+     */
+    public static EsqlFlags withMaxFillNullFields(int maxFillNullFields) {
+        return new EsqlFlags(
+            ESQL_STRING_LIKE_ON_INDEX.getDefault(Settings.EMPTY),
+            ESQL_ROUNDTO_PUSHDOWN_THRESHOLD.getDefault(Settings.EMPTY),
+            ESQL_REMOTE_FETCH_TOPN.getDefault(Settings.EMPTY),
+            ESQL_MAX_BRANCH_COUNT.getDefault(Settings.EMPTY),
+            ESQL_MAX_BRANCH_LEVEL.getDefault(Settings.EMPTY),
+            maxFillNullFields
         );
     }
 
@@ -183,13 +220,15 @@ public class EsqlFlags {
         int roundToPushdownThreshold,
         boolean remoteFetchTopN,
         int maxBranchCount,
-        int maxBranchLevel
+        int maxBranchLevel,
+        int maxFillNullFields
     ) {
         this.stringLikeOnIndex = stringLikeOnIndex;
         this.roundToPushdownThreshold = roundToPushdownThreshold;
         this.remoteFetchTopN = remoteFetchTopN;
         this.maxBranchCount = maxBranchCount;
         this.maxBranchLevel = maxBranchLevel;
+        this.maxFillNullFields = maxFillNullFields;
     }
 
     public EsqlFlags(ClusterSettings settings) {
@@ -198,7 +237,8 @@ public class EsqlFlags {
             settings.get(ESQL_ROUNDTO_PUSHDOWN_THRESHOLD),
             settings.get(ESQL_REMOTE_FETCH_TOPN),
             settings.get(ESQL_MAX_BRANCH_COUNT),
-            settings.get(ESQL_MAX_BRANCH_LEVEL)
+            settings.get(ESQL_MAX_BRANCH_LEVEL),
+            settings.get(ESQL_MAX_FILLNULL_FIELDS)
         );
     }
 
@@ -230,6 +270,10 @@ public class EsqlFlags {
         return maxBranchLevel;
     }
 
+    public int maxFillNullFields() {
+        return maxFillNullFields;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -239,12 +283,20 @@ public class EsqlFlags {
             && roundToPushdownThreshold == that.roundToPushdownThreshold
             && remoteFetchTopN == that.remoteFetchTopN
             && maxBranchCount == that.maxBranchCount
-            && maxBranchLevel == that.maxBranchLevel;
+            && maxBranchLevel == that.maxBranchLevel
+            && maxFillNullFields == that.maxFillNullFields;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(stringLikeOnIndex, roundToPushdownThreshold, remoteFetchTopN, maxBranchCount, maxBranchLevel);
+        return Objects.hash(
+            stringLikeOnIndex,
+            roundToPushdownThreshold,
+            remoteFetchTopN,
+            maxBranchCount,
+            maxBranchLevel,
+            maxFillNullFields
+        );
     }
 
     @Override
@@ -259,6 +311,8 @@ public class EsqlFlags {
             + maxBranchCount
             + ", maxBranchLevel="
             + maxBranchLevel
+            + ", maxFillNullFields="
+            + maxFillNullFields
             + ']';
     }
 }

@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -112,6 +113,7 @@ public class TestAnalyzer {
     private ExternalSourceResolution externalSourceResolution = ExternalSourceResolution.EMPTY;
     private boolean stripErrorPrefix;
     private Map<String, String> views = new LinkedHashMap<>();
+    private EsqlFlags flags = EsqlFlags.DEFAULTS;
 
     TestAnalyzer() {}
 
@@ -125,6 +127,14 @@ public class TestAnalyzer {
 
     protected Configuration configuration() {
         return configuration;
+    }
+
+    /**
+     * Set the cluster-level {@link EsqlFlags}, for example to lower a query-wide limit the analyzer enforces.
+     */
+    public TestAnalyzer flags(EsqlFlags flags) {
+        this.flags = flags;
+        return this;
     }
 
     /**
@@ -1000,7 +1010,8 @@ public class TestAnalyzer {
             unmappedResolution,
             timestampBounds,
             TEST_IP_LOCATION_RESOLUTION,
-            false
+            false,
+            flags
         );
     }
 

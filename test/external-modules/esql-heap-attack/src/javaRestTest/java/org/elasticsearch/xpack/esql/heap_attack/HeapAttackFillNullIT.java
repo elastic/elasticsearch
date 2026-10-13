@@ -10,21 +10,25 @@ package org.elasticsearch.xpack.esql.heap_attack;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.lucene.tests.util.TimeUnits;
+import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
- * Checks that {@code FILLNULL <value> ON *} stays correct and releases every block when it expands into a thousand
- * {@code COALESCE}s. There is no "too many columns" case: the cost that grows fastest, one operator per column each
- * copying the page's block array, is not tracked by any circuit breaker, so a very wide {@code FILLNULL} slows down
- * quadratically instead of failing (see {@link HeapAttackFillNullSweepIT}).
+ * Checks that {@code FILLNULL <value> ON *} stays correct and releases every block when it expands into a thousand {@code COALESCE}s,
+ * and that one wider than {@code esql.query.max_fillnull_fields} is rejected instead of slowing down quadratically
+ * (see {@link HeapAttackFillNullSweepIT}).
  */
 @TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
 public class HeapAttackFillNullIT extends HeapAttackFillNullTestCase {
@@ -38,6 +42,7 @@ public class HeapAttackFillNullIT extends HeapAttackFillNullTestCase {
         int fields = 1000;
         int docs = 100;
         initWideIndex(fields, docs, Shape.ALL_NULL);
+        allowFillNullOnAll(fields);
         assertFilled(fields, docs, Shape.ALL_NULL);
     }
 
@@ -50,7 +55,41 @@ public class HeapAttackFillNullIT extends HeapAttackFillNullTestCase {
         int fields = 500;
         int docs = 100;
         initWideIndex(fields, docs, Shape.MIXED_NULL);
+        allowFillNullOnAll(fields);
         assertFilled(fields, docs, Shape.MIXED_NULL);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testFillNullAtDefaultFieldLimit() throws IOException {
+        int limit = EsqlFlags.ESQL_MAX_FILLNULL_FIELDS.getDefault(Settings.EMPTY);
+        int docs = 100;
+        initWideIndex(limit, docs, Shape.ALL_NULL);
+
+        ResponseException e = expectThrows(ResponseException.class, () -> query(wideQuery(true, docs, false), "error"));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        Map<String, Object> error = (Map<String, Object>) responseAsMap(e.getResponse()).get("error");
+        assertThat(error.get("type"), equalTo("verification_exception"));
+        assertThat(
+            (String) error.get("reason"),
+            allOf(
+                containsString("FILLNULL would fill " + (limit + 1) + " columns"),
+                containsString("exceeding the limit of " + limit + " set by the [esql.query.max_fillnull_fields] cluster setting")
+            )
+        );
+
+        String fillAllButSortKey = sortedFillNullQuery("f*", fieldName(0), docs, false);
+        Map<String, Object> response = responseAsMap(query(fillAllButSortKey, "columns,values"));
+        List<Map<String, Object>> columns = (List<Map<String, Object>>) response.get("columns");
+        assertThat(columns, hasSize(limit + 1));
+        List<List<Object>> values = (List<List<Object>>) response.get("values");
+        assertThat(values, hasSize(docs));
+        for (List<Object> row : values) {
+            for (int c = 0; c < columns.size(); c++) {
+                if ("sort_key".equals(columns.get(c).get("name")) == false) {
+                    assertThat(((Number) row.get(c)).longValue(), equalTo(0L));
+                }
+            }
+        }
     }
 
     @SuppressWarnings("unchecked")

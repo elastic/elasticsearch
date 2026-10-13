@@ -34,7 +34,10 @@ import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityM
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.hamcrest.Matcher;
 
 import java.util.LinkedHashMap;
@@ -75,6 +78,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
@@ -3880,6 +3884,137 @@ public class VerifierTests extends AnalyzerTestCase {
     public void testFillNullOverlappingFieldsAreDeduped() {
         assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         defaultAnalyzer().query("FROM test | FILLNULL DEFAULT ON emp_no, salary, emp_no, salary");
+    }
+
+    public void testFillNullFieldLimit() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        String query = "FROM test | FILLNULL 0 ON *";
+        int filled = filledColumns(defaultAnalyzer().query(query));
+        assertThat(filled, greaterThan(1));
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(filled)).query(query);
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(filled - 1))
+            .error(
+                query,
+                equalTo(
+                    "1:13: "
+                        + fillNullLimitError(filled, filled - 1)
+                        + " Name only the columns that need filling instead of matching them with [*] or a pattern, or narrow the input"
+                        + " with KEEP or DROP before the FILLNULL."
+                )
+            );
+    }
+
+    public void testFillNullFieldLimitCountsOnlyFilledColumns() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        String query = "FROM test | FILLNULL 0 ON emp_no, first_name, salary";
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(2)).query(query);
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(1)).error(query, containsString("1:13: " + fillNullLimitError(2, 1)));
+    }
+
+    public void testFillNullFieldLimitIgnoresCommandsThatFillNothing() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(1)).query("FROM test | FILLNULL NULL ON *");
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(1)).query("FROM test | FILLNULL 0 ON first_name, last_name, gender");
+    }
+
+    public void testFillNullFieldLimitCountsEveryPatternMatch() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        String query = "FROM test | FILLNULL 0 ON languages*";
+        int filled = filledColumns(defaultAnalyzer().query(query));
+        assertThat(filled, greaterThan(1));
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(filled)).query(query);
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(filled - 1))
+            .error(query, containsString(fillNullLimitError(filled, filled - 1)));
+    }
+
+    public void testFillNullFieldLimitCountsColumnsBeforeTheyArePruned() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(2)).query("FROM test | KEEP emp_no, salary | FILLNULL 0 ON *");
+        String keepAfter = "FROM test | FILLNULL 0 ON * | KEEP emp_no";
+        int filled = filledColumns(defaultAnalyzer().query(keepAfter));
+        assertThat(filled, greaterThan(2));
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(2)).error(keepAfter, containsString(fillNullLimitError(filled, 2)));
+    }
+
+    public void testFillNullFieldLimitIsQueryWide() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        String query = "FROM test | FILLNULL 0 ON emp_no, salary | FILLNULL 1 ON languages";
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(3)).query(query);
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(2)).error(query, containsString("1:44: " + fillNullLimitError(3, 2)));
+    }
+
+    public void testFillNullFieldLimitCountsEachFillOfTheSameColumn() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        String query = "FROM test | FILLNULL 0 ON emp_no | FILLNULL 1 ON emp_no";
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(2)).query(query);
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(1)).error(query, containsString("1:36: " + fillNullLimitError(2, 1)));
+    }
+
+    public void testFillNullFieldLimitCountsCommandBeforeForkInEveryBranch() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        String query = "FROM test | FILLNULL 0 ON emp_no, salary | FORK (WHERE emp_no > 1) (WHERE emp_no < 1)";
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(4)).query(query);
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(3)).error(query, containsString(fillNullLimitError(4, 3)));
+    }
+
+    public void testFillNullFieldLimitCountsCommandAfterForkOnce() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        String query = "FROM test | FORK (WHERE emp_no > 1) (WHERE emp_no < 1) | FILLNULL 0 ON emp_no, salary";
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(2)).query(query);
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(1)).error(query, containsString("1:58: " + fillNullLimitError(2, 1)));
+    }
+
+    public void testFillNullFieldLimitAddsUpForkBranches() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        String query = "FROM test | FORK (FILLNULL 0 ON emp_no, salary) (FILLNULL 0 ON languages)";
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(3)).query(query);
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(2)).error(query, containsString(fillNullLimitError(3, 2)));
+    }
+
+    public void testFillNullFieldLimitCapsInSubqueryOnItsOwn() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        assumeTrue("requires IN subqueries", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        String query = "FROM test | WHERE emp_no IN (FROM test | FILLNULL 0 ON emp_no, salary | KEEP emp_no) | FILLNULL 0 ON languages";
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(2)).query(query);
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(1)).error(query, containsString("1:42: " + fillNullLimitError(2, 1)));
+    }
+
+    public void testFillNullFieldLimitCapsNestedInSubqueriesOnTheirOwn() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        assumeTrue("requires IN subqueries", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        String query = "FROM test | WHERE emp_no IN (FROM test | WHERE salary IN (FROM test | FILLNULL 0 ON emp_no, salary, languages"
+            + " | KEEP salary) | FILLNULL 0 ON emp_no, salary | KEEP emp_no) | FILLNULL 0 ON languages";
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(3)).query(query);
+        defaultAnalyzer().flags(EsqlFlags.withMaxFillNullFields(2)).error(query, containsString(fillNullLimitError(3, 2)));
+    }
+
+    public void testFillNullFieldLimitCountsView() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        String query = "FROM v | FILLNULL 0 ON languages";
+        TestAnalyzer analyzer = defaultAnalyzer().addView("v", "FROM test | FILLNULL 0 ON emp_no, salary");
+        analyzer.flags(EsqlFlags.withMaxFillNullFields(3)).query(query);
+        analyzer.flags(EsqlFlags.withMaxFillNullFields(2)).error(query, containsString(fillNullLimitError(3, 2)));
+    }
+
+    public void testFillNullFieldLimitCountsEveryViewReference() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        assumeTrue("requires subqueries in FROM", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        String query = "FROM (FROM v | WHERE emp_no > 1), (FROM v | WHERE emp_no < 1)";
+        TestAnalyzer analyzer = defaultAnalyzer().addView("v", "FROM test | FILLNULL 0 ON emp_no, salary");
+        analyzer.flags(EsqlFlags.withMaxFillNullFields(4)).query(query);
+        analyzer.flags(EsqlFlags.withMaxFillNullFields(3)).error(query, containsString(fillNullLimitError(4, 3)));
+    }
+
+    private static int filledColumns(LogicalPlan plan) {
+        return plan.collect(FillNull.class).stream().mapToInt(fillNull -> fillNull.fields().size()).sum();
+    }
+
+    private static String fillNullLimitError(int filled, int limit) {
+        return "FILLNULL would fill "
+            + filled
+            + " columns in this query, counting each FORK branch and view reference that runs one, exceeding the limit of "
+            + limit
+            + " set by the [esql.query.max_fillnull_fields] cluster setting.";
     }
 
     public void testFillNullOnNullTypedColumnPassesVerification() {

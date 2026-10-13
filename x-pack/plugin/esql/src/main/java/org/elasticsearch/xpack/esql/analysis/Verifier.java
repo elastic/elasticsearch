@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
@@ -71,6 +72,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.FieldNameUtils;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
@@ -154,6 +156,7 @@ public class Verifier {
         checkTStepIncompatibleWithTRange(plan, failures);
         checkTimeSeriesCollapseSupported(plan, failures, context.minimumVersion());
         checkHighlightSupported(plan, failures, context.minimumVersion());
+        checkFillNullFieldCount(plan, failures, context.flags().maxFillNullFields());
 
         // collect plan checkers
         Consumer<String> warnings = context.deferredHeaderWarnings()::add;
@@ -193,6 +196,54 @@ public class Verifier {
         }
 
         return failures.failures();
+    }
+
+    /**
+     * Rejects a query whose {@code FILLNULL} commands fill more columns than {@link EsqlFlags#ESQL_MAX_FILLNULL_FIELDS} allows. It must run
+     * before optimization rewrites each FILLNULL into a Project over an Eval. Columns a command cannot fill do not count.
+     */
+    private static void checkFillNullFieldCount(LogicalPlan plan, Failures failures, int maxFields) {
+        Holder<Long> total = new Holder<>(0L);
+        Holder<FillNull> overflowing = new Holder<>();
+        countFillNullFields(plan, failures, maxFields, total, overflowing);
+        if (overflowing.get() != null) {
+            failures.add(
+                fail(
+                    overflowing.get(),
+                    "FILLNULL would fill {} columns in this query, counting each FORK branch and view reference that runs one, exceeding"
+                        + " the limit of {} set by the [{}] cluster setting. Name only the columns that need filling instead of matching"
+                        + " them with [*] or a pattern, or narrow the input with KEEP or DROP before the FILLNULL.",
+                    total.get(),
+                    maxFields,
+                    EsqlFlags.ESQL_MAX_FILLNULL_FIELDS.getKey()
+                )
+            );
+        }
+    }
+
+    // Children first, so the failure points at the first-written command that crosses the cap. An IN subquery runs as a query of its
+    // own, so it gets a cap of its own, as UnionAll#checkNestedSubqueryLimits does for branches.
+    private static void countFillNullFields(
+        LogicalPlan plan,
+        Failures failures,
+        int maxFields,
+        Holder<Long> total,
+        Holder<FillNull> overflowing
+    ) {
+        if (plan instanceof AbstractSubqueryJoin subqueryJoin) {
+            countFillNullFields(subqueryJoin.left(), failures, maxFields, total, overflowing);
+            checkFillNullFieldCount(subqueryJoin.right(), failures, maxFields);
+            return;
+        }
+        for (LogicalPlan child : plan.children()) {
+            countFillNullFields(child, failures, maxFields, total, overflowing);
+        }
+        if (plan instanceof FillNull fillNull && fillNull.fields() != null) {
+            total.set(total.get() + fillNull.fields().size());
+            if (total.get() > maxFields) {
+                overflowing.setIfAbsent(fillNull);
+            }
+        }
     }
 
     /** Fails fast with a 4xx so older recipients never see the node and 5xx on deserialization. */

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 
@@ -51,6 +52,7 @@ public class AnalyzerContext {
     private final TimestampBounds timestampBounds;
     private final IpLocationResolution ipLocationResolution;
     private final boolean preserveViewBoundaries;
+    private final EsqlFlags flags;
 
     public AnalyzerContext(
         Configuration configuration,
@@ -68,7 +70,8 @@ public class AnalyzerContext {
         UnmappedResolution unmappedResolution,
         @Nullable TimestampBounds timestampBounds,
         IpLocationResolution ipLocationResolution,
-        boolean preserveViewBoundaries
+        boolean preserveViewBoundaries,
+        EsqlFlags flags
     ) {
         this.configuration = configuration;
         this.functionRegistry = functionRegistry;
@@ -86,8 +89,10 @@ public class AnalyzerContext {
         this.timestampBounds = timestampBounds;
         this.ipLocationResolution = ipLocationResolution;
         this.preserveViewBoundaries = preserveViewBoundaries;
+        this.flags = flags;
 
         assert minimumVersion != null : "AnalyzerContext must have a minimum transport version";
+        assert flags != null : "AnalyzerContext must have flags";
         assert TransportVersion.current().supports(minimumVersion)
             : "AnalyzerContext [" + minimumVersion + "] is not on or before current transport version [" + TransportVersion.current() + "]";
     }
@@ -121,12 +126,17 @@ public class AnalyzerContext {
             unmappedResolution,
             null,
             IpLocationResolution.SERVICE_UNAVAILABLE,
-            false
+            false,
+            EsqlFlags.DEFAULTS
         );
     }
 
     public Configuration configuration() {
         return configuration;
+    }
+
+    public EsqlFlags flags() {
+        return flags;
     }
 
     public EsqlFunctionRegistry functionRegistry() {
@@ -257,7 +267,8 @@ public class AnalyzerContext {
         EsqlSession.PreAnalysisResult result,
         @Nullable TimestampBounds timestampBounds,
         IpLocationResolution ipLocationResolution,
-        boolean preserveViewBoundaries
+        boolean preserveViewBoundaries,
+        EsqlFlags flags
     ) {
         this(
             configuration,
@@ -275,7 +286,8 @@ public class AnalyzerContext {
             unmappedResolution,
             timestampBounds,
             ipLocationResolution,
-            preserveViewBoundaries
+            preserveViewBoundaries,
+            flags
         );
     }
 }

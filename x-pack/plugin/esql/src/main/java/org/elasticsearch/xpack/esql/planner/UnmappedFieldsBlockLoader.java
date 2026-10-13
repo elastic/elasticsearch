@@ -19,9 +19,13 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.support.AbstractXContentParser;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -118,37 +122,61 @@ final class UnmappedFieldsBlockLoader implements BlockLoader {
         @Override
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
             Source source = storedFields.source();
-            // Covers the parsed map and the JSON we build from it, both of which are proportional to _source. The factor is what
-            // PlannerSettings.SOURCE_RESERVATION_FACTOR measured for this very parse: a map costs several times the bytes it came from.
+            // Covers the surviving values we buffer in the survivors HashMap and the filtered JSON we build from them. The factor is
+            // what PlannerSettings.SOURCE_RESERVATION_FACTOR measured for this parse: materialising _source again as a map can cost
+            // several times its own bytes, since a deeply nested map carries a lot of object overhead on top of the raw content.
+            // Streaming the parse below lets us skip a non-matching key without ever materialising its value. Which keys match and
+            // survive is decided by the UnmappedFieldsPattern; in the worst case the whole _source survives and is re-materialised in
+            // the survivors HashMap, which is the case this reservation is sized for.
+            // TODO constructing the filtered source document still materialises every surviving value, so a single huge top-level value
+            // can outgrow this estimate; build it entry-by-entry with a budget instead. Tracked by #161648.
             // TODO the _source read itself is still charged a flat BlockSourceReader.ESTIMATED_SIZE by
             // BlockStoredFieldsReader, so an unusually large _source is under-accounted. Engine-wide, pre-existing.
             long reservation = (long) (source.internalSourceRef().length() * sourceReservationFactor);
             breaker.addEstimateBytesAndMaybeBreak(reservation, "unmapped fields source");
-            try {
-                Map<String, Object> sourceMap = XContentHelper.convertToMap(source.internalSourceRef(), false, source.sourceContentType())
-                    .v2();
-                try (XContentBuilder json = XContentFactory.jsonBuilder()) {
-                    json.startObject();
-                    boolean anyMatch = false;
-                    for (Map.Entry<String, Object> entry : sourceMap.entrySet()) {
-                        // A scalar becomes its own leaf column and must match the full pattern; an object or array can flatten to dotted
-                        // descendant leaves the coordinator filters per name, so it ships leniently (see objectSubfieldsCouldMatch).
-                        Object value = entry.getValue();
-                        boolean matched = value instanceof Map || value instanceof List
-                            ? pattern.objectSubfieldsCouldMatch(entry.getKey())
-                            : pattern.matches(entry.getKey());
-                        // The pattern decides whether the key is wanted; prune decides whether what is under it says anything at all.
-                        if (matched && prune(entry.getKey(), value)) {
-                            anyMatch = true;
-                            json.field(entry.getKey(), value);
-                        }
+            try (
+                XContentParser parser = XContentHelper.createParserNotCompressed(
+                    XContentParserConfiguration.EMPTY,
+                    source.internalSourceRef(),
+                    source.sourceContentType()
+                )
+            ) {
+                if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+                    throw new IllegalStateException("expected _source to be a JSON object but was [" + parser.currentToken() + "]");
+                }
+                // Collect the survivors into a HashMap: the coordinator re-orders the keys anyway, so we can just use whatever ordering
+                // HashMap gives us rather than sticking to the original _source ordering. readValue builds HashMaps too, so nested
+                // objects use the same ordering.
+                Map<String, Object> survivors = new HashMap<>();
+                for (String key = parser.nextFieldName(); key != null; key = parser.nextFieldName()) {
+                    XContentParser.Token token = parser.nextToken();
+                    // A scalar becomes its own leaf column and must match the full pattern; an object or array can flatten to dotted
+                    // descendant leaves the coordinator filters per name, so it ships leniently (see objectSubfieldsCouldMatch).
+                    boolean container = token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY;
+                    boolean matched = container ? pattern.objectSubfieldsCouldMatch(key) : pattern.matches(key);
+                    if (matched == false) {
+                        // A wanted-nothing key is skipped without ever materialising its value.
+                        parser.skipChildren();
+                        continue;
                     }
-                    json.endObject();
-                    // An empty object would carry no more information than a null, and the coordinator treats the two the same.
-                    if (anyMatch) {
+                    // Materialise this top-level value so prune can walk it; non-matching keys above are never built.
+                    Object value = AbstractXContentParser.readValue(parser, HashMap::new);
+                    // The pattern decides whether the key is wanted; prune decides whether what is under it says anything at all.
+                    if (prune(key, value)) {
+                        survivors.put(key, value);
+                    }
+                }
+                // An empty object would carry no more information than a null, and the coordinator treats the two the same.
+                if (survivors.isEmpty()) {
+                    builder.appendNull();
+                } else {
+                    try (XContentBuilder json = XContentFactory.jsonBuilder()) {
+                        json.startObject();
+                        for (Map.Entry<String, Object> entry : survivors.entrySet()) {
+                            json.field(entry.getKey(), entry.getValue());
+                        }
+                        json.endObject();
                         ((BytesRefBuilder) builder).appendBytesRef(BytesReference.bytes(json).toBytesRef());
-                    } else {
-                        builder.appendNull();
                     }
                 }
             } finally {

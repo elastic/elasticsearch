@@ -10,6 +10,7 @@
 package org.elasticsearch.health.node;
 
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -20,27 +21,45 @@ import java.util.Map;
 /**
  * Recovery point summaries computed on the elected master, the only node that can load repository data, and sent to the health node.
  *
- * @param projects          the summary of each project whose recovery repository could be read
- * @param generatedAtMillis when the master built this information, in epoch milliseconds
+ * <p>The publisher and the readers share this contract:
+ * <ul>
+ *   <li>A project with no recovery points is present, with {@link ProjectSummary#NONE} start times and zero counts.
+ *   <li>A project that is absent has no summary: it has no recovery repository configured, or its repository could not be read.
+ *   <li>An empty map means a snapshot was published and no project has a summary.
+ *   <li>A {@code null} {@link HealthInfo#dataRecoveryHealthInfo()} means nothing has been published yet.
+ *   <li>The cache ignores {@code null} updates, so the publisher must send a non-null snapshot every cycle, using the local node id of
+ *       the master.
+ *   <li>A reader can treat the snapshot as stale once {@code now - generatedAtMillis} exceeds a few multiples of
+ *       {@code publishIntervalMillis}, for example after a master failover before the new master has published.
+ * </ul>
+ *
+ * @param projects              the summary of each project that has one
+ * @param generatedAtMillis     when the master built this information, in epoch milliseconds
+ * @param publishIntervalMillis the longest time the publisher waits between two snapshots
  */
-public record DataRecoveryHealthInfo(Map<ProjectId, ProjectSummary> projects, long generatedAtMillis) implements Writeable {
+public record DataRecoveryHealthInfo(Map<ProjectId, ProjectSummary> projects, long generatedAtMillis, long publishIntervalMillis)
+    implements
+        Writeable {
 
     public DataRecoveryHealthInfo {
         projects = Map.copyOf(projects);
     }
 
     public DataRecoveryHealthInfo(StreamInput in) throws IOException {
-        this(in.readImmutableMap(ProjectId::readFrom, ProjectSummary::new), in.readVLong());
+        this(in.readImmutableMap(ProjectId::readFrom, ProjectSummary::new), in.readVLong(), in.readVLong());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(projects, (o, projectId) -> projectId.writeTo(o), StreamOutput::writeWriteable);
         out.writeVLong(generatedAtMillis);
+        out.writeVLong(publishIntervalMillis);
     }
 
     /**
      * The recovery points of one project, which are its completed snapshots, successful or partial, that are not being deleted.
+     * Without recovery points, both start times are {@link #NONE} and the other counts are zero. With them, the start times are not
+     * negative, the oldest is not after the newest, and the partial count does not exceed the recovery point count.
      *
      * @param newestRecoveryPointStartMillis start time of the newest recovery point, or {@link #NONE}
      * @param oldestRecoveryPointStartMillis start time of the oldest recovery point, or {@link #NONE}
@@ -58,6 +77,33 @@ public record DataRecoveryHealthInfo(Map<ProjectId, ProjectSummary> projects, lo
 
         /** Marks a start time that does not exist because the project has no recovery points. */
         public static final long NONE = -1L;
+
+        public ProjectSummary {
+            final boolean consistent = recoveryPointCount == 0
+                ? newestRecoveryPointStartMillis == NONE
+                    && oldestRecoveryPointStartMillis == NONE
+                    && partialRecoveryPointCount == 0
+                    && incompleteSourceCount == 0
+                : recoveryPointCount > 0
+                    && oldestRecoveryPointStartMillis >= 0
+                    && oldestRecoveryPointStartMillis <= newestRecoveryPointStartMillis
+                    && partialRecoveryPointCount >= 0
+                    && partialRecoveryPointCount <= recoveryPointCount
+                    && incompleteSourceCount >= 0;
+            if (consistent == false) {
+                throw new IllegalArgumentException(
+                    Strings.format(
+                        "inconsistent recovery point summary: newest start [%d], oldest start [%d], recovery points [%d], partial [%d], "
+                            + "incomplete sources [%d]",
+                        newestRecoveryPointStartMillis,
+                        oldestRecoveryPointStartMillis,
+                        recoveryPointCount,
+                        partialRecoveryPointCount,
+                        incompleteSourceCount
+                    )
+                );
+            }
+        }
 
         public ProjectSummary(StreamInput in) throws IOException {
             this(in.readLong(), in.readLong(), in.readVInt(), in.readVInt(), in.readVInt());

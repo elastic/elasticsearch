@@ -188,6 +188,7 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
     public static DataRecoveryHealthInfo randomDataRecoveryHealthInfo() {
         return new DataRecoveryHealthInfo(
             randomMap(0, 3, () -> tuple(randomProjectIdOrDefault(), randomDataRecoveryProjectSummary())),
+            randomNonNegativeLong(),
             randomNonNegativeLong()
         );
     }
@@ -203,9 +204,10 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
             );
         }
         int recoveryPointCount = randomIntBetween(1, 200);
+        long newestStartMillis = randomNonNegativeLong();
         return new DataRecoveryHealthInfo.ProjectSummary(
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
+            newestStartMillis,
+            randomLongBetween(0, newestStartMillis),
             recoveryPointCount,
             randomIntBetween(0, recoveryPointCount),
             randomIntBetween(0, 50)

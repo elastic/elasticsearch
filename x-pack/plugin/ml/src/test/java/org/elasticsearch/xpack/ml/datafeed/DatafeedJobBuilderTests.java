@@ -46,13 +46,11 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.NodeRoles.nonRemoteClusterClientNode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -269,7 +267,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         assertBusy(() -> wasHandlerCalled.get());
     }
 
-    public void testBuildGivenEsqlDatafeedWithoutIndicesAndNoRemoteClusterClientShouldNotRejectAsRemoteIndices() throws Exception {
+    public void testCheckRemoteIndicesAreAvailableGivenNullIndicesShouldNotThrow() {
         datafeedJobBuilder = new DatafeedJobBuilder(
             client,
             xContentRegistry(),
@@ -282,31 +280,14 @@ public class DatafeedJobBuilderTests extends ESTestCase {
             CloudCredentialManager.Noop::new,
             DatafeedSearchTelemetry.NOOP
         );
-        DataDescription.Builder dataDescription = new DataDescription.Builder();
-        dataDescription.setTimeField("time");
-        Job.Builder jobBuilder = DatafeedRunnerTests.createDatafeedJob();
-        jobBuilder.setDataDescription(dataDescription);
-        jobBuilder.setCreateTime(new Date());
-        DatafeedConfig datafeed = new DatafeedConfig.Builder("datafeed1", jobBuilder.getId()).setEsqlQuery("FROM logs")
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("datafeed1", "job1").setEsqlQuery("FROM logs")
             .setSourceTimeField("@timestamp")
             .setGroupingInterval(TimeValue.timeValueHours(1))
             .build();
         DatafeedConfig datafeedWithoutIndices = spy(datafeed);
         doReturn(null).when(datafeedWithoutIndices).getIndices();
 
-        AtomicReference<Exception> failure = new AtomicReference<>();
-        AtomicReference<DatafeedJob> builtJob = new AtomicReference<>();
-        DatafeedContext datafeedContext = new DatafeedContext(
-            datafeedWithoutIndices,
-            jobBuilder.build(),
-            new RestartTimeInfo(null, null, false),
-            new DatafeedTimingStats(jobBuilder.getId())
-        );
-
-        datafeedJobBuilder.build(newDatafeedTask("datafeed1"), datafeedContext, ActionListener.wrap(builtJob::set, failure::set));
-
-        assertThat(failure.get(), nullValue());
-        assertThat(builtJob.get(), not(nullValue()));
+        datafeedJobBuilder.checkRemoteIndicesAreAvailable(datafeedWithoutIndices);
     }
 
     private static TransportStartDatafeedAction.DatafeedTask newDatafeedTask(String datafeedId) {

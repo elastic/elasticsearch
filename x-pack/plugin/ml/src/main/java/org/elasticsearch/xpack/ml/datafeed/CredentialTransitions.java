@@ -435,10 +435,9 @@ public final class CredentialTransitions {
         if (effectiveConfig.getRuntimeMappings() != null && effectiveConfig.getRuntimeMappings().isEmpty() == false) {
             sourceBuilder.runtimeMappings(effectiveConfig.getRuntimeMappings());
         }
-        SearchRequest searchRequest = new SearchRequest(effectiveConfig.getIndices().toArray(String[]::new)).source(sourceBuilder);
-        if (effectiveConfig.getIndicesOptions() != null) {
-            searchRequest.indicesOptions(effectiveConfig.getIndicesOptions());
-        }
+        SearchRequest searchRequest = new SearchRequest(effectiveConfig.getIndices().toArray(String[]::new)).indicesOptions(
+            effectiveConfig.getIndicesOptions()
+        ).source(sourceBuilder);
         if (effectiveConfig.getProjectRouting() != null) {
             searchRequest.setProjectRouting(effectiveConfig.getProjectRouting());
         }

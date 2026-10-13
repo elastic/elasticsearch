@@ -25,8 +25,6 @@ import java.util.Objects;
  * This implementation is slow, because it potentially scans binary doc values for each document.
  */
 public final class ScanningBinaryDocValuesRegexpQuery extends AbstractBinaryDocValuesAutomatonQuery {
-    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ScanningBinaryDocValuesRegexpQuery.class);
-
     private final String pattern;
     private final int syntaxFlags;
     private final int matchFlags;
@@ -103,7 +101,7 @@ public final class ScanningBinaryDocValuesRegexpQuery extends AbstractBinaryDocV
     }
 
     @Override
-    protected long shallowSize() {
-        return SHALLOW_SIZE + RamUsageEstimator.sizeOf(pattern);
+    protected long ownMemoryUsage() {
+        return RamUsageEstimator.sizeOf(pattern);
     }
 }

@@ -11,6 +11,7 @@ package org.elasticsearch.lucene.queries;
 
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 
@@ -35,11 +36,16 @@ abstract class AbstractBinaryDocValuesAutomatonQuery extends AbstractBinaryDocVa
         }
     }
 
-    protected abstract long shallowSize();
+    /**
+     * Memory used by the class itself, not including parents and primitive fields.
+     */
+    protected long ownMemoryUsage() {
+        return 0;
+    }
 
     @Override
     public long ramBytesUsed() {
-        return shallowSize() + automaton.ramBytesUsed();
+        return RamUsageEstimator.shallowSizeOf(this.getClass()) + automaton.ramBytesUsed();
     }
 
     @Override

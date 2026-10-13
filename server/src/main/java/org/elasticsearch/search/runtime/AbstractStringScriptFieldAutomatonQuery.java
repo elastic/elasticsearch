@@ -14,6 +14,7 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.StringFieldScript;
@@ -33,9 +34,16 @@ public abstract class AbstractStringScriptFieldAutomatonQuery extends AbstractSt
         this.automaton = automaton;
     }
 
+    /**
+     * Memory used by the class itself, not including parents and primitive fields.
+     */
+    protected long ownMemoryUsage() {
+        return 0;
+    }
+
     @Override
     public long ramBytesUsed() {
-        return automaton.ramBytesUsed();
+        return automaton.ramBytesUsed() + RamUsageEstimator.shallowSizeOf(this.getClass()) + ownMemoryUsage();
     }
 
     @Override

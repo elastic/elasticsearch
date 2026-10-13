@@ -28,7 +28,6 @@ import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.common.Failure;
@@ -116,6 +115,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             "runtime_score",
             "runtime_lenient_non_text",
             "runtime_anywhere",
+            "fused_field_load_fix",
             "to_text_on_indexed_field_fix",
             "to_string_on_indexed_field_fix"
         )
@@ -480,10 +480,10 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             return true;
         }
 
-        if (fieldAsFieldAttribute().field() instanceof FunctionEsField functionEsField) {
-            // This is a pushed block loader.
-            // We can only support FIELD_EXTRACT(flattened, "constant"), here named EXTRACT_FLATTENED_SUBFIELD
-            return functionEsField.functionConfig().function() == BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD;
+        if (fieldAttribute.field() instanceof FunctionEsField) {
+            // This is a pushed block loader, e.g. FIELD_EXTRACT(flattened, "constant") or MV_MIN(field). There is no
+            // indexed Lucene field behind it, so the match must run at runtime.
+            return true;
         }
         return false;
     }

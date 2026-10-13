@@ -476,7 +476,14 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 "feature_proposals.all",
                 "feature_securitySolutionAlertsV1.all",
                 "feature_securitySolutionNotes.all",
-                "feature_securitySolutionRulesV4.minimal_read"
+                "feature_securitySolutionRulesV4.minimal_read",
+                "feature_workflowsManagement.minimal_read",
+                "feature_workflowsManagement.workflow_execute",
+                "feature_workflowsManagement.workflow_execution_cancel",
+                "feature_workflowsManagement.workflow_execution_read",
+                "feature_workflowsManagement.workflow_execution_read_managed",
+                "feature_workflowsManagement.workflow_read",
+                "feature_workflowsManagement.workflow_read_managed"
             )
         ),
         Map.entry(
@@ -575,6 +582,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         "feature_workflowsManagement.minimal_read",
         "feature_workflowsManagement.read",
         "feature_workflowsManagement.workflow_execute",
+        "feature_workflowsManagement.workflow_execution_cancel",
         "feature_workflowsManagement.workflow_execution_read",
         "feature_workflowsManagement.workflow_execution_read_managed",
         "feature_workflowsManagement.workflow_read",

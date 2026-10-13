@@ -881,6 +881,13 @@ class KibanaOwnedReservedRoleDescriptors {
             name,
             "Alert Triage",
             new String[] {
+                "feature_workflowsManagement.minimal_read",
+                "feature_workflowsManagement.workflow_read",
+                "feature_workflowsManagement.workflow_read_managed",
+                "feature_workflowsManagement.workflow_execution_read",
+                "feature_workflowsManagement.workflow_execution_read_managed",
+                "feature_workflowsManagement.workflow_execute",
+                "feature_workflowsManagement.workflow_execution_cancel",
                 "feature_securitySolutionRulesV4.minimal_read",
                 "feature_securitySolutionNotes.all",
                 "feature_securitySolutionAlertsV1.all" },

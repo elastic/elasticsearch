@@ -1498,15 +1498,19 @@ final class PageColumnReader implements Releasable {
         if (produced == 0) {
             return blockFactory.newConstantNullBlock(0);
         }
-        if (nulls != null && nulls.popCount() == produced) {
+        int nullCount = nulls == null ? 0 : nulls.popCount();
+        if (nullCount == produced) {
             return blockFactory.newConstantNullBlock(produced);
         }
         // Non-null, all-equal indices: emit a constant block to skip the ordinal indirection.
-        if (nulls == null || nulls.isEmpty()) {
+        if (nullCount == 0) {
             int constantOrdinal = detectConstantOrdinal(ordinals, produced);
             if (constantOrdinal >= 0) {
                 return blockFactory.newConstantBytesRefBlockWith(Utf8Sanitizer.sanitize(dict[constantOrdinal]), produced);
             }
+        }
+        if (OrdinalBytesRefBlock.isDense(produced - nullCount, dict.length) == false) {
+            return finishMaterializedFallback(ordinals, nulls, produced, 0, blockFactory);
         }
         IntBlock ordinalsBlock = null;
         BytesRefVector dictVector = null;

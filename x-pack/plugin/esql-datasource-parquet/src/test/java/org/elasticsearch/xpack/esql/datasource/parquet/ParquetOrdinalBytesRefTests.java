@@ -101,6 +101,28 @@ public class ParquetOrdinalBytesRefTests extends ESTestCase {
         verifyDictionaryEncoded(data, numRows, true, row -> row % 7 == 0 ? null : "color_" + (row % dictSize));
     }
 
+    public void testEmitRegularBlocksForNonDenseDictionary() throws IOException {
+        int numRows = between(100, 500);
+        int dictSize = between(numRows - 10, numRows + 10);
+        byte[] data = writeStringFile(numRows, false, row -> "v_" + (row % dictSize));
+
+        List<Page> pages = readAll(data);
+        try {
+            int row = 0;
+            BytesRef scratch = new BytesRef();
+            for (Page page : pages) {
+                BytesRefBlock block = page.getBlock(0);
+                assertNull("sparse dictionary should not produce ordinals", block.asOrdinals());
+                for (int p = 0; p < page.getPositionCount(); p++) {
+                    assertEquals(new BytesRef("v_" + (row++ % dictSize)), block.getBytesRef(p, scratch));
+                }
+            }
+            assertEquals(numRows, row);
+        } finally {
+            Releasables.close(pages);
+        }
+    }
+
     /**
      * End-to-end check that the ordinal block produced by the Parquet reader is consumable by
      * {@link BlockHash}: the hash returns the same group ids and key set whether we feed it the

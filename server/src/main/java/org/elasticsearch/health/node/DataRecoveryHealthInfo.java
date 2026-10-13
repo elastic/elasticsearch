@@ -19,23 +19,18 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * Recovery point summaries computed on the elected master, the only node that can load repository data, and sent to the health node.
- *
- * <p>The publisher and the readers share this contract:
+ * Recovery point summaries that the elected master, the only node that can load repository data, sends to the health node.
  * <ul>
- *   <li>A project with no recovery points is present, with {@link ProjectSummary#NONE} start times and zero counts.
- *   <li>A project that is absent has no summary: it has no recovery repository configured, or its repository could not be read.
- *   <li>An empty map means a snapshot was published and no project has a summary.
+ *   <li>A project without recovery points is present, with {@link ProjectSummary#NONE} start times and zero counts.
+ *   <li>A project that is absent has no recovery repository configured, or its repository could not be read.
+ *   <li>An empty map means a snapshot was published but no project has a summary.
  *   <li>A {@code null} {@link HealthInfo#dataRecoveryHealthInfo()} means nothing has been published yet.
- *   <li>The cache ignores {@code null} updates, so the publisher must send a non-null snapshot every cycle, using the local node id of
- *       the master.
- *   <li>A reader can treat the snapshot as stale once {@code now - generatedAtMillis} exceeds a few multiples of
- *       {@code publishIntervalMillis}, for example after a master failover before the new master has published.
+ *   <li>The cache ignores {@code null} updates, so the publisher must send a snapshot every cycle.
  * </ul>
  *
  * @param projects              the summary of each project that has one
- * @param generatedAtMillis     when the master built this information, in epoch milliseconds
- * @param publishIntervalMillis the longest time the publisher waits between two snapshots
+ * @param generatedAtMillis     when the master built this information
+ * @param publishIntervalMillis the longest wait between two snapshots, for judging staleness
  */
 public record DataRecoveryHealthInfo(Map<ProjectId, ProjectSummary> projects, long generatedAtMillis, long publishIntervalMillis)
     implements
@@ -57,14 +52,12 @@ public record DataRecoveryHealthInfo(Map<ProjectId, ProjectSummary> projects, lo
     }
 
     /**
-     * The recovery points of one project, which are its completed snapshots, successful or partial, that are not being deleted.
-     * Without recovery points, both start times are {@link #NONE} and the other counts are zero. With them, the start times are not
-     * negative, the oldest is not after the newest, and the partial count does not exceed the recovery point count.
+     * The recovery points of one project: its completed snapshots, successful or partial, that are not being deleted.
      *
      * @param newestRecoveryPointStartMillis start time of the newest recovery point, or {@link #NONE}
      * @param oldestRecoveryPointStartMillis start time of the oldest recovery point, or {@link #NONE}
      * @param recoveryPointCount             number of recovery points
-     * @param partialRecoveryPointCount      number of recovery points that are partial snapshots
+     * @param partialRecoveryPointCount      number of partial snapshots among them
      * @param incompleteSourceCount          number of indices and data streams not fully captured in the newest recovery point
      */
     public record ProjectSummary(

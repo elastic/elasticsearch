@@ -160,6 +160,58 @@ public class ValidateBuildGradleScriptsTaskTests {
     }
 
     @Test
+    public void testCountedIgnoreSuppressesExactlyTheBaselinedNumberOfViolations() throws Exception {
+        Project project = createProject();
+        File scriptFile = writeFile(
+            project,
+            "distribution/build.gradle",
+            List.of("def one = { }", "def two = { }")
+        );
+        ValidateBuildGradleScriptsTask task = createTask(project, scriptFile);
+        task.getIgnore().set(java.util.Map.of("distribution-closure-assignment", List.of("distribution/build.gradle::2")));
+
+        task.validateScripts();
+
+        assertOutputMarkerWritten(task);
+    }
+
+    @Test
+    public void testCountedIgnoreFailsWhenAdditionalViolationIsAddedToBaselinedFile() throws Exception {
+        Project project = createProject();
+        File scriptFile = writeFile(
+            project,
+            "distribution/build.gradle",
+            List.of("def one = { }", "def two = { }", "def three = { }")
+        );
+        ValidateBuildGradleScriptsTask task = createTask(project, scriptFile);
+        task.getIgnore().set(java.util.Map.of("distribution-closure-assignment", List.of("distribution/build.gradle::2")));
+
+        try {
+            task.validateScripts();
+            fail("GradleException was expected");
+        } catch (GradleException e) {
+            assertTrue(e.getMessage().contains("distribution-closure-assignment"));
+            assertTrue(e.getMessage().contains("distribution/build.gradle:3"));
+        }
+    }
+
+    @Test
+    public void testCountedIgnoreFailsWhenBaselineCountBecomesStale() throws Exception {
+        Project project = createProject();
+        File scriptFile = writeFile(project, "distribution/build.gradle", List.of("def one = { }"));
+        ValidateBuildGradleScriptsTask task = createTask(project, scriptFile);
+        task.getIgnore().set(java.util.Map.of("distribution-closure-assignment", List.of("distribution/build.gradle::2")));
+
+        try {
+            task.validateScripts();
+            fail("GradleException was expected");
+        } catch (GradleException e) {
+            assertTrue(e.getMessage().contains("stale-ignore-entry"));
+            assertTrue(e.getMessage().contains("distribution-closure-assignment -> distribution/build.gradle::2"));
+        }
+    }
+
+    @Test
     public void testFailsForStaleIgnoreEntry() throws Exception {
         Project project = createProject();
         File scriptFile = writeFile(project, "subproject/build.gradle", List.of("dependencies {", "  implementation project(\":server\")", "}"));
@@ -202,6 +254,21 @@ public class ValidateBuildGradleScriptsTaskTests {
             fail("GradleException was expected");
         } catch (GradleException e) {
             assertTrue(e.getMessage().contains("Ignore path for rule [cross-project-dereference] must not be blank"));
+        }
+    }
+
+    @Test
+    public void testInvalidIgnoreCountFailsClearly() throws Exception {
+        Project project = createProject();
+        File scriptFile = writeFile(project, "distribution/build.gradle", List.of("def one = { }"));
+        ValidateBuildGradleScriptsTask task = createTask(project, scriptFile);
+        task.getIgnore().set(java.util.Map.of("distribution-closure-assignment", List.of("distribution/build.gradle::abc")));
+
+        try {
+            task.validateScripts();
+            fail("GradleException was expected");
+        } catch (GradleException e) {
+            assertTrue(e.getMessage().contains("Ignore count for rule [distribution-closure-assignment] must be an integer"));
         }
     }
 

@@ -41,7 +41,6 @@ import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.jvm.toolchain.JavaToolchainService;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
-import java.util.concurrent.TimeUnit;
 
 import java.io.File;
 import java.io.IOException;
@@ -58,6 +57,7 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import javax.inject.Inject;

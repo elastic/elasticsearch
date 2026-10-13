@@ -11,8 +11,10 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -411,6 +413,51 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         assertThat("a failed flattening leaked pages or reservation", bf.breaker().getUsed(), equalTo(0L));
     }
 
+    public void testArrayOfManyTinyObjectsFlattensWithinABreakerSizedToTheReservation() {
+        String json = arrayOfTinyObjects(200_000);
+        // The breaker has room for the input page, the reservation (sourceReservationFactor times the JSON) and an output the size of
+        // the JSON, and no more. That must be enough: nothing unaccounted-for is needed to flatten a structure-heavy row.
+        long limit = inputPageBytes(json) + reservation(json) + json.length();
+        BlockFactory bf = blockFactory(ByteSizeValue.ofBytes(limit));
+        Result result = singlePage(bf, List.of(intAttr(), unmappedAttr()), row(1, json));
+
+        Result expanded = expand(result, bf);
+        try {
+            Map<?, ?> blob = (Map<?, ?>) rows(expanded).get(0).get(UNMAPPED);
+            assertThat(blob.keySet(), contains("a.x"));
+            assertThat(((List<?>) blob.get("a.x")).size(), equalTo(200_000));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+        assertThat("the reservation was not handed back", bf.breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testArrayOfManyTinyObjectsBreaksCleanlyWhenTheReservationDoesNotFit() {
+        String json = arrayOfTinyObjects(200_000);
+        // Room for the input page but only half the reservation on top of it, as on a node whose breaker is nearly full.
+        long limit = inputPageBytes(json) + reservation(json) / 2;
+        BlockFactory bf = blockFactory(ByteSizeValue.ofBytes(limit));
+        Result result = singlePage(bf, List.of(intAttr(), unmappedAttr()), row(1, json));
+
+        expectThrows(CircuitBreakingException.class, () -> expand(result, bf));
+        assertThat("a refused reservation leaked pages or bytes", bf.breaker().getUsed(), equalTo(0L));
+    }
+
+    /** What the breaker is charged for holding {@code json} as a one-row input page, measured rather than assumed. */
+    private long inputPageBytes(String json) {
+        BlockFactory probe = blockFactory();
+        Result result = singlePage(probe, List.of(intAttr(), unmappedAttr()), row(1, json));
+        try {
+            return probe.breaker().getUsed();
+        } finally {
+            Releasables.close(result.pages());
+        }
+    }
+
+    private static long reservation(String json) {
+        return (long) (new BytesRef(json).length * PlannerSettings.DEFAULTS.sourceReservationFactor());
+    }
+
     public void testChildWildcardIncludeKeepsObjectLeavesAndDropsSiblings() {
         BlockFactory bf = blockFactory();
         Result result = singlePage(
@@ -675,6 +722,15 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
     }
 
     /** Turns single quotes into double quotes so JSON literals read without escaping. */
+    /** {@code {"a":[{"x":1},{"x":1},...]}} with {@code elements} elements: a few bytes each, but many leaves for one dotted name. */
+    private static String arrayOfTinyObjects(int elements) {
+        StringBuilder json = new StringBuilder(elements * 8 + 16).append("{\"a\":[");
+        for (int i = 0; i < elements; i++) {
+            json.append(i == 0 ? "" : ",").append("{\"x\":1}");
+        }
+        return json.append("]}").toString();
+    }
+
     /** {@code {"k":{"k":...1...}}}, {@code depth} objects deep. */
     private static String nested(int depth) {
         return "{\"k\":".repeat(depth) + "1" + "}".repeat(depth);

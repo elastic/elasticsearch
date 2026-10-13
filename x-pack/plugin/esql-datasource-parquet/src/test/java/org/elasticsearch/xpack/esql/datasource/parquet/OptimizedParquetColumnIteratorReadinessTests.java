@@ -41,6 +41,8 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceBuffer;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceDrainUtils;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
@@ -73,6 +75,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongPredicate;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.xpack.esql.datasource.parquet.OptimizedParquetColumnIterator.ReadinessPhase;
@@ -371,7 +374,7 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
             opci.revokeOvershootOnPark();
             assertEquals("park on space must drop look-ahead prefetches", 0, opci.pendingPrefetchCount());
             // M1: current-group overshoot owner is not cleared here. Clearing it while those
-            // bytes stay charged would admit a second overshoot. PR7 may re-ticket on park.
+            // bytes stay charged would admit a second overshoot. A later change may re-ticket on park.
         }
     }
 
@@ -600,6 +603,54 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
         assertLedgerClear(watermark);
     }
 
+    /**
+     * Regression for elastic/esql-planning#2271 against a real Parquet iterator. The producer drain
+     * parks on {@code waitForReady()} while the row-group GET is in flight; a cancel
+     * ({@code buffer.finish(true)}) must complete the drain <em>before</em> the GET returns -- the
+     * readiness signal belongs to the iterator and nothing on the cancel path completes it -- and the
+     * byte ledger must still clear once the iterator is closed and the GET lands.
+     */
+    public void testBufferFinishWakesDrainParkedOnGroupIo() throws Exception {
+        byte[] parquet = smallFile();
+        CountDownLatch allowRead = new CountDownLatch(1);
+        GatedAsyncStorage storage = new GatedAsyncStorage(parquet, asyncIo, allowRead);
+        ParquetIoWatermark watermark = new ParquetIoWatermark(1 << 20);
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1 << 20);
+        ExecutorService drainExec = Executors.newSingleThreadExecutor(EsExecutors.daemonThreadFactory("test", "opci-drain"));
+        try (CloseableIterator<Page> iter = open(storage, watermark)) {
+            OptimizedParquetColumnIterator opci = (OptimizedParquetColumnIterator) iter;
+            assertBusy(() -> assertEquals(ReadinessPhase.GROUP_IO_PENDING, opci.readinessPhase()), 5, TimeUnit.SECONDS);
+
+            CountDownLatch drained = new CountDownLatch(1);
+            AtomicReference<Exception> error = new AtomicReference<>();
+            ExternalSourceDrainUtils.drainPagesAsync(
+                iter,
+                buffer,
+                drainExec,
+                buffer::readCancelled,
+                ActionListener.wrap(v -> drained.countDown(), e -> {
+                    error.set(e);
+                    drained.countDown();
+                })
+            );
+            assertFalse("drain must stay parked while the group GET is in flight", drained.await(200, TimeUnit.MILLISECONDS));
+            assertEquals(ReadinessPhase.GROUP_IO_PENDING, opci.readinessPhase());
+
+            buffer.finish(true);
+
+            assertTrue("finish(true) must wake the drain while the GET is still in flight", drained.await(10, TimeUnit.SECONDS));
+            assertNull(error.get());
+            assertEquals("the wake must not depend on the object store answering", 1, allowRead.getCount());
+            assertEquals("a cancelled drain delivers nothing", 0, buffer.size());
+        } finally {
+            // The iterator is closed by try-with-resources while the GET is still gated; only then
+            // let the GET land so the ledger release after close is what gets asserted.
+            allowRead.countDown();
+            terminate(drainExec);
+        }
+        assertLedgerClear(watermark);
+    }
+
     public void testCloseDuringPhase2IoReleasesLedger() throws Exception {
         byte[] parquet = twoColumnFile();
         CountDownLatch allowPhase2 = new CountDownLatch(1);
@@ -633,8 +684,14 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
             lessThan((long) parquet.length - ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES)
         );
         CountDownLatch allowGroup1 = new CountDownLatch(1);
-        AtomicBoolean gateGroup1 = new AtomicBoolean();
-        GatedOnDemandStorage storage = new GatedOnDemandStorage(parquet, asyncIo, gateGroup1, allowGroup1);
+        long group2Start = phaseSizes(parquet, 2).startingPos();
+        GatedOnDemandStorage storage = new GatedOnDemandStorage(
+            parquet,
+            asyncIo,
+            new AtomicBoolean(true),
+            allowGroup1,
+            pos -> pos >= group1.startingPos() && pos < group2Start
+        );
         ParquetIoWatermark watermark = new ParquetIoWatermark(1 << 20);
         ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
         Expression filter = new Equals(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 5L, DataType.LONG), null);
@@ -645,7 +702,6 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
             assertBusy(() -> assertTrue(iter.waitForReady().isDone()), 5, TimeUnit.SECONDS);
             long usedWhenReady = watermark.used();
             assertTrue("group 0 must hold a reservation; used=" + usedWhenReady, usedWhenReady >= group0.reservation);
-            gateGroup1.set(true);
             assertNull(iter.tryAdvance());
             assertEquals(ReadinessPhase.GROUP_IO_PENDING, opci.readinessPhase());
             long usedParked = watermark.used();
@@ -1213,11 +1269,23 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
     private static final class GatedOnDemandStorage extends ImmediateAsyncStorage {
         private final AtomicBoolean gate;
         private final CountDownLatch allow;
+        private final LongPredicate gatedPosition;
 
         private GatedOnDemandStorage(byte[] data, ExecutorService asyncIo, AtomicBoolean gate, CountDownLatch allow) {
+            this(data, asyncIo, gate, allow, pos -> true);
+        }
+
+        private GatedOnDemandStorage(
+            byte[] data,
+            ExecutorService asyncIo,
+            AtomicBoolean gate,
+            CountDownLatch allow,
+            LongPredicate gatedPosition
+        ) {
             super(data, asyncIo);
             this.gate = gate;
             this.allow = allow;
+            this.gatedPosition = gatedPosition;
         }
 
         @Override
@@ -1228,7 +1296,7 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
             Executor executor,
             ActionListener<DirectReadBuffer> listener
         ) {
-            if (gate.get() == false) {
+            if (gate.get() == false || gatedPosition.test(position) == false) {
                 super.readBytesAsync(position, length, factory, executor, listener);
                 return;
             }

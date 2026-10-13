@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.stateless.cache;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
@@ -90,6 +89,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput.BUFFER_SIZE;
@@ -815,7 +815,7 @@ public class SharedBlobCacheWarmingService {
      * Notice that this may synchronously invoke the listener.
      */
     public void warmCacheForSearchShardRecovery(
-        ClusterState clusterState,
+        Supplier<ClusterState> clusterStateSupplier,
         IndexShard indexShard,
         StatelessCompoundCommit commit,
         BlobStoreCacheDirectory directory,
@@ -824,7 +824,7 @@ public class SharedBlobCacheWarmingService {
     ) {
         final long totalBytesToWarm = totalBytesToWarm(endTargetsToWarm);
         final SearchRecoveryTimeout plan = endTargetsToWarm != null
-            ? searchRecoveryTimeoutCalculationService.searchRecoveryTimeout(clusterState, indexShard, totalBytesToWarm)
+            ? searchRecoveryTimeoutCalculationService.searchRecoveryTimeout(clusterStateSupplier.get(), indexShard, totalBytesToWarm)
             : SearchRecoveryTimeout.skip();
         if (plan.awaitWarming()) {
             assert endTargetsToWarm != null;
@@ -1746,7 +1746,7 @@ public class SharedBlobCacheWarmingService {
         protected abstract void onWarmingSuccess(long duration);
 
         protected void onWarmingFailed(Exception e) {
-            Supplier<String> logMessage = () -> Strings.format(
+            org.apache.logging.log4j.util.Supplier<String> logMessage = () -> Strings.format(
                 "%s %s warming failed with message %s",
                 warmingRun.shardId(),
                 warmingRun.type(),

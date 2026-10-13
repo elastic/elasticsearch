@@ -1976,22 +1976,22 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
     /**
      * This is a ClusterStateTaskListener that writes the force_merge_completed_timestamp into the cluster state. It is meant to run in
-     * STATE_UPDATE_TASK_EXECUTOR.
+     * STATE_UPDATE_TASK_EXECUTOR. Public for testing.
      */
-    static class UpdateForceMergeCompleteTask implements ClusterStateTaskListener {
+    public static class UpdateForceMergeCompleteTask implements ClusterStateTaskListener {
         private final ActionListener<Void> listener;
         private final ProjectId projectId;
         private final String targetIndex;
         private final ThreadPool threadPool;
 
-        UpdateForceMergeCompleteTask(ActionListener<Void> listener, ProjectId projectId, String targetIndex, ThreadPool threadPool) {
+        public UpdateForceMergeCompleteTask(ActionListener<Void> listener, ProjectId projectId, String targetIndex, ThreadPool threadPool) {
             this.listener = listener;
             this.projectId = projectId;
             this.targetIndex = targetIndex;
             this.threadPool = threadPool;
         }
 
-        ClusterState execute(ClusterState currentState) throws Exception {
+        public ClusterState execute(ClusterState currentState) throws Exception {
             logger.debug("Updating cluster state with force merge complete marker for {}", targetIndex);
             final var currentProject = currentState.metadata().getProject(projectId);
             IndexMetadata indexMetadata = currentProject.index(targetIndex);

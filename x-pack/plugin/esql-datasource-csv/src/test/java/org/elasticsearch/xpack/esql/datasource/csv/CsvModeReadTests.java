@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -315,6 +316,7 @@ public class CsvModeReadTests extends ESTestCase {
             .lastSplit(lastSplit)
             .recordAligned(recordAligned)
             .readSchema(TWO_KEYWORDS)
+            .fileHeaderColumns(List.of("a", "b"))
             .build();
     }
 
@@ -394,6 +396,7 @@ public class CsvModeReadTests extends ESTestCase {
             .lastSplit(true)
             .recordAligned(false)
             .readSchema(schema)
+            .fileHeaderColumns(List.of("id", "name"))
             .build();
         // The tail "b,x" is not a valid long in its first column, so parsing it as a row would fail.
         byte[] tail = "b,x\n3,cc\n4,dd\n".getBytes(StandardCharsets.UTF_8);
@@ -420,6 +423,7 @@ public class CsvModeReadTests extends ESTestCase {
             .lastSplit(true)
             .recordAligned(false)
             .readSchema(schema)
+            .fileHeaderColumns(List.of("id", "name"))
             .build();
         CsvFormatReader reader = csvReader(Map.of(SourceMetadata.INFERRED_QUOTE_FREE_CONFIG_KEY, "true")).withSchema(schema);
         byte[] tail = "12\" ruler,x\n3,cc\n4,dd\n".getBytes(StandardCharsets.UTF_8);
@@ -929,6 +933,9 @@ public class CsvModeReadTests extends ESTestCase {
     }
 
     private record InMemoryStorageObject(byte[] bytes) implements StorageObject {
+        @Override
+        public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
         @Override
         public InputStream newStream() {
             return new ByteArrayInputStream(bytes);

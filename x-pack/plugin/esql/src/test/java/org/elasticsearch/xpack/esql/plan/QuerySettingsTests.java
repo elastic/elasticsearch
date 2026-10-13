@@ -18,6 +18,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -52,6 +53,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomizeCase;
 import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
@@ -1384,6 +1386,46 @@ public class QuerySettingsTests extends ESTestCase {
         assertThat(resolved.get(QuerySettings.UNMAPPED_FIELDS), equalTo(UnmappedResolution.NULLIFY));
     }
 
+    /**
+     * A limit of 0 on the fields {@code LOAD_ALL} discovers makes it behave like {@code LOAD}, which is settled when the query
+     * settings are resolved, so that every phase of the query sees {@code LOAD}.
+     */
+    public void testLoadAllResolvesToLoadWhenTheLoadAllFieldLimitIsZero() {
+        assumeTrue("requires the LOAD_ALL field limit", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS_SETTING.isEnabled());
+
+        ResolvedSettings resolved = resolveWithLoadAllFieldLimit(clusterSetting(QuerySettings.UNMAPPED_FIELDS, "LOAD_ALL"), 0);
+
+        assertThat(resolved.get(QuerySettings.UNMAPPED_FIELDS), equalTo(UnmappedResolution.LOAD));
+    }
+
+    public void testLoadAllStaysLoadAllWhenTheLoadAllFieldLimitIsPositive() {
+        assumeTrue("requires the LOAD_ALL field limit", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS_SETTING.isEnabled());
+
+        ResolvedSettings resolved = resolveWithLoadAllFieldLimit(
+            clusterSetting(QuerySettings.UNMAPPED_FIELDS, "LOAD_ALL"),
+            between(1, 100_000)
+        );
+
+        assertThat(resolved.get(QuerySettings.UNMAPPED_FIELDS), equalTo(UnmappedResolution.LOAD_ALL));
+    }
+
+    public void testOtherUnmappedFieldsResolutionsAreLeftAloneByAZeroLoadAllFieldLimit() {
+        assumeTrue("requires the LOAD_ALL field limit", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS_SETTING.isEnabled());
+        for (UnmappedResolution resolution : new UnmappedResolution[] {
+            UnmappedResolution.DEFAULT,
+            UnmappedResolution.NULLIFY,
+            UnmappedResolution.LOAD }) {
+            ResolvedSettings resolved = resolveWithLoadAllFieldLimit(clusterSetting(QuerySettings.UNMAPPED_FIELDS, resolution.name()), 0);
+
+            assertThat(resolved.get(QuerySettings.UNMAPPED_FIELDS), equalTo(resolution));
+        }
+    }
+
+    private static ResolvedSettings resolveWithLoadAllFieldLimit(Settings clusterState, int loadAllMaxFields) {
+        // No approximation is in play, so the license is never asked.
+        return QuerySettings.resolve(clusterState, Settings.EMPTY, Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED, null, loadAllMaxFields);
+    }
+
     public void testDerivedClusterSettingRejectsMalformedValueAtWriteTime() {
         // The derived parser is the same FromString the SET and body surfaces use, so the two cannot drift.
         var e = expectThrows(
@@ -1512,4 +1554,37 @@ public class QuerySettingsTests extends ESTestCase {
         }
     }
 
+    public void testTelemetryLabels() {
+        // boolean
+        assertThat(QuerySettings.COLUMN_METADATA.telemetryLabel(true), equalTo("true"));
+        assertThat(QuerySettings.COLUMN_METADATA.telemetryLabel(false), equalTo("false"));
+        assertThat(QuerySettings.COLUMN_METADATA.telemetryLabels(), containsInAnyOrder("true", "false"));
+
+        // enum: every constant, lowercased, the default included
+        assertThat(QuerySettings.UNMAPPED_FIELDS.telemetryLabel(UnmappedResolution.NULLIFY), equalTo("nullify"));
+        assertThat(QuerySettings.UNMAPPED_FIELDS.telemetryLabel(UnmappedResolution.DEFAULT), equalTo("default"));
+        assertThat(QuerySettings.UNMAPPED_FIELDS.telemetryLabels(), containsInAnyOrder("default", "nullify", "load", "load_all"));
+
+        // string: never the value itself
+        assertThat(QuerySettings.TIME_ZONE.telemetryLabel(ZoneOffset.UTC), equalTo("default"));
+        assertThat(QuerySettings.TIME_ZONE.telemetryLabel(ZoneId.of("Europe/Rome")), equalTo("set"));
+        assertThat(QuerySettings.PROJECT_ROUTING.telemetryLabel((String) null), equalTo("default"));
+        assertThat(QuerySettings.PROJECT_ROUTING.telemetryLabel("_alias:_origin"), equalTo("set"));
+        assertThat(QuerySettings.PROJECT_ROUTING.telemetryLabels(), containsInAnyOrder("default", "set"));
+
+        // boolean or map
+        assertThat(QuerySettings.APPROXIMATION.telemetryLabel((ApproximationSettings) null), equalTo("false"));
+        assertThat(QuerySettings.APPROXIMATION.telemetryLabel(ApproximationSettings.DEFAULT), equalTo("true"));
+        assertThat(QuerySettings.APPROXIMATION.telemetryLabel(new ApproximationSettings(20_000, 0.95)), equalTo("map"));
+        assertThat(QuerySettings.APPROXIMATION.telemetryLabels(), containsInAnyOrder("false", "true", "map"));
+
+        // whatever a setting resolves to by default has a label to be counted under
+        for (QuerySettingDef<?> def : QuerySettings.all()) {
+            assertThat(def.name(), def.telemetryLabels(), hasItem(labelOfDefaultValue(def)));
+        }
+    }
+
+    private static <T> String labelOfDefaultValue(QuerySettingDef<T> def) {
+        return def.telemetryLabel(def.defaultValue());
+    }
 }

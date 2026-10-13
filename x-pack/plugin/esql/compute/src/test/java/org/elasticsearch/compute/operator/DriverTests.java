@@ -88,7 +88,7 @@ public class DriverTests extends ESTestCase {
         assertThat(driver.status().cpuNanos(), equalTo(0L));
         assertThat(driver.status().driverNanos(), equalTo(0L));
         assertThat(driver.status().iterations(), equalTo(0L));
-        driver.run(TimeValue.timeValueSeconds(Long.MAX_VALUE), Integer.MAX_VALUE, nowSupplier);
+        driver.run(TimeValue.timeValueSeconds(Long.MAX_VALUE), Integer.MAX_VALUE, nowSupplier, () -> -1L);
         logger.info("status {}", driver.status());
         assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
         assertThat(driver.status().threadName(), equalTo(Thread.currentThread().getName()));
@@ -127,7 +127,7 @@ public class DriverTests extends ESTestCase {
             assertThat(driver.status().started(), equalTo(startEpoch));
             assertThat(driver.status().iterations(), equalTo((long) i));
             assertThat(driver.status().driverNanos(), equalTo(tickTime * i));
-            driver.run(TimeValue.timeValueSeconds(Long.MAX_VALUE), 1, nowSupplier);
+            driver.run(TimeValue.timeValueSeconds(Long.MAX_VALUE), 1, nowSupplier, () -> -1L);
         }
 
         logger.info("status {}", driver.status());
@@ -166,7 +166,7 @@ public class DriverTests extends ESTestCase {
             assertThat(driver.status().started(), equalTo(startEpoch));
             assertThat(driver.status().iterations(), equalTo((long) i));
             assertThat(driver.status().driverNanos(), equalTo(tickTime * i));
-            driver.run(TimeValue.timeValueNanos(tickTime), Integer.MAX_VALUE, nowSupplier);
+            driver.run(TimeValue.timeValueNanos(tickTime), Integer.MAX_VALUE, nowSupplier, () -> -1L);
         }
 
         logger.info("status {}", driver.status());
@@ -204,7 +204,7 @@ public class DriverTests extends ESTestCase {
             assertThat(driver.status().started(), equalTo(startEpoch));
             assertThat(driver.status().iterations(), equalTo((long) i));
             assertThat(driver.status().driverNanos(), equalTo(tickTime * i));
-            driver.run(TimeValue.timeValueDays(10), iterationsPerTick, nowSupplier);
+            driver.run(TimeValue.timeValueDays(10), iterationsPerTick, nowSupplier, () -> -1L);
         }
 
         logger.info("status {}", driver.status());
@@ -301,7 +301,7 @@ public class DriverTests extends ESTestCase {
             long activeOperatorsHash = initialStatus.activeOperators().hashCode();
             long sleepsHash = initialStatus.sleeps().hashCode();
 
-            driver.run(TimeValue.timeValueDays(10), iterationsPerTick, nowSupplier);
+            driver.run(TimeValue.timeValueDays(10), iterationsPerTick, nowSupplier, () -> -1L);
 
             DriverStatus newStatus = driver.status();
             assertThat(newStatus, not(sameInstance(initialStatus)));
@@ -405,7 +405,7 @@ public class DriverTests extends ESTestCase {
             MockLog.assertThatLogger(
                 () -> expectThrows(
                     expectedExceptionClass,
-                    () -> driver.run(TimeValue.timeValueDays(1), Integer.MAX_VALUE, System::nanoTime)
+                    () -> driver.run(TimeValue.timeValueDays(1), Integer.MAX_VALUE, System::nanoTime, () -> -1L)
                 ),
                 Driver.class,
                 new MockLog.SeenEventExpectation(

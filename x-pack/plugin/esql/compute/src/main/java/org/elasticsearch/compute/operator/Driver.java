@@ -191,14 +191,8 @@ public class Driver implements Releasable, Describable {
      * Runs computations on the chain of operators for a given maximum amount of time or iterations.
      * Returns a blocked future when the chain of operators is blocked, allowing the caller
      * thread to do other work instead of blocking or busy-spinning on the blocked operator.
-     */
-    SubscribableListener<Void> run(TimeValue maxTime, int maxIterations, LongSupplier currentTimeNanosSupplier) {
-        return run(maxTime, maxIterations, currentTimeNanosSupplier, ThreadCpuTimer::currentNanos);
-    }
-
-    /**
-     * Like {@link #run(TimeValue, int, LongSupplier)}, but with an explicit clock for the CPU time of the
-     * current thread so tests can control it. The clock returns {@code -1} when thread CPU time is unsupported.
+     * {@code threadCpuNanosSupplier} is the CPU clock of the current thread, a parameter so tests can control it.
+     * It returns {@code -1} when thread CPU time is unsupported.
      */
     SubscribableListener<Void> run(
         TimeValue maxTime,
@@ -610,7 +604,7 @@ public class Driver implements Releasable, Describable {
         AbstractRunnable task = new AbstractRunnable() {
             @Override
             protected void doRun() {
-                SubscribableListener<Void> fut = driver.run(maxTime, maxIterations, currentTimeNanosSupplier);
+                SubscribableListener<Void> fut = driver.run(maxTime, maxIterations, currentTimeNanosSupplier, ThreadCpuTimer::currentNanos);
                 if (driver.isFinished()) {
                     onComplete(listener);
                     return;

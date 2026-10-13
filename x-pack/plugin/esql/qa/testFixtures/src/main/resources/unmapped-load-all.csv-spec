@@ -340,7 +340,7 @@ FROM partial_mapping_sample_data
 ;
 
 // Synthetic source keeps unmapped fields alive, since dynamic: false stores them in _ignored_source. The wildcard matches no
-// mapped field, so only the expansion can produce the column - naming it outright would just re-test LOAD, which
+// mapped field, so only discovery can produce the field - naming it outright would just re-test LOAD, which
 // syntheticSourceLoadsScalarUnmappedField in unmapped-load.csv-spec does.
 syntheticSourceKeepScalarUnmappedField
 required_capability: optional_fields_load_all_single_source_column
@@ -2330,7 +2330,7 @@ rows:long | clusters:long
 227       | 200
 ;
 
-// The KEEP restricts only its own branch; the sibling expands unmapped_message anyway, so the mention only moves it ahead of the extras.
+// The KEEP restricts only its own branch; the mention makes unmapped_message a column in both, the sibling's other extras stay discovered.
 loadAllSubqueryKeepUnmappedRestrictsOnlyItsOwnBranch
 required_capability: optional_fields_load_all_single_source_column
 required_capability: optional_fields_load_all_subqueries
@@ -3215,7 +3215,7 @@ FROM partial_mapping_sample_data
 ###########################################################
 # Object and array flattening: dotted leaves in the JSON  #
 ###########################################################
-// An array-valued unmapped source field expands to a multivalue keyword column (its scalar elements), not a blind string.
+// A named array-valued unmapped source field loads as a multivalue keyword column (its scalar elements), not a blind string.
 arrayFieldExpandsToMultivalue
 required_capability: optional_fields_load_all_single_source_column
 
@@ -3440,9 +3440,8 @@ id:keyword | samples:keyword | _source:_source
 3          | null            | "{""id"":""3"",""tags"":""web""}"
 ;
 
-// An object-valued unmapped source field has no keyword representation of its own, so it contributes no "extra" value; its leaves
-// become their own dotted columns instead. Here "extra" is a scalar in one document and an object in the other, so both an "extra"
-// and an "extra.baz" column appear.
+// An object-valued unmapped source field contributes no "extra" value of its own; its leaves become dotted keys instead. Here "extra"
+// is a scalar in one document and an object in the other, so one row holds an "extra" key and the other an "extra.baz" key.
 objectFieldFlattensToLeafColumns
 required_capability: optional_fields_load_all_single_source_column
 
@@ -3457,7 +3456,7 @@ id:keyword | _unmapped_fields:_source
 ;
 
 // Same data and mapping as fromNoProjection, but with synthetic source, which reconstructs the dotted key "unmapped.nested" as a
-// nested object. Flattening that object back to its leaf yields the same "unmapped.nested" column, so LOAD_ALL over a
+// nested object. Flattening that object back to its leaf yields the same "unmapped.nested" key, so LOAD_ALL over a
 // synthetic-source index produces exactly the output of the non-synthetic fromNoProjection above.
 syntheticSourceObjectFlattensLikeStoredSource
 required_capability: optional_fields_load_all_single_source_column
@@ -3477,8 +3476,8 @@ FROM synthetic_source_partial_mapping
 2024-10-23T13:55:01.543Z | 173.21.3.15 | 1756466 | Connected to 10.1.0.1! | "{""language_code"":""1"",""unmapped_event_duration"":""1756468"",""unmapped_message"":""Disconnected from 10.1.0.1"",""unmapped.nested"":""a""}"
 ;
 
-// LOAD_ALL unions every leaf across the indices into its own keyword column; a row carries a value only where that leaf
-// exists. A bare scalar "unmapped" (id 4) is its own column and never collides with the object twin that contributes leaves.
+// Every leaf of every index lands under its dotted name in _unmapped_fields, but only in the rows that hold it. A bare scalar
+// "unmapped" (id 4) is a key of its own and never collides with the object twin that contributes leaves.
 multiIndexDivergentUnmappedFieldShapes
 required_capability: optional_fields_load_all_single_source_column
 
@@ -3497,7 +3496,7 @@ id:keyword | _unmapped_fields:_source
 7 | "{""unmapped.bar"":""bar7""}"
 ;
 
-// same query as above but eliminate the only value that makes "unmapped" column "visible"
+// same query as above but eliminate the only value that makes the "unmapped" key "visible"
 multiIndexDivergentUnmappedFieldShapes_NoNullObjectTypedColumn
 required_capability: optional_fields_load_all_single_source_column
 
@@ -3516,7 +3515,7 @@ id:keyword | _unmapped_fields:_source
 7 | "{""unmapped.bar"":""bar7""}"
 ;
 
-// same query as above but eliminate the only value that makes "unmapped" column "visible" and then reference it again!
+// same query as above but eliminate the only value that makes the "unmapped" key "visible" and then reference it again!
 multiIndexDivergentUnmappedFieldShapes_NullObjectTypedColumn_ForcedBackIn
 required_capability: optional_fields_load_all_single_source_column
 
@@ -5318,7 +5317,7 @@ skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar m
 
 // logsdb defaults _source to synthetic, but IndexMode.LOGSDB does not override isStrictColumnar(), so _ignored_source
 // stays enabled and a dynamic:false field is still recoverable. The same seven documents in three index modes must
-// yield identical discovered columns. unmapped* is a wildcard so the three leaves are genuinely discovered rather
+// yield identical discovered fields. unmapped* is a wildcard so the three leaves are genuinely discovered rather
 // than demanded by name, and the sort is on the mapped @timestamp for the same reason.
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data, synthetic_source_partial_mapping, logsdb_partial_mapping METADATA _index
@@ -5470,9 +5469,9 @@ required_capability: source_field_mapping
 skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 request_stored: skip
 
-// Discovery is a union across the pattern: the stored leg contributes the column names and the disabled leg fills them with null
-// rather than dropping out. The union is taken over the rows that survive the WHERE, so a* yields only a.b here - arr belongs to
-// id 5 and the scalar a to id 13, and neither row is in the result to be discovered from.
+// Discovery is a union across the pattern: the stored leg contributes the leaves and the disabled leg's rows get a null
+// _unmapped_fields rather than dropping out. The union is taken over the rows that survive the WHERE, so a* yields only a.b
+// here - arr belongs to id 5 and the scalar a to id 13, and neither row is in the result to be discovered from.
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_source_disabled, unmapped_source_stored METADATA _index, _source
 | WHERE id::long <= 2

@@ -108,7 +108,7 @@ public final class ExpandUnmappedFieldsPostProcessor {
      * during the compute phase, where the drivers would abort first) and assert that the per-row {@link #ROWS_PER_CANCELLATION_CHECK}
      * poll then aborts it. Volatile so the coordinator thread running the flattening observes the test's write.
      */
-    static volatile Runnable expansionStartedForTest = null;
+    static volatile Runnable flatteningStartedForTest = null;
 
     /**
      * Flattens the {@code $$unmapped_fields} column in {@code result} into a single {@code _unmapped_fields} {@link DataType#SOURCE}
@@ -118,7 +118,7 @@ public final class ExpandUnmappedFieldsPostProcessor {
      *                    the task cancelled the flattening throws {@link TaskCancelledException} and releases the input and any partially
      *                    built pages, so an expensive flattening can be cancelled promptly instead of only after it finishes.
      */
-    public static Result expand(Result result, BlockFactory blockFactory, PlannerSettings plannerSettings, BooleanSupplier isCancelled) {
+    public static Result flatten(Result result, BlockFactory blockFactory, PlannerSettings plannerSettings, BooleanSupplier isCancelled) {
         List<Attribute> schema = result.schema();
 
         int unmappedIdx = unmappedFieldsIndex(schema);
@@ -128,7 +128,7 @@ public final class ExpandUnmappedFieldsPostProcessor {
         // From #160286: the flattening below is a CPU-heavy, coordinator-side scan over every row of every page, so it must run on the
         // esql_worker pool (EsqlSession dispatches it there) rather than a transport/search thread. The guard sits after the no-op early
         // return so the "no unmapped fields" path, which completes inline on the calling thread, is unaffected. assertCurrentThreadPool is
-        // a no-op on test threads, so unit tests that call expand() directly are not impacted.
+        // a no-op on test threads, so unit tests that call flatten() directly are not impacted.
         assert ThreadPool.assertCurrentThreadPool(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME);
         double reservationFactor = plannerSettings.sourceReservationFactor();
         UnmappedFieldsAttribute unmappedAttribute = (UnmappedFieldsAttribute) schema.get(unmappedIdx);
@@ -148,9 +148,9 @@ public final class ExpandUnmappedFieldsPostProcessor {
         try {
             // Run the test seam inside the try so a throwing hook releases the input pages through the finally below, exactly like a
             // cancellation or parsing failure would.
-            Runnable expansionStarted = expansionStartedForTest;
-            if (expansionStarted != null) {
-                expansionStarted.run();
+            Runnable flatteningStarted = flatteningStartedForTest;
+            if (flatteningStarted != null) {
+                flatteningStarted.run();
             }
             List<Page> newPages = rewritePages(result, unmappedIdx, pattern, existingNames, blockFactory, reservationFactor, isCancelled);
 
@@ -210,7 +210,7 @@ public final class ExpandUnmappedFieldsPostProcessor {
         }
     }
 
-    /** Whether {@link #expand} would rewrite a result with this schema, i.e. the synthetic {@code $$unmapped_fields} column is present. */
+    /** Whether {@link #flatten} would rewrite a result with this schema, i.e. the synthetic {@code $$unmapped_fields} column is present. */
     public static boolean hasUnmappedFields(List<Attribute> schema) {
         return unmappedFieldsIndex(schema) != -1;
     }

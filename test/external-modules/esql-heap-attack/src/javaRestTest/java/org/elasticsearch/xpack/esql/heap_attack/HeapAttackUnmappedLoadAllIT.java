@@ -31,10 +31,10 @@ import static org.hamcrest.Matchers.empty;
  * response to stay a single {@code _unmapped_fields} column next to the mapped one, uncapped and without a warning. They differ only
  * in where the distinct names come from: spread thinly across many moderately sized documents, or packed into a handful of huge ones.
  * <p>
- * {@link #testArrayOfTinyObjectsCircuitBreaksInExpansion} attacks a different limit: a single structure-heavy {@code _source} that
+ * {@link #testArrayOfTinyObjectsCircuitBreaksInSourceLoading} attacks a different limit: a single structure-heavy {@code _source} that
  * materialises into an object graph many times its own size, which must circuit break gracefully rather than OOM.
  * <p>
- * Each index maps a single {@link #MAPPED_FIELD}, so the queries exercise the expansion rather than whatever an index with no
+ * Each index maps a single {@link #MAPPED_FIELD}, so the queries exercise {@code LOAD_ALL} discovery rather than whatever an index with no
  * mapped fields at all would plan to.
  */
 public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
@@ -140,7 +140,7 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
      * document then crosses it and breaks up front, before the object graph is built. The base class resets cluster settings after
      * the test.
      */
-    public void testArrayOfTinyObjectsCircuitBreaksInExpansion() throws IOException {
+    public void testArrayOfTinyObjectsCircuitBreaksInSourceLoading() throws IOException {
         setRequestBreakerLimit("20%");
         assertCircuitBreaksVia(attempt -> {
             // ~1.5M+ {"x":1} elements is ~12MB+ of _source; the 10x reservation (~120MB+) then crosses the ~102MB (20%) breaker.
@@ -180,7 +180,7 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
     /**
      * Runs {@code LOAD_ALL} over all of {@code index} and asserts the response is exactly {@link #MAPPED_FIELD} and the single
      * {@code _unmapped_fields} column, with no warning about dropped fields. Only the columns are fetched: {@code filter_path} drops
-     * the values on the server, after the response has been built, so the expansion is fully exercised without shipping every
+     * the values on the server, after the response has been built, so the flattening is fully exercised without shipping every
      * row's JSON object to the test.
      */
     private void assertLoadAllSingleColumn(String index, int limit) throws IOException {

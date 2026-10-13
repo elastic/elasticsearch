@@ -36,7 +36,7 @@ import java.util.Objects;
  * <p>Note that {@link #synthetic()} stays {@code false} despite the synthetic name:
  * {@code Analyzer.planWithoutSyntheticAttributes} projects away every attribute for which it returns
  * {@code true}, and it runs after {@code DetermineUnmappedFieldsToKeep}, so the column would be gone
- * before the coordinator ever got to expand it. The {@code $$} name is what keeps the column
+ * before the coordinator ever got to flatten it. The {@code $$} name is what keeps the column
  * unreachable from a query — user field names cannot start with it.
  *
  * <p>The column carries only the pattern, which is the one thing a data node reads. The coordinator replaces it with a

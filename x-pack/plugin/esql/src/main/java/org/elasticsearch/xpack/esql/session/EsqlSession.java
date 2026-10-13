@@ -655,13 +655,13 @@ public class EsqlSession {
                             Result inner = withAdditionalData.inner();
                             TransportVersion resultVersion = withAdditionalData.minimumVersion();
                             if (ExpandUnmappedFieldsPostProcessor.hasUnmappedFields(inner.schema())) {
-                                // Under SET unmapped_fields="LOAD_ALL" the expansion is a CPU-heavy scan over every row of
+                                // Under SET unmapped_fields="LOAD_ALL" the flattening is a CPU-heavy scan over every row of
                                 // every result page. This continuation runs on whichever thread completed the compute result
                                 // (the esql_worker pool, or the search pool when a data node completes it last), so a large
-                                // expansion could hog the wrong pool. Dispatch it to the esql_worker pool, which is designated
+                                // flattening could hog the wrong pool. Dispatch it to the esql_worker pool, which is designated
                                 // for CPU-bound ES|QL work. See https://github.com/elastic/elasticsearch/issues/160286.
                                 // wrapReleasing releases the buffered pages if esql_worker rejects the task (e.g. shutting
-                                // down); expand() releases them itself once it runs, and page release is idempotent.
+                                // down); flatten() releases them itself once it runs, and page release is idempotent.
                                 threadPool.executor(EsqlPlugin.computePool())
                                     .execute(
                                         ActionRunnable.wrapReleasing(
@@ -669,7 +669,7 @@ public class EsqlSession {
                                             () -> Releasables.closeExpectNoException(inner.pages()),
                                             ll -> ll.onResponse(
                                                 new Versioned<>(
-                                                    ExpandUnmappedFieldsPostProcessor.expand(
+                                                    ExpandUnmappedFieldsPostProcessor.flatten(
                                                         inner,
                                                         blockFactory,
                                                         plannerSettings,
@@ -681,7 +681,7 @@ public class EsqlSession {
                                         )
                                     );
                             } else {
-                                // No LOAD_ALL expansion to do: expand() would return the result unchanged, so pass it through inline
+                                // No LOAD_ALL flattening to do: flatten() would return the result unchanged, so pass it through inline
                                 // and avoid both the needless scan and an unnecessary thread hop.
                                 l.onResponse(new Versioned<>(inner, resultVersion));
                             }

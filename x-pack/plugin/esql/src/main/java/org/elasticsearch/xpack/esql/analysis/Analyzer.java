@@ -2621,7 +2621,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         /** What a wildcard projection that matches nothing in the child output should do. */
         private enum UnmatchedPatterns {
-            /** Drop the wildcard, letting the {@code _unmapped_fields} expansion apply it later. */
+            /** Drop the wildcard, letting the {@code _unmapped_fields} flattening apply it later. */
             IGNORE,
             /** Keep the unresolved attribute so the {@code Verifier} reports "No matches found". */
             FAIL
@@ -2661,7 +2661,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         List<Attribute> matched = resolveAgainstList(up, childOutput);
                         // A wildcard that matches nothing resolves to a single unresolved UnresolvedAttribute. Under
                         // LOAD_ALL it may match only (not-yet-visible) unmapped source fields, so skip it here and let
-                        // the _unmapped_fields expansion apply it later, instead of failing with "No matches found".
+                        // the _unmapped_fields flattening apply it later, instead of failing with "No matches found".
                         if (unmatchedPatterns == UnmatchedPatterns.IGNORE
                             && matched.size() == 1
                             && matched.getFirst() instanceof UnresolvedAttribute) {

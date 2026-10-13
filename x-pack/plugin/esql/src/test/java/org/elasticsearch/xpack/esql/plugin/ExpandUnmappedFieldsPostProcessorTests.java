@@ -78,22 +78,22 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
             )
         );
 
-        Result expanded = expand(result, bf);
+        Result flattened = flatten(result, bf);
         try {
-            assertThat(expanded, not(sameInstance(result)));
-            assertThat(names(expanded), equalTo(List.of(INT_ATTR, UNMAPPED)));
-            assertThat(dataTypes(expanded), equalTo(List.of(DataType.INTEGER, DataType.SOURCE)));
+            assertThat(flattened, not(sameInstance(result)));
+            assertThat(names(flattened), equalTo(List.of(INT_ATTR, UNMAPPED)));
+            assertThat(dataTypes(flattened), equalTo(List.of(DataType.INTEGER, DataType.SOURCE)));
             assertThat(
-                rows(expanded),
+                rows(flattened),
                 contains(
                     matchesMap().entry(INT_ATTR, 1).entry(UNMAPPED, matchesMap().entry("pet", "Rex").entry("city", "Berlin")),
                     matchesMap().entry(INT_ATTR, 2).entry(UNMAPPED, matchesMap().entry("pet", "Max").entry("zip", "10115"))
                 )
             );
-            assertThat(expanded.configuration(), sameInstance(result.configuration()));
-            assertThat(expanded.completionInfo(), sameInstance(result.completionInfo()));
+            assertThat(flattened.configuration(), sameInstance(result.configuration()));
+            assertThat(flattened.completionInfo(), sameInstance(result.completionInfo()));
         } finally {
-            Releasables.close(expanded.pages());
+            Releasables.close(flattened.pages());
         }
     }
 
@@ -101,11 +101,11 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         BlockFactory bf = blockFactory();
         Result result = singlePage(bf, List.of(intAttr()), row(1));
 
-        Result expanded = expand(result, bf);
+        Result flattened = flatten(result, bf);
         try {
-            assertThat(expanded, sameInstance(result));
+            assertThat(flattened, sameInstance(result));
         } finally {
-            Releasables.close(expanded.pages());
+            Releasables.close(flattened.pages());
         }
     }
 
@@ -119,12 +119,12 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
             row(3, jsonObject("{'a':'x'}"))
         );
 
-        Result expanded = expand(result, bf);
+        Result flattened = flatten(result, bf);
         try {
             // The SOURCE column is always present under LOAD_ALL; a row with no surviving leaf is simply null in it.
-            assertThat(names(expanded), equalTo(List.of(INT_ATTR, UNMAPPED)));
+            assertThat(names(flattened), equalTo(List.of(INT_ATTR, UNMAPPED)));
             assertThat(
-                rows(expanded),
+                rows(flattened),
                 contains(
                     matchesMap().entry(INT_ATTR, 1),
                     matchesMap().entry(INT_ATTR, 2),
@@ -132,7 +132,7 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
                 )
             );
         } finally {
-            Releasables.close(expanded.pages());
+            Releasables.close(flattened.pages());
         }
     }
 
@@ -140,12 +140,12 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         BlockFactory bf = blockFactory();
         Result result = singlePage(bf, List.of(intAttr(), unmappedAttr()), row(1, null), row(2, null));
 
-        Result expanded = expand(result, bf);
+        Result flattened = flatten(result, bf);
         try {
-            assertThat(names(expanded), equalTo(List.of(INT_ATTR, UNMAPPED)));
-            assertThat(rows(expanded), contains(matchesMap().entry(INT_ATTR, 1), matchesMap().entry(INT_ATTR, 2)));
+            assertThat(names(flattened), equalTo(List.of(INT_ATTR, UNMAPPED)));
+            assertThat(rows(flattened), contains(matchesMap().entry(INT_ATTR, 1), matchesMap().entry(INT_ATTR, 2)));
         } finally {
-            Releasables.close(expanded.pages());
+            Releasables.close(flattened.pages());
         }
     }
 
@@ -159,12 +159,12 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
             row(1, jsonObject("{'pet':'Rex','city':'Berlin'}"), "after", "ci", "yes")
         );
 
-        Result expanded = expand(result, bf);
+        Result flattened = flatten(result, bf);
         try {
             // The column takes the synthetic column's slot; the surrounding columns (including approximation ones) keep their place.
-            assertThat(names(expanded), equalTo(List.of(INT_ATTR, UNMAPPED, "extra", ci, certified)));
+            assertThat(names(flattened), equalTo(List.of(INT_ATTR, UNMAPPED, "extra", ci, certified)));
             assertThat(
-                rows(expanded),
+                rows(flattened),
                 contains(
                     matchesMap().entry(INT_ATTR, 1)
                         .entry(UNMAPPED, matchesMap().entry("pet", "Rex").entry("city", "Berlin"))
@@ -174,7 +174,7 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
                 )
             );
         } finally {
-            Releasables.close(expanded.pages());
+            Releasables.close(flattened.pages());
         }
     }
 
@@ -186,19 +186,19 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
             row(1, jsonObject("{'count':5,'active':true,'nested':{'x':1}}"))
         );
 
-        Result expanded = expand(result, bf);
+        Result flattened = flatten(result, bf);
         try {
             // A nested object contributes no key of its own; its leaf becomes a dotted key (nested.x). Non-string scalars keep their
             // JSON type inside the SOURCE blob (number stays a number, boolean stays a boolean).
             assertThat(
-                rows(expanded),
+                rows(flattened),
                 contains(
                     matchesMap().entry(INT_ATTR, 1)
                         .entry(UNMAPPED, matchesMap().entry("count", 5).entry("active", true).entry("nested.x", 1))
                 )
             );
         } finally {
-            Releasables.close(expanded.pages());
+            Releasables.close(flattened.pages());
         }
     }
 
@@ -210,18 +210,18 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
             row("7", jsonObject("{'network':{'bytes_in':10,'eth0':{'tx':5,'rx':7}}}"))
         );
 
-        Result expanded = expand(result, bf);
+        Result flattened = flatten(result, bf);
         try {
             // network.eth0.rx collides with the query column, so it is dropped from the blob; the other leaves survive.
             assertThat(
-                rows(expanded),
+                rows(flattened),
                 contains(
                     matchesMap().entry("network.eth0.rx", "7")
                         .entry(UNMAPPED, matchesMap().entry("network.bytes_in", 10).entry("network.eth0.tx", 5))
                 )
             );
         } finally {
-            Releasables.close(expanded.pages());
+            Releasables.close(flattened.pages());
         }
     }
 
@@ -233,17 +233,17 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
             row(1, jsonObject("{'tags':['a','b'],'samples':[{'nested':'x'},{'nested':'y'}]}"))
         );
 
-        Result expanded = expand(result, bf);
+        Result flattened = flatten(result, bf);
         try {
             assertThat(
-                rows(expanded),
+                rows(flattened),
                 contains(
                     matchesMap().entry(INT_ATTR, 1)
                         .entry(UNMAPPED, matchesMap().entry("tags", List.of("a", "b")).entry("samples.nested", List.of("x", "y")))
                 )
             );
         } finally {
-            Releasables.close(expanded.pages());
+            Releasables.close(flattened.pages());
         }
     }
 
@@ -251,14 +251,14 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         BlockFactory bf = blockFactory();
         Result result = singlePage(bf, List.of(intAttr(), unmappedAttr()), row(1, jsonObject("{'a.b':'literal','a':{'b':'nested'}}")));
 
-        Result expanded = expand(result, bf);
+        Result flattened = flatten(result, bf);
         try {
             assertThat(
-                rows(expanded),
+                rows(flattened),
                 contains(matchesMap().entry(INT_ATTR, 1).entry(UNMAPPED, matchesMap().entry("a.b", List.of("literal", "nested"))))
             );
         } finally {
-            Releasables.close(expanded.pages());
+            Releasables.close(flattened.pages());
         }
     }
 
@@ -266,15 +266,15 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         BlockFactory bf = blockFactory();
         Result result = singlePage(bf, List.of(intAttr(), unmappedAttr()), row(1, jsonObject("{'one':['a'],'two':['a','b']}")));
 
-        Result expanded = expand(result, bf);
+        Result flattened = flatten(result, bf);
         try {
             // A leaf with one value is indistinguishable from a scalar, as in any multivalue field; only several values make an array.
             assertThat(
-                rows(expanded),
+                rows(flattened),
                 contains(matchesMap().entry(INT_ATTR, 1).entry(UNMAPPED, matchesMap().entry("one", "a").entry("two", List.of("a", "b"))))
             );
         } finally {
-            Releasables.close(expanded.pages());
+            Releasables.close(flattened.pages());
         }
     }
 
@@ -287,16 +287,16 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
             row("yours", 2, null)
         );
 
-        Result expanded = expand(result, bf);
+        Result flattened = flatten(result, bf);
         try {
-            assertThat(names(expanded), equalTo(List.of(UNMAPPED, INT_ATTR)));
-            assertThat(dataTypes(expanded), equalTo(List.of(DataType.KEYWORD, DataType.INTEGER)));
+            assertThat(names(flattened), equalTo(List.of(UNMAPPED, INT_ATTR)));
+            assertThat(dataTypes(flattened), equalTo(List.of(DataType.KEYWORD, DataType.INTEGER)));
             assertThat(
-                rows(expanded),
+                rows(flattened),
                 contains(matchesMap().entry(UNMAPPED, "mine").entry(INT_ATTR, 1), matchesMap().entry(UNMAPPED, "yours").entry(INT_ATTR, 2))
             );
         } finally {
-            Releasables.close(expanded.pages());
+            Releasables.close(flattened.pages());
         }
     }
 
@@ -308,10 +308,10 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
             row(1, jsonObject("{'big':9223372036854775807,'neg':-9223372036854775808,'half':1.5,'tenth':0.1}"))
         );
 
-        Result expanded = expand(result, bf);
+        Result flattened = flatten(result, bf);
         try {
             assertThat(
-                rows(expanded),
+                rows(flattened),
                 contains(
                     matchesMap().entry(INT_ATTR, 1)
                         .entry(
@@ -321,7 +321,7 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
                 )
             );
         } finally {
-            Releasables.close(expanded.pages());
+            Releasables.close(flattened.pages());
         }
     }
 
@@ -331,12 +331,12 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
             "{\"qu\\\"ote\":\"back\\\\slash\",\"ctl\":\"line\\nbreak\\ttab\",\"caf\u00e9\":\"na\u00efve\",\"emoji\":\"\uD83D\uDE00\"}";
         Result result = singlePage(bf, List.of(intAttr(), unmappedAttr()), row(1, json));
 
-        Result expanded = expand(result, bf);
+        Result flattened = flatten(result, bf);
         try {
             // Keys and values with quotes, backslashes, control characters, accents and a surrogate pair must come back out of the
             // re-serialised blob as the same strings, i.e. the blob is still valid JSON.
             assertThat(
-                rows(expanded),
+                rows(flattened),
                 contains(
                     matchesMap().entry(INT_ATTR, 1)
                         .entry(
@@ -349,7 +349,7 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
                 )
             );
         } finally {
-            Releasables.close(expanded.pages());
+            Releasables.close(flattened.pages());
         }
     }
 
@@ -357,14 +357,14 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         BlockFactory bf = blockFactory();
         Result result = singlePage(bf, List.of(intAttr(), unmappedAttr()), row(1, jsonObject("{'a.b':{'c':1,'d':{'e':2}}}")));
 
-        Result expanded = expand(result, bf);
+        Result flattened = flatten(result, bf);
         try {
             assertThat(
-                rows(expanded),
+                rows(flattened),
                 contains(matchesMap().entry(INT_ATTR, 1).entry(UNMAPPED, matchesMap().entry("a.b.c", 1).entry("a.b.d.e", 2)))
             );
         } finally {
-            Releasables.close(expanded.pages());
+            Releasables.close(flattened.pages());
         }
     }
 
@@ -377,14 +377,14 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         }
         Result result = singlePage(bf, List.of(intAttr(), unmappedAttr()), row(1, json.append('}').toString()));
 
-        Result expanded = expand(result, bf);
+        Result flattened = flatten(result, bf);
         try {
-            Map<?, ?> blob = (Map<?, ?>) rows(expanded).get(0).get(UNMAPPED);
+            Map<?, ?> blob = (Map<?, ?>) rows(flattened).get(0).get(UNMAPPED);
             assertThat(blob.size(), equalTo(leaves));
             assertThat(blob.get("f0"), equalTo(0));
             assertThat(blob.get("f19999"), equalTo(19_999));
         } finally {
-            Releasables.close(expanded.pages());
+            Releasables.close(flattened.pages());
         }
         assertThat("the parse reservation was not handed back", bf.breaker().getUsed(), equalTo(0L));
     }
@@ -394,13 +394,13 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         int depth = 500;
         Result result = singlePage(bf, List.of(intAttr(), unmappedAttr()), row(1, nested(depth)));
 
-        Result expanded = expand(result, bf);
+        Result flattened = flatten(result, bf);
         try {
-            Map<?, ?> blob = (Map<?, ?>) rows(expanded).get(0).get(UNMAPPED);
+            Map<?, ?> blob = (Map<?, ?>) rows(flattened).get(0).get(UNMAPPED);
             assertThat(blob.size(), equalTo(1));
             assertThat(blob.keySet().iterator().next(), equalTo("k" + ".k".repeat(depth - 1)));
         } finally {
-            Releasables.close(expanded.pages());
+            Releasables.close(flattened.pages());
         }
     }
 
@@ -409,7 +409,7 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         // _source nested deeper than the JSON parser allows cannot be indexed either; this guards the coordinator against it anyway.
         Result result = singlePage(bf, List.of(intAttr(), unmappedAttr()), row(1, nested(5_000)));
 
-        expectThrows(Exception.class, () -> expand(result, bf));
+        expectThrows(Exception.class, () -> flatten(result, bf));
         assertThat("a failed flattening leaked pages or reservation", bf.breaker().getUsed(), equalTo(0L));
     }
 
@@ -421,13 +421,13 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         BlockFactory bf = blockFactory(ByteSizeValue.ofBytes(limit));
         Result result = singlePage(bf, List.of(intAttr(), unmappedAttr()), row(1, json));
 
-        Result expanded = expand(result, bf);
+        Result flattened = flatten(result, bf);
         try {
-            Map<?, ?> blob = (Map<?, ?>) rows(expanded).get(0).get(UNMAPPED);
+            Map<?, ?> blob = (Map<?, ?>) rows(flattened).get(0).get(UNMAPPED);
             assertThat(blob.keySet(), contains("a.x"));
             assertThat(((List<?>) blob.get("a.x")).size(), equalTo(200_000));
         } finally {
-            Releasables.close(expanded.pages());
+            Releasables.close(flattened.pages());
         }
         assertThat("the reservation was not handed back", bf.breaker().getUsed(), equalTo(0L));
     }
@@ -439,7 +439,7 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         BlockFactory bf = blockFactory(ByteSizeValue.ofBytes(limit));
         Result result = singlePage(bf, List.of(intAttr(), unmappedAttr()), row(1, json));
 
-        expectThrows(CircuitBreakingException.class, () -> expand(result, bf));
+        expectThrows(CircuitBreakingException.class, () -> flatten(result, bf));
         assertThat("a refused reservation leaked pages or bytes", bf.breaker().getUsed(), equalTo(0L));
     }
 
@@ -466,17 +466,17 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
             row(1, jsonObject("{'unmapped':{'deep':{'leaf':'v'},'foo':'f'},'other':'o'}"))
         );
 
-        Result expanded = expand(result, bf);
+        Result flattened = flatten(result, bf);
         try {
             assertThat(
-                rows(expanded),
+                rows(flattened),
                 contains(
                     matchesMap().entry(INT_ATTR, 1)
                         .entry(UNMAPPED, matchesMap().entry("unmapped.deep.leaf", "v").entry("unmapped.foo", "f"))
                 )
             );
         } finally {
-            Releasables.close(expanded.pages());
+            Releasables.close(flattened.pages());
         }
     }
 
@@ -488,12 +488,12 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
             row(1, jsonObject("{'samples':{'nested':'x'}}"))
         );
 
-        Result expanded = expand(result, bf);
+        Result flattened = flatten(result, bf);
         try {
             // "samples" matches the object, but only its dotted leaf "samples.nested" could be a leaf, and that does not match.
-            assertThat(rows(expanded), contains(matchesMap().entry(INT_ATTR, 1)));
+            assertThat(rows(flattened), contains(matchesMap().entry(INT_ATTR, 1)));
         } finally {
-            Releasables.close(expanded.pages());
+            Releasables.close(flattened.pages());
         }
     }
 
@@ -506,7 +506,7 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         BlockFactory bf = blockFactory();
         Result result = result(List.of(intAttr(), unmappedAttr()), List.of(page(bf, List.of(row(1, jsonObject("{'a':[null,'x']}"))))));
 
-        AssertionError e = expectThrows(AssertionError.class, () -> expand(result, bf));
+        AssertionError e = expectThrows(AssertionError.class, () -> flatten(result, bf));
         assertThat(e.getMessage(), containsString("Unmapped field 'a' carries a null or an empty array or object"));
         assertThat("the guard rail leaked pages", bf.breaker().getUsed(), equalTo(0L));
     }
@@ -518,7 +518,7 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
             List.of(page(bf, List.of(row(1, jsonObject("{'a':{'keep':'me','drop':[]}}")))))
         );
 
-        AssertionError e = expectThrows(AssertionError.class, () -> expand(result, bf));
+        AssertionError e = expectThrows(AssertionError.class, () -> flatten(result, bf));
         assertThat(e.getMessage(), containsString("Unmapped field 'a.drop' carries a null or an empty array or object"));
         assertThat("the guard rail leaked pages", bf.breaker().getUsed(), equalTo(0L));
     }
@@ -527,7 +527,7 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         BlockFactory bf = blockFactory();
         Result result = result(List.of(intAttr(), unmappedAttr()), List.of(page(bf, List.of(row(1, jsonObject("{'a':{}}"))))));
 
-        AssertionError e = expectThrows(AssertionError.class, () -> expand(result, bf));
+        AssertionError e = expectThrows(AssertionError.class, () -> flatten(result, bf));
         assertThat(e.getMessage(), containsString("Unmapped field 'a' carries a null or an empty array or object"));
         assertThat("the guard rail leaked pages", bf.breaker().getUsed(), equalTo(0L));
     }
@@ -550,7 +550,7 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
             Result result = result(List.of(intAttr(), unmappedAttr()), List.of(page(bf, rows)));
             // testWithCrankyBlockFactory catches the CircuitBreakingException and asserts its message; ComputeTestCase then
             // asserts every breaker is back to zero, which is what this test is about.
-            Releasables.close(expand(result, bf).pages());
+            Releasables.close(flatten(result, bf).pages());
         });
     }
 
@@ -570,13 +570,13 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
             unmappedBlock = builder.build();
         }
         Result result = result(List.of(intAttr(), unmappedAttr()), List.of(new Page(intBlock, unmappedBlock)));
-        assertThat("input pages should reserve breaker memory before expand runs", bf.breaker().getUsed(), greaterThan(0L));
+        assertThat("input pages should reserve breaker memory before flatten runs", bf.breaker().getUsed(), greaterThan(0L));
 
-        var e = expectThrows(IllegalStateException.class, () -> expand(result, bf));
+        var e = expectThrows(IllegalStateException.class, () -> flatten(result, bf));
         assertThat(e.getMessage(), containsString("Expected exactly one value"));
 
-        // No manual release here: the point is that expand must have released the input pages on its failure path.
-        assertThat("expand leaked the input pages on failure", bf.breaker().getUsed(), equalTo(0L));
+        // No manual release here: the point is that flatten must have released the input pages on its failure path.
+        assertThat("flatten leaked the input pages on failure", bf.breaker().getUsed(), equalTo(0L));
     }
 
     /**
@@ -637,15 +637,15 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
             List.of(intAttr(), unmappedAttr()),
             List.of(page(bf, List.of(row(1, jsonObject("{'pet':'Rex'}")))), page(bf, List.of(row(2, jsonObject("{'pet':'Max'}")))))
         );
-        assertThat("input pages should reserve breaker memory before expand runs", bf.breaker().getUsed(), greaterThan(0L));
+        assertThat("input pages should reserve breaker memory before flatten runs", bf.breaker().getUsed(), greaterThan(0L));
 
         // Stands in for a task cancelled mid-flattening: the checker reports cancelled as soon as the flattening polls it.
         expectThrows(
             TaskCancelledException.class,
-            () -> ExpandUnmappedFieldsPostProcessor.expand(result, bf, PlannerSettings.DEFAULTS, () -> true)
+            () -> ExpandUnmappedFieldsPostProcessor.flatten(result, bf, PlannerSettings.DEFAULTS, () -> true)
         );
 
-        assertThat("expand leaked pages when cancelled", bf.breaker().getUsed(), equalTo(0L));
+        assertThat("flatten leaked pages when cancelled", bf.breaker().getUsed(), equalTo(0L));
     }
 
     /**
@@ -663,7 +663,7 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         Result result = result(List.of(intAttr(), unmappedAttr()), List.of(page(bf, pageRows)));
 
         AtomicInteger polls = new AtomicInteger();
-        Result expanded = ExpandUnmappedFieldsPostProcessor.expand(result, bf, PlannerSettings.DEFAULTS, () -> {
+        Result flattened = ExpandUnmappedFieldsPostProcessor.flatten(result, bf, PlannerSettings.DEFAULTS, () -> {
             polls.incrementAndGet();
             return false;
         });
@@ -672,16 +672,16 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
             int perScan = (rows + 1023) / 1024;
             assertThat(polls.get(), equalTo(perScan));
         } finally {
-            Releasables.close(expanded.pages());
+            Releasables.close(flattened.pages());
         }
     }
 
-    private static Result expand(Result result, BlockFactory blockFactory) {
-        return expand(result, blockFactory, PlannerSettings.DEFAULTS);
+    private static Result flatten(Result result, BlockFactory blockFactory) {
+        return flatten(result, blockFactory, PlannerSettings.DEFAULTS);
     }
 
-    private static Result expand(Result result, BlockFactory blockFactory, PlannerSettings plannerSettings) {
-        return ExpandUnmappedFieldsPostProcessor.expand(result, blockFactory, plannerSettings, () -> false);
+    private static Result flatten(Result result, BlockFactory blockFactory, PlannerSettings plannerSettings) {
+        return ExpandUnmappedFieldsPostProcessor.flatten(result, blockFactory, plannerSettings, () -> false);
     }
 
     private static Result result(List<Attribute> schema, List<Page> pages) {

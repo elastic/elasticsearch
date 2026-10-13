@@ -126,7 +126,7 @@ teardown:
 
 ---
 'explicit reference to unmapped field on columnar index yields null':
-  # Naming unmapped_x explicitly under LOAD_ALL is valid syntax (the field expands as keyword),
+  # Naming unmapped_x explicitly under LOAD_ALL is valid syntax (the field loads as keyword, like under LOAD),
   # but because columnar mode dropped it at ingest there is nothing to load from source.
   - do:
       esql.query:

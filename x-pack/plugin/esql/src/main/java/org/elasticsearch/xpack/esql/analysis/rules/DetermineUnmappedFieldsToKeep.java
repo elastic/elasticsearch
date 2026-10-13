@@ -50,18 +50,18 @@ import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferen
  * When {@code SET unmapped_fields="LOAD_ALL"} is in effect, annotates
  * each non-LOOKUP {@link EsRelation} with an {@link UnmappedFieldsAttribute} carrying the
  * {@link UnmappedFieldsPattern} that describes which additional (currently unmapped) source fields
- * would survive to the query output. Expanding the {@code _unmapped_fields} column into per-field
- * output columns is a coordinator-level post-processing step and does not affect data-node execution.
+ * would survive to the query output. Flattening that column into the single {@code _unmapped_fields}
+ * output column is a coordinator-level post-processing step and does not affect data-node execution.
  *
  * <p>When the computed pattern is {@link UnmappedFieldsPattern#NONE}—e.g., a pattern-less {@code KEEP}
  * that can never let an unmapped source field through—the rule leaves the plan untouched, so data nodes
- * never load {@code _source} for expansion.
+ * never load {@code _source} for it.
  *
  * <p>{@link MergePlan} is n-ary: each branch is stamped with its own pattern. Named unmapped mentions are aligned
  * like {@code LOAD}: a mention in one branch is materialized in every sibling that can surface it, so that
  * name is excluded from {@code $$unmapped_fields}. Extra fields that a branch does not keep (literal
  * {@code KEEP}, {@code STATS}) are not loaded there; a null {@code $$unmapped_fields} is appended so the
- * coordinator can still expand extras from siblings.
+ * coordinator can still return extras from siblings.
  *
  * <p>Alignment {@link Project}s created during analysis snapshot their projections before this rule runs, so
  * the attribute is re-appended there and {@link MergePlan#refreshOutput()} unions it for the coordinator.
@@ -109,8 +109,8 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
      * include/exclude patterns they were written with: each one adds a single OR group, while
      * {@link UnmappedFieldsPattern#intersect} applies AND across chained commands. And every name that any
      * node in the plan outputs is excluded: a mapped field, a name the query introduced (EVAL's aliases,
-     * RENAME's targets, ENRICH/LOOKUP JOIN fields) are all already columns of their own, so expanding a
-     * source field of that name would collide with them.
+     * RENAME's targets, ENRICH/LOOKUP JOIN fields) are all already columns of their own, so returning a
+     * source field of that name in {@code _unmapped_fields} as well would collide with them.
      * <p>
      * For {@link Join}, only the left side is recursed into. {@link MergePlan} is treated as transparent (no include restriction beyond
      * excluding its output names); branch-local {@code KEEP}/{@code DROP} patterns are applied in {@link #annotate} by recomputing
@@ -124,7 +124,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         UnmappedFieldsPattern fromChild = switch (plan) {
             // INLINE STATS preserves input rows via a left join with its Aggregate, which is also its child - so walk the
             // input, i.e. the grandchild. Recursing into the Aggregate would return NONE, which is right for STATS
-            // (expansion can be dropped) but not here.
+            // (the unmapped fields can be dropped) but not here.
             case InlineStats inlineStats -> computeUnmappedFieldsToKeep(inlineStats.aggregate().child());
             case UnaryPlan unary -> computeUnmappedFieldsToKeep(unary.child());
             // Only the left side can carry the $$unmapped_fields column: apply() skips IndexMode.LOOKUP
@@ -188,7 +188,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
     /**
      * Union alignment {@link Project}s snapshot their projections before this rule adds
      * {@code $$unmapped_fields}. {@link ResolvingProject} already re-appends it; other Projects
-     * would otherwise drop the column before the coordinator can expand it.
+     * would otherwise drop the column before the coordinator can flatten it.
      */
     private static Project passThroughUnmappedFields(Project project) {
         if (project instanceof ResolvingProject rp && rp.unmappedFieldsPattern().isNone()) {

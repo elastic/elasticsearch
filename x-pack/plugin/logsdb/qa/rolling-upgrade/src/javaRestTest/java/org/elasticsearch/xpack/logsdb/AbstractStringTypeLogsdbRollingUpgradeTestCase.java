@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.logsdb;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.Before;
 
@@ -45,6 +46,11 @@ public abstract class AbstractStringTypeLogsdbRollingUpgradeTestCase extends Abs
     protected record TemplateConfig(String dataStreamName, String template) {}
 
     public AbstractStringTypeLogsdbRollingUpgradeTestCase() {
+        this.numNodes = Integer.parseInt(System.getProperty("tests.num_nodes", "3"));
+    }
+
+    protected AbstractStringTypeLogsdbRollingUpgradeTestCase(ElasticsearchCluster cluster) {
+        super(cluster);
         this.numNodes = Integer.parseInt(System.getProperty("tests.num_nodes", "3"));
     }
 

@@ -62,10 +62,15 @@ public class FaultInjectingS3HttpHandler implements HttpHandler {
         FaultConfig fault = this.activeFault;
         if (fault != null && fault.remaining.get() > 0) {
             String path = exchange.getRequestURI().getPath();
-            if (fault.pathFilter.test(path) && fault.remaining.decrementAndGet() >= 0) {
-                logger.debug("injecting fault [{}] for path [{}], remaining [{}]", fault.type, path, fault.remaining.get());
-                injectFault(exchange, fault.type);
-                return;
+            if (fault.pathFilter.test(path)) {
+                // Consume one slot atomically. Concurrent GETs (adaptive fan-out) used to both
+                // observe remaining == 1, both decrementAndGet, and leave remaining at -1.
+                int previous = fault.remaining.getAndUpdate(n -> n > 0 ? n - 1 : n);
+                if (previous > 0) {
+                    logger.debug("injecting fault [{}] for path [{}], remaining [{}]", fault.type, path, fault.remaining.get());
+                    injectFault(exchange, fault.type);
+                    return;
+                }
             }
         }
         delegate.handle(exchange);

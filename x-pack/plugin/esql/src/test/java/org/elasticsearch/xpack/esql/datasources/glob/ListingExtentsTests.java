@@ -8,10 +8,6 @@
 package org.elasticsearch.xpack.esql.datasources.glob;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.datasources.StorageEntry;
-import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
-
-import java.time.Instant;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -31,10 +27,6 @@ public class ListingExtentsTests extends ESTestCase {
     public void testBoundsFileSetIsTrueOnlyWhenTheFileSetIsCapped() {
         assertTrue(new ListingExtents(10).boundsFileSet());
         assertFalse(ListingExtents.UNBOUNDED.boundsFileSet());
-    }
-
-    private static StorageEntry entry(String name) {
-        return new StorageEntry(StoragePath.of("s3://bucket/data/" + name + ".parquet"), 100, Instant.EPOCH);
     }
 
 }

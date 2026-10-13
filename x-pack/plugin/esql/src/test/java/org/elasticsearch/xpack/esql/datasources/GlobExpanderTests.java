@@ -5137,7 +5137,8 @@ public class GlobExpanderTests extends ESTestCase {
      * glob roots at the parent of every sibling partition the dataset has, so the enumeration cost was a property
      * of the dataset rather than of the query: twelve years listed to answer about one.
      * <p>
-     * Pinned as an exact set rather than a count, so a failure names the prefixes that should not have been read.
+     * Pinned as an exact count of distinct prefixes, each of which must be a matching date, so a failure names
+     * what was read rather than only how much.
      */
     public void testFanOutDoesNotListAFolderTheGlobCannotMatch() throws Exception {
         // The wildcard sits INSIDE a segment, so patternPrefix cuts above every date folder and the slot list is
@@ -5172,6 +5173,8 @@ public class GlobExpanderTests extends ESTestCase {
         // The count is the assertion: one listObjects per slot, so slots must follow the matching set. Without the
         // filter this is 1209.
         assertEquals("one listing per matching folder and none for the 1200 it cannot match", 9, provider.listedPrefixes.size());
+        // Distinct, because listedPrefixes is a list: nine listings of one folder would satisfy the count.
+        assertEquals("and nine different folders", 9, Set.copyOf(provider.listedPrefixes).size());
         for (String prefix : provider.listedPrefixes) {
             assertThat("and the ones it did list are the matched dates", prefix, containsString("date=2024-01-0"));
         }

@@ -269,8 +269,9 @@ public class DatasetListingServiceCacheTests extends ESTestCase {
      * <p>The splice is a literal folder name, so a drain on the spliced pattern asks the store only for
      * {@code month=6} and never lists {@code month=06}. The retry lists the original pattern, so it does, and
      * nothing takes it back out afterwards: the month equality is integral, which is the splice's job and not the
-     * folder post-filter's, and this glob's first segment is {@code *} so it cannot walk and value-filters nothing
-     * either. Only the closed range on {@code year} is applied, and the extra file is inside it. The retry
+     * folder post-filter's, and this glob's first segment is {@code *}, so under this fixture's default strategy
+     * it neither walks nor value-filters. Only the closed range on {@code year} is applied, and the extra file is
+     * inside it. The retry
      * therefore holds a file the spliced drain the unbounded rail runs cannot reach — and because nothing
      * withdrew, nothing suppressed a filter, so before this was fixed the listing carried a real count and was
      * published.
@@ -331,7 +332,9 @@ public class DatasetListingServiceCacheTests extends ESTestCase {
      * threaded to it. Nothing about the divergence changes: the narrowed pass is bounded, so it is still flat, and
      * the retry still lists the spelling the splice never asked for. The concurrency is what the sync tests cannot
      * reach -- at 1 the fan-out is ineligible, so with those tests alone the fan-out could record a real count
-     * and publish the wider set with nothing failing.
+     * and publish the wider set with nothing failing. The request count is asserted exactly, so this test also
+     * fails where the fan-out declines and the flat drain answers instead: that is the rail the sync test covers,
+     * and it would leave this one passing on a tree where the code under test never ran.
      */
     public void testTheSpellingMissRetryIsNotPublishedWhenTheRetryFansOut() throws Exception {
         try (ExternalSourceCacheService cache = new ExternalSourceCacheService(cacheEnabled())) {
@@ -359,10 +362,11 @@ public class DatasetListingServiceCacheTests extends ESTestCase {
                 List.of(SPELLING_ALT, SPELLING_KEPT),
                 paths(future.get())
             );
-            // Without this the test would pass on a tree the fan-out declined, which is the flat drain the sync
-            // test already covers. This glob cannot walk, and the bounded pass is flat, so slot construction is
-            // the only thing that lists children.
-            assertTrue("and the retry got there by fanning out", provider.listChildrenCalls.get() > 0);
+            // The listing requests, not the attempt to build slots: `buildSlots` lists children before it can
+            // decide anything, so counting that counts the routes where it then declines and the flat drain runs
+            // -- which is the drain the sync test above already covers. Three is one flat narrowed pass plus one
+            // per folder slot; the flat route would be two.
+            assertEquals("and the retry got there by fanning out", 3L, provider.listObjectsCalls.get());
 
             long listsAfterBounded = provider.listObjectsCalls.get();
             FileList whole = service.cachedListing(
@@ -452,7 +456,6 @@ public class DatasetListingServiceCacheTests extends ESTestCase {
     private static final class TreeProvider implements StorageProvider {
         private final List<StorageEntry> entries;
         final AtomicLong listObjectsCalls = new AtomicLong();
-        final AtomicLong listChildrenCalls = new AtomicLong();
 
         TreeProvider(List<StorageEntry> entries) {
             List<StorageEntry> sorted = new ArrayList<>(entries);
@@ -493,7 +496,6 @@ public class DatasetListingServiceCacheTests extends ESTestCase {
 
         @Override
         public StorageChildren listChildren(StoragePath prefix, int limit) {
-            listChildrenCalls.incrementAndGet();
             String p = withSlash(prefix.toString());
             List<StorageEntry> files = new ArrayList<>();
             Set<String> dirs = new LinkedHashSet<>();

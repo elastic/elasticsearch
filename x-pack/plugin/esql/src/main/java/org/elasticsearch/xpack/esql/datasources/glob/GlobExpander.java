@@ -1134,7 +1134,6 @@ public final class GlobExpander {
             partitionConfig,
             maxDiscoveredFiles,
             fileOrder,
-            extents,
             memory,
             cancelled
         );
@@ -1169,7 +1168,6 @@ public final class GlobExpander {
         PartitionConfig partitionConfig,
         int maxDiscoveredFiles,
         FileOrderConfig fileOrder,
-        ListingExtents extents,
         PlanningMemory memory,
         BooleanSupplier cancelled
     ) {
@@ -2115,7 +2113,6 @@ public final class GlobExpander {
                         partitionConfig,
                         maxDiscoveredFiles,
                         fileOrder,
-                        ListingExtents.UNBOUNDED,
                         memory,
                         isCancelled
                     )
@@ -2768,10 +2765,12 @@ public final class GlobExpander {
      *
      * <p>The splice is a literal folder name; the hint it came from is a comparison on the typed value. So a drain
      * on the spliced pattern never lists {@code month=06} for {@code month == 6}, and the retry, which lists the
-     * original pattern, does. Nothing the retry applies afterwards takes it back out: an integral equality is the
-     * splice's job, so {@link #folderPostFilterHints} leaves it out, and where the glob cannot walk there is no
-     * value filter either ({@code PartitionValueFilter#forGlob} returns none). The retry therefore holds files the
-     * other drain cannot reach, and {@link FileList#UNKNOWN_GLOB_MATCH_COUNT} is the value that says so.
+     * original pattern, does. Nothing the retry applies afterwards takes it back out, whether or not a value
+     * filter runs. Where one does -- a TEMPLATE strategy value-filters even a glob that cannot walk -- it compares
+     * the typed value, so {@code PartitionValueMatcher.keepsIsolated} keeps the other spelling. Where none does,
+     * nothing applies the equality at all: splicing it is what handles it, so {@link #folderPostFilterHints}
+     * leaves an integral equality out. The retry therefore holds files the other drain cannot reach, and
+     * {@link FileList#UNKNOWN_GLOB_MATCH_COUNT} is the value that says so.
      */
     private static boolean spliceSkipped(
         String pattern,

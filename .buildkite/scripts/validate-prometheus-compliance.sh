@@ -2,7 +2,7 @@
 
 # Compares PromQL compliance with Prometheus between the PR and its merge base, using the promcheck Go binary
 # (https://github.com/elastic/promcheck), and reports the queries whose result changed on the build and the PR.
-# The elasticsearch-pull-request-validate-prometheus-compliance pipeline (catalog-info.yaml) runs it with the PR's
+# The elasticsearch-pull-request-promql-compliance pipeline (catalog-info.yaml) runs it with the PR's
 # GITHUB_PR_* variables, so that the build bot also posts the report as a PR comment.
 #
 # The step never fails on the result. Buildkite's GitHub commit status mirrors the step state and ignores

@@ -1125,6 +1125,17 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
             Need.ALWAYS
         ),
         new Body(
+            "compound numeric dot store",
+            "",
+            "def l = [1, 2];",
+            "l.0 += x; return l.0;",
+            "2",
+            "def t = l.0; t += x; return t - x;",
+            "1",
+            0,
+            Need.ALWAYS
+        ),
+        new Body(
             "compound dot store",
             "",
             "def m = ['value': 1];",

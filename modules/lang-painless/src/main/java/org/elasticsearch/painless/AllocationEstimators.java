@@ -764,6 +764,14 @@ public final class AllocationEstimators {
         return AllocSizes.addSat(IP_DECODE_BYTES, newStringBytes(IP_STRING_CHARS));
     }
 
+    /**
+     * A legacy ip read through {@code ScriptDocValues.Strings}, which decodes the address and then formats it: the decode
+     * plus the text, sized from the {@code chars} of the String it made.
+     */
+    public static long ipStringReadBytes(long chars) {
+        return AllocSizes.addSat(IP_DECODE_BYTES, newStringBytes(chars));
+    }
+
     /** {@code IpDocValuesField.asStrings()}: a list with one decoded address string per value. */
     public static long ipStringsBytes(IpDocValuesField receiver) {
         long size = receiver == null ? 0 : receiver.size();

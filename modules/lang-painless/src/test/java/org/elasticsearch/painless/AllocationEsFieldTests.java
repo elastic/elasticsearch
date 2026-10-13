@@ -114,7 +114,21 @@ public class AllocationEsFieldTests extends AllocationTestCase {
         ipField.setNextDocId(0);
         Map<String, Object> params = Map.of("field", ipField.toScriptDocValues());
 
-        assertEquals(AllocationEstimators.termStringBytes("192.168.0.1".length()), allocatedBytes("params.field.value", params));
+        // An ip read decodes the address before it formats the text, so it costs more than a keyword of the same length, and
+        // every way of reading it pays the same.
+        long read = AllocationEstimators.ipStringReadBytes("192.168.0.1".length());
+        assertTrue(read > AllocationEstimators.termStringBytes("192.168.0.1".length()));
+        assertEquals(read, allocatedBytes("params.field.value", params));
+        assertEquals(read, allocatedBytes("params.field.get(0)", params));
+        assertEquals(read, allocatedBytes("params.field[0]", params));
+        assertEquals(read, allocatedBytes("params.field.0", params));
+
+        // A short text does not make the decode cheaper.
+        IpDocValuesField shortField = new IpDocValuesField(ipDocValues("::"), "test");
+        shortField.setNextDocId(0);
+        Map<String, Object> shortParams = Map.of("field", shortField.toScriptDocValues());
+        assertEquals(AllocationEstimators.ipStringReadBytes(2), allocatedBytes("params.field.value", shortParams));
+        assertTrue(AllocationEstimators.ipStringReadBytes(2) > 92);
     }
 
     /** A BytesRef read is the byte copy and the BytesRef. A binary read adds the buffer that wraps the copy. */

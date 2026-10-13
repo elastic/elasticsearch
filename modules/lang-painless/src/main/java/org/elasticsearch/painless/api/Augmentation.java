@@ -20,6 +20,7 @@ import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.PainlessScript;
 import org.elasticsearch.script.field.BaseKeywordDocValuesField;
 import org.elasticsearch.script.field.BinaryDocValuesField;
+import org.elasticsearch.script.field.IpDocValuesField;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -2113,18 +2114,25 @@ public class Augmentation {
     // ---- Doc-value reads. The size of a read is only known once it has happened, so these wrap the read and charge the
     // ---- script afterwards from the real result. A miss returns the default and charges nothing.
 
-    /** {@code ScriptDocValues.Strings.getValue()}, charged its byte copy and String. */
+    /** {@code ScriptDocValues.Strings.getValue()}, charged its byte copy and String, or its address decode and text for ip. */
     public static String getValue(PainlessScript script, ScriptDocValues.Strings receiver) {
         String value = receiver.getValue();
-        script.$checkAllocBytes(AllocationEstimators.termStringBytes(value.length()));
+        script.$checkAllocBytes(stringReadBytes(receiver, value));
         return value;
     }
 
-    /** {@code ScriptDocValues.Strings.get(index)}, charged its byte copy and String. */
+    /** {@code ScriptDocValues.Strings.get(index)}, charged its byte copy and String, or its address decode and text for ip. */
     public static String get(PainlessScript script, ScriptDocValues.Strings receiver, int index) {
         String value = receiver.get(index);
-        script.$checkAllocBytes(AllocationEstimators.termStringBytes(value.length()));
+        script.$checkAllocBytes(stringReadBytes(receiver, value));
         return value;
+    }
+
+    /** Ip doc values hand out text through the same class as keywords, but decode an address before formatting it. */
+    private static long stringReadBytes(ScriptDocValues.Strings receiver, String value) {
+        return receiver.getSupplier() instanceof IpDocValuesField
+            ? AllocationEstimators.ipStringReadBytes(value.length())
+            : AllocationEstimators.termStringBytes(value.length());
     }
 
     /** {@code ScriptDocValues.BytesRefs.getValue()}, charged its byte copy. */

@@ -43,7 +43,6 @@ import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.iplocation.api.IpDataLookupInfo;
 import org.elasticsearch.iplocation.api.IpLocationConsumer;
 import org.elasticsearch.iplocation.api.IpLocationService;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
@@ -94,6 +93,7 @@ import org.elasticsearch.xpack.esql.datasources.PartitionSpec;
 import org.elasticsearch.xpack.esql.datasources.SchemaDiscoveryPathExtractor;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.dsltranslate.QueryDslFieldNameExtractor;
 import org.elasticsearch.xpack.esql.dsltranslate.RequestFilterRewriter;
 import org.elasticsearch.xpack.esql.dsltranslate.ViewRequestFilterRewriter;
@@ -453,22 +453,15 @@ public class EsqlSession {
         // supplied, before any view-resolution work. An operator's cluster default can never fail a query here: if it
         // is no longer usable the setting falls back to its built-in default, and the operator is warned on the
         // settings-update or license-transition path rather than in the request.
-        ResolvedSettings resolved = applyApproximationLicense(
-            QuerySettings.resolve(
-                clusterService.state().metadata().settings(),
-                clusterService.getSettings(),
-                request.requestSettings(),
-                statement,
-                SettingsValidationContext.from(crossProjectModeDecider)
-            ),
-            request,
+        ResolvedSettings resolved = QuerySettings.resolve(
+            clusterService.state().metadata().settings(),
+            clusterService.getSettings(),
+            request.requestSettings(),
             statement,
-            verifier.licenseState()
+            SettingsValidationContext.from(crossProjectModeDecider),
+            verifier.licenseState(),
+            plannerSettings.loadAllMaxFields()
         );
-        if (explainContext == null) {
-            gatherSettingsMetrics(request, statement);
-        }
-
         TimeSpanMarker viewResolutionProfile = executionInfo.queryProfile().viewResolution();
         viewResolutionProfile.start();
         // View and IN subquery resolution. IN_SUBQUERY telemetry is gathered from the result (ViewResolutionResult.hasInSubquery)
@@ -530,8 +523,9 @@ public class EsqlSession {
             // stack telemetry
             gatherViewMetrics(viewResolution);
             gatherInSubqueryMetrics(viewResolution);
+            gatherSettingsMetrics(request, statement, resolved);
             // APM
-            gatherPlanTelemetry(viewResolution.plan(), statement.settings());
+            gatherPlanTelemetry(viewResolution.plan(), statement.settings(), resolved);
             // Trigger IP location database downloads for any IP_LOCATION command
             requestIpLocationDownloads(viewResolution.plan());
         }
@@ -619,6 +613,7 @@ public class EsqlSession {
                     // external-source-scoped operational metrics only for queries that scanned one.
                     if (plan.anyMatch(ExternalRelation.class::isInstance)) {
                         planTelemetry.externalSource(true);
+                        recordExternalRelations(plan, planTelemetry);
                     }
 
                     var logicalPlanPreOptimizer = new LogicalPlanPreOptimizer(
@@ -1087,6 +1082,21 @@ public class EsqlSession {
         });
     }
 
+    /**
+     * Records every external relation of the analyzed {@code plan} on {@code telemetry} by its storage type and format, so the
+     * query's labels cover all the sources it reads. The storage type comes from each relation's location; its format is the
+     * relation's source type.
+     */
+    static void recordExternalRelations(LogicalPlan plan, PlanTelemetry telemetry) {
+        plan.forEachDown(
+            ExternalRelation.class,
+            relation -> telemetry.externalRelation(
+                ExternalSourceMetrics.storageTypeOf(relation.sourcePath()),
+                ExternalSourceMetrics.canonicalFormat(relation.sourceType())
+            )
+        );
+    }
+
     static void collectPinnedReads(ExternalRelation relation, boolean dropRowCount, Map<String, PinnedColumns> into) {
         boolean anchorPinnedFirstFileWins = ExternalSourceResolver.isAnchorPinnedFirstFileWins(
             relation.sourcePath(),
@@ -1479,7 +1489,7 @@ public class EsqlSession {
      * Populates {@code planTelemetry} from the view-resolved plan, capturing commands, functions,
      * and settings from the original statement plus any nodes introduced by view expansion.
      */
-    private void gatherPlanTelemetry(LogicalPlan plan, List<QuerySetting> settings) {
+    private void gatherPlanTelemetry(LogicalPlan plan, List<QuerySetting> settings, ResolvedSettings resolved) {
         EsqlFunctionRegistry registry = planTelemetry.functionRegistry().snapshotRegistry();
         // Collect Aggregate nodes that are the inner aggregate of an INLINE STATS command; those
         // should not be counted as standalone STATS commands.
@@ -1508,6 +1518,7 @@ public class EsqlSession {
         if (settings != null) {
             settings.forEach(s -> planTelemetry.setting(s.name()));
         }
+        planTelemetry.resolvedSettings(resolved);
     }
 
     /**
@@ -1544,42 +1555,7 @@ public class EsqlSession {
         return IpLocationResolution.fromPrefetched(databaseInfo);
     }
 
-    /**
-     * Decide what an unlicensed cluster does about approximation, which depends on who asked for it.
-     * <p>
-     * A user who asked — in the request body or with {@code SET} — gets today's licensing error, unchanged: they
-     * requested a paid feature this cluster does not have. An operator's cluster-wide default is different. The
-     * operator is not in the request path, so failing would break every query on the cluster for people who never
-     * asked and cannot turn it off. Instead the default simply does not apply and the query runs exactly.
-     * <p>
-     * The operator learns of it from {@code QuerySettings.watchApproximationLicense}, which logs once when the
-     * license transitions. It cannot be logged here: this runs on every query.
-     * <p>
-     * Licenses change under a running cluster, so this cannot be settled when the setting is written: the value is
-     * valid, and it is the entitlement that comes and goes.
-     */
-    static ResolvedSettings applyApproximationLicense(
-        ResolvedSettings resolved,
-        EsqlQueryRequest request,
-        EsqlStatement statement,
-        XPackLicenseState licenseState
-    ) {
-        if (ApproximationSettings.isOn(QuerySettings.APPROXIMATION.get(resolved)) == false) {
-            return resolved;
-        }
-        boolean userSupplied = request.requestSettings().containsKey(QuerySettings.APPROXIMATION)
-            || (statement != null && statement.setting(QuerySettings.APPROXIMATION.name()) != null);
-        if (userSupplied) {
-            EsqlLicenseChecker.checkQueryApproximation(licenseState);
-            return resolved;
-        }
-        if (EsqlLicenseChecker.isQueryApproximationAllowed(licenseState)) {
-            return resolved;
-        }
-        return resolved.withOverride(QuerySettings.APPROXIMATION, null);
-    }
-
-    private void gatherSettingsMetrics(EsqlQueryRequest request, EsqlStatement statement) {
+    private void gatherSettingsMetrics(EsqlQueryRequest request, EsqlStatement statement, ResolvedSettings resolved) {
         if (metrics == null) {
             return;
         }
@@ -1587,6 +1563,7 @@ public class EsqlSession {
         // (e.g., snapshot-only settings are not registered in non-snapshot builds); incSetting() silently
         // ignores settings that don't have a registered counter.
         suppliedSettingNames(request, statement).forEach(metrics::incSetting);
+        metrics.incResolvedSettings(resolved);
     }
 
     /**
@@ -1707,6 +1684,8 @@ public class EsqlSession {
             parsed,
             projectMetadata,
             QuerySettings.WILDCARDS_MATCH_DATASETS.get(configuration.resolvedSettings()),
+            configuration.pragmas(),
+            flags,
             logicalPlanListener.delegateFailureAndWrap((delegate, rewritten) -> {
                 datasetResolutionProfile.stop();
                 analyzedPlanAfterDatasetResolution(rewritten, unmappedResolution, configuration, executionInfo, requestFilter, delegate);
@@ -2985,7 +2964,8 @@ public class EsqlSession {
             r,
             timestampBounds,
             resolveIpLocations(parsed),
-            preserveViewBoundaries
+            preserveViewBoundaries,
+            flags
         );
         Analyzer analyzer = new Analyzer(analyzerContext, verifier);
         LogicalPlan plan = analyzer.analyze(parsed);

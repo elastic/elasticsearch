@@ -1716,6 +1716,38 @@ public class FileSplitProviderTests extends ESTestCase {
         }
     }
 
+    public void testQuoteFreeSampleCsvMacroSplitsWithoutProvingBoundaries() {
+        // A default .csv whose schema sample held no quote or escape byte is split at plain newlines, like mode=plain,
+        // so planning does not walk the file to prove record boundaries: it probes fewer times than the proven walk does
+        // over the very same bytes.
+        SplitDiscoveryResult quoteFree = discoverRealDelimited(
+            Map.of(SourceMetadata.INFERRED_QUOTE_FREE_CONFIG_KEY, "true"),
+            "quote-free.csv",
+            ".csv",
+            CsvFormatOptions.DEFAULT,
+            "a,b,c\n",
+            CSV_MIN_SEGMENT_BYTES
+        );
+        SplitDiscoveryResult proven = discoverRealDelimited(
+            Map.of(),
+            "proven.csv",
+            ".csv",
+            CsvFormatOptions.DEFAULT,
+            "a,b,c\n",
+            CSV_MIN_SEGMENT_BYTES
+        );
+
+        assertTrue("quote-free CSV should macro-split", quoteFree.splits().size() > 1);
+        for (ExternalSplit s : quoteFree.splits()) {
+            assertEquals("true", ((FileSplit) s).config().get(FileSplitProvider.RECORD_ALIGNED_MACRO_SPLIT_KEY));
+        }
+        assertThat(
+            "the strided scan must not prove boundaries by walking the file",
+            quoteFree.splitDiscoveryProbes(),
+            lessThan(proven.splitDiscoveryProbes())
+        );
+    }
+
     public void testPlainCsvStillMacroSplits() {
         // mode=plain turns quoting off, so every newline is an unambiguous record boundary and the file is
         // still macro-split for cross-node parallelism, exactly as before the quoting gate was added.
@@ -1805,6 +1837,17 @@ public class FileSplitProviderTests extends ESTestCase {
         String lineContent,
         long targetStrideBytes
     ) {
+        return discoverRealDelimited(config, fileName, extension, baselineOptions, lineContent, targetStrideBytes).splits();
+    }
+
+    private SplitDiscoveryResult discoverRealDelimited(
+        Map<String, Object> config,
+        String fileName,
+        String extension,
+        CsvFormatOptions baselineOptions,
+        String lineContent,
+        long targetStrideBytes
+    ) {
         StringBuilder sb = new StringBuilder();
         // ~3.5 MiB: above 2 x CSV_MIN_SEGMENT_BYTES so plain data yields several macro-splits.
         while (sb.length() < 3 * CSV_MIN_SEGMENT_BYTES + CSV_MIN_SEGMENT_BYTES / 2) {
@@ -1847,7 +1890,7 @@ public class FileSplitProviderTests extends ESTestCase {
             () -> false,
             DeclaredReadSpec.NONE
         );
-        return splitter.discoverSplits(ctx).splits();
+        return splitter.discoverSplits(ctx);
     }
 
     /**

@@ -1140,7 +1140,16 @@ public class ExternalSourceResolver {
         throwIfCancelled();
 
         if (GlobExpander.isMultiFile(path)) {
-            resolveMultiFileSource(path, config, hints, declaredMapping, demand, schemaInterner, listener);
+            // The quote-free evidence is one file's schema sample; it says nothing about the other files of a glob.
+            resolveMultiFileSource(
+                path,
+                config,
+                hints,
+                declaredMapping,
+                demand,
+                schemaInterner,
+                listener.map(ExternalSourceResolution.ResolvedSource::withoutQuoteFreeEvidence)
+            );
         } else {
             resolveSingleFileSource(path, config, declaredMapping, listener);
         }
@@ -2213,6 +2222,19 @@ public class ExternalSourceResolver {
         return entry.withSafeMetadata(stamped);
     }
 
+    /**
+     * Returns {@code config} with {@link SourceMetadata#INFERRED_QUOTE_FREE_CONFIG_KEY} added when the metadata records a
+     * quote-free schema sample ({@link SourceMetadata#QUOTE_FREE_SAMPLE_KEY}); otherwise {@code config} itself.
+     */
+    private static Map<String, Object> withInferredQuoteFree(Map<String, Object> config, Map<String, Object> sourceMetadata) {
+        if (sourceMetadata == null || Boolean.TRUE.equals(sourceMetadata.get(SourceMetadata.QUOTE_FREE_SAMPLE_KEY)) == false) {
+            return config;
+        }
+        Map<String, Object> copy = config == null || config.isEmpty() ? new HashMap<>() : new HashMap<>(config);
+        copy.put(SourceMetadata.INFERRED_QUOTE_FREE_CONFIG_KEY, "true");
+        return copy;
+    }
+
     private static ExternalSourceMetadata buildMetadataFromCache(
         SchemaCacheEntry entry,
         List<Attribute> schema,
@@ -2249,6 +2271,9 @@ public class ExternalSourceResolver {
         // consumer, yet this map rides ExternalRelation.writeTo onto the wire in every fragment of every query.
         // Strip it here so the plan carries only what the optimizer actually reads.
         final Map<String, Object> finalMetadata = stripStripeBookkeeping(entry.safeMetadata());
+        // The schema sample's quote evidence is derived data: hand it to the format reader (planning and data nodes
+        // alike) through the config, which is what they build their reader from.
+        final Map<String, Object> readerConfig = withInferredQuoteFree(mergedConfig, finalMetadata);
 
         return new CacheBackedMetadata() {
             @Override
@@ -2278,7 +2303,7 @@ public class ExternalSourceResolver {
 
             @Override
             public Map<String, Object> config() {
-                return mergedConfig;
+                return readerConfig;
             }
 
             @Override
@@ -5487,6 +5512,8 @@ public class ExternalSourceResolver {
         } else {
             mergedConfig = queryConfig != null ? queryConfig : Map.of();
         }
+        // Hand the schema sample's quote evidence to the format reader, see buildMetadataFromCache.
+        final Map<String, Object> readerConfig = withInferredQuoteFree(mergedConfig, metadata.sourceMetadata());
 
         Map<String, Object> enrichedSourceMetadata = metadata.statistics()
             .map(stats -> SourceStatisticsSerializer.embedStatistics(metadata.sourceMetadata(), stats))
@@ -5515,7 +5542,7 @@ public class ExternalSourceResolver {
 
             @Override
             public Map<String, Object> config() {
-                return mergedConfig;
+                return readerConfig;
             }
         };
     }

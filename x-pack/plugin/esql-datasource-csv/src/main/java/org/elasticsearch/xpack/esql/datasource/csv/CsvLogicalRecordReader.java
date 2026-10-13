@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasource.csv;
 
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
+
 import java.io.IOException;
 import java.io.Reader;
 import java.nio.charset.Charset;
@@ -98,6 +100,8 @@ final class CsvLogicalRecordReader {
         this(reader, quoteChar, delimiter, CsvFormatOptions.DEFAULT_ESCAPE, maxRecordBytes, charset, quoteAware, false);
     }
 
+    private boolean failOnLineSpan;
+
     CsvLogicalRecordReader(
         Reader reader,
         char quoteChar,
@@ -123,6 +127,58 @@ final class CsvLogicalRecordReader {
         this.utf8 = StandardCharsets.UTF_8.equals(charset);
         this.quoteAware = quoteAware;
         this.escapeAware = escapeAware;
+    }
+
+    /**
+     * Makes this reader fail, with a client error, on a record that spans a line terminator (a quoted field or an escape
+     * holding one). Used when range splits were cut at plain newlines on the evidence that the file's sample holds no
+     * quote or escape character: such a record proves the evidence wrong and the splits unreliable.
+     *
+     * <p>This is a best-effort guard, not a proof. A cut that lands inside a multi-line quoted value is reported by the
+     * split that owns the value's start (its record runs into the cut newline), so a scan that reads every split fails
+     * loudly. A split that starts inside the value cannot recognise that on its own: a scan that stops early (a
+     * satisfied {@code LIMIT}) may return rows built from the value's tail before the owning split has been read.
+     */
+    CsvLogicalRecordReader failOnLineSpan() {
+        failOnLineSpan = true;
+        return this;
+    }
+
+    /**
+     * Discards the partial record a byte-range split (bzip2 block, zstd frame) starts in the middle of: the previous split
+     * read past its end to finish it, so it is not this split's. The line-span check is suspended for it, since the
+     * previous split's reader owns that record and applies it.
+     */
+    String discardLeadingPartialRecord(boolean bracketAware) throws IOException {
+        boolean spanGuard = failOnLineSpan;
+        failOnLineSpan = false;
+        try {
+            return readRecord(bracketAware);
+        } finally {
+            failOnLineSpan = spanGuard;
+        }
+    }
+
+    /**
+     * Marks the failure as a broken quote-free assumption. It is the cause of the client error so that the row-error
+     * handling of the record-iterator path, which would otherwise count the error as a skipped row and carry on with the
+     * tail of the value, can recognise it and rethrow whatever the {@code error_mode}.
+     */
+    static final class QuoteFreeContradictionException extends RuntimeException {
+        QuoteFreeContradictionException() {
+            super("quote-free splitting contradicted by the data", null, false, false);
+        }
+    }
+
+    private static final String QUOTE_FREE_ASSUMPTION_FAILED = "A quoted field or an escaped line break spans several lines, "
+        + "but the file was split on plain newlines because the rows sampled to infer its schema hold no quote or escape "
+        + "character. Set [mode] explicitly (for example [quoted], or [plain] if values may end in a backslash) to read it "
+        + "with quote- and escape-aware splitting";
+
+    private void failIfLineBreak(int ch) {
+        if (failOnLineSpan && (ch == '\n' || ch == '\r')) {
+            throw ExternalFailures.rowError(new QuoteFreeContradictionException(), QUOTE_FREE_ASSUMPTION_FAILED);
+        }
     }
 
     String readRecord(boolean bracketAware) throws IOException {
@@ -155,6 +211,7 @@ final class CsvLogicalRecordReader {
                     sb.append((char) ch);
                     int next = readChar();
                     if (next != -1) {
+                        failIfLineBreak(next);
                         recordBytes = addBytes(recordBytes, next);
                         sb.append((char) next);
                     }
@@ -175,6 +232,7 @@ final class CsvLogicalRecordReader {
                     sb.append((char) ch);
                     continue;
                 }
+                failIfLineBreak(ch);
                 sb.append((char) ch);
                 continue;
             }
@@ -200,6 +258,7 @@ final class CsvLogicalRecordReader {
                 sb.append((char) ch);
                 int next = readChar();
                 if (next != -1) {
+                    failIfLineBreak(next);
                     recordBytes = addBytes(recordBytes, next);
                     sb.append((char) next);
                 }
@@ -303,6 +362,7 @@ final class CsvLogicalRecordReader {
                     appendRecord((char) ch);
                     int next = nextBulkChar();
                     if (next != -1) {
+                        failIfLineBreak(next);
                         recordBytes = addBytes(recordBytes, next);
                         appendRecord((char) next);
                     }
@@ -323,6 +383,7 @@ final class CsvLogicalRecordReader {
                     appendRecord((char) ch);
                     continue;
                 }
+                failIfLineBreak(ch);
                 appendRecord((char) ch);
                 continue;
             }
@@ -331,6 +392,7 @@ final class CsvLogicalRecordReader {
                 appendRecord((char) ch);
                 int next = nextBulkChar();
                 if (next != -1) {
+                    failIfLineBreak(next);
                     recordBytes = addBytes(recordBytes, next);
                     appendRecord((char) next);
                 }

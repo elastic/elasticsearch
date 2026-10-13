@@ -168,6 +168,18 @@ public interface SourceMetadata {
         return (int) sampleNumber(sourceMetadata(), SAMPLE_ROWS_KEY);
     }
 
+    /**
+     * Set to {@code true} in {@link #sourceMetadata()} when a text format found no quote or escape byte in the bytes
+     * it read for schema inference, so that range splits may be cut at plain newlines.
+     */
+    String QUOTE_FREE_SAMPLE_KEY = "_sample.quote_free";
+
+    /**
+     * Internal {@code config()} key through which the coordinator hands {@link #QUOTE_FREE_SAMPLE_KEY} to the format
+     * reader (at planning and on data nodes). It is derived from the data and never set by users.
+     */
+    String INFERRED_QUOTE_FREE_CONFIG_KEY = "_inferred_quote_free";
+
     private static long sampleNumber(Map<String, Object> metadata, String key) {
         Object value = metadata == null ? null : metadata.get(key);
         return value instanceof Number number ? number.longValue() : 0L;

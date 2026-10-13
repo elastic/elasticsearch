@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.csv;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.BigArrays;
@@ -17,9 +18,14 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -35,6 +41,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
@@ -255,8 +262,9 @@ public class CsvModeReadTests extends ESTestCase {
     }
 
     /**
-     * Splitter dispatch is decided once, from the (quoting, escaping) pair: only plain (no quoting, no
-     * escaping) takes the strided terminator scan. Escaped keeps quoting off but escaping on, and a
+     * Splitter dispatch is decided once, from the (quoting, escaping) pair and the quote-free evidence: plain (no
+     * quoting, no escaping) and a default-dialect dataset with quote-free evidence take the strided terminator scan.
+     * Escaped keeps quoting off but escaping on, and a
      * backslash-escaped raw newline is in-field content, so it needs the escape-aware quote-state splitter.
      */
     public void testSplitterDispatchByQuoting() throws IOException {
@@ -266,6 +274,168 @@ public class CsvModeReadTests extends ESTestCase {
         assertThat(tsvReader(Map.of()).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
         assertThat(tsvReader(Map.of("mode", "quoted")).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
         assertThat(csvReader(Map.of()).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
+    }
+
+    /** A sample without quote or escape bytes is recorded as evidence in the source metadata. */
+    public void testQuoteFreeSampleIsRecorded() throws IOException {
+        StorageObject quoteFree = new InMemoryStorageObject("a,b\n1,x\n2,y\n".getBytes(StandardCharsets.UTF_8));
+        assertTrue(isQuoteFreeSample(csvReader(Map.of()).metadata(quoteFree).sourceMetadata()));
+        StorageObject quoted = new InMemoryStorageObject("a,b\n1,\"x\"\n2,y\n".getBytes(StandardCharsets.UTF_8));
+        assertFalse(isQuoteFreeSample(csvReader(Map.of()).metadata(quoted).sourceMetadata()));
+        StorageObject escaped = new InMemoryStorageObject("a,b\n1,x\\,y\n2,y\n".getBytes(StandardCharsets.UTF_8));
+        assertFalse(isQuoteFreeSample(csvReader(Map.of()).metadata(escaped).sourceMetadata()));
+    }
+
+    private static boolean isQuoteFreeSample(Map<String, Object> sourceMetadata) {
+        return Boolean.TRUE.equals(sourceMetadata.get(SourceMetadata.QUOTE_FREE_SAMPLE_KEY));
+    }
+
+    /** Only the default quoting dialect may be split on the sample's evidence; an explicit dialect keeps the proven walk. */
+    public void testQuoteFreeEvidenceSelectsNewlineSplitterOnlyForDefaultDialect() throws IOException {
+        String key = SourceMetadata.INFERRED_QUOTE_FREE_CONFIG_KEY;
+        assertThat(csvReader(Map.of(key, "true")).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
+        assertThat(csvReader(Map.of()).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
+        assertThat(csvReader(Map.of(key, "true", "mode", "quoted")).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
+        assertThat(csvReader(Map.of(key, "true", "quote", "\"")).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
+        assertThat(
+            csvReader(Map.of(key, "true", "multi_value_syntax", "brackets")).recordSplitter(1024),
+            instanceOf(CsvRecordSplitter.class)
+        );
+    }
+
+    private static final List<Attribute> TWO_KEYWORDS = List.of(
+        new ReferenceAttribute(Source.EMPTY, null, "a", DataType.KEYWORD),
+        new ReferenceAttribute(Source.EMPTY, null, "b", DataType.KEYWORD)
+    );
+
+    private static FormatReadContext splitContext(boolean firstSplit, boolean lastSplit, boolean recordAligned) {
+        return FormatReadContext.builder()
+            .batchSize(100)
+            .firstSplit(firstSplit)
+            .lastSplit(lastSplit)
+            .recordAligned(recordAligned)
+            .readSchema(TWO_KEYWORDS)
+            .build();
+    }
+
+    private static InMemoryStorageObject bytes(String content) {
+        return new InMemoryStorageObject(content.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * A quoted field holding a line break proves the quote-free evidence wrong when the file was cut on plain newlines: fail
+     * rather than return misaligned rows. A read that owns the whole file was never cut, so it reads the field exactly.
+     */
+    public void testQuoteFreeEvidenceContradictedByMultiLineFieldInASplit() throws IOException {
+        String csv = "x,y\n\"multi\nline\",z\n";
+        CsvFormatReader reader = csvReader(Map.of(SourceMetadata.INFERRED_QUOTE_FREE_CONFIG_KEY, "true")).withSchema(TWO_KEYWORDS);
+        // The first of several splits: its record runs into the newline the file was cut at.
+        Exception e = expectThrows(Exception.class, () -> drain(reader, bytes(csv), splitContext(true, false, true)));
+        assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), containsString("spans several lines"));
+        // Whole-file read (the first line is the header): nothing was cut, so the multi-line field is parsed exactly.
+        assertEquals(1, drain(reader, bytes(csv), splitContext(true, true, false)));
+        // Quote-free data is unaffected by the evidence.
+        assertEquals(1, drain(reader, bytes("x,y\nu,v\n"), splitContext(true, false, true)));
+    }
+
+    /**
+     * The failure is not a bad row: no {@code error_mode} may turn it into a skipped row, on the record-iterator path
+     * (reached here with the direct-to-block read disabled) or the direct path.
+     */
+    public void testQuoteFreeContradictionIsNotSkippedByErrorMode() throws IOException {
+        for (String errorMode : List.of("fail_fast", "skip_row", "null_field")) {
+            Map<String, Object> config = Map.of(SourceMetadata.INFERRED_QUOTE_FREE_CONFIG_KEY, "true", "error_mode", errorMode);
+            for (boolean directBlock : List.of(true, false)) {
+                CsvFormatReader reader = csvReader(config).withDirectBlockEnabled(directBlock).withSchema(TWO_KEYWORDS);
+                Exception e = expectThrows(
+                    Exception.class,
+                    () -> drain(reader, bytes("x,y\n\"multi\nline\",z\nu,v\n"), splitContext(true, false, true))
+                );
+                assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), containsString("spans several lines"));
+            }
+        }
+    }
+
+    /**
+     * A split that starts on the tail of a value cut by the previous split is not told apart from one that starts on a real
+     * boundary: the previous split, which owns the value, is the one that fails. A quote inside an unquoted field is valid
+     * data, so it must not fail a split's first record.
+     */
+    public void testQuoteInUnquotedFieldAtSplitStartReadsNormally() throws IOException {
+        CsvFormatReader reader = csvReader(Map.of(SourceMetadata.INFERRED_QUOTE_FREE_CONFIG_KEY, "true")).withSchema(TWO_KEYWORDS);
+        FormatReadContext split = splitContext(false, true, true);
+        assertEquals(2, drain(reader, bytes("5000,12\" ruler\nu,v\n"), split));
+        assertEquals(2, drain(reader, bytes("u,v\n\"w\",x\n"), split));
+        // The previous split's record runs into the cut newline: that is where the contradiction is reported.
+        Exception owner = expectThrows(Exception.class, () -> drain(reader, bytes("u,v\n\"first part\n"), splitContext(true, false, true)));
+        assertThat(ExceptionsHelper.unwrapCause(owner).getMessage(), containsString("spans several lines"));
+    }
+
+    /** Withers keep the quote-free evidence: the splitter and the guard must not depend on the order they are applied in. */
+    public void testWithDirectBlockEnabledKeepsQuoteFreeEvidence() throws IOException {
+        CsvFormatReader reader = csvReader(Map.of(SourceMetadata.INFERRED_QUOTE_FREE_CONFIG_KEY, "true"));
+        assertThat(reader.withDirectBlockEnabled(false).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
+    }
+
+    /**
+     * A bzip2 block split reaches the reader as a decompressed range that starts in the middle of a record the previous
+     * split already emitted ({@code firstSplit=false}, {@code recordAligned=false}). Even with a pinned schema that tail
+     * must be dropped rather than parsed as a row: the stream below is what {@code decompressRange} yields for the second
+     * block of a file cut in the middle of the {@code 2,bb} row.
+     */
+    public void testByteRangeSplitWithPinnedSchemaDropsLeadingPartialRecord() throws IOException {
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "name", DataType.KEYWORD)
+        );
+        FormatReadContext split = FormatReadContext.builder()
+            .batchSize(100)
+            .firstSplit(false)
+            .lastSplit(true)
+            .recordAligned(false)
+            .readSchema(schema)
+            .build();
+        // The tail "b,x" is not a valid long in its first column, so parsing it as a row would fail.
+        byte[] tail = "b,x\n3,cc\n4,dd\n".getBytes(StandardCharsets.UTF_8);
+        for (Map<String, Object> config : List.of(
+            Map.<String, Object>of(),
+            Map.<String, Object>of(SourceMetadata.INFERRED_QUOTE_FREE_CONFIG_KEY, "true")
+        )) {
+            assertEquals(2, drain(csvReader(config).withSchema(schema), new InMemoryStorageObject(tail), split));
+        }
+    }
+
+    /**
+     * The discarded tail belongs to the previous split, which applies the quote-free guards to it: a closing quote in the
+     * tail of a value that split read to its end must not fail this one.
+     */
+    public void testByteRangeSplitDiscardedTailIsNotCheckedForStrayQuote() throws IOException {
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "name", DataType.KEYWORD)
+        );
+        FormatReadContext split = FormatReadContext.builder()
+            .batchSize(100)
+            .firstSplit(false)
+            .lastSplit(true)
+            .recordAligned(false)
+            .readSchema(schema)
+            .build();
+        CsvFormatReader reader = csvReader(Map.of(SourceMetadata.INFERRED_QUOTE_FREE_CONFIG_KEY, "true")).withSchema(schema);
+        byte[] tail = "12\" ruler,x\n3,cc\n4,dd\n".getBytes(StandardCharsets.UTF_8);
+        assertEquals(2, drain(reader, new InMemoryStorageObject(tail), split));
+    }
+
+    private static int drain(CsvFormatReader reader, StorageObject object, FormatReadContext context) throws IOException {
+        int rows = 0;
+        try (CloseableIterator<Page> pages = reader.read(object, context)) {
+            while (pages.hasNext()) {
+                Page page = pages.next();
+                rows += page.getPositionCount();
+                page.releaseBlocks();
+            }
+        }
+        return rows;
     }
 
     /** Bare brackets selects QUOTED (bracket cells carry quoted elements), even on the plain .tsv baseline. */

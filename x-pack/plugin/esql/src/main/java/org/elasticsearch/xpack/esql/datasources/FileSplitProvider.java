@@ -264,8 +264,9 @@ public class FileSplitProvider implements SplitProvider {
      * records outgrow the default raises it here and every query over that dataset resolves the offsets the
      * default lost.
      * <p>
-     * It bounds the probes of a strided scan (NDJSON, plain CSV/TSV). Quoted or escaped CSV/TSV is not probed at
-     * a fixed offset at all but walked, and what bounds that walk is the splitter's own convergence window
+     * It bounds the probes of a strided scan (NDJSON, plain CSV/TSV, and default-dialect CSV whose schema sample held no
+     * quote or escape byte). Other quoted or escaped CSV/TSV is not probed at a fixed offset at all but walked,
+     * and what bounds that walk is the splitter's own convergence window
      * together with {@code external_max_record_size}; neither of those is this key.
      * <p>
      * It is independent of {@link #CONFIG_MAX_SPLIT_PROBES}, and the two multiply into the bytes a strided query
@@ -3136,12 +3137,13 @@ public class FileSplitProvider implements SplitProvider {
 
     /**
      * Whether the file's config-resolved record splitter forces one sequential whole-file stream instead of any
-     * start-anywhere split. A strided splitter (plain CSV/TSV, NDJSON) is always splittable. A non-strided
-     * splitter (quoted or escaped CSV/TSV, whose records may span a raw newline) is splittable only when it can
+     * start-anywhere split. A strided splitter (plain CSV/TSV, NDJSON, quote-free-sampled CSV) is always splittable. A non-strided
+     * splitter (other quoted or escaped CSV/TSV, whose records may span a raw newline) is splittable only when it can
      * <em>prove</em> a record start at an arbitrary offset ({@link RecordSplitter#supportsProvenProbing()}) and it
      * is not a compression-delegating reader (a quoted {@code .csv.bz2} stays whole-file: the probe would run
-     * against compressed bytes). Returns {@code false} (splitting allowed) when the reader could not be resolved,
-     * so an unresolvable reader is treated as splittable.
+     * against compressed bytes; a strided one is cut at compressed block offsets and its reader drops the partial
+     * leading record). Returns {@code false} (splitting allowed) when the reader could not be resolved, so an
+     * unresolvable reader is treated as splittable.
      */
     private boolean requiresSequentialWholeFileRead(@Nullable FormatReader reader) {
         if (reader == null) {

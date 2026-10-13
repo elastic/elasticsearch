@@ -89,6 +89,7 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.BufferedReader;
 import java.io.Closeable;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -471,6 +472,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
     private final BlockFactory blockFactory;
     private final CsvMapper sharedCsvMapper;
     private final CsvFormatOptions options;
+    /**
+     * True when the coordinator found no quote or escape byte in the schema sample of a dataset whose quoting comes from
+     * the default dialect. Range splits are then cut at plain newlines, which avoids proving record boundaries by walking
+     * the file; parsing itself stays quote-aware, and a quoted field that spans lines fails the read, see
+     * {@code CsvLogicalRecordReader#failOnLineSpan}.
+     */
+    private final boolean quoteFreeSplitting;
     private final String format;
     private final List<String> extensions;
     private final List<Attribute> resolvedSchema;
@@ -549,7 +557,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             true,
             Map.of(),
             false,
-            List.of()
+            List.of(),
+            false
         );
     }
 
@@ -567,7 +576,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             true,
             Map.of(),
             false,
-            List.of()
+            List.of(),
+            false
         );
     }
 
@@ -585,7 +595,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             true,
             Map.of(),
             false,
-            List.of()
+            List.of(),
+            false
         );
     }
 
@@ -602,8 +613,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
         boolean directBlockEnabled,
         Map<String, String> declaredDateFormats,
         boolean declaredProvenanceBinding,
-        List<String> configWarnings
+        List<String> configWarnings,
+        boolean quoteFreeSplitting
     ) {
+        this.quoteFreeSplitting = quoteFreeSplitting;
         this.blockFactory = blockFactory;
         this.options = options;
         this.format = format;
@@ -641,7 +654,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             enabled,
             declaredDateFormats,
             declaredProvenanceBinding,
-            configWarnings
+            configWarnings,
+            quoteFreeSplitting
         );
     }
 
@@ -665,7 +679,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * whitespace (unlike Jackson {@code SKIP_EMPTY_LINES}).
      */
     private boolean jacksonGrammarApplies() {
-        return options.trimSpaces() && options.decodesEscapes() == false;
+        // quoteFreeSplitting reads go through the record reader, the one place that sees a quoted line break and can fail
+        // on it (see CsvLogicalRecordReader#failOnLineSpan); Jackson would silently parse the multi-line field.
+        return options.trimSpaces() && options.decodesEscapes() == false && quoteFreeSplitting == false;
     }
 
     private static CsvMapper createMapper(CsvFormatOptions opts) {
@@ -1004,7 +1020,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             directBlockEnabled,
             declaredDateFormats,
             declaredProvenanceBinding,
-            configWarnings
+            configWarnings,
+            quoteFreeSplitting
         );
     }
 
@@ -1023,7 +1040,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             directBlockEnabled,
             declaredDateFormats,
             declaredProvenanceBinding,
-            configWarnings
+            configWarnings,
+            quoteFreeSplitting
         );
     }
 
@@ -1045,7 +1063,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             directBlockEnabled,
             declaredDateFormats,
             binding,
-            configWarnings
+            configWarnings,
+            quoteFreeSplitting
         );
     }
 
@@ -1197,7 +1216,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             directBlockEnabled,
             physicalNameToPattern,
             declaredProvenanceBinding,
-            configWarnings
+            configWarnings,
+            quoteFreeSplitting
         );
     }
 
@@ -1219,7 +1239,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             directBlockEnabled,
             declaredDateFormats,
             declaredProvenanceBinding,
-            configWarnings
+            configWarnings,
+            quoteFreeSplitting
         );
     }
 
@@ -1246,6 +1267,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // fingerprint, and since a contribution is matched to an entry on path, mtime and that fingerprint alone,
         // a lenient scan's count enriches a strict entry whose own scan aborts.
         String canon = Configured.fold(Configured.identityOf(config, RECOGNIZED_KEYS), resolvedPolicy.readIdentity());
+        // Only a dataset whose quoting is the baseline default may be split on the evidence of the sample: an explicit
+        // mode, quote or escape (or bracket syntax) means the user chose the dialect, so keep the proven walk.
+        boolean quoteFree = "true".equals(String.valueOf(config.get(SourceMetadata.INFERRED_QUOTE_FREE_CONFIG_KEY)))
+            && result.options.quoting()
+            && result.options.escaping()
+            && result.options.multiValueSyntax() != CsvFormatOptions.MultiValueSyntax.BRACKETS
+            && explicitDialect(config) == false;
         result = new CsvFormatReader(
             result.blockFactory,
             result.options,
@@ -1259,7 +1287,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             result.directBlockEnabled,
             result.declaredDateFormats,
             result.declaredProvenanceBinding,
-            parsedOptions.configWarnings()
+            parsedOptions.configWarnings(),
+            quoteFree
         );
         // The vended identity IS canon — the same string this reader stamps on a harvest. The coordinator seeds a
         // cache entry with the former and the data node stamps the latter, and the reconcile gate enriches the entry
@@ -1276,8 +1305,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
     public SourceMetadata metadata(StorageObject object) throws IOException {
         List<String> warnings = new ArrayList<>();
         List<WidenedColumn> widenedColumns = new ArrayList<>();
-        InferredSchema inferred = readSchema(object, warnings::add, widenedColumns::add);
+        QuoteScan quoteScan = new QuoteScan(options);
+        InferredSchema inferred = readSchema(object, quoteScan, warnings::add, widenedColumns::add);
         List<Attribute> schema = inferred.schema();
+        // A typed header skips sampling, so no data row vouches for the file: only a real sample is evidence.
+        boolean quoteFreeSample = inferred.sampleRows() > 0 && quoteScan.quoteFree();
         String location = object.path().objectName();
         // mtime required for cache participation; sizeInBytes best-effort (stream-only sources throw from length()).
         long mtimeMillis;
@@ -1290,7 +1322,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     location,
                     null,
                     null,
-                    SourceMetadata.withSample(Map.of(), inferred.sampleBytes(), inferred.sampleRows()),
+                    withQuoteFree(SourceMetadata.withSample(Map.of(), inferred.sampleBytes(), inferred.sampleRows()), quoteFreeSample),
                     null
                 ).withWarnings(warnings).withWidenedColumns(widenedColumns);
             }
@@ -1302,7 +1334,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 location,
                 null,
                 null,
-                SourceMetadata.withSample(Map.of(), inferred.sampleBytes(), inferred.sampleRows()),
+                withQuoteFree(SourceMetadata.withSample(Map.of(), inferred.sampleBytes(), inferred.sampleRows()), quoteFreeSample),
                 null
             ).withWarnings(warnings).withWidenedColumns(widenedColumns);
         }
@@ -1323,10 +1355,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
             ExternalStats.CONFIG_FINGERPRINT_KEY,
             configFingerprint
         );
-        Map<String, Object> sourceMetadata = SourceMetadata.withSample(
-            SourceStatisticsSerializer.embedStatistics(baseSourceMetadata, stats),
-            inferred.sampleBytes(),
-            inferred.sampleRows()
+        Map<String, Object> sourceMetadata = withQuoteFree(
+            SourceMetadata.withSample(
+                SourceStatisticsSerializer.embedStatistics(baseSourceMetadata, stats),
+                inferred.sampleBytes(),
+                inferred.sampleRows()
+            ),
+            quoteFreeSample
         );
         return new SimpleSourceMetadata(schema, formatName(), location, stats, null, sourceMetadata, null).withWarnings(warnings)
             .withWidenedColumns(widenedColumns);
@@ -1351,8 +1386,78 @@ public class CsvFormatReader implements SegmentableFormatReader {
         return canonicalConfig;
     }
 
-    private InferredSchema readSchema(StorageObject object, Consumer<String> warningSink, Consumer<WidenedColumn> widenedColumnSink)
-        throws IOException {
+    private static Map<String, Object> withQuoteFree(Map<String, Object> base, boolean quoteFreeSample) {
+        if (quoteFreeSample == false) {
+            return base;
+        }
+        Map<String, Object> copy = new HashMap<>(base);
+        copy.put(SourceMetadata.QUOTE_FREE_SAMPLE_KEY, Boolean.TRUE);
+        return copy;
+    }
+
+    /**
+     * Watches the bytes read for schema inference for the dialect's quote and escape characters. Their absence from
+     * the sample is the evidence that lets the coordinator split the file at plain newlines. Only an ASCII-compatible
+     * encoding with ASCII special characters can be judged byte by byte; anything else is reported as not quote-free.
+     */
+    private static final class QuoteScan {
+        private final boolean scannable;
+        private final byte quote;
+        private final byte escape;
+        private boolean sawSpecial;
+
+        QuoteScan(CsvFormatOptions options) {
+            Charset encoding = options.encoding();
+            this.scannable = options.quoting()
+                && options.escaping()
+                && options.quoteChar() < 128
+                && options.escapeChar() < 128
+                && (encoding.equals(StandardCharsets.UTF_8)
+                    || encoding.equals(StandardCharsets.US_ASCII)
+                    || encoding.equals(StandardCharsets.ISO_8859_1));
+            this.quote = (byte) options.quoteChar();
+            this.escape = (byte) options.escapeChar();
+        }
+
+        boolean quoteFree() {
+            return scannable && sawSpecial == false;
+        }
+
+        InputStream watch(InputStream in) {
+            if (scannable == false) {
+                return in;
+            }
+            return new FilterInputStream(in) {
+                @Override
+                public int read() throws IOException {
+                    int b = super.read();
+                    if (b == quote || b == escape) {
+                        sawSpecial = true;
+                    }
+                    return b;
+                }
+
+                @Override
+                public int read(byte[] buf, int off, int len) throws IOException {
+                    int n = super.read(buf, off, len);
+                    for (int i = 0; i < n && sawSpecial == false; i++) {
+                        byte b = buf[off + i];
+                        if (b == quote || b == escape) {
+                            sawSpecial = true;
+                        }
+                    }
+                    return n;
+                }
+            };
+        }
+    }
+
+    private InferredSchema readSchema(
+        StorageObject object,
+        QuoteScan quoteScan,
+        Consumer<String> warningSink,
+        Consumer<WidenedColumn> widenedColumnSink
+    ) throws IOException {
         String sourceLocation = object.path().objectName();
         InputStream stream = object.newStream();
         // Abort rather than close: providers like S3 drain remaining bytes on close() to reuse
@@ -1362,7 +1467,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // so try-with-resources attaches any abort-time error as a suppressed exception on the
         // primary failure rather than replacing it.
         try (Closeable abortOnExit = () -> object.abortStream(stream)) {
-            BufferedReader reader = new BufferedReader(new InputStreamReader(stream, options.encoding()), READER_BUFFER_SIZE);
+            BufferedReader reader = new BufferedReader(
+                new InputStreamReader(quoteScan.watch(stream), options.encoding()),
+                READER_BUFFER_SIZE
+            );
             stripLeadingBomFromReader(reader);
             CsvLogicalRecordReader recordReader = new CsvLogicalRecordReader(
                 reader,
@@ -1655,6 +1763,16 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
+     * A record that contradicts the quote-free evidence is not a bad row: the splits themselves are unreliable, so no
+     * {@code error_mode} may count it as a skipped row and carry on with the tail of the value.
+     */
+    private static void rethrowIfQuoteFreeContradiction(RuntimeException e) {
+        if (ExceptionsHelper.unwrap(e, CsvLogicalRecordReader.QuoteFreeContradictionException.class) != null) {
+            throw e;
+        }
+    }
+
+    /**
      * True when the failure chain carries a {@link CsvRecordTooLargeException} — an over-{@code external_max_record_size}
      * record dropped by the record-reader path and laundered into an unchecked wrapper by
      * {@link #surfaceReadFailure} (see {@link CsvRecordIterator#hasNext}). Detected by cause-walk so the
@@ -1844,6 +1962,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     sampleRows.add(row);
                     consecutiveFailures = 0;
                 } catch (RuntimeException e) {
+                    rethrowIfQuoteFreeContradiction(e);
                     totalRowCount++;
                     errorCount++;
                     if (isRecordCapDrop(e)) {
@@ -2120,6 +2239,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
         if (bomBytesConsumed > 0) {
             recordReader.setInitialByteOffset(bomBytesConsumed);
         }
+        // A read that owns the whole file (nothing was cut at a newline) parses quoted values exactly, so the guard
+        // only applies to reads that may begin or end on a cut made on the quote-free evidence.
+        if (quoteFreeSplitting && (context.firstSplit() && context.lastSplit() && context.recordAligned() == false) == false) {
+            recordReader.failOnLineSpan();
+        }
         // Bulk read-ahead is safe when this reader owns the stream end to end: the direct-to-block
         // path, and the house per-record path (useRecordReaderPath). The Jackson bulk path skips the
         // header through this reader then resumes on the same underlying BufferedReader, so it must
@@ -2202,6 +2326,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 declaredBinding = bindDeclaredToHeaderNames(headerColumns.toArray(new String[0]), readSchema, object);
             }
             warnAbsentDeclaredColumns(declaredBinding, readSchema, context.informationalWarningSink());
+            if (context.firstSplit() == false && context.recordAligned() == false) {
+                // Byte-range macro-split (bzip2 / zstd-indexed) with a pinned schema: the stream still starts in the
+                // middle of a record the previous split emitted, and a pinned schema must not turn that tail into a row.
+                discardLeadingPartialRecord(recordReader, reader, options, effective);
+            }
             effectiveSchema = readSchema;
         } else if (context.firstSplit()) {
             // resolvedSchema from withSchema(...) is the projected output, not the file's column
@@ -2221,15 +2350,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         } else {
             // Byte-range macro-split (bzip2 / zstd-indexed); leading partial record was emitted by
             // the prior split.
-            try {
-                recordReader.readRecord(
-                    options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS && options.delimiter() == ','
-                );
-            } catch (CsvRecordTooLargeException e) {
-                if (effective.isStrict()) {
-                    throw e;
-                }
-            }
+            discardLeadingPartialRecord(recordReader, reader, options, effective);
             effectiveSchema = resolvedSchema;
         }
         // mtime is pinned here at open-time so a mid-scan file replacement cannot pair a new
@@ -2288,6 +2409,36 @@ public class CsvFormatReader implements SegmentableFormatReader {
         );
     }
 
+    /** Drops the partial record a byte-range split starts in; closes {@code reader} if that fails so the stream does not leak. */
+    private static void discardLeadingPartialRecord(
+        CsvLogicalRecordReader recordReader,
+        BufferedReader reader,
+        CsvFormatOptions options,
+        ErrorPolicy effective
+    ) throws IOException {
+        try {
+            recordReader.discardLeadingPartialRecord(
+                options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS && options.delimiter() == ','
+            );
+        } catch (CsvRecordTooLargeException e) {
+            if (effective.isStrict()) {
+                closeAfterFailure(reader, e);
+                throw e;
+            }
+        } catch (IOException | RuntimeException e) {
+            closeAfterFailure(reader, e);
+            throw e;
+        }
+    }
+
+    private static void closeAfterFailure(BufferedReader reader, Exception failure) {
+        try {
+            reader.close();
+        } catch (IOException suppressed) {
+            failure.addSuppressed(suppressed);
+        }
+    }
+
     @Override
     public FormatReadCounters newReadCounters() {
         return new CsvReaderCounters(format);
@@ -2300,16 +2451,26 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     @Override
     public RecordSplitter recordSplitter(int maxRecordBytes) {
-        // Splitter chosen once, from the (quoting, escaping) pair - never a per-byte branch. Only plain
-        // data (no quoting, no escaping: every byte literal) has raw line terminators that are always
-        // record boundaries, so only it can use the cheap strided terminator scan. When quoting is on a
-        // raw newline can sit inside a quoted field, and when escaping is on a backslash-escaped raw
-        // newline is in-field content; either way boundary detection needs the quote/escape state machine
-        // and must be driven sequentially from a known record start.
-        if (options.quoting() == false && options.escaping() == false) {
+        // Splitter chosen once, from the (quoting, escaping) pair and the quote-free evidence - never a per-byte
+        // branch. Plain data (no quoting, no escaping: every byte literal) has raw line terminators that are
+        // always record boundaries, so it can use the cheap strided terminator scan. When quoting is on a raw
+        // newline can sit inside a quoted field, and when escaping is on a backslash-escaped raw newline is
+        // in-field content; boundary detection then needs the quote/escape state machine and must be driven
+        // sequentially from a known record start. The exception is a dataset whose schema sample held no quote
+        // or escape byte (quoteFreeSplitting): its newlines are only presumed to be boundaries, so it is cut
+        // by the cheap scan too, and read() fails loudly, via CsvLogicalRecordReader#failOnLineSpan, on a
+        // record that proves the presumption wrong.
+        if ((options.quoting() == false && options.escaping() == false) || quoteFreeSplitting) {
             return new NewlineRecordSplitter(maxRecordBytes);
         }
         return new CsvRecordSplitter(options, maxRecordBytes);
+    }
+
+    /** Whether the user set any key that picks the quoting dialect, in which case the sample must not decide it. */
+    private static boolean explicitDialect(Map<String, Object> config) {
+        return isExplicitlySet(config.get(CONFIG_MODE))
+            || isExplicitlySet(config.get(CONFIG_QUOTE))
+            || isExplicitlySet(config.get(CONFIG_ESCAPE));
     }
 
     static boolean isAsciiCsvFieldLeadingWhitespace(int ib) {
@@ -4398,6 +4559,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                                     rowStartBytesList.add(rowStartByte);
                                 }
                             } catch (RuntimeException e) {
+                                rethrowIfQuoteFreeContradiction(e);
                                 totalRowCount++;
                                 if (isRecordCapDrop(e)) {
                                     // An over-external_max_record_size record dropped by the record-reader path

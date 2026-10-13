@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration;
 import org.elasticsearch.xpack.esql.datasources.spi.QueryAdmission;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
@@ -233,7 +234,8 @@ public class StorageProviderRegistry implements Closeable {
         ErrorPolicy.CONFIG_MAX_ERRORS,
         ErrorPolicy.CONFIG_MAX_ERROR_RATIO,
         ErrorPolicy.CONFIG_ERROR_MODE,
-        DefinitionVersion.CONFIG_KEY
+        DefinitionVersion.CONFIG_KEY,
+        SourceMetadata.INFERRED_QUOTE_FREE_CONFIG_KEY
     );
 
     /**

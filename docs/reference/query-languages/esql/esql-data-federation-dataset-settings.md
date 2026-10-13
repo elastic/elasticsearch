@@ -238,7 +238,7 @@ $$$split-probe-window$$$
 `split_probe_window` {applies_to}`stack: experimental 9.6+`
 :   The number of bytes that each record-boundary search can read while files are split.
 
-    - **Formats:** NDJSON, and CSV and TSV without quoting or escaping
+    - **Formats:** NDJSON, CSV and TSV without quoting or escaping, and CSV with default quoting whose sampled rows hold no quote or escape character
     - **Default:** 256 KiB (`256kb`)
     - **Valid values:** A positive byte size. The product of `max_split_probes` and `split_probe_window` can't exceed 4 GiB.
     - **Related:** `max_split_probes`, `target_split_size`
@@ -246,7 +246,7 @@ $$$split-probe-window$$$
     If a dataset's records are longer than this value, its files are cut into fewer splits than `target_split_size` requests, which reduces parallelism. Raise the value for datasets with long records. If the pair is rejected, lower one of the two probe settings.
 
     :::{dropdown} How record-boundary searches work
-    A search that doesn't reach the end of a record finds no boundary, so the file can't be split at that offset.<br><br>`max_split_probes` sets how many searches a query runs, and `split_probe_window` sets how many bytes each search reads. Their product is the number of bytes a query can read while searching. With the default values, that is 1000 searches of 256 KiB, or about 250 MiB. Size the window from the dataset's longest record, and size `max_split_probes` from the number of splits the scan needs.<br><br>Values below about 136 KiB are read in full by every search, because finishing a small window costs less than opening another connection. Lowering the value below that point doesn't reduce the bytes each search reads.<br><br>Quoted or escaped CSV and TSV can't be searched at a fixed offset, so record boundaries in those files are found by reading them sequentially. That sequential read is bounded by its own convergence behavior and by the `external_max_record_size` query pragma, not by `split_probe_window` or `max_split_probes`.
+    A search that doesn't reach the end of a record finds no boundary, so the file can't be split at that offset.<br><br>`max_split_probes` sets how many searches a query runs, and `split_probe_window` sets how many bytes each search reads. Their product is the number of bytes a query can read while searching. With the default values, that is 1000 searches of 256 KiB, or about 250 MiB. Size the window from the dataset's longest record, and size `max_split_probes` from the number of splits the scan needs.<br><br>Values below about 136 KiB are read in full by every search, because finishing a small window costs less than opening another connection. Lowering the value below that point doesn't reduce the bytes each search reads.<br><br>Other quoted or escaped CSV and TSV can't be searched at a fixed offset, so record boundaries in those files are found by reading them sequentially. That sequential read is bounded by its own convergence behavior and by the `external_max_record_size` query pragma, not by `split_probe_window` or `max_split_probes`.
 
     :::
 

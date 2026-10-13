@@ -59,6 +59,7 @@ public class CsvFormatReaderStateLifecycleTests extends ESTestCase {
         "readConfig",
         "declaredDateFormats",
         "declaredProvenanceBinding",
+        "quoteFreeSplitting",
         "directBlockEnabled",
         "configWarnings"
     );

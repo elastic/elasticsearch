@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.core.TimeValue;
@@ -26,6 +27,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -58,6 +60,7 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
     private static final int LINES_PER_ROW = 3;
     private static final int LINE_WIDTH = 60;
     private static final long TRUE_ROW_COUNT = ROWS;
+    private static final int QUOTE_FREE_PREFIX_ROWS = 8000;
 
     @Override
     protected Collection<Class<? extends Plugin>> formatPlugins() {
@@ -248,6 +251,122 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
         } finally {
             Files.deleteIfExists(csvFile);
         }
+    }
+
+    /**
+     * A default-dialect {@code .csv} whose schema sample (limited to the first rows by {@code schema_sample_size}) is
+     * quote-free is split at plain newlines, so quoted multi-line
+     * fields that only appear after the sample are a contradiction of that evidence. The read must fail and say how to fix
+     * it, rather than return rows cut inside quoted fields.
+     */
+    public void testQuoteFreeSampleContradictedByLaterQuotedMultilineRowsFails() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+
+        Path csvFile = writeQuoteFreePrefixThenQuotedMultilineCsv();
+        try {
+            String query = "EXTERNAL \""
+                + StoragePath.fileUri(csvFile)
+                + "\" WITH {\"schema_sample_size\":100,\"target_split_size\":\"1mb\"} | STATS c = COUNT(*)";
+            Exception e = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest(query), TimeValue.timeValueMinutes(5)).close());
+            assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), containsString("spans several lines"));
+        } finally {
+            Files.deleteIfExists(csvFile);
+        }
+    }
+
+    /** The remedy the error message gives: with {@code mode: quoted} set explicitly the same file counts exactly. */
+    public void testExplicitQuotedModeReadsQuoteFreePrefixThenQuotedMultilineCsv() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+
+        Path csvFile = writeQuoteFreePrefixThenQuotedMultilineCsv();
+        try {
+            String query = "EXTERNAL \""
+                + StoragePath.fileUri(csvFile)
+                + "\" WITH {\"mode\":\"quoted\",\"target_split_size\":\"1mb\"} | STATS c = COUNT(*), mn = MIN(a), mx = MAX(a)";
+            try (var response = run(syncEsqlQueryRequest(query), TimeValue.timeValueMinutes(5))) {
+                List<List<Object>> values = getValuesList(response);
+                assertThat(((Number) values.get(0).get(0)).longValue(), equalTo((long) QUOTE_FREE_PREFIX_ROWS + ROWS));
+                assertThat(((Number) values.get(0).get(1)).longValue(), equalTo(0L));
+                assertThat(((Number) values.get(0).get(2)).longValue(), equalTo((long) QUOTE_FREE_PREFIX_ROWS + ROWS - 1));
+            }
+        } finally {
+            Files.deleteIfExists(csvFile);
+        }
+    }
+
+    /**
+     * A control: a file that really is quote-free reads exactly under the default dialect, on newline-cut splits. It must
+     * be larger than twice the 1 MiB minimum segment size, or it is read as one whole-file split and nothing is cut.
+     */
+    public void testQuoteFreeCsvCountsExactlyUnderDefaultDialect() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+
+        Path csvFile = createTempDir().resolve("quote-free.csv");
+        StringBuilder sb = new StringBuilder("a,b\n");
+        int rows = 200_000;
+        for (int i = 0; i < rows; i++) {
+            sb.append(i).append(",plain value ").append(i).append('\n');
+        }
+        Files.writeString(csvFile, sb);
+        try {
+            String query = "EXTERNAL \""
+                + StoragePath.fileUri(csvFile)
+                + "\" WITH {\"target_split_size\":\"1mb\"} | STATS c = COUNT(*), mx = MAX(a)";
+            try (var response = run(syncEsqlQueryRequest(query), TimeValue.timeValueMinutes(5))) {
+                List<List<Object>> values = getValuesList(response);
+                assertThat(((Number) values.get(0).get(0)).longValue(), equalTo((long) rows));
+                assertThat(((Number) values.get(0).get(1)).longValue(), equalTo((long) rows - 1));
+            }
+        } finally {
+            Files.deleteIfExists(csvFile);
+        }
+    }
+
+    /**
+     * The quote-free evidence is one file's schema sample, so it must not carry over to the other files of a glob: a
+     * quote-free anchor next to a file holding a quoted multi-line value reads exactly.
+     */
+    public void testQuoteFreeAnchorDoesNotAffectOtherFilesOfAGlob() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+
+        Path dir = createTempDir();
+        Files.writeString(dir.resolve("a.csv"), "id,note\n1,alpha\n2,beta\n");
+        Files.writeString(dir.resolve("b.csv"), "id,note\n3,\"gam\nma\"\n4,delta\n");
+        try {
+            String query = "EXTERNAL \"" + StoragePath.fileUri(dir) + "/*.csv\" | STATS c = COUNT(note), mx = MAX(id)";
+            try (var response = run(syncEsqlQueryRequest(query), TimeValue.timeValueMinutes(5))) {
+                List<List<Object>> values = getValuesList(response);
+                assertThat(((Number) values.get(0).get(0)).longValue(), equalTo(4L));
+                assertThat(((Number) values.get(0).get(1)).longValue(), equalTo(4L));
+            }
+        } finally {
+            Files.deleteIfExists(dir.resolve("a.csv"));
+            Files.deleteIfExists(dir.resolve("b.csv"));
+        }
+    }
+
+    /**
+     * {@value #QUOTE_FREE_PREFIX_ROWS} plain rows (well past the schema sample's first read buffer), then {@value #ROWS} rows
+     * whose second column is a quoted three-line value. Column {@code a} is the row index.
+     */
+    private Path writeQuoteFreePrefixThenQuotedMultilineCsv() throws Exception {
+        Path file = createTempDir().resolve("quote-free-prefix.csv");
+        StringBuilder sb = new StringBuilder("a,b\n");
+        for (int i = 0; i < QUOTE_FREE_PREFIX_ROWS; i++) {
+            sb.append(i).append(",plain value ").append(i).append('\n');
+        }
+        for (int i = 0; i < ROWS; i++) {
+            sb.append(QUOTE_FREE_PREFIX_ROWS + i).append(",\"");
+            for (int line = 0; line < LINES_PER_ROW; line++) {
+                sb.append("x".repeat(LINE_WIDTH));
+                if (line < LINES_PER_ROW - 1) {
+                    sb.append('\n');
+                }
+            }
+            sb.append("\"\n");
+        }
+        Files.writeString(file, sb);
+        return file;
     }
 
     /**

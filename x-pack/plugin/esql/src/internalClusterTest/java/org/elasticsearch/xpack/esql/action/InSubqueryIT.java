@@ -14,7 +14,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
@@ -25,6 +24,7 @@ import java.util.List;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.mockito.ArgumentMatchers.contains;
 
 /**
  * Integration tests for WHERE IN (subquery) and WHERE NOT IN (subquery).
@@ -959,19 +959,14 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    /**
-     * Regression test: a view referenced from an IN subquery whose body is a very long pipeline must not
-     * overflow the stack while views are being resolved: the request must fail with a clean error instead of hanging.
-     */
-    public void testViewReferencedFromInSubqueryWithDeepPipeline() {
+    public void testDeepSubquery() {
         assumeTrue("Requires views in cluster state", EsqlCapabilities.Cap.VIEWS_IN_CLUSTER_STATE.isEnabled());
         assumeTrue("Requires IN subquery view support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW.isEnabled());
         try {
             installView("deep_ids", "FROM test | KEEP id");
 
             String query = "FROM test | WHERE id IN (FROM deep_ids" + " | LIMIT 1".repeat(5_000) + ") | KEEP id";
-            var e = expectThrows(ParsingException.class, () -> run(query).close());
-            assertTrue(e.getMessage(), e.getMessage().contains("stack overflow"));
+            expectThrows(VerificationException.class, contains("Stack overflow"), () -> run(query).close());
         } finally {
             deleteViews("deep_ids");
         }

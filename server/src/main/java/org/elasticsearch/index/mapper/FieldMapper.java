@@ -27,6 +27,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.escf.EscfColumn;
+import org.elasticsearch.escf.EscfColumnKind;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -331,6 +332,16 @@ public abstract class FieldMapper extends Mapper {
         if (isNullable() == false && source.hasNullOrAbsentDoc()) {
             throw new UnsupportedOperationException(
                 "mapColumnBatch: nullability=false field [" + fullPath() + "] has a null or absent value"
+            );
+        }
+        // Outside strict-columnar modes (which reject the setting), a non-default synthetic_source_keep makes the row path keep array
+        // source as-is, either as positional offsets or in _ignored_source, neither of which the batch path writes.
+        // TODO: scalars under keep: all and object-level keep are not yet covered; see supportsColumnarParse.
+        if (source.kind() == EscfColumnKind.ARRAY
+            && ctx.indexSettings().getMode().isStrictColumnar() == false
+            && sourceKeepMode().orElse(ctx.indexSettings().sourceKeepMode()) != SourceKeepMode.NONE) {
+            throw new UnsupportedOperationException(
+                "mapColumnBatch: field [" + fullPath() + "] keeps array source outside a strict-columnar index mode"
             );
         }
         doMapColumnBatch(ctx, source);

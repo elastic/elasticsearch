@@ -8,11 +8,13 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -33,6 +35,7 @@ import org.elasticsearch.lucene.queries.XSortedSetDocValuesRangeQuery;
 import org.elasticsearch.test.IndexSettingsModule;
 
 import java.util.List;
+import java.util.stream.IntStream;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -86,6 +89,20 @@ public class RoutingFieldTypeTests extends FieldTypeTestCase {
         // a single distinct value collapses to the exact query
         query = RoutingFieldMapper.DOC_VALUES_FIELD_TYPE.termsQuery(List.of("foo", "foo"), sliceEnabledMockContext());
         assertEquals(sliceKeyExactQuery("foo"), query);
+    }
+
+    /**
+     * Past the max clause count, where one exact query per slice would throw {@code TooManyClauses},
+     * the terms query falls back to a set query on the encoded keys.
+     */
+    public void testTermsQuerySliceEnabledManySlices() {
+        List<String> slices = IntStream.rangeClosed(0, IndexSearcher.getMaxClauseCount()).mapToObj(i -> "slice-" + i).toList();
+        Query query = RoutingFieldMapper.DOC_VALUES_FIELD_TYPE.termsQuery(slices, sliceEnabledMockContext());
+        Query expected = SortedDocValuesField.newSlowSetQuery(
+            SliceIndexing.SLICE_KEY_FIELD_NAME,
+            slices.stream().map(SliceIndexing::encodeSliceKey).toList()
+        );
+        assertEquals(expected, query);
     }
 
     private static Query sliceKeyExactQuery(String slice) {

@@ -17,6 +17,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -171,6 +172,13 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
                         .collect(Collectors.toCollection(LinkedHashSet::new));
                     if (distinct.size() == 1) {
                         return sliceKeyExactQuery(distinct.iterator().next());
+                    }
+                    if (distinct.size() > IndexSearcher.getMaxClauseCount()) {
+                        // too many slices for one clause each, fall back to a set query on the encoded keys
+                        return SortedDocValuesField.newSlowSetQuery(
+                            SliceIndexing.SLICE_KEY_FIELD_NAME,
+                            distinct.stream().map(SliceIndexing::encodeSliceKey).toList()
+                        );
                     }
                     final BooleanQuery.Builder builder = new BooleanQuery.Builder();
                     for (BytesRef value : distinct) {

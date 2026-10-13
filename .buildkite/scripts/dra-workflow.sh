@@ -90,9 +90,7 @@ find "$WORKSPACE" -type f -path "*/build/distributions/*" -exec chmod a+r {} \;
 find "$WORKSPACE" -type d -path "*/build/distributions" -exec chmod a+w {} \;
 
 # Publish the exploded maven aggregation tree to snapshots.elastic.co /
-# 
-
-.elastic.co ourselves, ahead of the release-manager cutover tracked
+# staging.elastic.co ourselves, ahead of the release-manager cutover tracked
 # in https://github.com/elastic/elasticsearch-team/issues/4297.
 echo --- Publishing maven aggregation to S3
 DRA_WORKFLOW="$WORKFLOW" \
@@ -104,8 +102,9 @@ mkdir -p artifacts
 # Each cp block below mirrors a non-maven entry in the release-manager project
 # config at elastic/infra/cd/release/release-manager/project-configs/8.19/elasticsearch.gradle.
 # Keep this in sync with that file when artifact types or paths change.
-# Maven artifacts (org.elasticsearch.*) are published to S3 via dra-maven-snapshots-publish.sh
-# and are intentionally excluded here.
+# The Maven Central compliant aggregation zip (elasticsearch-maven-aggregation) is included below
+# so it stays part of the DRA artifacts. The DRA-shaped maven/javadoc trees are published to S3
+# separately via dra-maven-snapshots-publish.sh.
 
 # Binary distributions
 cp distribution/archives/windows-zip/build/distributions/*.zip                artifacts/
@@ -118,7 +117,7 @@ cp distribution/packages/rpm/build/distributions/*.rpm                        ar
 cp distribution/packages/aarch64-rpm/build/distributions/*.rpm                artifacts/
 
 # Generic ZIPs and TACO
-# elasticsearch-maven-aggregation is excluded: handled by dra-maven-snapshots-publish.sh (S3).
+cp build/distributions/elasticsearch-maven-aggregation-*.zip                   artifacts/
 cp x-pack/rest-resources-zip/build/distributions/*.zip                        artifacts/
 cp build/distributions/rolling-upgrade-compatible-*.zip                        artifacts/
 cp build/distributions/elasticsearch-jdbc-*.taco                               artifacts/

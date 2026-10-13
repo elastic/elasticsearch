@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownLiteralConversion;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCompare;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
@@ -67,7 +68,7 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
 
     @Before
     public void initBlockFactory() throws Exception {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
     // ---- Test 1: All 6 comparison ops with LongBlock ----
@@ -212,6 +213,31 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
             4,
             reusable,
             new int[] { 2 }
+        );
+    }
+
+    /**
+     * Mixed {@code integer < 5.5} must rewrite to {@code integer <= 5} before late-mat; truncating
+     * via {@code intValue()} on 5.5 would wrongly drop the matching row at 5.
+     */
+    public void testIntegerLessThanDoubleKeepsFive() {
+        int[] values = { 4, 5, 6 };
+        Block block = blockFactory.newIntArrayVector(values, values.length).asBlock();
+        Map<String, Block> blocks = Map.of("i", block);
+        WordMask reusable = new WordMask();
+
+        assertSurvivors(
+            new ParquetPushedExpressions(
+                List.of(
+                    PushdownLiteralConversion.rewrite(
+                        new LessThan(Source.EMPTY, attr("i", DataType.INTEGER), lit(5.5, DataType.DOUBLE), null)
+                    )
+                )
+            ),
+            blocks,
+            3,
+            reusable,
+            new int[] { 0, 1 }
         );
     }
 
@@ -1739,7 +1765,7 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
      * When the predicate column is absent from the block map, a LIKE-family conjunct promoted to
      * {@code Pushability.YES} (dropped from FilterExec) must produce an empty survivor mask, not
      * the all-survive {@code null} sentinel. The column is null-filled above the reader under
-     * union_by_name, and no pattern matches null. See elastic/esql-planning#2052.
+    * union_by_name, and no pattern matches null.
      */
     public void testWildcardLikeWithMissingColumn() {
         Map<String, Block> blocks = new HashMap<>();
@@ -1859,7 +1885,7 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
     /**
      * A LIKE on a virtual column (e.g. _file.name) that has no block still yields the conservative
      * all-survive sentinel. Virtual columns are materialized downstream with real values; returning
-     * an empty mask would drop every row of the file. See elastic/esql-planning#2052 and #149393.
+    * an empty mask would drop every row of the file. See and #149393.
      */
     public void testLikeOnVirtualColumnWithNoBlockYieldsNull() {
         Map<String, Block> blocks = new HashMap<>();
@@ -2435,7 +2461,7 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
         return out;
     }
 
-    // ---- Multivalue block tests (esql-planning#1070) ----
+    // ---- Multivalue block tests ----
 
     // Block layout for most MV int tests: pos0=[1,2] (MV), pos1=[3] (SV), pos2=null, pos3=[7,5] (MV)
 

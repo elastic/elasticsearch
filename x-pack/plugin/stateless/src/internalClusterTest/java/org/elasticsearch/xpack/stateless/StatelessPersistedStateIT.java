@@ -65,9 +65,9 @@ public class StatelessPersistedStateIT extends AbstractStatelessPluginIntegTestC
 
     private void assertTransportVersionConsistency(String viaNode, String expectedMasterNodeName) {
         awaitMasterNode(viaNode, expectedMasterNodeName);
-        final var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
-        assertEquals(TransportVersion.current(), clusterService.state().getMinTransportVersion());
-        assertEquals(clusterService.state().nodes().getNodes().keySet(), clusterService.state().compatibilityVersions().keySet());
+        final var state = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
+        assertEquals(TransportVersion.current(), state.getMinTransportVersion());
+        assertEquals(state.nodes().getNodes().keySet(), state.compatibilityVersions().keySet());
     }
 
     public void testTransportVersions() throws Exception {

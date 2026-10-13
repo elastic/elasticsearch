@@ -21,6 +21,8 @@ import org.elasticsearch.columnar.substrate.MonotonicReader;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.NavigableSet;
+import java.util.Set;
 import java.util.function.Predicate;
 
 /**
@@ -49,6 +51,15 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
     /** Values between entries in {@link #escapeRanks}, as the column recorded it. */
     private final int escapeRankBlockSize;
 
+    /**
+     * Runs of ordinals a window is still worth building for: it costs one vectorized pass per run on every
+     * block read, while the ordinal bitset costs one probe per value whatever the run count.
+     *
+     * <p>Placed with {@code ColumnarDictionaryStringTermsSlicingBenchmark} against a build that never builds
+     * a window: {@code -p data=POD_NAME -p numDocs=1000000 -p probe=PRESENT -p queryTerms=1,2,3,4,8,16}.
+     */
+    private static final int MAX_WINDOW_RUNS = 2;
+
     private final int dictionarySize;
     /** The ordinal marking a value no term names, one past the last term. */
     private final int escapeOrdinal;
@@ -58,12 +69,7 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
     private long escapeCursorAddress = -1;
     private long escapeCursorRank;
 
-    /** A page's view of the dictionary: which ordinals it holds and where each one's value landed. */
-    private int[] touched = new int[0];
-    private int[] slotByOrdinal = new int[0];
-    private int[] stampByOrdinal = new int[0];
-    private int generation;
-    private boolean directSlots;
+    private final PageTerms pageTerms = new PageTerms();
 
     DictionaryStringColumnReader(StringColumnMetadata.Dictionary column, ColumnInputs inputs) throws IOException {
         // The ordinals are what this column addresses in blocks; the dictionary keeps one term to a block.
@@ -144,6 +150,12 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
             termAt((int) ordinal, value);
         }
         return value;
+    }
+
+    /** Every ordinal but the one naming a null: a term's, or the one marking an escaped value. */
+    @Override
+    protected SlotWindow nonNullSlots() {
+        return new SlotWindow(SlotBlocks.of(ordinals), StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL, escapeOrdinal);
     }
 
     /**
@@ -396,17 +408,18 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         }
         // The approximation is the slots whose ordinal is in the run, and the escaped ones when an escape can
         // carry the target; a block of ordinals is tested at once. When no escape can, the ordinals settle it.
-        final SlotWindow window = escapesCanMatch
-            ? new SlotWindow(SlotBlocks.of(ordinals), lowOrdinal, highOrdinal - 1L, escapeOrdinal, escapeOrdinal)
-            : new SlotWindow(SlotBlocks.of(ordinals), lowOrdinal, highOrdinal - 1L);
+        final SlotWindow window = new SlotWindow(
+            SlotBlocks.of(ordinals),
+            windowRanges(lowOrdinal, highOrdinal, escapeOrdinal, escapesCanMatch)
+        );
         final Slots candidates = slotsHeld(window);
+        if (escapesCanMatch == false) {
+            return settledBy(candidates);
+        }
         final BytesRef value = new BytesRef();
         return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(candidates) {
             @Override
             public boolean matches() throws IOException {
-                if (escapesCanMatch == false) {
-                    return true;
-                }
                 final long first = candidates.firstSlot();
                 final long count = candidates.slotCount();
                 for (long i = 0; i < count; i++) {
@@ -428,27 +441,11 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
 
             @Override
             public float matchCost() {
-                return escapesCanMatch ? 3f : 0f;
-            }
-
-            @Override
-            public int docIDRunEnd() throws IOException {
-                // Settled by the window, so every document of a run it holds matches.
-                return escapesCanMatch == false ? candidates.docIDRunEnd() : super.docIDRunEnd();
-            }
-
-            @Override
-            public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
-                if (escapesCanMatch) {
-                    super.intoBitSet(upTo, bitSet, offset);
-                } else {
-                    candidates.intoBitSet(upTo, bitSet, offset);
-                }
+                return 3f;
             }
         });
     }
 
-    /** The first ordinal whose term sorts at or after {@code target}, by bisection over the dictionary. */
     /**
      * The end of the run the target covers, as {@code [from, to)}.
      *
@@ -475,6 +472,103 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         return low;
     }
 
+    /** The first ordinal the range admits, or {@code end} when no term reaches its lower bound. */
+    private int rangeLowOrdinal(BytesRef lower, boolean includeLower, int end) throws IOException {
+        if (lower == null) {
+            return StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL;
+        }
+        final BytesRef scratchTerm = new BytesRef();
+        int lo = firstTermAtLeast(lower, end);
+        if (includeLower == false && lo < end && termAt(lo, scratchTerm).compareTo(lower) == 0) {
+            lo++;
+        }
+        return lo;
+    }
+
+    /** One past the last ordinal the range admits. */
+    private int rangeHighOrdinal(BytesRef upper, boolean includeUpper, int end) throws IOException {
+        if (upper == null) {
+            return end;
+        }
+        if (includeUpper == false) {
+            return firstTermAtLeast(upper, end);
+        }
+        // NOTE: at most one term can equal the bound, since a dictionary holds each term once.
+        final BytesRef scratchTerm = new BytesRef();
+        int lo = firstTermAtLeast(upper, end);
+        if (lo < end && termAt(lo, scratchTerm).compareTo(upper) == 0) {
+            lo++;
+        }
+        return lo;
+    }
+
+    /**
+     * The inclusive ordinal pairs a {@link SlotWindow} takes to hold the terms in {@code [lowOrdinal,
+     * highOrdinal)}, and the escaped slots when an escape can carry the target too.
+     *
+     * <p>An empty run yields the escape pair alone rather than an empty range, so no caller depends on what a
+     * window does with a range whose end sorts below its start.
+     */
+    static long[] windowRanges(int lowOrdinal, int highOrdinal, int escapeOrdinal, boolean escapesCanMatch) {
+        assert lowOrdinal < highOrdinal || escapesCanMatch : "nothing can match, which the caller answers as empty";
+        if (lowOrdinal >= highOrdinal) {
+            return new long[] { escapeOrdinal, escapeOrdinal };
+        }
+        return escapesCanMatch
+            ? new long[] { lowOrdinal, highOrdinal - 1L, escapeOrdinal, escapeOrdinal }
+            : new long[] { lowOrdinal, highOrdinal - 1L };
+    }
+
+    private static DocIdSetIterator settledBy(Slots candidates) {
+        return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(candidates) {
+            @Override
+            public boolean matches() {
+                return true;
+            }
+
+            @Override
+            public float matchCost() {
+                return 0f;
+            }
+
+            @Override
+            public int docIDRunEnd() throws IOException {
+                return candidates.docIDRunEnd();
+            }
+
+            @Override
+            public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
+                candidates.intoBitSet(upTo, bitSet, offset);
+            }
+        });
+    }
+
+    /**
+     * The matched ordinals as the inclusive pairs a {@link SlotWindow} takes, or null past {@code maxRuns} of
+     * them. The dictionary is in term order, so a set drawn from one part of the vocabulary collapses into
+     * few runs however many terms it holds.
+     */
+    private static long[] runsOf(FixedBitSet matching, int end, int maxRuns) {
+        final long[] pairs = new long[2 * maxRuns];
+        int count = 0;
+        int at = matching.nextSetBit(0);
+        while (at != DocIdSetIterator.NO_MORE_DOCS) {
+            if (count == maxRuns) {
+                return null;
+            }
+            int stop = at;
+            while (stop + 1 < end && matching.get(stop + 1)) {
+                stop++;
+            }
+            pairs[2 * count] = at;
+            pairs[2 * count + 1] = stop;
+            count++;
+            at = stop + 1 < end ? matching.nextSetBit(stop + 1) : DocIdSetIterator.NO_MORE_DOCS;
+        }
+        return count == 0 ? null : Arrays.copyOf(pairs, 2 * count);
+    }
+
+    /** The first ordinal whose term sorts at or after {@code target}, by bisection over the dictionary. */
     private int firstTermAtLeast(BytesRef target, int end) throws IOException {
         final BytesRef term = new BytesRef();
         int low = StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL;
@@ -488,6 +582,148 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
             }
         }
         return low;
+    }
+
+    @Override
+    protected DocIdSetIterator unorderedRangeMatches(BytesRef lower, boolean includeLower, BytesRef upper, boolean includeUpper)
+        throws IOException {
+        final int end = dictionarySize + StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL;
+        final int lowOrdinal = rangeLowOrdinal(lower, includeLower, end);
+        final int highOrdinal = rangeHighOrdinal(upper, includeUpper, end);
+
+        // NOTE: an escaped value takes an ordinal above every term, but its bytes sort wherever they sort, so
+        // any escape can fall in the range and only reading it settles that.
+        final boolean escapesCanMatch = escapeCount > 0;
+        if (lowOrdinal >= highOrdinal && escapesCanMatch == false) {
+            return DocIdSetIterator.empty();
+        }
+        final SlotWindow window = new SlotWindow(
+            SlotBlocks.of(ordinals),
+            windowRanges(lowOrdinal, highOrdinal, escapeOrdinal, escapesCanMatch)
+        );
+        final Slots candidates = slotsHeld(window);
+        if (escapesCanMatch == false) {
+            return settledBy(candidates);
+        }
+        final BytesRef value = new BytesRef();
+        return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(candidates) {
+            @Override
+            public boolean matches() throws IOException {
+                final long first = candidates.firstSlot();
+                final long count = candidates.slotCount();
+                for (long i = 0; i < count; i++) {
+                    final long address = first + i;
+                    if (window.holds(address) == false) {
+                        continue;
+                    }
+                    if (ordinalAt(address) != escapeOrdinal) {
+                        return true;
+                    }
+                    escapes.get(escapeRankOf(address), value);
+                    if (inRange(value, lower, includeLower, upper, includeUpper)) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            @Override
+            public float matchCost() {
+                return 3f;
+            }
+        });
+    }
+
+    private boolean sweepIsCheaper(int termCount) {
+        final int reads = Math.max(1, 32 - Integer.numberOfLeadingZeros(dictionarySize));
+        // NOTE: a sweep reads the terms in order and hashes every one, so reading as many terms as the
+        // dictionary holds does not yet favour it. The factor brackets where the two cross, placed with
+        // ColumnarDictionaryStringTermsSlicingBenchmark against a build that never sweeps:
+        // -p data=POD_NAME -p numDocs=1000000 -p probe=PRESENT,ABSENT -p queryTerms=4096,6144,8192
+        return 2L * termCount * reads >= 3L * dictionarySize;
+    }
+
+    private FixedBitSet matchingByBisection(NavigableSet<BytesRef> terms, int end) throws IOException {
+        final FixedBitSet matching = new FixedBitSet(end);
+        final BytesRef scratchTerm = new BytesRef();
+        for (BytesRef term : terms) {
+            final int ordinal = firstTermAtLeast(term, end);
+            if (ordinal < end && termAt(ordinal, scratchTerm).compareTo(term) == 0) {
+                matching.set(ordinal);
+            }
+        }
+        return matching;
+    }
+
+    private FixedBitSet matchingBySweep(Set<BytesRef> wanted, int end) throws IOException {
+        final FixedBitSet matching = new FixedBitSet(end);
+        final BytesRef scratchTerm = new BytesRef();
+        for (int ordinal = StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL; ordinal < end; ordinal++) {
+            if (wanted.contains(termAt(ordinal, scratchTerm))) {
+                matching.set(ordinal);
+            }
+        }
+        return matching;
+    }
+
+    @Override
+    protected DocIdSetIterator unorderedAnyOfMatches(NavigableSet<BytesRef> terms, Set<BytesRef> membership) throws IOException {
+        final int end = dictionarySize + StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL;
+        final FixedBitSet matching = sweepIsCheaper(terms.size()) ? matchingBySweep(membership, end) : matchingByBisection(terms, end);
+        // NOTE: an escaped value is one no term names, so a term the dictionary does hold was never escaped.
+        // Only a term that failed to resolve leaves an escape able to carry it.
+        final boolean escapesCanMatch = escapeCount > 0 && matching.cardinality() != terms.size();
+        if (matching.cardinality() == 0 && escapesCanMatch == false) {
+            return DocIdSetIterator.empty();
+        }
+        if (escapesCanMatch == false) {
+            final long[] runs = runsOf(matching, end, MAX_WINDOW_RUNS);
+            if (runs != null) {
+                return settledBy(slotsHeld(new SlotWindow(SlotBlocks.of(ordinals), runs)));
+            }
+        }
+        final ColumnIterator presence = iterator();
+        final BytesRef value = new BytesRef();
+        final OrdinalBlockMask mask = new OrdinalBlockMask(matching, escapesCanMatch);
+        final SlotFold fold = new SlotFold();
+        return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(presence) {
+            @Override
+            public boolean matches() throws IOException {
+                final int rank = presence.rank();
+                final long first = firstValueAddress(rank);
+                final long count = valueCount(rank);
+                for (long i = 0; i < count; i++) {
+                    final long address = first + i;
+                    if (mask.covers(address) == false) {
+                        mask.load(address);
+                    }
+                    if (mask.matches(address)) {
+                        return true;
+                    }
+                    if (mask.escaped(address)) {
+                        escapes.get(escapeRankOf(address), value);
+                        if (membership.contains(value)) {
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }
+
+            @Override
+            public float matchCost() {
+                return 3f;
+            }
+
+            @Override
+            public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
+                if (escapeCount > 0) {
+                    super.intoBitSet(upTo, bitSet, offset);
+                    return;
+                }
+                collectFromOrdinals(presence, mask, fold, upTo, bitSet, offset);
+            }
+        });
     }
 
     @Override
@@ -534,20 +770,40 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
             }
         }
 
-        // The ordinals this page holds, each once and in order, so a slot can be found by bisecting them.
-        final int distinct = distinctOrdinals(values, dictionarySize);
+        // The terms this page holds, each once and in term order: a term's place among them is its slot.
+        final int distinct = pageTerms.collect(values);
+
+        // The page takes a slot for each of those and at least one more if anything escaped. Where that alone is
+        // too many for ordinals to be worth it, the page is going to be handed over as values whatever the escaped
+        // ones turn out to hold, so none of it needs naming.
+        final long fewestSlots = distinct + (escapedInPage > 0 ? 1 : 0);
+        if (fewestSlots * MIN_PAGE_REPEAT > values) {
+            try (StringBlockSink.Values out = sink.values(values, counts, docCount)) {
+                for (int i = 0; i < values; i++) {
+                    final int ordinal = pageOrdinals[i];
+                    if (ordinal < escapeOrdinal) {
+                        termAt(ordinal, scratch);
+                    } else {
+                        escapes.get(escapeRankOf(pageValueAddresses[i]), scratch);
+                    }
+                    out.append(scratch);
+                }
+                out.finish();
+            }
+            return true;
+        }
 
         pageBytesLength = 0;
         int slot = 0;
         for (; slot < distinct; slot++) {
-            termAt(touched[slot], scratch);
+            termAt(pageTerms.ordinalAt(slot), scratch);
             appendToPage(slot, scratch);
         }
         startPageSlots(escapedInPage);
         for (int i = 0; i < values; i++) {
             final int ordinal = pageOrdinals[i];
             if (ordinal < escapeOrdinal) {
-                pageOrdinals[i] = slotOf(ordinal, distinct);
+                pageOrdinals[i] = pageTerms.slotOf(ordinal);
             } else {
                 // Nothing names an escaped value but its bytes, so two documents holding the same ones are
                 // found to share a slot by those bytes. They cannot be found among the terms: a value
@@ -567,7 +823,7 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
             for (int i = 0; i < values; i++) {
                 pageValues[i] = pageDictionary[pageOrdinals[i]];
             }
-            sink.appendValues(pageValues, values, counts, docCount);
+            appendGathered(sink, values, counts, docCount);
             return true;
         }
         sink.appendOrdinals(pageOrdinals, values, counts, docCount, pageDictionary, slot);
@@ -575,71 +831,127 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
     }
 
     /**
-     * The distinct dictionary ordinals the page holds, ascending, left in {@link #touched}, returning how
-     * many there are. A dictionary no larger than the page is indexed directly and stamped with the page it
-     * was written for, so it never has to be cleared; a larger one is not indexed at all and the page's own
-     * ordinals are sorted instead. Either way nothing here grows with the dictionary beyond the page.
-     *
-     * <p>{@link #touched} holds column ordinals, which is what {@link #slotOf} bisects and what reads a term.
-     * The direct index is the one thing in term-index space, so it stays the size of the dictionary rather
-     * than of the ordinal space around it.
+     * The terms a page holds and the slot the page gives each, found by the term's ordinal. The slots follow term
+     * order. A dictionary no larger than the page is indexed directly and a larger one is hashed, so neither grows
+     * past the page, and both are stamped with the page they were filled for rather than cleared between pages.
      */
-    private int distinctOrdinals(int count, int dictionarySize) {
-        if (touched.length < count) {
-            charge((long) (count - touched.length) * Integer.BYTES);
-            touched = new int[count];
-        }
-        int distinct = 0;
-        if (dictionarySize <= count) {
-            if (slotByOrdinal.length < dictionarySize) {
-                charge(2L * (dictionarySize - slotByOrdinal.length) * Integer.BYTES);
-                slotByOrdinal = new int[dictionarySize];
-                stampByOrdinal = new int[dictionarySize];
-                generation = 0;
+    private final class PageTerms {
+        /** The page's distinct term ordinals, ascending: the ordinal at an index is the term in that slot. */
+        private int[] ordinals = new int[0];
+
+        /** Indexed by term, for a dictionary no larger than the page. */
+        private int[] slotByTerm = new int[0];
+        private int[] stampByTerm = new int[0];
+
+        /** Open addressing over a power of two entries at most half full, for a larger dictionary. */
+        private int[] hashedOrdinal = new int[0];
+        private int[] hashedSlot = new int[0];
+        private int[] hashedStamp = new int[0];
+        private int hashShift;
+
+        private int generation;
+        private boolean direct;
+
+        /** Finds the distinct terms among {@code pageOrdinals[0..count)}, gives each its slot, and answers how many. */
+        int collect(int count) {
+            if (ordinals.length < count) {
+                charge((long) (count - ordinals.length) * Integer.BYTES);
+                ordinals = new int[count];
+            }
+            direct = dictionarySize <= count;
+            if (direct) {
+                growDirect();
+            } else {
+                growHashed(count);
             }
             if (++generation == Integer.MAX_VALUE) {
-                Arrays.fill(stampByOrdinal, 0);
+                Arrays.fill(stampByTerm, 0);
+                Arrays.fill(hashedStamp, 0);
                 generation = 1;
             }
+            int distinct = 0;
             for (int i = 0; i < count; i++) {
                 final int ordinal = pageOrdinals[i];
-                if (ordinal >= escapeOrdinal) {
-                    continue;
-                }
-                final int term = ordinal - StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL;
-                if (stampByOrdinal[term] != generation) {
-                    stampByOrdinal[term] = generation;
-                    touched[distinct++] = ordinal;
+                if (ordinal < escapeOrdinal && mark(ordinal)) {
+                    ordinals[distinct++] = ordinal;
                 }
             }
-            Arrays.sort(touched, 0, distinct);
-            for (int i = 0; i < distinct; i++) {
-                slotByOrdinal[touched[i] - StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL] = i;
+            Arrays.sort(ordinals, 0, distinct);
+            for (int slot = 0; slot < distinct; slot++) {
+                place(ordinals[slot], slot);
             }
-            directSlots = true;
             return distinct;
         }
-        for (int i = 0; i < count; i++) {
-            if (pageOrdinals[i] < escapeOrdinal) {
-                touched[distinct++] = pageOrdinals[i];
-            }
-        }
-        Arrays.sort(touched, 0, distinct);
-        int unique = 0;
-        for (int i = 0; i < distinct; i++) {
-            if (i == 0 || touched[i] != touched[i - 1]) {
-                touched[unique++] = touched[i];
-            }
-        }
-        directSlots = false;
-        return unique;
-    }
 
-    /** Where the page put the value for {@code ordinal}, which {@link #distinctOrdinals} accounted for. */
-    private int slotOf(int ordinal, int distinct) {
-        return directSlots
-            ? slotByOrdinal[ordinal - StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL]
-            : Arrays.binarySearch(touched, 0, distinct, ordinal);
+        int ordinalAt(int slot) {
+            return ordinals[slot];
+        }
+
+        /** The slot of a term {@link #collect} found in the page. */
+        int slotOf(int ordinal) {
+            return direct ? slotByTerm[termOf(ordinal)] : hashedSlot[find(ordinal)];
+        }
+
+        /** Marks a term as held by the page and answers whether this is the first time. */
+        private boolean mark(int ordinal) {
+            if (direct) {
+                final int term = termOf(ordinal);
+                if (stampByTerm[term] == generation) {
+                    return false;
+                }
+                stampByTerm[term] = generation;
+                return true;
+            }
+            final int at = find(ordinal);
+            if (hashedStamp[at] == generation) {
+                return false;
+            }
+            hashedStamp[at] = generation;
+            hashedOrdinal[at] = ordinal;
+            return true;
+        }
+
+        private void place(int ordinal, int slot) {
+            if (direct) {
+                slotByTerm[termOf(ordinal)] = slot;
+            } else {
+                hashedSlot[find(ordinal)] = slot;
+            }
+        }
+
+        /** The entry holding {@code ordinal} for this page, or the free one it would take. */
+        private int find(int ordinal) {
+            final int mask = hashedOrdinal.length - 1;
+            int at = (ordinal * 0x9E3779B9) >>> hashShift;
+            while (hashedStamp[at] == generation && hashedOrdinal[at] != ordinal) {
+                at = (at + 1) & mask;
+            }
+            return at;
+        }
+
+        private int termOf(int ordinal) {
+            return ordinal - StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL;
+        }
+
+        private void growDirect() {
+            if (slotByTerm.length < dictionarySize) {
+                charge(2L * (dictionarySize - slotByTerm.length) * Integer.BYTES);
+                slotByTerm = new int[dictionarySize];
+                stampByTerm = new int[dictionarySize];
+            }
+        }
+
+        private void growHashed(int count) {
+            // At least two entries a value, so a probe is short.
+            final int capacity = Math.max(16, Integer.highestOneBit(count) << 2);
+            if (hashedOrdinal.length < capacity) {
+                charge(3L * (capacity - hashedOrdinal.length) * Integer.BYTES);
+                hashedOrdinal = new int[capacity];
+                hashedSlot = new int[capacity];
+                hashedStamp = new int[capacity];
+                hashShift = Integer.SIZE - Integer.numberOfTrailingZeros(capacity);
+            }
+        }
     }
 
     /**

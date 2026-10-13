@@ -568,6 +568,28 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
     }
 
     /**
+     * An {@code INT32} {@code TIME(MILLIS)} column reads as {@code date}, and its stored millisecond of day IS the
+     * epoch-millis value a literal carries, so the bound pushes unscaled against the physical {@code intColumn}.
+     * This column pushed through the LONG arm before it became temporal; the assertion that the day scale is NOT
+     * applied is what separates the new arm from the {@code DATE} arm beside it.
+     */
+    public void testDatetimeOverInt32TimeMillisColumnPushesUnscaled() {
+        MessageType schema = Types.buildMessage()
+            .required(INT32)
+            .as(timeType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+            .named("t")
+            .named("test");
+        int millisOfDay = 37_230_000; // 10:20:30
+
+        Expression cmp = new GreaterThan(Source.EMPTY, attr("t", DataType.DATETIME), datetimeLit(millisOfDay), null);
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(cmp)).toFilterPredicate(schema);
+        assertNotNull("a millisecond of day is already the epoch-millis value and must push", fp);
+        assertThat(fp.toString(), containsString(String.valueOf(millisOfDay)));
+        // Under the DATE arm's day scale the bound would floor to 0, which prunes nothing and reads as a pass.
+        assertThat("the day scale belongs to DATE, not TIME", fp.toString(), not(containsString("(t, 0)")));
+    }
+
+    /**
      * {@code TIME(NANOS)} is the identity: the file's unit is the block's, so the bound pushes unchanged. Pinned
      * beside the {@code MICROS} case so a fix that scales every TIME unit by 1_000 fails here.
      */

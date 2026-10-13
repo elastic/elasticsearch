@@ -134,12 +134,12 @@ final class ParquetColumnDecoding {
             return true; // a format parse can fail per value
         }
         if (primitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT32) {
-            // Every route an INT32 takes to a temporal block is total, not only the three DatetimeDecode arms (a DATE
-            // scales days to millis, a TIME(MILLIS) is already the millisecond of day, a uint32 declared `date`
-            // reinterprets the widened value as epoch millis). The castBlock routes are total too: the INTEGER arm is
-            // a widen, and the DOUBLE arm of an INT32 DECIMAL divides by a power of ten, whose quotient can be
-            // neither non-finite nor outside long range. A format arm is handled above, so a no-format INT32 keeps
-            // its IS NULL pushdown.
+            // Every route an INT32 takes to a temporal block is total. DatetimeDecode gives it two arms over three
+            // annotation cases (DATE_DAYS scales days to millis; INT32_EPOCH_MILLIS covers both a TIME(MILLIS),
+            // already the millisecond of day, and a uint32 declared `date`, whose widened value is reinterpreted).
+            // The castBlock routes are total too: the INTEGER arm is a widen, and the DOUBLE arm of an INT32 DECIMAL
+            // divides by a power of ten, whose quotient can be neither non-finite nor outside long range. A format
+            // arm is handled above, so a no-format INT32 keeps its IS NULL pushdown.
             return false;
         }
         if (primitiveType.getPrimitiveTypeName() != PrimitiveType.PrimitiveTypeName.INT64) {
@@ -576,9 +576,10 @@ final class ParquetColumnDecoding {
      * that declares itself unsigned does; a bare {@code INT32}, a {@code TIME}, and any other annotation sign-extend,
      * which is the historical reading. Every arm that widens an {@code INT32} asks this one method -- both engines'
      * scalar arms, the list arm and {@link #int32AsInferredLong} -- because they previously open-coded it in two
-     * different idioms, and the cast idiom threw {@link ClassCastException} for an annotation that was neither
-     * {@code INT} nor {@code TIME}: reachable, since such a column renders {@code INTEGER} and a declared
-     * {@code long} over it is a fused pair.
+     * different idioms, one of them an unchecked cast to {@code IntLogicalTypeAnnotation}. No file has been
+     * identified that reached that cast with another annotation: every shape {@code convertParquetTypeToEsql} routes
+     * to {@code long} carries either no annotation or an {@code INT} one. Its safety was a coupling between two
+     * distant methods rather than a property of the arm, which is what asking a predicate replaces.
      */
     static boolean int32IsUnsigned(@Nullable LogicalTypeAnnotation logical) {
         return logical instanceof LogicalTypeAnnotation.IntLogicalTypeAnnotation intLogical && intLogical.isSigned() == false;

@@ -854,6 +854,16 @@ final class ParquetPushedExpressions {
                     Long dayBound = boundToPhysicalUnit(millis, op, MILLIS_PER_DAY);
                     yield dayBound == null ? null : orderedPredicate(FilterApi.intColumn(columnName), (int) (long) dayBound, op);
                 }
+                if (logical instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation) {
+                    // TIME(MILLIS) stores the millisecond of day, which IS the epoch-millis value the literal is in,
+                    // so the relation is the identity and the bound pushes unscaled. This column pushed through the
+                    // LONG arm before it became a temporal one, and declining here instead would have lost its
+                    // pruning. A literal outside int range narrows to null and declines, which costs only pruning:
+                    // every stored value is below 86_400_000, so such a bound matches nothing or everything and
+                    // FilterExec decides it exactly.
+                    Integer bound = narrowLongToPhysicalInt32(millis, ptype);
+                    yield bound == null ? null : orderedPredicate(FilterApi.intColumn(columnName), bound, op);
+                }
                 yield null;
             }
             case INT64 -> {

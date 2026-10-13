@@ -569,8 +569,9 @@ public final class DeclaredTypeCoercions {
                     // value a date_nanos block can hold is a representable epoch-millis instant, so it cannot fail,
                     // and it must not borrow date_nanos' own 1970 floor. DateUtils.toMilliSeconds throws below the
                     // epoch because epoch-nanos start at 1970, which is a fact about the SOURCE type, not about
-                    // `date`; that floor made a pre-1970 TIMESTAMP(MICROS) column fail the whole read while the same
-                    // column read correctly with no declaration at all.
+                    // `date`; that floor failed a pre-1970 TIMESTAMP(MICROS) column under the default fail_fast mode
+                    // -- nulling the cell under null_field and dropping the row under skip_row, per onCoercionFailure
+                    // -- while the same column read correctly with no declaration at all.
                     //
                     // Floor division, not truncation toward zero: rawBoundFor's ScaleDown arithmetic -- the bounds the
                     // planner pushes for this very column -- is derived from `decoded == floorDiv(raw, d)`, so

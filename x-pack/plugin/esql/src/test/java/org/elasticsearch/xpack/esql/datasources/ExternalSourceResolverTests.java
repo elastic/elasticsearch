@@ -97,6 +97,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.WidenedColumn;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
@@ -5203,6 +5204,18 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalSchema schema = new ExternalSchema(List.of(attr("x", DataType.LONG)));
         StoragePath path = StoragePath.of("s3://bucket/part-a.parquet");
         List<String> warnings = List.of("a warning the resolve produced");
+        List<WidenedColumn> widened = List.of(new WidenedColumn("x", DataType.INTEGER, DataType.LONG, "9", 3L));
+        SourceStatistics footerStats = new SourceStatistics() {
+            @Override
+            public OptionalLong rowCount() {
+                return OptionalLong.of(42L);
+            }
+
+            @Override
+            public OptionalLong sizeInBytes() {
+                return OptionalLong.of(1024L);
+            }
+        };
         ExternalSourceMetadata rich = new ExternalSourceMetadata() {
             @Override
             public String location() {
@@ -5228,6 +5241,16 @@ public class ExternalSourceResolverTests extends ESTestCase {
             public Optional<List<String>> partitionColumns() {
                 return Optional.of(List.of("region"));
             }
+
+            @Override
+            public Optional<SourceStatistics> statistics() {
+                return Optional.of(footerStats);
+            }
+
+            @Override
+            public List<WidenedColumn> widenedColumns() {
+                return widened;
+            }
         };
         ExternalSourceResolution.ResolvedSource source = new ExternalSourceResolution.ResolvedSource(
             rich,
@@ -5239,6 +5262,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertTrue(SourceStatisticsSerializer.conversionNarrowingStamped(stamped.sourceMetadata()));
         assertEquals("warnings must survive the stamp", warnings, stamped.warnings());
         assertEquals("so must the partition columns", Optional.of(List.of("region")), stamped.partitionColumns());
+        // The planner reads these off the metadata to answer an aggregate from the footer, so losing them here
+        // silently turns every warm aggregate into a scan.
+        assertEquals("so must the statistics", Optional.of(footerStats), stamped.statistics());
+        assertEquals("so must the widened columns", widened, stamped.widenedColumns());
     }
 
     /** Stamps one file read as {@code readSchema} whose own types are {@code nativeTypes}, and reads the stamp back. */

@@ -137,6 +137,19 @@ public class MultiMatchQueryParser extends MatchQueryParser {
                     queryVisitor
                 );
             } else {
+                // The type blends the term statistics several fields keep in an index, which is what it is for. A
+                // field answering from its values keeps none, and a blend over it would quietly leave its matches
+                // out, so it is refused rather than answered in part.
+                for (FieldAndBoost field : group.getValue()) {
+                    if (answersFromValues(field.fieldType)) {
+                        throw new IllegalArgumentException(
+                            "Cannot run [cross_fields] over field ["
+                                + field.fieldType.name()
+                                + "] since it is answered from its values, which hold none of the term statistics the"
+                                + " type blends"
+                        );
+                    }
+                }
                 builder = new CrossFieldsQueryBuilder(
                     group.getKey(),
                     group.getValue(),

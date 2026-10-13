@@ -86,7 +86,7 @@ FROM speedtest_data, network_incidents METADATA _class, _name
 | LIMIT 10
 ```
 
-When sources have different schemas, columns that do not exist in a given source return `null` for rows from that source. To see which source each row came from, request a metadata column:
+When sources have different schemas, columns that do not exist in a given source return `null` for rows from that source. To see which source each row came from, request a metadata column. For details, refer to [Use metadata columns](#use-metadata-columns).
 
 - {applies_to}`stack: experimental 9.6+` Use `METADATA _name` and `METADATA _class`. `_name` returns the dataset name for dataset rows and the index name for index rows. `_class` returns `index` or `dataset`, so a query can tell the two apart without knowing the names in advance. `_index` returns `null` for dataset rows, because a dataset is not an index.
 - {applies_to}`stack: experimental =9.5` Use `METADATA _index`, which returns the dataset name for dataset rows. `_class` and `_name` are not available.
@@ -125,10 +125,6 @@ You can also send it in the `_query` request body as `"settings": {"wildcards_ma
 | `_source` | {applies_to}`stack: experimental 9.6+` null<br>{applies_to}`stack: experimental =9.5` The row as JSON. |
 
 {applies_to}`stack: experimental 9.6+` `_index`, `_id`, `_version`, and `_source` return `null` on a dataset. A dataset is not an index, and files carry no document identity, version, or stored source.
-
-{applies_to}`stack: experimental 9.6+` `_class` and `_name` answer the same two questions on every source. On an index they return `index` and
-the concrete index name; on a dataset, `dataset` and the dataset name. A `FROM` that names both kinds
-can separate the rows without knowing in advance which names resolve to which.
 
 For example, this query returns file-level metadata for each matching row:
 

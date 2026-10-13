@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * End-to-end coverage for <a href="https://github.com/elastic/elasticsearch/issues/159914">#159914</a>: a {@code LOAD_ALL} query must
- * be cancellable while the coordinator is expanding the {@code _unmapped_fields} column into per-field columns, not only before or
+ * be cancellable while the coordinator is flattening the {@code _unmapped_fields} column into a single JSON object per row, not only before or
  * after that phase.
  * <p>
  * A cancellation that arrives during the compute phase already aborts the drivers, so it never reaches expansion. To land a
@@ -51,7 +51,7 @@ public class LoadAllCancellationIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testCancelDuringUnmappedFieldExpansion() throws Exception {
-        assumeTrue("requires unmapped_fields=\"LOAD_ALL\"", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
+        assumeTrue("requires unmapped_fields=\"LOAD_ALL\"", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_SINGLE_SOURCE_COLUMN.isEnabled());
 
         // dynamic:false keeps the extra source fields out of the mapping, so LOAD_ALL is the only thing that surfaces them and the
         // coordinator has real expansion work to do.
@@ -116,7 +116,7 @@ public class LoadAllCancellationIT extends AbstractEsqlIntegTestCase {
             ).actionGet(DEFAULT_REQUEST_TIMEOUT)
         ) {
             List<String> columns = response.columns().stream().map(ColumnInfo::name).toList();
-            assertThat(columns, hasItems("mapped", "unmapped_a", "unmapped_b"));
+            assertThat(columns, hasItems("mapped", "_unmapped_fields"));
         }
     }
 

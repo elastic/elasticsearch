@@ -12,7 +12,6 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
-import org.elasticsearch.xpack.esql.analysis.UnmappedFieldsOrdering;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -42,7 +41,6 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.keepExistingUnsupportedAttributes;
@@ -74,12 +72,6 @@ import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferen
  */
 public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
 
-    private final Consumer<UnmappedFieldsOrdering> registerUnmappedFieldsOrdering;
-
-    public DetermineUnmappedFieldsToKeep(Consumer<UnmappedFieldsOrdering> registerUnmappedFieldsOrdering) {
-        this.registerUnmappedFieldsOrdering = registerUnmappedFieldsOrdering;
-    }
-
     @Override
     public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
         if (context.unmappedResolution().loadsAllUnmappedFields() == false) {
@@ -106,64 +98,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
                 .transformUp(MergePlan.class, DetermineUnmappedFieldsToKeep::finishMergeUnmappedFields)
                 .transformUp(Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields);
         }
-        if (carriesUnmappedFieldsAttribute(result)) {
-            // UnionTypesCleanup drops synthetic columns (the IN mark) after this snapshot. The replay has to drop them
-            // too, or expansion asserts that the replay is longer than the executed schema.
-            registerUnmappedFieldsOrdering.accept(
-                leaves -> dropSyntheticAttributes(withLeavesInPlaceOfSyntheticColumn(result, leaves).output())
-            );
-        }
         return result;
-    }
-
-    /**
-     * The plan with {@code leaves} standing in for the synthetic column, so asking it for its output re-runs every projection
-     * against a relation shaped exactly as it would have been had those fields been mapped: {@code ResolvingProject#replaceChild}
-     * re-invokes the real KEEP/DROP/RENAME resolvers, and EVAL and friends recompute their output on top.
-     * {@link MergePlan} snapshots its output, so the leaves are spliced into that list in place of {@code $$unmapped_fields}.
-     * {@link MergePlan#refreshOutput()} cannot do this: it mints new {@link org.elasticsearch.xpack.esql.core.expression.NameId}s,
-     * and expansion matches discovered fields by id.
-     */
-    private static LogicalPlan withLeavesInPlaceOfSyntheticColumn(LogicalPlan annotated, List<Attribute> leaves) {
-        return annotated.transformUp(EsRelation.class, esr -> {
-            List<Attribute> realAttributes = new ArrayList<>(esr.output().size());
-            boolean carriesSyntheticColumn = false;
-            for (Attribute a : esr.output()) {
-                if (a instanceof UnmappedFieldsAttribute) {
-                    carriesSyntheticColumn = true;
-                } else {
-                    realAttributes.add(a);
-                }
-            }
-            return carriesSyntheticColumn ? esr.withAttributes(realAttributes).withAdditionalAttributes(leaves) : esr;
-        }).transformUp(MergePlan.class, merge -> replaceSyntheticColumnInMergeOutput(merge, leaves));
-    }
-
-    private static MergePlan replaceSyntheticColumnInMergeOutput(MergePlan union, List<Attribute> leaves) {
-        List<Attribute> newOutput = new ArrayList<>(union.output().size() + leaves.size());
-        boolean replaced = false;
-        for (Attribute attr : union.output()) {
-            if (attr instanceof UnmappedFieldsAttribute || attr.name().equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME)) {
-                if (replaced) {
-                    throw new IllegalStateException(
-                        "expected at most one " + UnmappedFieldsAttribute.ATTRIBUTE_NAME + " in union output, got " + union.output()
-                    );
-                }
-                newOutput.addAll(leaves);
-                replaced = true;
-            } else {
-                newOutput.add(attr);
-            }
-        }
-        return replaced ? union.replaceSubPlansAndOutput(union.children(), newOutput) : union;
-    }
-
-    private static List<Attribute> dropSyntheticAttributes(List<Attribute> output) {
-        return output.stream().filter(attr -> attr.synthetic() == false || attr == Analyzer.NO_FIELDS.getFirst()).toList();
-    }
-
-    private static boolean carriesUnmappedFieldsAttribute(LogicalPlan plan) {
-        return plan.anyMatch(p -> p instanceof EsRelation esr && esr.output().stream().anyMatch(a -> a instanceof UnmappedFieldsAttribute));
     }
 
     /**

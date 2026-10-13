@@ -168,6 +168,14 @@ public final class BatchMappingContext implements Releasable {
     }
 
     /**
+     * Like {@link #rowCursor()}, but only reads back the columns accepted by {@code include}. A caller that does not use every field
+     * of a row should say so, as building the fields of the other columns is wasted work.
+     */
+    public MappedColumns.RowCursor rowCursor(Predicate<? super LuceneColumn> include) {
+        return mappedColumns().rowCursor(include);
+    }
+
+    /**
      * Detaches every column whose Lucene field name matches {@code nameFilter}. The backing data of a detached column stays registered
      * with this context and is released on {@link #close()}.
      */

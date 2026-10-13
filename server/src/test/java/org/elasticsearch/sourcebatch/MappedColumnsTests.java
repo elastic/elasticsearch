@@ -108,6 +108,49 @@ public class MappedColumnsTests extends ESTestCase {
         assertEquals(new BytesRef("d"), cursor.fields().get(0).binaryValue());
     }
 
+    public void testRowCursorSkipsExcludedColumnsAndKeepsTheOthersAligned() {
+        BytesRef seqNos = new BytesRef(new byte[3 * 8]);
+        BytesRef primaryTerms = new BytesRef(new byte[3 * 8]);
+        BytesRef versions = new BytesRef(new byte[3 * 8]);
+        MappedColumns mc = new MappedColumns(
+            0,
+            3,
+            seqNos,
+            primaryTerms,
+            versions,
+            List.of(
+                MappedColumns.longColumn(new BytesRef(longBytes(1L, 2L, 3L)), "kept_long", LONG_FIELD_TYPE, LongColumn.NumericKind.LONG),
+                MappedColumns.binaryColumn(
+                    new BytesRef[] { new BytesRef("x"), new BytesRef("y"), new BytesRef("z") },
+                    "dropped_binary",
+                    BINARY_FIELD_TYPE
+                ),
+                MappedColumns.longColumn(
+                    new BytesRef(longBytes(10L, 20L, 30L)),
+                    "kept_long_2",
+                    LONG_FIELD_TYPE,
+                    LongColumn.NumericKind.LONG
+                )
+            )
+        );
+
+        MappedColumns.RowCursor cursor = mc.rowCursor(column -> column.toLuceneColumn().name().equals("dropped_binary") == false);
+        for (int doc = 0; doc < 3; doc++) {
+            cursor.advance();
+            List<IndexableField> fields = cursor.fields();
+            assertEquals("row " + doc, 2, fields.size());
+            assertEquals("kept_long", fields.get(0).name());
+            assertEquals(doc + 1L, fields.get(0).numericValue().longValue());
+            assertEquals("kept_long_2", fields.get(1).name());
+            assertEquals((doc + 1L) * 10, fields.get(1).numericValue().longValue());
+        }
+
+        // Without a predicate nothing is left out.
+        MappedColumns.RowCursor all = mc.rowCursor();
+        all.advance();
+        assertEquals(3, all.fields().size());
+    }
+
     // -------------------------------------------------------------------------
     // withFilter — WindowedBinaryColumn
     // -------------------------------------------------------------------------

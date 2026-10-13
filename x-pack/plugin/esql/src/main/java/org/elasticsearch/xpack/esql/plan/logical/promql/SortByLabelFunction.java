@@ -23,7 +23,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.NaturalSortKey;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
@@ -32,6 +34,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.finite;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.open;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.union;
 
 /**
  * PromQL {@code sort_by_label} / {@code sort_by_label_desc}: identity-preserving ordering of an instant vector
@@ -151,6 +157,31 @@ public final class SortByLabelFunction extends PromqlFunctionCall implements Res
     @Override
     public boolean isIdentityTransparent() {
         return true;
+    }
+
+    /**
+     * Identity translation: histograms are kept, and usable sort labels are pushed into the child's required schema
+     * next to the packed {@code _timeseries} identity so they materialize as extra columns without unpacking the blob.
+     * Ordering is injected later.
+     * <p>
+     * An aggregation below can still drop a requested label (e.g. {@code without (pod)} with {@code "pod"}); it is
+     * then absent from every series and is null-filled, so it compares as the empty string, like Prometheus.
+     */
+    @Override
+    public IntermediateResult translate(TranslationContext context) {
+        List<String> labels = TranslationContext.mapFinite(usableSortLabels());
+        TranslationSchema childRequired = union(union(context.required(), open()), finite(labels));
+        IntermediateResult child = context.withRequired(childRequired).translate(child());
+        var nulls = new ArrayList<Alias>();
+        for (String label : labels) {
+            if (child.label(label) == null) {
+                nulls.add(TranslationContext.emitNullExpression(TranslationContext.mapToRef(label)));
+            }
+        }
+        if (nulls.isEmpty()) {
+            return child;
+        }
+        return child.with(new Eval(context.cmd().source(), child.plan(), nulls), child.schema(), child.value());
     }
 
     @Override

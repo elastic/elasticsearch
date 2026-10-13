@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
-import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -498,22 +497,6 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
      */
     public Set<String> partitionColumnNames() {
         return SourceStatisticsSerializer.partitionColumnNames(sourceMetadata);
-    }
-
-    /**
-     * Whether this read drops whole rows when a value fails to convert, under {@code errorPolicy}. The plan-side
-     * view of {@link SourceStatisticsSerializer#dropsRowsOnConversionFailure}, which the operator factory asks with
-     * the same source metadata, so a rule and the factory cannot reach different verdicts for one read.
-     * <p>
-     * Whether a value can fail at all is the resolution-time stamp in {@link #sourceMetadata()}; the coordinator is
-     * the only node that has seen the files, so that is how the fact reaches a data node. A plan with no stamp came
-     * from a coordinator that predates the stamp and is read conservatively: a value may fail, so the filter is
-     * withheld and extraction is not deferred. That costs speed for the length of a rolling upgrade and nothing
-     * else. It deliberately does not instead ask whether the dataset declared any column types, which would answer
-     * a read from how the schema was authored - the defect this predicate exists to avoid.
-     */
-    public boolean dropsRowsOnConversionFailure(ErrorPolicy errorPolicy) {
-        return SourceStatisticsSerializer.dropsRowsOnConversionFailure(errorPolicy, sourceMetadata);
     }
 
     /**

@@ -19,6 +19,7 @@ base {
 }
 
 def guavaDependency = 'com.google.guava:guava:33.7.2-jre'
+def failureAccessDependency = 'com.google.guava:failureaccess:1.0.3'
 
 configurations {
   unmodularGuava {
@@ -36,13 +37,14 @@ configurations {
 
 FilteringJarTransform.registerTransform(dependencies) { spec ->
   spec.exclude('module-info.class')
+  spec.exclude('META-INF/versions/*/module-info.class')
 }
 
-// Guava's explicit module is never resolved into the plugin's module layer, so bundle it as an automatic module
+// Guava's and failureaccess' explicit modules are never resolved into the plugin's module layer, so bundle them as automatic modules
 def unmodularGuavaFiles = configurations.unmodularGuava
 esplugin.bundleSpec.from(unmodularGuavaFiles)
 esplugin.bundleSpec.exclude { FileTreeElement e ->
-  e.file.name.startsWith('guava-') && unmodularGuavaFiles.files.contains(e.file) == false
+  (e.file.name.startsWith('guava-') || e.file.name.startsWith('failureaccess-')) && unmodularGuavaFiles.files.contains(e.file) == false
 }
 
 dependencies {
@@ -107,7 +109,8 @@ dependencies {
 
   runtimeOnly guavaDependency
   unmodularGuava guavaDependency
-  runtimeOnly 'com.google.guava:failureaccess:1.0.3'
+  runtimeOnly failureAccessDependency
+  unmodularGuava failureAccessDependency
   runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}"
   runtimeOnly "joda-time:joda-time:2.10.10"
 

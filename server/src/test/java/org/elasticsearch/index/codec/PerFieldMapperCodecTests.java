@@ -51,6 +51,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -787,6 +788,22 @@ public class PerFieldMapperCodecTests extends ESTestCase {
             assertFalse("mode=" + mode, supplier.resolveStringColumnOptions("category", ColumnarFieldType.STRING).singleValued());
             assertTrue("mode=" + mode, supplier.resolveStringColumnOptions("host", ColumnarFieldType.STRING).singleValued());
             assertFalse("mode=" + mode, supplier.resolveStringColumnOptions("body", ColumnarFieldType.STRING).singleValued());
+        }
+    }
+
+    public void testStringColumnOptionsAreNotGuessedForAFieldWithoutThem() throws IOException {
+        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(
+            randomColumnarMode(),
+            randomColumnarEligibleIndexVersion(),
+            true
+        );
+        for (String field : List.of("unmapped", "size")) {
+            final IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> supplier.resolveStringColumnOptions(field, ColumnarFieldType.STRING)
+            );
+            assertThat(e.getMessage(), containsString("field [" + field + "]"));
         }
     }
 

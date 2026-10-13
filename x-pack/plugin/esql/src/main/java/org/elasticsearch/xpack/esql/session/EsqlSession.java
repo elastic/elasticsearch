@@ -590,10 +590,12 @@ public class EsqlSession {
                     // Capture the analyzed plan for failure-path logging: schema-resolved,
                     // PROMQL→TS conversion done, but surrogate rewrites haven't fired yet.
                     planSnapshot = planSnapshot.withAnalyzed(plan);
-                    // Flag external-source usage on the shared telemetry so the coordinator emits
-                    // external-source-scoped operational metrics only for queries that scanned one.
+                    // Flag external-source usage on the shared telemetry and the execution info so the coordinator
+                    // emits external-source-scoped operational metrics and query metering for any query whose
+                    // analyzed plan references one, even if nothing ends up being scanned.
                     if (plan.anyMatch(ExternalRelation.class::isInstance)) {
                         planTelemetry.externalSource(true);
+                        executionInfo.externalSource(true);
                         recordExternalRelations(plan, planTelemetry);
                     }
 

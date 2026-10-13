@@ -453,15 +453,11 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     }
 
-    // Note: this gate differs from the by_outcome.success gate (PlanTelemetry.externalSource()). A
-    // query that prunes all splits (splitsScanned=0, externalWarmAggregates=0) counts as a success
-    // in by_outcome but does not trigger CPU recording — it consumed no external CPU.
+    // Gated on an external relation having been resolved in the analyzed plan (the same fact as PlanTelemetry.externalSource()),
+    // not on the scan counters: a query that scans nothing (LIMIT 0, every split pruned) still spent coordinator CPU on
+    // planning and split discovery, and must be metered.
     private boolean hasExternalSources(Result result) {
-        if (result.executionInfo() == null) {
-            return false;
-        }
-        var qp = result.executionInfo().queryProfile();
-        return qp != null && (qp.splitsScanned() > 0 || qp.externalWarmAggregates() > 0);
+        return result.executionInfo() != null && result.executionInfo().externalSource();
     }
 
     void collectMetrics(Result result) {

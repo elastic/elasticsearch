@@ -36,7 +36,7 @@ import java.util.function.BooleanSupplier;
  * group may overshoot when it is larger than the remaining budget, so a scan cannot stall;
  * that overshoot is node-wide, not per iterator, and belongs to one owner lease until
  * {@link #clearOwner}. Look-ahead {@link #tryAdmit} still refuses rather than fail the query.
- * Coalesced PER_GET draws a whole-unit {@link NodeByteBudget} ticket. There is no blocking
+ * Test-only coalesced PER_GET draws a whole-unit {@link NodeByteBudget} ticket. There is no blocking
  * wait and no charge-on-expiry.
  */
 final class ParquetIoWatermark implements AdmissionGate {
@@ -46,7 +46,7 @@ final class ParquetIoWatermark implements AdmissionGate {
     /**
      * How a coalesced GET batch charges this watermark. {@link #UNGATED} is a null hold's
      * {@link #forceAdd} (footer metadata, sliding window). {@link #GROUP_HOLD} is a footer
-     * estimate already {@link #tryAdmit}ted. {@link #PER_GET} draws one unit ticket covering
+     * estimate already {@link #tryAdmit}ted. {@link #PER_GET} is test-only: one unit ticket covering
      * every miss in the coalesced call. A null hold is never {@link #PER_GET}.
      */
     enum ByteGate {
@@ -127,10 +127,10 @@ final class ParquetIoWatermark implements AdmissionGate {
     }
 
     /**
-     * Drops {@code lease} as the node-wide overshoot owner if it currently holds that slot.
-     * Does not release bytes; those already returned from {@link DirectReadBuffer#close()}.
-     * No-op when another lease is the owner. Signals waiters. Call after budget {@code finish()}
-     * has released the budget lock.
+     * Drops {@code lease} as the node-wide overshoot owner if it currently holds that slot,
+     * unpins it, and re-runs the grant loop even when {@code lease} is not the owner. Does not
+     * release bytes; those already returned from {@link DirectReadBuffer#close()}. Call after
+     * budget {@code finish()} has released the budget lock.
      */
     void clearOwner(RowGroupIo lease) {
         budget.clearOwner(lease);
@@ -149,6 +149,11 @@ final class ParquetIoWatermark implements AdmissionGate {
     @Override
     public RescueResult rescueHead(@Nullable Executor delivery) {
         return budget.rescueHeadOverCap(delivery);
+    }
+
+    @Override
+    public void failCancelledWaiters() {
+        budget.failCancelledWaiters();
     }
 
     @Override
@@ -182,11 +187,19 @@ final class ParquetIoWatermark implements AdmissionGate {
      * the overshoot owner.
      */
     void forceAdd(long bytes) {
-        budget.add(bytes);
+        forceAdd(bytes, null);
+    }
+
+    void forceAdd(long bytes, @Nullable RowGroupIo lease) {
+        budget.add(bytes, lease);
     }
 
     void release(long bytes) {
-        budget.release(bytes);
+        release(bytes, null);
+    }
+
+    void release(long bytes, @Nullable RowGroupIo lease) {
+        budget.release(bytes, lease);
     }
 
     long used() {
@@ -293,8 +306,29 @@ final class ParquetIoWatermark implements AdmissionGate {
             inner.drop(bytes);
         }
 
+        /**
+         * Grows or drops leftover estimate so {@link #remaining()} equals {@code target}.
+         * Never grows past {@link #bytes()}; a drop re-runs the grant loop.
+         */
+        synchronized void retarget(long target) {
+            if (counted.get() == false) {
+                return;
+            }
+            long want = Math.max(0L, Math.min(target, inner.bytes()));
+            long current = inner.remaining();
+            if (want > current) {
+                inner.grow(want - current);
+            } else if (want < current) {
+                inner.drop(current - want);
+            }
+        }
+
         synchronized long remaining() {
             return inner.remaining();
+        }
+
+        long bytes() {
+            return inner.bytes();
         }
 
         /**

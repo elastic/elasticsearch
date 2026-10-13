@@ -26,6 +26,7 @@ import org.apache.parquet.io.SeekableInputStream;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -39,10 +40,15 @@ import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.datasources.DrainSimulatingStorageObject;
+import org.elasticsearch.xpack.esql.datasources.NodeByteBudgetService;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
+import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
+import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIoAffinity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.hamcrest.Matchers;
@@ -135,6 +141,48 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         }
         assertEquals(0, watermark.used());
         assertEquals(0, limited.getUsed());
+    }
+
+    /**
+     * Open-time window forceAdd does not open {@link StorageIoAffinity}. Binding the iterator
+     * lease afterwards must still trip wait-with-untracked; TLS attribution would miss this floor.
+     */
+    public void testWindowAllocWithoutAffinityThenAdmitAsyncTrips() throws Exception {
+        assertNull(StorageIoAffinity.current());
+        byte[] data = new byte[2048];
+        randomBytes(data);
+        NodeByteBudgetService budget = new NodeByteBudgetService(100);
+        ParquetIoWatermark watermark = new ParquetIoWatermark(budget);
+        CircuitBreaker limited = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(
+            createRangeReadStorageObject(data),
+            footerByteCache,
+            limited,
+            watermark
+        );
+        CountDownLatch granted = new CountDownLatch(1);
+        AtomicReference<NodeByteBudget.Hold> owner = new AtomicReference<>();
+        budget.admitAsync(150, new RowGroupIo(), () -> false, Runnable::run).addListener(ActionListener.wrap(h -> {
+            owner.set(h);
+            granted.countDown();
+        }, e -> { throw new AssertionError(e); }));
+        assertTrue(granted.await(5, TimeUnit.SECONDS));
+        try (SeekableInputStream stream = adapter.newStream()) {
+            byte[] buf = new byte[64];
+            stream.readFully(buf);
+            assertNull(StorageIoAffinity.current());
+            RowGroupIo lease = new RowGroupIo();
+            adapter.bindRowGroup(lease);
+            assertThat(lease.untracked(), Matchers.greaterThan(0L));
+            IllegalStateException error = expectThrows(
+                IllegalStateException.class,
+                () -> budget.admitAsync(5, lease, () -> false, Runnable::run)
+            );
+            assertTrue(error.getMessage(), error.getMessage().contains("untracked bytes"));
+        } finally {
+            owner.get().close();
+            budget.clearOwner(owner.get().lease());
+        }
     }
 
     public void testReleaseIdleWindowsRefundsOnceAndReallocatesOnRead() throws IOException {
@@ -362,6 +410,9 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
 
     private static StorageObject incompleteWindowStorage(StorageObject raw) {
         return new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
@@ -1024,6 +1075,9 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         byte[] data = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
         StorageObject rangeOnlyStorageObject = new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -1085,6 +1139,9 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         randomBytes(data);
         final int[] rangeReadCount = { 0 };
         StorageObject countingStorageObject = new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
@@ -1152,6 +1209,9 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
 
         StorageObject countingStorageObject = new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -1217,6 +1277,9 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         final int[] rangeReadCount = { 0 };
 
         StorageObject rangeOnlyCounting = new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
@@ -1304,6 +1367,9 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         final int[] maxRequestedLength = { 0 };
 
         StorageObject measuringStorageObject = new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
@@ -1435,6 +1501,9 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
 
         StorageObject countingStorageObject = new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -1506,6 +1575,9 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
 
     private StorageObject createStorageObject(byte[] data) {
         return new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
@@ -1850,6 +1922,9 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
 
         StorageObject obj = new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -2023,6 +2098,9 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
 
     private StorageObject createCountingStorageObject(byte[] data, StoragePath path, Instant lastModified, int[] counter) {
         return new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
@@ -2277,6 +2355,9 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
     private StorageObject createRecordingRangeReadStorageObject(byte[] data, List<long[]> rangeGets) {
         return new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -2318,6 +2399,9 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
 
     private StorageObject createCountingRangeReadStorageObject(byte[] data, AtomicInteger counter) {
         return new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
@@ -2404,6 +2488,9 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
 
     private StorageObject createRangeReadStorageObject(byte[] data) {
         return new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;

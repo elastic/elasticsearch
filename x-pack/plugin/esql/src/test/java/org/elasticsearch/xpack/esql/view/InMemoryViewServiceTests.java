@@ -2330,7 +2330,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     //
     // These assert on the raw output of ViewResolver.replaceViews(), before {@link ViewCompaction}
     // runs. They lock in the new ViewResolver contract so the upcoming CPS work
-    // (esql-planning #543) can rely on a known, stable nested shape per resolution level. The bulk
+    // can rely on a known, stable nested shape per resolution level. The bulk
     // of this file's coverage is on the post-compaction shape (what users observe via
     // {@link #replaceViews(LogicalPlan)}).
     // -------------------------------------------------------------------------------------------
@@ -2338,7 +2338,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     /**
      * Single-view query: the resolver returns a {@link ViewUnionAll} with the view's resolved body
      * alongside its CPS shadow. The strip in {@link ViewCompaction} drops the shadow before
-     * downstream consumers see it (Phase A); Phase B will replace the strip with a real
+     * downstream consumers see it; a later change will replace the strip with a real
      * lenient-resolution rule.
      */
     public void testUncompactedSingleView() {
@@ -2489,7 +2489,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
     /**
      * Per-shadow exclusion lists carry the position-aware exclusions from each view's referencing
-     * UnresolvedRelation. Reproduces the example from esql-planning #543 where {@code v1}'s body
+    * UnresolvedRelation. Reproduces the example from where {@code v1}'s body
      * has {@code FROM v2,metrics*,-*2025} so the {@code v2} shadow gets {@code [-*2025]}.
      */
     public void testViewShadowRelationCarriesPositionAwareExclusions() {
@@ -2733,7 +2733,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
      * as a {@link NamedSubquery}-wrapped {@link ViewUnionAll}. Each level emits its own shadow,
      * so the tree carries shadows for both inner and outer at the time it reaches PreAnalyzer.
      * postIndexResolution strips both and then flattens the nested {@link ViewUnionAll} structure
-     * into a single level (Strategy A — sibling resolutions stay separate, no merging).
+     * into a single level (sibling resolutions stay separate, no merging).
      */
     public void testStagedNestedNonCompactableViewsCps() {
         addView("inner_v", "FROM emp1 | LIMIT 100");

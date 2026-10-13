@@ -10,20 +10,25 @@ package org.elasticsearch.xpack.esql.plan.logical.promql;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.List;
 
 /**
  * PromQL {@code sort} / {@code sort_desc}: identity-preserving ordering of an instant vector by sample value.
- * Histogram dropping is applied at translation; the actual {@code OrderBy} is injected above
+ * Histogram dropping is applied at translation (see {@link #translate}); the actual {@code OrderBy} is injected above
  * {@code TimeSeriesCollapse} by the result-ordering analyzer rule.
  */
 public final class SortFunction extends PromqlFunctionCall implements ResultOrderingFunction {
@@ -54,6 +59,24 @@ public final class SortFunction extends PromqlFunctionCall implements ResultOrde
     @Override
     public boolean isIdentityTransparent() {
         return true;
+    }
+
+    /**
+     * Identity translation: {@code sort}/{@code sort_desc} preserve the child's schema and grain, except native-histogram
+     * samples are dropped (Prometheus {@code filterFloats}). Ordering is injected later.
+     */
+    @Override
+    public IntermediateResult translate(TranslationContext context) {
+        IntermediateResult result = context.translate(child());
+        if (result.value().resolved() && result.value().dataType().isHistogram()) {
+            var skipAllFilter = new Filter(source(), result.plan(), Literal.FALSE);
+            var nullGrouping = new Values(source(), new Literal(source(), null, DataType.DOUBLE));
+            IntermediateResult skipped = result.with(skipAllFilter, result.schema(), result.value());
+            return skipped.kind().afterInitialAggregation
+                ? context.regroup(skipped, result.schema(), false, nullGrouping)
+                : context.collapse(skipped, result.schema(), nullGrouping);
+        }
+        return result;
     }
 
     @Override

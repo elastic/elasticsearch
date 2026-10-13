@@ -263,9 +263,9 @@ public final class DeclaredTypeCoercions {
         // (String::valueOf, dateTimeToString, nanoTimeToString) - no parse, no range check. commonType
         // does not name a string type the supertype of a number, boolean or ip, so asking it here would
         // call a total conversion failable, and a keyword is what union_by_name picks for any cross-file
-        // pair with no closer supertype. That would cost a whole class of reads their stripe skipping,
-        // their IS NULL pushdown and, under skip_row, their deferred extraction, for a value that can
-        // only succeed.
+        // pair with no closer supertype. That would cost a whole class of reads their ORC stripe skipping
+        // and ORC IS NULL pushdown, in any mode, and under skip_row their filter pushdown and deferred
+        // extraction on every format, for a value that can only succeed.
         if (to == DataType.KEYWORD || to == DataType.TEXT) {
             return supports(from, to);
         }

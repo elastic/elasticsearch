@@ -111,7 +111,7 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
     }
 
     /**
-     * {@link DeclaredTypeCoercions#readsLossless} promises that no value can fail, and three callers act on it by
+     * {@link DeclaredTypeCoercions#readsLossless} promises that no value can fail, and two callers act on it by
      * skipping a guard. Every pair it admits must therefore have a coercion that cannot throw for any value the
      * readers deliver. {@code unsigned_long} is the pair that broke this: it is the common type of itself and any
      * signed whole number, so a supertype test alone called {@code long -> unsigned_long} lossless, while
@@ -130,7 +130,7 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
     }
 
     /**
-     * Three callers skip a guard on {@link DeclaredTypeCoercions#readsLossless}, so a pair it admits must be one the
+     * Two callers skip a guard on {@link DeclaredTypeCoercions#readsLossless}, so a pair it admits must be one the
      * reader can actually perform: admitting a pair {@link DeclaredTypeCoercions#supports} rejects would skip the
      * guard for a read that then has no way to produce the value at all.
      * <p>
@@ -140,13 +140,42 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
      * containment is false and means nothing - {@code short -> long} is a lossless widening no reader will ever be
      * asked for. It is over this set that a caller can act on the answer, so it is over this set that it must hold.
      */
+    public void testEveryLosslessPairIsAlsoASupportedPair() {
+        Set<DataType> decodable = Set.of(
+            DataType.KEYWORD,
+            DataType.TEXT,
+            DataType.INTEGER,
+            DataType.LONG,
+            DataType.DOUBLE,
+            DataType.BOOLEAN,
+            DataType.DATETIME,
+            DataType.DATE_NANOS,
+            DataType.IP,
+            DataType.UNSIGNED_LONG
+        );
+        List<String> admittedButUnsupported = new ArrayList<>();
+        for (DataType from : decodable) {
+            for (DataType to : decodable) {
+                if (DeclaredTypeCoercions.readsLossless(from, to) && DeclaredTypeCoercions.supports(from, to) == false) {
+                    admittedButUnsupported.add(from + " -> " + to);
+                }
+            }
+        }
+        assertThat(
+            "readsLossless promised a decodable pair the reader cannot perform, so its callers skip a guard for nothing",
+            admittedButUnsupported,
+            empty()
+        );
+    }
+
     /**
      * A conversion into a string type cannot fail - the coercer renders the value and there is nothing to parse or
      * range-check - so every supported pair into {@code keyword} or {@code text} reads lossless. Asking
      * {@code commonType} instead answers no for a number, boolean or ip source, because no string type is their
      * supertype, and {@code keyword} is exactly what {@code union_by_name} picks for a cross-file pair with no
-     * closer supertype. Calling those reads failable costs them stripe skipping, {@code IS NULL} pushdown and,
-     * under {@code skip_row}, deferred extraction, for a conversion that can only succeed.
+     * closer supertype. Calling those reads failable costs them ORC stripe skipping and ORC {@code IS NULL}
+     * pushdown in any mode, and under {@code skip_row} their filter pushdown and deferred extraction on every
+     * format, for a conversion that can only succeed.
      */
     public void testAConversionIntoAStringTypeCannotFail() {
         Set<DataType> decodable = Set.of(
@@ -175,34 +204,6 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
         assertTrue(DeclaredTypeCoercions.readsLossless(DataType.IP, DataType.KEYWORD));
         // A string target the reader cannot supply at all is still not lossless.
         assertFalse(DeclaredTypeCoercions.readsLossless(DataType.UNSUPPORTED, DataType.KEYWORD));
-    }
-
-    public void testEveryLosslessPairIsAlsoASupportedPair() {
-        Set<DataType> decodable = Set.of(
-            DataType.KEYWORD,
-            DataType.TEXT,
-            DataType.INTEGER,
-            DataType.LONG,
-            DataType.DOUBLE,
-            DataType.BOOLEAN,
-            DataType.DATETIME,
-            DataType.DATE_NANOS,
-            DataType.IP,
-            DataType.UNSIGNED_LONG
-        );
-        List<String> admittedButUnsupported = new ArrayList<>();
-        for (DataType from : decodable) {
-            for (DataType to : decodable) {
-                if (DeclaredTypeCoercions.readsLossless(from, to) && DeclaredTypeCoercions.supports(from, to) == false) {
-                    admittedButUnsupported.add(from + " -> " + to);
-                }
-            }
-        }
-        assertThat(
-            "readsLossless promised a decodable pair the reader cannot perform, so its callers skip a guard for nothing",
-            admittedButUnsupported,
-            empty()
-        );
     }
 
     /**

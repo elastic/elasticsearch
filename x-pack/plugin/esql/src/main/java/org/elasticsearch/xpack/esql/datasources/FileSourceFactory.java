@@ -667,7 +667,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 // the error mode against the reader's default via ErrorPolicy.forReader, and whether a value can
                 // fail at all from the resolution-time stamp the plan carries. Reading that stamp rather than the
                 // schema map is what makes the answer the same on a data node, where the map can be empty.
-                boolean dropsRowsOnCoercionFailure = SourceStatisticsSerializer.dropsRowsOnConversionFailure(
+                boolean dropsRowsOnConversionFailure = SourceStatisticsSerializer.dropsRowsOnConversionFailure(
                     errorPolicy,
                     context.sourceMetadata()
                 );
@@ -715,7 +715,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 // resolution-time stamp, not on whether any column was declared.
                 boolean deferredExtraction = format instanceof ColumnExtractorAware
                     && context.deferredExtraction()
-                    && dropsRowsOnCoercionFailure == false;
+                    && dropsRowsOnConversionFailure == false;
 
                 AsyncExternalSourceOperatorFactory built = AsyncExternalSourceOperatorFactory.builder(
                     storage,

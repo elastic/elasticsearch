@@ -1340,10 +1340,14 @@ public final class StreamingParallelParsingCoordinator {
          * returned by {@link FormatReader#withSchema(List)}, so parser threads skip per-chunk inference.
          * Same approach as ClickHouse / DuckDB / Spark.
          * <p>
-         * The inference is held to the width of the schema the planner settled for this split, and
-         * {@link #readSchema} is the only place that schema is. The reader as the factory configured it carries
-         * the query's <em>projection</em> of it ({@code FileSourceFactory} binds {@code context.attributes()}),
-         * which neither says a schema is settled nor says one is not: it is empty when the optimizer pruned
+         * Which width this resolve is held to turns on whether the planner settled a schema for this split,
+         * and {@link #readSchema} is the only place that answer is: a settled schema puts the reader on the
+         * ceiling {@code schema_max_fields} may be raised to, since the resolve is then only locating that
+         * schema's columns, and no settled schema leaves it on {@code schema_max_fields} itself.
+         * <p>
+         * The reader as the factory configured it carries the query's <em>projection</em> of the settled schema
+         * ({@code FileSourceFactory} binds {@code context.attributes()}), which neither says a schema is settled
+         * nor says one is not: it is empty when the optimizer pruned
          * every column ({@code COUNT(*)}) even though the planner settled one, and non-empty on a read with no
          * pin at all, where the file's own schema is what this inference resolves. A reader left to read its own
          * {@code resolvedSchema} therefore bounded the file by what the query asked for - refusing a file under

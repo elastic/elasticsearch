@@ -3721,9 +3721,11 @@ public class ExternalSourceResolver {
      * split merge cannot serve values the scan discards. A footer column the planner cannot
      * represent becomes the all-null contract. A signed harvest under an {@code UNSIGNED_LONG}
      * planner has its extrema encoded. Unsigned extrema under a non-unsigned planner are poisoned
-     * without changing counts. Declared-coercible columns and text ({@code implicitNulls}
-     * false) are left for {@link SourceStatisticsSerializer#alignHarvestWithFold}. Returns
-     * {@code harvest} when nothing changes.
+     * without changing counts. A column the scan converts per value has its extrema and its counts
+     * dropped here, because this harvest describes neither the all-null read nor the converted one.
+     * Text ({@code implicitNulls} false) is left for
+     * {@link SourceStatisticsSerializer#alignHarvestWithFold}. Returns {@code harvest} when nothing
+     * changes.
      */
     @Nullable
     static Map<String, Object> alignHarvestWithAnchorTypes(
@@ -3743,7 +3745,7 @@ public class ExternalSourceResolver {
         List<String> rewriteColumns = null;
         List<String> encodeColumns = null;
         List<String> poisonColumns = null;
-        List<String> invalidCountColumns = null;
+        Set<String> invalidCountColumns = null;
         for (Map.Entry<String, DataType> entry : fileTypes.entrySet()) {
             DataType plannerType = plannerTypes.get(entry.getKey());
             DataType fileType = entry.getValue();
@@ -3752,7 +3754,7 @@ public class ExternalSourceResolver {
                     // The scan converts each value, so this harvest describes neither an all-null read
                     // nor the converted one. Drop the extrema and the counts rather than serve either.
                     if (invalidCountColumns == null) {
-                        invalidCountColumns = new ArrayList<>();
+                        invalidCountColumns = new LinkedHashSet<>();
                     }
                     invalidCountColumns.add(entry.getKey());
                 } else if (implicitNullsForAbsentColumn) {
@@ -3783,15 +3785,17 @@ public class ExternalSourceResolver {
             harvest = SourceStatisticsSerializer.encodeColumnExtremaAsUnsignedLong(harvest, encodeColumns, failedEncodes);
             harvest = SourceStatisticsSerializer.removeColumnCounts(harvest, failedEncodes);
         }
-        if (poisonColumns != null) {
+        if (poisonColumns != null || invalidCountColumns != null) {
+            // One copy however many of the two branches fire: both can name columns of the same file.
             harvest = new HashMap<>(harvest);
-            for (String column : poisonColumns) {
-                SourceStatisticsSerializer.poisonColumnExtrema(harvest, column);
+            if (poisonColumns != null) {
+                for (String column : poisonColumns) {
+                    SourceStatisticsSerializer.poisonColumnExtrema(harvest, column);
+                }
             }
-        }
-        if (invalidCountColumns != null) {
-            harvest = new HashMap<>(harvest);
-            dropColumnCounts(harvest, new HashSet<>(invalidCountColumns), true);
+            if (invalidCountColumns != null) {
+                dropColumnCounts(harvest, invalidCountColumns, true);
+            }
         }
         return harvest;
     }

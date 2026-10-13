@@ -143,7 +143,7 @@ public final class SourceStatisticsSerializer {
      * Whether reading this source may convert a value and fail, read from the {@link #CONVERSION_MAY_NARROW_KEY}
      * stamp. Only meaningful once {@link #conversionNarrowingStamped} says the plan carries the stamp at all.
      */
-    public static boolean conversionMayNarrow(Map<String, Object> sourceMetadata) {
+    static boolean conversionMayNarrow(Map<String, Object> sourceMetadata) {
         return sourceMetadata != null && Boolean.TRUE.equals(sourceMetadata.get(CONVERSION_MAY_NARROW_KEY));
     }
 
@@ -151,7 +151,7 @@ public final class SourceStatisticsSerializer {
      * Whether this plan carries the {@link #CONVERSION_MAY_NARROW_KEY} stamp at all. False only for a plan minted by
      * a coordinator that predates it, which a reader must then answer conservatively rather than assume into.
      */
-    public static boolean conversionNarrowingStamped(Map<String, Object> sourceMetadata) {
+    static boolean conversionNarrowingStamped(Map<String, Object> sourceMetadata) {
         return sourceMetadata != null && sourceMetadata.containsKey(CONVERSION_MAY_NARROW_KEY);
     }
 

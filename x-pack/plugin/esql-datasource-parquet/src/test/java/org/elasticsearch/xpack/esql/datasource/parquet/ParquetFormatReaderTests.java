@@ -5986,10 +5986,34 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * A signed {@code INT(32, signed=true)} annotation also sign-extends, pinning the {@code isSigned()} read:
+     * widening that element unsigned would give {@code 4294967295} for {@code -1}, not {@code -1L}.
+     */
+    public void testListOfSignedInt32AnnotationSignExtendsElements() throws Exception {
+        MessageType schema = new MessageType(
+            "test_schema",
+            Types.optionalList()
+                .optionalElement(PrimitiveType.PrimitiveTypeName.INT32)
+                .as(LogicalTypeAnnotation.intType(32, true))
+                .named("ids")
+        );
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            Group list = g.addGroup("ids");
+            list.addGroup("list").append("element", -1);
+            list.addGroup("list").append("element", 5);
+            return List.of(g);
+        });
+        assertListLongReads(parquetData, "ids", -1L, 5L);
+    }
+
+    /**
      * {@code TIME(MILLIS)} is the other {@code INT32} annotation that renders ESQL {@code long}. Its raw
-     * millisecond-of-day value carries no unsigned annotation, so it widens unchanged, and this pins that the
-     * annotation is read rather than the primitive alone. The signed-regression control is the plain-{@code INT32}
-     * case above, whose negative elements discriminate; these values are non-negative and would not.
+     * millisecond-of-day value carries no unsigned annotation, so it widens unchanged. This confirms that
+     * a {@code TIME(MILLIS)} annotation reaches the annotation-aware arm without a cast error; a naive
+     * {@code (IntLogicalTypeAnnotation)} cast would throw. The signed-regression control is the
+     * plain-{@code INT32} case above: its negative elements catch an all-unsigned mutation, while these
+     * non-negative values would not.
      */
     public void testListOfTimeMillisWidensSigned() throws Exception {
         MessageType schema = new MessageType(

@@ -38,6 +38,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -118,6 +119,9 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
     private List<ScriptRule> buildRules() {
         List<ScriptRule> rules = new ArrayList<>();
         addCrossProjectReferenceRules(rules);
+        addDistributionBundledJdkRules(rules);
+        addDistributionClosureAssignmentRules(rules);
+        addDistributionExtClosureRules(rules);
         return rules;
     }
 
@@ -129,6 +133,7 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
             new ScriptRule(
                 "cross-project-dereference",
                 "Direct cross-project dereference in build.gradle",
+                path -> true,
                 Pattern.compile("project\\s*\\(\\s*['\"]:[^'\"]+['\"]\\s*\\)\\s*\\."),
                 "Build scripts must not read another project's model directly via project(\":path\").* because that couples "
                     + "project configuration and breaks isolated-project-safe authoring.",
@@ -139,10 +144,66 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
             new ScriptRule(
                 "cross-project-configuration",
                 "Cross-project configuration closure in build.gradle",
+                path -> true,
                 Pattern.compile("project\\s*\\(\\s*['\"]:[^'\"]+['\"]\\s*\\)\\s*\\{"),
                 "Build scripts must not configure another project via project(\":path\") { ... } because configuration should live "
                     + "in the target project or a plugin applied there.",
                 "Move the configuration into the target project or a shared plugin/convention applied by that project."
+            )
+        );
+    }
+
+    /**
+     * Adds distribution-specific guardrails learned during the distribution build cleanup.
+     */
+    private void addDistributionBundledJdkRules(List<ScriptRule> rules) {
+        rules.add(
+            new ScriptRule(
+                "distribution-bundled-jdk-source-of-truth",
+                "Distribution scripts must use BundledJdkPlatforms for bundled-JDK platform availability",
+                this::isDistributionBuildScript,
+                Pattern.compile("\\bVersionProperties\\s*\\.\\s*(?:bundledJdkMajorVersion|getBundledJdkMajorVersion\\s*\\(\\s*\\))"),
+                "Distribution build scripts must not derive bundled-JDK platform availability directly from "
+                    + "VersionProperties.bundledJdkMajorVersion because that misses the pre-release runtime-JDK path "
+                    + "and lets archive registration drift from bundled-JDK registration.",
+                "Use BundledJdkPlatforms.bundledJdkMajor(buildParams) together with "
+                    + "BundledJdkPlatforms.architecturesFor(...) or BundledJdkPlatforms.isSupported(...)."
+            )
+        );
+    }
+
+    /**
+     * Adds a ratchet against growing the ad-hoc helper-closure surface in distribution scripts.
+     */
+    private void addDistributionClosureAssignmentRules(List<ScriptRule> rules) {
+        rules.add(
+            new ScriptRule(
+                "distribution-closure-assignment",
+                "Distribution scripts must not introduce helper closure assignments",
+                this::isDistributionBuildScript,
+                Pattern.compile("(?m)^[ \t]*(?:def\\s+)?[A-Za-z_][A-Za-z0-9_]*\\s*=\\s*\\{"),
+                "Distribution build scripts should not define ad-hoc helper closures inline because that keeps "
+                    + "build logic embedded in mutable Groovy scripts instead of tested plugin code and makes the "
+                    + "script grow its own private API surface.",
+                "Move the logic into a typed task, a plugin/helper class in build-tools-internal, or a regular method "
+                    + "if the logic is purely local and temporary."
+            )
+        );
+    }
+
+    /**
+     * Adds a ratchet against exporting script helper APIs via ext in distribution scripts.
+     */
+    private void addDistributionExtClosureRules(List<ScriptRule> rules) {
+        rules.add(
+            new ScriptRule(
+                "distribution-ext-closure-api",
+                "Distribution scripts must not export helper closures via ext",
+                this::isDistributionBuildScript,
+                Pattern.compile("(?m)^[ \t]*ext\\.[A-Za-z_][A-Za-z0-9_]*\\s*=\\s*\\{"),
+                "Exporting helper closures from a distribution build script via ext creates a dynamic script API that is hard "
+                    + "to discover, hard to refactor safely, and not covered by normal compiled-code checks.",
+                "Move the shared behavior into a plugin, extension type, helper class, or typed task instead of exposing it via ext."
             )
         );
     }
@@ -158,6 +219,9 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
     ) {
         String relativePath = relativize(scriptFile);
         for (ScriptRule rule : rules) {
+            if (rule.appliesToPath().test(relativePath) == false) {
+                continue;
+            }
             Matcher matcher = rule.pattern().matcher(content);
             while (matcher.find()) {
                 int lineNumber = lineNumber(content, matcher.start());
@@ -246,6 +310,10 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
         return lineNumber;
     }
 
+    private boolean isDistributionBuildScript(String relativePath) {
+        return relativePath.startsWith("distribution/");
+    }
+
     private static String lineText(String content, int offset) {
         int lineStart = content.lastIndexOf('\n', offset);
         int lineEnd = content.indexOf('\n', offset);
@@ -254,7 +322,7 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
         return content.substring(start, end);
     }
 
-    private record ScriptRule(String id, String title, Pattern pattern, String details, String solution) {}
+    private record ScriptRule(String id, String title, Predicate<String> appliesToPath, Pattern pattern, String details, String solution) {}
 
     private record IgnoreEntry(String ruleId, String relativePath) {}
 }

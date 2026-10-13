@@ -89,6 +89,77 @@ public class ValidateBuildGradleScriptsTaskTests {
     }
 
     @Test
+    public void testFailsForDirectBundledJdkVersionUseInDistributionScript() throws Exception {
+        Project project = createProject();
+        File scriptFile = writeFile(
+            project,
+            "distribution/archives/build.gradle",
+            List.of("if (Integer.parseInt(VersionProperties.bundledJdkMajorVersion) < 27) {", "  println 'x'", "}")
+        );
+        ValidateBuildGradleScriptsTask task = createTask(project, scriptFile);
+
+        try {
+            task.validateScripts();
+            fail("GradleException was expected");
+        } catch (GradleException e) {
+            assertTrue(e.getMessage().contains("distribution-bundled-jdk-source-of-truth"));
+            assertTrue(e.getMessage().contains("distribution/archives/build.gradle:1"));
+        }
+    }
+
+    @Test
+    public void testFailsForClosureAssignmentInDistributionScript() throws Exception {
+        Project project = createProject();
+        File scriptFile = writeFile(project, "distribution/build.gradle", List.of("def architecturesFor = { String platform -> ['x64'] }"));
+        ValidateBuildGradleScriptsTask task = createTask(project, scriptFile);
+
+        try {
+            task.validateScripts();
+            fail("GradleException was expected");
+        } catch (GradleException e) {
+            assertTrue(e.getMessage().contains("distribution-closure-assignment"));
+            assertTrue(e.getMessage().contains("distribution/build.gradle:1"));
+        }
+    }
+
+    @Test
+    public void testAllowsClosureAssignmentOutsideDistributionScripts() throws Exception {
+        Project project = createProject();
+        File scriptFile = writeFile(project, "x-pack/build.gradle", List.of("def helper = { String name -> name }"));
+        ValidateBuildGradleScriptsTask task = createTask(project, scriptFile);
+
+        task.validateScripts();
+
+        assertOutputMarkerWritten(task);
+    }
+
+    @Test
+    public void testFailsForExtClosureAssignmentInDistributionScript() throws Exception {
+        Project project = createProject();
+        File scriptFile = writeFile(project, "distribution/docker/build.gradle", List.of("ext.expansions = { Architecture architecture -> [:] }"));
+        ValidateBuildGradleScriptsTask task = createTask(project, scriptFile);
+
+        try {
+            task.validateScripts();
+            fail("GradleException was expected");
+        } catch (GradleException e) {
+            assertTrue(e.getMessage().contains("distribution-ext-closure-api"));
+            assertTrue(e.getMessage().contains("distribution/docker/build.gradle:1"));
+        }
+    }
+
+    @Test
+    public void testAllowsExtClosureAssignmentOutsideDistributionScripts() throws Exception {
+        Project project = createProject();
+        File scriptFile = writeFile(project, "x-pack/build.gradle", List.of("ext.helper = { String name -> name }"));
+        ValidateBuildGradleScriptsTask task = createTask(project, scriptFile);
+
+        task.validateScripts();
+
+        assertOutputMarkerWritten(task);
+    }
+
+    @Test
     public void testFailsForStaleIgnoreEntry() throws Exception {
         Project project = createProject();
         File scriptFile = writeFile(project, "subproject/build.gradle", List.of("dependencies {", "  implementation project(\":server\")", "}"));

@@ -15,7 +15,6 @@ import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.transform.SymbolicLinkPreservingUntarTransform;
 import org.elasticsearch.gradle.transform.UnzipTransform;
-import org.gradle.api.Action;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Plugin;
@@ -564,7 +563,17 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 bwcTaskProvider
             );
         } else {
-            createSourceBuildBwcTask(project, artifact, bwcTaskName, bwcSetupExtension, bwcVersion, expectedOutputFile, buildParams, bwcTaskProvider, bwcMode);
+            createSourceBuildBwcTask(
+                project,
+                artifact,
+                bwcTaskName,
+                bwcSetupExtension,
+                bwcVersion,
+                expectedOutputFile,
+                buildParams,
+                bwcTaskProvider,
+                bwcMode
+            );
         }
     }
 
@@ -601,7 +610,14 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 c.getArgs().add("--build-cache");
             }
             File rootDir = project.getLayout().getSettingsDirectory().getAsFile();
-            c.doLast(task -> assertArtifactExists(rootDir, expectedOutputFile, bwcVersion.get(), "Building %s didn't generate expected artifact [%s]. The working branch may be out-of-date - try merging in the latest upstream changes to the branch."));
+            c.doLast(
+                task -> assertArtifactExists(
+                    rootDir,
+                    expectedOutputFile,
+                    bwcVersion.get(),
+                    "Building %s didn't generate expected artifact [%s]. The working branch may be out-of-date - try merging in the latest upstream changes to the branch."
+                )
+            );
         });
         bwcTaskProvider.configure(t -> t.dependsOn(bwcTaskName));
     }
@@ -763,7 +779,14 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             }
             t.getOutputs().doNotCacheIf("BWC distribution caching is disabled for local builds", task -> buildParams.getCi() == false);
             File rootDir = project.getLayout().getSettingsDirectory().getAsFile();
-            t.doLast(task -> assertArtifactExists(rootDir, expectedOutputFile, bwcVersion.get(), "Downloading %s from DRA didn't produce expected artifact [%s]."));
+            t.doLast(
+                task -> assertArtifactExists(
+                    rootDir,
+                    expectedOutputFile,
+                    bwcVersion.get(),
+                    "Downloading %s from DRA didn't produce expected artifact [%s]."
+                )
+            );
         });
     }
 

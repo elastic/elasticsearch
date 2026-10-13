@@ -55,6 +55,12 @@ public class StoragePathTests extends ESTestCase {
      * The prefix and the lead must compose back into something no matching key can fall outside. Checked as a
      * property rather than per case: appending the lead to the pattern prefix has to be a prefix of the pattern
      * itself, or the store is being asked for a narrower set than the pattern selects.
+     * <p>
+     * The lead must also stay inside one path segment. A provider may compare it against a path relative to the
+     * directory it listed, which carries the platform separator, so a lead spanning a {@code /} would match
+     * nothing where that separator is not {@code /} and would drop files the pattern selects. Composing into a
+     * prefix of the pattern does not catch that on its own: a lead of {@code a/b} against {@code .../a/b*} is
+     * still a genuine prefix.
      */
     public void testPatternPrefixPlusLeadIsAlwaysAPrefixOfThePattern() {
         List<String> patterns = List.of(
@@ -68,11 +74,13 @@ public class StoragePathTests extends ESTestCase {
         );
         for (String pattern : patterns) {
             StoragePath path = StoragePath.of(pattern);
-            String composed = path.patternPrefix().toString() + path.literalNamePrefix();
+            String lead = path.literalNamePrefix();
+            String composed = path.patternPrefix().toString() + lead;
             assertTrue(
                 "[" + composed + "] must be a prefix of [" + pattern + "]; a longer one would exclude matching keys",
                 pattern.startsWith(composed)
             );
+            assertFalse("lead [" + lead + "] spans a separator, so a provider cannot compare it against one segment", lead.contains("/"));
         }
     }
 

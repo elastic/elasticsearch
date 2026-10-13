@@ -225,7 +225,11 @@ public final class LocalStorageProvider implements StorageProvider {
         private final List<StorageEntry> entries;
         private final Iterator<StorageEntry> iterator;
 
-        /** Whether {@code file}'s path under {@code directory} begins with {@code namePrefix}. */
+        /**
+         * Whether {@code file}'s path under {@code directory} begins with {@code namePrefix}. The relative path
+         * carries the platform separator while the prefix comes from a URI, which is safe because
+         * {@code StoragePath#literalNamePrefix} never spans a separator: the comparison stays inside one segment.
+         */
         private static boolean selects(Path directory, Path file, String namePrefix) {
             return namePrefix.isEmpty() || directory.relativize(file).toString().startsWith(namePrefix);
         }

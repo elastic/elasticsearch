@@ -92,10 +92,14 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static java.lang.Math.max;
+import static java.lang.Math.min;
 import static org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput.BUFFER_SIZE;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING;
 import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.core.TimeValue.timeValueMinutes;
+import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.xpack.stateless.commits.BccUploadMetrics.BCC_SIZE_ATTRIBUTE_KEY;
 import static org.elasticsearch.xpack.stateless.commits.BccUploadMetrics.bccSizeBucket;
 
@@ -308,7 +312,7 @@ public class SharedBlobCacheWarmingService {
      */
     public static final Setting<TimeValue> SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING = Setting.timeSetting(
         SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".recovery_warming_timeout_relocation_with_shutdown",
-        TimeValue.timeValueSeconds(60),
+        timeValueSeconds(60),
         TimeValue.ZERO,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -320,7 +324,7 @@ public class SharedBlobCacheWarmingService {
      */
     public static final Setting<TimeValue> SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_SETTING = Setting.timeSetting(
         SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".recovery_warming_timeout_relocation",
-        TimeValue.timeValueMinutes(5),
+        timeValueMinutes(5),
         TimeValue.ZERO,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -332,7 +336,7 @@ public class SharedBlobCacheWarmingService {
      */
     public static final Setting<TimeValue> SEARCH_RECOVERY_WARMING_TIMEOUT_NON_RELOCATION_SETTING = Setting.timeSetting(
         SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".recovery_warming_timeout_non_relocation",
-        TimeValue.timeValueMinutes(5),
+        timeValueMinutes(5),
         TimeValue.ZERO,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -348,7 +352,7 @@ public class SharedBlobCacheWarmingService {
      */
     public static final Setting<TimeValue> SEARCH_RECOVERY_WARMING_TIMEOUT_RESHARD_TARGET_SETTING = Setting.timeSetting(
         SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".recovery_warming_timeout_reshard_target",
-        TimeValue.timeValueSeconds(25),
+        timeValueSeconds(25),
         TimeValue.ZERO,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -361,7 +365,7 @@ public class SharedBlobCacheWarmingService {
      */
     public static final Setting<TimeValue> SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING = Setting.timeSetting(
         SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".recovery_warming_grace_period_cap",
-        TimeValue.timeValueMinutes(14),
+        timeValueMinutes(14),
         TimeValue.ZERO,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -507,10 +511,7 @@ public class SharedBlobCacheWarmingService {
         this.cfeThrottledTaskRunner = new ThrottledTaskRunner("cfe-prewarming-cache", 2, threadPool.generic());
         // Throttle byte-range warming fetches so they don't saturate the PREWARM_THREAD_POOL and starve other prewarming work.
         final int prewarmMax = threadPool.info(StatelessPlugin.PREWARM_THREAD_POOL).getMax();
-        final int warmByteRangeThrottleLimit = Math.max(
-            1,
-            (int) (prewarmMax * clusterSettings.get(WARM_BYTE_RANGE_THROTTLE_RATIO_SETTING))
-        );
+        final int warmByteRangeThrottleLimit = max(1, (int) (prewarmMax * clusterSettings.get(WARM_BYTE_RANGE_THROTTLE_RATIO_SETTING)));
         this.warmByteRangeThrottledTaskRunner = new ThrottledTaskRunner(
             "warm-byte-range-prewarming-cache",
             warmByteRangeThrottleLimit,
@@ -598,7 +599,7 @@ public class SharedBlobCacheWarmingService {
     public void warmCacheBeforeUpload(VirtualBatchedCompoundCommit vbcc, ActionListener<Void> listener) {
         assert vbcc.isFrozen();
         long totalSizeInBytes = vbcc.getTotalSizeInBytes();
-        long warmSize = Math.min(totalSizeInBytes, maxUploadPrewarmSize);
+        long warmSize = min(totalSizeInBytes, maxUploadPrewarmSize);
         var cacheKey = new FileCacheKey(vbcc.getShardId(), vbcc.getPrimaryTermAndGeneration().primaryTerm(), vbcc.getBlobName());
         int endingRegion = cacheService.getEndingRegion(warmSize);
         int regionSize = cacheService.getRegionSize();
@@ -632,7 +633,7 @@ public class SharedBlobCacheWarmingService {
                                 public void write(byte[] b, int off, int len) throws IOException {
                                     int toWrite = len;
                                     while (toWrite > 0) {
-                                        int toPut = Math.min(byteBuffer.remaining(), toWrite);
+                                        int toPut = min(byteBuffer.remaining(), toWrite);
                                         byteBuffer.put(b, off + (len - toWrite), toPut);
                                         toWrite -= toPut;
                                         if (byteBuffer.hasRemaining() == false) {
@@ -666,7 +667,7 @@ public class SharedBlobCacheWarmingService {
                                 }
                             }) {
                                 long absolutePos = regionOffset + relativePos;
-                                vbcc.getBytesByRange(absolutePos, Math.toIntExact(Math.min(len, totalSizeInBytes - regionOffset)), output);
+                                vbcc.getBytesByRange(absolutePos, Math.toIntExact(min(len, totalSizeInBytes - regionOffset)), output);
                                 return null;
                             }
                         }),
@@ -1026,8 +1027,8 @@ public class SharedBlobCacheWarmingService {
          */
         public WarmTarget merge(WarmTarget other) {
             return new WarmTarget(
-                Math.max(endOffset(), other.endOffset()),
-                Math.max(blobSize(), other.blobSize()),
+                max(endOffset(), other.endOffset()),
+                max(blobSize(), other.blobSize()),
                 BlobFileRanges.mostRecentKnownTimestamp(timestampMillis(), other.timestampMillis())
             );
         }
@@ -1183,7 +1184,7 @@ public class SharedBlobCacheWarmingService {
             final long sizeInBytes = referencedCC.statelessCompoundCommitReference().compoundCommit().sizeInBytes();
             final long warmEndExclusive = startPosition + Math.round(sizeInBytes * warmingRatio);
             final long commitEndExclusive = startPosition + sizeInBytes;
-            return ByteRange.of(startPosition, Math.min(warmEndExclusive, commitEndExclusive));
+            return ByteRange.of(startPosition, min(warmEndExclusive, commitEndExclusive));
         }
     }
 
@@ -1403,7 +1404,7 @@ public class SharedBlobCacheWarmingService {
             if (fileExtension != LuceneFilesExtensions.TIM) {
                 return BUFFER_SIZE;
             }
-            final var value = Math.max((long) (idLookupPreWarmRatio * length), BUFFER_SIZE);
+            final var value = max((long) (idLookupPreWarmRatio * length), BUFFER_SIZE);
             return value;
         }
 
@@ -1428,7 +1429,7 @@ public class SharedBlobCacheWarmingService {
                 try (var listeners = new RefCountingListener(listener)) {
                     for (int r = startRegion; r <= endRegion; r++) {
                         // adjust the position & length to the region
-                        var range = ByteRange.of(Math.max(start, (long) r * regionSize), Math.min(end, (r + 1L) * regionSize));
+                        var range = ByteRange.of(max(start, (long) r * regionSize), min(end, (r + 1L) * regionSize));
                         BlobRegion blobRegion = new BlobRegion(location.blobFile(), r);
                         enqueueLocation(blobRegion, location, range.start(), range.length(), timestampMillis, listeners.acquire());
                     }
@@ -1554,7 +1555,7 @@ public class SharedBlobCacheWarmingService {
                     if (existingLength == null) {
                         return embeddedEndOffset;
                     } else {
-                        return Math.max(embeddedEndOffset, existingLength);
+                        return max(embeddedEndOffset, existingLength);
                     }
                 });
 

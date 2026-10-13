@@ -20,6 +20,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
 
+import static java.lang.Math.min;
+import static java.lang.Math.round;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
+
 /// Computes how long search shard recovery should await offline warming (internal replicated-files path only), see
 /// [#searchRecoveryTimeout].
 public class SearchRecoveryTimeoutCalculationService {
@@ -156,7 +160,7 @@ public class SearchRecoveryTimeoutCalculationService {
         if (grace == null) {
             grace = searchRecoveryWarmingGracePeriodCap;
         }
-        final long effectiveGraceMillis = Math.min(grace.getMillis(), searchRecoveryWarmingGracePeriodCap.millis());
+        final long effectiveGraceMillis = min(grace.getMillis(), searchRecoveryWarmingGracePeriodCap.millis());
         final long now = threadPool.absoluteTimeInMillis();
         final long deadline = shutdown.getStartedAtMillis() + effectiveGraceMillis;
         final long remaining = deadline - now;
@@ -170,7 +174,7 @@ public class SearchRecoveryTimeoutCalculationService {
         final double equalShareMs = (remaining / (double) shardsOnSource) * searchRecoveryWarmingSourceShutdownShareFactor;
 
         // Data-volume-proportional heuristic: scale remaining time by the fraction of the warming cache this shard occupies.
-        final long warmingCacheBytes = Math.round(cacheService.getCacheSize() * searchRecoveryWarmingCacheRatio);
+        final long warmingCacheBytes = round(cacheService.getCacheSize() * searchRecoveryWarmingCacheRatio);
         // TODO
         // We're looking at the "remaining" time, but not at the "remaining" bytes to populate.
         // Instead, this uses the same fixed baseline (which itself is of dubious inspiration).
@@ -190,13 +194,13 @@ public class SearchRecoveryTimeoutCalculationService {
         // Though the per-shard local decision here is OKish, because it's all relative to the remaining deadline and shards,
         // so the impact of currently choosing a different heuristic from previous (or future) relocating shards is partially mitigated
         if (dataVolumeMs > equalShareMs) {
-            timeoutMs = Math.min(remaining, dataVolumeMs * ongoingRelocations);
+            timeoutMs = min(remaining, dataVolumeMs * ongoingRelocations);
             context = "relocation source shutting down (data volume proportional share of remaining time to capped grace deadline)";
         } else {
-            timeoutMs = Math.min(remaining, equalShareMs * ongoingRelocations);
+            timeoutMs = min(remaining, equalShareMs * ongoingRelocations);
             context = "relocation source shutting down (equal share of remaining time to capped grace deadline)";
         }
-        return new SearchRecoveryTimeout(TimeValue.timeValueMillis(Math.round(timeoutMs)), context);
+        return new SearchRecoveryTimeout(timeValueMillis(round(timeoutMs)), context);
     }
 
     /// Counts ongoing relocations whose source is `sourceNodeId` and whose target is `targetNodeId` (i.e. shards relocating

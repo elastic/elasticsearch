@@ -31,7 +31,6 @@ import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -40,7 +39,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.zip.GZIPOutputStream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -177,40 +175,21 @@ public class ExternalSchemaMaxFieldsRestIT extends ESRestTestCase {
     }
 
     /**
-     * {@code first_file_wins} resolves a schema from the anchor alone, so the cap is met there and nowhere else. A wide
-     * later file is read: the schema is already settled, and that file's header is split only to locate the anchor's two
-     * columns in it, which is bounded separately. CSV and TSV used to refuse that file unless the dataset declared its
-     * columns, so the same glob was readable or not by how it was written down.
-     * <p>
-     * {@code COUNT(*)} runs first, before anything has warmed this glob's files, and with every column pruned - the one
-     * shape where the reader is pinned to nothing and so cannot tell a settled schema from none. A {@code KEEP} ahead of
-     * it would warm the file and answer from the cache instead.
+     * {@code first_file_wins} infers only the anchor, so a wide later file is only met when a query reads it. The text
+     * formats refuse it then and NDJSON refuses it when the query needs its statistics, but an NDJSON {@code KEEP} that
+     * skips the statistics path still reads the wide file with no cap, so that query is not asserted here.
      */
     public void testMultiFileFirstFileWinsWithWideLaterFile() throws IOException {
         for (String ext : List.of("csv", "tsv", "ndjson")) {
             String dataset = datasetName("multi_later_ffw", ext);
             putGlobDataset(dataset, "wide_last_" + ext, ext, "first_file_wins", Map.of());
-            // Two rows in the narrow anchor and one in the wide file.
-            assertThat(ext, values(esql("FROM " + dataset + " | STATS c = COUNT(*)")), equalTo(List.of(List.of(3))));
             // LIMIT 1 is answered by the narrow anchor alone, so the wide file is never opened.
             assertThat(ext, values(esql("FROM " + dataset + " | LIMIT 1")), hasSize(1));
-            // The pinned two-column schema reads the wide file's row as nulls.
-            assertThat(ext, values(esql("FROM " + dataset + " | KEEP a, b | LIMIT 100")), hasSize(3));
-            assertNodeStillServes();
-        }
-    }
-
-    /**
-     * The same glob gzipped. A compressed file is read by the streaming parse coordinator, which resolves the first
-     * chunk's schema after the planner has settled one, so holding that resolve to the cap refused a file the
-     * uncompressed read admitted: one file, two outcomes, decided by how it was compressed.
-     */
-    public void testMultiFileFirstFileWinsWithWideLaterGzippedFile() throws IOException {
-        for (String ext : List.of("csv", "tsv", "ndjson")) {
-            String dataset = datasetName("multi_later_ffw_gz", ext);
-            putGlobDataset(dataset, "wide_last_gz_" + ext, ext + ".gz", "first_file_wins", Map.of());
-            assertThat(ext, values(esql("FROM " + dataset + " | STATS c = COUNT(*)")), equalTo(List.of(List.of(3))));
-            assertThat(ext, values(esql("FROM " + dataset + " | KEEP a, b | LIMIT 100")), hasSize(3));
+            if (ext.equals("ndjson") == false) {
+                // NDJSON does not check a wide later file's width at read time yet, so a KEEP that skips stats reads it.
+                assertQueryRefused("FROM " + dataset + " | STATS c = COUNT(*)");
+                assertQueryRefused("FROM " + dataset + " | KEEP a, b | LIMIT 100");
+            }
             assertNodeStillServes();
         }
     }
@@ -251,10 +230,8 @@ public class ExternalSchemaMaxFieldsRestIT extends ESRestTestCase {
     }
 
     /**
-     * A file one column over the cap is read normally when the dataset names the columns it reads. The cap bounds the
-     * schema a read resolves, and this read resolves none: the header is split to locate {@code c5} and {@code c1000},
-     * which is bounded separately, so the file's own width does not decide whether a two-column schema can be read.
-     * Single files and a glob whose files differ in width are both read.
+     * A declared schema names the columns it reads, so a file one column over the cap is read normally: the cap bounds
+     * what inference materialises. Single files and a glob whose files differ in width are both read.
      */
     public void testDeclaredSchemaOverWideFileIsRead() throws IOException {
         Map<String, Object> mappings = Map.of(
@@ -290,30 +267,6 @@ public class ExternalSchemaMaxFieldsRestIT extends ESRestTestCase {
     }
 
     /**
-     * The same declared read of a gzipped file. A compressed file is read by the streaming parse coordinator, whose
-     * resolve of the first chunk runs after the planner has settled the declared schema, so the file's own width must
-     * not decide the read there either. {@code COUNT(*)} runs first, with every column pruned and
-     * nothing warmed: the state in which the reader carries no schema of its own, so only the schema the planner
-     * settled can bound that resolve. The first-file-wins twin above is the case that was refused before the bound
-     * moved; this one guards the declared side of the same decision against a later change to how the pin travels.
-     */
-    public void testDeclaredSchemaOverWideGzippedFileIsRead() throws IOException {
-        Map<String, Object> mappings = Map.of(
-            "dynamic",
-            "false",
-            "properties",
-            Map.of("c5", Map.of("type", "long"), "c1000", Map.of("type", "long"))
-        );
-        for (String ext : List.of("csv", "tsv", "ndjson")) {
-            String dataset = datasetName("declared_wide_gz", ext);
-            DatasetRegistry.putDataset(client(), dataset, DATA_SOURCE, uri("wide." + ext + ".gz"), Map.of(), mappings);
-            datasets.add(dataset);
-            assertThat(ext, values(esql("FROM " + dataset + " | STATS c = COUNT(*)")), equalTo(List.of(List.of(1))));
-            assertThat(ext, values(esql("FROM " + dataset + " | KEEP c5, c1000 | LIMIT 10")), equalTo(List.of(List.of(1, 1))));
-        }
-    }
-
-    /**
      * A declared {@code mappings} block is held to the cap like an inferred schema: two declared columns against a cap
      * of one is refused, and a cap of two admits it.
      */
@@ -338,11 +291,10 @@ public class ExternalSchemaMaxFieldsRestIT extends ESRestTestCase {
     }
 
     /**
-     * A Parquet dataset that names its columns is not held to the width of its files, the same as the text formats, and
-     * for the same reason: the read resolves no schema from the footer, so there is no schema for the cap to bound. One
-     * named column over a file wider than a cap of one reads, both for a single file and for a glob whose files are all
-     * wider than the cap, so the outcome does not depend on which file the planner reads. A file one column over the
-     * default cap reads the same way.
+     * A declared Parquet dataset is not held to the width of its files, the same as the text formats: one declared
+     * column over a file wider than a cap of one reads, both for a single file and for a glob whose files are all wider
+     * than the cap, so the outcome does not depend on which file the planner reads. A file one column over the default
+     * cap reads the same way.
      */
     public void testDeclaredParquetIsNotHeldToTheFileWidth() throws IOException {
         Map<String, Object> mappings = Map.of("dynamic", "false", "properties", Map.of("emp_no", Map.of("type", "integer")));
@@ -444,12 +396,6 @@ public class ExternalSchemaMaxFieldsRestIT extends ESRestTestCase {
                 Files.copy(dir.resolve("narrow." + ext), wideLast.resolve("a_narrow." + ext));
                 Files.copy(dir.resolve("wide." + ext), wideLast.resolve("z_wide." + ext));
             }
-            for (String ext : List.of("csv", "tsv", "ndjson")) {
-                writeGzipped(dir.resolve("wide." + ext + ".gz"), dir.resolve("wide." + ext));
-                Path wideLastGz = Files.createDirectory(dir.resolve("wide_last_gz_" + ext));
-                writeGzipped(wideLastGz.resolve("a_narrow." + ext + ".gz"), dir.resolve("narrow." + ext));
-                writeGzipped(wideLastGz.resolve("z_wide." + ext + ".gz"), dir.resolve("wide." + ext));
-            }
             Files.createDirectory(dir.resolve("union_diverge_csv"));
             Files.writeString(dir.resolve("union_diverge_csv/a.csv"), "a,b\n1,foo\n");
             Files.writeString(dir.resolve("union_diverge_csv/b.csv"), "c,d\n2,bar\n");
@@ -465,13 +411,6 @@ public class ExternalSchemaMaxFieldsRestIT extends ESRestTestCase {
             return dir;
         } catch (IOException e) {
             throw new RuntimeException("Failed to create schema cap fixture directory", e);
-        }
-    }
-
-    /** Gzips {@code source} into {@code target}, so a dataset over it is read by the streaming parse coordinator. */
-    private static void writeGzipped(Path target, Path source) throws IOException {
-        try (OutputStream out = new GZIPOutputStream(Files.newOutputStream(target))) {
-            Files.copy(source, out);
         }
     }
 

@@ -16,6 +16,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.FaultInjectingS3HttpHandler.FaultType;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
@@ -70,6 +71,60 @@ public class FaultInjectingS3HttpHandlerTests extends ESTestCase {
             assertEquals("budget must be fully consumed (iteration " + iter + ")", 0, handler.remainingFaults());
             assertEquals("exactly one injection (iteration " + iter + ")", budget, closes.get());
             assertEquals("losers fall through to the delegate (iteration " + iter + ")", threads - budget, delegateCalls.get());
+        }
+    }
+
+    public void testConcurrentMidBodyHandleDoesNotDriveRemainingNegative() throws Exception {
+        final int threads = 16;
+        final int budget = 1;
+        final int resetAfterBytes = 4;
+        final byte[] payload = new byte[16];
+        final int iterations = 50;
+        for (int iter = 0; iter < iterations; iter++) {
+            AtomicInteger injections = new AtomicInteger();
+            AtomicInteger completed = new AtomicInteger();
+            AtomicInteger closes = new AtomicInteger();
+            FaultInjectingS3HttpHandler handler = new FaultInjectingS3HttpHandler(exchange -> {
+                exchange.sendResponseHeaders(200, payload.length);
+                exchange.getResponseBody().write(payload);
+            });
+            handler.setMidBodyResetFault(budget, resetAfterBytes, path -> true);
+
+            CyclicBarrier start = new CyclicBarrier(threads);
+            Thread[] workers = new Thread[threads];
+            for (int i = 0; i < threads; i++) {
+                workers[i] = new Thread(() -> {
+                    try {
+                        start.await(10, TimeUnit.SECONDS);
+                        try {
+                            handler.handle(new StubExchange("/bucket/data.parquet", closes));
+                            completed.incrementAndGet();
+                        } catch (IOException e) {
+                            if (e.getMessage() != null && e.getMessage().contains("connection reset")) {
+                                injections.incrementAndGet();
+                            } else {
+                                throw e;
+                            }
+                        }
+                    } catch (Exception e) {
+                        throw new AssertionError(e);
+                    }
+                }, "fault-inject-mid-body-" + iter + "-" + i);
+                workers[i].start();
+            }
+            for (Thread worker : workers) {
+                worker.join();
+            }
+
+            assertThat(
+                "remaining faults must never go negative (iteration " + iter + ")",
+                handler.remainingFaults(),
+                greaterThanOrEqualTo(0)
+            );
+            assertEquals("budget must be fully consumed (iteration " + iter + ")", 0, handler.remainingFaults());
+            assertEquals("exactly one mid-body injection (iteration " + iter + ")", budget, injections.get());
+            assertEquals("losers complete the write (iteration " + iter + ")", threads - budget, completed.get());
+            assertEquals("exactly one connection close (iteration " + iter + ")", budget, closes.get());
         }
     }
 

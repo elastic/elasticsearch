@@ -1074,6 +1074,20 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
         });
     }
 
+    /**
+     * Under {@code synthetic_source_keep: all} the row path copies every value, scalars included, into {@code _ignored_source}, which
+     * the columnar path does not write, so the field is not eligible for the columnar path at all.
+     */
+    public void testLongField_tsdbFieldKeepAllNotColumnar() throws IOException {
+        final var mapperService = createMapperService(tsdbSettings(), mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject(FIELD).field("type", "long").field("synthetic_source_keep", "all").endObject();
+        }));
+        final FieldMapper mapper = (FieldMapper) mapperService.mappingLookup().getMapper(FIELD);
+        assertFalse(mapper.supportsColumnarParse(mapperService.getIndexSettings()));
+    }
+
     private void assertTsdbKeepModeArrayBailsOut(Settings settings, CheckedConsumer<XContentBuilder, IOException> mapping)
         throws IOException {
         final var mapperService = createMapperService(settings, mapping(mapping));

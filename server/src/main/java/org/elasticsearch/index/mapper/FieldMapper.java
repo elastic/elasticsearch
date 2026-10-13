@@ -258,6 +258,16 @@ public abstract class FieldMapper extends Mapper {
             if (indexSettings.getIndexVersionCreated().isLegacyIndexVersion()) {
                 return false;
             }
+            // Outside strict-columnar modes (which reject the setting), the row path copies every value of a field under
+            // synthetic_source_keep: all, scalars included, into _ignored_source, as it does for a field with no synthetic source of its
+            // own (SYNTHETIC_FALLBACK). The batch path writes neither, so such a field must stay on the row path. No mapper that gets
+            // this far reports FALLBACK today (copy_to, scripts and normalizers are refused above or by the mapper), so that half of the
+            // check guards mappers added later.
+            if (indexSettings.getMode().isStrictColumnar() == false
+                && (sourceKeepMode().orElse(indexSettings.sourceKeepMode()) == SourceKeepMode.ALL
+                    || syntheticSourceMode() == SyntheticSourceMode.FALLBACK)) {
+                return false;
+            }
         }
         if (doSupportsColumnarParse(indexSettings) == false) {
             return false;

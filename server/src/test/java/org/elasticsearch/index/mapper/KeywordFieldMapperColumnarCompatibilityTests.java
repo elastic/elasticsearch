@@ -544,6 +544,27 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
     }
 
     /**
+     * Under {@code synthetic_source_keep: all} the row path copies every value of the field, scalars included, into
+     * {@code _ignored_source}, which the columnar path does not write, so the field is not eligible for the columnar path at all.
+     * Without the setting the same field is.
+     */
+    public void testTsdbFieldKeepAllIsNotColumnar() throws IOException {
+        for (boolean keepAll : new boolean[] { false, true }) {
+            final var mapperService = createMapperService(tsdbKeepSettings(null), mapping(b -> {
+                b.startObject("@timestamp").field("type", "date").endObject();
+                b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+                b.startObject(FIELD).field("type", "keyword");
+                if (keepAll) {
+                    b.field("synthetic_source_keep", "all");
+                }
+                b.endObject();
+            }));
+            final FieldMapper mapper = (FieldMapper) mapperService.mappingLookup().getMapper(FIELD);
+            assertEquals("keep all: " + keepAll, keepAll == false, mapper.supportsColumnarParse(mapperService.getIndexSettings()));
+        }
+    }
+
+    /**
      * {@code f} is a plain {@code keyword} field next to a keyword dimension, so its row-path handling of arrays is decided by
      * {@code synthetic_source_keep} rather than by being a dimension.
      */

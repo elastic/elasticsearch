@@ -53,7 +53,7 @@ public class MlAnomaliesView {
                 """, "View that contains the results of machine learning anomaly detection jobs.", true),
             ActionListener.wrap(
                 ack -> logger.info("reserved view [.ml-anomalies] initialized"),
-                e -> logger.error("failed to initialize reserved view [.ml-anomalies]: ", e)
+                e -> logger.warn("failed to initialize reserved view [.ml-anomalies]: ", e)
             )
         );
     }

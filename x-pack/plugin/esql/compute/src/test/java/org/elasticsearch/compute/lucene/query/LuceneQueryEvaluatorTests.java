@@ -11,6 +11,9 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexSearcher;
@@ -19,6 +22,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
@@ -27,6 +31,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.OperatorTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
@@ -36,6 +41,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.lucene.AlwaysReferencedIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
+import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
@@ -49,18 +55,25 @@ import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.compute.test.OperatorTestCase.randomPageSize;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Base class for testing Lucene query evaluators.
@@ -261,6 +274,132 @@ public abstract class LuceneQueryEvaluatorTests<T extends Block, U extends Block
      * Checks that the result at the given position corresponds to a term match or no match
      */
     protected abstract void assertTermResultMatch(T resultVector, int position, boolean isMatch);
+
+    /**
+     * Evaluates a page that mixes rows from several shards. The rows aren't in shard, segment,
+     * doc order, so the evaluator takes its slow path. Each row must get the result that the
+     * fast path returns when it evaluates the row's segment alone, in doc order.
+     * <p>
+     *     All shards share one segment layout, but no two shards match the query on the same
+     *     doc. So a row that matches in its own shard doesn't match in any other shard.
+     * </p>
+     */
+    public void testManyShardsOutOfOrder() throws IOException {
+        int shardCount = between(2, 5);
+        int[] segmentSizes = new int[between(1, 3)];
+        for (int segment = 0; segment < segmentSizes.length; segment++) {
+            segmentSizes[segment] = between(1, 100);
+        }
+        Query query = new TermQuery(new Term(FIELD, "v0"));
+        Closeable[] closeMe = new Closeable[shardCount * 2];
+        try {
+            List<LuceneQueryEvaluator.ShardConfig> shardConfigs = new ArrayList<>(shardCount);
+            for (int shard = 0; shard < shardCount; shard++) {
+                Directory dir = newDirectory();
+                closeMe[shard * 2 + 1] = dir;
+                DirectoryReader reader = shardReader(dir, shard, shardCount, segmentSizes);
+                closeMe[shard * 2] = reader;
+                assertThat(reader.leaves(), hasSize(segmentSizes.length));
+                IndexSearcher searcher = new IndexSearcher(reader);
+                shardConfigs.add(new LuceneQueryEvaluator.ShardConfig(searcher.rewrite(query), searcher));
+            }
+            IndexedByShardId<LuceneQueryEvaluator.ShardConfig> shards = new IndexedByShardIdFromList<>(shardConfigs);
+            BlockFactory blockFactory = blockFactory();
+
+            Map<BlockUtils.Doc, Object> expected = new HashMap<>();
+            try (ExpressionEvaluator evaluator = createEvaluator(blockFactory, shards)) {
+                for (int shard = 0; shard < shardCount; shard++) {
+                    for (int segment = 0; segment < segmentSizes.length; segment++) {
+                        Page page = new Page(segmentDocs(blockFactory, shard, segment, segmentSizes[segment]).asBlock());
+                        try {
+                            assertTrue(page.<DocBlock>getBlock(0).asVector().singleSegmentNonDecreasing());
+                            try (Block result = evaluator.eval(page)) {
+                                for (int doc = 0; doc < segmentSizes[segment]; doc++) {
+                                    expected.put(new BlockUtils.Doc(shard, segment, doc), BlockUtils.toJavaObject(result, doc));
+                                }
+                            }
+                        } finally {
+                            page.releaseBlocks();
+                        }
+                    }
+                }
+            }
+
+            Page page = new Page(mixedShardDocs(blockFactory, shardCount, segmentSizes).asBlock());
+            try (ExpressionEvaluator evaluator = createEvaluator(blockFactory, shards)) {
+                DocVector docs = page.<DocBlock>getBlock(0).asVector();
+                assertFalse(docs.singleSegmentNonDecreasing());
+                try (Block result = evaluator.eval(page)) {
+                    for (int p = 0; p < page.getPositionCount(); p++) {
+                        BlockUtils.Doc row = new BlockUtils.Doc(docs.shards().getInt(p), docs.segments().getInt(p), docs.docs().getInt(p));
+                        assertThat(row.toString(), BlockUtils.toJavaObject(result, p), equalTo(expected.get(row)));
+                    }
+                }
+            } finally {
+                page.releaseBlocks();
+            }
+        } finally {
+            IOUtils.close(closeMe);
+        }
+    }
+
+    /**
+     * Writes a shard with the given segment sizes. Doc {@code n} of the shard, counting across
+     * segments, gets the value {@code "v" + (n + shard) % shardCount}. So each shard matches
+     * {@code "v0"} on different docs.
+     */
+    private static DirectoryReader shardReader(Directory dir, int shard, int shardCount, int[] segmentSizes) throws IOException {
+        IndexWriterConfig config = newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE)
+            .setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH);
+        try (IndexWriter writer = new IndexWriter(dir, config)) {
+            int n = 0;
+            for (int segmentSize : segmentSizes) {
+                for (int d = 0; d < segmentSize; d++) {
+                    writer.addDocument(List.of(new KeywordField(FIELD, "v" + (n + shard) % shardCount, Field.Store.NO)));
+                    n++;
+                }
+                writer.commit();
+            }
+        }
+        return DirectoryReader.open(dir);
+    }
+
+    /**
+     * Every doc of one segment, in doc order. The evaluator takes its fast path for these.
+     */
+    private static DocVector segmentDocs(BlockFactory blockFactory, int shard, int segment, int size) {
+        return new DocVector(
+            AlwaysReferencedIndexedByShardId.INSTANCE,
+            blockFactory.newConstantIntVector(shard, size),
+            blockFactory.newConstantIntVector(segment, size),
+            blockFactory.newIntArrayVector(IntStream.range(0, size).toArray(), size),
+            DocVector.config()
+        );
+    }
+
+    /**
+     * A row for every doc of every shard. The (segment, doc) pairs come in random order, and
+     * each pair adds a row from every shard, highest shard first. Starting with the lowest
+     * shard would put shard {@code s} at row {@code s}. Then code that misreads a shard id as
+     * a row position would still find the right shard.
+     */
+    private static DocVector mixedShardDocs(BlockFactory blockFactory, int shardCount, int[] segmentSizes) {
+        List<int[]> segmentDocs = new ArrayList<>();
+        for (int segment = 0; segment < segmentSizes.length; segment++) {
+            for (int doc = 0; doc < segmentSizes[segment]; doc++) {
+                segmentDocs.add(new int[] { segment, doc });
+            }
+        }
+        Collections.shuffle(segmentDocs, random());
+        try (DocVector.FixedBuilder builder = DocVector.newFixedBuilder(blockFactory, segmentDocs.size() * shardCount)) {
+            for (int[] segmentDoc : segmentDocs) {
+                for (int shard = shardCount - 1; shard >= 0; shard--) {
+                    builder.append(shard, segmentDoc[0], segmentDoc[1]);
+                }
+            }
+            return builder.build(DocVector.config());
+        }
+    }
 
     private List<Page> runQuery(Set<String> values, Query query, boolean shuffleDocs) throws IOException {
         DriverContext driverContext = driverContext();

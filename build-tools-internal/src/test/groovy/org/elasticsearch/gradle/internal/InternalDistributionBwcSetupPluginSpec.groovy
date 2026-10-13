@@ -37,7 +37,7 @@ class InternalDistributionBwcSetupPluginSpec extends Specification {
         noExceptionThrown()
 
         where:
-        mode << ["gradle", "dra", "auto"]
+        mode << ["gradle", "prebuilt", "dra", "auto"]
     }
 
     @Unroll
@@ -48,7 +48,7 @@ class InternalDistributionBwcSetupPluginSpec extends Specification {
         then:
         def ex = thrown(InvalidUserDataException)
         ex.message.contains("Invalid tests.bwc.mode value [${mode}]")
-        ex.message.contains("Must be one of: gradle, dra, auto")
+        ex.message.contains("Must be one of: gradle, prebuilt, auto")
 
         where:
         mode << ["invalid-mode", "DRA", "AUTO", "", "dra-or-gradle"]
@@ -58,12 +58,12 @@ class InternalDistributionBwcSetupPluginSpec extends Specification {
     // buildFallbackMessage — distribution archives
     // -------------------------------------------------------------------------
 
-    def "buildFallbackMessage for dra mode and distribution archive mentions DRA unavailable"() {
+    def "buildFallbackMessage for prebuilt mode and distribution archive mentions snapshot unavailability"() {
         when:
-        def msg = InternalDistributionBwcSetupPlugin.buildFallbackMessage("dra", true, "9.4.2", "darwin-tar")
+        def msg = InternalDistributionBwcSetupPlugin.buildFallbackMessage("prebuilt", true, "9.4.2", "darwin-tar")
 
         then:
-        msg.contains("tests.bwc.mode=dra but no DRA snapshot was available")
+        msg.contains("tests.bwc.mode=prebuilt but no pre-built snapshot artifacts were available")
         msg.contains("9.4.2")
         msg.contains("darwin-tar")
         msg.contains("building distribution")
@@ -74,7 +74,7 @@ class InternalDistributionBwcSetupPluginSpec extends Specification {
         def msg = InternalDistributionBwcSetupPlugin.buildFallbackMessage("auto", true, "9.4.2", "linux-tar")
 
         then:
-        msg.contains("DRA snapshot commit did not match")
+        msg.contains("pre-built snapshot commit did not match")
         msg.contains("9.4.2")
         msg.contains("linux-tar")
     }
@@ -92,12 +92,12 @@ class InternalDistributionBwcSetupPluginSpec extends Specification {
     // buildFallbackMessage — Maven JAR artifacts (non-archive)
     // -------------------------------------------------------------------------
 
-    def "buildFallbackMessage for dra mode and Maven JAR mentions DRA unavailable"() {
+    def "buildFallbackMessage for prebuilt mode and Maven JAR mentions snapshot unavailability"() {
         when:
-        def msg = InternalDistributionBwcSetupPlugin.buildFallbackMessage("dra", false, "9.4.2", "jdbc")
+        def msg = InternalDistributionBwcSetupPlugin.buildFallbackMessage("prebuilt", false, "9.4.2", "jdbc")
 
         then:
-        msg.contains("tests.bwc.mode=dra but no DRA snapshot was available")
+        msg.contains("tests.bwc.mode=prebuilt but no pre-built snapshot artifacts were available")
         msg.contains("9.4.2")
         msg.contains("jdbc")
         // Maven JAR path does NOT say "distribution" — keep the messages distinct

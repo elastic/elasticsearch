@@ -174,7 +174,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         // Register DRA artifact types and transforms for this BWC sub-project.
         registerDraArtifactTransforms(project);
 
-        // Set the git extension properties before creating the DRA provider, so the provider's
+        // Set the git extension properties before creating the pre-built snapshot provider, so the provider's
         // ValueSource parameters receive proper lazy Provider<String> values.
         gitExtension.setBwcVersion(versionInfoProvider.map(info -> info.version()));
         gitExtension.setBwcBranch(versionInfoProvider.map(info -> info.branch()));
@@ -195,7 +195,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             spec.getParameters().getRemote().set(remote);
             spec.getParameters().getMode().set(providerFactory.systemProperty("tests.bwc.mode").orElse("gradle"));
             // -Dtests.bwc.dra.hash.{branch} overrides the local remote-tracking ref lookup,
-            // allowing the DRA fast path on stale or absent refs.
+            // allowing the pre-built snapshot fast path on stale or absent refs.
             spec.getParameters()
                 .getHashOverride()
                 .set(branch.flatMap(b -> providerFactory.systemProperty("tests.bwc.dra.hash." + b)).orElse(""));
@@ -546,7 +546,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         File expectedOutputFile = artifact.expectedOutputFile(bwcVersion.get(), isReleaseBuild());
         BwcMode bwcMode = BwcMode.from(project.getProviders().systemProperty("tests.bwc.mode").getOrElse(BwcMode.GRADLE.value()));
 
-        // Evaluate the DRA build ID at configuration time. For "gradle" mode the ValueSource
+        // Evaluate the pre-built snapshot build ID at configuration time. For "gradle" mode the ValueSource
         // returns "" immediately with no network activity.
         String buildId = draBuildId.get();
         if (buildId.isEmpty() == false && artifact.supportsPrebuiltSnapshots()) {
@@ -806,8 +806,8 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
     }
 
     /**
-     * Returns the human-readable log message to emit when the gradle source-build fallback is
-     * taken. The message varies by mode (to explain <em>why</em> the fallback occurred) and by
+     * Returns the human-readable log message to emit when the source-build fallback is taken.
+     * The message varies by mode (to explain <em>why</em> the fallback occurred) and by
      * artifact type (distribution archive vs. Maven JAR).
      *
      * <p>Extracted as a package-private static method so it can be exercised by unit tests without
@@ -905,7 +905,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
 
     private enum BwcMode {
         GRADLE("gradle"),
-        DRA("dra"),
+        PREBUILT("prebuilt"),
         AUTO("auto");
 
         private final String value;
@@ -921,43 +921,43 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         static BwcMode from(String value) {
             return switch (value) {
                 case "gradle" -> GRADLE;
-                case "dra" -> DRA;
+                case "prebuilt", "dra" -> PREBUILT;
                 case "auto" -> AUTO;
                 default -> throw new InvalidUserDataException(
-                    "Invalid tests.bwc.mode value [" + value + "]. Must be one of: gradle, dra, auto"
+                    "Invalid tests.bwc.mode value [" + value + "]. Must be one of: gradle, prebuilt, auto"
                 );
             };
         }
 
         String buildFallbackMessage(boolean isDistributionArchive, String bwcVersion, String projectName) {
-            String draUnavailable = " — tests.bwc.mode=dra but no DRA snapshot was available"
-                + " (endpoint unreachable or no build for this branch yet); falling back to source build";
+            String prebuiltUnavailable = " — tests.bwc.mode=prebuilt but no pre-built snapshot artifacts were available"
+                + " (snapshot endpoints unreachable or no build for this branch yet); falling back to source build";
             if (isDistributionArchive) {
                 return switch (this) {
-                    case DRA -> "BWC [" + bwcVersion + "]: building distribution [" + projectName + "] from source" + draUnavailable;
+                    case PREBUILT -> "BWC [" + bwcVersion + "]: building distribution [" + projectName + "] from source" + prebuiltUnavailable;
                     case AUTO -> "BWC ["
                         + bwcVersion
                         + "]: building distribution ["
                         + projectName
                         + "] from source"
-                        + " — DRA snapshot commit did not match local remote-tracking ref (or was unreachable)";
+                        + " — pre-built snapshot commit did not match local remote-tracking ref (or was unreachable)";
                     case GRADLE -> "BWC ["
                         + bwcVersion
                         + "]: building distribution ["
                         + projectName
                         + "] from source"
-                        + " — set -Dtests.bwc.mode=auto to use a pre-built DRA snapshot when the commit matches";
+                        + " — set -Dtests.bwc.mode=auto to use pre-built snapshot artifacts when the commit matches";
                 };
             }
             return switch (this) {
-                case DRA -> "BWC [" + bwcVersion + "]: building [" + projectName + "] from source" + draUnavailable;
+                case PREBUILT -> "BWC [" + bwcVersion + "]: building [" + projectName + "] from source" + prebuiltUnavailable;
                 case GRADLE, AUTO -> "BWC [" + bwcVersion + "]: building [" + projectName + "] from source";
             };
         }
 
         void logSourceBuildFallback(Task task, BwcArtifact artifact, String bwcVersion) {
             String message = buildFallbackMessage(artifact.isDistributionArchive(), bwcVersion, artifact.projectName());
-            if (this == DRA) {
+            if (this == PREBUILT) {
                 task.getLogger().warn(message);
             } else {
                 task.getLogger().lifecycle(message);
@@ -1033,8 +1033,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
     }
 
     /**
-     * Downloads a single Maven JAR artifact from the DRA snapshot repository into the declared
-     * output file location.
+     * Downloads a single pre-built Maven JAR artifact into the declared output file location.
      *
      * <p>Using a dedicated task type (rather than {@link Copy}) ensures that
      * {@code getOutputs().getFiles()} contains exactly the one downloaded JAR, without the

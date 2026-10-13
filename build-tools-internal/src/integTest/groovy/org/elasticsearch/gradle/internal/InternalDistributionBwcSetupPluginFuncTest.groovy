@@ -82,7 +82,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         assertOutputContains(result.output, "[8.4.0] > Task :distribution:archives:linux-aarch64-tar:extractedAssemble")
     }
 
-    def "downloads distribution from DRA snapshot when mode=dra and hash override is set"() {
+    def "downloads distribution from a prebuilt snapshot when mode=prebuilt and hash override is set"() {
         given:
         def bwcVersion = "8.4.0"
         def bwcBranch = "8.x"
@@ -97,7 +97,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
             ":distribution:bwc:major1:buildBwcDarwinTar",
             "-DtestRemoteRepo=" + remoteGitRepo,
             "-Dbwc.remote=origin",
-            "-Dtests.bwc.mode=dra",
+            "-Dtests.bwc.mode=prebuilt",
             "-Dtests.bwc.dra.hash.${bwcBranch}=${shortHash}",
             "-Dtests.bwc.dra.base.url=${wireMock.baseUrl()}"
         ).build()
@@ -160,7 +160,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         result.output.contains("DRA snapshot ${buildId}")
     }
 
-    def "downloads JDBC jar from DRA snapshot when mode=dra and hash override is set"() {
+    def "downloads JDBC jar from a prebuilt snapshot when mode=prebuilt and hash override is set"() {
         given:
         def bwcVersion = "8.4.0"
         def bwcBranch = "8.x"
@@ -175,7 +175,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
             ":distribution:bwc:major1:buildBwcJdbc",
             "-DtestRemoteRepo=" + remoteGitRepo,
             "-Dbwc.remote=origin",
-            "-Dtests.bwc.mode=dra",
+            "-Dtests.bwc.mode=prebuilt",
             "-Dtests.bwc.dra.hash.${bwcBranch}=${shortHash}",
             "-Dtests.bwc.dra.base.url=${wireMock.baseUrl()}"
         ).build()
@@ -293,10 +293,10 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         assertOutputContains(result.output, "[8.4.0] > Task :distribution:archives:darwin-tar:extractedAssemble")
 
         and: "log explains why DRA was not used"
-        result.output.contains("DRA snapshot commit did not match")
+        result.output.contains("pre-built snapshot commit did not match")
     }
 
-    def "downloads distribution from DRA when mode=dra and no hash override uses latest snapshot without commit check"() {
+    def "downloads distribution from a prebuilt snapshot when mode=prebuilt and no hash override uses latest snapshot without commit check"() {
         given:
         def bwcVersion = "8.4.0"
         def bwcBranch = "8.x"
@@ -312,7 +312,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
             ":distribution:bwc:major1:buildBwcDarwinTar",
             "-DtestRemoteRepo=" + remoteGitRepo,
             "-Dbwc.remote=origin",
-            "-Dtests.bwc.mode=dra",
+            "-Dtests.bwc.mode=prebuilt",
             "-Dtests.bwc.dra.base.url=${wireMock.baseUrl()}"
         ).build()
 
@@ -333,7 +333,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         ).exists()
     }
 
-    def "falls back to source build with warning when mode=dra but DRA snapshot is unavailable (distribution archive)"() {
+    def "falls back to source build with warning when mode=prebuilt but prebuilt snapshots are unavailable (distribution archive)"() {
         given:
         // Stub the latest endpoint with 404 so resolveLatestBuildId returns an empty build ID.
         wireMock.stubFor(get(urlEqualTo(draLatestPath("8.x"))).willReturn(aResponse().withStatus(404)))
@@ -344,7 +344,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
             "-DtestRemoteRepo=" + remoteGitRepo,
             "-Dbwc.remote=origin",
             "-Dbwc.dist.version=8.4.0-SNAPSHOT",
-            "-Dtests.bwc.mode=dra",
+            "-Dtests.bwc.mode=prebuilt",
             "-Dtests.bwc.dra.base.url=${wireMock.baseUrl()}"
         ).build()
 
@@ -355,7 +355,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         assertOutputContains(result.output, "[8.4.0] > Task :distribution:archives:darwin-tar:extractedAssemble")
 
         and: "a warning explains that DRA was unavailable"
-        result.output.contains("tests.bwc.mode=dra but no DRA snapshot was available")
+        result.output.contains("tests.bwc.mode=prebuilt but no pre-built snapshot artifacts were available")
     }
 
     def "bwc expanded distribution folder can be resolved as bwc project artifact"() {

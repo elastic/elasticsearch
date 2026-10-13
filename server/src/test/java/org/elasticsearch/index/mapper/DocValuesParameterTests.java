@@ -1196,6 +1196,51 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
     }
 
     /**
+     * A columnar index created before {@link IndexVersions#DOC_VALUES_TOP_LEVEL_ATTRIBUTES} accepts the top-level form as input
+     * but serializes it in the legacy nested {@code doc_values: {...}} form, and that serialization is a fixed point.
+     */
+    public void testTopLevelFormOnPreGateIndexSerializesNestedAndIsFixedPoint() throws Exception {
+        IndexVersion preGate = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BY_DEFAULT,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.DOC_VALUES_TOP_LEVEL_ATTRIBUTES)
+        );
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService topLevel = createMapperService(
+            preGate,
+            settings,
+            fieldMapping(
+                b -> b.field("type", "keyword").field("multi_value", false).field("nullability", false).field("on_failure", "ignore")
+            )
+        );
+        MapperService nested = createMapperService(
+            preGate,
+            settings,
+            fieldMapping(
+                b -> b.field("type", "keyword")
+                    .startObject("doc_values")
+                    .field("multi_value", false)
+                    .field("nullability", false)
+                    .field("on_failure", "ignore")
+                    .endObject()
+            )
+        );
+        String serialized = topLevel.documentMapper().mappingSource().toString();
+        assertThat(serialized, containsString("\"doc_values\":{"));
+        assertThat(nested.documentMapper().mappingSource().toString(), equalTo(serialized));
+
+        MapperService reparsed = createMapperService(preGate, settings, mapping(b -> {}));
+        merge(reparsed, serialized);
+        assertThat(reparsed.documentMapper().mappingSource().toString(), equalTo(serialized));
+
+        KeywordFieldMapper mapper = (KeywordFieldMapper) topLevel.documentMapper().mappers().getMapper("field");
+        assertThat(mapper.docValuesParameters().onFailure(), equalTo(FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE));
+        assertThat(
+            ((KeywordFieldMapper) reparsed.documentMapper().mappers().getMapper("field")).docValuesParameters(),
+            equalTo(mapper.docValuesParameters())
+        );
+    }
+
+    /**
      * The index-level settings {@code index.mapping.doc_values.multi_value=false} and
      * {@code index.mapping.doc_values.on_failure=ignore} apply to every field in the index, multi-fields
      * included. This is the one path where a sub-field picks up the constraint without explicitly naming it.

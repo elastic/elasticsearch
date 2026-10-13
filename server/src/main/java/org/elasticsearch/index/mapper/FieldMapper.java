@@ -1770,6 +1770,7 @@ public abstract class FieldMapper extends Mapper {
         private final boolean supportsTopLevelAttributes;
         private final Parameter<Values.OnFailure> onFailureParameter;
         private boolean nestedFormParsed;
+        /** Also set by the nested form (it delegates to the sub-parameters' parse); use {@link #nestedFormParsed} to tell them apart. */
         private boolean topLevelFormParsed;
         private Values composedValue;
 
@@ -1893,6 +1894,11 @@ public abstract class FieldMapper extends Mapper {
             });
         }
 
+        /**
+         * Deliberately gated on {@code supportsExtendedDocValues} only, not {@code supportsTopLevelAttributes}: columnar indices
+         * created before {@link IndexVersions#DOC_VALUES_TOP_LEVEL_ATTRIBUTES} accept the top-level form as input, but
+         * {@code toXContent} still persists them in the legacy nested form so older nodes can read the mapping.
+         */
         private void checkTopLevelParse(String parameterName) {
             if (supportsExtendedDocValues == false) {
                 throw new MapperParsingException("parameter [" + parameterName + "] can only be used in columnar index modes");
@@ -1971,8 +1977,8 @@ public abstract class FieldMapper extends Mapper {
          *       compatibility but no longer emitted for new indices.</li>
          * </ul>
          * <p>
-         * The map branch (nested {@code doc_values: {...}}) sets sub-parameters via {@code setValue} directly to avoid
-         * triggering the version gate in the sub-parameters' parsers, which is reserved for top-level usage only.
+         * The map branch (nested {@code doc_values: {...}}) delegates to the sub-parameters' {@code parse}, which sets
+         * {@code topLevelFormParsed} too; {@code nestedFormParsed} is set afterwards.
          * Cardinality is decided internally and is not user-configurable.
          */
         @Override

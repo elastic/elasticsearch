@@ -341,7 +341,8 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
 
     protected void putExtendedDocValuesParams(Map<String, Object> mapping) {
         if (indexMode.isStrictColumnar() == false) {
-            // Sub-params are only valid in strict-columnar mode; nothing to add.
+            // Sub-params are only valid in strict-columnar mode, so only toggle doc_values itself.
+            mapping.put("doc_values", ESTestCase.randomBoolean());
             return;
         }
 
@@ -357,14 +358,19 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         }
 
         if (supportsOnFailure() == false) {
-            if (ESTestCase.randomBoolean()) {
-                mapping.put("multi_value", true);
+            switch (ESTestCase.between(0, 2)) {
+                case 0 -> {
+                }
+                case 1 -> mapping.put("doc_values", true);
+                case 2 -> mapping.put("multi_value", true);
+                default -> throw new AssertionError("unreachable");
             }
             return;
         }
         var choices = new ArrayList<Runnable>(
             List.of(
                 () -> {},
+                () -> mapping.put("doc_values", true),
                 () -> mapping.put("multi_value", true),
                 () -> mapping.put("on_failure", ESTestCase.randomFrom("fail", "ignore")),
                 () -> {

@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.ParentActionAuthorization;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.core.security.authz.support.ResolvedDlsLookups;
 import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -138,6 +139,27 @@ public class SecurityContext {
                 throw new IllegalStateException("Unexpected unauthorized access control :" + indicesAccessControl);
             }
             AuthorizationServiceField.INDICES_PERMISSIONS_VALUE.set(threadContext, indicesAccessControl);
+        }
+    }
+
+    /**
+     * Returns the values resolved for the current request's DLS lookups, or an empty instance if there are none. They are read
+     * from the request header written by the coordinating node's authorization, so they are available on every node the request
+     * fans out to.
+     */
+    public ResolvedDlsLookups getResolvedDlsLookups() {
+        return ResolvedDlsLookups.readFromContext(threadContext);
+    }
+
+    /**
+     * Runs the action with the given resolved DLS lookups on the thread context, replacing any values already present. Only the
+     * lookups header is touched; every other header and transient flows through unchanged. The original header is restored when
+     * the action returns, but anything the action forks or dispatches captures the context with the new header in place.
+     */
+    public void executeWithResolvedDlsLookups(ResolvedDlsLookups resolvedDlsLookups, Runnable action) {
+        try (StoredContext ignore = threadContext.newStoredContext(List.of(), List.of(AuthorizationServiceField.DLS_LOOKUPS_KEY))) {
+            resolvedDlsLookups.writeToContext(threadContext);
+            action.run();
         }
     }
 

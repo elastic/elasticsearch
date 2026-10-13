@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.security.authz.support;
 
 import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -25,10 +26,12 @@ import org.elasticsearch.join.query.HasParentQueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -111,5 +114,35 @@ public class DLSRoleQueryValidatorTests extends ESTestCase {
             DLSRoleQueryValidator.hasStoredScript(new BytesArray("{\"template\":{\"source\":\"{}\"}}"), NamedXContentRegistry.EMPTY),
             is(false)
         );
+    }
+
+    public void testValidateQueryFieldRejectsLookupsInRoleDefinitions() {
+        final RoleDescriptor.IndicesPrivileges withLookups = RoleDescriptor.IndicesPrivileges.builder()
+            .indices("ml_results")
+            .privileges("read")
+            .query("""
+                {
+                  "template": { "source": "{\\"terms\\":{\\"ml_job_id\\":{{#toJson}}_lookup.ml_jobs{{/toJson}}}}" },
+                  "lookups": { "ml_jobs": { "type": "ml_job_ids", "params": { "spaces": ["marketing"] } } }
+                }""")
+            .build();
+        final RoleDescriptor.IndicesPrivileges plainTemplate = RoleDescriptor.IndicesPrivileges.builder()
+            .indices("logs")
+            .privileges("read")
+            .query("{\"template\":{\"source\":\"{\\\"term\\\":{\\\"user\\\":\\\"{{_user.username}}\\\"}}\"}}")
+            .build();
+
+        final ElasticsearchParseException e = expectThrows(
+            ElasticsearchParseException.class,
+            () -> DLSRoleQueryValidator.validateQueryField(
+                new RoleDescriptor.IndicesPrivileges[] { plainTemplate, withLookups },
+                XCONTENT_REGISTRY
+            )
+        );
+        assertThat(e.getMessage(), containsString("failed to parse field 'query' for indices [ml_results] at index privilege [1]"));
+        assertThat(e.getCause().getMessage(), equalTo("[lookups] is not supported in a role query"));
+
+        // a template that declares no lookups is still accepted without evaluation
+        DLSRoleQueryValidator.validateQueryField(new RoleDescriptor.IndicesPrivileges[] { plainTemplate }, XCONTENT_REGISTRY);
     }
 }

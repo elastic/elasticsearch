@@ -242,6 +242,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.SimpleRole;
 import org.elasticsearch.xpack.core.security.authz.privilege.ImplicitPrivilegesProvider;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
+import org.elasticsearch.xpack.core.security.authz.support.DlsLookupResolver;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
@@ -353,6 +354,7 @@ import org.elasticsearch.xpack.security.authc.support.mapper.ProjectStateRoleMap
 import org.elasticsearch.xpack.security.authz.AuthorizationDenialMessages;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.DlsFlsRequestCacheDifferentiator;
+import org.elasticsearch.xpack.security.authz.DlsLookupService;
 import org.elasticsearch.xpack.security.authz.FileRoleValidator;
 import org.elasticsearch.xpack.security.authz.ReservedRoleNameChecker;
 import org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener;
@@ -1253,6 +1255,7 @@ public class Security extends Plugin
             authorizationDenialMessages.set(new AuthorizationDenialMessages.Default());
         }
         final var authorizedProjectsResolver = getCustomAuthorizedProjectsResolverOrDefault(extensionComponents);
+        final DlsLookupService dlsLookupService = new DlsLookupService(getDlsLookupResolversFromExtensions(extensionComponents));
         final AuthorizationService authzService = new AuthorizationService(
             settings,
             allRolesStore,
@@ -1274,7 +1277,8 @@ public class Security extends Plugin
             authorizedProjectsResolver,
             crossProjectModeDecider,
             projectRoutingResolver,
-            usageService
+            usageService,
+            dlsLookupService
         );
 
         components.add(nativeRolesStore); // used by roles actions
@@ -1415,6 +1419,28 @@ public class Security extends Plugin
             );
         }
         return rcsExtension;
+    }
+
+    /**
+     * Collects the DLS lookup resolvers registered by all security extensions, keyed by lookup type. Two extensions registering
+     * the same type is a packaging error that would make lookup resolution ambiguous, so it fails node startup.
+     */
+    private Map<String, DlsLookupResolver> getDlsLookupResolversFromExtensions(SecurityExtension.SecurityComponents extensionComponents) {
+        final Map<String, DlsLookupResolver> resolvers = new HashMap<>();
+        for (final SecurityExtension securityExtension : securityExtensions) {
+            securityExtension.getDlsLookupResolvers(extensionComponents).forEach((type, resolver) -> {
+                if (resolvers.putIfAbsent(type, resolver) != null) {
+                    throw new IllegalStateException(
+                        "DLS lookup resolver type ["
+                            + type
+                            + "] is registered by multiple security extensions, including ["
+                            + securityExtension.extensionName()
+                            + "]"
+                    );
+                }
+            });
+        }
+        return resolvers;
     }
 
     private List<CustomAuthenticator> getCustomAuthenticatorFromExtensions(SecurityExtension.SecurityComponents extensionComponents) {

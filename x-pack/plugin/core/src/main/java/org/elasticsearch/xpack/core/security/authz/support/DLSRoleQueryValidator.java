@@ -53,7 +53,15 @@ public final class DLSRoleQueryValidator {
                 try {
                     if (query != null) {
                         if (isTemplateQuery(query, xContentRegistry)) {
-                            // skip template query, this requires runtime information like 'User' information.
+                            // A template query cannot be validated here because it requires runtime information like 'User'
+                            // information. Lookups are rejected outright: their resolvers run with the security origin, so
+                            // only privileges synthesized by an ImplicitPrivilegesProvider, which bounds the params to the
+                            // role's own grants, may declare them. A role definition authored by hand may not.
+                            if (DlsLookup.extractFromRoleQuery(query).isEmpty() == false) {
+                                throw new IllegalArgumentException(
+                                    "[" + DlsLookup.LOOKUPS_FIELD.getPreferredName() + "] is not supported in a role query"
+                                );
+                            }
                             continue;
                         }
 
@@ -79,7 +87,7 @@ public final class DLSRoleQueryValidator {
         }
     }
 
-    private static boolean isTemplateQuery(XContentParser parser) throws IOException {
+    static boolean isTemplateQuery(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.START_OBJECT) {
             throw new XContentParseException(
@@ -137,8 +145,29 @@ public final class DLSRoleQueryValidator {
         NamedXContentRegistry xContentRegistry,
         User user
     ) {
+        return evaluateAndVerifyRoleQuery(query, scriptService, xContentRegistry, user, ResolvedDlsLookups.EMPTY);
+    }
+
+    /**
+     * Like {@link #evaluateAndVerifyRoleQuery(BytesReference, ScriptService, NamedXContentRegistry, User)} but also supplies the
+     * values resolved for any {@link DlsLookup}s the template declares. A template that declares a lookup which is absent from
+     * {@code resolvedLookups} fails evaluation rather than rendering against missing data.
+     */
+    @Nullable
+    public static QueryBuilder evaluateAndVerifyRoleQuery(
+        BytesReference query,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        User user,
+        ResolvedDlsLookups resolvedLookups
+    ) {
         if (query != null) {
-            String templateResult = SecurityQueryTemplateEvaluator.evaluateTemplate(query.utf8ToString(), scriptService, user);
+            String templateResult = SecurityQueryTemplateEvaluator.evaluateTemplate(
+                query.utf8ToString(),
+                scriptService,
+                user,
+                resolvedLookups
+            );
             try {
                 return evaluateAndVerifyRoleQuery(templateResult, xContentRegistry);
             } catch (ElasticsearchParseException | ParsingException | XContentParseException | IOException e) {

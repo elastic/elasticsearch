@@ -27,7 +27,14 @@ public final class MustacheTemplateEvaluator {
     }
 
     public static Script parseForScript(XContentParser parser, Map<String, Object> extraParams) throws IOException {
-        Script script = Script.parse(parser);
+        return withExtraParams(Script.parse(parser), extraParams);
+    }
+
+    /**
+     * Returns a copy of the script with {@code extraParams} merged over its own params and the language forced to mustache.
+     * Separated from parsing so callers can finish reading the surrounding document before deciding on the extra params.
+     */
+    public static Script withExtraParams(Script script, Map<String, Object> extraParams) {
         // Add the user details to the params
         Map<String, Object> params = new HashMap<>();
         if (script.getParams() != null) {
@@ -35,18 +42,20 @@ public final class MustacheTemplateEvaluator {
         }
         extraParams.forEach(params::put);
         // Always enforce mustache script lang:
-        script = new Script(
+        return new Script(
             script.getType(),
             script.getType() == ScriptType.STORED ? null : "mustache",
             script.getIdOrCode(),
             script.getOptions(),
             params
         );
-        return script;
     }
 
     public static String evaluate(ScriptService scriptService, XContentParser parser, Map<String, Object> extraParams) throws IOException {
-        Script script = parseForScript(parser, extraParams);
+        return evaluate(scriptService, parseForScript(parser, extraParams));
+    }
+
+    public static String evaluate(ScriptService scriptService, Script script) {
         TemplateScript compiledTemplate = scriptService.compile(script, TemplateScript.CONTEXT).newInstance(script.getParams());
         return compiledTemplate.execute();
     }

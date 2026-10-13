@@ -64,8 +64,8 @@ public class StoragePathTests extends ESTestCase {
         // the drive letter is already in the path it arrives with no leading slash because localPath() strips one
         // it cannot hand to the OS, and in the last spelling -- which is the one two slashes rather than three
         // produce, and what the countfs double's toFileScheme builds -- "C:" is read as the authority and only the
-        // fold in StoragePath#of puts it back in the path. Without the fold that spelling would resolve to host
-        // "C" and a path starting at the first segment after it.
+        // fold in StoragePath#of puts it back in the path. Without the fold that spelling does not resolve at all:
+        // the authority splits at its last colon into host "C" and an empty port, and parsing that port throws.
         Map<String, String> expected = Map.of(
             "file://" + windowsStyle,
             "C:/Users/jenkins/tmp/dir",

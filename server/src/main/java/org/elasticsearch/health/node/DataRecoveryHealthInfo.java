@@ -22,7 +22,8 @@ import java.util.Map;
  * Recovery point summaries that the elected master, the only node that can load repository data, sends to the health node.
  * <ul>
  *   <li>A project without recovery points is present, with {@link ProjectSummary#NONE} start times and zero counts.
- *   <li>A project that is absent has no recovery repository configured, or its repository could not be read.
+ *   <li>A project that is absent has no summary available: it has no recovery repository configured, or its repository could not be
+ *       read. Readers tell these apart from the project's own settings, and treat a configured project without a summary as unknown.
  *   <li>An empty map means a snapshot was published but no project has a summary.
  *   <li>A {@code null} {@link HealthInfo#dataRecoveryHealthInfo()} means nothing has been published yet.
  *   <li>The cache ignores {@code null} updates, so the publisher must send a snapshot every cycle.
@@ -30,13 +31,17 @@ import java.util.Map;
  *
  * @param projects              the summary of each project that has one
  * @param generatedAtMillis     when the master built this information
- * @param publishIntervalMillis the longest wait between two snapshots, for judging staleness
+ * @param publishIntervalMillis how often the publisher refreshes the snapshot, which must be positive; readers can treat the snapshot as
+ *                              stale once {@code now - generatedAtMillis} exceeds a few multiples of it
  */
 public record DataRecoveryHealthInfo(Map<ProjectId, ProjectSummary> projects, long generatedAtMillis, long publishIntervalMillis)
     implements
         Writeable {
 
     public DataRecoveryHealthInfo {
+        if (publishIntervalMillis <= 0) {
+            throw new IllegalArgumentException("publish interval must be positive, got [" + publishIntervalMillis + "]");
+        }
         projects = Map.copyOf(projects);
     }
 

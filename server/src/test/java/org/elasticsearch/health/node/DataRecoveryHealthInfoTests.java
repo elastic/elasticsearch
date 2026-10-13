@@ -49,10 +49,19 @@ public class DataRecoveryHealthInfoTests extends AbstractWireSerializingTestCase
             case 2 -> new DataRecoveryHealthInfo(
                 instance.projects(),
                 instance.generatedAtMillis(),
-                randomValueOtherThan(instance.publishIntervalMillis(), ESTestCase::randomNonNegativeLong)
+                randomValueOtherThan(instance.publishIntervalMillis(), () -> randomLongBetween(1, Long.MAX_VALUE))
             );
             default -> throw new IllegalStateException("unexpected random value");
         };
+    }
+
+    public void testRejectsNonPositivePublishInterval() {
+        long invalidInterval = randomFrom(0L, randomLongBetween(Long.MIN_VALUE, -1));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new DataRecoveryHealthInfo(Map.of(), randomNonNegativeLong(), invalidInterval)
+        );
+        assertThat(e.getMessage(), containsString("publish interval must be positive"));
     }
 
     public void testEmptySummaryIsValid() {

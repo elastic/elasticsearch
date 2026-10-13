@@ -189,7 +189,7 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
         return new DataRecoveryHealthInfo(
             randomMap(0, 3, () -> tuple(randomProjectIdOrDefault(), randomDataRecoveryProjectSummary())),
             randomNonNegativeLong(),
-            randomNonNegativeLong()
+            randomLongBetween(1, Long.MAX_VALUE)
         );
     }
 

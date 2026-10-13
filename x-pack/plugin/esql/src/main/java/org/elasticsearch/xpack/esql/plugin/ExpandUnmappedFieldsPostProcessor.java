@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.logging.HeaderWarning;
@@ -17,11 +18,15 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.support.AbstractXContentParser;
 import org.elasticsearch.xpack.esql.analysis.UnmappedFieldsOrdering;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
@@ -35,12 +40,14 @@ import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.UnmappedKeywordValues;
 import org.elasticsearch.xpack.esql.session.Result;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
@@ -133,7 +140,6 @@ public final class ExpandUnmappedFieldsPostProcessor {
         // return so the "no unmapped fields" path, which completes inline on the calling thread, is unaffected. assertCurrentThreadPool is
         // a no-op on test threads, so unit tests that call expand() directly are not impacted.
         assert ThreadPool.assertCurrentThreadPool(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME);
-        double reservationFactor = plannerSettings.sourceReservationFactor();
         int maxFields = plannerSettings.loadAllMaxFields();
         UnmappedFieldsAttribute unmappedAttribute = (UnmappedFieldsAttribute) schema.get(unmappedIdx);
         UnmappedFieldsPattern pattern = unmappedAttribute.pattern();
@@ -156,7 +162,6 @@ public final class ExpandUnmappedFieldsPostProcessor {
                 existingNames,
                 maxFields,
                 blockFactory.breaker(),
-                reservationFactor,
                 isCancelled
             );
             // TODO account for newSchema's field names against the circuit breaker. The cap bounds how many there are,
@@ -169,7 +174,6 @@ public final class ExpandUnmappedFieldsPostProcessor {
                 layout.schema(),
                 layout.blockOrder(),
                 blockFactory,
-                reservationFactor,
                 isCancelled
             );
 
@@ -213,8 +217,8 @@ public final class ExpandUnmappedFieldsPostProcessor {
      * mapped in one index can also appear in another's {@code _source}, and the per-shard UnmappedKeywordBlockLoader already filled
      * that column, so the value is kept. Such names are dropped before the cap, so they do not take up its slots.
      * <p>
-     * TODO walk the JSON with a parser instead of materialising a whole {@code Map} only to flatten it to field names. That would
-     *  also make the reservation below unnecessary.
+     * Each row's {@code _source} is streamed with {@link #walkJson} rather than parsed into a {@code Map}, so no row materialises its
+     * whole object graph here - only the kept names survive, and those are charged against {@code breaker} by the collector.
      */
     private static List<String> collectFieldNames(
         Result result,
@@ -223,38 +227,32 @@ public final class ExpandUnmappedFieldsPostProcessor {
         Set<String> existingNames,
         int maxFields,
         CircuitBreaker breaker,
-        double reservationFactor,
         BooleanSupplier isCancelled
     ) {
-        FieldNameCollector fieldNames = new FieldNameCollector(maxFields, pattern, existingNames);
-        BytesRef scratch = new BytesRef();
-        for (Page page : result.pages()) {
-            BytesRefBlock unmappedBlock = page.getBlock(unmappedIdx);
-            for (int row = 0; row < unmappedBlock.getPositionCount(); row++) {
-                if ((row & (ROWS_PER_CANCELLATION_CHECK - 1)) == 0) {
-                    throwIfCancelled(isCancelled);
-                }
-                if (unmappedBlock.isNull(row)) {
-                    continue;
-                }
-                BytesRef json = getBytesRef(unmappedBlock, row, scratch);
-                long reservation = reserveForParse(json, breaker, reservationFactor);
-                try {
-                    collectLeaves("", parseJson(json), fieldNames);
-                } finally {
-                    breaker.addWithoutBreaking(-reservation);
+        try (FieldNameCollector fieldNames = new FieldNameCollector(maxFields, pattern, existingNames, breaker)) {
+            BytesRef scratch = new BytesRef();
+            for (Page page : result.pages()) {
+                BytesRefBlock unmappedBlock = page.getBlock(unmappedIdx);
+                for (int row = 0; row < unmappedBlock.getPositionCount(); row++) {
+                    if ((row & (ROWS_PER_CANCELLATION_CHECK - 1)) == 0) {
+                        throwIfCancelled(isCancelled);
+                    }
+                    if (unmappedBlock.isNull(row)) {
+                        continue;
+                    }
+                    walkJson(getBytesRef(unmappedBlock, row, scratch), fieldNames);
                 }
             }
+            if (fieldNames.truncated) {
+                HeaderWarning.addWarning(
+                    "unmapped_fields=\"LOAD_ALL\" found more than [{}] fields in _source; only the first [{}] in alphabetical order are "
+                        + "returned. Use KEEP or DROP to select the others.",
+                    maxFields,
+                    maxFields
+                );
+            }
+            return fieldNames.sortedNames();
         }
-        if (fieldNames.truncated) {
-            HeaderWarning.addWarning(
-                "unmapped_fields=\"LOAD_ALL\" found more than [{}] fields in _source; only the first [{}] in alphabetical order are "
-                    + "returned. Use KEEP or DROP to select the others.",
-                maxFields,
-                maxFields
-            );
-        }
-        return fieldNames.sortedNames();
     }
 
     /**
@@ -263,21 +261,36 @@ public final class ExpandUnmappedFieldsPostProcessor {
      * name twice costs one lookup, and deciding if a new name is alphabetically later than any already encountered one costs one
      * comparison against the head of the heap. Only a new name that makes the cut pays the heap's logarithmic insert.
      */
-    private static final class FieldNameCollector implements BiConsumer<String, Object> {
+    static final class FieldNameCollector implements BiConsumer<String, Object>, Releasable {
+        /**
+         * Per-kept-name heap charged on top of the name's own {@link RamUsageEstimator#sizeOf(String) string size}: a {@code HashMap.Node}
+         * backing {@link #keptNames} (object header, {@code int} hash and the key/value/next references) plus the one {@code Object[]} slot
+         * {@link #largestFirst} and the one {@link #keptNames} table each hold the same reference in. A coarse constant is enough - the
+         * breaker only needs the estimate to track the true footprint closely enough to fire before the heap is exhausted. Package-private
+         * so {@code ExpandUnmappedFieldsPostProcessorTests} can pin its magnitude.
+         */
+        static final long PER_NAME_CONTAINER_OVERHEAD = RamUsageEstimator.alignObjectSize(
+            RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + Integer.BYTES + 3L * RamUsageEstimator.NUM_BYTES_OBJECT_REF
+        ) + 2L * RamUsageEstimator.NUM_BYTES_OBJECT_REF;
+
         private final int maxFields;
         private final UnmappedFieldsPattern pattern;
         private final Set<String> existingNames;
+        private final CircuitBreaker breaker;
         private final Set<String> keptNames = new HashSet<>();
         /** The same names as {@link #keptNames}, largest first, so the one to evict is always at the head. */
         private final PriorityQueue<String> largestFirst = new PriorityQueue<>(Comparator.reverseOrder());
+        /** Bytes reserved against {@link #breaker} for the currently kept names, handed back in full on {@link #close()}. */
+        private long reservedBytes = 0;
         /** Whether a wanted name was dropped for lack of room, i.e. there were more than {@link #maxFields}. */
         private boolean truncated = false;
 
-        FieldNameCollector(int maxFields, UnmappedFieldsPattern pattern, Set<String> existingNames) {
+        FieldNameCollector(int maxFields, UnmappedFieldsPattern pattern, Set<String> existingNames, CircuitBreaker breaker) {
             assert maxFields >= 1 : "a limit of 0 resolves unmapped_fields to LOAD, so there is nothing to expand";
             this.maxFields = maxFields;
             this.pattern = pattern;
             this.existingNames = existingNames;
+            this.breaker = breaker;
         }
 
         @Override
@@ -296,16 +309,38 @@ public final class ExpandUnmappedFieldsPostProcessor {
             if (wanted(name) == false) {
                 return;
             }
+            // Reserve before mutating the collections so a break leaves the collector unchanged and the reservation handed back on close
+            // excludes this name. The reservation is only ever released, not grown, past the cap: an insert that overflows evicts the
+            // largest name and releases its bytes just below.
+            reserve(name);
             keptNames.add(name);
             largestFirst.add(name);
             if (largestFirst.size() > maxFields) {
-                keptNames.remove(largestFirst.poll());
+                String evicted = largestFirst.poll();
+                keptNames.remove(evicted);
+                release(evicted);
                 truncated = true;
             }
         }
 
         private boolean wanted(String name) {
             return existingNames.contains(name) == false && pattern.matches(name);
+        }
+
+        private void reserve(String name) {
+            long bytes = sizeOf(name);
+            breaker.addEstimateBytesAndMaybeBreak(bytes, "unmapped fields expansion field names");
+            reservedBytes += bytes;
+        }
+
+        private void release(String name) {
+            long bytes = sizeOf(name);
+            breaker.addWithoutBreaking(-bytes);
+            reservedBytes -= bytes;
+        }
+
+        private static long sizeOf(String name) {
+            return RamUsageEstimator.sizeOf(name) + PER_NAME_CONTAINER_OVERHEAD;
         }
 
         /**
@@ -319,6 +354,16 @@ public final class ExpandUnmappedFieldsPostProcessor {
             }
             return Arrays.asList(sorted);
         }
+
+        /**
+         * Hands back every byte this collector still has reserved. The kept names outlive it - they become the response schema - so this
+         * accounts for the collection's peak, not the schema's lifetime (see the TODO in {@link #expand}'s caller).
+         */
+        @Override
+        public void close() {
+            breaker.addWithoutBreaking(-reservedBytes);
+            reservedBytes = 0;
+        }
     }
 
     /** Throws {@link TaskCancelledException} if {@code isCancelled} reports the query cancelled, so a long expansion aborts promptly. */
@@ -326,19 +371,6 @@ public final class ExpandUnmappedFieldsPostProcessor {
         if (isCancelled.getAsBoolean()) {
             throw new TaskCancelledException("task cancelled during unmapped fields expansion");
         }
-    }
-
-    /**
-     * Reserves memory for one {@link #parseJson} call, which allocates a {@code Map} nothing else accounts for. The multiplier is
-     * {@link PlannerSettings#SOURCE_RESERVATION_FACTOR}, whose javadoc records the measured ~8x blow-up of parsing {@code _source}
-     * into a map - the very same parse this column goes through a second time here.
-     *
-     * @return the number of reserved bytes, to be handed back with {@link CircuitBreaker#addWithoutBreaking} once the map is gone
-     */
-    private static long reserveForParse(BytesRef json, CircuitBreaker breaker, double reservationFactor) {
-        long reservation = (long) (json.length * reservationFactor);
-        breaker.addEstimateBytesAndMaybeBreak(reservation, "unmapped fields expansion");
-        return reservation;
     }
 
     /**
@@ -452,7 +484,6 @@ public final class ExpandUnmappedFieldsPostProcessor {
         List<Attribute> newSchema,
         int[] blockOrder,
         BlockFactory factory,
-        double reservationFactor,
         BooleanSupplier isCancelled
     ) {
         int originalColumnCount = result.schema().size();
@@ -461,19 +492,7 @@ public final class ExpandUnmappedFieldsPostProcessor {
         var success = false;
         try {
             for (Page p : result.pages()) {
-                newPages.add(
-                    rewritePage(
-                        unmappedIdx,
-                        keep,
-                        expandedFieldsNames,
-                        blockOrder,
-                        originalColumnCount,
-                        factory,
-                        p,
-                        reservationFactor,
-                        isCancelled
-                    )
-                );
+                newPages.add(rewritePage(unmappedIdx, keep, expandedFieldsNames, blockOrder, originalColumnCount, factory, p, isCancelled));
             }
             assert assertNoAllNullExpandedColumn(newPages, newSchema, expandedFieldsNames);
             success = true;
@@ -527,7 +546,6 @@ public final class ExpandUnmappedFieldsPostProcessor {
         int originalColumnCount,
         BlockFactory blockFactory,
         Page page,
-        double reservationFactor,
         BooleanSupplier isCancelled
     ) {
         int expandedFieldsCount = expandedFieldsNames.size();
@@ -570,7 +588,10 @@ public final class ExpandUnmappedFieldsPostProcessor {
                         collectLeaf(fieldNameAndValues, name, value);
                     }
                 };
-                CircuitBreaker breaker = blockFactory.breaker();
+                // Breaker accounting for this phase rides on the output builders, which charge as they fill. The streaming walk holds no
+                // parsed map, so there is nothing else to reserve per row - but fieldNameAndValues and valueScratch do hold one row's
+                // flattened leaves transiently, so a row collapsing a huge array into a single multivalue leaf peaks at roughly twice the
+                // builder's tracked bytes. Accounting for that transient is tracked by #161648.
                 for (int row = 0; row < page.getPositionCount(); row++) {
                     if ((row & (ROWS_PER_CANCELLATION_CHECK - 1)) == 0) {
                         throwIfCancelled(isCancelled);
@@ -579,15 +600,9 @@ public final class ExpandUnmappedFieldsPostProcessor {
                         appendRow(Map.of(), expandedFieldsNames, builders, valueScratch);
                         continue;
                     }
-                    BytesRef json = getBytesRef(unmappedBlock, row, jsonScratch);
-                    long reservation = reserveForParse(json, breaker, reservationFactor);
-                    try {
-                        fieldNameAndValues.clear();
-                        collectLeaves("", parseJson(json), leafSink);
-                        appendRow(fieldNameAndValues, expandedFieldsNames, builders, valueScratch);
-                    } finally {
-                        breaker.addWithoutBreaking(-reservation);
-                    }
+                    fieldNameAndValues.clear();
+                    walkJson(getBytesRef(unmappedBlock, row, jsonScratch), leafSink);
+                    appendRow(fieldNameAndValues, expandedFieldsNames, builders, valueScratch);
                 }
                 for (int i = 0; i < builders.length; i++) {
                     allBlocks[fieldOutputPos[i]] = builders[i].build();
@@ -636,69 +651,86 @@ public final class ExpandUnmappedFieldsPostProcessor {
     }
 
     /**
-     * Guard rail for the other half of what {@code UnmappedFieldsBlockLoader} promises: whatever it wrote under a key is pruned, so it
-     * holds no {@code null} inside an array or object and no empty array or object at any depth. {@link #appendRow} renders the whole
-     * value, so a {@code null} that survived would reach the user as a literal {@code "null"} inside a stringified array - where a
-     * mapped field would have produced a multi-value, and multi-values never contain nulls.
-     *
-     * @return {@code true}, so this can be called from an {@code assert} and skipped entirely in production
+     * Streams one row's {@code _unmapped_fields} JSON object, invoking {@code sink} once per leaf with its dotted path and value - the
+     * same leaves a parsed {@code Map} would yield, but without ever materialising that map. Streaming is what bounds the heap a
+     * structure-heavy row can demand: a row whose {@code _source} is, say, an array of a million one-field objects flattens one leaf at
+     * a time instead of building a {@code Map}/{@code List} graph many times its own byte size.
+     * <p>
+     * The top-level object is walked here so a bare top-level {@code null} is emitted as the all-null column it becomes (the block loader
+     * prunes whole {@code _source} keys, so that is the granularity its promise is made at, and {@link #assertNoAllNullExpandedColumn}
+     * reports the column). Every deeper value goes through {@link #walkValue}.
      */
-    private static boolean assertPruned(String fieldName, Object value) {
-        if (isPruned(value) == false) {
-            throw new AssertionError(
-                Strings.format("Unmapped field '%s' carries a null or an empty array or object: [%s]", fieldName, value)
-            );
-        }
-        return true;
-    }
-
-    /** Whether {@code value} is neither {@code null}, nor an empty container, nor a container hiding either of those at any depth. */
-    private static boolean isPruned(Object value) {
-        Collection<?> elements;
-        if (value instanceof List<?> values) {
-            elements = values;
-        } else if (value instanceof Map<?, ?> map) {
-            elements = map.values();
-        } else {
-            return value != null;
-        }
-        if (elements.isEmpty()) {
-            return false;
-        }
-        for (Object element : elements) {
-            if (isPruned(element) == false) {
-                return false;
+    private static void walkJson(BytesRef json, BiConsumer<String, Object> sink) {
+        try (
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                XContentParserConfiguration.EMPTY,
+                new BytesArray(json.bytes, json.offset, json.length),
+                XContentType.JSON
+            )
+        ) {
+            if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+                throw new IllegalStateException("expected _unmapped_fields to be a JSON object but was [" + parser.currentToken() + "]");
             }
-        }
-        return true;
-    }
-
-    /** Walks a parsed source object, invoking {@code sink} once per leaf with its dotted path and value (see {@link #collectValue}). */
-    private static void collectLeaves(String prefix, Map<?, ?> map, BiConsumer<String, Object> sink) {
-        for (Map.Entry<?, ?> entry : map.entrySet()) {
-            String name = prefix.isEmpty() ? String.valueOf(entry.getKey()) : prefix + "." + entry.getKey();
-            // Top level only: the block loader prunes whole _source keys, so that is the granularity its promise is made at. A bare
-            // null is left to assertNoAllNullExpandedColumn, which reports it as the all-null column it actually becomes.
-            assert prefix.isEmpty() == false || entry.getValue() == null || assertPruned(name, entry.getValue());
-            collectValue(name, entry.getValue(), sink);
+            for (String field = parser.nextFieldName(); field != null; field = parser.nextFieldName()) {
+                if (parser.nextToken() == XContentParser.Token.VALUE_NULL) {
+                    // Forward a bare top-level null so the field is still seen. Whether its column ends up all-null depends on the other
+                    // rows (another row may supply a non-null value for the same field), which assertNoAllNullExpandedColumn checks.
+                    sink.accept(field, null);
+                } else {
+                    walkValue(field, parser, sink);
+                }
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException("failed to parse _unmapped_fields source", e);
         }
     }
 
     /**
      * Emits the leaves of one {@code _source} value at {@code name}: an object recurses to dotted leaves, an array recurses element-wise
      * (so objects inside it flatten to the same leaves a sibling index mapping those subfields would surface, and scalar elements stay at
-     * {@code name}), and any other value is a leaf as-is.
+     * {@code name}), and any scalar is a leaf as-is - read with {@link AbstractXContentParser#readValue} so it is the same
+     * {@code String}/{@code Number}/{@code Boolean} a parsed map would have held.
+     * <p>
+     * Guard rail for what {@code UnmappedFieldsBlockLoader} promises: whatever it wrote under a key is pruned, so below the top level it
+     * holds no {@code null} and no empty array or object at any depth. {@link #appendRow} renders the whole value, so a {@code null} that
+     * survived would reach the user as a literal {@code "null"} inside a stringified array - where a mapped field would have produced a
+     * multi-value, and multi-values never contain nulls. The asserts fire only with assertions enabled; in production the walk still
+     * emits whatever it is given (a surviving null becomes a null leaf), exactly as the old map walk did.
      */
-    private static void collectValue(String name, Object value, BiConsumer<String, Object> sink) {
-        if (value instanceof Map<?, ?> child) {
-            collectLeaves(name, child, sink);
-        } else if (value instanceof List<?> list) {
-            for (Object element : list) {
-                collectValue(name, element, sink);
+    private static void walkValue(String name, XContentParser parser, BiConsumer<String, Object> sink) throws IOException {
+        switch (parser.currentToken()) {
+            case START_OBJECT -> {
+                String field = parser.nextFieldName();
+                assert field != null : prunedViolation(name);
+                for (; field != null; field = parser.nextFieldName()) {
+                    parser.nextToken();
+                    walkValue(name + "." + field, parser, sink);
+                }
             }
-        } else {
-            sink.accept(name, value);
+            case START_ARRAY -> {
+                XContentParser.Token token = parser.nextToken();
+                assert token != XContentParser.Token.END_ARRAY : prunedViolation(name);
+                for (; token != XContentParser.Token.END_ARRAY; token = parser.nextToken()) {
+                    walkValue(name, parser, sink);
+                }
+            }
+            case VALUE_NULL -> {
+                assert false : prunedViolation(name);
+                sink.accept(name, null);
+            }
+            // Only scalar tokens reach here - objects and arrays recurse through the cases above - so readValue never builds a map; it
+            // just returns the scalar exactly as the map parse did. The map factory is required by the signature but goes unused.
+            case VALUE_STRING, VALUE_NUMBER, VALUE_BOOLEAN, VALUE_EMBEDDED_OBJECT -> sink.accept(
+                name,
+                AbstractXContentParser.readValue(parser, LinkedHashMap::new)
+            );
+            default -> throw new IllegalStateException("unexpected token [" + parser.currentToken() + "] while walking _unmapped_fields");
         }
+    }
+
+    /** Message for the pruning guard rail in {@link #walkValue}: the data node must have pruned nulls and empty containers from _source. */
+    private static String prunedViolation(String name) {
+        return Strings.format("Unmapped field '%s' carries a null or an empty array or object", name);
     }
 
     private static void collectLeaf(Map<String, Object> leaves, String name, Object value) {
@@ -731,12 +763,6 @@ public final class ExpandUnmappedFieldsPostProcessor {
             );
         }
         return unmappedBlock.getBytesRef(unmappedBlock.getFirstValueIndex(row), scratch);
-    }
-
-    private static Map<String, Object> parseJson(BytesRef ref) {
-        // Ordered so a row that produces the same leaf twice (a literal dotted key overlapping a nested path) merges its values in a
-        // deterministic source order rather than an arbitrary HashMap iteration order.
-        return XContentHelper.convertToMap(new BytesArray(ref.bytes, ref.offset, ref.length), true, XContentType.JSON).v2();
     }
 
     private ExpandUnmappedFieldsPostProcessor() {/* static class. */}

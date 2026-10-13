@@ -68,6 +68,8 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.ESCAPED_COMMA_SEQUENCE;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.multiValuesAwareCsvToStringArray;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.reader;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EVAL_IN_SUBQUERY;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METADATA_CLASS_AND_NAME;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OUTER_METADATA_NULL_INJECTION;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW;
 
@@ -82,6 +84,7 @@ public class CsvTestsDataLoader {
     private static final Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
 
     private static final int BULK_DATA_SIZE = 100_000;
+    static final String DATA_STREAM_TEMPLATE_PREFIX = "csv-tests-";
 
     private static final RequestOptions DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER = RequestOptions.DEFAULT.toBuilder()
         .setWarningsHandler(
@@ -91,6 +94,32 @@ public class CsvTestsDataLoader {
                 )
         )
         .build();
+
+    /**
+     * Every field of mapping-all-types.json that all-types.csv actually carries data for, except {@code keyword}, which the
+     * {@code all_types_unmapped*} datasets keep mapped as an anchor. {@code semantic_text} and {@code dense_vector} stay mapped because
+     * the CSV has no column for either.
+     */
+    private static final Map<String, String> ALL_TYPES_UNMAPPED_FIELDS = removeFields(
+        "alias_integer",
+        "boolean",
+        "byte",
+        "constant_keyword-foo",
+        "date",
+        "date_nanos",
+        "double",
+        "float",
+        "half_float",
+        "integer",
+        "ip",
+        "long",
+        "scaled_float",
+        "short",
+        "text",
+        "unsigned_long",
+        "version",
+        "wildcard"
+    );
 
     public static final Map<String, TestDataset> CSV_DATASET = Stream.of(
         new TestDataset("employees", "mapping-default.json", "employees.csv").noSubfields(),
@@ -109,6 +138,14 @@ public class CsvTestsDataLoader {
         new TestDataset("all_types_no_short", "mapping-all-types.json", "all-types.csv").withTypeMapping(removeFields("short"))
             .withDynamic("false"),
         new TestDataset("all_types_short_as_long", "mapping-all-types.json", "all-types.csv").withTypeMapping(Map.of("short", "long")),
+        // all_types_unmapped* : the all_types index with every typed column dropped from the mapping so each ES type appears
+        // only as a _source key.
+        new TestDataset("all_types_unmapped", "mapping-all-types.json", "all-types.csv").withTypeMapping(ALL_TYPES_UNMAPPED_FIELDS)
+            .withDynamic("false"),
+        new TestDataset("all_types_unmapped", "mapping-all-types.json", "all-types.csv").withIndex("all_types_unmapped_synthetic")
+            .withTypeMapping(ALL_TYPES_UNMAPPED_FIELDS)
+            .withDynamic("false")
+            .withSetting("synthetic-source-settings.json"),
         new TestDataset("all_types_mv", "mapping-all-types.json", "all-types-mv.csv"),
         new TestDataset("hosts"),
         new TestDataset("hosts").withIndex("hosts_ip_is_kwd").withTypeMapping(Map.of("ip0", "keyword", "ip1", "keyword")),
@@ -218,6 +255,12 @@ public class CsvTestsDataLoader {
             "partial_mapping_sample_data.csv",
             "synthetic-source-settings.json"
         ),
+        new TestDataset(
+            "logsdb_partial_mapping",
+            "mapping-partial_mapping_sample_data.json",
+            "partial_mapping_sample_data.csv",
+            "logsdb-settings.json"
+        ),
         new TestDataset("mv_sample_data"),
         new TestDataset("event_alerts"),
         new TestDataset("event_logs"),
@@ -299,6 +342,26 @@ public class CsvTestsDataLoader {
             .withRequiredCapabilities(EsqlCapabilities.Cap.FIX_TS_BLOCK_LOADER_PASSTHROUGH_ALIASING),
         new TestDataset("prom-metrics", "prom-metrics-mappings.json", "k8s-prometheus-remote-write.csv", "prom-metrics-settings.json")
             .withRequiredCapabilities(EsqlCapabilities.Cap.FIX_TS_BLOCK_LOADER_PASSTHROUGH_ALIASING),
+        // Metrics and their exemplars for the exemplars query setting. The names intentionally do not match the built-in
+        // "metrics-*-*" / "exemplars-*.otel-*" data stream templates, so the test fixture controls their mappings and settings.
+        new TestDataset(
+            "metrics-cpu",
+            "otel-exemplar-source-metrics-mappings.json",
+            "exemplar-source-metrics.csv",
+            "otel-metrics-settings.json"
+        ).asDataStream().withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V2),
+        new TestDataset("exemplars-cpu", "otel-exemplars-mappings.json", "exemplars.csv", "otel-metrics-settings.json").asDataStream()
+            .withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V2),
+        new TestDataset(
+            "metrics-noexemplars",
+            "otel-exemplar-source-metrics-mappings.json",
+            "exemplar-source-metrics.csv",
+            "otel-metrics-settings.json"
+        ).asDataStream().withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V2),
+        // Metrics with different fields than metrics-cpu and without an exemplar data stream (no exemplars-k8s data stream)
+        new TestDataset("metrics-k8s", "k8s-mappings.json", "k8s.csv").asDataStream()
+            .withSetting("k8s-settings.json")
+            .withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V2),
         new TestDataset(
             "prom-metrics-name",
             "prom-metrics-name-mappings.json",
@@ -335,6 +398,7 @@ public class CsvTestsDataLoader {
                 )
             ),
         new TestDataset("books").withSetting("books-settings.json"),
+        new TestDataset("books_english", "mapping-books_english.json", "books.csv").withSetting("books-settings.json"),
         new TestDataset("text_state_mapped"),
         new TestDataset("text_state_unmapped", "mapping-text_state_mapped.json", "text_state_unmapped.csv").withTypeMapping(
             removeFields("txt")
@@ -486,10 +550,16 @@ public class CsvTestsDataLoader {
         new ViewConfig("employees_in_subquery_nested_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
         new ViewConfig("view_partial_mapping_sample_data"),
         new ViewConfig("view_sample_data"),
+        new ViewConfig("view_languages"),
+        new ViewConfig("view_languages_meta_index", List.of(OUTER_METADATA_NULL_INJECTION)),
+        new ViewConfig("view_languages_meta_index_keep_star", List.of(OUTER_METADATA_NULL_INJECTION)),
+        new ViewConfig("view_languages_meta_class_name", List.of(METADATA_CLASS_AND_NAME)),
         new ViewConfig(
             "employees_stats_where_in_subquery_view",
             List.of(WHERE_IN_SUBQUERY_WITH_VIEW, EsqlCapabilities.Cap.STATS_WHERE_IN_SUBQUERY)
-        )
+        ),
+        new ViewConfig("view_with_fork", List.of(EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND_WITH_VIEW_FORK_DATASET)),
+        new ViewConfig("view_with_unionall", List.of(EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND_WITH_VIEW_FORK_DATASET))
     ).collect(toMap(ViewConfig::name, Function.identity()));
 
     /**
@@ -916,7 +986,11 @@ public class CsvTestsDataLoader {
             timeSeriesOnly,
             capabilityCheck
         )) {
-            deleteIndex(client, dataset.indexName());
+            if (dataset.dataStream()) {
+                deleteDataStream(client, dataset.indexName());
+            } else {
+                deleteIndex(client, dataset.indexName());
+            }
         }
     }
 
@@ -1071,6 +1145,19 @@ public class CsvTestsDataLoader {
         }
     }
 
+    private static void deleteDataStream(RestClient client, String dataStreamName) throws IOException {
+        try {
+            client.performRequest(new Request("DELETE", "/_data_stream/" + dataStreamName));
+        } catch (ResponseException e) {
+            logger.info("Data stream delete error: {}", e.getMessage());
+        }
+        try {
+            client.performRequest(new Request("DELETE", "/_index_template/" + dataStreamTemplateName(dataStreamName)));
+        } catch (ResponseException e) {
+            logger.info("Data stream index template delete error: {}", e.getMessage());
+        }
+    }
+
     private static void deleteEnrichPolicy(RestClient client, String policyName) throws IOException {
         try {
             client.performRequest(new Request("DELETE", "/_enrich/policy/" + policyName));
@@ -1093,12 +1180,37 @@ public class CsvTestsDataLoader {
 
     private static void load(RestClient client, TestDataset dataset, IndexCreator indexCreator) throws IOException {
         logger.debug("Loading dataset [{}] into ES index [{}]", dataset.dataFileName, dataset.indexName);
-        indexCreator.createIndex(client, dataset.indexName, readMappingFile(dataset), dataset.loadSettings());
+        if (dataset.dataStream()) {
+            createDataStream(client, dataset);
+        } else {
+            indexCreator.createIndex(client, dataset.indexName, readMappingFile(dataset), dataset.loadSettings());
+        }
 
         // Some examples only test that the query and mappings are valid, and don't need example data. Use .noData() for those
         if (dataset.dataFileName != null) {
-            loadCsvData(client, dataset.indexName, dataset.streamData(), dataset.allowSubFields);
+            loadCsvData(client, dataset.indexName, dataset.streamData(), dataset.allowSubFields, dataset.dataStream());
         }
+    }
+
+    private static void createDataStream(RestClient client, TestDataset dataset) throws IOException {
+        String indexTemplate = """
+            {
+              "index_patterns": ["%s"],
+              "template": {
+                "settings": %s,
+                "mappings": %s
+              },
+              "data_stream": {}
+            }
+            """.formatted(dataset.indexName(), Strings.toString(dataset.loadSettings()), readMappingFile(dataset));
+        Request createTemplate = new Request("PUT", "/_index_template/" + dataStreamTemplateName(dataset.indexName()));
+        createTemplate.setJsonEntity(indexTemplate);
+        client.performRequest(createTemplate);
+        client.performRequest(new Request("PUT", "/_data_stream/" + dataset.indexName()));
+    }
+
+    private static String dataStreamTemplateName(String dataStreamName) {
+        return DATA_STREAM_TEMPLATE_PREFIX + dataStreamName;
     }
 
     /**
@@ -1224,6 +1336,11 @@ public class CsvTestsDataLoader {
      *   - commas inside multivalue fields can be escaped with \ (backslash) character
      */
     public static void loadCsvData(RestClient client, String indexName, InputStream resource, boolean allowSubFields) throws IOException {
+        loadCsvData(client, indexName, resource, allowSubFields, false);
+    }
+
+    private static void loadCsvData(RestClient client, String indexName, InputStream resource, boolean allowSubFields, boolean createOnly)
+        throws IOException {
         ArrayList<String> failures = new ArrayList<>();
         StringBuilder builder = new StringBuilder();
         try (BufferedReader reader = reader(resource)) {
@@ -1260,7 +1377,9 @@ public class CsvTestsDataLoader {
                     var document = parseDocument(columns, entries, lineNumber, subFieldsIndices);
 
                     builder.append(
-                        "{\"index\": {\"_index\":\""
+                        "{\""
+                            + (createOnly ? "create" : "index")
+                            + "\": {\"_index\":\""
                             + indexName
                             + "\""
                             + (document.id() != null ? ", \"_id\": \"" + document.id() + "\"" : "")
@@ -1451,6 +1570,7 @@ public class CsvTestsDataLoader {
         String dataFileName,
         String settingFileName,
         boolean allowSubFields,
+        boolean dataStream,
         @Nullable Map<String, String> typeMapping,
         @Nullable Map<String, String> dynamicTypeMapping,
         @Nullable String dynamic,
@@ -1459,15 +1579,27 @@ public class CsvTestsDataLoader {
     ) {
 
         public TestDataset(String indexName) {
-            this(indexName, "mapping-" + indexName + ".json", indexName + ".csv", null, true, null, null, null, List.of(), List.of());
+            this(
+                indexName,
+                "mapping-" + indexName + ".json",
+                indexName + ".csv",
+                null,
+                true,
+                false,
+                null,
+                null,
+                null,
+                List.of(),
+                List.of()
+            );
         }
 
         public TestDataset(String indexName, String mappingFileName, String dataFileName) {
-            this(indexName, mappingFileName, dataFileName, null, true, null, null, null, List.of(), List.of());
+            this(indexName, mappingFileName, dataFileName, null, true, false, null, null, null, List.of(), List.of());
         }
 
         public TestDataset(String indexName, String mappingFileName, String dataFileName, String settingFileName) {
-            this(indexName, mappingFileName, dataFileName, settingFileName, true, null, null, null, List.of(), List.of());
+            this(indexName, mappingFileName, dataFileName, settingFileName, true, false, null, null, null, List.of(), List.of());
         }
 
         public TestDataset withIndex(String indexName) {
@@ -1477,6 +1609,7 @@ public class CsvTestsDataLoader {
                 dataFileName,
                 settingFileName,
                 allowSubFields,
+                dataStream,
                 typeMapping,
                 dynamicTypeMapping,
                 dynamic,
@@ -1492,6 +1625,7 @@ public class CsvTestsDataLoader {
                 dataFileName,
                 settingFileName,
                 allowSubFields,
+                dataStream,
                 typeMapping,
                 dynamicTypeMapping,
                 dynamic,
@@ -1507,6 +1641,7 @@ public class CsvTestsDataLoader {
                 null,
                 settingFileName,
                 allowSubFields,
+                dataStream,
                 typeMapping,
                 dynamicTypeMapping,
                 dynamic,
@@ -1522,6 +1657,7 @@ public class CsvTestsDataLoader {
                 dataFileName,
                 settingFileName,
                 allowSubFields,
+                dataStream,
                 typeMapping,
                 dynamicTypeMapping,
                 dynamic,
@@ -1537,6 +1673,7 @@ public class CsvTestsDataLoader {
                 dataFileName,
                 settingFileName,
                 false,
+                dataStream,
                 typeMapping,
                 dynamicTypeMapping,
                 dynamic,
@@ -1560,6 +1697,7 @@ public class CsvTestsDataLoader {
                 dataFileName,
                 settingFileName,
                 allowSubFields,
+                dataStream,
                 typeMapping,
                 dynamicTypeMapping,
                 dynamic,
@@ -1593,6 +1731,7 @@ public class CsvTestsDataLoader {
                 dataFileName,
                 settingFileName,
                 allowSubFields,
+                dataStream,
                 typeMapping,
                 dynamicTypeMapping,
                 dynamic,
@@ -1631,6 +1770,7 @@ public class CsvTestsDataLoader {
                 dataFileName,
                 settingFileName,
                 allowSubFields,
+                dataStream,
                 typeMapping,
                 dynamicTypeMapping,
                 dynamic,
@@ -1646,6 +1786,7 @@ public class CsvTestsDataLoader {
                 dataFileName,
                 settingFileName,
                 allowSubFields,
+                dataStream,
                 typeMapping,
                 dynamicTypeMapping,
                 dynamic,
@@ -1661,11 +1802,31 @@ public class CsvTestsDataLoader {
                 dataFileName,
                 settingFileName,
                 allowSubFields,
+                dataStream,
                 typeMapping,
                 dynamicTypeMapping,
                 dynamic,
                 inferenceEndpoints,
                 List.of(requiredCapabilities)
+            );
+        }
+
+        /**
+         * Loads this dataset into a data stream instead of a regular index.
+         */
+        public TestDataset asDataStream() {
+            return new TestDataset(
+                indexName,
+                mappingFileName,
+                dataFileName,
+                settingFileName,
+                allowSubFields,
+                true,
+                typeMapping,
+                dynamicTypeMapping,
+                dynamic,
+                inferenceEndpoints,
+                requiredCapabilities
             );
         }
 

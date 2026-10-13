@@ -65,13 +65,23 @@ final class ColumnarSourceWriter {
         this.cachedColumnarPerThread = new ThreadLocal<>();
     }
 
-    void write(DocumentParserContext context, XContentBuilder builder) throws IOException {
+    /**
+     * Reconstructs the {@code _source} of one document from the fields of {@code doc}. Shared by the row path, which parses {@code doc}
+     * from the original source, and the columnar batch path, which reassembles it from the mapped columns of one row.
+     *
+     * @param allDocs the full in-memory document tree (root plus nested children), so that nested loaders can select their children.
+     *                Shard-index order places each child before its parent, matching the order in which the synthetic source loader
+     *                reads them from a real segment; this is what preserves array order across nested documents, including the deeper
+     *                documents that subobjects:false creates for object sub-fields and arrays inside a nested field. Without nested
+     *                fields it is just {@code [doc]} and nothing downstream looks at it.
+     */
+    void write(MappingLookup mappingLookup, List<LuceneDocument> allDocs, LuceneDocument doc, XContentBuilder builder) throws IOException {
         // It is safe to reuse synthetic loader and leaf loader for each thread per index.
         // Because a new mapping will result into a new instance of this class and otherwise materialized mappings stay immutable.
         PerThreadResources perThread = cachedColumnarPerThread.get();
         if (perThread == null) {
-            final Mapping mapping = context.mappingLookup().getMapping();
-            final SourceFilter blobFilter = blobSourceFilter(context.mappingLookup());
+            final Mapping mapping = mappingLookup.getMapping();
+            final SourceFilter blobFilter = blobSourceFilter(mappingLookup);
             SourceLoader.SyntheticFieldLoader fieldLoader = mapping.syntheticFieldLoader(blobFilter);
             final SourceLoader.Synthetic sourceLoader = new SourceLoader.Synthetic(blobFilter, () -> {
                 fieldLoader.reset();
@@ -84,15 +94,8 @@ final class ColumnarSourceWriter {
             cachedColumnarPerThread.set(perThread);
         }
 
-        // Make the full in-memory document tree (root + nested children) available to the reconstruction so nested
-        // loaders can select their children. Shard-index order places each child before its parent, matching the order
-        // in which the synthetic source loader reads them from a real segment; this is what preserves array order across
-        // nested documents, including the deeper documents that subobjects:false creates for object sub-fields and
-        // arrays inside a nested field. For a document with no nested fields this is just the single root document and
-        // nothing downstream looks at it.
-        List<LuceneDocument> allDocs = context.luceneDocumentsInShardIndexOrder();
         perThread.leafReader().setAllDocs(allDocs);
-        perThread.leafReader().repopulate(context.doc());
+        perThread.leafReader().repopulate(doc);
         perThread.fieldLoader().reset();
         final SourceLoader.Synthetic sourceLoader = perThread.sourceLoader;
         final SourceLoader.Leaf leaf = perThread.sourceLoaderLeaf();
@@ -513,7 +516,9 @@ final class ColumnarSourceWriter {
 
             @Override
             public int docID() {
-                return DocIdSetIterator.NO_MORE_DOCS;
+                // Like every slot below: after a successful advanceExact the iterator is positioned on the target, as it is for a real
+                // segment, and loaders may assert on it, for example the pattern_text one before it reads a value.
+                return present ? DOC_ID : DocIdSetIterator.NO_MORE_DOCS;
             }
 
             @Override
@@ -563,7 +568,7 @@ final class ColumnarSourceWriter {
 
             @Override
             public int docID() {
-                return DocIdSetIterator.NO_MORE_DOCS;
+                return present || binarySlot.present ? DOC_ID : DocIdSetIterator.NO_MORE_DOCS;
             }
 
             @Override
@@ -602,7 +607,7 @@ final class ColumnarSourceWriter {
 
             @Override
             public int docID() {
-                return DocIdSetIterator.NO_MORE_DOCS;
+                return present ? DOC_ID : DocIdSetIterator.NO_MORE_DOCS;
             }
 
             @Override
@@ -655,7 +660,7 @@ final class ColumnarSourceWriter {
 
             @Override
             public int docID() {
-                return DocIdSetIterator.NO_MORE_DOCS;
+                return present ? DOC_ID : DocIdSetIterator.NO_MORE_DOCS;
             }
 
             @Override
@@ -715,7 +720,7 @@ final class ColumnarSourceWriter {
 
             @Override
             public int docID() {
-                return DocIdSetIterator.NO_MORE_DOCS;
+                return count > 0 ? DOC_ID : DocIdSetIterator.NO_MORE_DOCS;
             }
 
             @Override
@@ -795,7 +800,7 @@ final class ColumnarSourceWriter {
 
             @Override
             public int docID() {
-                return DocIdSetIterator.NO_MORE_DOCS;
+                return count > 0 ? DOC_ID : DocIdSetIterator.NO_MORE_DOCS;
             }
 
             @Override

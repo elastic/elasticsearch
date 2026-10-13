@@ -13,6 +13,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 
 import java.io.IOException;
@@ -26,7 +28,16 @@ import java.util.Map;
  * @param isSearchable   Whether this field is indexed for search.
  * @param isAggregatable Whether this field can be aggregated on.
  * @param isInference    Whether this field is an inference field.
+ * @param isPassthrough  Whether this field is a passthrough source (a passthrough object or a passthrough-enabled
+ *                       flattened field). {@code null} when the field's type cannot be a passthrough source at all,
+ *                       such as leaf fields, so that the flag is not reported for it.
  * @param meta           Metadata about the field.
+ * @param indexAnalyzer  index analyzer name for a text field, set only when any node can rebuild it by name;
+ *                       {@code null} otherwise, as for analyzers a mapper hard-codes or fields from older nodes
+ * @param indexAnalyzerPositionIncrementGap mapping {@code position_increment_gap} when {@code indexAnalyzer} is set;
+ *                       the default otherwise, so a missing name does not affect equality
+ * @param indexLocalAnalyzer {@code true} when a text field's analyzer name was withheld because it is defined under
+ *                       {@code index.analysis}. Never set together with {@code indexAnalyzer}.
  */
 
 public record IndexFieldCapabilities(
@@ -38,8 +49,19 @@ public record IndexFieldCapabilities(
     boolean isInference,
     boolean isDimension,
     TimeSeriesParams.MetricType metricType,
-    Map<String, String> meta
+    @Nullable Boolean isPassthrough,
+    Map<String, String> meta,
+    @Nullable String indexAnalyzer,
+    int indexAnalyzerPositionIncrementGap,
+    boolean indexLocalAnalyzer
 ) implements Writeable {
+
+    public IndexFieldCapabilities {
+        if (indexAnalyzer == null) {
+            indexAnalyzerPositionIncrementGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
+        }
+        assert indexAnalyzer == null || indexLocalAnalyzer == false : "a reported analyzer name cannot be index-local";
+    }
 
     private static final StringLiteralDeduplicator typeStringDeduplicator = new StringLiteralDeduplicator();
 
@@ -53,6 +75,13 @@ public record IndexFieldCapabilities(
         TimeSeriesParams.MetricType metricType = in.readOptionalEnum(TimeSeriesParams.MetricType.class);
         Map<String, String> meta = in.readImmutableMap(StreamInput::readString);
         boolean isInference = in.getTransportVersion().supports(FieldCapabilities.FIELD_CAPS_INFERENCE_FIELD) && in.readBoolean();
+        boolean hasAnalyzer = in.getTransportVersion().supports(FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER);
+        String indexAnalyzer = hasAnalyzer ? in.readOptionalString() : null;
+        int indexAnalyzerPositionIncrementGap = indexAnalyzer != null ? in.readVInt() : TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
+        boolean indexLocalAnalyzer = hasAnalyzer && indexAnalyzer == null && in.readBoolean();
+        Boolean isPassthrough = in.getTransportVersion().supports(FieldCapabilities.FIELD_CAPS_PASSTHROUGH)
+            ? in.readOptionalBoolean()
+            : null;
         return new IndexFieldCapabilities(
             name,
             type,
@@ -62,7 +91,11 @@ public record IndexFieldCapabilities(
             isInference,
             isDimension,
             metricType,
-            meta
+            isPassthrough,
+            meta,
+            indexAnalyzer,
+            indexAnalyzerPositionIncrementGap,
+            indexLocalAnalyzer
         );
     }
 
@@ -78,6 +111,17 @@ public record IndexFieldCapabilities(
         out.writeMap(meta, StreamOutput::writeString);
         if (out.getTransportVersion().supports(FieldCapabilities.FIELD_CAPS_INFERENCE_FIELD)) {
             out.writeBoolean(isInference);
+        }
+        if (out.getTransportVersion().supports(FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER)) {
+            out.writeOptionalString(indexAnalyzer);
+            if (indexAnalyzer != null) {
+                out.writeVInt(indexAnalyzerPositionIncrementGap);
+            } else {
+                out.writeBoolean(indexLocalAnalyzer);
+            }
+        }
+        if (out.getTransportVersion().supports(FieldCapabilities.FIELD_CAPS_PASSTHROUGH)) {
+            out.writeOptionalBoolean(isPassthrough);
         }
     }
 

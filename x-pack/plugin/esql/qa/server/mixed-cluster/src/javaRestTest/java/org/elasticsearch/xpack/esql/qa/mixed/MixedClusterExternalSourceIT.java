@@ -275,7 +275,7 @@ public class MixedClusterExternalSourceIT extends ESRestTestCase {
 
                         if (everyNodeTranslates) {
                             assertEquals(context + " applies the filter", filterCase.filteredIds(), result.ids());
-                            assertThat(context, result.warnings(), not(hasItem(containsString("was not applied"))));
+                            assertThat(context, result.warnings(), not(hasItem(containsString("Request filter not applied"))));
                         } else {
                             assertThat(
                                 context + " never returns fewer rows than the filter selects",
@@ -287,12 +287,7 @@ public class MixedClusterExternalSourceIT extends ESRestTestCase {
                                 assertThat(
                                     context + " says the filter was not applied",
                                     result.warnings(),
-                                    hasItem(
-                                        allOf(
-                                            containsString("too old to evaluate the translated filter"),
-                                            containsString(PROJECTION_DATASET)
-                                        )
-                                    )
+                                    hasItem(allOf(containsString("a node is too old to evaluate it"), containsString(PROJECTION_DATASET)))
                                 );
                             }
                         }

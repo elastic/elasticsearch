@@ -177,6 +177,17 @@ public class AllocationDisabledBytecodeTests extends ScriptTestCase {
         assertThat(asm, containsString("checkDefConcatAlloc"));
     }
 
+    public void testDefConcatChargeDoesNotBoxPrimitiveOperandWhenEnabled() {
+        // A def + primitive passes the primitive's fixed cost as a long, so the check must not box the value.
+        String asm = bytecode("def a = 'ab'; def c = a + 5; return c;", 1024 * 1024L);
+        assertThat(asm, containsString("checkDefConcatAlloc"));
+        assertThat(asm, not(containsString("Integer.valueOf")));
+        // Same for a two-slot primitive on the other side.
+        asm = bytecode("def a = 'ab'; def c = 5.0 + a; return c;", 1024 * 1024L);
+        assertThat(asm, containsString("checkDefConcatAlloc"));
+        assertThat(asm, not(containsString("Double.valueOf")));
+    }
+
     public void testNoEmittedTrackingBytecodeForDefCallWhenDisabled() {
         // A def-dispatched call to an annotated target must be clean when tracking is off.
         String asm = bytecode("def s = 'hello'; s.substring(0, 3); return 1;", -1L);
@@ -208,6 +219,43 @@ public class AllocationDisabledBytecodeTests extends ScriptTestCase {
         // With tracking on, an annotated constructor reference links through the allocation-charging lambda bootstrap.
         String asm = bytecode("int c(Supplier s) { s.get(); return 1; } return c(ArrayList::new);", 1024 * 1024L);
         assertThat(asm, containsString("lambdaBootstrapWithAllocation"));
+    }
+
+    public void testNoRegexOperatorChargeBytecodeWhenDisabled() {
+        // The regex operators emit their own Augmentation.matcher call, so they need their own guard.
+        String asm = bytecode("boolean b = 'foo' ==~ /foo/; return 1;", -1L);
+        assertThat(asm, not(containsString("$checkAllocBytes")));
+        assertThat(asm, not(containsString("AllocationGuard")));
+    }
+
+    public void testRegexOperatorChargeBytecodePresentWhenEnabled() {
+        // Charged inline as a constant, so there is no estimator call to look for.
+        String asm = bytecode("boolean b = 'foo' ==~ /foo/; return 1;", 1024 * 1024L);
+        assertThat(asm, containsString("$checkAllocBytes"));
+    }
+
+    public void testNoListLiteralChargeBytecodeWhenDisabled() {
+        // A list literal emits its own constructor and adds, so it needs its own guard.
+        String asm = bytecode("List l = ['a', 'b']; return 1;", -1L);
+        assertThat(asm, not(containsString("$checkAllocBytes")));
+        assertThat(asm, not(containsString("AllocationGuard")));
+    }
+
+    public void testListLiteralChargeBytecodePresentWhenEnabled() {
+        String asm = bytecode("List l = ['a', 'b']; return 1;", 1024 * 1024L);
+        assertThat(asm, containsString("$checkAllocBytes"));
+    }
+
+    public void testNoMapLiteralChargeBytecodeWhenDisabled() {
+        // Same for a map literal.
+        String asm = bytecode("Map m = ['a': 'b']; return 1;", -1L);
+        assertThat(asm, not(containsString("$checkAllocBytes")));
+        assertThat(asm, not(containsString("AllocationGuard")));
+    }
+
+    public void testMapLiteralChargeBytecodePresentWhenEnabled() {
+        String asm = bytecode("Map m = ['a': 'b']; return 1;", 1024 * 1024L);
+        assertThat(asm, containsString("$checkAllocBytes"));
     }
 
     public void testDefCallChargeIsBootstrapSideNotEmittedWhenEnabled() {

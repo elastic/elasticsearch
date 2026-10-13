@@ -98,9 +98,7 @@ public class EncryptedDataHandlerProviderSpiIT extends ESRestTestCase {
      * {@code preserveClusterUponCompletion} keeps the repo registered across tests.
      */
     private void ensureRepo() throws Exception {
-        var putRepo = new Request("PUT", "/_snapshot/test-repo");
-        putRepo.setJsonEntity("{\"type\":\"fs\",\"settings\":{\"location\":\"" + repoDirectory.getRoot().getPath() + "\"}}");
-        assertOK(client().performRequest(putRepo));
+        registerRepository("test-repo", "fs", true, Settings.builder().put("location", repoDirectory.getRoot().getPath()).build());
     }
 
     /**

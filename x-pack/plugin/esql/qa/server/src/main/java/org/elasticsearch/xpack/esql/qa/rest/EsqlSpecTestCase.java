@@ -233,7 +233,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             });
             // Skip view-group tests entirely when the cluster cannot support views: views are not loaded,
             // so running them would fail with "index not found" rather than giving a meaningful skip.
-            if ("views".equals(groupName)) {
+            if (allTestsInGroupNeedViews()) {
                 assumeTrue(
                     "Cluster does not support views (" + RestPutViewAction.VIEWS_PUT_SERVERLESS_SCOPE + " capability absent)",
                     supportsViews()
@@ -279,7 +279,14 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     // Load views only for groups whose tests reference view fixtures
     protected boolean shouldLoadViews() {
-        return "views".equals(groupName) || "approximation".equals(groupName) || "unmapped-load".equals(groupName);
+        return "views".equals(groupName)
+            || "approximation".equals(groupName)
+            || "unmapped-load".equals(groupName)
+            || "metadata-views-and-subqueries".equals(groupName);
+    }
+
+    private boolean allTestsInGroupNeedViews() {
+        return "views".equals(groupName) || "metadata-views-and-subqueries".equals(groupName);
     }
 
     /**
@@ -647,8 +654,30 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                     matchesMap().extraOk().entry("breakers", matchesMap().extraOk().entry("request", breakersEmpty))
                 );
             }
-            assertMap("circuit breakers not reset to 0", stats, matchesMap().extraOk().entry("nodes", nodesMatcher));
+            assertMap(requestBreakerResetMessage(nodes), stats, matchesMap().extraOk().entry("nodes", nodesMatcher));
         });
+    }
+
+    /**
+     * Names the 64-byte unit charges when a spec suite leaves exactly that on the request breaker, so CI
+     * does not have to guess HeaderBudget vs interned-schema vs listing-object shell.
+     */
+    private static String requestBreakerResetMessage(Map<?, ?> nodes) {
+        long leftover = 0L;
+        for (Object node : nodes.values()) {
+            if (node instanceof Map<?, ?> nodeMap
+                && nodeMap.get("breakers") instanceof Map<?, ?> breakersMap
+                && breakersMap.get("request") instanceof Map<?, ?> requestMap
+                && requestMap.get("estimated_size_in_bytes") instanceof Number size) {
+                leftover = Math.max(leftover, size.longValue());
+            }
+        }
+        if (leftover == 64L) {
+            return "circuit breakers not reset to 0; 64b unit charge is esql-external-planning "
+                + "(SchemaInterner schema shell or GenericFileList listing header) or csv_header_columns "
+                + "(HeaderBudget SET_ENTRY_BYTES, only as part of a larger per-column formula)";
+        }
+        return "circuit breakers not reset to 0";
     }
 
     protected boolean supportsTook() {

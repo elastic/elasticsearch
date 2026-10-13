@@ -54,9 +54,9 @@ public abstract class RecordCappingInputStream extends FilterInputStream {
     }
 
     /**
-     * Format-specific exception thrown when a record exceeds the byte cap. Subclasses should return
-     * an exception with the same {@code "record exceeded external_max_record_size [N]"} message shape used by
-     * the matching record splitter so log lines stay consistent across enforcement points.
+     * Format-specific exception thrown when a record exceeds the byte cap. Subclasses should return an exception
+     * whose message starts {@code "record exceeds [<size>]"}, the size rendered as a {@code ByteSizeValue}, so the
+     * formats report the same event the same way across enforcement points.
      */
     protected abstract IOException recordTooLarge();
 

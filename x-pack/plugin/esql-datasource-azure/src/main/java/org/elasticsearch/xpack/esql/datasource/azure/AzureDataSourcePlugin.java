@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderServices;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -61,6 +62,14 @@ public class AzureDataSourcePlugin extends Plugin implements DataSourcePlugin {
     }
 
     @Override
+    public Map<String, String> testConnectionSchemes() {
+        if (enabled() == false) {
+            return Map.of();
+        }
+        return Map.of("azure", "wasbs");
+    }
+
+    @Override
     public Map<String, StorageProviderFactory> storageProviders(StorageProviderServices services) {
         if (enabled() == false) {
             return Map.of();
@@ -71,11 +80,22 @@ public class AzureDataSourcePlugin extends Plugin implements DataSourcePlugin {
         // (esql.external.max_concurrent_requests), so the SDK pool matches the per-scheme permit ceiling.
         // services.settings() is the node Settings threaded through the SPI — the path that reaches the client build.
         int maxConnections = ExternalSourceSettings.blobStoreConcurrency(services.settings());
-        StorageProviderFactory azureFactory = StorageProviderFactory.of(
+        StorageProviderFactory azureBase = StorageProviderFactory.of(
             () -> new AzureStorageProvider(null, environment, executor, maxConnections),
             AzureConfiguration::fromQueryConfig,
             cfg -> new AzureStorageProvider(cfg, environment, executor, maxConnections)
         );
+        StorageProviderFactory azureFactory = StorageProviderFactory.withTestConnection(azureBase, config -> {
+            AzureConfiguration cfg = AzureConfiguration.fromQueryConfig(config).value();
+            AzureStorageProvider p = new AzureStorageProvider(cfg, environment, executor, maxConnections);
+            try {
+                p.testConnection();
+            } finally {
+                try {
+                    p.close();
+                } catch (IOException | RuntimeException ignored) {}
+            }
+        });
         return Map.of("wasbs", azureFactory, "wasb", azureFactory);
     }
 

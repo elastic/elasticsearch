@@ -287,8 +287,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
                         .endObject()
                         .endArray()
                         .endObject()
-                ),
-                XContentType.JSON
+                )
             )
             .get();
         prepareIndex("index").setId("1").setSource("nested1", Map.of("foo", "bar"), "nested2", Map.of("foo", "bar")).get();
@@ -564,7 +563,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
                         "rfield2" : null
                       }
                     }
-                """, XContentType.JSON));
+                """));
 
             // introduction of a new object with 2 new sub-fields succeeds
             prepareIndex("index1").setId("1")
@@ -809,7 +808,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
                   }
                 }
               }
-            }""", XContentType.JSON));
+            }"""));
 
         // the parent object has been mapped dynamic:true, hence the field gets indexed
         // we use a fixed doc id here to make sure this document and the one we sent later with a conflicting type

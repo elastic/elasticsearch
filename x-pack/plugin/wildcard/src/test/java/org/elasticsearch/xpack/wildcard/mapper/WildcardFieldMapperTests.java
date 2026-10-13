@@ -237,13 +237,17 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         iw.close();
 
         // The real trip path (child breaker -> parent real-heap sampling) cannot be triggered deterministically from a unit test, so we
-        // substitute a breaker that always trips to verify the confirmation query consults the request breaker and passes 0 bytes.
+        // substitute a breaker that trips on the confirmation query's doc-values checkpoint to verify it consults the request breaker
+        // and passes 0 bytes. Non-zero calls (e.g. the guarded wildcard automaton build) are let through: they are covered elsewhere and
+        // would otherwise trip before the checkpoint under test ever runs.
         AtomicLong checkpointedBytes = new AtomicLong(-1);
         CircuitBreaker breaker = new NoopCircuitBreaker("test") {
             @Override
             public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
-                checkpointedBytes.set(bytes);
-                throw new CircuitBreakingException("test trip", Durability.TRANSIENT);
+                if ("binary_doc_values_decode".equals(label)) {
+                    checkpointedBytes.set(bytes);
+                    throw new CircuitBreakingException("test trip", Durability.TRANSIENT);
+                }
             }
         };
 
@@ -1370,8 +1374,9 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             List<String> in = values.stream().map(Tuple::v1).toList();
             List<String> docValuesValues = new ArrayList<>();
             List<String> ignoredValues = new ArrayList<>();
+            boolean ignoreAboveIsNoOp = isColumnar;
             values.stream().map(Tuple::v2).forEach(v -> {
-                if (ignoreAbove != null && v.length() > ignoreAbove) {
+                if (ignoreAboveIsNoOp == false && ignoreAbove != null && v.length() > ignoreAbove) {
                     ignoredValues.add(v);
                 } else {
                     docValuesValues.add(v);

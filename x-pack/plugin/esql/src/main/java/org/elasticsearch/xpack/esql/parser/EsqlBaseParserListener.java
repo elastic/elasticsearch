@@ -373,6 +373,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitIdentifierPattern(EsqlBaseParser.IdentifierPatternContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#expressionModeIdentifierPattern}.
+   * @param ctx the parse tree
+   */
+  void enterExpressionModeIdentifierPattern(EsqlBaseParser.ExpressionModeIdentifierPatternContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#expressionModeIdentifierPattern}.
+   * @param ctx the parse tree
+   */
+  void exitExpressionModeIdentifierPattern(EsqlBaseParser.ExpressionModeIdentifierPatternContext ctx);
+  /**
    * Enter a parse tree produced by the {@code inputParam}
    * labeled alternative in {@link EsqlBaseParser#parameter}.
    * @param ctx the parse tree

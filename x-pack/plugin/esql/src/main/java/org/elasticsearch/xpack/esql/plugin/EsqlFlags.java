@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Class holding all the flags that can be used to change behavior for certain features in ESQL.
@@ -49,13 +50,39 @@ public class EsqlFlags {
     );
 
     /**
-     * Enables coordinator-driven remote fetch for deferred TopN fields after node-level reduction.
-     * Off by default; enable with {@code esql.query.remote_fetch_topn.enabled}. An explicit value
-     * wins over the default.
+     * Cluster-wide cap on the number of leaf branches an independently executed query may use.
+     * View compaction also uses this as the flatten budget for nested view unions.
+     * An explicit {@link QueryPragmas#MAX_BRANCH_COUNT} pragma overrides this value for that query.
      */
-    public static final Setting<Boolean> ESQL_REMOTE_FETCH_TOPN = Setting.boolSetting(
-        "esql.query.remote_fetch_topn.enabled",
-        false,
+    public static final Setting<Integer> ESQL_MAX_BRANCH_COUNT = Setting.intSetting(
+        "esql.query.max_branch_count",
+        QueryPragmas.MAX_BRANCH_COUNT.getDefault(Settings.EMPTY),
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Cluster-wide cap on how deeply {@code UnionAll}s may nest in an independently executed query.
+     * An explicit {@link QueryPragmas#MAX_BRANCH_LEVEL} pragma overrides this value for that query.
+     */
+    public static final Setting<Integer> ESQL_MAX_BRANCH_LEVEL = Setting.intSetting(
+        "esql.query.max_branch_level",
+        QueryPragmas.MAX_BRANCH_LEVEL.getDefault(Settings.EMPTY),
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Cluster-wide cap on how many direct children one merge may have. Applies to {@code FORK}, dataset rewrite, and a top-level PromQL
+     * {@code or} chain. An explicit {@link QueryPragmas#MAX_BRANCH_COUNT_PER_MERGE} pragma overrides this value for that query.
+     */
+    public static final Setting<Integer> ESQL_MAX_BRANCH_COUNT_PER_MERGE = Setting.intSetting(
+        "esql.query.max_branch_count_per_merge",
+        QueryPragmas.MAX_BRANCH_COUNT_PER_MERGE.getDefault(Settings.EMPTY),
+        1,
+        QueryPragmas.MAX_BRANCH_COUNT_PER_MERGE_MAX,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -64,62 +91,120 @@ public class EsqlFlags {
     public static List<Setting<?>> ALL_ESQL_FLAGS_SETTINGS = List.of(
         ESQL_STRING_LIKE_ON_INDEX,
         ESQL_ROUNDTO_PUSHDOWN_THRESHOLD,
-        ESQL_REMOTE_FETCH_TOPN
+        ESQL_MAX_BRANCH_COUNT,
+        ESQL_MAX_BRANCH_LEVEL,
+        ESQL_MAX_BRANCH_COUNT_PER_MERGE
+    );
+
+    /**
+     * All flags at their registered defaults. Tests and benchmarks use this; production constructs
+     * flags from {@link ClusterSettings}.
+     */
+    public static final EsqlFlags DEFAULTS = new EsqlFlags(
+        ESQL_STRING_LIKE_ON_INDEX.getDefault(Settings.EMPTY),
+        ESQL_ROUNDTO_PUSHDOWN_THRESHOLD.getDefault(Settings.EMPTY),
+        ESQL_MAX_BRANCH_COUNT.getDefault(Settings.EMPTY),
+        ESQL_MAX_BRANCH_LEVEL.getDefault(Settings.EMPTY),
+        ESQL_MAX_BRANCH_COUNT_PER_MERGE.getDefault(Settings.EMPTY)
     );
 
     private final boolean stringLikeOnIndex;
 
     private final int roundToPushdownThreshold;
 
-    private final boolean remoteFetchTopN;
+    private final int maxBranchCount;
+
+    private final int maxBranchLevel;
+
+    private final int maxBranchCountPerMerge;
 
     /**
      * Constructor for tests.
      */
     public EsqlFlags(boolean stringLikeOnIndex) {
-        this(
-            stringLikeOnIndex,
-            ESQL_ROUNDTO_PUSHDOWN_THRESHOLD.getDefault(Settings.EMPTY),
-            ESQL_REMOTE_FETCH_TOPN.getDefault(Settings.EMPTY)
-        );
+        this(stringLikeOnIndex, ESQL_ROUNDTO_PUSHDOWN_THRESHOLD.getDefault(Settings.EMPTY));
     }
 
     /**
      * Constructor for tests.
      */
     public EsqlFlags(int roundToPushdownThreshold) {
-        this(
-            ESQL_STRING_LIKE_ON_INDEX.getDefault(Settings.EMPTY),
-            roundToPushdownThreshold,
-            ESQL_REMOTE_FETCH_TOPN.getDefault(Settings.EMPTY)
-        );
+        this(ESQL_STRING_LIKE_ON_INDEX.getDefault(Settings.EMPTY), roundToPushdownThreshold);
     }
 
     /**
      * Constructor for tests.
      */
     public EsqlFlags(boolean stringLikeOnIndex, int roundToPushdownThreshold) {
-        this(stringLikeOnIndex, roundToPushdownThreshold, ESQL_REMOTE_FETCH_TOPN.getDefault(Settings.EMPTY));
-    }
-
-    /**
-     * Constructor for tests.
-     */
-    public EsqlFlags(boolean stringLikeOnIndex, int roundToPushdownThreshold, boolean remoteFetchTopN) {
-        this.stringLikeOnIndex = stringLikeOnIndex;
-        this.roundToPushdownThreshold = roundToPushdownThreshold;
-        this.remoteFetchTopN = remoteFetchTopN;
-    }
-
-    public EsqlFlags(ClusterSettings settings) {
-        this(settings.get(ESQL_STRING_LIKE_ON_INDEX), settings.get(ESQL_ROUNDTO_PUSHDOWN_THRESHOLD), settings.get(ESQL_REMOTE_FETCH_TOPN));
+        this(
+            stringLikeOnIndex,
+            roundToPushdownThreshold,
+            ESQL_MAX_BRANCH_COUNT.getDefault(Settings.EMPTY),
+            ESQL_MAX_BRANCH_LEVEL.getDefault(Settings.EMPTY),
+            ESQL_MAX_BRANCH_COUNT_PER_MERGE.getDefault(Settings.EMPTY)
+        );
     }
 
     /**
      * Test helper that leaves the other flags at their defaults.
      */
-    public static EsqlFlags withRemoteFetchTopN(boolean remoteFetchTopN) {
-        return new EsqlFlags(true, ESQL_ROUNDTO_PUSHDOWN_THRESHOLD.getDefault(Settings.EMPTY), remoteFetchTopN);
+    public static EsqlFlags withMaxBranchLimits(int maxBranchCount, int maxBranchLevel) {
+        return withMaxBranchLimits(maxBranchCount, maxBranchLevel, ESQL_MAX_BRANCH_COUNT_PER_MERGE.getDefault(Settings.EMPTY));
+    }
+
+    /**
+     * Test helper that leaves the other flags at their defaults.
+     */
+    public static EsqlFlags withMaxBranchCountPerMerge(int maxBranchCountPerMerge) {
+        return withMaxBranchLimits(
+            ESQL_MAX_BRANCH_COUNT.getDefault(Settings.EMPTY),
+            ESQL_MAX_BRANCH_LEVEL.getDefault(Settings.EMPTY),
+            maxBranchCountPerMerge
+        );
+    }
+
+    public static EsqlFlags withMaxBranchLimits(int maxBranchCount, int maxBranchLevel, int maxBranchCountPerMerge) {
+        return new EsqlFlags(
+            ESQL_STRING_LIKE_ON_INDEX.getDefault(Settings.EMPTY),
+            ESQL_ROUNDTO_PUSHDOWN_THRESHOLD.getDefault(Settings.EMPTY),
+            maxBranchCount,
+            maxBranchLevel,
+            maxBranchCountPerMerge
+        );
+    }
+
+    public EsqlFlags(boolean stringLikeOnIndex, int roundToPushdownThreshold, int maxBranchCount, int maxBranchLevel) {
+        this(
+            stringLikeOnIndex,
+            roundToPushdownThreshold,
+            maxBranchCount,
+            maxBranchLevel,
+            ESQL_MAX_BRANCH_COUNT_PER_MERGE.getDefault(Settings.EMPTY)
+        );
+    }
+
+    public EsqlFlags(
+        boolean stringLikeOnIndex,
+        int roundToPushdownThreshold,
+        int maxBranchCount,
+        int maxBranchLevel,
+        int maxBranchCountPerMerge
+    ) {
+        this.stringLikeOnIndex = stringLikeOnIndex;
+        this.roundToPushdownThreshold = roundToPushdownThreshold;
+        this.maxBranchCount = maxBranchCount;
+        this.maxBranchLevel = maxBranchLevel;
+        this.maxBranchCountPerMerge = maxBranchCountPerMerge;
+    }
+
+    public EsqlFlags(ClusterSettings settings) {
+        this(
+            settings.get(ESQL_STRING_LIKE_ON_INDEX),
+            settings.get(ESQL_ROUNDTO_PUSHDOWN_THRESHOLD),
+            settings.get(ESQL_MAX_BRANCH_COUNT),
+            settings.get(ESQL_MAX_BRANCH_LEVEL),
+            settings.get(ESQL_MAX_BRANCH_COUNT_PER_MERGE)
+        );
     }
 
     /**
@@ -135,10 +220,47 @@ public class EsqlFlags {
         return roundToPushdownThreshold;
     }
 
-    /**
-     * Controls whether ES|QL may rewrite eligible TopN plans to fetch deferred fields after reduction.
-     */
-    public boolean remoteFetchTopN() {
-        return remoteFetchTopN;
+    public int maxBranchCount() {
+        return maxBranchCount;
+    }
+
+    public int maxBranchLevel() {
+        return maxBranchLevel;
+    }
+
+    public int maxBranchCountPerMerge() {
+        return maxBranchCountPerMerge;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        EsqlFlags that = (EsqlFlags) o;
+        return stringLikeOnIndex == that.stringLikeOnIndex
+            && roundToPushdownThreshold == that.roundToPushdownThreshold
+            && maxBranchCount == that.maxBranchCount
+            && maxBranchLevel == that.maxBranchLevel
+            && maxBranchCountPerMerge == that.maxBranchCountPerMerge;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(stringLikeOnIndex, roundToPushdownThreshold, maxBranchCount, maxBranchLevel, maxBranchCountPerMerge);
+    }
+
+    @Override
+    public String toString() {
+        return "EsqlFlags[stringLikeOnIndex="
+            + stringLikeOnIndex
+            + ", roundToPushdownThreshold="
+            + roundToPushdownThreshold
+            + ", maxBranchCount="
+            + maxBranchCount
+            + ", maxBranchLevel="
+            + maxBranchLevel
+            + ", maxBranchCountPerMerge="
+            + maxBranchCountPerMerge
+            + ']';
     }
 }

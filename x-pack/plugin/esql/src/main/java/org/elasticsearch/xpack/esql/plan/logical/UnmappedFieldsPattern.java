@@ -10,7 +10,6 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
@@ -20,6 +19,7 @@ import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -49,6 +49,8 @@ import java.util.Set;
  * and every additional source field would pass through.
  * {@link #NONE} means no additional source field survives (e.g., when the upstream
  * plan is not an {@link EsRelation}).
+ *
+ * <p>Include and glob-exclude patterns use the syntax of {@link UnresolvedNamePattern#glob()}.
  */
 public final class UnmappedFieldsPattern implements NamedWriteable {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -69,8 +71,16 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
 
     private final List<String> globExcludes;
 
-    // TODO: find ways of shrinking the size of this thing
-    private final Set<String> exactExcludes; // this one could potentially be large and IS serialized
+    // TODO: find ways of shrinking exactExcludes — it can grow large and is serialized on the wire.
+    private final Set<String> exactExcludes;
+
+    // Derived at construction (not serialized); rebuilt from includeGroups / globExcludes after readFrom.
+    private final CompiledGlob[][] compiledIncludeGroups;
+    private final CompiledGlob[] compiledGlobExcludes;
+
+    // The excludes that cover the entire subtree of a name they match: they end in an unescaped *, whose wildcard cover any .child suffix
+    private final CompiledGlob[] subtreeCoveringExcludes;
+    private final boolean includesAll;
 
     public static UnmappedFieldsPattern excludes(List<String> excludes) {
         return excludes.isEmpty() ? ALL : new UnmappedFieldsPattern(INCLUDES_ALL, excludes, List.of());
@@ -89,7 +99,7 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
                 case UnresolvedStar ignored -> {
                     return ALL;
                 }
-                case UnresolvedNamePattern unp -> includes.add(unp.pattern());
+                case UnresolvedNamePattern unp -> includes.add(unp.glob());
                 case UnsupportedAttribute ignored -> {
                 }
                 case UnresolvedAttribute ignored -> {
@@ -115,7 +125,7 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
      */
     public static UnmappedFieldsPattern forDrop(List<? extends NamedExpression> removals) {
         return excludes(
-            removals.stream().filter(r -> r instanceof UnresolvedNamePattern).map(r -> ((UnresolvedNamePattern) r).pattern()).toList()
+            removals.stream().filter(r -> r instanceof UnresolvedNamePattern).map(r -> ((UnresolvedNamePattern) r).glob()).toList()
         );
     }
 
@@ -123,6 +133,14 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
         this.includeGroups = includeGroups.stream().map(List::copyOf).toList();
         this.globExcludes = List.copyOf(globExcludes);
         this.exactExcludes = Set.copyOf(new LinkedHashSet<>(exactExcludes));
+        this.compiledIncludeGroups = this.includeGroups.stream()
+            .map(group -> group.stream().map(CompiledGlob::compile).toArray(CompiledGlob[]::new))
+            .toArray(CompiledGlob[][]::new);
+        this.compiledGlobExcludes = this.globExcludes.stream().map(CompiledGlob::compile).toArray(CompiledGlob[]::new);
+        this.subtreeCoveringExcludes = Arrays.stream(compiledGlobExcludes)
+            .filter(CompiledGlob::endsWithWildcard)
+            .toArray(CompiledGlob[]::new);
+        this.includesAll = this.includeGroups.equals(INCLUDES_ALL);
     }
 
     /**
@@ -147,10 +165,10 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
     }
 
     private List<List<String>> effectiveIncludeGroups(UnmappedFieldsPattern other) {
-        if (includeGroups.equals(INCLUDES_ALL)) {
+        if (includesAll) {
             return other.includeGroups;
         }
-        if (other.includeGroups.equals(INCLUDES_ALL)) {
+        if (other.includesAll) {
             return includeGroups;
         }
         return CollectionUtils.combine(includeGroups, other.includeGroups);
@@ -162,11 +180,27 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
      * and it must match at least one pattern in every include group.
      */
     public boolean matches(String name) {
-        // TODO: look into lazily compiling regex patterns for better performance
-        return isNone() == false
-            && exactExcludes.contains(name) == false
-            && globExcludes.stream().noneMatch(exclude -> Regex.simpleMatch(exclude, name))
-            && includeGroups.stream().allMatch(group -> group.stream().anyMatch(include -> Regex.simpleMatch(include, name)));
+        if (isNone() || exactExcludes.contains(name) || anyMatches(compiledGlobExcludes, name)) {
+            return false;
+        }
+        if (includesAll) {
+            return true;
+        }
+        for (CompiledGlob[] group : compiledIncludeGroups) {
+            if (anyMatches(group, name) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean anyMatches(CompiledGlob[] globs, String name) {
+        for (CompiledGlob glob : globs) {
+            if (glob.matches(name)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -177,10 +211,13 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
     public boolean objectSubfieldsCouldMatch(String name) {
         // TODO: apply the UnmappedFieldsPattern early so that whatever is being shipped to the coordinator is bare minimum
         // (as opposed to shipping the whole _source of that specific field + its subfields)
-        if (isNone() || anySubtreeCoveringExcludeMatches(name)) {
+        if (isNone() || anyMatches(subtreeCoveringExcludes, name)) {
             return false;
         }
-        for (List<String> group : includeGroups) {
+        if (includesAll) {
+            return true;
+        }
+        for (CompiledGlob[] group : compiledIncludeGroups) {
             if (groupCouldMatchDescendant(group, name) == false) {
                 return false;
             }
@@ -192,12 +229,12 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
      * Whether some pattern in {@code group} could match object {@code name} or a {@code name.*} descendant, compared on each pattern's
      * literal head — everything before its first {@code *}, or the whole pattern when it has none.
      */
-    private static boolean groupCouldMatchDescendant(List<String> group, String name) {
-        String dotted = name + ".";
-        for (String pattern : group) {
-            int wildcard = pattern.indexOf('*');
-            String literalHead = wildcard < 0 ? pattern : pattern.substring(0, wildcard);
-            if (literalHead.startsWith(dotted) || dotted.startsWith(literalHead)) {
+    private static boolean groupCouldMatchDescendant(CompiledGlob[] group, String name) {
+        int length = name.length();
+        for (CompiledGlob pattern : group) {
+            String head = pattern.literalHead();
+            // same as head.startsWith(name + ".") || (name + ".").startsWith(head), without allocating per key
+            if (head.length() > length ? head.charAt(length) == '.' && head.startsWith(name) : name.startsWith(head)) {
                 return true;
             }
         }
@@ -205,16 +242,7 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
     }
 
     /**
-     * Whether any exclude covers the <em>entire</em> subtree of {@code name}: it ends in {@code *} (so its trailing wildcard absorbs an
-     * arbitrarily long {@code .child} suffix) and matches {@code name} itself. A fixed-suffix wildcard like {@code *d} matches the parent
-     * but not its leaves, so it is not subtree-covering and is left to the coordinator's per-leaf {@link #matches}.
-     */
-    private boolean anySubtreeCoveringExcludeMatches(String name) {
-        return globExcludes.stream().anyMatch(exclude -> exclude.endsWith("*") && Regex.simpleMatch(exclude, name));
-    }
-
-    /**
-     * The pattern that keeps a field if {@code this} or {@code other} would keep it. Used when a {@code FORK} merges
+     * The pattern that keeps a field if {@code this} or {@code other} would keep it. Used when a {@link MergePlan} merges
      * branches that stamped different patterns: the coordinator expands extras that <em>any</em> sibling shipped, so
      * the output attribute must not inherit the first branch's restriction.
      * <p>
@@ -230,7 +258,7 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
             return this;
         }
 
-        List<List<String>> includes = includeGroups.equals(INCLUDES_ALL) || other.includeGroups.equals(INCLUDES_ALL)
+        List<List<String>> includes = includesAll || other.includesAll
             ? INCLUDES_ALL
             : List.of(combineDeduping(flattenIncludePatterns(includeGroups), flattenIncludePatterns(other.includeGroups)));
         return new UnmappedFieldsPattern(
@@ -314,5 +342,63 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
             in.readStringCollectionAsList(),
             in.readStringCollectionAsList()
         );
+    }
+
+    /** A glob split at its unescaped *s into escape-resolved literal fragments; a single fragment means it has no wildcard. */
+    private static final class CompiledGlob {
+        private final String[] fragments;
+
+        static CompiledGlob compile(String glob) {
+            List<String> parts = new ArrayList<>();
+            StringBuilder fragment = new StringBuilder();
+            for (int i = 0; i < glob.length(); i++) {
+                char c = glob.charAt(i);
+                if (c == '\\' && i + 1 < glob.length()) {
+                    fragment.append(glob.charAt(++i));
+                } else if (c == '*') {
+                    parts.add(fragment.toString());
+                    fragment.setLength(0);
+                } else {
+                    fragment.append(c);
+                }
+            }
+            parts.add(fragment.toString());
+            return new CompiledGlob(parts.toArray(String[]::new));
+        }
+
+        private CompiledGlob(String[] fragments) {
+            this.fragments = fragments;
+        }
+
+        /** The escape-resolved text before the first wildcard, or the whole literal when there is none. */
+        String literalHead() {
+            return fragments[0];
+        }
+
+        boolean endsWithWildcard() {
+            return fragments.length > 1 && fragments[fragments.length - 1].isEmpty();
+        }
+
+        boolean matches(String name) {
+            String first = fragments[0];
+            if (fragments.length == 1) {
+                return name.equals(first);
+            }
+            String last = fragments[fragments.length - 1];
+            if (name.length() < first.length() + last.length() || name.startsWith(first) == false || name.endsWith(last) == false) {
+                return false;
+            }
+            int from = first.length();
+            int to = name.length() - last.length();
+            for (int i = 1; i < fragments.length - 1; i++) {
+                String fragment = fragments[i];
+                int at = name.indexOf(fragment, from);
+                if (at < 0 || at + fragment.length() > to) {
+                    return false;
+                }
+                from = at + fragment.length();
+            }
+            return true;
+        }
     }
 }

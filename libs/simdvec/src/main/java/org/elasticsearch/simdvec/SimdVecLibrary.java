@@ -29,11 +29,7 @@ import static org.elasticsearch.simdvec.SimdVecChecks.validateBulkSparse;
 /**
  * Class providing vector similarity functions.
  */
-@LibrarySpecification(
-    name = "vec",
-    unavailableOn = { Platform.WINDOWS_X64, Platform.DARWIN_X64 },
-    symbolResolver = VecCapsSymbolResolver.class
-)
+@LibrarySpecification(name = "vec", unavailableOn = { Platform.DARWIN_X64 }, symbolResolver = VecCapsSymbolResolver.class)
 public abstract class SimdVecLibrary {
 
     private static final Logger logger = LogManager.getLogger(SimdVecLibrary.class);
@@ -142,10 +138,9 @@ public abstract class SimdVecLibrary {
 
     /** Whether the host CPU/OS/JDK combination can run the native vector library. */
     public static boolean isNativeVectorLibSupported() {
-        var supportedPlatform = Platform.current().equals(Platform.DARWIN_AARCH64)
-            || Platform.current().equals(Platform.LINUX_AARCH64)
-            || Platform.current().equals(Platform.LINUX_X64);
-        return Runtime.version().feature() >= 22 && supportedPlatform && checkEnableSystemProperty();
+        return Runtime.version().feature() >= 22
+            && LibraryProvider.isAvailableOnCurrentPlatform(SimdVecLibrary.class)
+            && checkEnableSystemProperty();
     }
 
     @SuppressForbidden(
@@ -598,6 +593,30 @@ public abstract class SimdVecLibrary {
         dotProductF32BulkSparse_raw(addresses, query, length, count, scores);
     }
 
+    /**
+     * Plain (non-{@code @Critical}) binding of {@code vec_dotf32_bulk_sparse}, for callers whose
+     * arguments are all already native segments. {@code @Critical} skips the safepoint transition
+     * around the call for speed, so it can't be interrupted by a handshake -- e.g. an unrelated
+     * thread's {@code Arena} close -- for however long the call runs. This binding keeps the
+     * transition, trading that overhead for safety on calls whose duration isn't bounded.
+     */
+    @Function("vec_dotf32_bulk_sparse")
+    protected abstract void dotProductF32BulkSparseOffHeap_raw(
+        @VectorSegment(countParam = "count", elementBits = Long.SIZE, aligned = true) MemorySegment addresses,
+        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,
+        int length,
+        int count,
+        @VectorSegment(countParam = "count", elementBits = Float.SIZE, aligned = true) MemorySegment scores
+    );
+
+    /**
+     * @param scores must be a native segment; this binding has no {@code @Critical} heap-access capability.
+     */
+    public void dotProductF32BulkSparseOffHeap(MemorySegment addresses, MemorySegment query, int length, int count, MemorySegment scores) {
+        assert validateBulkSparse(addresses, count);
+        dotProductF32BulkSparseOffHeap_raw(addresses, query, length, count, scores);
+    }
+
     @Function("vec_dotf32_bulk_offsets")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void dotProductF32BulkWithOffsets_raw(
@@ -687,6 +706,33 @@ public abstract class SimdVecLibrary {
     public void squareDistanceF32BulkSparse(MemorySegment addresses, MemorySegment query, int length, int count, MemorySegment scores) {
         assert validateBulkSparse(addresses, count);
         squareDistanceF32BulkSparse_raw(addresses, query, length, count, scores);
+    }
+
+    /**
+     * Plain (non-{@code @Critical}) binding of {@code vec_sqrf32_bulk_sparse}; see
+     * {@link #dotProductF32BulkSparseOffHeap} for why this exists.
+     */
+    @Function("vec_sqrf32_bulk_sparse")
+    protected abstract void squareDistanceF32BulkSparseOffHeap_raw(
+        @VectorSegment(countParam = "count", elementBits = Long.SIZE, aligned = true) MemorySegment addresses,
+        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,
+        int length,
+        int count,
+        @VectorSegment(countParam = "count", elementBits = Float.SIZE, aligned = true) MemorySegment scores
+    );
+
+    /**
+     * @param scores must be a native segment; this binding has no {@code @Critical} heap-access capability.
+     */
+    public void squareDistanceF32BulkSparseOffHeap(
+        MemorySegment addresses,
+        MemorySegment query,
+        int length,
+        int count,
+        MemorySegment scores
+    ) {
+        assert validateBulkSparse(addresses, count);
+        squareDistanceF32BulkSparseOffHeap_raw(addresses, query, length, count, scores);
     }
 
     // --- BFloat16 ---

@@ -81,6 +81,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         Runnable cancelQueryOnFailure,
         EsqlExecutionInfo executionInfo,
         EsqlSession.SubPlanKind kind,
+        boolean accumulateShardStats,
         ActionListener<DriverCompletionInfo> listener
     ) {
         var queryPragmas = configuration.pragmas();
@@ -93,12 +94,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
             final boolean receivedResults = finalResponse.get() != null || pagesFetched.get();
             if (executionInfo.shouldSkipOnFailure(clusterAlias)
                 || (configuration.allowPartialResults() && EsqlCCSUtils.canAllowPartial(e))) {
-                EsqlCCSUtils.markClusterWithFinalStateAndNoShards(
-                    executionInfo,
-                    clusterAlias,
-                    receivedResults ? EsqlExecutionInfo.Cluster.Status.PARTIAL : EsqlExecutionInfo.Cluster.Status.SKIPPED,
-                    e
-                );
+                ComputeService.markClusterAfterRuntimeBranchFailure(executionInfo, clusterAlias, receivedResults, e);
                 l.onResponse(DriverCompletionInfo.EMPTY);
             } else {
                 l.onFailure(e);
@@ -128,7 +124,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     l = ActionListener.runAfter(l, () -> transportService.getTaskManager().unregister(groupTask));
                 }
                 try (var computeListener = new ComputeListener(onGroupFailure, l.map(completionInfo -> {
-                    updateExecutionInfo(executionInfo, clusterAlias, finalResponse.get(), kind);
+                    updateExecutionInfo(executionInfo, clusterAlias, finalResponse.get(), kind, accumulateShardStats);
                     return completionInfo;
                 }))) {
                     var remotePlan = new RemoteClusterPlan(plan, cluster.concreteIndices, cluster.originalIndices);
@@ -163,19 +159,27 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         EsqlExecutionInfo executionInfo,
         String clusterAlias,
         ComputeResponse resp,
-        EsqlSession.SubPlanKind kind
+        EsqlSession.SubPlanKind kind,
+        boolean accumulateShardStats
     ) {
         executionInfo.swapCluster(clusterAlias, (k, v) -> {
             var builder = new EsqlExecutionInfo.Cluster.Builder(v);
             // Update shard counts from the main plan, or from an IN-subquery subplan for remote-only clusters.
             // For INLINE STATS subplans, skip shard count updates here — the main plan will set the definitive values.
+            // Merge branches (FORK / UNION ALL / FROM subquery) share one execInfo and must add, not replace,
+            // so failIfAllShardsFailed at the root merge sees every branch's targets.
             if (kind == EsqlSession.SubPlanKind.MAIN
                 || kind == EsqlSession.SubPlanKind.SUBQUERY_JOIN
                 || kind == EsqlSession.SubPlanKind.INNER_JOIN) {
-                builder.setTotalShards(resp.getTotalShards())
-                    .setSuccessfulShards(resp.getSuccessfulShards())
-                    .setSkippedShards(resp.getSkippedShards())
-                    .setFailedShards(resp.getFailedShards());
+                ComputeService.applyShardCounts(
+                    builder,
+                    v,
+                    resp.getTotalShards(),
+                    resp.getSuccessfulShards(),
+                    resp.getSkippedShards(),
+                    resp.getFailedShards(),
+                    accumulateShardStats
+                );
             }
             if (v.getTook() != null && resp.getTook() != null) {
                 // This can happen when we had some subplan executions before the main plan - we need to accumulate the took time
@@ -191,16 +195,16 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     builder.setTook(executionInfo.queryProfile().total().timeSinceStarted());
                 }
             }
-            if (v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
-                builder.addFailures(v.getFailures());
-                builder.addFailures(resp.failures);
-                if (kind == EsqlSession.SubPlanKind.MAIN) {
-                    if (executionInfo.isStopped() || resp.failedShards > 0 || resp.failures.isEmpty() == false) {
-                        builder.setStatus(EsqlExecutionInfo.Cluster.Status.PARTIAL);
-                    } else {
-                        builder.setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
-                    }
-                }
+            // Always keep this response's failures. Builder copies any already-recorded list; adding v.getFailures() again would duplicate
+            // them. Later merge branches can report after an earlier leaf set SUCCESSFUL.
+            builder.addFailures(resp.failures);
+            if (kind == EsqlSession.SubPlanKind.MAIN) {
+                boolean failed = executionInfo.isStopped()
+                    || resp.failedShards > 0
+                    || resp.failures.isEmpty() == false
+                    || (v.getFailedShards() != null && v.getFailedShards() > 0)
+                    || v.getFailures().isEmpty() == false;
+                ComputeService.applyClusterStatusAfterBranch(builder, v, failed, true);
             }
             return builder.build();
         });
@@ -325,7 +329,6 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         configuration.newFoldContext(),
                         exchangeSource::createExchangeSource,
                         () -> exchangeSink.createExchangeSink(() -> {}),
-                        false,
                         false
                     ),
                     coordinatorPlan,
@@ -346,8 +349,6 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     concreteIndices,
                     originalIndices,
                     exchangeSource,
-                    false,
-                    null,
                     cancelQueryOnFailure,
                     computeListener.acquireCompute().map(r -> {
                         finalResponse.set(r);

@@ -22,6 +22,7 @@ repositories {
 
 dependencies {
   implementation "org.gradle:gradle-tooling-api:9.5.0"
+  implementation buildLibs.jackson.core
 
   testImplementation localGroovy()
   testImplementation platform(buildLibs.spock.platform)

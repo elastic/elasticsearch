@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
+import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.LocalExchange;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
 import org.elasticsearch.xpack.esql.planner.SubPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.Result;
@@ -134,7 +136,14 @@ final class SubPlansExecutor {
         this.cancelOnFailure = new RunOnce(computeService.cancelQueryOnFailure(rootTask));
         this.rootPlanTimeProfile = planTimeProfile;
         final List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
+        final PageStreamPublisher streamPublisher = rootPlan.plan() instanceof StreamingOutputExec streaming
+            ? streaming.pageStream()
+            : null;
         final ActionListener<DriverCompletionInfo> outerListener = ActionListener.wrap(info -> {
+            // For a plan with merge branches this must run only after the root merge has combined every branch's shard accounting, not at
+            // the end of each branch (executePlan), which shares the same EsqlExecutionInfo, and would otherwise treat the first all-failed
+            // leaf as "all query targets failed". Streaming roots never fill collectedPages; skip the check if rows already went out.
+            ComputeService.failIfAllShardsFailedUnlessStreamed(execInfo, collectedPages, streamPublisher);
             execInfo.markEndQuery();
             listener.onResponse(new Result(rootPlan.plan().output(), collectedPages, null, configuration, info, execInfo, null));
         }, e -> {
@@ -144,7 +153,7 @@ final class SubPlansExecutor {
         this.rootExecution = new ExecutionMerge(
             null,
             rootPlan,
-            new OutputExec(rootPlan.plan(), collectedPages::add),
+            rootPlan.plan() instanceof StreamingOutputExec ? rootPlan.plan() : new OutputExec(rootPlan.plan(), collectedPages::add),
             "main.final",
             rootPlanTimeProfile,
             null,
@@ -318,7 +327,6 @@ final class SubPlansExecutor {
                         foldContext,
                         exchange::exchangeSource,
                         parent == null ? null : () -> parent.exchange.exchangeSink(() -> {}),
-                        false,
                         false
                     ),
                     plan,

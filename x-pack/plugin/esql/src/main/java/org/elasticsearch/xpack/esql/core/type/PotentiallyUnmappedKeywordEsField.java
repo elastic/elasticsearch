@@ -19,7 +19,7 @@ import java.util.Map;
  * mapped in the index. Note that this field may be mapped for some indices, but is unmapped in at least one of them.
  * For indices where the field is unmapped, we will try to load them directly from _source.
  */
-public class PotentiallyUnmappedKeywordEsField extends KeywordEsField {
+public class PotentiallyUnmappedKeywordEsField extends KeywordEsField implements UnmappedEsField {
     private static final TransportVersion ESQL_UNMAPPED_KEYWORD_LEAF_NAME = TransportVersion.fromName("esql_unmapped_keyword_leaf_name");
 
     public PotentiallyUnmappedKeywordEsField(String name) {

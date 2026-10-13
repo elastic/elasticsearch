@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.generator.command.source.PromQLGenerator;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.Rule;
@@ -132,11 +133,15 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             // A wildcard FROM pattern that expands to include an external dataset creates a
             // federated/subquery-like structure internally; FORK cannot follow such a source.
             "FORK after subquery is not supported",
+            // A wildcard FROM pattern such as "parquet*" expands to several external datasets, each one a union branch,
+            // so with FORK the query can exceed the branch cap (esql.query.max_branch_count); the generator cannot predict
+            // how many datasets a pattern matches.
+            "query resolved to \\d+ branches in total, exceeding the limit of \\d+",
             // Full-text functions and the [:] operator are not allowed when the FROM clause resolves
             // to include external (parquet) datasets — the verifier rejects them with a message of the
             // form "[X] function/operator cannot be used after from <pattern>" (explicit index list) or
             // "cannot be used after FROM" (uppercase, when FROM * expands to include parquet indices).
-            "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after (?:FROM|from .+)",
+            "(?:(?:\\[(?:KQL|QSTR|MATCH|MATCH_PHRASE|KNN)] function)|(?:\\[:\\] operator)) cannot be used after (?:FROM|from .+)",
             // https://github.com/elastic/elasticsearch/issues/159358
             // CHANGE_POINT + STATS + INLINE STATS causes the physical plan optimizer to lose the
             // $$field$converted_to$type reference that ExternalSourceResolver introduces when merging
@@ -160,20 +165,20 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "EVAL does not support type \\[(?:counter_long|counter_double|counter_integer)\\] as the return data type.*",
         "INLINE STATS cannot be used after an explicit or implicit LIMIT command",
         // Full-text functions and `:` operator are not allowed after FORK
-        "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after FORK",
+        "(?:(?:\\[(?:KQL|QSTR|MATCH|MATCH_PHRASE|KNN)] function)|(?:\\[:\\] operator)) cannot be used after FORK",
         // A FORK output column filled from a mapped text field cannot be searched: the merge drops the field's
         // mapping analyzer, so the search would silently use the standard analyzer instead
-        "(?:(?:\\[(?:MATCH|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot search column \\[.*\\] after FORK",
+        "(?:(?:\\[(?:MATCH|MATCH_PHRASE)] function)|(?:\\[:\\] operator)) cannot search column \\[.*\\] after FORK",
         // Full-text functions and `:` operator are not allowed after HIGHLIGHT
-        "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after HIGHLIGHT",
+        "(?:(?:\\[(?:KQL|QSTR|MATCH|MATCH_PHRASE|KNN)] function)|(?:\\[:\\] operator)) cannot be used after HIGHLIGHT",
         // Full-text functions and `:` operator are not allowed after LIMIT (can arise when a FORK
         // branch contains a LIMIT and a full-text function appears in the command after the FORK)
-        "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after LIMIT",
+        "(?:(?:\\[(?:KQL|QSTR|MATCH|MATCH_PHRASE|KNN)] function)|(?:\\[:\\] operator)) cannot be used after LIMIT",
         // Optimized SORT + LIMIT is TopN; the verifier reports that as "SORT and LIMIT"
-        "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after SORT and LIMIT",
+        "(?:(?:\\[(?:KQL|QSTR|MATCH|MATCH_PHRASE|KNN)] function)|(?:\\[:\\] operator)) cannot be used after SORT and LIMIT",
         // Full-text functions are not allowed after DEDUP (can arise when a FORK branch contains)
         // a DEDUP and a full-text function appears in the WHERE after the FORK)
-        "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after DEDUP",
+        "(?:(?:\\[(?:KQL|QSTR|MATCH|MATCH_PHRASE|KNN)] function)|(?:\\[:\\] operator)) cannot be used after DEDUP",
         // Full-text functions mixed with lookup-side fields via OR cannot be pushed before LOOKUP JOIN _coordinator:
         "cannot be used in a WHERE clause that references both data-side and lookup-side fields after LOOKUP JOIN _coordinator:",
         "sub-plan execution results too large",  // INLINE STATS limitations
@@ -219,6 +224,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "query value .* does not match the type .* of non-index-mapped field",
         // need to refine the MATCH / MATCH_PHRASE function generation: options on a non-index-mapped, non-TEXT field
         "Options are not supported for \\[(?:MATCH|MATCH_PHRASE)\\] function call on non-index-mapped(?:, non-TEXT)? field \\[.*\\]",
+        // need to refine the MATCH generation: options other than lenient on a non-index-mapped, non-TEXT field
+        "\\[.*\\] option is not supported for \\[MATCH\\] on non-index-mapped, non-TEXT field \\[.*\\]",
 
         // Awaiting fixes for correctness
         "Expecting at most \\[.*\\] columns, got \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/129561
@@ -371,6 +378,24 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                     throw e;
                 }
             }
+        }
+    }
+
+    /**
+     * The cluster is preserved across {@link com.carrotsearch.randomizedtesting.annotations.ParametersFactory
+     * @ParametersFactory} cases, so external datasets registered by {@link #availableIndices()} would otherwise stay visible
+     * to every case that runs after {@link GenerativeFeature#PARQUET_DATASET}. Wildcard sources such as {@code FROM *} would
+     * then pick them up and fail on commands that are unsupported on federated sources. Remove them after each such case.
+     */
+    @After
+    public void cleanupExternalDatasetsAfterCase() throws IOException {
+        if (isFeatureEnabled(GenerativeFeature.PARQUET_DATASET) == false) {
+            return;
+        }
+        try {
+            DatasetRegistry.cleanup(adminClient());
+        } finally {
+            DatasetRegistry.clearCaches();
         }
     }
 
@@ -873,11 +898,12 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     );
 
     /**
-     * Matches "Options are not supported for [MATCH|MATCH_PHRASE] function call on non-index-mapped[, non-TEXT] field [X]".
-     * This is the error MATCH/MATCH_PHRASE raises when called with options on a renamed/computed field.
+     * Captures field X from MATCH/MATCH_PHRASE option errors on a renamed or computed field.
      */
     private static final Pattern MATCH_OPTIONS_NON_INDEX_MAPPED_PATTERN = Pattern.compile(
-        ".*Options are not supported for \\[(?:MATCH|MATCH_PHRASE)\\] function call on non-index-mapped(?:, non-TEXT)? field \\[([^]]+)\\].*",
+        ".*(?:Options are not supported for \\[(?:MATCH|MATCH_PHRASE)\\] function call on non-index-mapped(?:, non-TEXT)? field"
+            + "|\\[.+\\] option is not supported for \\[MATCH\\] on non-index-mapped, non-TEXT field"
+            + ") \\[([^]]+)\\].*",
         Pattern.DOTALL
     );
 
@@ -1121,7 +1147,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     );
 
     private static final Pattern FULL_TEXT_AFTER_WHERE_PATTERN = Pattern.compile(
-        ".*(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after \\(?(?i:WHERE).*",
+        ".*(?:(?:\\[(?:KQL|QSTR|MATCH|MATCH_PHRASE)] function)|(?:\\[:\\] operator)) cannot be used after \\(?(?i:WHERE).*",
         Pattern.DOTALL
     );
 
@@ -1138,7 +1164,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             // Any full-text function/operator after a pipeline-breaking command, LOOKUP JOIN, or a multi-source FROM union.
             // "FROM" is included because UnionAll/Project often keep the FROM source text, so the first-token
             // message is "after FROM" even though KQL/QSTR after a plain FROM is legal.
-            + "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after "
+            + "(?:(?:\\[(?:KQL|QSTR|MATCH|MATCH_PHRASE)] function)|(?:\\[:\\] operator)) cannot be used after "
             + "(?:LIMIT|INLINE|LOOKUP|MV_EXPAND|STATS|SORT|FROM|CHANGE_POINT|DEDUP|LIMIT BY|TOP|"
             + "[^\\n]*,\\s*\\(\\s*FROM\\b|\\(\\s*FROM\\b)"
             + "|"

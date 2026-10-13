@@ -27,7 +27,7 @@ import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.EXTERNAL_IO_THREAD_
 public class PlanExecutorTests extends ESTestCase {
 
     /**
-     * Locks the PR-A wiring invariants that would otherwise only hold implicitly across
+     * Locks the wiring invariants that would otherwise only hold implicitly across
      * {@link TransportEsqlQueryAction} and {@link PlanExecutor#esql}: external discovery must run on the dedicated
      * {@code esql_external_io} pool (isolated from {@code SEARCH}, so a wide wildcard cannot starve regular searches,
      * and separate from {@code esql_worker} so the parse pipeline cannot starve compute) and its multi-file metadata

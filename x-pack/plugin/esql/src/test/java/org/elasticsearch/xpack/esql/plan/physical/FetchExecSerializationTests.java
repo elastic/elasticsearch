@@ -24,7 +24,6 @@ public class FetchExecSerializationTests extends AbstractPhysicalPlanSerializati
             randomFetchPlan(fetched),
             DocRefEncodeExecSerializationTests.randomDocRef(),
             fetched,
-            between(1, 3),
             randomAlphaOfLength(5),
             randomList(1, 3, () -> randomAlphaOfLength(5)),
             randomEstimatedRowSize()
@@ -52,11 +51,10 @@ public class FetchExecSerializationTests extends AbstractPhysicalPlanSerializati
         PhysicalPlan fetchPlan = instance.fetchPlan();
         ReferenceAttribute docRef = instance.docRef();
         List<Attribute> fetched = instance.fetchedAttributes();
-        int stage = instance.stage();
         String indexPattern = instance.indexPattern();
         List<String> originalIndices = instance.originalIndices();
         Integer estimatedRowSize = instance.estimatedRowSize();
-        switch (between(0, 7)) {
+        switch (between(0, 6)) {
             case 0 -> left = randomValueOtherThan(left, () -> randomChild(0));
             case 1 -> {
                 fetched = randomValueOtherThan(fetched, () -> randomFieldAttributes(1, 5, false));
@@ -64,16 +62,15 @@ public class FetchExecSerializationTests extends AbstractPhysicalPlanSerializati
             }
             case 2 -> fetchPlan = randomValueOtherThan(fetchPlan, () -> randomFetchPlan(instance.fetchedAttributes()));
             case 3 -> docRef = randomValueOtherThan(docRef, DocRefEncodeExecSerializationTests::randomDocRef);
-            case 4 -> stage = randomValueOtherThan(stage, () -> between(1, 3));
-            case 5 -> indexPattern = randomValueOtherThan(indexPattern, () -> randomAlphaOfLength(5));
-            case 6 -> originalIndices = randomValueOtherThan(originalIndices, () -> randomList(1, 3, () -> randomAlphaOfLength(5)));
-            case 7 -> estimatedRowSize = randomValueOtherThan(
+            case 4 -> indexPattern = randomValueOtherThan(indexPattern, () -> randomAlphaOfLength(5));
+            case 5 -> originalIndices = randomValueOtherThan(originalIndices, () -> randomList(1, 3, () -> randomAlphaOfLength(5)));
+            case 6 -> estimatedRowSize = randomValueOtherThan(
                 estimatedRowSize,
                 AbstractPhysicalPlanSerializationTests::randomEstimatedRowSize
             );
             default -> throw new AssertionError("Unexpected case");
         }
-        return new FetchExec(instance.source(), left, fetchPlan, docRef, fetched, stage, indexPattern, originalIndices, estimatedRowSize);
+        return new FetchExec(instance.source(), left, fetchPlan, docRef, fetched, indexPattern, originalIndices, estimatedRowSize);
     }
 
     @Override

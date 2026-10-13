@@ -73,7 +73,8 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  * The fetch action between two nodes. A node that didn't run the query phase asks the node that holds the documents for
  * their columns, over the wire. The data node finds the reader contexts the query phase kept open, loads the documents
- * in one driver per shard, returns their rows in request order, and frees the contexts the request names.
+ * in one driver per shard, and returns their rows in request order. The contexts stay open until the coordinator frees
+ * them.
  */
 @ESIntegTestCase.ClusterScope(numDataNodes = 2)
 public class FetchActionIT extends AbstractEsqlIntegTestCase {
@@ -145,8 +146,7 @@ public class FetchActionIT extends AbstractEsqlIntegTestCase {
             new OriginalIndices(new String[] { INDEX }, IndicesOptions.strictExpandOpen()),
             shardDocs,
             EsqlTestUtils.TEST_CFG,
-            fetchPlan(List.of(ID, N)),
-            open.stream().map(OpenShard::contextId).toList()
+            fetchPlan(List.of(ID, N))
         );
         request.setParentTask(new TaskId(clusterService(coordinator).localNode().getId(), randomNonNegativeLong()));
 
@@ -183,8 +183,12 @@ public class FetchActionIT extends AbstractEsqlIntegTestCase {
             }
         }
         assertThat(fetched.v2(), equalTo(expected));
-        // the request named every context, so the data node freed them once it answered
+        // a fetch frees no context, the coordinator does once the query ends
         SearchService searchService = internalCluster().getInstance(SearchService.class, dataNode);
+        assertThat(searchService.getActiveContexts(), equalTo(open.size()));
+        for (OpenShard shard : open) {
+            assertTrue(searchService.freeReaderContext(shard.contextId()));
+        }
         assertBusy(() -> assertThat(searchService.getActiveContexts(), equalTo(0)));
         ensureBlocksReleased();
     }

@@ -44,7 +44,6 @@ public final class FetchExec extends BinaryExec implements EstimatesRowSize {
 
     private final ReferenceAttribute docRef;
     private final List<Attribute> fetchedAttributes;
-    private final int stage;
     private final String indexPattern;
     private final List<String> originalIndices;
     private final Integer estimatedRowSize;
@@ -55,8 +54,6 @@ public final class FetchExec extends BinaryExec implements EstimatesRowSize {
      * @param fetchPlan         the plan each owning node runs, its output is {@code fetchedAttributes}
      * @param docRef            the {@link DataType#DOC_REF} column of {@code left}
      * @param fetchedAttributes the columns the fetch appends to each row
-     * @param stage             1 for the first fetch above the source. A query fetches in several stages when the
-     *                          columns are first needed after different cuts.
      * @param indexPattern      the index pattern of the relation the documents come from
      * @param originalIndices   the index expressions the user wrote for the local cluster. A fetch request carries
      *                          them so it is authorized like the query that selected the documents.
@@ -67,7 +64,6 @@ public final class FetchExec extends BinaryExec implements EstimatesRowSize {
         PhysicalPlan fetchPlan,
         ReferenceAttribute docRef,
         List<Attribute> fetchedAttributes,
-        int stage,
         String indexPattern,
         List<String> originalIndices,
         Integer estimatedRowSize
@@ -75,7 +71,6 @@ public final class FetchExec extends BinaryExec implements EstimatesRowSize {
         super(source, left, fetchPlan);
         this.docRef = docRef;
         this.fetchedAttributes = fetchedAttributes;
-        this.stage = stage;
         this.indexPattern = indexPattern;
         this.originalIndices = originalIndices;
         this.estimatedRowSize = estimatedRowSize;
@@ -88,7 +83,6 @@ public final class FetchExec extends BinaryExec implements EstimatesRowSize {
             in.readNamedWriteable(PhysicalPlan.class),
             (ReferenceAttribute) in.readNamedWriteable(Attribute.class),
             in.readNamedWriteableCollectionAsList(Attribute.class),
-            in.readVInt(),
             in.readString(),
             in.readStringCollectionAsList(),
             in.readOptionalVInt()
@@ -100,7 +94,6 @@ public final class FetchExec extends BinaryExec implements EstimatesRowSize {
         super.writeTo(out);
         out.writeNamedWriteable(docRef);
         out.writeNamedWriteableCollection(fetchedAttributes);
-        out.writeVInt(stage);
         out.writeString(indexPattern);
         out.writeStringCollection(originalIndices);
         out.writeOptionalVInt(estimatedRowSize);
@@ -122,10 +115,6 @@ public final class FetchExec extends BinaryExec implements EstimatesRowSize {
 
     public List<Attribute> fetchedAttributes() {
         return fetchedAttributes;
-    }
-
-    public int stage() {
-        return stage;
     }
 
     public String indexPattern() {
@@ -187,22 +176,12 @@ public final class FetchExec extends BinaryExec implements EstimatesRowSize {
         int size = Math.max(1, state.consumeAllFields(false));
         return Objects.equals(size, estimatedRowSize)
             ? this
-            : new FetchExec(source(), left(), right(), docRef, fetchedAttributes, stage, indexPattern, originalIndices, size);
+            : new FetchExec(source(), left(), right(), docRef, fetchedAttributes, indexPattern, originalIndices, size);
     }
 
     @Override
     protected FetchExec replaceChildren(PhysicalPlan newLeft, PhysicalPlan newRight) {
-        return new FetchExec(
-            source(),
-            newLeft,
-            newRight,
-            docRef,
-            fetchedAttributes,
-            stage,
-            indexPattern,
-            originalIndices,
-            estimatedRowSize
-        );
+        return new FetchExec(source(), newLeft, newRight, docRef, fetchedAttributes, indexPattern, originalIndices, estimatedRowSize);
     }
 
     @Override
@@ -214,7 +193,6 @@ public final class FetchExec extends BinaryExec implements EstimatesRowSize {
             right(),
             docRef,
             fetchedAttributes,
-            stage,
             indexPattern,
             originalIndices,
             estimatedRowSize
@@ -229,7 +207,6 @@ public final class FetchExec extends BinaryExec implements EstimatesRowSize {
         FetchExec other = (FetchExec) obj;
         return docRef.equals(other.docRef)
             && fetchedAttributes.equals(other.fetchedAttributes)
-            && stage == other.stage
             && indexPattern.equals(other.indexPattern)
             && originalIndices.equals(other.originalIndices)
             && Objects.equals(estimatedRowSize, other.estimatedRowSize);
@@ -237,6 +214,6 @@ public final class FetchExec extends BinaryExec implements EstimatesRowSize {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), docRef, fetchedAttributes, stage, indexPattern, originalIndices, estimatedRowSize);
+        return Objects.hash(super.hashCode(), docRef, fetchedAttributes, indexPattern, originalIndices, estimatedRowSize);
     }
 }

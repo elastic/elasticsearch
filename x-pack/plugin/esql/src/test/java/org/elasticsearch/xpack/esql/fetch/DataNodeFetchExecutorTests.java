@@ -149,7 +149,7 @@ public class DataNodeFetchExecutorTests extends FetchContextsTestCase {
 
     public void testFetchesTheRowsOfEachShardInRequestOrder() throws Exception {
         List<OpenShard> shards = openEveryShard();
-        FetchRequest request = request(shards, randomSubsetOf(between(1, DOCS), allNs()), List.of());
+        FetchRequest request = request(shards, randomSubsetOf(between(1, DOCS), allNs()));
 
         try (Fetched fetched = fetch(request)) {
             assertThat(fetched.results().stream().map(ShardResult::failure).toList(), everyItem(nullValue()));
@@ -159,25 +159,11 @@ public class DataNodeFetchExecutorTests extends FetchContextsTestCase {
     }
 
     /**
-     * The coordinator names the contexts of its last fetch, and the node frees them once it answered.
-     */
-    public void testFreesTheContextsTheRequestNames() throws Exception {
-        List<OpenShard> shards = openEveryShard();
-        List<ShardSearchContextId> all = shards.stream().map(OpenShard::contextId).toList();
-        FetchRequest request = request(shards, randomSubsetOf(between(1, DOCS), allNs()), all);
-
-        try (Fetched fetched = fetch(request)) {
-            assertThat(rows(fetched.pages()), equalTo(expectedRows(shards, request)));
-        }
-        assertAllFreed();
-    }
-
-    /**
      * A context that is gone, for example because its keep-alive passed, fails its shard. The other shards still load.
      */
     public void testAMissingContextFailsOnlyItsShard() throws Exception {
         List<OpenShard> shards = openEveryShard();
-        FetchRequest request = request(shards, allNs(), List.of());
+        FetchRequest request = request(shards, allNs());
         int missing = between(0, request.shards().size() - 1);
         List<FetchRequest.ShardDocs> withMissing = new ArrayList<>(request.shards());
         FetchRequest.ShardDocs shard = withMissing.get(missing);
@@ -210,7 +196,7 @@ public class DataNodeFetchExecutorTests extends FetchContextsTestCase {
         Authentication owner = AuthenticationTestHelper.builder().user(new User("owner")).build();
         Authentication other = AuthenticationTestHelper.builder().user(new User("other")).build();
         List<OpenShard> shards = as(owner, this::openEveryShard);
-        FetchRequest request = request(shards, allNs(), List.of());
+        FetchRequest request = request(shards, allNs());
 
         try (Fetched fetched = as(other, () -> fetch(request))) {
             assertThat(
@@ -231,7 +217,7 @@ public class DataNodeFetchExecutorTests extends FetchContextsTestCase {
      */
     public void testAShardOfAnIndexAuthorizationDroppedFails() throws Exception {
         List<OpenShard> shards = openEveryShard();
-        FetchRequest request = request(shards, allNs(), List.of());
+        FetchRequest request = request(shards, allNs());
         ThreadContext threadContext = getInstanceFromNode(ThreadPool.class).getThreadContext();
 
         Fetched fetched;
@@ -261,7 +247,7 @@ public class DataNodeFetchExecutorTests extends FetchContextsTestCase {
         );
         try {
             FetchRequest.ShardDocs docs = new FetchRequest.ShardDocs(shardId, other.id(), new int[] { 0 }, new int[] { 0 });
-            FetchRequest request = request(List.of(), List.of(), List.of());
+            FetchRequest request = request(List.of(), List.of());
             try (Fetched fetched = fetch(withShards(request, List.of(docs)))) {
                 assertThat(fetched.results().get(0).failure(), instanceOf(SearchContextMissingException.class));
                 assertThat(fetched.pages(), hasSize(0));
@@ -285,7 +271,7 @@ public class DataNodeFetchExecutorTests extends FetchContextsTestCase {
             new int[] { 0, 10_000 },
             new int[] { 0, 0 }
         );
-        FetchRequest request = withShards(request(shards, List.of(), List.of()), List.of(outside));
+        FetchRequest request = withShards(request(shards, List.of()), List.of(outside));
 
         try (Fetched fetched = fetch(request)) {
             assertThat(fetched.results().get(0).failure(), instanceOf(IllegalArgumentException.class));
@@ -299,7 +285,7 @@ public class DataNodeFetchExecutorTests extends FetchContextsTestCase {
      */
     public void testACancelledRequestLoadsNothing() throws Exception {
         List<OpenShard> shards = openEveryShard();
-        FetchRequest request = request(shards, allNs(), List.of());
+        FetchRequest request = request(shards, allNs());
         CancellableTask task = newTask();
         TaskCancelHelper.cancel(task, "the query was cancelled");
 
@@ -314,7 +300,7 @@ public class DataNodeFetchExecutorTests extends FetchContextsTestCase {
      */
     public void testAFetchPlanThatReturnsDocumentsFails() throws Exception {
         List<OpenShard> shards = openEveryShard();
-        FetchRequest request = request(shards, allNs(), List.of());
+        FetchRequest request = request(shards, allNs());
         Attribute doc = new FieldAttribute(Source.EMPTY, null, null, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
         FetchRequest returnsDocs = new FetchRequest(
             request.sessionId(),
@@ -322,8 +308,7 @@ public class DataNodeFetchExecutorTests extends FetchContextsTestCase {
             new OriginalIndices(request.indices(), request.indicesOptions()),
             request.shards(),
             request.configuration(),
-            new ProjectExec(Source.EMPTY, new FetchSourceExec(Source.EMPTY, doc, 64), List.of(doc)),
-            List.of()
+            new ProjectExec(Source.EMPTY, new FetchSourceExec(Source.EMPTY, doc, 64), List.of(doc))
         );
 
         Exception e = expectThrows(Exception.class, () -> fetch(returnsDocs));
@@ -337,7 +322,7 @@ public class DataNodeFetchExecutorTests extends FetchContextsTestCase {
      */
     public void testLoadsEveryShardOneAtATime() throws Exception {
         List<OpenShard> shards = openEveryShard();
-        FetchRequest request = request(shards, allNs(), List.of());
+        FetchRequest request = request(shards, allNs());
         AtomicInteger loading = new AtomicInteger();
         AtomicInteger mostLoading = new AtomicInteger();
         SourceWrapper observe = (driver, source) -> new DelegatingSource(source) {
@@ -374,7 +359,7 @@ public class DataNodeFetchExecutorTests extends FetchContextsTestCase {
      */
     public void testAFailedDriverFailsOnlyItsShard() throws Exception {
         List<OpenShard> shards = openEveryShard();
-        FetchRequest request = request(shards, allNs(), List.of());
+        FetchRequest request = request(shards, allNs());
         if (randomBoolean()) {
             request = withConfiguration(request, new ConfigurationBuilder(request.configuration()).profile(true).build());
         }
@@ -420,7 +405,7 @@ public class DataNodeFetchExecutorTests extends FetchContextsTestCase {
             new FieldExtractExec(Source.EMPTY, new FetchSourceExec(Source.EMPTY, doc, null), List.of(ID, N), NONE),
             List.of(ID, N)
         );
-        FetchRequest request = withFetchPlan(request(shards, allNs(), List.of()), unsized);
+        FetchRequest request = withFetchPlan(request(shards, allNs()), unsized);
 
         Exception e = expectThrows(Exception.class, () -> fetch(request));
         assertThat(e.getMessage(), containsString("estimated row size hasn't been set"));
@@ -433,7 +418,7 @@ public class DataNodeFetchExecutorTests extends FetchContextsTestCase {
      */
     public void testCancellationWhileLoadingFailsTheRequest() throws Exception {
         List<OpenShard> shards = openEveryShard();
-        FetchRequest request = request(shards, allNs(), List.of());
+        FetchRequest request = request(shards, allNs());
         CancellableTask task = newTask();
         SourceWrapper cancelWhileLoading = (driver, source) -> driver != 0 ? source : new DelegatingSource(source) {
             @Override
@@ -452,49 +437,11 @@ public class DataNodeFetchExecutorTests extends FetchContextsTestCase {
     }
 
     /**
-     * A request frees only the fetch contexts of its own user, even when it names a context of another user or one
-     * outside the fetch phase.
-     */
-    public void testFreesOnlyTheFetchContextsOfItsUser() throws Exception {
-        Authentication owner = AuthenticationTestHelper.builder().user(new User("owner")).build();
-        Authentication other = AuthenticationTestHelper.builder().user(new User("other")).build();
-        List<OpenShard> mine = as(owner, this::openEveryShard);
-        List<OpenShard> theirs = as(other, this::openEveryShard);
-        ReaderContext notFetch = searchService().openOwnedReaderContext(
-            new ShardSearchRequest(
-                new ShardId(resolveIndex(FETCHED), 0),
-                System.currentTimeMillis(),
-                AliasFilter.EMPTY,
-                null,
-                SplitShardCountSummary.UNSET
-            ),
-            TimeValue.timeValueMinutes(5),
-            null
-        );
-        List<ShardSearchContextId> named = new ArrayList<>();
-        mine.forEach(shard -> named.add(shard.contextId()));
-        theirs.forEach(shard -> named.add(shard.contextId()));
-        named.add(notFetch.id());
-        FetchRequest request = request(mine, allNs(), shuffledList(named));
-
-        try (Fetched fetched = as(owner, () -> fetch(request))) {
-            assertThat(rows(fetched.pages()), equalTo(expectedRows(mine, request)));
-        }
-
-        assertBusy(() -> assertThat("only the owner's contexts are freed", searchService().getActiveContexts(), equalTo(SHARDS + 1)));
-        for (OpenShard shard : theirs) {
-            assertTrue(searchService().freeReaderContext(shard.contextId()));
-        }
-        assertTrue(searchService().freeReaderContext(notFetch.id()));
-        assertAllFreed();
-    }
-
-    /**
      * A profiled query gets a {@code fetch} driver for every shard the request loaded.
      */
     public void testProfileListsAFetchDriverPerShard() throws Exception {
         List<OpenShard> shards = openEveryShard();
-        FetchRequest request = request(shards, allNs(), List.of());
+        FetchRequest request = request(shards, allNs());
         FetchRequest profiledRequest = withConfiguration(request, new ConfigurationBuilder(request.configuration()).profile(true).build());
 
         try (Fetched fetched = fetch(profiledRequest)) {
@@ -551,7 +498,7 @@ public class DataNodeFetchExecutorTests extends FetchContextsTestCase {
      * A request for the documents with the given {@code n}, the way a coordinator builds it: the shards in any order,
      * the documents of each shard sorted by segment and doc.
      */
-    private FetchRequest request(List<OpenShard> shards, Collection<Long> ns, List<ShardSearchContextId> releaseAfter) {
+    private FetchRequest request(List<OpenShard> shards, Collection<Long> ns) {
         List<FetchRequest.ShardDocs> shardDocs = new ArrayList<>();
         for (OpenShard shard : shards) {
             List<int[]> wanted = new ArrayList<>();
@@ -576,8 +523,7 @@ public class DataNodeFetchExecutorTests extends FetchContextsTestCase {
             new OriginalIndices(new String[] { FETCHED }, IndicesOptions.strictExpandOpen()),
             shardDocs,
             EsqlTestUtils.TEST_CFG,
-            FetchRequestTests.fetchPlan(List.of(ID, N)),
-            releaseAfter
+            FetchRequestTests.fetchPlan(List.of(ID, N))
         );
     }
 
@@ -605,8 +551,7 @@ public class DataNodeFetchExecutorTests extends FetchContextsTestCase {
             new OriginalIndices(request.indices(), request.indicesOptions()),
             shards,
             configuration,
-            fetchPlan,
-            request.releaseAfter()
+            fetchPlan
         );
     }
 
@@ -664,7 +609,6 @@ public class DataNodeFetchExecutorTests extends FetchContextsTestCase {
             getInstanceFromNode(TransportService.class),
             getInstanceFromNode(ClusterService.class),
             searchService(),
-            service,
             blockFactory,
             getInstanceFromNode(ThreadPool.class).executor(ThreadPool.Names.GENERIC),
             () -> PlannerSettings.DEFAULTS,

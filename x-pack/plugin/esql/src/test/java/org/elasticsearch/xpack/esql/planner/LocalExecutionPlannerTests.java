@@ -1649,7 +1649,6 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             fetchPlan,
             docRef,
             fetched,
-            1,
             "test",
             List.of("test"),
             64
@@ -1729,7 +1728,6 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             fetchPlan,
             docRef,
             List.of(message),
-            1,
             "test",
             List.of("test"),
             64
@@ -1791,7 +1789,6 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             fetchPlan,
             docRef,
             List.of(message),
-            1,
             "test",
             List.of("test"),
             64

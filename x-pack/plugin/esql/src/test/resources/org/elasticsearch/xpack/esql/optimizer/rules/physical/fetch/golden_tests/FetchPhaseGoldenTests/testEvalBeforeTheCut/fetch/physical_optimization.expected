@@ -1,5 +1,5 @@
 ProjectExec[[full_name{r}#0, salary{f}#1]]
-\_FetchExec[$$doc_ref{r$}#2,[salary{f}#1],1,employees,[],null]
+\_FetchExec[$$doc_ref{r$}#2,[salary{f}#1],employees,[],null]
   |_TopNExec[[Order[hire_date{f}#3,ASC,LAST]],10[INTEGER],null]
   | \_ExchangeExec[[$$doc_ref{r$}#2, hire_date{f}#3, full_name{r}#0],false]
   |   \_DocRefEncodeExec[_doc{f}#4,$$doc_ref{r$}#2]

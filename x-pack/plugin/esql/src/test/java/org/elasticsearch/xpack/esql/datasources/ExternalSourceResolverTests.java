@@ -10820,7 +10820,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-    * The listing shape of : far more files than the sample has floor-sized shares, each file longer
+     * The listing shape: far more files than the sample has floor-sized shares, each file longer
      * than the floor but shorter than the sample. Every file is sampled for the floor and no more, so planning reads
      * {@code files x floor} rows: more than one sample, and a fraction of the dataset, where it used to read all of it.
      */

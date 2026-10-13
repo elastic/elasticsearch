@@ -194,8 +194,7 @@ public class VersionStringFieldMapperColumnarCompatibilityTests extends Abstract
 
     public void testLongDigitGroups() throws IOException {
         // A multi-digit numeric group exercises the NUMERIC_MARKER_BYTE + length prefix encoding in
-        // prefixDigitGroupsWithLength. The group must fit in Integer.MAX_VALUE (VersionEncoder parses
-        // numeric identifiers with Integer.valueOf), so we use a 9-digit number safely below 2^31-1.
+        // prefixDigitGroupsWithLength.
         assertColumnarMatchesXContent(
             mapping(b -> b.startObject(FIELD).field("type", "version").endObject()),
             columnarSettings(),

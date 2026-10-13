@@ -29,8 +29,10 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestPutDataSourceAction extends BaseRestHandler implements RestRequestFilter {
 
     private final Set<String> filteredFields;
+    private final Set<String> secretSettingNames;
 
     public RestPutDataSourceAction(Set<String> secretSettingNames) {
+        this.secretSettingNames = secretSettingNames;
         this.filteredFields = secretSettingNames.stream().map(name -> "settings." + name).collect(Collectors.toUnmodifiableSet());
     }
 
@@ -52,7 +54,8 @@ public class RestPutDataSourceAction extends BaseRestHandler implements RestRequ
                 parser,
                 RestUtils.getMasterNodeTimeout(request),
                 RestUtils.getAckTimeout(request),
-                name
+                name,
+                secretSettingNames
             );
             return channel -> client.execute(PutDataSourceAction.INSTANCE, req, new RestToXContentListener<>(channel));
         }

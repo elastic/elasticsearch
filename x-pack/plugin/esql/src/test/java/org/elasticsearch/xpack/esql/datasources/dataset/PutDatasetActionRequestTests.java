@@ -18,6 +18,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.datasources.DataSourceLimits.MAX_DESCRIPTION_LENGTH;
 import static org.hamcrest.Matchers.contains;
@@ -38,7 +39,8 @@ public class PutDatasetActionRequestTests extends AbstractWireSerializingTestCas
             "s3://" + randomAlphaOfLength(6) + "/" + randomAlphaOfLength(4) + "/*.parquet",
             randomBoolean() ? null : randomAlphaOfLengthBetween(0, 20),
             randomSettings(),
-            randomMappingOrNull()
+            randomMappingOrNull(),
+            randomBoolean() ? Set.of("access_key") : null
         );
     }
 
@@ -49,7 +51,7 @@ public class PutDatasetActionRequestTests extends AbstractWireSerializingTestCas
 
     @Override
     protected Request mutateInstance(Request instance) {
-        return switch (between(0, 5)) {
+        return switch (between(0, 6)) {
             case 0 -> new Request(
                 TEST_REQUEST_TIMEOUT,
                 TEST_REQUEST_TIMEOUT,
@@ -57,7 +59,9 @@ public class PutDatasetActionRequestTests extends AbstractWireSerializingTestCas
                 instance.dataSource(),
                 instance.resource(),
                 instance.description(),
-                instance.rawSettings()
+                instance.rawSettings(),
+                instance.mapping(),
+                instance.secretSettingNames()
             );
             case 1 -> new Request(
                 TEST_REQUEST_TIMEOUT,
@@ -66,7 +70,9 @@ public class PutDatasetActionRequestTests extends AbstractWireSerializingTestCas
                 instance.dataSource() + "_mutated",
                 instance.resource(),
                 instance.description(),
-                instance.rawSettings()
+                instance.rawSettings(),
+                instance.mapping(),
+                instance.secretSettingNames()
             );
             case 2 -> new Request(
                 TEST_REQUEST_TIMEOUT,
@@ -75,7 +81,9 @@ public class PutDatasetActionRequestTests extends AbstractWireSerializingTestCas
                 instance.dataSource(),
                 instance.resource() + "/extra",
                 instance.description(),
-                instance.rawSettings()
+                instance.rawSettings(),
+                instance.mapping(),
+                instance.secretSettingNames()
             );
             case 3 -> new Request(
                 TEST_REQUEST_TIMEOUT,
@@ -84,7 +92,9 @@ public class PutDatasetActionRequestTests extends AbstractWireSerializingTestCas
                 instance.dataSource(),
                 instance.resource(),
                 randomValueOtherThan(instance.description(), () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20)),
-                instance.rawSettings()
+                instance.rawSettings(),
+                instance.mapping(),
+                instance.secretSettingNames()
             );
             case 4 -> {
                 Map<String, Object> mutated = new HashMap<>(instance.rawSettings());
@@ -97,7 +107,8 @@ public class PutDatasetActionRequestTests extends AbstractWireSerializingTestCas
                     instance.resource(),
                     instance.description(),
                     mutated,
-                    instance.mapping()
+                    instance.mapping(),
+                    instance.secretSettingNames()
                 );
             }
             case 5 -> new Request(
@@ -108,8 +119,23 @@ public class PutDatasetActionRequestTests extends AbstractWireSerializingTestCas
                 instance.resource(),
                 instance.description(),
                 instance.rawSettings(),
-                randomValueOtherThan(instance.mapping(), PutDatasetActionRequestTests::randomMappingOrNull)
+                randomValueOtherThan(instance.mapping(), PutDatasetActionRequestTests::randomMappingOrNull),
+                instance.secretSettingNames()
             );
+            case 6 -> {
+                var mutated = instance.secretSettingNames() == null ? Set.of("access_key") : null;
+                yield new Request(
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT,
+                    instance.name(),
+                    instance.dataSource(),
+                    instance.resource(),
+                    instance.description(),
+                    instance.rawSettings(),
+                    instance.mapping(),
+                    mutated
+                );
+            }
             default -> throw new AssertionError("unreachable");
         };
     }

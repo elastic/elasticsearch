@@ -37,9 +37,11 @@ public class RestPutDatasetAction extends BaseRestHandler implements RestRequest
 
     private static final Logger logger = LogManager.getLogger(RestPutDatasetAction.class);
 
+    private final Set<String> secretSettingsNames;
     private final Set<String> filteredFields;
 
     public RestPutDatasetAction(Set<String> secretSettingNames) {
+        this.secretSettingsNames = secretSettingNames;
         this.filteredFields = secretSettingNames.stream().map(name -> "settings." + name).collect(Collectors.toUnmodifiableSet());
     }
 
@@ -61,7 +63,8 @@ public class RestPutDatasetAction extends BaseRestHandler implements RestRequest
                 parser,
                 RestUtils.getMasterNodeTimeout(request),
                 RestUtils.getAckTimeout(request),
-                name
+                name,
+                secretSettingsNames
             );
             return channel -> client.execute(PutDatasetAction.INSTANCE, putRequest, new RestToXContentListener<>(channel));
         }

@@ -15,6 +15,7 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.filter.MarkerFilter;
 import org.apache.logging.log4j.message.StringMapMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -44,6 +45,8 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.esql.EsqlDataSourceActionNames;
+import org.elasticsearch.xpack.core.esql.EsqlDatasetActionNames;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.Grant;
@@ -106,6 +109,8 @@ import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequest;
 import org.elasticsearch.xpack.core.security.audit.AuditEventContext;
 import org.elasticsearch.xpack.core.security.audit.AuditLogCustomizer;
 import org.elasticsearch.xpack.core.security.audit.AuditSubject;
+import org.elasticsearch.xpack.core.security.audit.SecurityConfigChange;
+import org.elasticsearch.xpack.core.security.audit.SecurityConfigChangeData;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -136,6 +141,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
@@ -365,7 +371,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         UpdateApiKeyAction.NAME,
         BulkUpdateApiKeyAction.NAME,
         CreateCrossClusterApiKeyAction.NAME,
-        UpdateCrossClusterApiKeyAction.NAME
+        UpdateCrossClusterApiKeyAction.NAME,
+        EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME,
+        EsqlDataSourceActionNames.ESQL_PUT_DATA_SOURCE_ACTION_NAME
     );
     private static final String FILTER_POLICY_PREFIX = setting("audit.logfile.events.ignore_filters.");
     // because of the default wildcard value (*) for the field filter, a policy with
@@ -891,6 +899,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 } else if (msg instanceof final UpdateCrossClusterApiKeyRequest updateCrossClusterApiKeyRequest) {
                     assert UpdateCrossClusterApiKeyAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId, authentication, ctx).withRequestBody(updateCrossClusterApiKeyRequest).build();
+                } else if (msg instanceof SecurityConfigChange change) {
+                    securityChangeLogEntryBuilder(requestId, authentication, ctx).withData(change.securityConfigChangeData()).build();
                 } else {
                     throw new IllegalStateException(
                         "Unknown message class type ["
@@ -1441,6 +1451,26 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             withRequestBody(builder, bulkUpdateApiKeyRequest);
             builder.endObject();
             logEntry.with(CHANGE_CONFIG_FIELD_NAME, Strings.toString(builder));
+            return this;
+        }
+
+        LogEntryBuilder withData(SecurityConfigChangeData changeData) throws IOException {
+            logEntry.with(
+                EVENT_ACTION_FIELD_NAME,
+                changeData.operation().toString().toLowerCase(Locale.ROOT) + "_" + changeData.objectType()
+            );
+
+            var builder = JsonXContent.contentBuilder().humanReadable(true);
+            builder.startObject().startObject(changeData.objectType()).field("name", changeData.name());
+            for (var entry : changeData.safeFields().entrySet()) {
+                builder.field(entry.getKey(), entry.getValue());
+            }
+            builder.endObject().endObject();
+
+            switch (changeData.operation()) {
+                case PUT -> logEntry.with(PUT_CONFIG_FIELD_NAME, Strings.toString(builder));
+                case DELETE -> logEntry.with(DELETE_CONFIG_FIELD_NAME, Strings.toString(builder));
+            }
             return this;
         }
 

@@ -568,6 +568,8 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
         searcher.setCircuitBreaker(breaker);
         ContextIndexSearcher derived = searcher.withQueryCache(null);
         assertSame(breaker, ContextIndexSearcher.circuitBreakerOrNull(derived));
+        expectThrows(IllegalStateException.class, () -> derived.setCircuitBreaker(new TrackingCircuitBreaker(-1L)));
+        assertSame(breaker, ContextIndexSearcher.circuitBreakerOrNull(derived));
 
         Weight weight = derived.createWeight(derived.rewrite(denseRangeQuery()), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
         LeafReaderContext leaf = reader.leaves().get(0);
@@ -584,6 +586,29 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
         assertThat("the derived searcher does not hold the charge", breaker.getUsed(), greaterThan(0L));
         searcher.close();
         assertThat("closing the original searcher must release what the derived one charged", breaker.getUsed(), equalTo(0L));
+    }
+
+    /** Swapping the breaker of the original searcher swaps it for the searchers derived from it. */
+    public void testDerivedSearcherFollowsBreakerSwap() throws IOException {
+        TrackingCircuitBreaker first = new TrackingCircuitBreaker(-1L);
+        TrackingCircuitBreaker second = new TrackingCircuitBreaker(-1L);
+        ContextIndexSearcher searcher = newContextIndexSearcher(reader);
+        searcher.setCircuitBreaker(first);
+        ContextIndexSearcher derived = searcher.withQueryCache(null);
+        Weight weight = derived.createWeight(derived.rewrite(denseRangeQuery()), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+        LeafReaderContext leaf = reader.leaves().get(0);
+
+        chargeAgainst(weight, leaf);
+        assertThat(first.getUsed(), greaterThan(0L));
+        searcher.setCircuitBreaker(second);
+        assertThat("swapping the breaker must release what the previous one holds", first.getUsed(), equalTo(0L));
+        assertSame(second, ContextIndexSearcher.circuitBreakerOrNull(derived));
+
+        chargeAgainst(weight, leaf);
+        assertThat(first.getUsed(), equalTo(0L));
+        assertThat(second.getUsed(), greaterThan(0L));
+        searcher.close();
+        assertThat(second.getUsed(), equalTo(0L));
     }
 
     /** Builds a scorer for {@code ctx} inside {@code scope}, the way a caller that drives its own scorers does. */

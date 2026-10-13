@@ -238,7 +238,7 @@ $$$split-probe-window$$$
 `split_probe_window` {applies_to}`stack: experimental 9.6+`
 :   The number of bytes that each record-boundary search can read while files are split.
 
-    - **Formats:** NDJSON, CSV and TSV without quoting or escaping, and CSV with default quoting whose sampled rows hold no quote or escape character
+    - **Formats:** NDJSON, CSV and TSV without quoting or escaping, and CSV without an explicit `mode` whose sampled rows contain no quote or escape character
     - **Default:** 256 KiB (`256kb`)
     - **Valid values:** A positive byte size. The product of `max_split_probes` and `split_probe_window` can't exceed 4 GiB.
     - **Related:** `max_split_probes`, `target_split_size`

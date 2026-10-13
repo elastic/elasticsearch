@@ -452,11 +452,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     }
 
     private boolean assertIndexingBlocked(ShardId shardId) {
-        // So that FakeStatelessNode + unit tests don't have to always stub indexService
-        // TODO: stub indexService in FakeStatelessNode-based tests so to make this assertion unconditional
-        final var shard = Optional.ofNullable(indicesService.indexService(shardId.getIndex()))
-            .map(indexService -> indexService.getShardOrNull(shardId.id()));
-        assert shard.map(s -> s.getActiveOperationsCount() == IndexShard.OPERATIONS_BLOCKED).orElse(true)
+        final var indexService = indicesService.indexService(shardId.getIndex());
+        assert indexService != null : shardId + " index service expected to be non-null";
+        final var shard = indexService.getShardOrNull(shardId.id());
+        assert shard != null : shardId + " shard expected to be non-null";
+        assert shard.getActiveOperationsCount() == IndexShard.OPERATIONS_BLOCKED
             : shardId + " installUploadBoundListener must be called while holding all operation permits";
         return true;
     }

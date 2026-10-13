@@ -106,7 +106,7 @@ public class ReservedKeywordsDocsTests extends ESTestCase {
         KEYWORDS_BY_VERSION.put("9.2+", Set.of("FUSE", "GROUP", "INLINE", "KEY", "RERANK", "SCORE", "SET", "TS"));
         KEYWORDS_BY_VERSION.put("9.4+", Set.of("METRICS_INFO", "MMR", "PROMQL", "REGISTERED_DOMAIN", "TS_INFO", "URI_PARTS", "USER_AGENT"));
         KEYWORDS_BY_VERSION.put("9.5+", Set.of("IP_LOCATION", "TS_COLLAPSE"));
-        KEYWORDS_BY_VERSION.put("9.6+", Set.of("DEDUP", "HIGHLIGHT"));
+        KEYWORDS_BY_VERSION.put("9.6+", Set.of("DEDUP", "DENSE_VECTOR", "HIGHLIGHT"));
     }
 
     /**

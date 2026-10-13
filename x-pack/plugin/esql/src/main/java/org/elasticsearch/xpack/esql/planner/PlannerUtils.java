@@ -18,6 +18,7 @@ import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.SliceSelection;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -89,6 +90,7 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -359,6 +361,16 @@ public class PlannerUtils {
     }
 
     /**
+     * The slices the data-node plan reads from its indices, or none when its relations do not agree on them: the shards of
+     * a plan are resolved together. Subqueries are not concerned: each one runs as a plan of its own, with its own slices.
+     */
+    public static SliceSelection sliceSelection(PhysicalPlan plan) {
+        Set<SliceSelection> slices = new HashSet<>();
+        forEachRelation(plan, relation -> slices.add(relation.slices()));
+        return slices.size() == 1 ? slices.iterator().next() : SliceSelection.UNSPECIFIED;
+    }
+
+    /**
      * Result of local plan optimization containing both physical and logical plans.
      */
     public record LocalPlanResult(PhysicalPlan physicalPlan, String logicalPlanString, boolean approximationApplied) {}
@@ -471,8 +483,8 @@ public class PlannerUtils {
 
     /**
      * Runs local logical/physical optimization with external splits injected before the physical optimizer.
-     * Splits are attached to any empty {@link ExternalSourceExec} nodes so that rules like
-     * {@code PushStatsToExternalSource} can see per-split statistics.
+     * The node-assigned split list is stamped onto every {@link ExternalSourceExec} in the fragment so
+     * rules like {@code PushStatsToExternalSource} see this worker's splits, not a coordinator listing.
      */
     public static PhysicalPlan localPlan(
         PlannerSettings plannerSettings,
@@ -615,10 +627,10 @@ public class PlannerUtils {
             if (externalSplits.isEmpty() == false) {
                 @SuppressWarnings("unchecked")
                 List<ExternalSplit> typedSplits = (List<ExternalSplit>) externalSplits;
-                physicalFragment = physicalFragment.transformUp(
-                    ExternalSourceExec.class,
-                    exec -> exec.splits().isEmpty() ? exec.withSplits(typedSplits) : exec
-                );
+                // Always the node-assigned list. Filling only empty execs would keep a coordinator
+                // listing copied onto every worker, and INITIAL COUNT(*) would fold the full set
+                // on each data node (#161409).
+                physicalFragment = physicalFragment.transformUp(ExternalSourceExec.class, exec -> exec.withSplits(typedSplits));
             }
 
             // Physical optimization

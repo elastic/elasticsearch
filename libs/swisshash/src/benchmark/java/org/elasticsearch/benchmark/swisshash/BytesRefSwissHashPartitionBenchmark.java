@@ -87,7 +87,7 @@ public class BytesRefSwissHashPartitionBenchmark {
         keys = generate(cardinality);
         bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
         recycler = PageCacheRecycler.NON_RECYCLING_INSTANCE;
-        breaker = new NoopCircuitBreaker("dummy");
+        breaker = NoopCircuitBreaker.INSTANCE;
         threadPool = new LongLongSwissHashBenchmark.TestThreadPool("test", Settings.EMPTY);
     }
 

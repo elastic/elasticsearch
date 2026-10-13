@@ -43,6 +43,7 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
 
     private static final Logger logger = LogManager.getLogger(SharedCacheCapacityAllocationDecider.class);
     public static final String NAME = "shared_cache_capacity";
+    private static final Decision EMPTY_NOT_PREFERRED_DECISION = new Decision.Single(Decision.Type.NOT_PREFERRED, NAME, null);
 
     /**
      * Whether the decider considers only boosted cache commitment, or the combined boosted and unboosted commitment, when comparing
@@ -231,7 +232,7 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
                 }
                 return allocation.decision(Decision.NOT_PREFERRED, NAME, message);
             } else {
-                return Decision.NOT_PREFERRED;
+                return EMPTY_NOT_PREFERRED_DECISION;
             }
         }
 
@@ -271,7 +272,7 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
                 }
                 return allocation.decision(Decision.NOT_PREFERRED, NAME, message);
             } else {
-                return Decision.NOT_PREFERRED;
+                return EMPTY_NOT_PREFERRED_DECISION;
             }
         }
 
@@ -342,7 +343,7 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
                 }
                 return allocation.decision(Decision.NOT_PREFERRED, NAME, message);
             } else {
-                return Decision.NOT_PREFERRED;
+                return EMPTY_NOT_PREFERRED_DECISION;
             }
         }
 

@@ -449,6 +449,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public LogicalPlan visitSubquery(EsqlBaseParser.SubqueryContext ctx) {
+        // Subquery commands are parsed as a flat list rather than through visitCompositeQuery, so the limit is enforced here.
+        if (ctx.processingCommand().size() > MAX_QUERY_DEPTH) {
+            throw new ParsingException(
+                source(ctx),
+                "ES|QL subquery exceeded the maximum query depth allowed ({}): [{}]",
+                MAX_QUERY_DEPTH,
+                ctx.getText()
+            );
+        }
         LogicalPlan plan = visitSubquerySourceCommand(ctx.subquerySourceCommand());
         List<PlanFactory> processingCommands = visitList(this, ctx.processingCommand(), PlanFactory.class);
         for (PlanFactory processingCommand : processingCommands) {

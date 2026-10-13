@@ -1469,6 +1469,17 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEqualsIgnoringIds(new Explain(EMPTY, PROCESSING_CMD_INPUT), query("explain ( row a = 1 )"));
     }
 
+    public void testMaxSubqueryDepth() {
+        assumeTrue("Requires subqueries in FROM", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        String pipes = " | where a > 0".repeat(LogicalPlanBuilder.MAX_QUERY_DEPTH);
+        query("from foo, (from bar" + pipes + ")");
+        var e = expectThrows(ParsingException.class, () -> query("from foo, (from bar" + pipes + " | where a > 0)"));
+        assertThat(
+            e.getMessage(),
+            containsString("ES|QL subquery exceeded the maximum query depth allowed (" + LogicalPlanBuilder.MAX_QUERY_DEPTH + ")")
+        );
+    }
+
     public void testBlockComments() {
         assumeTrue("Requires EXPLAIN capability", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
         String query = " explain ( from foo )";

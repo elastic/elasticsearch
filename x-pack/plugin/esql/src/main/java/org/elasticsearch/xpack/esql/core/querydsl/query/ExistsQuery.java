@@ -32,25 +32,9 @@ public class ExistsQuery extends Query {
     }
 
     /**
-     * The type of {@code field} on this shard, or {@code null} if ES|QL treats the field as missing here.
-     * A dotted name under a {@code flattened} root resolves to a keyed sub-field type even though the shard
-     * has no mapping for it, and a sub-field of a {@code nested} object resolves to its own type. Field caps
-     * and field extraction treat both as missing, so pushed-down queries have to as well: otherwise they
-     * reject wildcard/regexp queries or match documents whose extracted value is {@code null}, for example
-     * through a nested object's {@code include_in_root} copy.
-     */
-    public static MappedFieldType mappedFieldType(SearchExecutionContext context, String field) {
-        MappedFieldType ft = context.getFieldType(field);
-        if (ft == null || SearchContextStats.isExtractableMappedField(context, field) == false) {
-            return null;
-        }
-        return ft;
-    }
-
-    /**
-     * An {@code exists} query that matches nothing on shards where {@link #mappedFieldType} treats the field
-     * as missing. It keeps the {@code exists} wire format, so a node that receives it over the wire runs a
-     * plain {@link ExistsQueryBuilder}.
+     * An {@code exists} query that matches nothing on shards where {@link SearchContextStats#extractableFieldType}
+     * treats the field as missing. It keeps the {@code exists} wire format, so a node that receives it over the
+     * wire runs a plain {@link ExistsQueryBuilder}.
      */
     private static class MappedOnlyExistsQueryBuilder extends ExistsQueryBuilder {
         MappedOnlyExistsQueryBuilder(String fieldName) {
@@ -59,7 +43,7 @@ public class ExistsQuery extends Query {
 
         @Override
         protected org.apache.lucene.search.Query doToQuery(SearchExecutionContext context) {
-            MappedFieldType ft = mappedFieldType(context, fieldName());
+            MappedFieldType ft = SearchContextStats.extractableFieldType(context, fieldName());
             if (ft == null) {
                 return new MatchNoDocsQuery("missing field [" + fieldName() + "]");
             }

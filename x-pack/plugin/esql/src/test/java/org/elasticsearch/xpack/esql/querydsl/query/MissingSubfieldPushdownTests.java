@@ -77,6 +77,26 @@ public class MissingSubfieldPushdownTests extends MapperServiceTestCase {
         assertThat(count(new NotQuery(Source.EMPTY, new ExistsQuery(Source.EMPTY, "n.x"))), equalTo(2));
     }
 
+    public void testSyntheticSourceDelegateOnMappedTextStillMatches() throws IOException {
+        assertThat(count(syntheticSourceDelegateEquals("kw", "alpha")), equalTo(1));
+    }
+
+    public void testNegatedSyntheticSourceDelegateOnMappedTextStillMatches() throws IOException {
+        assertThat(count(syntheticSourceDelegateEquals("kw", "alpha").negate(Source.EMPTY)), equalTo(1));
+    }
+
+    public void testSyntheticSourceDelegateOnNestedSubfieldMatchesNothing() throws IOException {
+        assertThat(count(syntheticSourceDelegateEquals("n.t", "alpha")), equalTo(0));
+    }
+
+    public void testNegatedSyntheticSourceDelegateOnNestedSubfieldMatchesNothing() throws IOException {
+        assertThat(count(syntheticSourceDelegateEquals("n.t", "beta").negate(Source.EMPTY)), equalTo(0));
+    }
+
+    private static SingleValueQuery syntheticSourceDelegateEquals(String field, String value) {
+        return new SingleValueQuery(new EqualsSyntheticSourceDelegate(Source.EMPTY, field, value), field, true);
+    }
+
     private int count(Query query) throws IOException {
         MapperService mapper = createMapperService(mapping(b -> {
             b.startObject("category").field("type", "flattened").endObject();
@@ -84,14 +104,19 @@ public class MissingSubfieldPushdownTests extends MapperServiceTestCase {
             b.startObject("fields").startObject("raw").field("type", "keyword").endObject().endObject();
             b.endObject();
             b.startObject("n").field("type", "nested").field("include_in_root", true);
-            b.startObject("properties").startObject("x").field("type", "keyword").endObject().endObject();
+            b.startObject("properties");
+            b.startObject("x").field("type", "keyword").endObject();
+            b.startObject("t").field("type", "text");
+            b.startObject("fields").startObject("raw").field("type", "keyword").endObject().endObject();
+            b.endObject();
+            b.endObject();
             b.endObject();
         }));
         int[] count = new int[1];
         withLuceneIndex(mapper, iw -> {
             iw.addDocument(mapper.documentMapper().parse(source(b -> {
                 b.startObject("category").field("raw", "alpha").endObject().field("kw", "alpha");
-                b.startArray("n").startObject().field("x", "alpha").endObject().endArray();
+                b.startArray("n").startObject().field("x", "alpha").field("t", "alpha").endObject().endArray();
             })).rootDoc());
             iw.addDocument(
                 mapper.documentMapper()

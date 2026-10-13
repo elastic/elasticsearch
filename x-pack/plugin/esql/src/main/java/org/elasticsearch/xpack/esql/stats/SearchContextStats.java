@@ -22,6 +22,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.DocCountFieldMapper.DocCountFieldType;
@@ -153,8 +154,21 @@ public class SearchContextStats implements SearchStats {
      * on the field-caps request, so treating nested subfields as present here would make
      * {@code exists}/{@code count} or pushed-down predicates disagree with extraction.
      */
-    public static boolean isExtractableMappedField(SearchExecutionContext context, String field) {
+    private static boolean isExtractableMappedField(SearchExecutionContext context, String field) {
         return context.isMappedField(field) && isNestedSubfield(context, field) == false;
+    }
+
+    /**
+     * The type of {@code field} on this shard, or {@code null} if ES|QL treats the field as missing here.
+     * {@link SearchExecutionContext#getFieldType} resolves a dotted name under a {@code flattened} root to a
+     * keyed sub-field type even though the shard has no mapping for it, and a sub-field of a {@code nested}
+     * object to its own type. Field caps and field extraction treat both as missing, so pushed-down queries
+     * have to as well: otherwise they reject wildcard/regexp queries or match documents whose extracted value
+     * is {@code null}, for example through a nested object's {@code include_in_root} copy.
+     */
+    @Nullable
+    public static MappedFieldType extractableFieldType(SearchExecutionContext context, String field) {
+        return isExtractableMappedField(context, field) ? context.getFieldType(field) : null;
     }
 
     private static boolean isNestedSubfield(SearchExecutionContext context, String field) {

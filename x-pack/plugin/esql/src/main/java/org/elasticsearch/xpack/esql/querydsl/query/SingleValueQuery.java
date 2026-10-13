@@ -29,12 +29,12 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.esql.core.querydsl.query.ExistsQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Location;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
+import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -256,7 +256,7 @@ public class SingleValueQuery extends Query {
 
         @Override
         protected final org.apache.lucene.search.Query doToQuery(SearchExecutionContext context) throws IOException {
-            MappedFieldType ft = ExistsQuery.mappedFieldType(context, field());
+            MappedFieldType ft = SearchContextStats.extractableFieldType(context, field());
             if (ft == null) {
                 return new MatchNoDocsQuery("missing field [" + field() + "]");
             }
@@ -320,7 +320,7 @@ public class SingleValueQuery extends Query {
 
         @Override
         protected final org.apache.lucene.search.Query doToQuery(SearchExecutionContext context) throws IOException {
-            MappedFieldType ft = ExistsQuery.mappedFieldType(context, field());
+            MappedFieldType ft = SearchContextStats.extractableFieldType(context, field());
             if (ft == null) {
                 return new MatchNoDocsQuery("missing field [" + field() + "]");
             }
@@ -418,7 +418,7 @@ public class SingleValueQuery extends Query {
 
         @Override
         protected final org.apache.lucene.search.Query doToQuery(SearchExecutionContext context) throws IOException {
-            MappedFieldType ft = ExistsQuery.mappedFieldType(context, field());
+            MappedFieldType ft = SearchContextStats.extractableFieldType(context, field());
             if (ft == null) {
                 return new MatchNoDocsQuery("missing field [" + field() + "]");
             }

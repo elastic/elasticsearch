@@ -136,10 +136,6 @@ public class AnalyzerContext {
         return configuration;
     }
 
-    public EsqlFlags flags() {
-        return flags;
-    }
-
     public EsqlFunctionRegistry functionRegistry() {
         return functionRegistry;
     }

@@ -204,18 +204,6 @@ tests:
 - class: org.elasticsearch.compute.operator.topn.GroupedTopNOperatorTests
   method: testRandomMultipleColumns
   issue: https://github.com/elastic/elasticsearch/issues/155019
-<<<<<<< HEAD
-- class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
-  method: testClusterDetailsAfterCCSWithFailuresOnOneClusterOnly_AllowPartialResultsFalse_MinimizeRoundtripsFalse
-  issue: https://github.com/elastic/elasticsearch/issues/155173
-- class: org.elasticsearch.xpack.stateless.StatelessCommitServiceIT
-  method: testRetainCommitForReadersAfterShardReplicasSetToZero
-  issue: https://github.com/elastic/elasticsearch/issues/155567
-=======
-- class: org.elasticsearch.compute.aggregation.CountDistinctLongGroupingAggregatorFunctionTests
-  method: testAllKeyNulls
-  issue: https://github.com/elastic/elasticsearch/issues/155578
->>>>>>> upstream/main
 - class: org.elasticsearch.xpack.inference.integration.CCMServiceIT
   method: testDisableCCM_RemovesAuthorizationTask
   issue: https://github.com/elastic/elasticsearch/issues/155579

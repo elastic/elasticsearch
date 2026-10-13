@@ -472,7 +472,7 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         );
 
         AssertionError e = expectThrows(AssertionError.class, () -> expand(result, bf));
-        assertThat(e.getMessage(), containsString("Unmapped field 'a' carries a null or an empty array or object"));
+        assertThat(e.getMessage(), containsString("Unmapped field 'a.drop' carries a null or an empty array or object"));
         assertThat("the guard rail leaked pages", bf.breaker().getUsed(), equalTo(0L));
     }
 

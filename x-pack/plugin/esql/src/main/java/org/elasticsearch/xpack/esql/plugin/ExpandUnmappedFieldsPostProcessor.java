@@ -22,7 +22,10 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.support.AbstractXContentParser;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -36,7 +39,6 @@ import org.elasticsearch.xpack.esql.session.Result;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -69,6 +71,9 @@ import java.util.function.BooleanSupplier;
  * analysis and is not referable from the query language (the synthetic {@code $$}-prefixed name kept it unreachable during planning).
  * If the query itself already outputs a column named {@code _unmapped_fields}, that column wins, as with any other colliding leaf:
  * the discovered fields are dropped and no second column of that name is produced.
+ *
+ * <p>Each row's JSON is streamed with a parser and never materialised as a {@code Map}, so a structure-heavy row (an array of many
+ * tiny objects) costs only the leaves it flattens to, not an object graph many times its byte size.
  *
  * <p>The flattening scans every row of every page once, so it polls for cancellation at the start of every page and then every
  * {@link #ROWS_PER_CANCELLATION_CHECK} rows within one, and throws {@link TaskCancelledException} to abort promptly. Cancellation is row-granular: a single pathological row (deeply nested
@@ -223,11 +228,12 @@ public final class ExpandUnmappedFieldsPostProcessor {
     }
 
     /**
-     * Reserves memory for one {@link #parseJson} call, which allocates a {@code Map} nothing else accounts for. The multiplier is
-     * {@link PlannerSettings#SOURCE_RESERVATION_FACTOR}, whose javadoc records the measured ~8x blow-up of parsing {@code _source}
-     * into a map - the very same parse this column goes through a second time here.
+     * Reserves memory for flattening one row. The walk holds no parsed {@code Map}, but the row's surviving leaves are buffered and then
+     * re-serialised, which can cost several times the row's own bytes (boxed scalars, a list for a leaf with many values). The multiplier
+     * is {@link PlannerSettings#SOURCE_RESERVATION_FACTOR}, a deliberate overestimate of that buffering that matches what the data node
+     * reserved to produce the row in the first place.
      *
-     * @return the number of reserved bytes, to be handed back with {@link CircuitBreaker#addWithoutBreaking} once the map is gone
+     * @return the number of reserved bytes, to be handed back with {@link CircuitBreaker#addWithoutBreaking} once the leaves are gone
      */
     private static long reserveForParse(BytesRef json, CircuitBreaker breaker, double reservationFactor) {
         long reservation = (long) (json.length * reservationFactor);
@@ -298,7 +304,7 @@ public final class ExpandUnmappedFieldsPostProcessor {
             BiConsumer<String, Object> leafSink = (name, value) -> {
                 // The data node ships whole objects (filtering only by top-level source key), so the pattern is applied here per
                 // flattened leaf, and a leaf colliding with a real output column is dropped so it can never shadow a query column.
-                if (existingNames.contains(name) == false && pattern.matches(name)) {
+                if (value != null && existingNames.contains(name) == false && pattern.matches(name)) {
                     collectLeaf(leaves, name, value);
                 }
             };
@@ -315,7 +321,7 @@ public final class ExpandUnmappedFieldsPostProcessor {
                 long reservation = reserveForParse(json, breaker, reservationFactor);
                 try {
                     leaves.clear();
-                    collectLeaves("", parseJson(json), leafSink);
+                    walkJson(json, leafSink);
                     appendFlattened(leaves, builder);
                 } finally {
                     breaker.addWithoutBreaking(-reservation);
@@ -370,67 +376,80 @@ public final class ExpandUnmappedFieldsPostProcessor {
     }
 
     /**
-     * Guard rail for what {@code UnmappedFieldsBlockLoader} promises this class: whatever it wrote under a key is pruned, so it holds
-     * no {@code null} inside an array or object and no empty array or object at any depth.
-     *
-     * @return {@code true}, so this can be called from an {@code assert} and skipped entirely in production
+     * Streams one row's {@code $$unmapped_fields} JSON object, invoking {@code sink} once per leaf with its dotted path and value - the
+     * same leaves a parsed {@code Map} would yield, but without ever materialising that map. Streaming is what bounds the heap a
+     * structure-heavy row can demand: a row whose {@code _source} is, say, an array of a million one-field objects flattens one leaf at
+     * a time instead of building a {@code Map}/{@code List} graph many times its own byte size.
      */
-    private static boolean assertPruned(String fieldName, Object value) {
-        if (isPruned(value) == false) {
-            throw new AssertionError(
-                Strings.format("Unmapped field '%s' carries a null or an empty array or object: [%s]", fieldName, value)
-            );
-        }
-        return true;
-    }
-
-    /** Whether {@code value} is neither {@code null}, nor an empty container, nor a container hiding either of those at any depth. */
-    private static boolean isPruned(Object value) {
-        Collection<?> elements;
-        if (value instanceof List<?> values) {
-            elements = values;
-        } else if (value instanceof Map<?, ?> map) {
-            elements = map.values();
-        } else {
-            return value != null;
-        }
-        if (elements.isEmpty()) {
-            return false;
-        }
-        for (Object element : elements) {
-            if (isPruned(element) == false) {
-                return false;
+    private static void walkJson(BytesRef json, BiConsumer<String, Object> sink) {
+        try (
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                XContentParserConfiguration.EMPTY,
+                new BytesArray(json.bytes, json.offset, json.length),
+                XContentType.JSON
+            )
+        ) {
+            if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+                throw new IllegalStateException("expected $$unmapped_fields to be a JSON object but was [" + parser.currentToken() + "]");
             }
-        }
-        return true;
-    }
-
-    /** Walks a parsed source object, invoking {@code sink} once per leaf with its dotted path and value (see {@link #collectValue}). */
-    private static void collectLeaves(String prefix, Map<?, ?> map, BiConsumer<String, Object> sink) {
-        for (Map.Entry<?, ?> entry : map.entrySet()) {
-            String name = prefix.isEmpty() ? String.valueOf(entry.getKey()) : prefix + "." + entry.getKey();
-            // Top level only: the block loader prunes whole _source keys, so that is the granularity its promise is made at. A bare
-            // null is simply skipped by the leaf sink, since there is nothing to carry.
-            assert prefix.isEmpty() == false || entry.getValue() == null || assertPruned(name, entry.getValue());
-            collectValue(name, entry.getValue(), sink);
+            for (String field = parser.nextFieldName(); field != null; field = parser.nextFieldName()) {
+                // The block loader prunes whole _source keys, so a bare top-level null is the one null that can reach here; it is
+                // forwarded so the sink decides, and every deeper value goes through walkValue.
+                if (parser.nextToken() == XContentParser.Token.VALUE_NULL) {
+                    sink.accept(field, null);
+                } else {
+                    walkValue(field, parser, sink);
+                }
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException("failed to parse $$unmapped_fields source", e);
         }
     }
 
     /**
      * Emits the leaves of one {@code _source} value at {@code name}: an object recurses to dotted leaves, an array recurses element-wise
      * (so objects inside it flatten to the same leaves a sibling index mapping those subfields would surface, and scalar elements stay at
-     * {@code name}), and any other value is a leaf as-is.
+     * {@code name}), and any scalar is a leaf as-is - read with {@link AbstractXContentParser#readValue} so it is the same
+     * {@code String}/{@code Number}/{@code Boolean} a parsed map would have held.
+     * <p>
+     * Guard rail for what {@code UnmappedFieldsBlockLoader} promises: whatever it wrote under a key is pruned, so below the top level it
+     * holds no {@code null} and no empty array or object at any depth. The asserts fire only with assertions enabled; in production the
+     * walk still emits whatever it is given.
      */
-    private static void collectValue(String name, Object value, BiConsumer<String, Object> sink) {
-        if (value instanceof Map<?, ?> child) {
-            collectLeaves(name, child, sink);
-        } else if (value instanceof List<?> list) {
-            for (Object element : list) {
-                collectValue(name, element, sink);
+    private static void walkValue(String name, XContentParser parser, BiConsumer<String, Object> sink) throws IOException {
+        switch (parser.currentToken()) {
+            case START_OBJECT -> {
+                String field = parser.nextFieldName();
+                assert field != null : prunedViolation(name);
+                for (; field != null; field = parser.nextFieldName()) {
+                    parser.nextToken();
+                    walkValue(name + "." + field, parser, sink);
+                }
             }
-        } else {
-            sink.accept(name, value);
+            case START_ARRAY -> {
+                XContentParser.Token token = parser.nextToken();
+                assert token != XContentParser.Token.END_ARRAY : prunedViolation(name);
+                for (; token != XContentParser.Token.END_ARRAY; token = parser.nextToken()) {
+                    walkValue(name, parser, sink);
+                }
+            }
+            case VALUE_NULL -> {
+                assert false : prunedViolation(name);
+                sink.accept(name, null);
+            }
+            // Only scalar tokens reach here - objects and arrays recurse through the cases above - so readValue never builds a map; it
+            // just returns the scalar exactly as the map parse did. The map factory is required by the signature but goes unused.
+            case VALUE_STRING, VALUE_NUMBER, VALUE_BOOLEAN, VALUE_EMBEDDED_OBJECT -> sink.accept(
+                name,
+                AbstractXContentParser.readValue(parser, LinkedHashMap::new)
+            );
+            default -> throw new IllegalStateException("unexpected token [" + parser.currentToken() + "] while walking $$unmapped_fields");
         }
+    }
+
+    /** Message for the pruning guard rail in {@link #walkValue}: the data node must have pruned nulls and empty containers from _source. */
+    private static String prunedViolation(String name) {
+        return Strings.format("Unmapped field '%s' carries a null or an empty array or object", name);
     }
 
     private static void collectLeaf(Map<String, Object> leaves, String name, Object value) {
@@ -463,12 +482,6 @@ public final class ExpandUnmappedFieldsPostProcessor {
             );
         }
         return unmappedBlock.getBytesRef(unmappedBlock.getFirstValueIndex(row), scratch);
-    }
-
-    private static Map<String, Object> parseJson(BytesRef ref) {
-        // Ordered so a row that produces the same leaf twice (a literal dotted key overlapping a nested path) merges its values in a
-        // deterministic source order rather than an arbitrary HashMap iteration order.
-        return XContentHelper.convertToMap(new BytesArray(ref.bytes, ref.offset, ref.length), true, XContentType.JSON).v2();
     }
 
     private ExpandUnmappedFieldsPostProcessor() {/* static class. */}

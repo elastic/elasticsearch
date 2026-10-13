@@ -449,11 +449,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     }
 
     private boolean assertIndexingBlocked(ShardId shardId) {
-        // So that FakeStatelessNode + unit tests don't have to always stub indexService
-        // TODO: stub indexService in FakeStatelessNode-based tests so to make this assertion unconditional
-        final var shard = Optional.ofNullable(indicesService.indexService(shardId.getIndex()))
-            .map(indexService -> indexService.getShardOrNull(shardId.id()));
-        assert shard.map(s -> s.getActiveOperationsCount() == IndexShard.OPERATIONS_BLOCKED).orElse(true)
+        final var indexService = indicesService.indexService(shardId.getIndex());
+        assert indexService != null : shardId + " index service expected to be non-null";
+        final var shard = indexService.getShardOrNull(shardId.id());
+        assert shard != null : shardId + " shard expected to be non-null";
+        assert shard.getActiveOperationsCount() == IndexShard.OPERATIONS_BLOCKED
             : shardId + " installUploadBoundListener must be called while holding all operation permits";
         return true;
     }
@@ -1207,6 +1207,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         );
     }
 
+    /**
+     * Returns the hook installed on the upload stream of the VBCCs created by this service.
+     */
+    protected VirtualBatchedCompoundCommit.UploadStreamHook uploadStreamHook() {
+        return VirtualBatchedCompoundCommit.UploadStreamHook.NOOP;
+    }
+
     public void markIndexDeleting(List<ShardId> shardIds) {
         shardIds.forEach(shardId -> {
             ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
@@ -1954,7 +1961,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     fileName -> getBlobLocation(shardId, fileName),
                     threadPool::relativeTimeInMillis,
                     cacheRegionSizeInBytes,
-                    estimatedMaxHeaderSizeInBytes
+                    estimatedMaxHeaderSizeInBytes,
+                    uploadStreamHook()
                 );
                 final boolean appended = newVirtualBcc.appendCommit(reference, useInternalFilesReplicatedContent, timestampFieldValueRange);
                 assert appended : "append must be successful since the VBCC is new and empty";

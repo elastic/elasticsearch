@@ -473,7 +473,8 @@ public class EsqlSession {
             parsedPlan,
             QuerySettings.PROJECT_ROUTING.get(resolved),
             QuerySettings.WILDCARDS_MATCH_VIEWS.get(resolved),
-            (query, viewName) -> parser.parseView(query, request.params(), inferenceService.inferenceSettings(), viewName).plan(),
+            statement.pipeDepths(),
+            (query, viewName) -> parser.parseView(query, request.params(), inferenceService.inferenceSettings(), viewName),
             preserveViewBoundaries,
             listener.delegateFailureAndWrap((l, viewResolution) -> {
                 // Validate: no InSubquery expressions should survive view and subquery resolution.

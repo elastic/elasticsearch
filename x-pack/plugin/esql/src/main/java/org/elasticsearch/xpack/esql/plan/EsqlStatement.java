@@ -8,11 +8,31 @@
 package org.elasticsearch.xpack.esql.plan;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.List;
+import java.util.Map;
 
-public record EsqlStatement(LogicalPlan plan, List<QuerySetting> settings) {
+public record EsqlStatement(LogicalPlan plan, List<QuerySetting> settings, PipeDepths pipeDepths) {
+
+    /**
+     * Number of pipes (processing commands) on the path from a leaf of a parsed statement up to its root, as recorded by the parser.
+     * View resolution adds these up across view boundaries to enforce the maximum query depth on the fully expanded query, which no
+     * single parse can see.
+     *
+     * @param max the largest number of pipes above any leaf of the statement
+     * @param relations the number of pipes above each relation, keyed by the relation's {@link Source}. This includes the commands of
+     *                  enclosing subqueries and {@code FORK} branches, and the command holding an {@code IN} subquery.
+     */
+    public record PipeDepths(int max, Map<Source, Integer> relations) {
+        public static final PipeDepths EMPTY = new PipeDepths(0, Map.of());
+    }
+
+    public EsqlStatement(LogicalPlan plan, List<QuerySetting> settings) {
+        this(plan, settings, PipeDepths.EMPTY);
+    }
+
     /**
      * Returns the value of a setting, or the setting default value if the setting is not set.
      * If the setting name appears multiple times, this will return last occurrence.

@@ -33,6 +33,8 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.optimizer.LogicalVerifier;
 import org.elasticsearch.xpack.esql.parser.AbstractStatementParserTests;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement.PipeDepths;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelationSerializationTests;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -881,6 +883,61 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         }
     }
 
+    private static String pipes(int count) {
+        return " | WHERE a > 0".repeat(count);
+    }
+
+    public void testMaxQueryDepthAcrossViews() {
+        addView("long_view", "FROM emp" + pipes(300));
+        replaceViewsInQuery("FROM long_view" + pipes(200));
+        Exception e = expectThrows(VerificationException.class, () -> replaceViewsInQuery("FROM long_view" + pipes(201)));
+        assertThat(e.getMessage(), startsWith("ES|QL query exceeded the maximum query depth allowed (500) after expanding views"));
+        assertThat(e.getMessage(), containsString("[501] pipes"));
+    }
+
+    public void testMaxQueryDepthAcrossNestedViews() {
+        addView("bottom_view", "FROM emp" + pipes(250));
+        addView("middle_view", "FROM bottom_view" + pipes(250));
+        replaceViewsInQuery("FROM middle_view");
+        expectThrows(VerificationException.class, () -> replaceViewsInQuery("FROM middle_view" + pipes(1)));
+    }
+
+    public void testMaxQueryDepthAcrossViewInFromSubquery() {
+        addView("long_view", "FROM emp" + pipes(300));
+        replaceViewsInQuery("FROM emp1, (FROM long_view" + pipes(100) + ")" + pipes(100));
+        expectThrows(VerificationException.class, () -> replaceViewsInQuery("FROM emp1, (FROM long_view" + pipes(100) + ")" + pipes(101)));
+        expectThrows(VerificationException.class, () -> replaceViewsInQuery("FROM emp1, (FROM long_view" + pipes(101) + ")" + pipes(100)));
+    }
+
+    public void testMaxQueryDepthAcrossViewInInSubquery() {
+        addView("long_view", "FROM emp" + pipes(300));
+        replaceViewsInQuery("FROM emp1 | WHERE x IN (FROM long_view" + pipes(199) + ")");
+        expectThrows(VerificationException.class, () -> replaceViewsInQuery("FROM emp1 | WHERE x IN (FROM long_view" + pipes(200) + ")"));
+        // The pipes after the command holding the IN subquery are above the subquery too.
+        expectThrows(
+            VerificationException.class,
+            () -> replaceViewsInQuery("FROM emp1 | WHERE x IN (FROM long_view" + pipes(100) + ")" + pipes(100))
+        );
+    }
+
+    public void testMaxQueryDepthAcrossViewInForkBranch() {
+        addView("long_view", "FROM emp" + pipes(300));
+        // FORK counts for one pipe, plus the longest of its branches, on the way to the leaves of the query below it
+        replaceViewsInQuery("FROM long_view" + pipes(196) + " | FORK (WHERE a > 0 | WHERE a > 1 | WHERE a > 2) (WHERE a > 3)");
+        expectThrows(
+            VerificationException.class,
+            () -> replaceViewsInQuery("FROM long_view" + pipes(197) + " | FORK (WHERE a > 0 | WHERE a > 1 | WHERE a > 2) (WHERE a > 3)")
+        );
+    }
+
+    public void testMaxQueryDepthOfViewWithoutRelation() {
+        addView("row_view", "ROW a = 1" + pipes(300));
+        addView("outer_view", "FROM row_view" + pipes(200));
+        addView("too_long_outer_view", "FROM row_view" + pipes(201));
+        replaceViewsInQuery("FROM outer_view");
+        expectThrows(VerificationException.class, () -> replaceViewsInQuery("FROM too_long_outer_view"));
+    }
+
     public void testCircularViewSelfReference() {
         addView("view_a", "FROM view_a");
         Exception e = expectThrows(VerificationException.class, () -> replaceViews(query("FROM view_a")));
@@ -1322,7 +1379,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             InMemoryViewResolver customViewResolver = customViewService.getViewResolver();
             {
                 PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-                customViewResolver.replaceViews(query("FROM view2"), null, true, this::parse, false, future);
+                customViewResolver.replaceViews(query("FROM view2"), null, true, PipeDepths.EMPTY, this::parse, false, future);
                 // FROM view2 should fail
                 Exception e = expectThrows(VerificationException.class, future::actionGet);
                 assertThat(e.getMessage(), startsWith("The maximum allowed view depth of 1 has been exceeded"));
@@ -1330,7 +1387,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             // But FROM view1 should work
             {
                 PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-                customViewResolver.replaceViews(query("FROM view1"), null, true, this::parse, false, future);
+                customViewResolver.replaceViews(query("FROM view1"), null, true, PipeDepths.EMPTY, this::parse, false, future);
                 // Run the same compaction (and ViewShadowRelation strip) the production pipeline does.
                 LogicalPlan rewritten = COMPACTION.apply(future.actionGet().plan());
                 assertThat(rewritten, matchesPlan(query("FROM emp")));
@@ -2822,9 +2879,20 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         return COMPACTION.apply(replaceViewsWithoutCompaction(plan, resolver));
     }
 
+    /**
+     * Resolves views in a query string, passing the pipe depths the parser recorded for it so that the maximum query depth is
+     * enforced across view expansion.
+     */
+    private LogicalPlan replaceViewsInQuery(String query) {
+        EsqlStatement statement = TEST_PARSER.parse(query, queryParams, EMPTY_INFERENCE_SETTINGS);
+        PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
+        viewResolver.replaceViews(statement.plan(), null, true, statement.pipeDepths(), this::parse, false, future);
+        return COMPACTION.apply(future.actionGet().plan());
+    }
+
     private LogicalPlan replaceViews(LogicalPlan plan, boolean wildcardsMatchViews) {
         PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-        viewResolver.replaceViews(plan, null, wildcardsMatchViews, this::parse, false, future);
+        viewResolver.replaceViews(plan, null, wildcardsMatchViews, PipeDepths.EMPTY, this::parse, false, future);
         return COMPACTION.apply(future.actionGet().plan());
     }
 
@@ -2849,7 +2917,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
     private LogicalPlan replaceViewsWithoutCompaction(LogicalPlan plan, ViewResolver resolver) {
         PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-        resolver.replaceViews(plan, null, true, this::parse, false, future);
+        resolver.replaceViews(plan, null, true, PipeDepths.EMPTY, this::parse, false, future);
         return future.actionGet().plan();
     }
 
@@ -2913,8 +2981,8 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         }
     }
 
-    private LogicalPlan parse(String query, String viewName) {
-        return TEST_PARSER.parseView(query, queryParams, EMPTY_INFERENCE_SETTINGS, viewName).plan();
+    private EsqlStatement parse(String query, String viewName) {
+        return TEST_PARSER.parseView(query, queryParams, EMPTY_INFERENCE_SETTINGS, viewName);
     }
 
     /**

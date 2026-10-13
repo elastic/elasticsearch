@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dedup;
@@ -108,6 +109,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -1477,6 +1479,33 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(
             e.getMessage(),
             containsString("ES|QL subquery exceeded the maximum query depth allowed (" + LogicalPlanBuilder.MAX_QUERY_DEPTH + ")")
+        );
+    }
+
+    /**
+     * The pipes above each relation, and above the deepest leaf, which view resolution adds up across views.
+     */
+    public void testPipeDepths() {
+        assumeTrue("Requires subqueries in FROM", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assertPipeDepths("FROM a", 0, 0);
+        assertPipeDepths("FROM a | WHERE x > 1 | EVAL y = 2", 2, 2);
+        assertPipeDepths("ROW x = 1 | WHERE x > 1", 1);
+        // The commands of a subquery and those of the query holding it are both above its relation
+        assertPipeDepths("FROM a, (FROM b | WHERE x > 1 | EVAL y = 2) | LIMIT 1", 3, 3, 1);
+        assertPipeDepths("FROM a | WHERE x IN (FROM b | EVAL y = 2) | LIMIT 1 | LIMIT 2", 4, 3, 4);
+        // FORK counts for one pipe plus the longest of its branches
+        assertPipeDepths("FROM a | FORK (WHERE x > 1 | LIMIT 1) (LIMIT 2) | LIMIT 3", 4, 4);
+        assertPipeDepths("FROM a | FORK (WHERE x IN (FROM b) | LIMIT 1) (LIMIT 2) | LIMIT 3", 4, 4, 4);
+        assertPipeDepths("FROM a | FORK (LIMIT 1 | WHERE x IN (FROM b)) (LIMIT 2) | LIMIT 3", 4, 3, 4);
+    }
+
+    private void assertPipeDepths(String query, int expectedMax, int... expectedRelationDepths) {
+        EsqlStatement.PipeDepths depths = TEST_PARSER.parse(query, new QueryParams(), new InferenceSettings(Settings.EMPTY)).pipeDepths();
+        assertThat(query, depths.max(), equalTo(expectedMax));
+        assertThat(
+            query,
+            depths.relations().values().stream().sorted().toList(),
+            equalTo(Arrays.stream(expectedRelationDepths).sorted().boxed().toList())
         );
     }
 

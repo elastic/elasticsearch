@@ -14,16 +14,19 @@ import org.elasticsearch.cluster.metadata.ViewMetadata;
 import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 
 import java.util.function.Supplier;
 
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class InMemoryViewResolver extends ViewResolver {
     protected Supplier<ViewMetadata> metadata;
@@ -34,13 +37,23 @@ public class InMemoryViewResolver extends ViewResolver {
         Supplier<ViewMetadata> metadata,
         CrossProjectModeDecider crossProjectModeDecider
     ) {
-        super(null, clusterService, DefaultProjectResolver.INSTANCE, null, crossProjectModeDecider);
+        super(threadPool(), clusterService, DefaultProjectResolver.INSTANCE, null, crossProjectModeDecider);
         this.indexNameExpressionResolver = new IndexNameExpressionResolver(
             new ThreadContext(Settings.EMPTY),
             EmptySystemIndices.INSTANCE,
             projectResolver
         );
         this.metadata = metadata;
+    }
+
+    /**
+     * Resolving a plan more than a hundred levels deep bounces the traversal to the {@code SEARCH} executor, so the resolver needs one.
+     * A mock is enough because the direct executor runs the bounced work in place; its only role here is to not be {@code null}.
+     */
+    private static ThreadPool threadPool() {
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.executor(ThreadPool.Names.SEARCH)).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        return threadPool;
     }
 
     @Override

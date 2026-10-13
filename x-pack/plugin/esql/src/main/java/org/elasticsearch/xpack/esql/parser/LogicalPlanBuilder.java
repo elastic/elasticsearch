@@ -160,6 +160,48 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     private int queryDepth = 0;
 
+    /**
+     * Number of pipes (processing commands) between the node currently being visited and the root of the statement, counting the node's
+     * own command. Unlike {@link #queryDepth} it is also advanced through subqueries and {@code FORK} branches, so that it is exact for
+     * every leaf. It is only recorded, see {@link EsqlStatement.PipeDepths}; the limits are enforced by {@link #queryDepth} and, across
+     * views, by {@code ViewResolver}.
+     */
+    private int pathDepth = 0;
+    private int maxPathDepth = 0;
+    private final Map<Source, Integer> relationPathDepths = new HashMap<>();
+
+    private void setPathDepth(int depth) {
+        pathDepth = depth;
+        maxPathDepth = Math.max(maxPathDepth, depth);
+    }
+
+    /**
+     * Pipes a command adds on the path to the leaves below it: one, plus the longest branch for {@code FORK}.
+     */
+    private static int pipes(EsqlBaseParser.ProcessingCommandContext ctx) {
+        if (ctx.forkCommand() == null) {
+            return 1;
+        }
+        int longestBranch = 0;
+        for (EsqlBaseParser.ForkSubQueryContext branch : ctx.forkCommand().forkSubQueries().forkSubQuery()) {
+            int length = 0;
+            EsqlBaseParser.ForkSubQueryCommandContext command = branch.forkSubQueryCommand();
+            while (command != null) {
+                if (command instanceof EsqlBaseParser.CompositeForkSubQueryContext composite) {
+                    length += pipes(composite.forkSubQueryProcessingCommand().processingCommand());
+                    command = composite.forkSubQueryCommand();
+                } else {
+                    length += pipes(
+                        ((EsqlBaseParser.SingleForkSubQueryCommandContext) command).forkSubQueryProcessingCommand().processingCommand()
+                    );
+                    command = null;
+                }
+            }
+            longestBranch = Math.max(longestBranch, length);
+        }
+        return 1 + longestBranch;
+    }
+
     protected EsqlStatement statement(ParseTree ctx) {
         EsqlStatement p = typedParsing(this, ctx, EsqlStatement.class);
         return p;
@@ -190,7 +232,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         LogicalPlan query = visitSingleStatement(ctx.singleStatement());
-        return new EsqlStatement(query, settings);
+        return new EsqlStatement(query, settings, new EsqlStatement.PipeDepths(maxPathDepth, Map.copyOf(relationPathDepths)));
     }
 
     protected List<LogicalPlan> plans(List<? extends ParserRuleContext> ctxs) {
@@ -229,12 +271,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 ctx.getText()
             );
         }
+        int outerPathDepth = pathDepth;
         try {
+            setPathDepth(outerPathDepth + pipes(ctx.processingCommand()));
             LogicalPlan input = plan(ctx.query());
+            setPathDepth(outerPathDepth + 1);
             PlanFactory makePlan = typedParsing(this, ctx.processingCommand(), PlanFactory.class);
             return makePlan.apply(input);
         } finally {
             queryDepth--;
+            pathDepth = outerPathDepth;
         }
     }
 
@@ -398,6 +444,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
         List<NamedExpression> metadataFields = List.of(metadataMap.values().toArray(NamedExpression[]::new));
         UnresolvedRelation unresolvedRelation = new UnresolvedRelation(source, table, false, metadataFields, null, command);
+        relationPathDepths.put(source, pathDepth);
         if (subqueries.isEmpty()) {
             if (metadataFields.isEmpty()) {
                 return unresolvedRelation;
@@ -458,12 +505,31 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 ctx.getText()
             );
         }
-        LogicalPlan plan = visitSubquerySourceCommand(ctx.subquerySourceCommand());
-        List<PlanFactory> processingCommands = visitList(this, ctx.processingCommand(), PlanFactory.class);
-        for (PlanFactory processingCommand : processingCommands) {
-            plan = processingCommand.apply(plan);
+        int outerPathDepth = pathDepth;
+        try {
+            List<EsqlBaseParser.ProcessingCommandContext> commandCtxs = ctx.processingCommand();
+            // The commands are applied bottom-up, so the first one has all the others above it.
+            int[] depthOfCommand = new int[commandCtxs.size()];
+            int pipesAbove = 0;
+            for (int i = commandCtxs.size() - 1; i >= 0; i--) {
+                depthOfCommand[i] = outerPathDepth + pipesAbove + 1;
+                pipesAbove += pipes(commandCtxs.get(i));
+            }
+            setPathDepth(outerPathDepth + pipesAbove);
+            LogicalPlan plan = visitSubquerySourceCommand(ctx.subquerySourceCommand());
+            List<PlanFactory> processingCommands = new ArrayList<>(commandCtxs.size());
+            for (int i = 0; i < commandCtxs.size(); i++) {
+                setPathDepth(depthOfCommand[i]);
+                processingCommands.add(typedParsing(this, commandCtxs.get(i), PlanFactory.class));
+            }
+            for (int i = 0; i < processingCommands.size(); i++) {
+                setPathDepth(depthOfCommand[i]);
+                plan = processingCommands.get(i).apply(plan);
+            }
+            return plan;
+        } finally {
+            pathDepth = outerPathDepth;
         }
-        return plan;
     }
 
     @Override
@@ -1348,9 +1414,18 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         int count = 1; // automatic fork branch ids start at 1
 
         for (var subQueryCtx : ctx.forkSubQuery()) {
-            var subQuery = visitForkSubQuery(subQueryCtx);
+            // A branch's top command is one pipe below the FORK command, whose depth is the current one.
+            int forkPathDepth = pathDepth;
+            setPathDepth(forkPathDepth + 1);
+            PlanFactory subQuery;
+            try {
+                subQuery = visitForkSubQuery(subQueryCtx);
+            } finally {
+                pathDepth = forkPathDepth;
+            }
             var literal = Literal.keyword(source(ctx), "fork" + count++);
-            PlanFactory eval = p -> new Eval(source(ctx), subQuery.apply(p), List.of(new Alias(source(ctx), Fork.FORK_FIELD, literal)));
+            PlanFactory branch = withPathDepthBelow(subQuery);
+            PlanFactory eval = p -> new Eval(source(ctx), branch.apply(p), List.of(new Alias(source(ctx), Fork.FORK_FIELD, literal)));
             list.add(eval);
         }
         return list;
@@ -1370,9 +1445,33 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitCompositeForkSubQuery(EsqlBaseParser.CompositeForkSubQueryContext ctx) {
-        PlanFactory lowerPlan = ParserUtils.typedParsing(this, ctx.forkSubQueryCommand(), PlanFactory.class);
+        int topPathDepth = pathDepth;
+        PlanFactory lowerPlan;
+        setPathDepth(topPathDepth + 1);
+        try {
+            lowerPlan = ParserUtils.typedParsing(this, ctx.forkSubQueryCommand(), PlanFactory.class);
+        } finally {
+            pathDepth = topPathDepth;
+        }
         PlanFactory makePlan = typedParsing(this, ctx.forkSubQueryProcessingCommand(), PlanFactory.class);
-        return input -> makePlan.apply(lowerPlan.apply(input));
+        PlanFactory lowerPlanBelow = withPathDepthBelow(lowerPlan);
+        return input -> makePlan.apply(lowerPlanBelow.apply(input));
+    }
+
+    /**
+     * Plan factories build the plan, and visit the expressions holding {@code IN} subqueries, lazily. This applies a factory one pipe
+     * deeper than the command that applies it, which is where the commands of a {@code FORK} branch lie relative to each other.
+     */
+    private PlanFactory withPathDepthBelow(PlanFactory factory) {
+        return input -> {
+            int outerPathDepth = pathDepth;
+            setPathDepth(outerPathDepth + 1);
+            try {
+                return factory.apply(input);
+            } finally {
+                pathDepth = outerPathDepth;
+            }
+        };
     }
 
     @Override

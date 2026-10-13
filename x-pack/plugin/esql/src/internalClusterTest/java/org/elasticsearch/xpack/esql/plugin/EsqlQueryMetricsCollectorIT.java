@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.Build;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.plugins.ExtensiblePlugin;
@@ -40,11 +41,14 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry.GA_TEXT_CODECS;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -55,6 +59,9 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
     /** Written by the SPI-instantiated collector; read by the test body. */
     static volatile Map<String, Long> lastMetrics;
 
+    /** Number of times the collector fired; lets a test assert it fired exactly once, since {@link #lastMetrics} is last-write-wins. */
+    static final AtomicInteger collectorCalls = new AtomicInteger();
+
     /** Views created by the current test, in creation order; deleted by {@link #deleteViews()}. */
     private final List<String> viewNames = new ArrayList<>();
 
@@ -62,6 +69,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         @Override
         public void onQueryCompleted(Map<String, Long> metrics) {
             EsqlQueryMetricsCollectorIT.lastMetrics = metrics;
+            EsqlQueryMetricsCollectorIT.collectorCalls.incrementAndGet();
         }
     }
 
@@ -87,21 +95,28 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
     @After
     protected void clearLastMetrics() {
         lastMetrics = null;
+        collectorCalls.set(0);
     }
 
     /**
      * The cluster is suite-scoped and the registry cleanup only removes datasets and data sources, so views created by a
-     * test are deleted here, newest first so an outer view goes before the inner view it references.
+     * test are deleted here, newest first so an outer view goes before the inner view it references. Best-effort like
+     * {@code cleanupRegistry}: one failed delete must neither leave the remaining views behind nor mask the test's own failure.
      */
     @After
     protected void deleteViews() {
         for (int i = viewNames.size() - 1; i >= 0; i--) {
-            assertAcked(
+            String viewName = viewNames.get(i);
+            try {
                 client().execute(
                     DeleteViewAction.INSTANCE,
-                    new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { viewNames.get(i) })
-                )
-            );
+                    new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { viewName })
+                ).actionGet(30, TimeUnit.SECONDS);
+            } catch (ResourceNotFoundException ignored) {
+                // already deleted
+            } catch (Exception e) {
+                logger.warn("view cleanup [{}] failed", viewName, e);
+            }
         }
         viewNames.clear();
     }
@@ -160,6 +175,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         try (var ignored = run(syncEsqlQueryRequest("FROM " + datasetName + " | LIMIT 0"), TIMEOUT)) {}
 
         assertThat("metrics must be set", lastMetrics, notNullValue());
+        assertThat("collector must fire exactly once", collectorCalls.get(), equalTo(1));
         assertThat(lastMetrics.get(QueryMetricsListener.PLANNING_NANOS), greaterThan(0L));
     }
 
@@ -177,6 +193,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         try (var ignored = run(syncEsqlQueryRequest("FROM metrics_view | LIMIT 0"), TIMEOUT)) {}
 
         assertThat("metrics must be set", lastMetrics, notNullValue());
+        assertThat("collector must fire exactly once", collectorCalls.get(), equalTo(1));
         assertThat(lastMetrics.get(QueryMetricsListener.PLANNING_NANOS), greaterThan(0L));
     }
 
@@ -192,7 +209,20 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         try (var ignored = run(syncEsqlQueryRequest("FROM metrics_outer_view | LIMIT 0"), TIMEOUT)) {}
 
         assertThat("metrics must be set", lastMetrics, notNullValue());
+        assertThat("collector must fire exactly once", collectorCalls.get(), equalTo(1));
         assertThat(lastMetrics.get(QueryMetricsListener.PLANNING_NANOS), greaterThan(0L));
+    }
+
+    /** A view over an index only touches no external source: it must not be metered, even though it is expanded like any view. */
+    public void testMetricsCollectorIndexOnlyViewNotMetered() throws Exception {
+        createIndex("metrics_view_index");
+        client().prepareIndex("metrics_view_index").setId("1").setSource("a", 1).setRefreshPolicy(IMMEDIATE).get();
+        putView(new View("metrics_index_view", "FROM metrics_view_index"));
+
+        try (var ignored = run(syncEsqlQueryRequest("FROM metrics_index_view | LIMIT 0"), TIMEOUT)) {}
+
+        assertThat(lastMetrics, nullValue());
+        assertThat(collectorCalls.get(), equalTo(0));
     }
 
     /**
@@ -216,6 +246,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         try (var ignored = run(syncEsqlQueryRequest("FROM " + datasetName + " | WHERE year == 1999 | LIMIT 10"), TIMEOUT)) {}
 
         assertThat("metrics must be set", lastMetrics, notNullValue());
+        assertThat("collector must fire exactly once", collectorCalls.get(), equalTo(1));
         assertThat(lastMetrics.get(QueryMetricsListener.PLANNING_NANOS), greaterThan(0L));
     }
 

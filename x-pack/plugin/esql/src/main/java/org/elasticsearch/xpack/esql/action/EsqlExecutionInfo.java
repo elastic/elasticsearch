@@ -248,9 +248,9 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         this.externalPlanning = reservation;
     }
 
-    /** Marks that the analyzed plan contained an external relation. Not serialized. */
-    public void externalSource(boolean externalSource) {
-        this.externalSource = externalSource;
+    /** Marks that the analyzed plan contained an external relation. One-way: it is never cleared. Not serialized. */
+    public void markExternalSource() {
+        this.externalSource = true;
     }
 
     /** @return whether the analyzed plan contained an external relation, whether or not anything was scanned */

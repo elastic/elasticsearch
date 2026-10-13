@@ -453,8 +453,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     }
 
-    // Gated on an external relation having been resolved in the analyzed plan (the same fact as PlanTelemetry.externalSource()),
-    // not on the scan counters: a query that scans nothing (LIMIT 0, every split pruned) still spent coordinator CPU on
+    // Gated on an external relation having been resolved in the analyzed plan (the same fact PlanExecutor uses for the
+    // by_outcome metrics), not on the scan counters: a query that scans nothing (LIMIT 0, every split pruned) still spent coordinator CPU
+    // on
     // planning and split discovery, and must be metered.
     private boolean hasExternalSources(Result result) {
         return result.executionInfo() != null && result.executionInfo().externalSource();
@@ -464,8 +465,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         if (hasExternalSources(result) == false) {
             return;
         }
-        // ci and qp are safe to fetch here: hasExternalSources() confirmed executionInfo() != null,
-        // and completionInfo() / queryProfile() are plain getters.
+        // ci and qp are safe to fetch here: hasExternalSources() confirmed executionInfo() != null, and a successful
+        // query always goes through attachAdditionalData (which defaults completionInfo) and
+        // EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning (which stops the planning span).
         var ci = result.completionInfo();
         var qp = result.executionInfo().queryProfile();
         // APM and phone-home CPU recording — independent of the billing listener so that a failure

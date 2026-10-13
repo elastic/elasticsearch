@@ -27,7 +27,6 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.AbstractTransportRequest;
-import org.elasticsearch.xpack.esql.fetch.lifetime.FetchContextRequest;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -47,7 +46,7 @@ import java.util.Objects;
  * the same wildcards and aliases. The node checks every shard against the access control of the request, so a shard
  * whose index authorization dropped fails instead of reading through an unfiltered reader.
  */
-public final class FetchRequest extends AbstractTransportRequest implements IndicesRequest.Replaceable, FetchContextRequest {
+public final class FetchRequest extends AbstractTransportRequest implements IndicesRequest.Replaceable {
     static final TransportVersion ESQL_FETCH = TransportVersion.fromName("esql_fetch_phase_plan");
 
     /**

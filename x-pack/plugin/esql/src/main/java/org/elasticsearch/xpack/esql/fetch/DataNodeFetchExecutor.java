@@ -47,7 +47,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.fetch.FetchResponse.ShardResult;
-import org.elasticsearch.xpack.esql.fetch.lifetime.FetchContextListener;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.DefaultShardContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -189,11 +188,10 @@ final class DataNodeFetchExecutor {
         }
 
         private DefaultShardContext openShard(int position, FetchRequest.ShardDocs shard) throws Exception {
-            // rejects other users and other kinds of requests as if the context was gone
             ReaderContext readerContext = searchService.findReaderContext(shard.contextId(), request, shard.shardId());
             // the lookup ignores the searcher id, and the documents of another searcher are other documents. A scroll or a
-            // point in time whose id the request learned isn't for the fetch phase either.
-            if (readerContext.id().equals(shard.contextId()) == false || FetchContextListener.isFetchContext(readerContext) == false) {
+            // point in time whose id the request learned isn't for the fetch phase either, as for the fetch phase of _search.
+            if (readerContext.id().equals(shard.contextId()) == false || readerContext.singleSession() == false) {
                 throw new SearchContextMissingException(shard.contextId());
             }
             ShardSearchRequest shardRequest = new ShardSearchRequest(

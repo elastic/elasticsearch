@@ -44,22 +44,16 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.SearchContextMissingException;
-import org.elasticsearch.search.internal.AliasFilter;
-import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
-import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
-import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -190,28 +184,6 @@ public class DataNodeFetchExecutorTests extends FetchContextsTestCase {
     }
 
     /**
-     * Only the user who ran the query finds its contexts. Anyone else gets no rows, as if the contexts were gone.
-     */
-    public void testAnotherUserFetchesNothing() throws Exception {
-        Authentication owner = AuthenticationTestHelper.builder().user(new User("owner")).build();
-        Authentication other = AuthenticationTestHelper.builder().user(new User("other")).build();
-        List<OpenShard> shards = as(owner, this::openEveryShard);
-        FetchRequest request = request(shards, allNs());
-
-        try (Fetched fetched = as(other, () -> fetch(request))) {
-            assertThat(
-                fetched.results().stream().map(ShardResult::failure).toList(),
-                everyItem(instanceOf(SearchContextMissingException.class))
-            );
-            assertThat(fetched.pages(), hasSize(0));
-        }
-        try (Fetched fetched = as(owner, () -> fetch(request))) {
-            assertThat(rows(fetched.pages()), equalTo(expectedRows(shards, request)));
-        }
-        freeAndAssertAllFreed(shards);
-    }
-
-    /**
      * Authorization drops the indices the user lost since the query phase. Their shards fail instead of reading
      * without document and field level security.
      */
@@ -236,25 +208,24 @@ public class DataNodeFetchExecutorTests extends FetchContextsTestCase {
     }
 
     /**
-     * A fetch request reads only the contexts of the fetch phase, not a scroll or a point in time whose id it learned.
+     * Like the fetch phase of a search, a fetch request reads only single-session contexts, not a scroll or a point in
+     * time whose id it learned.
      */
-    public void testAContextOutsideTheFetchPhaseIsMissing() throws Exception {
+    public void testAPointInTimeIsMissing() throws Exception {
         ShardId shardId = new ShardId(resolveIndex(FETCHED), 0);
-        ReaderContext other = searchService().openOwnedReaderContext(
-            new ShardSearchRequest(shardId, System.currentTimeMillis(), AliasFilter.EMPTY, null, SplitShardCountSummary.UNSET),
-            TimeValue.timeValueMinutes(5),
-            null
-        );
+        PlainActionFuture<ShardSearchContextId> opened = new PlainActionFuture<>();
+        searchService().openReaderContext(shardId, TimeValue.timeValueMinutes(5), SplitShardCountSummary.IRRELEVANT, opened);
+        ShardSearchContextId pointInTime = opened.actionGet(TimeValue.timeValueSeconds(10));
         try {
-            FetchRequest.ShardDocs docs = new FetchRequest.ShardDocs(shardId, other.id(), new int[] { 0 }, new int[] { 0 });
+            FetchRequest.ShardDocs docs = new FetchRequest.ShardDocs(shardId, pointInTime, new int[] { 0 }, new int[] { 0 });
             FetchRequest request = request(List.of(), List.of());
             try (Fetched fetched = fetch(withShards(request, List.of(docs)))) {
                 assertThat(fetched.results().get(0).failure(), instanceOf(SearchContextMissingException.class));
                 assertThat(fetched.pages(), hasSize(0));
             }
-            assertThat("the context stays open", searchService().getActiveContexts(), equalTo(1));
+            assertThat("the point in time stays open", searchService().getActiveContexts(), equalTo(1));
         } finally {
-            searchService().freeReaderContext(other.id());
+            searchService().freeReaderContext(pointInTime);
         }
         assertAllFreed();
     }

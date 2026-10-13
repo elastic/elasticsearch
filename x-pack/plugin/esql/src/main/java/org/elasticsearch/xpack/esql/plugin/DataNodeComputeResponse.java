@@ -15,8 +15,8 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.xpack.esql.fetch.lifetime.OpenContextInfo;
 
 import java.io.IOException;
 import java.util.List;
@@ -33,7 +33,7 @@ final class DataNodeComputeResponse extends TransportResponse {
 
     private final DriverCompletionInfo completionInfo;
     private final Map<ShardId, Exception> shardLevelFailures;
-    private final List<OpenContextInfo> openContexts;
+    private final List<ShardSearchContextId> openContexts;
 
     DataNodeComputeResponse(DriverCompletionInfo completionInfo, Map<ShardId, Exception> shardLevelFailures) {
         this(completionInfo, shardLevelFailures, List.of());
@@ -45,7 +45,7 @@ final class DataNodeComputeResponse extends TransportResponse {
     DataNodeComputeResponse(
         DriverCompletionInfo completionInfo,
         Map<ShardId, Exception> shardLevelFailures,
-        List<OpenContextInfo> openContexts
+        List<ShardSearchContextId> openContexts
     ) {
         this.completionInfo = completionInfo;
         this.shardLevelFailures = shardLevelFailures;
@@ -57,7 +57,7 @@ final class DataNodeComputeResponse extends TransportResponse {
             this.completionInfo = DriverCompletionInfo.readFrom(in, threadContext);
             this.shardLevelFailures = in.readMap(ShardId::new, StreamInput::readException);
             this.openContexts = in.getTransportVersion().supports(DataNodeRequest.ESQL_FETCH_CONTEXTS)
-                ? in.readCollectionAsImmutableList(OpenContextInfo::new)
+                ? in.readCollectionAsImmutableList(ShardSearchContextId::new)
                 : List.of();
             return;
         }
@@ -123,11 +123,11 @@ final class DataNodeComputeResponse extends TransportResponse {
         return shardLevelFailures;
     }
 
-    List<OpenContextInfo> openContexts() {
+    List<ShardSearchContextId> openContexts() {
         return openContexts;
     }
 
-    DataNodeComputeResponse withOpenContexts(List<OpenContextInfo> openContexts) {
+    DataNodeComputeResponse withOpenContexts(List<ShardSearchContextId> openContexts) {
         return new DataNodeComputeResponse(completionInfo, shardLevelFailures, openContexts);
     }
 }

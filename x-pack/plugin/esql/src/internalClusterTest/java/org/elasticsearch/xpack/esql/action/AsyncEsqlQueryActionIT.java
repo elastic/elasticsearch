@@ -47,6 +47,7 @@ import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlAsyncTestUtils.getAsyncResponse;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.asyncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -261,15 +262,23 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
                 scriptWaits.tryAcquire(200, TimeUnit.MILLISECONDS)
             );
 
-            var stopFuture = client().execute(EsqlAsyncStopAction.INSTANCE, new AsyncStopRequest(initialResponse.asyncExecutionId().get()));
+            String asyncId = initialResponse.asyncExecutionId().get();
+            var stopFuture = client().execute(EsqlAsyncStopAction.INSTANCE, new AsyncStopRequest(asyncId));
+            assertBusy(() -> {
+                try (EsqlQueryResponse running = getAsyncResponse(client(), asyncId)) {
+                    assertNotNull(running.getExecutionInfo());
+                    assertThat(running.getExecutionInfo().isStopped(), is(true));
+                    assertThat(running.isPartial(), is(true));
+                }
+            });
             scriptPermits.release(numberOfDocs() * 3);
             try (var stoppedResponse = stopFuture.actionGet(60, TimeUnit.SECONDS)) {
                 assertThat(stoppedResponse.isRunning(), is(false));
                 assertThat(stoppedResponse.isPartial(), is(true));
                 assertThat(stoppedResponse.columns(), equalTo(List.of(new ColumnInfoImpl("total", "long", null))));
-                // The stop races with the released leaves, so anywhere from none to all three branches may contribute a row. A
-                // branch that is stopped mid-aggregation may emit a partial sum (or null if it processed nothing); a branch that
-                // completed sums pause_me=1 over all docs, so no value can exceed numberOfDocs().
+                // After the cut, the undispatched third leaf skips. The two parked leaves may still emit a partial sum (or null)
+                // once permits are released; a branch that finishes sums pause_me=1 over all docs, so no value can exceed
+                // numberOfDocs().
                 List<List<Object>> rows = getValuesList(stoppedResponse);
                 assertThat(rows.size(), lessThanOrEqualTo(3));
                 for (List<Object> row : rows) {
@@ -281,6 +290,8 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
                 }
             }
         } finally {
+            // Unblock anything still in pause_me if STOP never reached the permit release (e.g. assertBusy failed).
+            scriptPermits.release(numberOfDocs() * 3);
             scriptPermits.drainPermits();
             scriptWaits.drainPermits();
         }

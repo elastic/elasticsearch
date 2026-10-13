@@ -18,8 +18,8 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 
 /**
  * Listing-only copy of {@link Filter} conjuncts with all-literal {@code date_extract} /
- * {@code date_trunc} / {@code year} / {@code month} / {@code day} / {@code hour} calls
- * folded to {@link Literal}s so {@link PartitionFilterHintExtractor}
+ * {@code date_trunc} / {@code year} / {@code month} / {@code day} / {@code hour} /
+ * {@code to_datetime} calls folded to {@link Literal}s so {@link PartitionFilterHintExtractor}
  * can see attribute-vs-literal comparisons. Does not mutate the session plan; the analyzer
  * still folds the original unresolved tree later.
  * <p>

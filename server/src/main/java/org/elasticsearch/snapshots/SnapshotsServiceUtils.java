@@ -881,7 +881,7 @@ public class SnapshotsServiceUtils {
     public static IndexVersion minCompatibleVersion(
         IndexVersion minNodeVersion,
         RepositoryData repositoryData,
-        @Nullable Collection<SnapshotId> excluded
+        @Nullable Set<SnapshotId> excluded
     ) {
         IndexVersion minCompatVersion = minNodeVersion;
         final Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();

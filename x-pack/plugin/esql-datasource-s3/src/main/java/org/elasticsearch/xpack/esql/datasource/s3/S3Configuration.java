@@ -100,7 +100,7 @@ public class S3Configuration extends FileDataSourceConfiguration {
     );
 
     // Fields consumed at query time. Same set for now; can diverge if region is eventually
-    // retired from the data-source vocabulary (see elastic/esql-planning#1747 step 7).
+    // retired from the data-source vocabulary.
     private static final Map<String, DataSourceConfigDefinition> QUERY_FIELDS = DATA_SOURCE_FIELDS;
 
     private S3Configuration(Map<String, Object> raw) {

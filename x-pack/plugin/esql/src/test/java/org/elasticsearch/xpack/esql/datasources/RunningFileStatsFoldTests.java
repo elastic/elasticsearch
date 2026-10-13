@@ -153,7 +153,7 @@ public class RunningFileStatsFoldTests extends ESTestCase {
                 files.add(file("file:///" + i + ".parquet", schema, harvest));
             }
             assertReconciliationMatches(files, implicitNulls, Map.of(), false);
-            assertFirstFileWinsMatches(files, implicitNulls, Set.of());
+            assertFirstFileWinsMatches(files, implicitNulls);
         }
     }
 
@@ -171,29 +171,29 @@ public class RunningFileStatsFoldTests extends ESTestCase {
                 typed("file:///1.parquet", DataType.DATETIME, DataType.LONG, datetimeAndId(2L, 1000L, 5000L, 1L, 9L)),
                 typed("file:///2.parquet", DataType.DATE_NANOS, DataType.LONG, datetimeAndId(2L, 2_000_000L, 9_000_000L, 3L, 7L))
             ),
-            true,
-            Set.of()
+            true
         );
+        // Converted per value: the merged counts are dropped. Two arms used to live here, differing only
+        // in a declared-column set that decided whether the drop happened at all.
         assertFirstFileWinsMatches(
             List.of(
                 file("file:///part-a.parquet", DataType.INTEGER, 1L, 2L, 2L),
                 file("file:///part-b.parquet", DataType.LONG, -10L, 20L, 2L)
             ),
-            true,
-            Set.of()
+            true
         );
+        // Not convertible at all, so the footer reader null-fills the column whole and the harvest
+        // becomes the all-null contract. This is the arm the pair above used to take.
         assertFirstFileWinsMatches(
             List.of(
-                file("file:///part-a.parquet", DataType.INTEGER, 1L, 2L, 2L),
-                file("file:///part-b.parquet", DataType.LONG, -10L, 20L, 2L)
+                file("file:///part-a.parquet", DataType.BOOLEAN, 0L, 1L, 2L),
+                file("file:///part-b.parquet", DataType.INTEGER, -10L, 20L, 2L)
             ),
-            true,
-            Set.of("x")
+            true
         );
         assertFirstFileWinsMatches(
             List.of(file("file:///part-a.csv", DataType.INTEGER, 1L, 2L, 2L), file("file:///part-b.csv", DataType.LONG, -10L, 20L, 2L)),
-            false,
-            Set.of()
+            false
         );
         long encoded0 = DeclaredTypeCoercions.coerceToUnsignedLong(0L);
         long encoded200 = DeclaredTypeCoercions.coerceToUnsignedLong(200L);
@@ -202,8 +202,7 @@ public class RunningFileStatsFoldTests extends ESTestCase {
                 file("file:///part-a.parquet", DataType.UNSIGNED_LONG, encoded0, encoded200, 2L),
                 file("file:///part-b.parquet", DataType.LONG, 1L, 50L, 2L)
             ),
-            true,
-            Set.of()
+            true
         );
     }
 
@@ -262,11 +261,11 @@ public class RunningFileStatsFoldTests extends ESTestCase {
         }
     }
 
-    private void assertFirstFileWinsMatches(List<SourceMetadata> files, boolean implicitNulls, Set<String> declared) {
-        Map<String, Object> expected = ExternalSourceResolver.batchAggregateFileStatistics(files, implicitNulls, declared);
+    private void assertFirstFileWinsMatches(List<SourceMetadata> files, boolean implicitNulls) {
+        Map<String, Object> expected = ExternalSourceResolver.batchAggregateFileStatistics(files, implicitNulls);
         Map<String, DataType> anchorTypes = ExternalSourceResolver.attributesToTypeMap(files.get(0).schema());
         for (int[] order : orders(files.size())) {
-            RunningFileStatsFold fold = RunningFileStatsFold.firstFileWins(anchorTypes, implicitNulls, declared);
+            RunningFileStatsFold fold = RunningFileStatsFold.firstFileWins(anchorTypes, implicitNulls);
             for (int index : order) {
                 fold.accept(index, files.get(index));
             }

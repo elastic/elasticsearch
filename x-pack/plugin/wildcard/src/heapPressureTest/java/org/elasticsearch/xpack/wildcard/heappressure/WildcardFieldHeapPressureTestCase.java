@@ -93,12 +93,6 @@ public abstract class WildcardFieldHeapPressureTestCase extends HeapPressureTest
             {"wildcard": {"w": {"value": "%s"}}}""", pattern));
     }
 
-    /** Like {@link #pausableWildcardSearch}, for a regexp query. */
-    protected static Request pausableRegexpSearch(String pattern, int maxDeterminizedStates) {
-        return pausableSearch(Strings.format("""
-            {"regexp": {"w": {"value": "%s", "max_determinized_states": %d}}}""", pattern, maxDeterminizedStates));
-    }
-
     private static Request pausableSearch(String mustClause) {
         return search(Strings.format("""
             {

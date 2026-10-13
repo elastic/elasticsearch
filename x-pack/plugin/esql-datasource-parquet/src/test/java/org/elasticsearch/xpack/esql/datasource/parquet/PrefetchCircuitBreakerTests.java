@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -65,6 +66,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -343,7 +345,8 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
 
                 // The descending bound drops row group 0 (id=0) but keeps row group 1 (id=1000).
                 // Both were queued before the bound existed, so ordinal 0 becomes stale while
-                // ordinal 1 supplies the expected failed prefetch that forces synchronous fallback.
+                // ordinal 1 fails and is re-ticketed. Close of the staged stale entry must wait
+                // for that reservation before the retry GET starts.
                 channel.offer(500L);
                 storage.checkFallbackBarrier.set(true);
                 CountDownLatch advanceStarted = new CountDownLatch(1);
@@ -352,14 +355,14 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
                     return iter.hasNext();
                 });
                 assertTrue(advanceStarted.await(10, TimeUnit.SECONDS));
-                assertFalse("row-group advance must wait at the release barrier", advance.isDone());
+                assertFalse("re-ticket close must wait for the staged stale reservation", advance.isDone());
 
                 storage.allowStaleCompletion.countDown();
                 assertTrue(advance.get(10, TimeUnit.SECONDS));
-                assertTrue(storage.syncFallbackStarted.await(10, TimeUnit.SECONDS));
-                assertFalse("synchronous fallback started before the stale reservation was released", storage.fallbackBeforeRelease.get());
-                assertTrue(storage.staleReleasedAt.get() > 0);
-                assertTrue(storage.fallbackReadAt.get() > storage.staleReleasedAt.get());
+                assertFalse(
+                    "async miss must re-ticket instead of fetchSync",
+                    storage.syncFallbackStarted.await(100, TimeUnit.MILLISECONDS)
+                );
             }
         } finally {
             storage.allowStaleCompletion.countDown();
@@ -400,14 +403,10 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
 
                 Future<Boolean> advance = executor.submit(iter::hasNext);
                 assertTrue(storage.phaseTwoFailureDelivered.await(10, TimeUnit.SECONDS));
+                assertFalse("async Phase-2 miss must not fetchSync", storage.syncFallbackStarted.await(100, TimeUnit.MILLISECONDS));
                 storage.allowPendingPhaseOneCompletion.countDown();
-
-                assertTrue(advance.get(10, TimeUnit.SECONDS));
-                assertTrue(storage.syncFallbackStarted.await(10, TimeUnit.SECONDS));
-                assertTrue(storage.pendingPhaseOneReleasedAt.get() > 0);
-                assertTrue(storage.fallbackReadAt.get() > storage.pendingPhaseOneReleasedAt.get());
-                Page page = iter.next();
-                page.releaseBlocks();
+                ExecutionException thrown = expectThrows(ExecutionException.class, () -> advance.get(10, TimeUnit.SECONDS));
+                assertNotNull(thrown.getCause());
             }
         } finally {
             storage.allowPendingPhaseOneCompletion.countDown();
@@ -574,6 +573,9 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
     private StorageObject createAsyncStorageObject(byte[] data) {
         return new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -638,6 +640,9 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
      */
     private StorageObject createFailingAsyncStorageObject(byte[] data) {
         return new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
@@ -1082,11 +1087,7 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
         PlainCompressionCodecFactory codecFactory = new PlainCompressionCodecFactory();
         try (
             ParquetFileReader reader = ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(
-                    new InMemoryStorageObject(parquetData),
-                    footerByteCache,
-                    new NoopCircuitBreaker("phase-two-barrier-ranges")
-                ),
+                new ParquetStorageObjectAdapter(new InMemoryStorageObject(parquetData), footerByteCache, NoopCircuitBreaker.INSTANCE),
                 PlainParquetReadOptions.builder(codecFactory).build()
             )
         ) {

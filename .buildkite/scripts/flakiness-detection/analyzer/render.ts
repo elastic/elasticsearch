@@ -22,7 +22,7 @@ function summarizeKinds(kinds: FailureKind[]): string {
   return [...counts.entries()].map(([k, n]) => (n > 1 ? `${k} x${n}` : k)).join(", ");
 }
 
-export function renderMarkdown(report: FlakinessReport, buildFailed = false): string {
+export function renderMarkdown(report: FlakinessReport, buildFailed = false, inputProblems: string[] = []): string {
   const { totals } = report;
   const lines: string[] = [];
   lines.push("## Flakiness summary");
@@ -35,6 +35,14 @@ export function renderMarkdown(report: FlakinessReport, buildFailed = false): st
     lines.push("> flakiness re-runs were skipped - they all depend on one compile of those source sets.");
     lines.push("> See the `resolve · compile · scan` step's log for the compile error; this makes no");
     lines.push("> claim about the rest of the build.");
+    lines.push("");
+  }
+  if (inputProblems.length > 0) {
+    lines.push("> ⚠️ This report is incomplete: some of its inputs did not reach the report step.");
+    lines.push("> The failure is in the reporting pipeline, not in the PR.");
+    for (const p of inputProblems) {
+      lines.push(`> - ${p}`);
+    }
     lines.push("");
   }
   lines.push(`- Iterations attempted: ${totals.iterations}`);
@@ -88,11 +96,17 @@ export function renderMarkdown(report: FlakinessReport, buildFailed = false): st
   return body.slice(0, MAX_ANNOTATION_BYTES - TRUNCATION_MARKER.length) + TRUNCATION_MARKER;
 }
 
-export function severity(report: FlakinessReport, buildFailed = false): "error" | "warning" | "success" {
+export function severity(
+  report: FlakinessReport,
+  buildFailed = false,
+  inputProblems: string[] = []
+): "error" | "warning" | "success" {
   // A compile-gate failure is not the PR's flakiness problem (the batches never
   // ran), so it is a warning (orange), not an error - and never a false-green.
   if (buildFailed) return "warning";
   if (report.totals.realFailures > 0) return "error";
   if (report.totals.suiteTimeoutMarkers > 0) return "warning";
+  // An incomplete report must not read as a clean pass.
+  if (inputProblems.length > 0) return "warning";
   return "success";
 }

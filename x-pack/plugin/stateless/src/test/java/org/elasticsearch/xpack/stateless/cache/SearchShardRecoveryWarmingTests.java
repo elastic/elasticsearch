@@ -509,12 +509,12 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
     /// popping and running one task at a time.
     ///
     /// A `null` result from [#drainTask()] means no task was scheduled, i.e. the timeout fired rather than rescheduling.
-    private static class ReEvaluationThreadPool extends TestThreadPool {
+    private static class ReevaluationThreadPool extends TestThreadPool {
         private final AtomicReference<Runnable> pendingTask = new AtomicReference<>();
         private final AtomicLong currentTimeMillis = new AtomicLong();
         private final AtomicReference<AtomicBoolean> latestTaskCancelled = new AtomicReference<>(new AtomicBoolean());
 
-        ReEvaluationThreadPool(String name) {
+        ReevaluationThreadPool(String name) {
             super(name, StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true));
         }
 
@@ -730,7 +730,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             )
             .build();
 
-        try (var threadPool = new ReEvaluationThreadPool(getTestName())) {
+        try (var threadPool = new ReevaluationThreadPool(getTestName())) {
             final SharedBlobCacheWarmingService service = newReevaluatingService(
                 threadPool,
                 settings,
@@ -779,7 +779,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             )
             .build();
 
-        try (var threadPool = new ReEvaluationThreadPool(getTestName())) {
+        try (var threadPool = new ReevaluationThreadPool(getTestName())) {
             final var service = newReevaluatingService(
                 threadPool,
                 settings,
@@ -817,7 +817,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             )
             .build();
 
-        try (var threadPool = new ReEvaluationThreadPool(getTestName())) {
+        try (var threadPool = new ReevaluationThreadPool(getTestName())) {
             final var warmingListener = new AtomicReference<ActionListener<Void>>();
             final var service = newReevaluatingService(threadPool, settings, () -> {
                 // warming completes while the re-evaluation is computing its plan
@@ -855,7 +855,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             )
             .build();
 
-        try (var threadPool = new ReEvaluationThreadPool(getTestName())) {
+        try (var threadPool = new ReevaluationThreadPool(getTestName())) {
             // nothing saved: zero, or at most a sliver below the abort threshold
             final var nothingSaved = new SearchRecoveryTimeout(
                 TimeValue.timeValueMillis(randomLongBetween(0, abortThreshold.millis() - 1)),
@@ -892,7 +892,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             )
             .build();
 
-        try (var threadPool = new ReEvaluationThreadPool(getTestName())) {
+        try (var threadPool = new ReevaluationThreadPool(getTestName())) {
             final var service = newReevaluatingService(
                 threadPool,
                 settings,
@@ -941,7 +941,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             new SearchRecoveryTimeout(sliceSize, TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN)
         );
 
-        try (var threadPool = new ReEvaluationThreadPool(getTestName())) {
+        try (var threadPool = new ReevaluationThreadPool(getTestName())) {
             final SharedBlobCacheWarmingService service = newReevaluatingService(threadPool, settings, planRef::get);
             final var resume = new PlainActionFuture<Void>();
             service.searchRecoveryWarmingListener(
@@ -1015,7 +1015,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             final var initialPlan = (SearchRecoveryTimeout) scenario[0];
             final var reevaluatedPlan = (SearchRecoveryTimeout) scenario[1];
             final boolean extended = (boolean) scenario[2];
-            try (var threadPool = new ReEvaluationThreadPool(getTestName())) {
+            try (var threadPool = new ReevaluationThreadPool(getTestName())) {
                 final var service = newReevaluatingService(threadPool, settings, () -> reevaluatedPlan);
                 final var resume = new PlainActionFuture<Void>();
                 service.searchRecoveryWarmingListener(
@@ -1052,7 +1052,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             sliceSize,
             TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT
         );
-        try (var threadPool = new ReEvaluationThreadPool(getTestName())) {
+        try (var threadPool = new ReevaluationThreadPool(getTestName())) {
             final var service = newReevaluatingService(threadPool, settings, () -> metadataPresent);
             final var resume = new PlainActionFuture<Void>();
             service.searchRecoveryWarmingListener(
@@ -1099,7 +1099,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 : new SearchRecoveryTimeout(sliceSize, TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE);
         };
 
-        try (var threadPool = new ReEvaluationThreadPool(getTestName())) {
+        try (var threadPool = new ReevaluationThreadPool(getTestName())) {
             final var service = newReevaluatingService(threadPool, settings, plan);
             final var directory = mock(BlobStoreCacheDirectory.class);
             when(directory.totalBytesWarmedFromObjectStore()).thenAnswer(invocation -> warmedFromObjectStore.get());
@@ -1160,7 +1160,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             )
             .build();
 
-        try (var threadPool = new ReEvaluationThreadPool(getTestName())) {
+        try (var threadPool = new ReevaluationThreadPool(getTestName())) {
             final var service = newReevaluatingService(
                 threadPool,
                 settings,

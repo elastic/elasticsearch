@@ -3,12 +3,20 @@
 // - prom-metrics: remote-write labels.* passthrough (cpu/state)
 // - otel-metrics: OTel attributes.* passthrough (cpu/state)
 //
-// This version supports label_replace/label_join only when the derived destination is consumed by an enclosing by(...)
-// aggregation. The destination may be a new label or may overwrite a stored label (a dimension or __name__): the derived
-// label is materialized as a concrete column (never by rewriting the series-identity _timeseries blob), and grouping on
-// it with by(dst) turns it into a normal output column, shadowing any stored label of the same name. Bare
-// (non-aggregated) relabels, without(...) groupings, and other placements are rejected at analysis time; those rejections
-// are covered by PromqlVerifierTests.
+// The derived label is always materialized as a concrete column, never by rewriting the series-identity _timeseries blob,
+// which is what bounds the supported placements to two.
+//
+// The derived destination is consumed by an enclosing by(...) aggregation. The destination may be a new label or may
+// overwrite a stored label (a dimension or __name__); grouping on it with by(dst) turns it into a normal output column,
+// shadowing any stored label of the same name.
+//
+// Or the relabel sits above a by(...) aggregation and derives a label that is not one of its groupings. The aggregate has
+// already reduced identity to concrete columns and the derived value is a function of them, so the identity is strictly
+// refined and no two series can collapse onto one label set - no enclosing aggregation is needed to absorb them.
+//
+// Everything else is rejected at analysis time: bare (non-aggregated) relabels, without(...) groupings, a destination that
+// overwrites one of the aggregate's own grouping labels, and relabels over a binary operator. Those rejections are covered
+// by PromqlVerifierTests.
 
 
 // label_replace derives a new `region` label from `zone` via $1 group expansion; by(region) exposes it as a column.
@@ -54,6 +62,35 @@ PROMQL index=prom-metrics-name step=1h result=(sum by (region) (label_replace(me
 result:double | region:keyword
 10.0          | eu
 20.0          | us
+;
+
+
+// A relabel applied *above* a by(...) aggregation, deriving a new label from the aggregate's own identity labels. The
+// aggregate has already reduced identity to concrete columns, and the derived value is a function of them, so the
+// relabeled identity strictly refines the aggregate's and no two series can collapse onto one label set.
+label_replace_new_label_over_aggregate
+required_capability: promql_command_v0
+required_capability: promql_label_functions_v2
+PROMQL index=prom-metrics-name step=1h result=(label_replace(sum by (zone) (metrics.requests{pod=~"pod[AB]"}), "region", "$1", "zone", "(.+)"))
+| KEEP result, zone, region
+| SORT result;
+
+result:double | zone:keyword | region:keyword
+10.0          | eu           | eu
+20.0          | us           | us
+;
+
+
+// The same relabel under a topk reduction. topk keeps the identity of the series it ranks, which is the aggregate's
+// concrete labels refined by the derived one, so the surviving series carries both `zone` and `region`.
+label_replace_new_label_under_topk
+required_capability: promql_command_v0
+required_capability: promql_label_functions_v2
+PROMQL index=prom-metrics-name step=1h result=(topk(1, label_replace(sum by (zone) (metrics.requests{pod=~"pod[AB]"}), "region", "$1", "zone", "(.+)")))
+| KEEP result, zone, region;
+
+result:double | zone:keyword | region:keyword
+20.0          | us           | us
 ;
 
 

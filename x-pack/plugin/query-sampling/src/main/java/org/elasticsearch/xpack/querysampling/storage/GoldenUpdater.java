@@ -98,9 +98,11 @@ public final class GoldenUpdater {
     public void update(int limit, ActionListener<Result> listener) {
         reader.latestCompleted(ActionListener.wrap(latest -> {
             if (latest == 0) {
-                candidates(latest, new Existing(List.of(), Map.of(), List.of(), 0, 0, 0), limit, listener);
+                candidates(latest, new Existing(List.of(), Map.of(), List.of(), 0, 0, 0, 0), limit, listener);
             } else {
-                reader.read(latest, limit, ActionListener.wrap(read -> refresh(latest, read, limit, listener), listener::onFailure));
+                // all of the version is read and not a part of it, as which of its queries are the newest is not told by the order they are
+                // read in
+                reader.read(latest, MAX_READ, ActionListener.wrap(read -> refresh(latest, read, limit, listener), listener::onFailure));
             }
         }, listener::onFailure));
     }
@@ -111,6 +113,8 @@ public final class GoldenUpdater {
      * @param all        every query that was read, which are not added again
      * @param recomputed the queries that have a ground truth of today, by the query they replace
      * @param kept       the queries that are in the next version: those that are fresh and those that were computed again
+     * @param trimmed    the queries that were not looked at, as there are more of them than the next version can have and they are
+     *                   older than those
      */
     private record Existing(
         List<StoredSample> all,
@@ -118,20 +122,27 @@ public final class GoldenUpdater {
         List<StoredSample> kept,
         int copied,
         int recomputedCount,
-        int failed
+        int failed,
+        int trimmed
     ) {}
 
     private void refresh(long latest, GoldenReader.Read read, int limit, ActionListener<Result> listener) {
-        List<StoredSample> records = read.records();
+        // the next version keeps the newest queries, so the older of these can never be in it, and are not looked at or computed again
+        List<StoredSample> all = read.records();
+        List<StoredSample> records = new ArrayList<>(all);
+        records.sort(Comparator.comparingLong(StoredSample::pickedAt).reversed());
+        int trimmed = Math.max(0, records.size() - limit);
+        records = new ArrayList<>(records.subList(0, records.size() - trimmed));
         if (staleness == null || records.isEmpty()) {
-            candidates(latest, new Existing(records, Map.of(), records, records.size(), 0, read.unreadable()), limit, listener);
+            candidates(latest, new Existing(all, Map.of(), records, records.size(), 0, read.unreadable(), trimmed), limit, listener);
             return;
         }
-        staleness.classify(records, ActionListener.wrap(statuses -> {
+        List<StoredSample> looked = records;
+        staleness.classify(looked, ActionListener.wrap(statuses -> {
             List<StoredSample> toCompute = new ArrayList<>();
-            for (int i = 0; i < records.size(); i++) {
+            for (int i = 0; i < looked.size(); i++) {
                 if (statuses.get(i) == GoldenStaleness.Status.STALE || statuses.get(i) == GoldenStaleness.Status.UNKNOWN) {
-                    toCompute.add(records.get(i));
+                    toCompute.add(looked.get(i));
                 }
             }
             Map<StoredSample, GroundTruth> computed = new IdentityHashMap<>();
@@ -139,21 +150,26 @@ public final class GoldenUpdater {
                 toCompute,
                 sample -> sample.search().query(),
                 computed::put,
-                ActionListener.wrap(result -> candidates(latest, existing(read, statuses, computed), limit, listener), listener::onFailure)
+                ActionListener.wrap(
+                    result -> candidates(latest, existing(all, looked, read.unreadable(), trimmed, statuses, computed), limit, listener),
+                    listener::onFailure
+                )
             );
         }, listener::onFailure));
     }
 
     private static Existing existing(
-        GoldenReader.Read read,
+        List<StoredSample> all,
+        List<StoredSample> records,
+        int unreadable,
+        int trimmed,
         List<GoldenStaleness.Status> statuses,
         Map<StoredSample, GroundTruth> computed
     ) {
-        List<StoredSample> records = read.records();
         List<StoredSample> kept = new ArrayList<>();
         Map<StoredSample, StoredSample> recomputed = new IdentityHashMap<>();
         int copied = 0;
-        int failed = read.unreadable();
+        int failed = unreadable;
         for (int i = 0; i < records.size(); i++) {
             StoredSample record = records.get(i);
             switch (statuses.get(i)) {
@@ -174,7 +190,7 @@ public final class GoldenUpdater {
                 case FAILED -> failed++;
             }
         }
-        return new Existing(records, recomputed, kept, copied, recomputed.size(), failed);
+        return new Existing(all, recomputed, kept, copied, recomputed.size(), failed, trimmed);
     }
 
     private void candidates(long latest, Existing existing, int limit, ActionListener<Result> listener) {
@@ -217,8 +233,9 @@ public final class GoldenUpdater {
         all.addAll(added);
         // the newest are the ones to keep
         all.sort(Comparator.comparingLong(StoredSample::pickedAt).reversed());
-        int dropped = Math.max(0, all.size() - limit);
-        List<StoredSample> kept = new ArrayList<>(all.subList(0, all.size() - dropped));
+        int overflow = Math.max(0, all.size() - limit);
+        int dropped = overflow + existing.trimmed();
+        List<StoredSample> kept = new ArrayList<>(all.subList(0, all.size() - overflow));
         Set<StoredSample> addedOnes = Collections.newSetFromMap(new IdentityHashMap<>());
         addedOnes.addAll(added);
         int addedKept = 0;

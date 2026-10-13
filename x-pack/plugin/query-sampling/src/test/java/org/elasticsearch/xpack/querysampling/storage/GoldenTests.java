@@ -163,7 +163,7 @@ public class GoldenTests extends ESTestCase {
             } else if (request.source().size() == 1) {
                 respond(listener, latestVersion == 0 ? List.of() : List.of(manifest(latestVersion)));
             } else {
-                respond(listener, golden);
+                respond(listener, golden.stream().limit(request.source().size()).toList());
             }
         }, REGISTRY);
     }
@@ -339,6 +339,23 @@ public class GoldenTests extends ESTestCase {
         assertThat(refreshed.contains("\"digest\":" + CHANGED.digest()), equalTo(true));
         String copied = ((IndexRequest) bulks.get(0).requests().get(0)).source().utf8ToString();
         assertThat("as it was", copied.contains("\"digest\":" + STORED.digest()), equalTo(true));
+    }
+
+    public void testWhenTheLimitIsLowerThanTheVersionTheNewestQueriesAreKeptWhateverTheirFingerprints() throws IOException {
+        latestVersion = 4;
+        golden = List.of(
+            goldenRecord(1, 100, STORED),
+            goldenRecord(2, 200, STORED),
+            goldenRecord(3, 300, STORED),
+            goldenRecord(4, 400, STORED)
+        );
+        goldenUpdaterStored = List.of(sample("s", 5, 500));
+
+        GoldenUpdater.Result result = update(refreshing(), 3);
+
+        assertThat(result, equalTo(new GoldenUpdater.Result(4, 5, 2, 0, 1, 2, 0)));
+        assertThat(writtenIds(), equalTo(List.of("5_" + fp(5), "5_" + fp(4), "5_" + fp(3))));
+        assertThat("the one that cannot be in it is not looked at", probes.size(), equalTo(3 * PROBES_PER_STATE));
     }
 
     public void testWhatIsComputedAgainAndWhatIsAddedAreInTheSameVersion() throws IOException {

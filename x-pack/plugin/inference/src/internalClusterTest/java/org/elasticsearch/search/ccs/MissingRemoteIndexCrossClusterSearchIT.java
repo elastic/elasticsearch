@@ -23,7 +23,6 @@ import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
 import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
@@ -32,17 +31,13 @@ import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 import org.elasticsearch.xpack.inference.vectors.EmbeddingQueryVectorBuilder;
 import org.junit.Before;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.inference.Utils.randomInferenceStringGroup;
-import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Covers a missing remote index — both a concrete name and a wildcard that matches nothing — for every query type that performs remote
@@ -136,70 +131,35 @@ public class MissingRemoteIndexCrossClusterSearchIT extends AbstractSemanticCros
      * otherwise the query rewrites without them and the remote hit goes missing instead of the search reporting an error.
      */
     public void testMissingRemoteIndexAlongsideResolvableRemoteIndex() throws Exception {
+        // Lenient options stop the missing index from failing the remote, which is what leaves the resolvable one to assert on.
+        final IndicesOptions indicesOptions = IndicesOptions.LENIENT_EXPAND_OPEN;
         final List<String> indices = List.of(
             LOCAL_INDEX_NAME,
             FULLY_QUALIFIED_REMOTE_INDEX_NAME,
             fullyQualifiedIndexName(REMOTE_CLUSTER, MISSING_INDEX_NAME)
         );
-        // Lenient options stop the missing index from failing the remote, which is what leaves the resolvable one to assert on.
-        final IndicesOptions indicesOptions = IndicesOptions.LENIENT_EXPAND_OPEN;
 
+        // Sparse embeddings score high enough that boosting the local index does not reliably order it first. Use order-insensitive
+        // matching to account for this.
         for (QueryCase queryCase : queryCases()) {
             for (RequestMode mode : requestModes()) {
-                assertBothClustersReturnTheirHit(
+                assertSearch(
                     describe(queryCase, indicesOptions, mode, MISSING_INDEX_NAME + " alongside " + REMOTE_INDEX_NAME),
                     queryCase,
                     indices,
-                    mode,
-                    indicesOptions
+                    ExpectedHits.anyOrder(
+                        List.of(
+                            new SearchResult(
+                                getExpectedLocalClusterAlias(mode.minimizesRoundTrips()),
+                                LOCAL_INDEX_NAME,
+                                queryCase.expectedDocId()
+                            ),
+                            new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, queryCase.expectedDocId())
+                        )
+                    ),
+                    null,
+                    mode.modifier().andThen(s -> s.indicesOptions(indicesOptions))
                 );
-            }
-        }
-    }
-
-    /**
-     * Asserts on hit membership rather than rank: sparse embeddings score high enough that boosting the local index does not reliably
-     * order it first, and this test only cares that the remote index contributed its hit.
-     */
-    private void assertBothClustersReturnTheirHit(
-        String context,
-        QueryCase queryCase,
-        List<String> indices,
-        RequestMode mode,
-        IndicesOptions indicesOptions
-    ) throws Exception {
-        final SearchRequest searchRequest = new SearchRequest(indices.toArray(new String[0])).source(
-            new SearchSourceBuilder().query(queryCase.query().get()).size(2)
-        );
-        mode.modifier().andThen(s -> s.indicesOptions(indicesOptions)).accept(searchRequest);
-
-        final Set<SearchResult> expected = Set.of(
-            new SearchResult(getExpectedLocalClusterAlias(mode.minimizesRoundTrips()), LOCAL_INDEX_NAME, queryCase.expectedDocId()),
-            new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, queryCase.expectedDocId())
-        );
-
-        final SetOnce<String> scrollId = new SetOnce<>();
-        try {
-            assertResponse(client().search(searchRequest), response -> {
-                scrollId.set(response.getScrollId());
-                assertThat(
-                    Arrays.stream(response.getHits().getHits())
-                        .map(hit -> new SearchResult(hit.getClusterAlias(), hit.getIndex(), hit.getId()))
-                        .collect(Collectors.toSet()),
-                    equalTo(expected)
-                );
-                for (String clusterAlias : response.getClusters().getClusterAliases()) {
-                    assertThat(
-                        response.getClusters().getCluster(clusterAlias).getStatus(),
-                        equalTo(SearchResponse.Cluster.Status.SUCCESSFUL)
-                    );
-                }
-            });
-        } catch (Exception | AssertionError e) {
-            throw new AssertionError(context, e);
-        } finally {
-            if (scrollId.get() != null) {
-                client().prepareClearScroll().addScrollId(scrollId.get()).get(TEST_REQUEST_TIMEOUT);
             }
         }
     }
@@ -234,8 +194,8 @@ public class MissingRemoteIndexCrossClusterSearchIT extends AbstractSemanticCros
         final List<String> indices = List.of(LOCAL_INDEX_NAME, fullyQualifiedIndexName(REMOTE_CLUSTER, remoteIndexExpression));
         final Consumer<SearchRequest> modifier = mode.modifier().andThen(s -> s.indicesOptions(indicesOptions));
         final String context = describe(queryCase, indicesOptions, mode, remoteIndexExpression);
-        final List<SearchResult> localOnly = List.of(
-            new SearchResult(getExpectedLocalClusterAlias(mode.minimizesRoundTrips()), LOCAL_INDEX_NAME, queryCase.expectedDocId())
+        final ExpectedHits localOnly = ExpectedHits.inOrder(
+            List.of(new SearchResult(getExpectedLocalClusterAlias(mode.minimizesRoundTrips()), LOCAL_INDEX_NAME, queryCase.expectedDocId()))
         );
 
         if (remoteFails == false) {
@@ -272,7 +232,7 @@ public class MissingRemoteIndexCrossClusterSearchIT extends AbstractSemanticCros
         String context,
         QueryCase queryCase,
         List<String> indices,
-        List<SearchResult> expectedSearchResults,
+        ExpectedHits expectedHits,
         @Nullable ClusterFailure expectedRemoteFailure,
         Consumer<SearchRequest> modifier
     ) throws Exception {
@@ -281,7 +241,7 @@ public class MissingRemoteIndexCrossClusterSearchIT extends AbstractSemanticCros
             assertSearchResponse(
                 queryCase.query().get(),
                 indices,
-                expectedSearchResults,
+                expectedHits,
                 expectedRemoteFailure,
                 modifier,
                 r -> scrollId.set(r.getScrollId())

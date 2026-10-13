@@ -22,7 +22,7 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.esql.datasources.EsqlDataSourcesCapabilities;
-import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 
 import java.io.IOException;
 import java.util.List;
@@ -121,7 +121,8 @@ public class RestPutDatasetAction extends BaseRestHandler implements RestRequest
             EsqlDataSourcesCapabilities.DATA_SOURCES_SERVERLESS_SCOPE,
             EsqlDataSourcesCapabilities.DATASET_REGION,
             EsqlDataSourcesCapabilities.DATASET_TEXT_TYPE_NOT_DECLARABLE,
-            EsqlDataSourcesCapabilities.DATASET_ID_NOT_DECLARABLE
+            EsqlDataSourcesCapabilities.DATASET_ID_NOT_DECLARABLE,
+            EsqlDataSourcesCapabilities.DATA_SOURCE_DESCRIPTION_LENGTH_LIMIT
         );
     }
 }

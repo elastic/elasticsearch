@@ -78,11 +78,14 @@ public final class StringColumnWriter {
      * @param totals                    the documents holding a slot, the slots, the null slots and the shortest
      *                                  and longest value; a plain column whose values all have one length and
      *                                  none of them null stores no lengths at all
-     * @param cursors                   supplies fresh forward cursors over the documents that have a slot; called
-     *                                  once for the iterator and once for the values
+     * @param cursors                   supplies fresh forward cursors over the documents that have a slot; for
+     *                                  a sparse column needing a survey, this is called once for the combined
+     *                                  iterator-and-survey pass; for all other columns it is called once per
+     *                                  remaining pass (values, and on the dictionary path the ordinals)
      * @param options                   how the column is written: its dictionary policy, its chunk codec and
      *                                  the units its streams are sized in
-     * @param known                     a vocabulary already worked out for these values, or null to survey them
+     * @param precomputedVocabulary     a vocabulary already worked out for these values, or null to survey
+     *                                  them
      * @param directory                 directory a dictionary column stages its ordinals and escapes in
      * @param context                   IO context for those staged files
      * @param outputs                   values to its data, per-document tables to its addressing, per-block
@@ -93,7 +96,7 @@ public final class StringColumnWriter {
         StringColumnValues.Totals totals,
         IOSupplier<StringColumnValues> cursors,
         StringColumnOptions options,
-        Vocabulary.Terms known,
+        Vocabulary.Terms precomputedVocabulary,
         Directory directory,
         IOContext context,
         ColumnOutputs outputs
@@ -106,35 +109,58 @@ public final class StringColumnWriter {
         final ChunkCodec chunkCodec = options.chunkCodec();
         final StringColumnOptions.Sizes sizes = options.sizes();
         final int valuesPerBlock = sizes.valuesPerBlock();
-        ColumnIteratorMetadata iterator = ColumnIteratorWriter.write(cursors.get(), numDocsWithField, maxDoc, outputs.addressing());
         if (numDocsWithField == 0) {
-            return StringColumnMetadata.empty(iterator);
+            return StringColumnMetadata.empty(ColumnIteratorWriter.write(cursors, 0, maxDoc, outputs.addressing()));
         }
 
-        Vocabulary.Terms surveyed = null;
+        // For a sparse column that needs a survey, the presence pass and the survey walk the same documents,
+        // so they can share a single cursor. SurveyingDocs wraps the cursor and feeds values to the surveyor
+        // on every nextDoc() call; IndexedDISI.writeBitSet drives the walk via the default intoBitSet, which
+        // loops on nextDoc(), so every document is seen exactly once.
+        final boolean combinedPass = dictionaryPolicy.enabled() && precomputedVocabulary == null && numDocsWithField < maxDoc;
+
+        final ColumnIteratorMetadata iterator;
+        Vocabulary.Terms vocabulary = null;
+        if (combinedPass) {
+            final SurveyingDocs docs = new SurveyingDocs(
+                cursors.get(),
+                Vocabulary.surveyor(dictionaryPolicy, summaryPolicy),
+                numDocsWithField
+            );
+            iterator = ColumnIteratorWriter.write(docs, numDocsWithField, maxDoc, outputs.addressing());
+            vocabulary = docs.finish();
+        } else {
+            iterator = ColumnIteratorWriter.write(cursors, numDocsWithField, maxDoc, outputs.addressing());
+            if (dictionaryPolicy.enabled()) {
+                // A merge that worked out the vocabulary from what its inputs recorded does not survey again.
+                vocabulary = precomputedVocabulary != null
+                    ? precomputedVocabulary
+                    : Vocabulary.survey(cursors.get(), dictionaryPolicy, summaryPolicy);
+            }
+        }
+
         if (dictionaryPolicy.enabled()) {
-            // A merge that worked out the vocabulary from what its inputs recorded does not survey again.
-            surveyed = known != null ? known : Vocabulary.survey(cursors.get(), dictionaryPolicy, summaryPolicy);
             // Coverage is a lower bound, so a column admitted here covers at least as much as it claims.
             // NOTE: a vocabulary can hold terms for a merge and none worth an ordinal here, so the size
             // check is what keeps a bar of zero from admitting an empty dictionary.
-            if (surveyed != null
-                && surveyed.size() > 0
-                && dictionaryPolicy.worthKeeping(surveyed.coverage(), surveyed.dictionaryBytes(), surveyed.columnBytes())) {
+            if (vocabulary != null
+                && vocabulary.dictionarySize() > 0
+                && dictionaryPolicy.worthKeeping(vocabulary.coverage(), vocabulary.dictionaryBytes(), vocabulary.columnBytes())) {
                 return withSummary(
                     writeDictionary(
                         iterator,
                         totals,
                         cursors,
-                        surveyed,
-                        surveyed.columnBytes(),
+                        vocabulary,
+                        vocabulary.columnBytes(),
                         chunkCodec,
                         sizes,
                         directory,
                         context,
                         outputs
                     ),
-                    surveyed,
+                    vocabulary,
+                    summaryPolicy,
                     numValues - numNullSlots,
                     chunkCodec,
                     sizes,
@@ -239,7 +265,8 @@ public final class StringColumnWriter {
                 sorted,
                 valuesWorthNaming
             ),
-            surveyed,
+            vocabulary,
+            summaryPolicy,
             numValues - numNullSlots,
             chunkCodec,
             sizes,
@@ -260,34 +287,20 @@ public final class StringColumnWriter {
     private static StringColumnMetadata withSummary(
         StringColumnMetadata metadata,
         Vocabulary.Terms vocabulary,
-        long namedValues,
+        SummaryPolicy summaryPolicy,
+        long nonNullValueCount,
         ChunkCodec chunkCodec,
         StringColumnOptions.Sizes sizes,
         ColumnOutputs outputs
     ) throws IOException {
-        final IndexOutput data = outputs.data();
-        if (vocabulary == null || vocabulary.counted() == false || vocabulary.summarySize() == 0) {
+        if (vocabulary == null || vocabulary.hasCounts() == false || summaryPolicy.enabled() == false) {
             return metadata;
         }
-        final int size = vocabulary.summarySize();
-        ValueStream.Metadata terms = null;
-        if (metadata instanceof StringColumnMetadata.Dictionary column && vocabulary.summaryIsDictionary()) {
-            assert column.dictionarySize() == size : column.dictionarySize() + " != " + size;
-        } else {
-            final BytesRef term = new BytesRef();
-            final ValueStream.Writer writer = new ValueStream.Writer(chunkCodec, sizes.escapeChunks(), sizes.valuesPerBlock(), outputs);
-            for (int ordinal = 0; ordinal < size; ordinal++) {
-                vocabulary.terms().get(vocabulary.summaryIds()[ordinal], term);
-                writer.add(term);
-            }
-            terms = writer.finish();
-        }
-        final long countsOffset = data.getFilePointer();
-        for (int ordinal = 0; ordinal < size; ordinal++) {
-            data.writeVLong(vocabulary.summaryCountOf(ordinal));
-        }
+        final boolean dictionaryHoldsTheTerms = metadata instanceof StringColumnMetadata.Dictionary column
+            && vocabulary.summaryIsDictionary()
+            && column.dictionarySize() == vocabulary.summarySize();
         return metadata.withSummary(
-            new StringColumnMetadata.Summary(terms, countsOffset, data.getFilePointer() - countsOffset, namedValues)
+            SummaryFormat.write(vocabulary, dictionaryHoldsTheTerms, nonNullValueCount, chunkCodec, sizes, outputs)
         );
     }
 
@@ -315,7 +328,7 @@ public final class StringColumnWriter {
         final long numNullSlots = totals.numNullSlots();
         final IndexOutput data = outputs.data();
         final int escapeRankBlockSize = sizes.escapeRankBlockSize();
-        final int dictionarySize = vocabulary.size();
+        final int dictionarySize = vocabulary.dictionarySize();
         // The terms start above the reserved null, and the escape marker sits one past the last of them.
         final int escapeOrdinal = dictionarySize + StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL;
         final BytesRef scratch = new BytesRef();
@@ -428,7 +441,7 @@ public final class StringColumnWriter {
                             } else {
                                 final int id = vocabulary.terms().find(value);
                                 // A term the survey saw can still have been dropped from the dictionary,
-                                // so the ordinal is shifted only once it is known to name one — DROPPED
+                                // so the ordinal is shifted only once it is known to name one, since DROPPED
                                 // shifted would land on a reserved ordinal rather than staying a marker.
                                 final int termOrdinal = id >= 0 ? vocabulary.ordinalOfId()[id] : Vocabulary.DROPPED;
                                 ordinal = termOrdinal == Vocabulary.DROPPED
@@ -582,7 +595,7 @@ public final class StringColumnWriter {
             return false;
         }
         final long[] sample = new long[trialValues];
-        try (IndexInput in = directory.openInput(staged, context)) {
+        try (IndexInput in = directory.openInput(staged, IOContext.READONCE)) {
             for (int i = 0; i < trialValues; i++) {
                 sample[i] = in.readVInt();
             }

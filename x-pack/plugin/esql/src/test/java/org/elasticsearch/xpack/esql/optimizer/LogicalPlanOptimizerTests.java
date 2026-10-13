@@ -1289,6 +1289,29 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         );
     }
 
+    /**
+     * A long chain of {@code EVAL}s where every fourth one is a pure alias (like the machine-generated JSON flattening queries seen in
+     * production) is turned into {@code Eval, Eval, Eval, Project, Eval, ...} by {@code ReplaceAliasingEvalWithProject}. Pushing an
+     * {@code Eval} past all of those {@code Project}s used to cost one optimizer pass per {@code Project}, so the number of passes grew
+     * with the number of aliases and a big enough chain hit the batch's rule execution limit even though every pass made progress.
+     */
+    public void testPushDownEvalPastManyAliasingProjects() {
+        int evals = 450;
+        StringBuilder query = new StringBuilder("from test | where salary > 0 | eval e0 = salary");
+        // Starting at 1 as 0 is used above
+        for (int i = 1; i <= evals; i++) {
+            query.append(" | eval e").append(i).append(" = e").append(i - 1);
+            if (i % 4 != 0) {
+                query.append(" + 1");
+            }
+        }
+        query.append(" | keep emp_no, e").append(evals).append(" | sort emp_no | limit 11");
+
+        LogicalPlan plan = optimizedPlan(query.toString());
+
+        assertThat(Expressions.names(plan.output()), equalTo(List.of("emp_no", "e" + evals)));
+    }
+
     public void testPushDownDissectPastProject() {
         LogicalPlan plan = optimizedPlan("""
             from test
@@ -10487,22 +10510,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         EsRelation relation = as(limit.child(), EsRelation.class);
         assertThat(relation.children(), hasSize(0));
         assertThat(relation.indexPattern(), equalTo("base_conversion"));
-    }
-
-    /*
-     * FORK inside subquery is not supported yet.
-     */
-    public void testForkInSubquery() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        VerificationException e = expectThrows(VerificationException.class, () -> planSubquery("""
-            FROM test, (FROM languages
-                                 | WHERE language_code > 0
-                                 | FORK (WHERE language_name == "a") (WHERE language_name == "b")
-                                 )
-            """));
-        assertTrue(e.getMessage().startsWith("Found "));
-        final String header = "Found 1 problem\nline ";
-        assertEquals("3:24: FORK inside subquery is not supported", e.getMessage().substring(header.length()));
     }
 
     /*

@@ -54,7 +54,91 @@ final class TermSelection {
         return terms;
     }
 
-    /** The most valuable ids whose bytes {@code quota} pays for, in term order. */
+    /** What {@code ids} cost a budget, charged the same way one term is by {@link TermQuota#cost}. */
+    long bytesOf(int[] ids) {
+        long bytes = 0;
+        final BytesRef scratch = new BytesRef();
+        for (int id : ids) {
+            terms.get(id, scratch);
+            bytes += TermQuota.cost(scratch);
+        }
+        return bytes;
+    }
+
+    /**
+     * An upper bound on the values a dictionary of no more than {@code budget} term bytes could name. The
+     * relaxed knapsack optimum, plus every occurrence {@link #occurrences} does not account for, since
+     * those counts are lower bounds. No minimum count applies: relaxing it only widens the sets covered.
+     *
+     * @param budget    the term bytes a dictionary may hold
+     * @param numValues the non-null values in the column, which the answer is capped at
+     * @return the most values any dictionary within {@code budget} could name, never below the truth
+     */
+    long bestCoverage(long budget, long numValues) {
+        long counted = 0;
+        for (int id = 0; id < terms.size(); id++) {
+            counted = clampSum(counted, counts[id]);
+        }
+        final long unaccounted = Math.max(0, numValues - counted);
+        final long best = clampSum(bestWithPartialTerms(budget), unaccounted);
+        return Math.min(numValues, best);
+    }
+
+    /**
+     * The most occurrences a budget could hold when a term may be taken in part, which is what makes this
+     * an over-estimate of any real dictionary. Counted in longs: a count can pass what a double holds
+     * exactly, and rounding one down would put the answer below the truth.
+     */
+    private long bestWithPartialTerms(long budget) {
+        long spent = 0;
+        long held = 0;
+        final BytesRef scratch = new BytesRef();
+        for (int id : byDensity) {
+            terms.get(id, scratch);
+            final long cost = TermQuota.cost(scratch);
+            // NOTE: a term the whole budget cannot buy is in no dictionary this bounds, so it is not part
+            // of the problem being relaxed. Crediting a fraction of it would bound the column by a term it
+            // can never name.
+            if (cost > budget) {
+                continue;
+            }
+            if (spent + cost <= budget) {
+                spent += cost;
+                held = clampSum(held, counts[id]);
+                continue;
+            }
+            final long left = budget - spent;
+            if (left > 0) {
+                held = clampSum(held, fractionOfCount(counts[id], left, cost));
+            }
+            break;
+        }
+        return held;
+    }
+
+    /** The {@code part / whole} share of {@code count}, rounded up and split so neither product overflows. */
+    private static long fractionOfCount(long count, long part, long whole) {
+        final long quotient = count / whole;
+        final long remainder = count % whole;
+        return clampSum(quotient * part, Math.ceilDiv(remainder * part, whole));
+    }
+
+    /** A sum that stops at {@link Long#MAX_VALUE} rather than wrapping, which still over-states. */
+    private static long clampSum(long left, long right) {
+        final long sum = left + right;
+        return ((left ^ sum) & (right ^ sum)) < 0 ? Long.MAX_VALUE : sum;
+    }
+
+    /**
+     * The ids {@code quota} admits, in term order, taken greedily by density and stepping over one the
+     * budget cannot afford rather than stopping there.
+     *
+     * <p>Greedy by density is a heuristic over whole terms and not their optimum, so what this achieves is
+     * read as evidence that a dictionary exists and never as proof that none does. A larger budget can also
+     * trade several low density terms for one high density term it could not previously afford, so
+     * selections under different budgets need not nest and a larger budget does not promise more terms.
+     * What it does promise is coverage: the terms it admits never name fewer values.
+     */
     int[] thatFit(TermQuota quota) {
         final int[] admitted = new int[byDensity.length];
         int keptCount = 0;
@@ -81,9 +165,37 @@ final class TermSelection {
     }
 
     /**
-     * Cross multiplication orders by count per byte without dividing. The products cannot overflow: a count
-     * is bounded by the values one merged column holds and a length by a {@link BytesRef}, so the largest
-     * either can reach leaves the product far inside a long.
+     * The ids two quotas admit together: {@code repeated} first, so they are exactly what it admits alone,
+     * then the terms below its minimum count into whatever room is left, bounded also by {@code tail}.
+     */
+    int[] thatFit(TermQuota repeated, TermQuota tail) {
+        final int[] thatRepeat = thatFit(repeated);
+        final long room = Math.min(tail.budget(), repeated.budget() - bytesOf(thatRepeat));
+        final int[] admitted = new int[byDensity.length];
+        System.arraycopy(thatRepeat, 0, admitted, 0, thatRepeat.length);
+        int keptCount = thatRepeat.length;
+        long bytes = 0;
+        final BytesRef scratch = new BytesRef();
+        for (int id : byDensity) {
+            if (counts[id] >= repeated.minCount() || counts[id] < tail.minCount()) {
+                continue;
+            }
+            terms.get(id, scratch);
+            final long cost = TermQuota.cost(scratch);
+            if (bytes + cost <= room) {
+                bytes += cost;
+                admitted[keptCount++] = id;
+            }
+        }
+        final int[] kept = ArrayUtil.copyOfSubArray(admitted, 0, keptCount);
+        ordering.byTerm(kept, 0, keptCount);
+        return kept;
+    }
+
+    /**
+     * Cross multiplication orders by count per byte without dividing, across 128 bits since the products
+     * can pass what a long holds. An order that wrapped would stop the walk in {@link #bestCoverage} being
+     * the optimum of its relaxation, which is the one place a greedy walk here is exact.
      */
     private static int[] idsByDensity(TermOrdering ordering, BytesRefHash terms, long[] counts) {
         final int size = terms.size();
@@ -95,8 +207,16 @@ final class TermSelection {
             terms.get(id, term);
             lengths[id] = (int) TermQuota.cost(term);
         }
-        ordering.sort(ids, 0, size, (a, b) -> Long.compare(counts[b] * lengths[a], counts[a] * lengths[b]));
+        ordering.sort(ids, 0, size, (a, b) -> compareProducts(counts[b], lengths[a], counts[a], lengths[b]));
         return ids;
     }
 
+    private static int compareProducts(long left, long leftBy, long right, long rightBy) {
+        // NOTE: compared over both halves of the 128 bit product. A merged count times a term length
+        // passes what a long holds, and a wrapped comparison would rank by something other than density,
+        // which is the one thing the greedy walk in bestWithPartialTerms needs to be the optimum.
+        final long highLeft = Math.multiplyHigh(left, leftBy);
+        final long highRight = Math.multiplyHigh(right, rightBy);
+        return highLeft != highRight ? Long.compare(highLeft, highRight) : Long.compareUnsigned(left * leftBy, right * rightBy);
+    }
 }

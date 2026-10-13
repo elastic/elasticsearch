@@ -385,6 +385,21 @@ $endif$
         }
     }
 
+$if(partitioned)$
+    @Override
+    public long estimatedBytesForPartitioning() {
+$if(BytesRef)$
+        return estimatedKeyBytes(hash.getBytesRefs());
+$elseif(int)$
+        return (long) numKeys() * Integer.BYTES;
+$elseif(long)$
+        return (long) numKeys() * Long.BYTES;
+$else$
+        syntax error because we didn't cover this case
+$endif$
+    }
+
+$endif$
     @Override
     public BitArray seenGroupIds(BigArrays bigArrays) {
         return new SeenGroupIds.Range(seenNull ? 0 : 1, Math.toIntExact(hash.size() + 1)).seenGroupIds(bigArrays);

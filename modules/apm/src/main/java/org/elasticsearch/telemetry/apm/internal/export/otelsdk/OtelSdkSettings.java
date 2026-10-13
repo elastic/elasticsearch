@@ -149,7 +149,7 @@ public final class OtelSdkSettings {
     /** Buffered entries older than this are dropped. */
     public static final Setting<TimeValue> TELEMETRY_METRICS_BUFFER_TTL = Setting.timeSetting(
         "telemetry.metrics.buffer.ttl",
-        TimeValue.timeValueHours(12),
+        TimeValue.timeValueHours(48),
         NodeScope
     );
 

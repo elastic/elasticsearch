@@ -21,7 +21,3 @@
 ```
 acosh(some_metric)
 ```
-
-**Differences from Prometheus**
-
-For inputs below 1, {{es}} returns `null` and emits a warning, rather than the `NaN` that Prometheus returns.

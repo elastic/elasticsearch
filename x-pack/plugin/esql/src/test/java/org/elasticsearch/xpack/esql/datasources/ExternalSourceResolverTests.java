@@ -4776,12 +4776,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * The stamp the data node reads to decide filter pushdown, deferred extraction and the operator factory's
-     * extraction mode. It is written when reading any file may convert a value and fail, which is decided by the
-     * file's own type against the type it is read as. Every row here holds the schema fixed and varies only the
-     * file's native type, so nothing but that comparison can be producing the answer.
-     */
-    /**
      * A column the query reads at {@code NULL} or {@code UNSUPPORTED} is never decoded, so no value of it can fail
      * to convert and it must not stamp the source. Both reader-side askers of the same question skip these types
      * first; without the same guard in the resolver one such column answered for every other column in the read,
@@ -4811,6 +4805,12 @@ public class ExternalSourceResolverTests extends ESTestCase {
         }
     }
 
+    /**
+     * The stamp the data node reads to decide filter pushdown, deferred extraction and the operator factory's
+     * extraction mode. It is written when reading any file may convert a value and fail, which is decided by the
+     * file's own type against the type it is read as. Every row here holds the schema fixed and varies only the
+     * file's native type, so nothing but that comparison can be producing the answer.
+     */
     public void testConversionMayNarrowStampFollowsTheFilesOwnTypes() {
         ExternalSchema readAsLong = new ExternalSchema(List.of(attr("x", DataType.LONG)));
 
@@ -4985,10 +4985,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
             null,
             null
         ).withDeclaredReadSpec(DeclaredReadSpec.of(Map.of(), Map.of(), Set.of("x"), SchemaProvenance.DECLARED));
-        assertTrue("no stamp means a value may fail", unstamped.conversionMayNarrow());
+        assertTrue("no stamp means a value may fail", unstamped.dropsRowsOnConversionFailure(ErrorPolicy.LENIENT));
         assertTrue(
             "and the declared column set does not change that",
-            unstamped.withDeclaredReadSpec(DeclaredReadSpec.NONE).conversionMayNarrow()
+            unstamped.withDeclaredReadSpec(DeclaredReadSpec.NONE).dropsRowsOnConversionFailure(ErrorPolicy.LENIENT)
         );
     }
 

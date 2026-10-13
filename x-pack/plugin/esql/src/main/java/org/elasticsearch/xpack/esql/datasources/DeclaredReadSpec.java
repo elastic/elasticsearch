@@ -33,12 +33,14 @@ import java.util.Set;
  *       ({@code FileSourceFactory}). Empty when no column declares a {@code format}.</li>
  *   <li>{@code declaredTypeColumns} — the <b>logical</b> names of the columns whose target type came from an explicit
  *       declaration (as opposed to inference). <b>No reader reads this.</b> Whether a value is converted or the column
- *       is nulled is decided from the type pair alone, by {@link org.elasticsearch.xpack.esql.datasources.spi
- *       .DeclaredTypeCoercions}: who typed a column does not change whether a conversion can fail, and keying a read
- *       on it made one set of bytes behave two ways (esql-planning#2076). What remains are two coordinator-side
- *       readers, both of which ask only whether the set is <em>empty</em> — see
- *       {@link #declaresNoStatsAffectingInstructions()}, which is how a split decides whether a footer statistic
- *       still describes the read. Retiring the field needs a transport version, so it still crosses the wire.
+ *       is nulled is decided from the type pair alone, by
+ *       {@link org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions}: who typed a column does not
+ *       change whether a conversion can fail, and keying a read on it made one set of bytes behave two ways
+ *       (esql-planning#2076). Nothing left asks <em>which</em> columns are in the set; every reader asks only
+ *       whether it is <em>empty</em>, through {@link #isEmpty()} or
+ *       {@link #declaresNoStatsAffectingInstructions()} — the latter is how a split decides whether a footer
+ *       statistic still describes the read. Retiring the field needs a transport version, so it still crosses
+ *       the wire.
  *       Empty when the mapping declares no column types.</li>
  *   <li>{@code provenance} — whether the {@code readSchema} this spec accompanies is a
  *       {@link SchemaProvenance#DECLARED} claim (bind by name, report absent columns) or was

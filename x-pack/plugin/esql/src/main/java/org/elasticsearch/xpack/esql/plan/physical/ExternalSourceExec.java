@@ -501,23 +501,16 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     }
 
     /**
-     * Whether reading this source may convert a value and fail, read from the resolution-time stamp in
-     * {@link #sourceMetadata()}. The coordinator is the only node that has seen the files, so this is how the fact
-     * reaches a data node.
-     * <p>
-     * A plan with no stamp came from a coordinator that predates it and is read conservatively: a value may fail,
-     * so the filter is withheld and extraction is not deferred. That costs speed for the length of a rolling
-     * upgrade and nothing else. It deliberately does not instead ask whether the dataset declared any column
-     * types, which would answer a read from how the schema was authored - the defect esql-planning#2076 removes.
-     */
-    public boolean conversionMayNarrow() {
-        return SourceStatisticsSerializer.conversionMayNarrowOrIsUnstamped(sourceMetadata);
-    }
-
-    /**
      * Whether this read drops whole rows when a value fails to convert, under {@code errorPolicy}. The plan-side
      * view of {@link SourceStatisticsSerializer#dropsRowsOnConversionFailure}, which the operator factory asks with
      * the same source metadata, so a rule and the factory cannot reach different verdicts for one read.
+     * <p>
+     * Whether a value can fail at all is the resolution-time stamp in {@link #sourceMetadata()}; the coordinator is
+     * the only node that has seen the files, so that is how the fact reaches a data node. A plan with no stamp came
+     * from a coordinator that predates the stamp and is read conservatively: a value may fail, so the filter is
+     * withheld and extraction is not deferred. That costs speed for the length of a rolling upgrade and nothing
+     * else. It deliberately does not instead ask whether the dataset declared any column types, which would answer
+     * a read from how the schema was authored - the defect esql-planning#2076 removes.
      */
     public boolean dropsRowsOnConversionFailure(ErrorPolicy errorPolicy) {
         return SourceStatisticsSerializer.dropsRowsOnConversionFailure(errorPolicy, sourceMetadata);

@@ -10,6 +10,7 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.mapper.UnmappedFields;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
@@ -52,7 +53,7 @@ import java.util.Set;
  *
  * <p>Include and glob-exclude patterns use the syntax of {@link UnresolvedNamePattern#glob()}.
  */
-public final class UnmappedFieldsPattern implements NamedWriteable {
+public final class UnmappedFieldsPattern implements NamedWriteable, UnmappedFields.Filter {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         UnmappedFieldsPattern.class,
         "UnmappedFieldsPattern",
@@ -201,6 +202,16 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
             }
         }
         return false;
+    }
+
+    @Override
+    public boolean includes(String path) {
+        return matches(path);
+    }
+
+    @Override
+    public boolean mayIncludeBelow(String path) {
+        return objectSubfieldsCouldMatch(path);
     }
 
     /**

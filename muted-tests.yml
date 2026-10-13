@@ -611,9 +611,6 @@ tests:
 - class: org.elasticsearch.index.mapper.extras.MatchOnlyTextFieldColumnarQueryTests
   method: testTheFetcherReadsTheFieldsValues
   issue: https://github.com/elastic/elasticsearch/issues/161798
-- class: org.elasticsearch.xpack.esql.datasource.s3.qa.RegionDiscoveryIT
-  method: testExactPathResolveProbesTheObjectWithHead
-  issue: https://github.com/elastic/elasticsearch/issues/161819
 - class: org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLifecycleTests
   method: testLifecycleEnabledByDefaultSerialization
   issue: https://github.com/elastic/elasticsearch/issues/161848

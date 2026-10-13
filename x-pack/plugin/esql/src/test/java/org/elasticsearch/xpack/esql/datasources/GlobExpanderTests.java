@@ -3966,7 +3966,7 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-    * The headline case of : on a bare {@code **} glob a partition-column filter must narrow the
+     * The headline case: on a bare {@code **} glob a partition-column filter must narrow the
      * enumeration itself — non-matching folders are never listed, not merely left unread.
      */
     public void testGlobstarPartitionHintNarrowsTheListing() throws IOException {

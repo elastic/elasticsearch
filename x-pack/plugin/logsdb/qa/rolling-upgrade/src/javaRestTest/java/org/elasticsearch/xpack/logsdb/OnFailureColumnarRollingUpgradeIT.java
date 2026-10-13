@@ -311,25 +311,12 @@ public class OnFailureColumnarRollingUpgradeIT extends AbstractLogsdbRollingUpgr
         var response = client().performRequest(request);
         assertOK(response);
         Map<String, Object> body = entityAsMap(response);
-        assertThat(
-            "single_kw.doc_values.multi_value",
-            ObjectPath.evaluate(body, INDEX_NAME + ".mappings.properties.single_kw.doc_values.multi_value"),
-            equalTo(false)
-        );
-        assertThat(
-            "single_kw.doc_values.on_failure",
-            ObjectPath.evaluate(body, INDEX_NAME + ".mappings.properties.single_kw.doc_values.on_failure"),
-            equalTo("ignore")
-        );
-        assertThat(
-            "required_kw.doc_values.nullability",
-            ObjectPath.evaluate(body, INDEX_NAME + ".mappings.properties.required_kw.doc_values.nullability"),
-            equalTo(false)
-        );
-        assertThat(
-            "required_kw.doc_values.on_failure",
-            ObjectPath.evaluate(body, INDEX_NAME + ".mappings.properties.required_kw.doc_values.on_failure"),
-            equalTo("ignore")
-        );
+        String attributePrefix = oldClusterHasFeature(MapperFeatures.DOC_VALUES_TOP_LEVEL_ATTRIBUTES) ? "" : "doc_values.";
+        String singleKw = INDEX_NAME + ".mappings.properties.single_kw." + attributePrefix;
+        String requiredKw = INDEX_NAME + ".mappings.properties.required_kw." + attributePrefix;
+        assertThat(singleKw + "multi_value", ObjectPath.evaluate(body, singleKw + "multi_value"), equalTo(false));
+        assertThat(singleKw + "on_failure", ObjectPath.evaluate(body, singleKw + "on_failure"), equalTo("ignore"));
+        assertThat(requiredKw + "nullability", ObjectPath.evaluate(body, requiredKw + "nullability"), equalTo(false));
+        assertThat(requiredKw + "on_failure", ObjectPath.evaluate(body, requiredKw + "on_failure"), equalTo("ignore"));
     }
 }

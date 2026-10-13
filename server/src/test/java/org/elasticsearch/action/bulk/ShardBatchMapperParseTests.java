@@ -722,7 +722,7 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
               "properties": {
                 "f": {
                   "type": "keyword",
-                  "doc_values": { "nullability": false }
+                  "nullability": false
                 }
               }
             }""";
@@ -759,7 +759,7 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
               "properties": {
                 "f": {
                   "type": "keyword",
-                  "doc_values": { "nullability": false, "on_failure": "ignore" }
+                  "nullability": false, "on_failure": "ignore"
                 }
               }
             }""";
@@ -806,7 +806,7 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
             {
               "dynamic": "strict",
               "properties": {
-                "f": { "type": "keyword", "doc_values": { "multi_value": false } }
+                "f": { "type": "keyword", "multi_value": false }
               }
             }""";
 
@@ -858,7 +858,7 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
               "properties": {
                 "f": {
                   "type": "keyword",
-                  "doc_values": { "nullability": false, "on_failure": "ignore" }
+                  "nullability": false, "on_failure": "ignore"
                 }
               }
             }""";
@@ -896,7 +896,7 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
               "properties": {
                 "f": {
                   "type": "keyword",
-                  "doc_values": { "nullability": false, "on_failure": "ignore" }
+                  "nullability": false, "on_failure": "ignore"
                 }
               }
             }""";
@@ -941,7 +941,7 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
               "properties": {
                 "f": {
                   "type": "keyword",
-                  "doc_values": { "nullability": false, "on_failure": "ignore" }
+                  "nullability": false, "on_failure": "ignore"
                 }
               }
             }""";
@@ -991,7 +991,7 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
               "properties": {
                 "f": {
                   "type": "keyword",
-                  "doc_values": { "nullability": false, "on_failure": "ignore", "multi_value": false }
+                  "nullability": false, "on_failure": "ignore", "multi_value": false
                 }
               }
             }""";

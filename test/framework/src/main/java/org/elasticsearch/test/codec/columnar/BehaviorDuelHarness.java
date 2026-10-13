@@ -301,7 +301,7 @@ public final class BehaviorDuelHarness {
                 .startObject(KEYWORD_FIELD)
                 .field("type", "keyword");
             if (multiValue == false) {
-                builder.startObject("doc_values").field("multi_value", false).endObject();
+                builder.field("multi_value", false);
             }
             return builder.endObject().startObject(DOC_ID_FIELD).field("type", "long").endObject().endObject().endObject();
         } catch (IOException e) {

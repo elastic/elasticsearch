@@ -373,6 +373,56 @@ public class CsvModeReadTests extends ESTestCase {
         assertThat(ExceptionsHelper.unwrapCause(owner).getMessage(), containsString("spans several lines"));
     }
 
+    /**
+     * {@code multiline_fields} decides without a guess: {@code false} cuts on plain newlines even where the sample gave no
+     * evidence, {@code true} keeps the proven walk even where it did, and left unset the evidence decides.
+     */
+    public void testMultilineFieldsOverridesTheSampleEvidence() {
+        String evidence = SourceMetadata.INFERRED_QUOTE_FREE_CONFIG_KEY;
+        assertThat(csvReader(Map.of("multiline_fields", false)).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
+        assertThat(csvReader(Map.of("multiline_fields", "false")).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
+        assertThat(csvReader(Map.of("multiline_fields", true, evidence, "true")).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
+        assertThat(
+            csvReader(Map.of("multiline_fields", false, evidence, "true")).recordSplitter(1024),
+            instanceOf(NewlineRecordSplitter.class)
+        );
+        // An explicit dialect keeps the proven walk under the evidence, but not under an explicit multiline_fields.
+        assertThat(csvReader(Map.of("mode", "quoted", evidence, "true")).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
+        assertThat(
+            csvReader(Map.of("mode", "quoted", "multiline_fields", false)).recordSplitter(1024),
+            instanceOf(NewlineRecordSplitter.class)
+        );
+        // Unset: the evidence decides, as before.
+        assertThat(csvReader(Map.of(evidence, "true")).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
+        assertThat(csvReader(Map.of()).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
+    }
+
+    public void testMultilineFieldsRejectsBadValuesAndBracketsAtStoreTime() {
+        Exception bad = expectThrows(IllegalArgumentException.class, () -> csvReader(Map.of("multiline_fields", "maybe")));
+        assertThat(bad.getMessage(), containsString("multiline_fields"));
+        Map<String, Object> bracketed = Map.of("multiline_fields", false, "multi_value_syntax", "brackets");
+        Exception stored = expectThrows(
+            IllegalArgumentException.class,
+            () -> CsvFormatReader.validateConfig(bracketed, CsvFormatOptions.DEFAULT)
+        );
+        assertThat(stored.getMessage(), containsString(CsvFormatReader.MULTILINE_FALSE_WITH_BRACKETS_MESSAGE));
+        CsvFormatReader.validateConfig(Map.of("multiline_fields", true, "multi_value_syntax", "brackets"), CsvFormatOptions.DEFAULT);
+        // A dataset stored before the check keeps reading, on the proven walk.
+        assertThat(csvReader(bracketed).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
+    }
+
+    /** With {@code multiline_fields: false} a record spanning lines fails a split read even though no sample vouched for it. */
+    public void testMultilineFieldsFalseGuardsSplitsWithoutEvidence() throws IOException {
+        CsvFormatReader reader = csvReader(Map.of("multiline_fields", false)).withSchema(TWO_KEYWORDS);
+        String csv = "x,y\n\"multi\nline\",z\n";
+        Exception e = expectThrows(Exception.class, () -> drain(reader, bytes(csv), splitContext(true, false, true)));
+        assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), containsString("multiline_fields"));
+        // multiline_fields: true reads the same bytes as one multi-line field, evidence or not.
+        CsvFormatReader multiline = csvReader(Map.of("multiline_fields", true, SourceMetadata.INFERRED_QUOTE_FREE_CONFIG_KEY, "true"))
+            .withSchema(TWO_KEYWORDS);
+        assertEquals(1, drain(multiline, bytes(csv), splitContext(true, false, true)));
+    }
+
     /** Withers keep the quote-free evidence: the splitter and the guard must not depend on the order they are applied in. */
     public void testWithDirectBlockEnabledKeepsQuoteFreeEvidence() throws IOException {
         CsvFormatReader reader = csvReader(Map.of(SourceMetadata.INFERRED_QUOTE_FREE_CONFIG_KEY, "true"));

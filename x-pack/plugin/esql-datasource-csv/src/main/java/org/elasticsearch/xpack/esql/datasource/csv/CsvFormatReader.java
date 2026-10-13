@@ -425,6 +425,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
     static final String CONFIG_SCHEMA_SAMPLE_SIZE = "schema_sample_size";
     static final String CONFIG_SKIP_ROWS = "skip_rows";
     static final String CONFIG_SCHEMA_MAX_FIELDS = "schema_max_fields";
+    static final String CONFIG_MULTILINE_FIELDS = "multiline_fields";
 
     /** Context prefix {@link ExternalFailures#surface} puts on an I/O failure of the record iterator. */
     static final String READ_RECORD_FAILURE = "Failed to read CSV record";
@@ -472,7 +473,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         CONFIG_TRIM_SPACES,
         CONFIG_SCHEMA_SAMPLE_SIZE,
         CONFIG_SKIP_ROWS,
-        CONFIG_SCHEMA_MAX_FIELDS
+        CONFIG_SCHEMA_MAX_FIELDS,
+        CONFIG_MULTILINE_FIELDS
     );
 
     private final BlockFactory blockFactory;
@@ -754,6 +756,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             return;
         }
         parseOptionsFromConfig(config, baseline, true);
+        parseMultilineFields(config);
         ExternalSourceSettings.parseDatasetSchemaMaxFields(
             config.get(CONFIG_SCHEMA_MAX_FIELDS),
             CONFIG_SCHEMA_MAX_FIELDS,
@@ -831,6 +834,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 "multi_value_syntax [brackets] requires quoting (mode [quoted] or an explicit quote character); "
                     + "the bracket scanner honors quoted fields"
             );
+        }
+        if (multiValueSyntax == CsvFormatOptions.MultiValueSyntax.BRACKETS && Boolean.FALSE.equals(parseMultilineFields(config))) {
+            // Same split as the escaped-with-quote conflict below: rejected when the dataset is stored, a notice (and the
+            // proven walk) when a stored one is read.
+            if (strict) {
+                throw new IllegalArgumentException(MULTILINE_FALSE_WITH_BRACKETS_MESSAGE);
+            }
+            configWarnings.add(MULTILINE_FALSE_WITH_BRACKETS_MESSAGE);
         }
         if (parsedMode == CsvFormatOptions.Mode.ESCAPED && quoting) {
             // mode=escaped asks for the C-style decode (\N to null, \t to tab), but setting a quote turns quoting
@@ -983,6 +994,22 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * </ul>
      * Anything else throws {@link IllegalArgumentException} naming the offending option key.
      */
+    /**
+     * The user's {@code multiline_fields} decision, or {@code null} when unset. {@code false} promises that no quoted field or
+     * escape spans a line break, so the file may be cut on plain newlines.
+     */
+    private static Boolean parseMultilineFields(Map<String, Object> config) {
+        Object value = config.get(CONFIG_MULTILINE_FIELDS);
+        if (value == null || value.toString().trim().isEmpty()) {
+            return null;
+        }
+        return parseBooleanOption(CONFIG_MULTILINE_FIELDS, value, true);
+    }
+
+    /** Bracketed multi-values are quoted cells that can span lines, so a promise that nothing does cannot hold. */
+    static final String MULTILINE_FALSE_WITH_BRACKETS_MESSAGE =
+        "[multiline_fields] [false] can't be combined with multi_value_syntax [brackets]: bracketed cells can span lines";
+
     private static boolean parseBooleanOption(String key, Object value, boolean defaultValue) {
         if (value == null) {
             return defaultValue;
@@ -1393,13 +1420,24 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // fingerprint, and since a contribution is matched to an entry on path, mtime and that fingerprint alone,
         // a lenient scan's count enriches a strict entry whose own scan aborts.
         String canon = Configured.fold(Configured.identityOf(config, RECOGNIZED_KEYS), resolvedPolicy.readIdentity());
-        // Only a dataset whose quoting is the baseline default may be split on the evidence of the sample: an explicit
-        // mode, quote or escape (or bracket syntax) means the user chose the dialect, so keep the proven walk.
-        boolean quoteFree = "true".equals(String.valueOf(config.get(SourceMetadata.INFERRED_QUOTE_FREE_CONFIG_KEY)))
-            && result.options.quoting()
-            && result.options.escaping()
-            && result.options.multiValueSyntax() != CsvFormatOptions.MultiValueSyntax.BRACKETS
-            && explicitDialect(config) == false;
+        // Whether quoting dialects are cut on plain newlines. An explicit multiline_fields decides it, with no guess:
+        // true keeps the proven walk, false cuts on newlines (the reader still fails on a record that spans lines). Left
+        // unset, only a dataset whose quoting is the baseline default is cut on the evidence of the schema sample: an
+        // explicit mode, quote or escape (or bracket syntax) means the user chose the dialect, so keep the proven walk.
+        Boolean multilineFields = parseMultilineFields(config);
+        boolean quoteFree;
+        if (multilineFields != null) {
+            // Bracketed multi-values keep the proven walk (see parseOptionsFromConfig, which reports the conflict).
+            quoteFree = multilineFields == false
+                && (result.options.quoting() || result.options.escaping())
+                && result.options.multiValueSyntax() != CsvFormatOptions.MultiValueSyntax.BRACKETS;
+        } else {
+            quoteFree = "true".equals(String.valueOf(config.get(SourceMetadata.INFERRED_QUOTE_FREE_CONFIG_KEY)))
+                && result.options.quoting()
+                && result.options.escaping()
+                && result.options.multiValueSyntax() != CsvFormatOptions.MultiValueSyntax.BRACKETS
+                && explicitDialect(config) == false;
+        }
         result = new CsvFormatReader(
             result.blockFactory,
             result.options,

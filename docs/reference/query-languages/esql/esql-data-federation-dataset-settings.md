@@ -461,6 +461,20 @@ $$$csv-trim-spaces$$$
 
     Typed values, such as numbers and dates, tolerate surrounding whitespace regardless of this setting.
 
+$$$csv-multiline-fields$$$
+
+`multiline_fields`
+:   Whether a quoted field or a backslash-escaped line break can span several lines.
+
+    - **Default:** Not set. {{esql}} infers it from the rows it samples to infer the schema: if they hold no quote or escape character, the file is split on plain newlines.
+    - **Valid values:** `true`, `false`
+    - **Conflicts with:** `multi_value_syntax` set to `brackets` when `false`, which is rejected when you create or update the dataset
+    - **Related:** `mode`, `schema_sample_size`, `target_split_size`
+
+    Set `false` to promise that no value spans lines. Files are then split on plain newlines without relying on the sample, which avoids the sequential search for record boundaries that quote-aware files need. Set `true` to turn the sample-based inference off and always search for record boundaries with quote awareness.
+
+    If a file split on plain newlines holds a value that spans lines, the read fails and suggests setting `multiline_fields` to `true`. A read that scans the whole file in one piece isn't affected, and neither is a file read without splitting.
+
 $$$csv-multi-value-syntax$$$
 
 `multi_value_syntax`

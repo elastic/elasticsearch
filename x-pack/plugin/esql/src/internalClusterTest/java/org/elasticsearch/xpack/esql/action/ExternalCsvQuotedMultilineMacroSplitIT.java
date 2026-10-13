@@ -274,7 +274,7 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
         }
     }
 
-    /** The remedy the error message gives: with {@code mode: quoted} set explicitly the same file counts exactly. */
+    /** The remedy the error message gives: with {@code multiline_fields: true} the same file counts exactly. */
     public void testExplicitQuotedModeReadsQuoteFreePrefixThenQuotedMultilineCsv() throws Exception {
         assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
 
@@ -282,7 +282,7 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
         try {
             String query = "EXTERNAL \""
                 + StoragePath.fileUri(csvFile)
-                + "\" WITH {\"mode\":\"quoted\",\"target_split_size\":\"1mb\"} | STATS c = COUNT(*), mn = MIN(a), mx = MAX(a)";
+                + "\" WITH {\"multiline_fields\":true,\"target_split_size\":\"1mb\"} | STATS c = COUNT(*), mn = MIN(a), mx = MAX(a)";
             try (var response = run(syncEsqlQueryRequest(query), TimeValue.timeValueMinutes(5))) {
                 List<List<Object>> values = getValuesList(response);
                 assertThat(((Number) values.get(0).get(0)).longValue(), equalTo((long) QUOTE_FREE_PREFIX_ROWS + ROWS));
@@ -312,6 +312,35 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
             String query = "EXTERNAL \""
                 + StoragePath.fileUri(csvFile)
                 + "\" WITH {\"target_split_size\":\"1mb\"} | STATS c = COUNT(*), mx = MAX(a)";
+            try (var response = run(syncEsqlQueryRequest(query), TimeValue.timeValueMinutes(5))) {
+                List<List<Object>> values = getValuesList(response);
+                assertThat(((Number) values.get(0).get(0)).longValue(), equalTo((long) rows));
+                assertThat(((Number) values.get(0).get(1)).longValue(), equalTo((long) rows - 1));
+            }
+        } finally {
+            Files.deleteIfExists(csvFile);
+        }
+    }
+
+    /**
+     * {@code multiline_fields: false} cuts on plain newlines without any sample evidence: here every row holds a quoted
+     * (single-line) value, so the sample is not quote-free and the file would otherwise be read by the proven walk. The file
+     * is larger than twice the minimum segment size, so it really is split.
+     */
+    public void testMultilineFieldsFalseSplitsQuotedSingleLineCsvExactly() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+
+        Path csvFile = createTempDir().resolve("quoted-single-line.csv");
+        StringBuilder sb = new StringBuilder("a,b\n");
+        int rows = 150_000;
+        for (int i = 0; i < rows; i++) {
+            sb.append(i).append(",\"quoted, value ").append(i).append("\"\n");
+        }
+        Files.writeString(csvFile, sb);
+        try {
+            String query = "EXTERNAL \""
+                + StoragePath.fileUri(csvFile)
+                + "\" WITH {\"multiline_fields\":false,\"target_split_size\":\"1mb\"} | STATS c = COUNT(*), mx = MAX(a)";
             try (var response = run(syncEsqlQueryRequest(query), TimeValue.timeValueMinutes(5))) {
                 List<List<Object>> values = getValuesList(response);
                 assertThat(((Number) values.get(0).get(0)).longValue(), equalTo((long) rows));

@@ -20,8 +20,10 @@ import java.util.List;
 
 /**
  * Identity of a query for the purpose of counting repeats: the same vector, searched on the same field of
- * the same indices, with the same filters. Runtime parameters such as k or num_candidates are deliberately left out, they
- * describe how the query was run and not which query it is.
+ * the same indices, with the same filters and the same parameters that decide the quality of the results: how many hits come back,
+ * the number of candidates, the visit percentage and the oversample. The same vector searched with other values of those has
+ * another recall, and is another query, as the stored sample keeps the hits of one execution and the weights of all the
+ * executions that have the identity.
  * <p>
  * The identity is a 128-bit hash, wide enough that a collision among the queries seen in a day is not a
  * practical concern.
@@ -38,6 +40,7 @@ public record QueryFingerprint(long high, long low) {
         List<byte[]> filters = query.filters().stream().map(QueryFingerprint::canonical).sorted(Arrays::compareUnsigned).toList();
 
         int size = Integer.BYTES + Integer.BYTES + field.length + Integer.BYTES + Float.BYTES * query.queryVector().length;
+        size += Integer.BYTES + Integer.BYTES + (1 + Float.BYTES) + (1 + Float.BYTES);
         for (byte[] index : indices) {
             size += Integer.BYTES + index.length;
         }
@@ -57,6 +60,9 @@ public record QueryFingerprint(long high, long low) {
         for (byte[] filter : filters) {
             buffer.putInt(filter.length).put(filter);
         }
+        buffer.putInt(query.k()).putInt(query.numCandidates());
+        putOptional(buffer, query.visitPercentage());
+        putOptional(buffer, query.oversample());
 
         MurmurHash3.Hash128 hash = MurmurHash3.hash128(buffer.array(), 0, size, SEED, new MurmurHash3.Hash128());
         return new QueryFingerprint(hash.h2, hash.h1);
@@ -68,6 +74,10 @@ public record QueryFingerprint(long high, long low) {
     public String hex() {
         HexFormat hex = HexFormat.of();
         return hex.toHexDigits(high) + hex.toHexDigits(low);
+    }
+
+    private static void putOptional(ByteBuffer buffer, Float value) {
+        buffer.put((byte) (value == null ? 0 : 1)).putFloat(value == null ? 0f : value);
     }
 
     private static byte[] canonical(QueryBuilder filter) {

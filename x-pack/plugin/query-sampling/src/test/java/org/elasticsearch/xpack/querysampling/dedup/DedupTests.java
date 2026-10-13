@@ -118,11 +118,33 @@ public class DedupTests extends ESTestCase {
 
     private static final QueryBuilder CATEGORY = QueryBuilders.termQuery("category", "phone");
 
-    public void testRuntimeParametersAreNotPartOfTheIdentity() {
+    public void testParametersThatDecideTheQualityAreInTheIdentityAndTheLabelIsNot() {
         float[] vector = randomVector(16);
-        CapturedQuery a = new CapturedQuery(new String[] { "a" }, "vec", vector, 10, 100, null, null, List.of(), "x");
-        CapturedQuery b = new CapturedQuery(new String[] { "a" }, "vec", vector, 50, 500, 0.1f, 3f, List.of(), "y");
-        assertThat(QueryFingerprint.of(a), equalTo(QueryFingerprint.of(b)));
+        CapturedQuery base = new CapturedQuery(new String[] { "a" }, "vec", vector, 10, 100, null, null, List.of(), "x");
+
+        assertThat("only a label", QueryFingerprint.of(base), equalTo(QueryFingerprint.of(withLabel(base, "y"))));
+        for (CapturedQuery other : List.of(
+            new CapturedQuery(new String[] { "a" }, "vec", vector, 50, 100, null, null, List.of(), "x"),
+            new CapturedQuery(new String[] { "a" }, "vec", vector, 10, 500, null, null, List.of(), "x"),
+            new CapturedQuery(new String[] { "a" }, "vec", vector, 10, 100, 0.1f, null, List.of(), "x"),
+            new CapturedQuery(new String[] { "a" }, "vec", vector, 10, 100, null, 3f, List.of(), "x")
+        )) {
+            assertThat(QueryFingerprint.of(other), not(equalTo(QueryFingerprint.of(base))));
+        }
+    }
+
+    private static CapturedQuery withLabel(CapturedQuery query, String label) {
+        return new CapturedQuery(
+            query.indices(),
+            query.field(),
+            query.queryVector(),
+            query.k(),
+            query.numCandidates(),
+            query.visitPercentage(),
+            query.oversample(),
+            query.filters(),
+            label
+        );
     }
 
     public void testFilterOrderDoesNotMatter() {

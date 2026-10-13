@@ -8126,7 +8126,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
     }
 
-    /** esql-planning#2143: the retained per-file schema is charged by its column names, not only by its column count. */
+    /** The retained per-file schema is charged by its column names, not only by its column count. */
     public void testGatheredFileBytesChargesColumnNames() {
         String location = "s3://bucket/data/f0.ndjson";
         SourceMetadata shortNamed = new SimpleSourceMetadata(
@@ -10415,7 +10415,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * esql-planning#2236: reconciling reads every file, so a full sample from each would have planning read the whole
+     * Reconciling reads every file, so a full sample from each would have planning read the whole
      * dataset when files are small. Each file contributes its share of {@code schema_sample_size} instead, while
      * {@code first_file_wins} still reads its one file in full.
      */
@@ -10539,7 +10539,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * The listing shape of esql-planning#2236: far more files than the sample has floor-sized shares, each file longer
+    * The listing shape of : far more files than the sample has floor-sized shares, each file longer
      * than the floor but shorter than the sample. Every file is sampled for the floor and no more, so planning reads
      * {@code files x floor} rows: more than one sample, and a fraction of the dataset, where it used to read all of it.
      */

@@ -25,7 +25,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * Pins {@link FileDataSourceValidator#formatFromExtension} to the registry route for the resource
- * names in elastic/esql-planning#1869. The validator must not walk suffixes itself.
+ * names. The validator must not walk suffixes itself.
  */
 public class FileDataSourceValidatorFormatConsistencyTests extends ESTestCase {
 

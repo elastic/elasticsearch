@@ -192,7 +192,7 @@ public class Installation {
             } else {
                 command = "\"" + command + "\"";
                 if (distribution.isArchive()) {
-                    command = "sudo -E -u " + ARCHIVE_OWNER + " " + command;
+                    command = "sudo --preserve-env=" + String.join(",", sh.getEnv().keySet()) + " -u " + ARCHIVE_OWNER + " " + command;
                 }
             }
 

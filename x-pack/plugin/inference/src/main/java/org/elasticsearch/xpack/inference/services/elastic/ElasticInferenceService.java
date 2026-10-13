@@ -16,6 +16,7 @@ import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.DecisionQuestions;
 import org.elasticsearch.inference.DecisionRequest;
+import org.elasticsearch.inference.DocumentExtractionRequest;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
@@ -42,6 +43,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
@@ -58,6 +60,9 @@ import org.elasticsearch.xpack.inference.services.elastic.decision.ElasticInfere
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionModel;
+import org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionModelCreator;
+import org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionTaskSettings;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModelCreator;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
@@ -76,10 +81,12 @@ import java.util.Set;
 import static org.elasticsearch.inference.TaskType.CHAT_COMPLETION;
 import static org.elasticsearch.inference.TaskType.COMPLETION;
 import static org.elasticsearch.inference.TaskType.DECISION;
+import static org.elasticsearch.inference.TaskType.DOCUMENT_EXTRACTION;
 import static org.elasticsearch.inference.TaskType.EMBEDDING;
 import static org.elasticsearch.inference.TaskType.RERANK;
 import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
+import static org.elasticsearch.xpack.inference.external.http.sender.DocumentExtractionInputs.fromDocumentExtractionRequest;
 import static org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs.fromRerankRequest;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
@@ -104,6 +111,7 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
         RERANK,
         TEXT_EMBEDDING,
         EMBEDDING,
+        DOCUMENT_EXTRACTION,
         DECISION
     );
     private static final String SERVICE_NAME = "Elastic";
@@ -185,6 +193,8 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
             completionModelCreator,
             TaskType.RERANK,
             new ElasticInferenceServiceRerankModelCreator(elasticInferenceServiceComponents),
+            TaskType.DOCUMENT_EXTRACTION,
+            new ElasticInferenceServiceDocumentExtractionModelCreator(elasticInferenceServiceComponents),
             TaskType.DECISION,
             new ElasticInferenceServiceDecisionModelCreator(elasticInferenceServiceComponents)
         );
@@ -440,6 +450,37 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
     }
 
     @Override
+    protected void doDocumentExtractionInfer(
+        Model model,
+        DocumentExtractionRequest request,
+        TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        if (!(model instanceof ElasticInferenceServiceDocumentExtractionModel elasticInferenceServiceDocumentExtractionModel)) {
+            listener.onFailure(createInvalidModelException(model));
+            return;
+        }
+
+        var requestTaskSettings = ElasticInferenceServiceDocumentExtractionTaskSettings.fromMap(
+            request.taskSettings(),
+            ConfigurationParseContext.REQUEST
+        );
+        var overriddenModel = ElasticInferenceServiceDocumentExtractionModel.of(
+            elasticInferenceServiceDocumentExtractionModel,
+            ElasticInferenceServiceDocumentExtractionTaskSettings.of(
+                elasticInferenceServiceDocumentExtractionModel.getTaskSettings(),
+                requestTaskSettings
+            )
+        );
+
+        actionCreator.create(
+            overriddenModel,
+            getCurrentTraceInfo(),
+            listener.delegateFailureAndWrap((delegate, action) -> action.execute(fromDocumentExtractionRequest(request), timeout, delegate))
+        );
+    }
+
+    @Override
     protected void doChunkedInfer(
         Model model,
         List<ChunkInferenceInput> inputs,
@@ -569,8 +610,9 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
 
         configurationMap.put(
             MODEL_ID,
-            new SettingsConfiguration.Builder(EnumSet.of(SPARSE_EMBEDDING, CHAT_COMPLETION, RERANK, TEXT_EMBEDDING, EMBEDDING, DECISION))
-                .setDescription("The name of the model to use for the inference task.")
+            new SettingsConfiguration.Builder(
+                EnumSet.of(SPARSE_EMBEDDING, CHAT_COMPLETION, RERANK, TEXT_EMBEDDING, EMBEDDING, DOCUMENT_EXTRACTION, DECISION)
+            ).setDescription("The name of the model to use for the inference task.")
                 .setLabel("Model ID")
                 .setRequired(true)
                 .setSensitive(false)

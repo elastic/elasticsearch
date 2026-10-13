@@ -266,7 +266,7 @@ public final class ErrorModel {
             }
         }
 
-        return new QuantizedQueryErrorResult(Math.sqrt(3.0 * moments.sampleVariance()), queryCentroids);
+        return new QuantizedQueryErrorResult(Math.sqrt(moments.sampleVariance()), queryCentroids);
     }
 
     private record QuantizedQueryErrorResult(double std, float[][] queryCentroids) {}
@@ -529,7 +529,7 @@ public final class ErrorModel {
      * Opaque per-sweep state for the real-residual magnitude path: reusable OSQ scratch, a serial k-means
      * instance, and the (encoding-independent) clustering from the first candidate, reused as a warm start
      * for subsequent candidates so k-means is not recomputed from scratch per encoding. Construct once per
-     * calibration via {@link #newRealResidualState} and thread through every candidate.
+     * calibration and thread through every candidate.
      */
     public static final class RealResidualState {
         private final QuantizedErrorScratch scratch;
@@ -538,7 +538,7 @@ public final class ErrorModel {
         private QuantizedErrorComputeResult shared;
         private boolean sharedPreconditioned; // whether {@link #shared} was computed with {@code usePreconditioned=true}
 
-        private RealResidualState(CalibrationSource source) {
+        public RealResidualState(CalibrationSource source) {
             this.nDocs = Math.min(REAL_RESIDUAL_SAMPLE, source.corpusOrdinals().length);
             this.kmeans = HierarchicalKMeans.ofSerial(CentroidOps.FLOAT, source.workingDim());
             this.scratch = new QuantizedErrorScratch(
@@ -555,19 +555,14 @@ public final class ErrorModel {
         }
     }
 
-    /** Creates the shared state for a real-residual magnitude sweep over {@code source}. */
-    public static RealResidualState newRealResidualState(CalibrationSource source) {
-        return new RealResidualState(source);
-    }
-
     /**
      * Estimates the quantization error-std model for {@code (qbits, dbits)} from <em>real</em> corpus
      * residuals. The clustering warm start is reused across candidates via {@code state} so k-means is
      * not recomputed per encoding.
      * <p>
      * Measures OSQ error once at {@link #REAL_RESIDUAL_SAMPLE} and anchors the intercept at that sample
-     * size. The manifold slope is used as the scaling exponent, sign-corrected for dot-like similarities, so evaluating at the
-     * real corpus size {@code N} extrapolates as {@code errorStd = measuredStd × (REAL_RESIDUAL_SAMPLE / N)^invDimEffective}.
+     * size. The manifold slope is used as the scaling exponent, so evaluating at the real corpus size {@code N}
+     * extrapolates as {@code errorStd = measuredStd × (REAL_RESIDUAL_SAMPLE / N)^invDim}.
      */
     public static QuantizationErrorStdModel estimateMagnitudeFromRealResiduals(
         double invDim,
@@ -601,11 +596,12 @@ public final class ErrorModel {
             state.shared = r;
             state.sharedPreconditioned = usePreconditionedQueries;
         }
-        // 1/d is negative for similarities like cosine, so use -invDim
-        double invDimEffective = ManifoldModel.isDotLike(source.similarityFunction()) ? -invDim : invDim;
-        // single measurement anchored at state.nDocs, so evaluating at N gives measuredStd × (state.nDocs / N)^invDimEffective
-        double beta0 = Math.log(Math.max(r.std(), 1e-38)) - invDimEffective * (Math.log(nDocsPerCluster) - Math.log(state.nDocs));
-        return new QuantizationErrorStdModel(new Regression.OLSResult(beta0, invDimEffective, 0, 0, 0, 0));
+        double measured = r.std();
+        // The manifold is fit in distance units for every metric (see ManifoldModel), so invDim is positive
+        // throughout and needs no sign correction for dot-like similarities any more.
+        // single measurement anchored at state.nDocs, so evaluating at N gives measuredStd × (state.nDocs / N)^invDim
+        double beta0 = Math.log(Math.max(measured, 1e-38)) - invDim * (Math.log(nDocsPerCluster) - Math.log(state.nDocs));
+        return new QuantizationErrorStdModel(new Regression.OLSResult(beta0, invDim, 0, 0, 0, 0));
     }
 
     /**

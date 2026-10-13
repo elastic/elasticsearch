@@ -158,8 +158,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
-import org.elasticsearch.xpack.esql.remotefetch.RemoteFetchOperator;
-import org.elasticsearch.xpack.esql.remotefetch.RemoteFetchService;
 import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
@@ -557,6 +555,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             ExternalSourceSettings.MAX_DECOMPRESSION_RATIO_ZSTD,
             formatReaderRegistry::setMaxDecompressionRatioZstd
         );
+        clusterSettings.initializeAndWatchIfRegistered(
+            ExternalSourceSettings.ADMISSION_RESCUE_ENABLED,
+            dataSourceModule::setAdmissionRescueEnabled
+        );
 
         // Build the format metadata the dataset CRUD validator uses to (a) accept format-specific
         // fields (e.g. CSV's "delimiter") so they persist in cluster state and reach the format reader
@@ -724,10 +726,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 ESQL_WORKER_THREAD_POOL_SIZE,
                 EsqlFlags.ESQL_STRING_LIKE_ON_INDEX,
                 EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD,
-                EsqlFlags.ESQL_REMOTE_FETCH_TOPN,
                 EsqlFlags.ESQL_MAX_BRANCH_COUNT,
                 EsqlFlags.ESQL_MAX_BRANCH_LEVEL,
-                RemoteFetchService.MAX_WORKERS_SETTING,
+                EsqlFlags.ESQL_MAX_BRANCH_COUNT_PER_MERGE,
                 ViewService.MAX_VIEWS_COUNT_SETTING,
                 ViewService.MAX_VIEW_LENGTH_SETTING,
                 ViewResolver.MAX_VIEW_DEPTH_SETTING,
@@ -798,6 +799,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 new RestEsqlStopAsyncAction(),
                 new RestEsqlDeleteAsyncResultAction(),
                 new RestEsqlListQueriesAction(),
+                new RestEsqlStatsAction(),
                 new RestPutViewAction(),
                 new RestDeleteViewAction(),
                 new RestGetViewAction()
@@ -849,7 +851,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(EnrichLookupOperator.Status.ENTRY);
         entries.add(LookupFromIndexOperator.Status.ENTRY);
         entries.add(StreamingLookupFromIndexOperator.StreamingLookupStatus.ENTRY);
-        entries.add(RemoteFetchOperator.Status.ENTRY);
         entries.add(SampleOperator.Status.ENTRY);
         entries.add(MetricsInfoOperator.Status.ENTRY);
         entries.add(TsInfoOperator.Status.ENTRY);

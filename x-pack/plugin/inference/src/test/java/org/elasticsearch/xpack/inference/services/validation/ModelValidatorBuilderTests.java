@@ -170,6 +170,8 @@ public class ModelValidatorBuilderTests extends ESTestCase {
             SimpleModelValidator.class,
             TaskType.DECISION,
             SimpleModelValidator.class,
+            TaskType.DOCUMENT_EXTRACTION,
+            SimpleModelValidator.class,
             TaskType.COMPLETION,
             ChatCompletionModelValidator.class,
             TaskType.CHAT_COMPLETION,

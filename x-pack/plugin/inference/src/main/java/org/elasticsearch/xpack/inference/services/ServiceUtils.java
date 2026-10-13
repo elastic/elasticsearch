@@ -1075,6 +1075,10 @@ public final class ServiceUtils {
         throwUnsupportedTaskOperation(serviceName, "decision");
     }
 
+    public static void throwUnsupportedDocumentExtractionOperation(String serviceName) {
+        throwUnsupportedTaskOperation(serviceName, "document extraction");
+    }
+
     private static void throwUnsupportedTaskOperation(String serviceName, String taskName) {
         throw new UnsupportedOperationException(Strings.format("The %s service does not support %s", serviceName, taskName));
     }

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.inference.mock.TestCompletionServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestDecisionServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
+import org.elasticsearch.xpack.inference.mock.TestDocumentExtractionServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestRerankingServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestStreamingCompletionServiceExtension;
@@ -58,7 +59,8 @@ public class LocalStateInferencePlugin extends LocalStateCompositeXPackPlugin im
                     TestRerankingServiceExtension.TestInferenceService::new,
                     TestCompletionServiceExtension.TestInferenceService::new,
                     TestStreamingCompletionServiceExtension.TestInferenceService::new,
-                    TestDecisionServiceExtension.TestInferenceService::new
+                    TestDecisionServiceExtension.TestInferenceService::new,
+                    TestDocumentExtractionServiceExtension.TestInferenceService::new
                 );
             }
 

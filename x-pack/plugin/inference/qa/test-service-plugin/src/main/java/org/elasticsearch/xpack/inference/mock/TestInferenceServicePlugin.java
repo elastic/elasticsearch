@@ -69,6 +69,16 @@ public class TestInferenceServicePlugin extends Plugin {
                 TaskSettings.class,
                 TestDecisionServiceExtension.TestTaskSettings.NAME,
                 TestDecisionServiceExtension.TestTaskSettings::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                TestDocumentExtractionServiceExtension.TestServiceSettings.NAME,
+                TestDocumentExtractionServiceExtension.TestServiceSettings::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                TaskSettings.class,
+                TestDocumentExtractionServiceExtension.TestTaskSettings.NAME,
+                TestDocumentExtractionServiceExtension.TestTaskSettings::new
             )
         );
     }

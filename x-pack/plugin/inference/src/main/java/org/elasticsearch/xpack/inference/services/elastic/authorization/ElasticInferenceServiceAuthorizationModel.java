@@ -28,6 +28,8 @@ import org.elasticsearch.xpack.inference.services.elastic.decision.ElasticInfere
 import org.elasticsearch.xpack.inference.services.elastic.decision.ElasticInferenceServiceDecisionTaskSettings;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionModel;
+import org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity;
@@ -128,6 +130,7 @@ public class ElasticInferenceServiceAuthorizationModel {
                 case TEXT_EMBEDDING, EMBEDDING -> createDenseEmbeddingsModel(authorizedEndpoint, components, taskType, endpointMetadata);
                 case RERANK -> createRerankModel(authorizedEndpoint, components, endpointMetadata);
                 case DECISION -> createDecisionModel(authorizedEndpoint, components, endpointMetadata);
+                case DOCUMENT_EXTRACTION -> createDocumentExtractionModel(authorizedEndpoint, components, endpointMetadata);
                 default -> {
                     logger.info(UNSUPPORTED_TASK_TYPE_LOG_MESSAGE, authorizedEndpoint.id(), taskType);
                     yield null;
@@ -344,6 +347,20 @@ public class ElasticInferenceServiceAuthorizationModel {
             authorizedEndpoint.id(),
             TaskType.RERANK,
             new ElasticInferenceServiceRerankServiceSettings(authorizedEndpoint.modelName()),
+            components,
+            endpointMetadata
+        );
+    }
+
+    private static ElasticInferenceServiceDocumentExtractionModel createDocumentExtractionModel(
+        ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint authorizedEndpoint,
+        ElasticInferenceServiceComponents components,
+        EndpointMetadata endpointMetadata
+    ) {
+        return new ElasticInferenceServiceDocumentExtractionModel(
+            authorizedEndpoint.id(),
+            TaskType.DOCUMENT_EXTRACTION,
+            new ElasticInferenceServiceDocumentExtractionServiceSettings(authorizedEndpoint.modelName()),
             components,
             endpointMetadata
         );

@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.core.inference.action.DecisionAction;
 import org.elasticsearch.xpack.core.inference.action.DeleteCCMConfigurationAction;
 import org.elasticsearch.xpack.core.inference.action.DeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.core.inference.action.DeleteRegionPolicyAction;
+import org.elasticsearch.xpack.core.inference.action.DocumentExtractionAction;
 import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.core.inference.action.GetCCMConfigurationAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceDiagnosticsAction;
@@ -98,6 +99,7 @@ import org.elasticsearch.xpack.inference.action.TransportDecisionAction;
 import org.elasticsearch.xpack.inference.action.TransportDeleteCCMConfigurationAction;
 import org.elasticsearch.xpack.inference.action.TransportDeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.inference.action.TransportDeleteRegionPolicyAction;
+import org.elasticsearch.xpack.inference.action.TransportDocumentExtractionAction;
 import org.elasticsearch.xpack.inference.action.TransportEmbeddingAction;
 import org.elasticsearch.xpack.inference.action.TransportGetCCMConfigurationAction;
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceDiagnosticsAction;
@@ -364,6 +366,7 @@ public class InferencePlugin extends Plugin
             new ActionHandler(EmbeddingAction.INSTANCE, TransportEmbeddingAction.class),
             new ActionHandler(RerankAction.INSTANCE, TransportRerankAction.class),
             new ActionHandler(DecisionAction.INSTANCE, TransportDecisionAction.class),
+            new ActionHandler(DocumentExtractionAction.INSTANCE, TransportDocumentExtractionAction.class),
             new ActionHandler(RefreshAuthorizedEndpointsAction.INSTANCE, TransportRefreshAuthorizedEndpointsAction.class),
             new ActionHandler(GetRegionPolicyAction.INSTANCE, TransportGetRegionPolicyAction.class),
             new ActionHandler(PutRegionPolicyAction.INSTANCE, TransportPutRegionPolicyAction.class),

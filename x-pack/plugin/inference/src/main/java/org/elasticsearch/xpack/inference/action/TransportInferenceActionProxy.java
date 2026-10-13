@@ -24,6 +24,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.inference.action.DecisionAction;
+import org.elasticsearch.xpack.core.inference.action.DocumentExtractionAction;
 import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
@@ -68,6 +69,7 @@ public class TransportInferenceActionProxy extends HandledTransportAction<Infere
                     case EMBEDDING -> sendEmbeddingRequest(request, l);
                     case RERANK -> sendRerankRequest(request, l);
                     case DECISION -> sendDecisionRequest(request, l);
+                    case DOCUMENT_EXTRACTION -> sendDocumentExtractionRequest(request, l);
                     default -> sendInferenceActionRequest(request, l);
                 }
             });
@@ -79,6 +81,7 @@ public class TransportInferenceActionProxy extends HandledTransportAction<Infere
                 case EMBEDDING -> sendEmbeddingRequest(request, listener);
                 case RERANK -> sendRerankRequest(request, listener);
                 case DECISION -> sendDecisionRequest(request, listener);
+                case DOCUMENT_EXTRACTION -> sendDocumentExtractionRequest(request, listener);
                 default -> sendInferenceActionRequest(request, listener);
             }
         } catch (Exception e) {
@@ -155,6 +158,21 @@ public class TransportInferenceActionProxy extends HandledTransportAction<Infere
         }
 
         execute(DecisionAction.INSTANCE, decisionRequest, listener);
+    }
+
+    private void sendDocumentExtractionRequest(InferenceActionProxy.Request request, ActionListener<InferenceAction.Response> listener)
+        throws IOException {
+        DocumentExtractionAction.Request documentExtractionRequest;
+        try (var parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, request.getContent(), request.getContentType())) {
+            documentExtractionRequest = DocumentExtractionAction.Request.parseRequest(
+                request.getInferenceEntityId(),
+                request.getTimeout(),
+                request.getContext(),
+                parser
+            );
+        }
+
+        execute(DocumentExtractionAction.INSTANCE, documentExtractionRequest, listener);
     }
 
     private void sendInferenceActionRequest(InferenceActionProxy.Request request, ActionListener<InferenceAction.Response> listener)

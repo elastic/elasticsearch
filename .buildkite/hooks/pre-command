@@ -120,6 +120,16 @@ export DEVELOCITY_ACCESS_KEY
 BUILDKITE_API_TOKEN=$(vault_with_retry read -field=token secret/ci/elastic-elasticsearch/buildkite-api-token)
 export BUILDKITE_API_TOKEN
 
+# Native libraries come from the artifact published for their sources' hash; when there is none yet, the job
+# builds it in the toolchain image and publishes it.
+export VEC_NATIVE_BUILD="${VEC_NATIVE_BUILD:-docker}"
+export SIMDJSON_NATIVE_BUILD="${SIMDJSON_NATIVE_BUILD:-docker}"
+
+ARTIFACTORY_TOKEN=$(vault_with_retry read -field=token secret/ci/elastic-elasticsearch/artifactory-native-publish)
+export ARTIFACTORY_TOKEN
+# The build reads ARTIFACTORY_API_KEY; ARTIFACTORY_TOKEN is the name Buildkite masks in logs.
+export ARTIFACTORY_API_KEY="$ARTIFACTORY_TOKEN"
+
 export GH_TOKEN="${VAULT_GITHUB_TOKEN:-}"
 
 if [[ "${USE_ARCHIMEDES:-}" == "true" ]]; then
@@ -170,7 +180,8 @@ if [[ "${USE_SNYK_CREDENTIALS:-}" == "true" ]]; then
   export SNYK_TOKEN
 fi
 
-if [[ "${USE_PROD_DOCKER_CREDENTIALS:-}" == "true" ]]; then
+# Native docker builds pull their toolchain image from docker.elastic.co.
+if [[ "${USE_PROD_DOCKER_CREDENTIALS:-}" == "true" || "${VEC_NATIVE_BUILD:-}" == "docker" || "${SIMDJSON_NATIVE_BUILD:-}" == "docker" ]]; then
   if which docker > /dev/null 2>&1; then
     DOCKER_REGISTRY_USERNAME="$(vault_with_retry read -field=username secret/ci/elastic-elasticsearch/migrated/prod_docker_registry_credentials)"
     export DOCKER_REGISTRY_USERNAME

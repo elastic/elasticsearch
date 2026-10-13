@@ -1071,6 +1071,10 @@ public final class ServiceUtils {
         throwUnsupportedTaskOperation(serviceName, "embedding");
     }
 
+    public static void throwUnsupportedDecisionOperation(String serviceName) {
+        throwUnsupportedTaskOperation(serviceName, "decision");
+    }
+
     private static void throwUnsupportedTaskOperation(String serviceName, String taskName) {
         throw new UnsupportedOperationException(Strings.format("The %s service does not support %s", serviceName, taskName));
     }

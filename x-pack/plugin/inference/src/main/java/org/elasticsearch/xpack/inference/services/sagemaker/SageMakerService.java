@@ -18,6 +18,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.DecisionRequest;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -56,6 +57,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInva
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUnsupportedMultimodalRerankException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.resolveInferenceTimeout;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedDecisionOperation;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedEmbeddingOperation;
 
 public class SageMakerService implements InferenceService, RerankingInferenceService {
@@ -271,6 +273,11 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
     @Override
     public void embeddingInfer(Model model, EmbeddingRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
         throwUnsupportedEmbeddingOperation(NAME);
+    }
+
+    @Override
+    public void decisionInfer(Model model, DecisionRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
+        throwUnsupportedDecisionOperation(NAME);
     }
 
     @Override

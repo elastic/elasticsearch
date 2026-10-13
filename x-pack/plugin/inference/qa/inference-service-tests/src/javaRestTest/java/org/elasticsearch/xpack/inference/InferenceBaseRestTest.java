@@ -27,6 +27,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.results.DecisionResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
@@ -44,6 +45,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -224,6 +226,35 @@ public class InferenceBaseRestTest extends ESRestTestCase {
                  "api_key": "abc64"
               },
               "task_settings": {
+              }
+            }
+            """;
+    }
+
+    static String mockDecisionServiceModelConfig() {
+        return """
+            {
+              "service": "test_decision_service",
+              "service_settings": {
+                 "model_id": "my_model",
+                 "api_key": "abc64"
+              },
+              "task_settings": {
+                "questions": {
+                  "is_complaint": {
+                    "type": "predicate",
+                    "instructions": "Is the customer complaining?"
+                  },
+                  "team": {
+                    "type": "choice",
+                    "instructions": "Which team should handle this?",
+                    "choices": {
+                      "billing": "Charges, refunds, invoices",
+                      "shipping": "Delivery status, delays, lost packages",
+                      "other": null
+                    }
+                  }
+                }
               }
             }
             """;
@@ -626,6 +657,29 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         return bodyBuilder.toString();
     }
 
+    protected Map<String, Object> decisionInfer(String modelId, String input) throws IOException {
+        return decisionInfer(modelId, input, null);
+    }
+
+    /**
+     * @param taskSettings The {@code task_settings} of the request, or {@code null} to omit them
+     */
+    protected Map<String, Object> decisionInfer(String modelId, String input, @Nullable Map<String, Object> taskSettings)
+        throws IOException {
+        var endpoint = Strings.format("_inference/decision/%s", modelId);
+        var request = new Request("POST", endpoint);
+        try (var body = XContentFactory.jsonBuilder()) {
+            body.startObject().field("input", input);
+            if (taskSettings != null) {
+                body.field("task_settings", taskSettings);
+            }
+            request.setJsonEntity(Strings.toString(body.endObject()));
+        }
+        var response = client().performRequest(request);
+        assertStatusOkOrCreated(response);
+        return entityAsMap(response);
+    }
+
     @SuppressWarnings("unchecked")
     protected void assertNonEmptyInferenceResults(Map<String, Object> resultMap, int expectedNumberOfResults, TaskType taskType) {
         switch (taskType) {
@@ -644,6 +698,11 @@ public class InferenceBaseRestTest extends ESRestTestCase {
             case EMBEDDING -> {
                 var results = (List<Map<String, Object>>) resultMap.get(GenericDenseEmbeddingFloatResults.EMBEDDINGS);
                 assertThat(results, hasSize(expectedNumberOfResults));
+            }
+            case DECISION -> {
+                var decision = (Map<String, Object>) resultMap.get(DecisionResults.DECISION);
+                var answers = (Map<String, Object>) decision.get(DecisionResults.ANSWERS);
+                assertThat(answers, aMapWithSize(expectedNumberOfResults));
             }
             default -> fail("test with task type [" + taskType + "] are not supported yet");
         }

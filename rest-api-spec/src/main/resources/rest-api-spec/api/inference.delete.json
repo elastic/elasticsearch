@@ -37,6 +37,7 @@
               "options": [
                 "chat_completion",
                 "completion",
+                "decision",
                 "embedding",
                 "rerank",
                 "sparse_embedding",

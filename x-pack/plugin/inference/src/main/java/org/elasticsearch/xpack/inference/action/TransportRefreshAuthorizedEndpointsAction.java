@@ -20,6 +20,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.metadata.EndpointMetadataClusterState;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
@@ -140,7 +141,12 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
     private List<Model> selectEndpointsToPersist(ElasticInferenceServiceAuthorizationModel authModel) {
         logger.debug("Received authorization response, {}", authModel);
 
-        var scopedAuthModel = authModel.newLimitedToTaskTypes(EnumSet.copyOf(ElasticInferenceService.IMPLEMENTED_TASK_TYPES));
+        var taskTypes = EnumSet.copyOf(ElasticInferenceService.IMPLEMENTED_TASK_TYPES);
+        // Nodes that are not upgraded yet can't read decision endpoints, a later poll persists them once the cluster is upgraded
+        if (inferenceFeatureService.hasFeature(InferenceFeatures.DECISION_TASK_TYPE) == false) {
+            taskTypes.remove(TaskType.DECISION);
+        }
+        var scopedAuthModel = authModel.newLimitedToTaskTypes(taskTypes);
         logger.debug("Authorization entity limited to service task types, {}", scopedAuthModel);
 
         List<Model> endpoints = scopedAuthModel.getEndpoints(scopedAuthModel.getEndpointIds());

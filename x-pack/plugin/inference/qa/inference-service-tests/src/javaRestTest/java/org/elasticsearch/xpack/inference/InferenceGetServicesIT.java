@@ -75,6 +75,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "openshift_ai",
                     "streaming_completion_test_service",
                     "completion_test_service",
+                    "test_decision_service",
                     "test_reranking_service",
                     "test_service",
                     "alternate_sparse_embedding_test_service",
@@ -247,6 +248,10 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
             providersFor(TaskType.EMBEDDING),
             containsInAnyOrder(List.of("text_embedding_test_service", "jinaai", "elastic", "openai").toArray())
         );
+    }
+
+    public void testGetServicesWithDecisionTaskType() throws IOException {
+        assertThat(providersFor(TaskType.DECISION), containsInAnyOrder(List.of("test_decision_service").toArray()));
     }
 
     private List<Object> getAllServices() throws IOException {

@@ -24,9 +24,11 @@ public class Explain extends LeafPlan implements TelemetryAware {
      * Output columns for EXPLAIN command.
      * - cluster: the cluster alias (empty string for local cluster)
      * - node: the node name where the plan runs
-     * - role: coordinator, data, or subplan
-     * - type: the plan type (parsedPlan, optimizedLogicalPlan, optimizedPhysicalPlan, localPlan)
-     * - plan: the plan string representation
+     * - role: coordinator, subplan-N, data, node_reduce or final
+     * - type: what the row shows. For coordinator: parsedPlan, optimizedLogicalPlan, optimizedPhysicalPlan, and
+     *   fetchPhase when the query asked for the fetch phase. For subplan-N: logicalPlan and physicalPlan. For data:
+     *   optimizedLocalLogicalPlan and localPhysicalPlan. For node_reduce and final: physicalPlan
+     * - plan: the plan string representation, or the planner's decision for fetchPhase
      */
     public static final List<Attribute> OUTPUT_ATTRIBUTES = List.of(
         new ReferenceAttribute(Source.EMPTY, null, "cluster", DataType.KEYWORD),

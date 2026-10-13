@@ -11,8 +11,13 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.DocOrigin;
+import org.elasticsearch.compute.data.DocOrigins;
+import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.ElementType;
@@ -29,11 +34,15 @@ import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.ByteOrder;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.time.DateUtils.MAX_MILLIS_BEFORE_9999;
@@ -63,6 +72,63 @@ public record RandomBlock(List<List<Object>> values, Block block, int valueMaxBy
                 || type.contains(e),
             () -> ESTestCase.randomFrom(ElementType.values())
         );
+    }
+
+    /**
+     * A {@link DocBlock} whose rows left the node that read them: they reference random documents of {@code originCount}
+     * random origins. Rows repeat a document only if the block says it {@link DocVector#mayContainDuplicates()}. The
+     * dictionary may hold origins no row references. Each value is a {@link BlockUtils.DocRef}.
+     */
+    public static RandomBlock randomDetachedDocBlock(BlockFactory blockFactory, int positionCount, int originCount) {
+        List<DocOrigin> origins = randomDocOrigins(originCount);
+        boolean mayContainDuplicates = ESTestCase.randomBoolean();
+        Set<BlockUtils.DocRef> seen = new HashSet<>();
+        List<List<Object>> values = new ArrayList<>(positionCount);
+        try (DocBlock.Builder builder = DocBlock.newBlockBuilder(blockFactory, positionCount)) {
+            while (values.size() < positionCount) {
+                int ordinal = ESTestCase.between(0, originCount - 1);
+                BlockUtils.DocRef doc = new BlockUtils.DocRef(
+                    origins.get(ordinal),
+                    ESTestCase.between(0, 10),
+                    ESTestCase.between(0, 10_000)
+                );
+                if (mayContainDuplicates || seen.add(doc)) {
+                    builder.appendShard(ordinal).appendSegment(doc.segment()).appendDoc(doc.doc());
+                    values.add(List.of(doc));
+                }
+            }
+            DocVector.Config config = DocVector.config().origins(DocOrigins.of(origins)).mayContainDuplicates(mayContainDuplicates);
+            return new RandomBlock(values, builder.build(config), 3 * Integer.BYTES);
+        }
+    }
+
+    /**
+     * {@code count} distinct random origins.
+     */
+    public static List<DocOrigin> randomDocOrigins(int count) {
+        List<DocOrigin> origins = new ArrayList<>(count);
+        while (origins.size() < count) {
+            DocOrigin origin = randomDocOrigin();
+            if (origins.contains(origin) == false) {
+                origins.add(origin);
+            }
+        }
+        return origins;
+    }
+
+    /**
+     * A random reader, local or on a remote cluster, with or without a searcher id.
+     */
+    public static DocOrigin randomDocOrigin() {
+        String clusterAlias = ESTestCase.randomBoolean() ? "" : ESTestCase.randomAlphaOfLength(5);
+        ShardId shardId = new ShardId(ESTestCase.randomAlphaOfLength(8), ESTestCase.randomAlphaOfLength(22), ESTestCase.between(0, 4));
+        String searcherId = ESTestCase.randomBoolean() ? null : ESTestCase.randomAlphaOfLength(20);
+        ShardSearchContextId contextId = new ShardSearchContextId(
+            ESTestCase.randomAlphaOfLength(22),
+            ESTestCase.randomNonNegativeLong(),
+            searcherId
+        );
+        return new DocOrigin(clusterAlias, ESTestCase.randomAlphaOfLength(22), shardId, contextId);
     }
 
     // TODO Some kind of builder for this with nice defaults. We do this all the time and there's like a zillion parameters.

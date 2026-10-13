@@ -47,6 +47,10 @@ interface ValueExtractor {
             // actual pages.
             throw new IllegalStateException("Expected [" + elementType + "] but was [" + block.elementType() + "]");
         }
+        if (block.elementType() == ElementType.NULL && elementType == ElementType.DOC) {
+            // these rows have no null marker, so a null block would shift the bytes of the next channel
+            throw new IllegalStateException("[" + elementType + "] channels can't carry null blocks");
+        }
         return switch (block.elementType()) {
             case BOOLEAN -> ValueExtractorForBoolean.extractorFor(encoder, inKey, (BooleanBlock) block);
             case BYTES_REF -> ValueExtractorForBytesRef.extractorFor(encoder, inKey, (BytesRefBlock) block);

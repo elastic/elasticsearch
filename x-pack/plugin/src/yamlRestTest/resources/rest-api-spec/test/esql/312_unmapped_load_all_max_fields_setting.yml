@@ -130,3 +130,15 @@ teardown:
         body:
           persistent:
             esql.query.unmapped_fields.load_all_max_fields: 100001
+
+---
+'a query column named _unmapped_fields wins over the discovered fields':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_cfg | EVAL _unmapped_fields = "mine" | LIMIT 10'
+  - length: { columns: 2 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { columns.1.type: keyword }
+  - match: { values.0: [ "1", "mine" ] }

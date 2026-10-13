@@ -50,9 +50,11 @@ import java.util.function.BooleanSupplier;
  *
  * <p>After all data-node pages are collected, flattens each row's {@code $$unmapped_fields} JSON object to its leaves and re-serialises
  * them as a single JSON object under a {@code _unmapped_fields} column of type {@link DataType#SOURCE} (like the {@code _source}
- * column of {@code METADATA _source}, of which it is a subset). Field names are flattened: {@code {"foo":{"bar":1}}} in {@code _source}
- * becomes {@code {"foo.bar":1}} in {@code _unmapped_fields}; an array becomes a JSON array value at the same (dotted) name. A row
- * whose object contributes no surviving leaf gets a {@code null}.
+ * column of {@code METADATA _source}, but a flattened view of it rather than a structural subset). Field names are flattened:
+ * {@code {"foo":{"bar":1}}} in {@code _source} becomes {@code {"foo.bar":1}} in {@code _unmapped_fields}. Arrays follow multivalue
+ * semantics: a leaf with several values becomes a JSON array at the same (dotted) name, while a one-element array is
+ * indistinguishable from a scalar and renders as the bare value ({@code {"a":[1]}} becomes {@code {"a":1}}). A row whose object
+ * contributes no surviving leaf gets a {@code null}.
  *
  * <p>The column is not expanded into individual columns (see
  * <a href="https://github.com/elastic/elasticsearch/issues/161717">#161717</a>): a practical {@code _source} can hold a large number
@@ -65,9 +67,11 @@ import java.util.function.BooleanSupplier;
  *
  * <p>The {@code _unmapped_fields} column takes the slot the synthetic column occupied in the executed schema; it is produced after
  * analysis and is not referable from the query language (the synthetic {@code $$}-prefixed name kept it unreachable during planning).
+ * If the query itself already outputs a column named {@code _unmapped_fields}, that column wins, as with any other colliding leaf:
+ * the discovered fields are dropped and no second column of that name is produced.
  *
- * <p>The flattening scans every row of every page once, so it polls for cancellation every {@link #ROWS_PER_CANCELLATION_CHECK} rows
- * and throws {@link TaskCancelledException} to abort promptly. Cancellation is row-granular: a single pathological row (deeply nested
+ * <p>The flattening scans every row of every page once, so it polls for cancellation at the start of every page and then every
+ * {@link #ROWS_PER_CANCELLATION_CHECK} rows within one, and throws {@link TaskCancelledException} to abort promptly. Cancellation is row-granular: a single pathological row (deeply nested
  * {@code _source} with very many leaves) still parses and flattens to completion before the next poll. That is acceptable because the
  * cost scales with row count rather than any one row, and the circuit breaker - not cancellation - is what bounds the memory a wide row
  * can demand.
@@ -125,6 +129,9 @@ public final class ExpandUnmappedFieldsPostProcessor {
         UnmappedFieldsAttribute unmappedAttribute = (UnmappedFieldsAttribute) schema.get(unmappedIdx);
         UnmappedFieldsPattern pattern = unmappedAttribute.pattern();
         Set<String> existingNames = existingColumnNames(schema, unmappedIdx);
+        if (existingNames.contains(UNMAPPED_FIELDS_COLUMN_NAME)) {
+            return withoutUnmappedColumn(result, schema, unmappedIdx);
+        }
 
         // Replace the synthetic column in place with the user-visible SOURCE column; everything else keeps its slot.
         List<Attribute> newSchema = new ArrayList<>(schema);
@@ -155,6 +162,44 @@ public final class ExpandUnmappedFieldsPostProcessor {
             return flattened;
         } finally {
             if (success == false) {
+                Releasables.closeExpectNoException(result.pages());
+            }
+        }
+    }
+
+    /**
+     * Drops the synthetic column when the query already outputs a column named {@link #UNMAPPED_FIELDS_COLUMN_NAME}: the query's column
+     * wins, and a second column of the same name would make the response ambiguous.
+     */
+    private static Result withoutUnmappedColumn(Result result, List<Attribute> schema, int unmappedIdx) {
+        int[] keep = new int[schema.size() - 1];
+        List<Attribute> newSchema = new ArrayList<>(keep.length);
+        for (int c = 0, k = 0; c < schema.size(); c++) {
+            if (c != unmappedIdx) {
+                keep[k++] = c;
+                newSchema.add(schema.get(c));
+            }
+        }
+        List<Page> newPages = new ArrayList<>(result.pages().size());
+        boolean success = false;
+        try {
+            for (Page page : result.pages()) {
+                newPages.add(page.projectBlocks(keep));
+                page.releaseBlocks();
+            }
+            success = true;
+            return new Result(
+                newSchema,
+                newPages,
+                result.attributeMetadata(),
+                result.configuration(),
+                result.completionInfo(),
+                result.executionInfo(),
+                result.approximationApplied()
+            );
+        } finally {
+            if (success == false) {
+                Releasables.closeExpectNoException(newPages);
                 Releasables.closeExpectNoException(result.pages());
             }
         }

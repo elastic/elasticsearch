@@ -260,6 +260,69 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         }
     }
 
+    public void testSingleElementArrayRendersAsScalar() {
+        BlockFactory bf = blockFactory();
+        Result result = singlePage(bf, List.of(intAttr(), unmappedAttr()), row(1, jsonObject("{'one':['a'],'two':['a','b']}")));
+
+        Result expanded = expand(result, bf);
+        try {
+            // A leaf with one value is indistinguishable from a scalar, as in any multivalue field; only several values make an array.
+            assertThat(
+                rows(expanded),
+                contains(matchesMap().entry(INT_ATTR, 1).entry(UNMAPPED, matchesMap().entry("one", "a").entry("two", List.of("a", "b"))))
+            );
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testQueryColumnNamedLikeTheUnmappedColumnWinsAndNoSecondColumnIsProduced() {
+        BlockFactory bf = blockFactory();
+        Result result = singlePage(
+            bf,
+            List.of(keywordAttr(UNMAPPED), intAttr(), unmappedAttr()),
+            row("mine", 1, jsonObject("{'a':'x'}")),
+            row("yours", 2, null)
+        );
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(names(expanded), equalTo(List.of(UNMAPPED, INT_ATTR)));
+            assertThat(dataTypes(expanded), equalTo(List.of(DataType.KEYWORD, DataType.INTEGER)));
+            assertThat(
+                rows(expanded),
+                contains(matchesMap().entry(UNMAPPED, "mine").entry(INT_ATTR, 1), matchesMap().entry(UNMAPPED, "yours").entry(INT_ATTR, 2))
+            );
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testLargeLongsAndDoublesSurviveTheRoundTrip() {
+        BlockFactory bf = blockFactory();
+        Result result = singlePage(
+            bf,
+            List.of(intAttr(), unmappedAttr()),
+            row(1, jsonObject("{'big':9223372036854775807,'neg':-9223372036854775808,'half':1.5,'tenth':0.1}"))
+        );
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(
+                rows(expanded),
+                contains(
+                    matchesMap().entry(INT_ATTR, 1)
+                        .entry(
+                            UNMAPPED,
+                            matchesMap().entry("big", Long.MAX_VALUE).entry("neg", Long.MIN_VALUE).entry("half", 1.5).entry("tenth", 0.1)
+                        )
+                )
+            );
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
     public void testChildWildcardIncludeKeepsObjectLeavesAndDropsSiblings() {
         BlockFactory bf = blockFactory();
         Result result = singlePage(

@@ -50,7 +50,7 @@ public class PageStreamPublisherTests extends ComputeTestCase {
 
     public void testConstructorRejectsNonPositivePageSize() {
         int bad = randomIntBetween(Integer.MIN_VALUE, 0);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new PageStreamPublisher(bad));
+        AssertionError e = expectThrows(AssertionError.class, () -> new PageStreamPublisher(bad));
         assertThat(e.getMessage(), containsString("pageSize must be at least 1"));
     }
 

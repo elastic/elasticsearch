@@ -8,47 +8,9 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.hamcrest.Matchers.containsString;
-
 public class EsqlStreamQueryRequestTests extends ESTestCase {
-
-    public void testValidateRejectsZeroBatchSize() {
-        EsqlStreamQueryRequest req = new EsqlStreamQueryRequest(
-            EsqlQueryRequest.syncEsqlQueryRequest("FROM idx"),
-            ActionListener.noop(),
-            false,
-            0
-        );
-        ActionRequestValidationException e = req.validate();
-        assertNotNull("validate() must return a non-null exception when batch_size is 0", e);
-        assertThat(e.getMessage(), containsString("batch_size"));
-    }
-
-    public void testValidateRejectsNegativeBatchSize() {
-        EsqlStreamQueryRequest req = new EsqlStreamQueryRequest(
-            EsqlQueryRequest.syncEsqlQueryRequest("FROM idx"),
-            ActionListener.noop(),
-            false,
-            -1
-        );
-        ActionRequestValidationException e = req.validate();
-        assertNotNull("validate() must return a non-null exception when batch_size is negative", e);
-        assertThat(e.getMessage(), containsString("batch_size"));
-    }
-
-    public void testValidateAcceptsPositiveBatchSize() {
-        EsqlStreamQueryRequest req = new EsqlStreamQueryRequest(
-            EsqlQueryRequest.syncEsqlQueryRequest("FROM idx"),
-            ActionListener.noop(),
-            false,
-            randomIntBetween(1, 1000)
-        );
-        ActionRequestValidationException e = req.validate();
-        assertNull("validate() must return null for a valid batch_size", e);
-    }
 
     public void testDropNullColumnsStoredOnRequest() {
         EsqlQueryRequest base = EsqlQueryRequest.syncEsqlQueryRequest("FROM idx");

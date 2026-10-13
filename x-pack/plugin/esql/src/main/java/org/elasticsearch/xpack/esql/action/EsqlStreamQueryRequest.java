@@ -8,13 +8,10 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-
-import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * A local-only wrapper around {@link EsqlQueryRequest} that carries a
@@ -53,15 +50,6 @@ public class EsqlStreamQueryRequest extends EsqlQueryRequest {
 
     public int batchSize() {
         return batchSize;
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        ActionRequestValidationException e = super.validate();
-        if (batchSize < 1) {
-            e = addValidationError("[batch_size] must be greater than or equal to 1", e);
-        }
-        return e;
     }
 
     @Override

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
+import org.elasticsearch.xpack.esql.parser.LogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LetBinding;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -81,13 +83,64 @@ public final class LetResolver {
         // Left fold: build the resolved map incrementally so binding N sees bindings 1..N-1.
         Map<String, LogicalPlan> resolved = new LinkedHashMap<>(letBindings.size());
         var letAliases = letBindings.stream().map(LetBinding::name).collect(Collectors.toSet());
+        // Shared across all depth checks: bound plans are inserted by reference, so each distinct node is measured once.
+        Map<LogicalPlan, Integer> depths = new IdentityHashMap<>();
         for (LetBinding binding : letBindings) {
             // Substitute earlier bindings into this binding's body (sequential scoping).
             var current = substitute(binding.plan(), resolved, letAliases);
+            checkPlanDepth(current, depths, "LET binding [" + binding.name() + "]");
             resolved.put(binding.name(), current);
         }
         // Substitute the full map into the main query plan.
         var result = substitute(plan, resolved, letAliases);
+        checkPlanDepth(result, depths, "query");
+        return result;
+    }
+
+    /**
+     * Rejects a plan deeper than the parser allows a single query to be ({@link LogicalPlanBuilder#MAX_QUERY_DEPTH} commands).
+     * Every reference inlines the already-resolved binding, so chained bindings stack their plans on top of each other and could
+     * otherwise produce a plan far deeper than any query the parser accepts. The analyzer and optimizer recurse over the result on a
+     * single thread, so the depth is capped here, before they run.
+     */
+    private static void checkPlanDepth(LogicalPlan plan, Map<LogicalPlan, Integer> depths, String subject) {
+        // The source (leaf) is not a command, so the command count is one less than the node depth.
+        int commands = depth(plan, depths) - 1;
+        if (commands > LogicalPlanBuilder.MAX_QUERY_DEPTH) {
+            throw new VerificationException(
+                "{} resolved to a plan with {} chained commands, exceeding the maximum of {}. "
+                    + "Reduce the number of chained LET bindings or commands, or split this into multiple queries.",
+                subject,
+                commands,
+                LogicalPlanBuilder.MAX_QUERY_DEPTH
+            );
+        }
+    }
+
+    /**
+     * Depth of {@code plan}: one for the node itself plus the deepest of its children and of the subqueries embedded in its
+     * {@link InSubquery} and {@link MultiColumnInSubquery} expressions, which {@link #substitute} also descends into.
+     * Memoized by identity because substituted bindings are shared by reference, so a plan that reuses a binding many times is
+     * measured in time proportional to its distinct nodes rather than its expanded size.
+     */
+    private static int depth(LogicalPlan plan, Map<LogicalPlan, Integer> depths) {
+        Integer cached = depths.get(plan);
+        if (cached != null) {
+            return cached;
+        }
+        int deepest = 0;
+        for (LogicalPlan child : plan.children()) {
+            deepest = Math.max(deepest, depth(child, depths));
+        }
+        // Boxed holder: the lambdas below cannot assign to a local.
+        int[] subqueryDepth = { 0 };
+        plan.forEachExpression(InSubquery.class, e -> subqueryDepth[0] = Math.max(subqueryDepth[0], depth(e.subquery(), depths)));
+        plan.forEachExpression(
+            MultiColumnInSubquery.class,
+            e -> subqueryDepth[0] = Math.max(subqueryDepth[0], depth(e.subquery(), depths))
+        );
+        int result = 1 + Math.max(deepest, subqueryDepth[0]);
+        depths.put(plan, result);
         return result;
     }
 

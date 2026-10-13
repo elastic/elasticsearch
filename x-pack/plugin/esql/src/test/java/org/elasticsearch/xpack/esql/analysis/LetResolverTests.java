@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
+import org.elasticsearch.xpack.esql.parser.LogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LetBinding;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -311,6 +313,79 @@ public class LetResolverTests extends ESTestCase {
         assertThat(union.children(), hasSize(2));
         assertThat(((UnresolvedRelation) union.children().get(0)).indexPattern().indexPattern(), is("real_index_2"));
         assertThat(union.children().get(1), sameInstance(body));
+    }
+
+    // -----------------------------------------------------------------------
+    // Plan depth limit protections
+    // -----------------------------------------------------------------------
+    private static LogicalPlan limitChain(LogicalPlan base, int length) {
+        LogicalPlan plan = base;
+        for (int i = 0; i < length; i++) {
+            plan = withLimit(plan);
+        }
+        return plan;
+    }
+
+    public void testPlanDepthWithinLimit() {
+        // The limit counts commands, so exactly MAX_QUERY_DEPTH commands over the source is allowed.
+        LetBinding b = binding("b", limitChain(relation("src"), LogicalPlanBuilder.MAX_QUERY_DEPTH));
+        LogicalPlan result = LetResolver.resolve(relation("b"), List.of(b));
+        assertThat(result, instanceOf(Limit.class));
+    }
+
+    public void testBindingExceedingPlanDepthIsRejected() {
+        LetBinding b = binding("b", limitChain(relation("src"), LogicalPlanBuilder.MAX_QUERY_DEPTH + 1));
+        expectThrows(
+            VerificationException.class,
+            containsString(
+                "LET binding [b] resolved to a plan with "
+                    + (LogicalPlanBuilder.MAX_QUERY_DEPTH + 1)
+                    + " chained commands, exceeding the maximum of "
+                    + LogicalPlanBuilder.MAX_QUERY_DEPTH
+            ),
+            () -> LetResolver.resolve(relation("b"), List.of(b))
+        );
+    }
+
+    public void testChainedBindingsAccumulateDepth() {
+        // Each binding is within the limit on its own; the second inlines the first and goes over.
+        int half = LogicalPlanBuilder.MAX_QUERY_DEPTH / 2 + 1;
+        LetBinding a = binding("a", limitChain(relation("src"), half));
+        LetBinding b = binding("b", limitChain(relation("a"), half));
+        expectThrows(
+            VerificationException.class,
+            containsString("LET binding [b] resolved to a plan with"),
+            () -> LetResolver.resolve(relation("b"), List.of(a, b))
+        );
+    }
+
+    public void testMainQueryExceedingPlanDepthIsRejected() {
+        LetBinding b = binding("b", limitChain(relation("src"), LogicalPlanBuilder.MAX_QUERY_DEPTH / 2 + 1));
+        LogicalPlan main = limitChain(relation("b"), LogicalPlanBuilder.MAX_QUERY_DEPTH / 2 + 1);
+        expectThrows(
+            VerificationException.class,
+            containsString("query resolved to a plan with"),
+            () -> LetResolver.resolve(main, List.of(b))
+        );
+    }
+
+    public void testDepthIncludesInSubqueryPlans() {
+        // The IN subquery plan is substituted into too, so its depth counts toward the enclosing node.
+        LetBinding b = binding("b", limitChain(relation("src"), LogicalPlanBuilder.MAX_QUERY_DEPTH));
+        LogicalPlan main = new Filter(EMPTY, relation("main"), new InSubquery(EMPTY, new UnresolvedAttribute(EMPTY, "x"), relation("b")));
+        expectThrows(VerificationException.class, containsString("resolved to a plan with"), () -> LetResolver.resolve(main, List.of(b)));
+    }
+
+    public void testSharedBindingReferencedDepthCalculation() {
+        // 2^50 leaves if expanded; the depth walk is memoized by identity so this must return promptly and stay within the limit.
+        List<LetBinding> bindings = new ArrayList<>();
+        bindings.add(binding("b0", relation("src")));
+        for (int i = 1; i < 50; i++) {
+            String previous = "b" + (i - 1);
+            bindings.add(binding("b" + i, relation(previous + "," + previous)));
+        }
+        LogicalPlan result = LetResolver.resolve(relation("b49"), bindings);
+        assertThat(result, instanceOf(UnionAll.class));
     }
 
     // -----------------------------------------------------------------------

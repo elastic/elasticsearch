@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.logsdb;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -15,17 +16,21 @@ import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.test.RollingUpgradePerformer;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.junit.Before;
 import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.rules.ExternalResource;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -77,7 +82,8 @@ public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCas
     // assertions on which mode was actually selected for the run.
     protected static boolean columnarEnabled;
 
-    private static final ExternalResource columnarRandomizer = new ExternalResource() {
+    @ClassRule
+    public static final ExternalResource columnarRandomizer = new ExternalResource() {
         @Override
         protected void before() {
             String oldVersionProp = System.getProperty("tests.old_cluster_version");
@@ -95,10 +101,41 @@ public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCas
         }
     };
 
-    public static final ElasticsearchCluster cluster = Clusters.oldVersionCluster(USER, PASS, () -> columnarEnabled);
+    private final ElasticsearchCluster cluster;
 
-    @ClassRule
-    public static final TestRule ruleChain = RuleChain.outerRule(columnarRandomizer).around(cluster);
+    @Rule
+    public final TestRule clusterRule;
+
+    protected AbstractLogsdbRollingUpgradeTestCase() {
+        this(Clusters.oldVersionCluster(USER, PASS, () -> columnarEnabled));
+    }
+
+    /**
+     * @param cluster a new, unstarted cluster for this test instance. Each test method performs its own rolling upgrade, so it
+     *                needs its own cluster starting on the old version.
+     */
+    protected AbstractLogsdbRollingUpgradeTestCase(ElasticsearchCluster cluster) {
+        this.cluster = cluster;
+        this.clusterRule = RuleChain.outerRule(cluster).around(resetStaticClusterState());
+    }
+
+    /**
+     * The REST clients and old-cluster features are static; drop them after each test so the next test connects to its own
+     * cluster.
+     */
+    private static TestRule resetStaticClusterState() {
+        return new ExternalResource() {
+            @Override
+            protected void after() {
+                try {
+                    closeClients();
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+                oldClusterTestFeatureService = null;
+            }
+        };
+    }
 
     @Override
     protected String getTestRestCluster() {
@@ -111,6 +148,7 @@ public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCas
     }
 
     protected void clusterRollingUpgrade(CheckedConsumer<Integer, Exception> onNodeUpgradeComplete) throws IOException {
+        assertAllNodesVersion(true);
         closeClients();
 
         var serverlessBwcStackVersion = System.getProperty("tests.serverless.bwc_stack_version");
@@ -130,6 +168,34 @@ public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCas
             }
         });
         initClient();
+        assertAllNodesVersion(false);
+    }
+
+    /**
+     * Asserts that every node is on the old version, or that none are. A rolling upgrade must start from a fully old cluster
+     * and end on a fully upgraded one.
+     * <p>
+     * Skipped when the old cluster version is unknown, as when these tests run in serverless. There the old and new nodes can
+     * report the same version and build hash, so they cannot be told apart. The same holds when the old cluster is the current
+     * version, whose bwc cluster is built from the same commit as the new one. Detached refs ({@code tests.bwc.refspec.main})
+     * build the old cluster from a different commit, so they are still checked.
+     */
+    private static void assertAllNodesVersion(boolean oldVersion) throws IOException {
+        String oldClusterVersion = RollingUpgradePerformer.getOldClusterVersion();
+        if (isOldClusterDetachedVersion() == false && (oldClusterVersion == null || oldClusterVersion.equals(Build.current().version()))) {
+            return;
+        }
+        Map<String, Object> nodes = ObjectPath.evaluate(entityAsMap(client().performRequest(new Request("GET", "/_nodes"))), "nodes");
+        for (Object node : nodes.values()) {
+            Map<?, ?> nodeInfo = (Map<?, ?>) node;
+            String version = (String) nodeInfo.get("version");
+            String buildHash = (String) nodeInfo.get("build_hash");
+            assertThat(
+                "node [" + nodeInfo.get("name") + "] version [" + version + "] build_hash [" + buildHash + "]",
+                RollingUpgradePerformer.isOldClusterVersion(version, buildHash),
+                equalTo(oldVersion)
+            );
+        }
     }
 
     protected ElasticsearchCluster getCluster() {

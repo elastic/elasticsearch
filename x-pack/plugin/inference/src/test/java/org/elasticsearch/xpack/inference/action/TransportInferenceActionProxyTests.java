@@ -22,6 +22,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.InferenceContext;
+import org.elasticsearch.xpack.core.inference.action.DecisionAction;
 import org.elasticsearch.xpack.core.inference.action.DocumentExtractionAction;
 import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
@@ -470,6 +471,76 @@ public class TransportInferenceActionProxyTests extends ESTestCase {
         assertThat(captor.getValue().getTimeout(), is(expectedTimeout));
     }
 
+    public void testExecutesADecisionAction_WhenTaskTypeIsDecision_InRequest_TimeoutSpecified() {
+        testExecutesADecisionAction_WhenTaskTypeIsDecision_InRequest(TimeValue.ONE_MINUTE, TimeValue.ONE_MINUTE);
+    }
+
+    public void testExecutesADecisionAction_WhenTaskTypeIsDecision_InRequest_NullTimeout() {
+        testExecutesADecisionAction_WhenTaskTypeIsDecision_InRequest(null, TIMEOUT_NOT_DETERMINED);
+    }
+
+    public void testExecutesADecisionAction_WhenTaskTypeIsDecision_InRequest_TimeoutNotDetermined() {
+        testExecutesADecisionAction_WhenTaskTypeIsDecision_InRequest(TIMEOUT_NOT_DETERMINED, TIMEOUT_NOT_DETERMINED);
+    }
+
+    private void testExecutesADecisionAction_WhenTaskTypeIsDecision_InRequest(TimeValue timeout, TimeValue expectedTimeout) {
+        @SuppressWarnings("unchecked")
+        ActionListener<InferenceAction.Response> listener = (ActionListener<InferenceAction.Response>) mock(ActionListener.class);
+        var request = new InferenceActionProxy.Request(
+            TaskType.DECISION,
+            "id",
+            new BytesArray(DECISION_REQUEST_JSON),
+            XContentType.JSON,
+            timeout,
+            false,
+            InferenceContext.EMPTY_INSTANCE
+        );
+
+        action.doExecute(mock(Task.class), request, listener);
+
+        var captor = ArgumentCaptor.forClass(DecisionAction.Request.class);
+        verify(client, times(1)).execute(eq(DecisionAction.INSTANCE), captor.capture(), any());
+        assertThat(captor.getValue().getTimeout(), is(expectedTimeout));
+    }
+
+    public void testExecutesADecisionRequest_WhenTaskTypeIsDecision_FromStorage_TimeoutSpecified() {
+        testExecutesADecisionRequest_WhenTaskTypeIsDecision_FromStorage(TimeValue.ONE_MINUTE, TimeValue.ONE_MINUTE);
+    }
+
+    public void testExecutesADecisionRequest_WhenTaskTypeIsDecision_FromStorage_NullTimeout() {
+        testExecutesADecisionRequest_WhenTaskTypeIsDecision_FromStorage(null, TIMEOUT_NOT_DETERMINED);
+    }
+
+    public void testExecutesADecisionRequest_WhenTaskTypeIsDecision_FromStorage_TimeoutNotDetermined() {
+        testExecutesADecisionRequest_WhenTaskTypeIsDecision_FromStorage(TIMEOUT_NOT_DETERMINED, TIMEOUT_NOT_DETERMINED);
+    }
+
+    private void testExecutesADecisionRequest_WhenTaskTypeIsDecision_FromStorage(TimeValue timeout, TimeValue expectedTimeout) {
+        doAnswer(invocation -> {
+            ActionListener<UnparsedModel> listener = invocation.getArgument(1);
+            listener.onResponse(new UnparsedModel("id", TaskType.DECISION, "service", Collections.emptyMap(), Collections.emptyMap()));
+
+            return Void.TYPE;
+        }).when(modelRegistry).getModelWithSecrets(any(), any());
+
+        var listener = new TestPlainActionFuture<InferenceAction.Response>();
+        var request = new InferenceActionProxy.Request(
+            TaskType.ANY,
+            "id",
+            new BytesArray(DECISION_REQUEST_JSON),
+            XContentType.JSON,
+            timeout,
+            false,
+            InferenceContext.EMPTY_INSTANCE
+        );
+
+        action.doExecute(mock(Task.class), request, listener);
+
+        var captor = ArgumentCaptor.forClass(DecisionAction.Request.class);
+        verify(client, times(1)).execute(eq(DecisionAction.INSTANCE), captor.capture(), any());
+        assertThat(captor.getValue().getTimeout(), is(expectedTimeout));
+    }
+
     public void testExecutesADocumentExtractionAction_WhenTaskTypeIsDocumentExtraction_InRequest_TimeoutSpecified() {
         testExecutesADocumentExtractionAction_WhenTaskTypeIsDocumentExtraction_InRequest(TimeValue.ONE_MINUTE, TimeValue.ONE_MINUTE);
     }
@@ -547,6 +618,12 @@ public class TransportInferenceActionProxyTests extends ESTestCase {
         verify(client, times(1)).execute(eq(DocumentExtractionAction.INSTANCE), captor.capture(), any());
         assertThat(captor.getValue().getTimeout(), is(expectedTimeout));
     }
+
+    private static final String DECISION_REQUEST_JSON = """
+        {
+            "input": "I was charged twice for my order."
+        }
+        """;
 
     private static final String DOCUMENT_EXTRACTION_REQUEST_JSON = """
         {

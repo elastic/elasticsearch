@@ -306,6 +306,43 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
         verify(mockClient, never()).execute(eq(StoreInferenceEndpointsAction.INSTANCE), any(), any());
     }
 
+    public void testDoesNotStoreDecisionEndpoints_WhenClusterMissingDecisionTaskTypeFeature() {
+        var url = "eis-url";
+        var decisionEndpoint = createAuthorizedEndpoint(TaskType.DECISION, () -> "fingerprint");
+
+        when(mockRegistry.isReady()).thenReturn(true);
+        when(inferenceFeatureServiceMock.hasFeature(InferenceFeatures.DECISION_TASK_TYPE)).thenReturn(false);
+
+        givenAuthHandlerReturnsEndpointsForUrl(url, List.of(decisionEndpoint));
+
+        var action = createAction();
+
+        action.doExecute(null, new RefreshAuthorizedEndpointsAction.Request(), new TestPlainActionFuture<>());
+        verify(mockClient, never()).execute(eq(StoreInferenceEndpointsAction.INSTANCE), any(), any());
+    }
+
+    public void testStoresDecisionEndpoints_WhenClusterHasDecisionTaskTypeFeature() {
+        var url = "eis-url";
+        var decisionEndpoint = createAuthorizedEndpoint(TaskType.DECISION, () -> "fingerprint");
+
+        when(mockRegistry.isReady()).thenReturn(true);
+        when(mockRegistry.getEndpointClusterState(Set.of(decisionEndpoint.id()), false)).thenReturn(Map.of());
+        when(inferenceFeatureServiceMock.hasFeature(InferenceFeatures.DECISION_TASK_TYPE)).thenReturn(true);
+
+        givenAuthHandlerReturnsEndpointsForUrl(url, List.of(decisionEndpoint));
+
+        var action = createAction();
+
+        var requestArgCaptor = ArgumentCaptor.forClass(StoreInferenceEndpointsAction.Request.class);
+        action.doExecute(null, new RefreshAuthorizedEndpointsAction.Request(), new TestPlainActionFuture<>());
+        verify(mockClient).execute(eq(StoreInferenceEndpointsAction.INSTANCE), requestArgCaptor.capture(), any());
+
+        var storedModels = requestArgCaptor.getValue().getModels();
+        assertThat(storedModels.size(), is(1));
+        assertThat(storedModels.getFirst().getInferenceEntityId(), is(decisionEndpoint.id()));
+        assertThat(storedModels.getFirst().getTaskType(), is(TaskType.DECISION));
+    }
+
     public void testSendsAuthorizationRequest_ShouldDeleteRemovedEndpoints() {
         Set<String> endpointsToDelete = Set.of("id-1", "id-2");
 

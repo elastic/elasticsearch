@@ -15,20 +15,20 @@ import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
-import java.util.zip.GZIPInputStream;
 
 /**
  * Gzip decompression codec for compound extensions like {@code .csv.gz} or {@code .ndjson.gz}.
  *
- * <p>Uses {@link java.util.zip.GZIPInputStream} from the JDK; no external dependencies.
+ * <p>Decodes every member of a multi-member stream and fails on trailing data other than zero padding, see
+ * {@link MultiMemberGzipInputStream}. Uses the JDK {@link java.util.zip.Inflater}; no external dependencies.
  */
 public class GzipDecompressionCodec implements DecompressionCodec {
 
     private static final List<String> EXTENSIONS = List.of(".gz", ".gzip");
 
     /**
-     * Raw-side read buffer handed to the {@link GZIPInputStream}{@code (InputStream, int size)}
-     * constructor. The JDK default is 512 bytes, which forces a JNI trip into zlib for every
+     * Raw-side read buffer of the {@link MultiMemberGzipInputStream}. The JDK
+     * {@code GZIPInputStream} default is 512 bytes, which forces a JNI trip into zlib for every
      * kilobyte of compressed data and dominates wall time for large files. 64 KiB sits at
      * the knee of the throughput-vs-buffer-size curve: it captures roughly +20% inflate
      * throughput over the default on JDK 26 / aarch64, and going beyond 64 KiB buys less
@@ -63,14 +63,14 @@ public class GzipDecompressionCodec implements DecompressionCodec {
 
     @Override
     public InputStream decompress(InputStream raw, @Nullable CircuitBreaker breaker) throws IOException {
-        GZIPInputStream gzip = new GZIPInputStream(raw, RAW_BUFFER_SIZE);
+        InputStream gzip = new MultiMemberGzipInputStream(raw, RAW_BUFFER_SIZE);
         if (breaker == null) {
             return gzip;
         }
         try {
             breaker.addEstimateBytesAndMaybeBreak(NATIVE_INFLATER_BYTES, BREAKER_LABEL);
         } catch (Throwable t) {
-            // inf.end() via GZIPInputStream.close(). Production wraps raw in UncloseableInputStream
+            // inf.end() via MultiMemberGzipInputStream.close(). Production wraps raw in UncloseableInputStream
             // first, so this does not drain the GET; DecompressingStorageObject.abortStream does.
             try {
                 gzip.close();
@@ -91,7 +91,7 @@ public class GzipDecompressionCodec implements DecompressionCodec {
         private final long charged;
         private boolean closed;
 
-        private AccountedGzipInputStream(GZIPInputStream in, CircuitBreaker breaker, long charged) {
+        private AccountedGzipInputStream(InputStream in, CircuitBreaker breaker, long charged) {
             super(in);
             this.breaker = breaker;
             this.charged = charged;

@@ -8,10 +8,13 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -49,12 +52,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.MapMatcher.matchesMap;
-import static org.elasticsearch.xpack.esql.plugin.ExpandUnmappedFieldsPostProcessor.MAX_EXPANDED_FIELDS;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -348,7 +352,8 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         );
 
         AssertionError e = expectThrows(AssertionError.class, () -> expand(result, bf));
-        assertThat(e.getMessage(), containsString("Unmapped field 'a' carries a null or an empty array or object"));
+        // The streaming walk pinpoints the exact offending leaf path rather than the top-level key it sits under.
+        assertThat(e.getMessage(), containsString("Unmapped field 'a.drop' carries a null or an empty array or object"));
         assertThat("the guard rail leaked pages", bf.breaker().getUsed(), equalTo(0L));
     }
 
@@ -695,7 +700,7 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
     }
 
     /**
-     * The manual "graceful termination" test on esql-planning#1778 flagged both expansion loops - {@code collectFieldNames} and
+    * The manual "graceful termination" test on flagged both expansion loops - {@code collectFieldNames} and
      * {@code rewritePages} - as running to completion without checking for cancellation. {@link
      * #testCancellationDuringExpansionThrowsAndReleasesPages} pins the first loop: a checker that reports cancelled up front trips on
      * {@code collectFieldNames}' opening poll, before {@code rewritePage} ever runs. This pins the second: name collection scans every
@@ -769,13 +774,13 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
     }
 
     /**
-     * More than {@link ExpandUnmappedFieldsPostProcessor#MAX_EXPANDED_FIELDS} distinct names, arriving in random order across random
+     * More than {@link PlannerSettings#LOAD_ALL_MAX_FIELDS} distinct names, arriving in random order across random
      * rows and pages and with repeats, expand to exactly the alphabetically first ones - whatever order they arrived in - plus a
      * warning.
      */
     public void testCapsExpandedFieldsToAlphabeticallyFirstRegardlessOfArrivalOrder() {
         BlockFactory bf = blockFactory();
-        List<String> fieldNames = paddedNames("f", MAX_EXPANDED_FIELDS + between(1, 200));
+        List<String> fieldNames = paddedNames("f", DEFAULT_MAX_FIELDS + between(1, 200));
         List<String> arrivalOrder = new ArrayList<>(fieldNames);
         Collections.shuffle(arrivalOrder, random());
 
@@ -803,19 +808,56 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         try {
             List<String> expected = new ArrayList<>();
             expected.add(INT_ATTR);
-            expected.addAll(fieldNames.subList(0, MAX_EXPANDED_FIELDS));
+            expected.addAll(fieldNames.subList(0, DEFAULT_MAX_FIELDS));
             assertThat(names(expanded), equalTo(expected));
             assertThat(rowCount(expanded), equalTo(rows.size()));
         } finally {
             Releasables.close(expanded.pages());
         }
-        assertWarnings(TRUNCATION_WARNING);
+        assertWarnings(truncationWarning(DEFAULT_MAX_FIELDS));
     }
 
-    /** Exactly {@link ExpandUnmappedFieldsPostProcessor#MAX_EXPANDED_FIELDS} names all fit, so nothing is cut off or warned about. */
+    /** The limit is the configured one: a small one cuts the fields off after the alphabetically first few, with a warning. */
+    public void testConfiguredLimitIsApplied() {
+        BlockFactory bf = blockFactory();
+        int limit = between(1, 5);
+        List<String> fieldNames = paddedNames("f", limit + between(1, 5));
+        List<String> arrivalOrder = new ArrayList<>(fieldNames);
+        Collections.shuffle(arrivalOrder, random());
+        Result result = singlePage(bf, List.of(intAttr(), unmappedAttr()), row(1, jsonWithFields(arrivalOrder)));
+
+        Result expanded = expand(result, bf, PlannerSettings.DEFAULTS.loadAllMaxFields(limit));
+        try {
+            List<String> expected = new ArrayList<>();
+            expected.add(INT_ATTR);
+            expected.addAll(fieldNames.subList(0, limit));
+            assertThat(names(expanded), equalTo(expected));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+        assertWarnings(truncationWarning(limit));
+    }
+
+    /** The limit can be raised above the default: that many fields are all returned, with nothing cut off and no warning. */
+    public void testLimitCanBeRaisedAboveTheDefault() {
+        BlockFactory bf = blockFactory();
+        int total = DEFAULT_MAX_FIELDS + between(1, 100);
+        List<String> fieldNames = paddedNames("f", total);
+        Result result = singlePage(bf, List.of(intAttr(), unmappedAttr()), row(1, jsonWithFields(fieldNames)));
+
+        Result expanded = expand(result, bf, PlannerSettings.DEFAULTS.loadAllMaxFields(total));
+        try {
+            assertThat(names(expanded).subList(1, names(expanded).size()), equalTo(fieldNames));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+        // ESTestCase fails the test on any warning left unasserted, so not asserting one checks that there is none.
+    }
+
+    /** Exactly {@link PlannerSettings#LOAD_ALL_MAX_FIELDS} names all fit, so nothing is cut off or warned about. */
     public void testExactlyMaxExpandedFieldsAreAllKept() {
         BlockFactory bf = blockFactory();
-        List<String> fieldNames = paddedNames("f", MAX_EXPANDED_FIELDS);
+        List<String> fieldNames = paddedNames("f", DEFAULT_MAX_FIELDS);
         Result result = singlePage(bf, List.of(intAttr(), unmappedAttr()), row(1, jsonWithFields(fieldNames)));
 
         Result expanded = expand(result, bf);
@@ -830,7 +872,7 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
     /** Names the {@code KEEP}/{@code DROP} pattern rejects are dropped before the cap, so they cannot crowd out wanted ones. */
     public void testNamesExcludedByPatternDoNotCountTowardsCap() {
         BlockFactory bf = blockFactory();
-        List<String> kept = paddedNames("keep_", MAX_EXPANDED_FIELDS);
+        List<String> kept = paddedNames("keep_", DEFAULT_MAX_FIELDS);
         // Sort before every kept name, so they would take all the slots if they counted.
         List<String> dropped = paddedNames("a_drop_", between(1, 500));
         List<String> rowNames = new ArrayList<>(dropped);
@@ -852,7 +894,7 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
     /** A name colliding with a query column is dropped (see {@link #testFlattenedLeafCollidingWithQueryColumnIsDropped}) before the cap. */
     public void testNamesCollidingWithExistingColumnsDoNotCountTowardsCap() {
         BlockFactory bf = blockFactory();
-        List<String> discovered = paddedNames("f", MAX_EXPANDED_FIELDS);
+        List<String> discovered = paddedNames("f", DEFAULT_MAX_FIELDS);
         // Sorts before every discovered name, so it would take a slot if it counted.
         String existing = "a_existing";
         List<String> rowNames = new ArrayList<>(discovered);
@@ -870,10 +912,133 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         }
     }
 
+    /**
+     * {@link ExpandUnmappedFieldsPostProcessor.FieldNameCollector#PER_NAME_CONTAINER_OVERHEAD} is assembled from
+     * {@link RamUsageEstimator} primitives, so nothing else
+     * would catch a typo - a dropped {@code alignObjectSize} or a wrong reference count - that silently shrinks it toward zero and makes
+     * the field-name reservation too small to protect anything. Assert it is a positive, 8-byte-aligned value within the order of
+     * magnitude a small heap object occupies, not an exact footprint.
+     */
+    public void testPerNameContainerOverheadIsSanePositiveMagnitude() {
+        long bytes = ExpandUnmappedFieldsPostProcessor.FieldNameCollector.PER_NAME_CONTAINER_OVERHEAD;
+        // At least one object header: anything smaller is a derivation slip, not a real heap-object overhead.
+        assertThat(
+            "PER_NAME_CONTAINER_OVERHEAD is implausibly small",
+            bytes,
+            greaterThanOrEqualTo((long) RamUsageEstimator.NUM_BYTES_OBJECT_HEADER)
+        );
+        // A handful of small objects is tens of bytes; into the kilobytes means a wrong multiplier.
+        assertThat("PER_NAME_CONTAINER_OVERHEAD is implausibly large", bytes, lessThanOrEqualTo(4096L));
+        // It is a sum of alignObjectSize(...) terms plus whole references, so it must stay 8-aligned; a stray unaligned term flags a
+        // dropped alignObjectSize.
+        assertThat("PER_NAME_CONTAINER_OVERHEAD is not 8-byte aligned (dropped alignObjectSize?)", bytes % 8, equalTo(0L));
+    }
+
+    /**
+     * The collector never keeps more than {@code maxFields} names: every insert past the cap evicts the alphabetically-largest kept name
+     * and must hand its bytes back, so the reservation plateaus at {@code maxFields} names rather than climbing with the total seen.
+     * Feeds half again as many equal-length distinct names, in random order, and asserts the breaker holds exactly the first
+     * {@code maxFields} names' worth - then that {@code close} returns every byte.
+     */
+    public void testFieldNameCollectorReservationPlateausAtCapAndReleasesEvicted() {
+        BlockFactory bf = blockFactory();
+        var breaker = bf.breaker();
+        List<String> names = paddedNames("f", DEFAULT_MAX_FIELDS + 500);
+        List<String> arrival = new ArrayList<>(names);
+        Collections.shuffle(arrival, random());
+
+        try (
+            var collector = new ExpandUnmappedFieldsPostProcessor.FieldNameCollector(
+                DEFAULT_MAX_FIELDS,
+                UnmappedFieldsPattern.ALL,
+                Collections.emptySet(),
+                breaker
+            )
+        ) {
+            for (String name : arrival) {
+                collector.accept(name, 1);
+            }
+            // Every name is the same length, so the kept set's reservation is exactly maxFields names' worth, not the (maxFields + 500)
+            // seen: the overflowing inserts each evicted and released the largest name they displaced.
+            long perName = RamUsageEstimator.sizeOf(names.get(0))
+                + ExpandUnmappedFieldsPostProcessor.FieldNameCollector.PER_NAME_CONTAINER_OVERHEAD;
+            assertThat(breaker.getUsed(), equalTo((long) DEFAULT_MAX_FIELDS * perName));
+        }
+        assertThat("close must hand back every reserved byte", breaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * {@link #testCancellationDuringExpansionThrowsAndReleasesPages} lands its cancellation on {@code collectFieldNames}' opening poll,
+     * before any field name has been reserved, so it proves the pages are freed but not that the name accounting is. This lands the
+     * cancellation on the second poll instead - after a full {@code ROWS_PER_CANCELLATION_CHECK} rows of distinct names have been
+     * collected and charged to the breaker - and asserts the throw still leaves the breaker at zero, i.e. the collector's
+     * try-with-resources handed its reservation back on the cancellation path, not only on the normal return.
+     */
+    public void testCancellationMidCollectionReleasesReservedFieldNames() {
+        BlockFactory bf = blockFactory();
+        int rows = 2048; // two collectFieldNames polls, at rows 0 and 1024
+        List<List<Object>> pageRows = new ArrayList<>(rows);
+        for (int i = 0; i < rows; i++) {
+            pageRows.add(row(i, jsonWithFields(List.of(String.format(Locale.ROOT, "f%06d", i)))));
+        }
+        Result result = result(List.of(intAttr(), unmappedAttr()), List.of(page(bf, pageRows)));
+
+        AtomicInteger polls = new AtomicInteger();
+        expectThrows(
+            TaskCancelledException.class,
+            () -> ExpandUnmappedFieldsPostProcessor.expand(result, null, bf, PlannerSettings.DEFAULTS, () -> polls.incrementAndGet() > 1)
+        );
+
+        // Cancelled on the second poll (row 1024), so the first 1024 distinct names were collected and reserved before the throw.
+        assertThat("cancellation should land on the second collectFieldNames poll", polls.get(), equalTo(2));
+        assertThat("expand leaked the reserved field names when cancelled mid-collection", bf.breaker().getUsed(), equalTo(0L));
+    }
+
+    /**
+     * A single row whose {@code _source} is a large array that collapses to one leaf (every {@code {"x":"..."}} flattens to the same
+     * {@code a.x}) builds one massive multivalue column. This checks that the output builder trips a {@link CircuitBreakingException} as
+     * it grows rather than OOMing, and {@code tearDown}'s breaker check confirms the failure path leaks nothing.
+     */
+    public void testSingleRowFlatteningToHugeMultivalueCircuitBreaksGracefully() {
+        int elements = 100_000;
+        ByteSizeValue limit = ByteSizeValue.ofKb(512);
+        // Each element flattens to the same a.x leaf, so the row builds one multivalue of {@code elements} values. The values carry
+        // real bytes (a 16-char string each) so the output builder's accounting outgrows the limit well before the row finishes.
+        String value = "v".repeat(16);
+        StringBuilder arrayToOneLeaf = new StringBuilder("{'a':[");
+        for (int i = 0; i < elements; i++) {
+            if (i > 0) {
+                arrayToOneLeaf.append(',');
+            }
+            arrayToOneLeaf.append("{'x':'").append(value).append("'}");
+        }
+        arrayToOneLeaf.append("]}");
+
+        expectThrows(CircuitBreakingException.class, () -> runExpandSingleRowUnderLimit(limit, jsonObject(arrayToOneLeaf.toString())));
+    }
+
+    /**
+     * Builds a single-row page carrying {@code json} as its {@code _unmapped_fields} value against a generous breaker, then runs the
+     * expansion against one capped at {@code limit}, so only the expansion's own allocations are charged to the tight breaker. Releases
+     * the expanded pages on success; on a break the expansion releases everything itself and {@code tearDown} asserts no leak.
+     */
+    private void runExpandSingleRowUnderLimit(ByteSizeValue limit, String json) {
+        BlockFactory inputFactory = blockFactory();
+        Result result = result(List.of(intAttr(), unmappedAttr()), List.of(page(inputFactory, List.of(row(1, json)))));
+
+        BlockFactory tightFactory = blockFactory(limit);
+        Result expanded = ExpandUnmappedFieldsPostProcessor.expand(result, null, tightFactory, PlannerSettings.DEFAULTS, () -> false);
+        Releasables.close(expanded.pages());
+    }
+
     // No ordering recipe: these exercise the expansion mechanics, so the natural real-then-discovered fallback applies. The ordering
     // itself is covered against real plans in DetermineUnmappedFieldsToKeepTests.
     private static Result expand(Result result, BlockFactory blockFactory) {
-        return ExpandUnmappedFieldsPostProcessor.expand(result, null, blockFactory, PlannerSettings.DEFAULTS, () -> false);
+        return expand(result, blockFactory, PlannerSettings.DEFAULTS);
+    }
+
+    private static Result expand(Result result, BlockFactory blockFactory, PlannerSettings plannerSettings) {
+        return ExpandUnmappedFieldsPostProcessor.expand(result, null, blockFactory, plannerSettings, () -> false);
     }
 
     private static Result result(List<Attribute> schema, List<Page> pages) {
@@ -977,6 +1142,13 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
     private static final String INT_ATTR = "emp_no";
 
-    private static final String TRUNCATION_WARNING = "unmapped_fields=\"LOAD_ALL\" found more than [1000] fields in _source; only the "
-        + "first [1000] in alphabetical order are returned. Use KEEP or DROP to select the others.";
+    private static final int DEFAULT_MAX_FIELDS = PlannerSettings.LOAD_ALL_MAX_FIELDS.getDefault(Settings.EMPTY);
+
+    private static String truncationWarning(int maxFields) {
+        return "unmapped_fields=\"LOAD_ALL\" found more than ["
+            + maxFields
+            + "] fields in _source; only the first ["
+            + maxFields
+            + "] in alphabetical order are returned. Use KEEP or DROP to select the others.";
+    }
 }

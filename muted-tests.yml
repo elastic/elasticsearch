@@ -376,8 +376,6 @@ tests:
 - class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
   method: testCohereEmbeddings {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/159164
-- class: org.elasticsearch.xpack.esql.qa.mixed.RemoteFetchTopNIT
-  issue: https://github.com/elastic/elasticsearch/issues/159173
 - class: org.elasticsearch.xpack.stateless.StatelessResizeIT
   method: testCloneIndex
   issue: https://github.com/elastic/elasticsearch/issues/159214
@@ -602,8 +600,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.objectstore.AzureBccWriteStallIT
   method: testRetryWhileFirstTryStillReadsUploadsCorrectBcc
   issue: https://github.com/elastic/elasticsearch/issues/161762
-- class: org.elasticsearch.xpack.esql.datasource.http.HttpStorageObjectCancelTests
-  issue: https://github.com/elastic/elasticsearch/issues/161773
 - class: org.elasticsearch.xpack.wildcard.heappressure.WildcardFieldWildcardHeapPressureIT
   method: testPausedHeavyWildcardsTripBreaker
   issue: https://github.com/elastic/elasticsearch/issues/161775

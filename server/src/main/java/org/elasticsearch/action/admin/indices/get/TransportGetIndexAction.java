@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.UpdateForV10;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
@@ -149,7 +150,13 @@ public class TransportGetIndexAction extends TransportLocalProjectMetadataAction
                         Map<String, Settings> defaultSettingsMapBuilder = new HashMap<>();
                         for (String index : concreteIndices) {
                             checkCancellation(task);
-                            Settings indexSettings = settingsFilter.filter(project.index(index).getSettings());
+                            Settings indexSettings = project.index(index).getSettings();
+                            if (indexSettings.hasValue(IndexSettings.RETAINS_UNMAPPED_FIELDS_SETTING.getKey())) {
+                                // Not returned, as the settings APIs do not return it either.
+                                indexSettings = indexSettings.filter(
+                                    key -> IndexSettings.RETAINS_UNMAPPED_FIELDS_SETTING.getKey().equals(key) == false
+                                );
+                            }
                             if (request.humanReadable()) {
                                 indexSettings = IndexMetadata.addHumanReadableSettings(indexSettings);
                             }

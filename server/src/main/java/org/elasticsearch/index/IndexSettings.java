@@ -953,7 +953,7 @@ public final class IndexSettings {
      * Whether a mapping this index has, or had, can keep a field it does not declare: see
      * {@link RootObjectMapper#canRetainUnmappedFields()}. It is set with the mapping that makes it true and never cleared, as
      * the documents indexed under that mapping stay. Only set on an index created on or after
-     * {@link IndexVersions#TRACKS_UNMAPPED_FIELD_RETENTION}. It is filtered out of the settings an API returns, so that they
+     * {@link IndexVersions#TRACKS_UNMAPPED_FIELD_RETENTION}. It is left out of the settings an API returns, so that they
      * can be used to create another index.
      */
     public static final Setting<Boolean> RETAINS_UNMAPPED_FIELDS_SETTING = Setting.boolSetting(

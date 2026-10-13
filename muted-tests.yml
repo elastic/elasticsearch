@@ -376,8 +376,6 @@ tests:
 - class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
   method: testCohereEmbeddings {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/159164
-- class: org.elasticsearch.xpack.esql.qa.mixed.RemoteFetchTopNIT
-  issue: https://github.com/elastic/elasticsearch/issues/159173
 - class: org.elasticsearch.xpack.stateless.StatelessResizeIT
   method: testCloneIndex
   issue: https://github.com/elastic/elasticsearch/issues/159214
@@ -496,9 +494,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
   method: testStress
   issue: https://github.com/elastic/elasticsearch/issues/160613
-- class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
-  method: testUnpromotableRegisterCommitForRecoveryTracksAllBlobsPessimisticallyAndWaitsUntilShardStarts
-  issue: https://github.com/elastic/elasticsearch/issues/160055
 - class: org.elasticsearch.xpack.encryption.KeyRotationIT
   method: testRotationContinuesAfterMasterFailover
   issue: https://github.com/elastic/elasticsearch/issues/160824
@@ -630,3 +625,17 @@ tests:
 - class: org.elasticsearch.index.mapper.extras.MatchOnlyTextFieldColumnarQueryTests
   method: testTheFetcherReadsTheFieldsValues
   issue: https://github.com/elastic/elasticsearch/issues/161798
+- class: org.elasticsearch.xpack.esql.datasource.s3.qa.RegionDiscoveryIT
+  method: testExactPathResolveProbesTheObjectWithHead
+  issue: https://github.com/elastic/elasticsearch/issues/161819
+- class: org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLifecycleTests
+  method: testLifecycleEnabledByDefaultSerialization
+  issue: https://github.com/elastic/elasticsearch/issues/161848
+- class: org.elasticsearch.xpack.esql.action.ExternalProvenanceParityIT
+  issue: https://github.com/elastic/elasticsearch/issues/161850
+- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
+  method: testStopQuery
+  issue: https://github.com/elastic/elasticsearch/issues/159131
+- class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
+  method: testShardMultiGetFromTranslogRetries
+  issue: https://github.com/elastic/elasticsearch/issues/161855

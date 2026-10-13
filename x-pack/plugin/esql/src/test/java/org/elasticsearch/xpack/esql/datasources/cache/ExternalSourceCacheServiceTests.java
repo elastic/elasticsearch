@@ -45,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -298,7 +299,13 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             ListingCacheKey key = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "");
 
-            expectThrows(Exception.class, () -> service.getOrComputeListing(key, k -> testTruncatedFileList()));
+            // computeIfAbsent wraps whatever the loader throws, so the type here is ExecutionException and the
+            // refusal is its cause. The async rail below raises it unwrapped, which is why the two differ.
+            ExecutionException wrapped = expectThrows(
+                ExecutionException.class,
+                () -> service.getOrComputeListing(key, k -> testTruncatedFileList())
+            );
+            assertEquals(IllegalStateException.class, wrapped.getCause().getClass());
             assertNull("the refusal must run before the store, so nothing is left behind", service.getListingIfPresent(key));
 
             AtomicInteger loaderCalls = new AtomicInteger();
@@ -318,7 +325,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
             PlainActionFuture<FileList> refused = new PlainActionFuture<>();
             service.getOrComputeListingAsync(key, l -> l.onResponse(testTruncatedFileList()), refused);
-            expectThrows(Exception.class, refused::actionGet);
+            expectThrows(IllegalStateException.class, refused::actionGet);
             assertNull(service.getListingIfPresent(key));
 
             // The in-flight entry must be gone, or this second call waits on a future nobody completes.

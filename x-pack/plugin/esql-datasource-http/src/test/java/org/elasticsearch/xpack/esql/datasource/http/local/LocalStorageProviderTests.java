@@ -124,16 +124,13 @@ public class LocalStorageProviderTests extends ESTestCase {
         Files.writeString(dir.resolve("part-0000.csv"), "a\n");
         Files.writeString(dir.resolve("part-0001.csv"), "b\n");
         Files.writeString(dir.resolve("other-0000.csv"), "c\n");
-        String abs = dir.toAbsolutePath().toString();
+        // Built from fileUri, not from toAbsolutePath: a Windows path is C:\... , so "file://localhost" + path
+        // spells file://localhostC:\... , whose authority StoragePath.of rejects. fileUri normalises the
+        // separators and the leading slash, which is why every other test in this file goes through it.
+        String uri = StoragePath.fileUri(dir);
+        String abs = uri.substring("file://".length());
 
-        List<String> spellings = List.of(
-            "file://" + abs,
-            "file://" + abs + "/",
-            "file:///" + abs.replaceFirst("^/", ""),
-            "file://localhost" + abs,
-            "file://localhost" + abs + "/",
-            "file://" + abs + "//"
-        );
+        List<String> spellings = List.of(uri, uri + "/", "file://localhost" + abs, "file://localhost" + abs + "/", uri + "//");
 
         try (LocalStorageProvider provider = new LocalStorageProvider()) {
             for (String spelling : spellings) {
@@ -158,7 +155,7 @@ public class LocalStorageProviderTests extends ESTestCase {
 
         try (LocalStorageProvider provider = new LocalStorageProvider()) {
             int seen = 0;
-            try (StorageIterator it = provider.listObjects(StoragePath.of("file://" + dir.toAbsolutePath()), "", false)) {
+            try (StorageIterator it = provider.listObjects(StoragePath.of(StoragePath.fileUri(dir)), "", false)) {
                 while (it.hasNext()) {
                     it.next();
                     seen++;
@@ -178,7 +175,7 @@ public class LocalStorageProviderTests extends ESTestCase {
 
         try (LocalStorageProvider provider = new LocalStorageProvider()) {
             List<String> kept = new ArrayList<>();
-            try (StorageIterator it = provider.listObjects(StoragePath.of("file://" + dir.toAbsolutePath()), "date=2024-01-0", true)) {
+            try (StorageIterator it = provider.listObjects(StoragePath.of(StoragePath.fileUri(dir)), "date=2024-01-0", true)) {
                 while (it.hasNext()) {
                     kept.add(it.next().path().toString());
                 }

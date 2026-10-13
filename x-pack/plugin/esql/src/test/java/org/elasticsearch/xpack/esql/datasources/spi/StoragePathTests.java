@@ -45,6 +45,32 @@ public class StoragePathTests extends ESTestCase {
         assertEquals("", StoragePath.of("s3://b/data/" + "**" + "/*.parquet").literalNamePrefix());
     }
 
+    /**
+     * A file URI built over a Windows-shaped absolute path parses, with and without a {@code localhost} authority.
+     * <p>
+     * Pinned platform-independently because the trap is not the parsing but the spelling: concatenating
+     * {@code "file://localhost"} with {@code Path#toAbsolutePath} gives {@code file://localhostC:\...} on Windows,
+     * whose authority this rejects, and a test that builds its URI that way fails only on a Windows run.
+     * {@link StoragePath#fileUri} is what normalises the separators and the leading slash.
+     */
+    public void testAWindowsShapedFileUriParsesWithAndWithoutAnAuthority() {
+        String windowsStyle = "/C:/Users/jenkins/tmp/dir";
+        for (String spelling : List.of(
+            "file://" + windowsStyle,
+            "file://" + windowsStyle + "/",
+            "file://localhost" + windowsStyle,
+            "file://localhost" + windowsStyle + "/",
+            "file://" + windowsStyle + "//"
+        )) {
+            StoragePath path = StoragePath.of(spelling);
+            assertEquals(spelling, "file", path.scheme());
+            assertTrue(spelling + " must keep the drive-lettered path", path.toString().contains("C:"));
+        }
+        // And the spelling that skipping fileUri would produce is rejected, which is what makes the normalisation
+        // load-bearing rather than tidy: the authority reads as "localhostC:".
+        expectThrows(IllegalArgumentException.class, () -> StoragePath.of("file://localhostC:/Users/jenkins/tmp/dir"));
+    }
+
     /** No pattern, nothing to narrow. */
     public void testLiteralNamePrefixIsEmptyForANonPattern() {
         assertEquals("", StoragePath.of("s3://b/data/part-0000.csv").literalNamePrefix());

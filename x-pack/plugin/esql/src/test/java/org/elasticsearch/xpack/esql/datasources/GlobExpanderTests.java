@@ -6728,6 +6728,39 @@ public class GlobExpanderTests extends ESTestCase {
      * A bounded page holding nothing the glob matches is not an empty dataset. Reporting one would turn a working
      * query into "matched no files" for any dataset whose first keys happen to be another format.
      */
+    /**
+     * A bounded pattern that matches nothing, and that nothing narrowed, lists once.
+     *
+     * <p>The retry is for a listing that stopped short: a rewrite that missed a folder's spelling, or a bound
+     * reached before the first match. A listing that read to the end of the pattern and found nothing has neither,
+     * so the dataset really holds no match and a second, unbounded pass buys the same empty answer twice. Counted
+     * in keys pulled rather than in calls, because a second pass over the same prefix pulls the same keys again —
+     * which is also what a page costs on a paging store.
+     */
+    public void testABoundedPatternMatchingNothingListsOnce() throws IOException {
+        List<StorageEntry> listing = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            listing.add(entry(String.format(Locale.ROOT, "s3://bucket/data/part-%06d.csv", i), 50));
+        }
+        CountingStubProvider provider = new CountingStubProvider(listing);
+
+        FileList result = GlobExpander.expand(
+            "s3://bucket/data/*.parquet",
+            provider,
+            null,
+            HIVE_OFF,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            new ListingExtents(1000),
+            PlanningMemory.NONE
+        );
+
+        assertEquals("nothing in the fixture matches the pattern", 0, result.fileCount());
+        assertFalse("the listing reached the end of the pattern, so the empty answer is complete", result.isTruncated());
+        assertEquals("so there is no retry: the ten keys were pulled once, not twice", 10, provider.keysPulled());
+    }
+
     public void testBoundedListingMatchingNothingRelistsInFull() throws IOException {
         List<StorageEntry> listing = new ArrayList<>();
         for (int i = 0; i < 1000; i++) {
@@ -6750,7 +6783,7 @@ public class GlobExpanderTests extends ESTestCase {
 
         assertEquals("the file past the bound is still found", 1, result.fileCount());
         assertEquals("s3://bucket/data/zzz.parquet", result.path(0).toString());
-        assertFalse("the re-list was unbounded, so its answer is complete", result.isTruncated());
+        assertFalse("the listing read to the end of the pattern, so its answer is complete", result.isTruncated());
     }
 
     /**
@@ -6779,7 +6812,7 @@ public class GlobExpanderTests extends ESTestCase {
 
         assertEquals("the matching file past the bound must still be found", 1, result.fileCount());
         assertEquals("s3://bucket/data/year=2025/b.parquet", result.path(0).toString());
-        assertFalse("the re-list was unbounded, so its answer is complete", result.isTruncated());
+        assertFalse("the listing read to the end of the pattern, so its answer is complete", result.isTruncated());
     }
 
     /**

@@ -94,9 +94,10 @@ public class S3GlobDiscoveryTests extends ESTestCase {
     }
 
     /**
-     * A name prefix that matches nothing returns nothing rather than everything. The failure this guards is the
-     * one that cost a round earlier: a narrowing implemented so that the comparison never matched returned an
-     * empty listing, which nothing downstream can tell from an empty dataset.
+     * A name prefix that matches nothing returns nothing rather than everything. What this catches is a narrowing
+     * that ignores the prefix: that returns every key under the directory, and this asserts the empty list. The
+     * opposite failure -- a comparison that never matches -- would pass here, since the expectation is empty; the
+     * test that catches that one is the sibling asserting a prefix narrows to the keys it names.
      */
     public void testS3NamePrefixMatchingNothingReturnsNothing() throws IOException {
         StoragePath prefix = StoragePath.of("s3://" + BUCKET + "/" + DISCOVER_PREFIX + "/flat");

@@ -149,6 +149,63 @@ public class DatasetListingServiceCacheTests extends ESTestCase {
         }
     }
 
+    /**
+     * An entry whose match count equals the bound is not served to a bounded query.
+     *
+     * <p>The comparison is strictly below the bound, and the strictness is the whole content of this test. A query
+     * whose own listing would have stopped exactly at its bound is flagged truncated, because reaching the bound is
+     * what sets that flag; the cached entry was produced under a bound nothing reached and says it is complete.
+     * Serving it hands a query that stopped at its bound a listing claiming it did not, which is the one thing the
+     * flag is read for. The file sets are identical here, so nothing but the flag and the extra listing can show it.
+     */
+    public void testAnEntryExactlyAtTheBoundIsNotServed() throws Exception {
+        String glob = "s3://bucket/flat/*.csv";
+        try (ExternalSourceCacheService cache = new ExternalSourceCacheService(cacheEnabled())) {
+            DatasetListingService service = new DatasetListingService(Settings.EMPTY, cache, null, null, null);
+            TreeProvider provider = new TreeProvider(
+                List.of(
+                    new StorageEntry(StoragePath.of("s3://bucket/flat/a.csv"), 10, Instant.EPOCH),
+                    new StorageEntry(StoragePath.of("s3://bucket/flat/b.csv"), 10, Instant.EPOCH)
+                )
+            );
+
+            FileList wide = service.boundedListing(
+                glob,
+                StoragePath.of(glob),
+                provider,
+                "",
+                "",
+                null,
+                Map.of(),
+                new ListingExtents(1000),
+                PlanningMemory.NONE,
+                () -> false
+            );
+            assertEquals("both files, under a bound nothing reaches", 2, wide.fileCount());
+            assertFalse("so that entry is complete", wide.isTruncated());
+
+            long listsBefore = provider.listObjectsCalls.get();
+            FileList exact = service.boundedListing(
+                glob,
+                StoragePath.of(glob),
+                provider,
+                "",
+                "",
+                null,
+                Map.of(),
+                new ListingExtents(2),
+                PlanningMemory.NONE,
+                () -> false
+            );
+
+            assertTrue(
+                "a bound equal to the match count must list for itself rather than read that entry",
+                provider.listObjectsCalls.get() > listsBefore
+            );
+            assertTrue("and its own listing reached the bound, so it is truncated", exact.isTruncated());
+        }
+    }
+
     /** And the bounded listing must not overwrite an entry the unbounded rail already published. */
     public void testABoundedListingDoesNotOverwriteTheWholePattern() throws Exception {
         try (ExternalSourceCacheService cache = new ExternalSourceCacheService(cacheEnabled())) {

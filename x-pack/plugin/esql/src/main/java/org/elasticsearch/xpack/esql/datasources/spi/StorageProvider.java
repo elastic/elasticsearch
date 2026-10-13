@@ -41,7 +41,7 @@ public interface StorageProvider extends Closeable {
     StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException;
 
     /**
-     * As {@link #listObjects(StoragePath, boolean)}, but returning only objects whose name under {@code directory}
+     * As {@link #listObjects(StoragePath, boolean)}, but may return only objects whose name under {@code directory}
      * begins with {@code namePrefix}.
      * <p>
      * A separate method rather than a wider contract on the two-argument form, because that form is also handed real

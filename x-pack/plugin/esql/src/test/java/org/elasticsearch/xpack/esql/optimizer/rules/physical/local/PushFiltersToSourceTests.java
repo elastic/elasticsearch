@@ -203,6 +203,21 @@ public class PushFiltersToSourceTests extends ESTestCase {
         }
     }
 
+    /**
+     * An unstamped plan came from a coordinator that predates the stamp, so this rule reads it conservatively and
+     * withholds the filter under {@code skip_row} - a pushed filter would read past the point where a failing row
+     * is dropped. Reading an absent stamp as "cannot fail" is the mixed-version hazard, and the arms above all
+     * stamp explicitly, so without this case the rule's half of the upgrade window is unpinned.
+     */
+    public void testWithholdsUnderSkipRowWhenThePlanCarriesNoStamp() {
+        FilterExec filterExec = filterOverUnstampedExternalSource("skip_row");
+
+        PhysicalPlan result = applyRule(filterExec, registry(false));
+
+        assertThat(result, instanceOf(FilterExec.class));
+        assertNull(((ExternalSourceExec) ((FilterExec) result).child()).pushedFilter());
+    }
+
     /** A mode that keeps every row is equally harmless where a value can fail to convert. */
     public void testPushesUnderNullFieldWhenAValueCanFailToConvert() {
         FilterExec filterExec = filterOverExternalSource("null_field", true, Set.of("salary"));
@@ -233,6 +248,22 @@ public class PushFiltersToSourceTests extends ESTestCase {
 
     private static FilterExec filterOverExternalSource(String errorMode, boolean conversionMayNarrow, Set<String> declaredTypeColumns) {
         return filterOverExternalSource("file:///test.parquet", "parquet", errorMode, conversionMayNarrow, declaredTypeColumns);
+    }
+
+    /** No stamp on the plan at all, which is what a coordinator that predates the stamp sends. */
+    private static FilterExec filterOverUnstampedExternalSource(String errorMode) {
+        FieldAttribute salary = fieldAttr("salary");
+        ExternalSourceExec source = new ExternalSourceExec(
+            SRC,
+            "file:///test.parquet",
+            "parquet",
+            List.of(salary),
+            Map.of(ErrorPolicy.CONFIG_ERROR_MODE, errorMode),
+            Map.of(),
+            /* pushedFilter = */ null,
+            /* estimatedRowSize = */ null
+        ).withDeclaredReadSpec(DeclaredReadSpec.of(Map.of(), Map.of(), Set.of()));
+        return new FilterExec(SRC, source, new Equals(SRC, salary, intLiteral(100)));
     }
 
     private static FilterExec filterOverExternalSource(String sourcePath, String sourceType, String errorMode, Set<String> declared) {

@@ -172,6 +172,21 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
         }
     }
 
+    /**
+     * An unstamped plan came from a coordinator that predates the stamp, so this rule reads it conservatively and
+     * does not defer extraction under {@code skip_row}: a deferred column would be fetched for rows the eager scan
+     * would have dropped. Reading an absent stamp as "cannot fail" is the mixed-version hazard, and every arm above
+     * stamps explicitly, so without this case the rule's half of the upgrade window is unpinned.
+     */
+    public void testSkipRowWithNoStampDoesNotDefer() {
+        List<Attribute> schema = sixColumnSchema();
+        ExternalSourceExec source = parquetSource(schema, null, Map.of(), Map.of(ErrorPolicy.CONFIG_ERROR_MODE, "skip_row"))
+            .withDeclaredReadSpec(DeclaredReadSpec.of(Map.of(), Map.of(), Set.of()));
+        TopNExec topN = topN(schema.get(0), 100, source);
+
+        assertThat(applyRule(topN, columnExtractorAwareRegistry()), instanceOf(TopNExec.class));
+    }
+
     /** A mode that keeps every row stays eligible even where a value can fail to convert. */
     public void testNarrowingReadUnderNullFieldStillDefers() {
         List<Attribute> schema = sixColumnSchema();

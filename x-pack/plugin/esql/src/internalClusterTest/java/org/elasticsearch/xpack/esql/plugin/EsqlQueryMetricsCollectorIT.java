@@ -209,7 +209,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         }
         String datasetName = registerDataset(
             "metrics_pruned_ds",
-            StoragePath.fileUri(root) + "/**/*.csv",
+            StoragePath.fileUri(root) + "/*/*.csv",
             Map.of("format", "csv", "partition_detection", "hive")
         );
 

@@ -286,18 +286,20 @@ public abstract class ESTestCase extends LuceneTestCase {
     private static final Collection<String> loggedLeaks = new ArrayList<>();
 
     /**
-     * Third-party Netty users known to throw from a ChannelFutureListener while their own event loop is shutting down.
-     * Netty catches the throwable and logs it on DefaultPromise at WARN, which this suite would otherwise report as a
-     * test failure. Neither is actionable from here: the throw is internal to the library and happens after the work the
-     * test waited on has already completed. Matched on the owning package, because the listener is usually a lambda whose
-     * generated class name differs from run to run.
+     * Promise warnings we tolerate instead of failing a test on. A listener that throws is normally one of our own
+     * callbacks breaking, which is what the capture above exists to catch; these are third-party listeners throwing
+     * during their library's own teardown, where nothing on our side is wrong and nothing on our side can fix it.
+     * <p>
+     * Each entry names the class that declares the listener, which is the stable part of what Netty reports: for a
+     * lambda it logs the declaring class followed by a generated suffix that differs from run to run. Deliberately not
+     * the package — that would also cover these clients' request paths, where a throw is worth seeing.
      */
-    private static final List<String> NOT_ACTIONABLE_PROMISE_WARNINGS = List.of(
-        // gRPC's transport, during HTTP/2 stream shutdown. See #144244, #144263.
+    private static final List<String> TOLERATED_PROMISE_WARNINGS = List.of(
+        // gRPC's transport, throwing from a listener for an HTTP/2 stream it had already closed. See #144244, #144263.
         "An exception was thrown by io.grpc.netty.NettyServerHandler",
         // The AWS SDK's connection pool, whose idle-count bookkeeping is submitted to an event executor that the
         // client's own shutdown may already have terminated. See #161727.
-        "An exception was thrown by software.amazon.awssdk.http.nio.netty."
+        "An exception was thrown by software.amazon.awssdk.http.nio.netty.internal.IdleConnectionCountingChannelPool"
     );
 
     private HeaderWarningAppender headerWarningAppender;
@@ -359,7 +361,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             public void append(LogEvent event) {
                 if (Level.WARN.equals(event.getLevel())) {
                     final String message = event.getMessage().getFormattedMessage();
-                    if (NOT_ACTIONABLE_PROMISE_WARNINGS.stream().anyMatch(message::contains)) {
+                    if (TOLERATED_PROMISE_WARNINGS.stream().anyMatch(message::contains)) {
                         return;
                     }
                     synchronized (loggedLeaks) {

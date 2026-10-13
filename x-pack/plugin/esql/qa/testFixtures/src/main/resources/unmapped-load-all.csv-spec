@@ -1,6 +1,5 @@
 // Under LOAD_ALL the unmapped _source leaves are not columns of their own: they are returned as one _unmapped_fields column of
-// type _source, a flattened JSON object per row (dotted leaf names, arrays as JSON arrays, null when no leaf survives).
-// Comments below that speak of "expanded columns" predate that layout and describe which leaves end up in the object.
+// type _source, a flattened JSON object per row (dotted leaf names, a leaf with several values as a JSON array, null when no leaf survives).
 
 ####################################################
 # Baseline: all unmapped fields in _unmapped_fields #
@@ -1522,7 +1521,7 @@ FROM partial_mapping_sample_data
 ###################################
 
 // Basic: unmapped _source fields expand alongside lookup-index fields. language_code (unmapped, keyword) serves as the join key
-// and therefore becomes a real query column — it is excluded from the blob and does not reappear as an expanded column.
+// and therefore becomes a real query column — it is excluded from the blob and does not reappear in the _unmapped_fields object.
 lookupJoinExpandsUnmappedFields
 required_capability: optional_fields_load_all_single_source_column
 
@@ -3633,7 +3632,7 @@ id:keyword | _unmapped_fields:_source
 7 | "{""unmapped.bar"":""bar7""}"
 ;
 
-multiIndexKeepOrdersExpandedLeavesStarFirst
+multiIndexKeepStarThenUnmappedPatternsKeepsSourceColumnLast
 required_capability: optional_fields_load_all_single_source_column
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -3652,7 +3651,7 @@ id:keyword | unmapped:keyword | _unmapped_fields:_source
 7 | null | "{""unmapped.bar"":""bar7""}"
 ;
 
-multiIndexKeepOrdersRealColumnAfterExpandedLeaves
+multiIndexKeepRealColumnWithSourceColumn
 required_capability: optional_fields_load_all_single_source_column
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -3694,7 +3693,7 @@ id:keyword | unmapped.foo:keyword | unmapped.deep.leaf:keyword | _unmapped_field
 ;
 
 // All three dotted leaves are keyword-mapped in unmapped_multi_mapped and unmapped in the siblings; each is partially mapped, so ids 8 and 9
-// carry their mapped values and ids 1-7 the values (if any) loaded from the siblings' _source, one column per leaf.
+// carry their mapped values and ids 1-7 the values (if any) loaded from the siblings' _source, as one real column per mapped leaf.
 multiIndexMappedFieldsAllDottedLeaves
 required_capability: optional_fields_load_all_single_source_column
 
@@ -3744,7 +3743,7 @@ id:keyword | unmapped:keyword | unmapped.foo:keyword
 // Queries five indices with no KEEP and no DROP: unmapped_multi_mapped, which maps the three dotted leaves, plus the four
 // mapping-unmapped_multi.json indices, which map only id. Each dotted leaf is therefore a real column that merges its mapped leg with
 // the _source legs of its siblings. The bare scalar unmapped is mapped nowhere, so it reaches the output only through the LOAD_ALL
-// expansion. With no KEEP there is no order to replay, so the expanded column is appended on the right.
+// _unmapped_fields object. With no KEEP the _unmapped_fields column is appended on the right.
 multiIndexMappedAndUnmappedNoProjection
 required_capability: optional_fields_load_all_single_source_column
 
@@ -3765,7 +3764,7 @@ id:keyword | unmapped.bar:keyword | unmapped.deep.leaf:keyword | unmapped.foo:ke
 9 | null | null | [mfa, mfb] | null
 ;
 
-multiIndexKeepOrdersRealColumnAfterExpandedLeaves_WithMultiWildcardNested
+multiIndexKeepRealColumnWithSourceColumn_WithMultiWildcardNested
 required_capability: optional_fields_load_all_single_source_column
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -3784,7 +3783,7 @@ null | 6 | "{""unmapped.deep.leaf"":""deep6""}"
 null | 7 | "{""unmapped.bar"":""bar7""}"
 ;
 
-multiIndexKeepOrdersRealColumnAfterExpandedLeaves_WithMultiWildcardNested_AndMetadataIndex
+multiIndexKeepRealColumnWithSourceColumn_WithMultiWildcardNested_AndMetadataIndex
 required_capability: optional_fields_load_all_single_source_column
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -3801,7 +3800,7 @@ id:keyword | _index:keyword | unmapped:keyword | unmapped.foo:keyword | unmapped
 9 | unmapped_multi_mapped | null | [mfa, mfb] | null | null | null
 ;
 
-multiIndexKeepOrdersRealColumnAfterExpandedLeaves_WithMultiWildcardNested_AndActualMappedFields
+multiIndexKeepRealColumnWithSourceColumn_WithMultiWildcardNested_AndActualMappedFields
 required_capability: optional_fields_load_all_single_source_column
 
 SET unmapped_fields="LOAD_ALL"\;

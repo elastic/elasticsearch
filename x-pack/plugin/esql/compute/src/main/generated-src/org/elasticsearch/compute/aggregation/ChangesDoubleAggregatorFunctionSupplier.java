@@ -72,7 +72,7 @@ final class ChangesDoubleGroupingAggregatorFunction extends AbstractRateGrouping
     private final List<Integer> channels;
     private final DriverContext driverContext;
     private final BigArrays bigArrays;
-    private final DoubleRawBuffer rawBuffer;
+    private final RateDoubleGroupingAggregatorFunction.DoubleRawBuffer rawBuffer;
     private final RateDoubleGroupingAggregatorFunction.IntervalBuffer intervalBuffer;
     private ObjectArray<ReducedState> reducedStates;
 
@@ -80,10 +80,10 @@ final class ChangesDoubleGroupingAggregatorFunction extends AbstractRateGrouping
         this.channels = channels;
         this.driverContext = driverContext;
         this.bigArrays = driverContext.bigArrays();
-        DoubleRawBuffer rawBuffer = null;
+        RateDoubleGroupingAggregatorFunction.DoubleRawBuffer rawBuffer = null;
         RateDoubleGroupingAggregatorFunction.IntervalBuffer intervalBuffer = null;
         try {
-            rawBuffer = new DoubleRawBuffer(driverContext.breaker());
+            rawBuffer = new RateDoubleGroupingAggregatorFunction.DoubleRawBuffer(driverContext.breaker());
             intervalBuffer = new RateDoubleGroupingAggregatorFunction.IntervalBuffer(driverContext.breaker());
             this.reducedStates = bigArrays.newObjectArray(256);
             this.rawBuffer = rawBuffer;
@@ -504,52 +504,4 @@ final class ChangesDoubleGroupingAggregatorFunction extends AbstractRateGrouping
         }
     }
 
-    private static final class DoubleRawBuffer extends RawBuffer {
-        private final DoubleBuffer values;
-
-        DoubleRawBuffer(org.elasticsearch.common.breaker.CircuitBreaker breaker) {
-            super(breaker);
-            boolean success = false;
-            try {
-                this.values = new DoubleBuffer(breaker, PAGE_SIZE);
-                success = true;
-            } finally {
-                if (success == false) {
-                    close();
-                }
-            }
-        }
-
-        void append(int groupId, long timestamp, double value) {
-            prepareSlicesOnly(groupId, timestamp);
-            int newSize = timestamps.size() + 1;
-            timestamps.ensureCapacity(newSize);
-            values.ensureCapacity(newSize);
-            timestamps.append(timestamp);
-            values.append(value);
-        }
-
-        long timestamp(int position) {
-            return timestamps.get(position);
-        }
-
-        double value(int position) {
-            return values.get(position);
-        }
-
-        int compareValues(int leftPosition, int rightPosition) {
-            return Double.compare(value(leftPosition), value(rightPosition));
-        }
-
-        @Override
-        void clearBuffers() {
-            timestamps.clear();
-            values.clear();
-        }
-
-        @Override
-        public void close() {
-            Releasables.close(values, super::close);
-        }
-    }
 }

@@ -72,7 +72,7 @@ final class ChangesLongGroupingAggregatorFunction extends AbstractRateGroupingFu
     private final List<Integer> channels;
     private final DriverContext driverContext;
     private final BigArrays bigArrays;
-    private final LongRawBuffer rawBuffer;
+    private final RateLongGroupingAggregatorFunction.LongRawBuffer rawBuffer;
     private final RateLongGroupingAggregatorFunction.IntervalBuffer intervalBuffer;
     private ObjectArray<ReducedState> reducedStates;
 
@@ -80,10 +80,10 @@ final class ChangesLongGroupingAggregatorFunction extends AbstractRateGroupingFu
         this.channels = channels;
         this.driverContext = driverContext;
         this.bigArrays = driverContext.bigArrays();
-        LongRawBuffer rawBuffer = null;
+        RateLongGroupingAggregatorFunction.LongRawBuffer rawBuffer = null;
         RateLongGroupingAggregatorFunction.IntervalBuffer intervalBuffer = null;
         try {
-            rawBuffer = new LongRawBuffer(driverContext.breaker());
+            rawBuffer = new RateLongGroupingAggregatorFunction.LongRawBuffer(driverContext.breaker());
             intervalBuffer = new RateLongGroupingAggregatorFunction.IntervalBuffer(driverContext.breaker());
             this.reducedStates = bigArrays.newObjectArray(256);
             this.rawBuffer = rawBuffer;
@@ -504,52 +504,4 @@ final class ChangesLongGroupingAggregatorFunction extends AbstractRateGroupingFu
         }
     }
 
-    private static final class LongRawBuffer extends RawBuffer {
-        private final LongBuffer values;
-
-        LongRawBuffer(org.elasticsearch.common.breaker.CircuitBreaker breaker) {
-            super(breaker);
-            boolean success = false;
-            try {
-                this.values = new LongBuffer(breaker, PAGE_SIZE);
-                success = true;
-            } finally {
-                if (success == false) {
-                    close();
-                }
-            }
-        }
-
-        void append(int groupId, long timestamp, long value) {
-            prepareSlicesOnly(groupId, timestamp);
-            int newSize = timestamps.size() + 1;
-            timestamps.ensureCapacity(newSize);
-            values.ensureCapacity(newSize);
-            timestamps.append(timestamp);
-            values.append(value);
-        }
-
-        long timestamp(int position) {
-            return timestamps.get(position);
-        }
-
-        long value(int position) {
-            return values.get(position);
-        }
-
-        int compareValues(int leftPosition, int rightPosition) {
-            return Long.compare(value(leftPosition), value(rightPosition));
-        }
-
-        @Override
-        void clearBuffers() {
-            timestamps.clear();
-            values.clear();
-        }
-
-        @Override
-        public void close() {
-            Releasables.close(values, super::close);
-        }
-    }
 }

@@ -86,7 +86,7 @@ Functions that derive new labels from existing label values.
 
 ### Sorting functions
 
-Functions that order an instant vector by sample value or by label values.
+Functions that sort an instant vector by sample value or by label values.
 
 ::::{dropdown} Sorting function list
 :open:

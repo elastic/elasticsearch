@@ -285,6 +285,21 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     private static final Collection<String> loggedLeaks = new ArrayList<>();
 
+    /**
+     * Third-party Netty users known to throw from a ChannelFutureListener while their own event loop is shutting down.
+     * Netty catches the throwable and logs it on DefaultPromise at WARN, which this suite would otherwise report as a
+     * test failure. Neither is actionable from here: the throw is internal to the library and happens after the work the
+     * test waited on has already completed. Matched on the owning package, because the listener is usually a lambda whose
+     * generated class name differs from run to run.
+     */
+    private static final List<String> NOT_ACTIONABLE_PROMISE_WARNINGS = List.of(
+        // gRPC's transport, during HTTP/2 stream shutdown. See #144244, #144263.
+        "An exception was thrown by io.grpc.netty.NettyServerHandler",
+        // The AWS SDK's connection pool, whose idle-count bookkeeping is submitted to an event executor that the
+        // client's own shutdown may already have terminated. See #161727.
+        "An exception was thrown by software.amazon.awssdk.http.nio.netty."
+    );
+
     private HeaderWarningAppender headerWarningAppender;
 
     @AfterClass
@@ -344,11 +359,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             public void append(LogEvent event) {
                 if (Level.WARN.equals(event.getLevel())) {
                     final String message = event.getMessage().getFormattedMessage();
-                    // gRPC's Netty transport can sometimes throw from an internal ChannelFutureListener during stream shutdown,
-                    // which Netty logs as a WARN on DefaultPromise:
-                    // "An exception was thrown by io.grpc.netty.NettyServerHandler$X.operationComplete()"
-                    // This is a known source of test flakiness for Arrow Flight based tests and is not actionable here.
-                    if (message.contains("An exception was thrown by io.grpc.netty.NettyServerHandler")) {
+                    if (NOT_ACTIONABLE_PROMISE_WARNINGS.stream().anyMatch(message::contains)) {
                         return;
                     }
                     synchronized (loggedLeaks) {

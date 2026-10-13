@@ -68,7 +68,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceAuthorizer;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceDatasets;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
-import org.elasticsearch.xpack.esql.fetch.DocRefOriginResolver;
+import org.elasticsearch.xpack.esql.fetch.DocOriginResolver;
 import org.elasticsearch.xpack.esql.fetch.FetchContextLease;
 import org.elasticsearch.xpack.esql.fetch.NodeFetchContexts;
 import org.elasticsearch.xpack.esql.plan.physical.DocRefEncodeExec;
@@ -1098,7 +1098,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             : null;
         var computeSearchContexts = new AcquiredSearchContexts(
             request.shards().size(),
-            fetchContexts == null ? DocRefOriginResolver.NONE : fetchContexts
+            fetchContexts == null ? DocOriginResolver.NONE : fetchContexts
         );
         ActionListener<DataNodeComputeResponse> responseListener;
         if (fetchContexts != null) {

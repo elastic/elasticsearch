@@ -16,8 +16,8 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DocOrigin;
 import org.elasticsearch.compute.data.DocRefBlock;
-import org.elasticsearch.compute.data.DocRefOrigin;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -57,7 +57,7 @@ import static org.hamcrest.Matchers.instanceOf;
  */
 public class FetchOperatorTests extends ComputeTestCase {
     private static final List<ElementType> FETCHED_TYPES = List.of(ElementType.BYTES_REF, ElementType.LONG);
-    private static final List<DocRefOrigin> ORIGINS = List.of(origin("n1", 0), origin("n1", 1), origin("n2", 2), origin("n3", 3));
+    private static final List<DocOrigin> ORIGINS = List.of(origin("n1", 0), origin("n1", 1), origin("n2", 2), origin("n3", 3));
 
     private ThreadPool threadPool;
     /** The status of the operator the last {@link #run} drove, read just before it closed. */
@@ -365,7 +365,7 @@ public class FetchOperatorTests extends ComputeTestCase {
         return new FetchOperator.Factory(0, FETCHED_TYPES, null, between(1, FetchOperator.MAX_OUTSTANDING_PAGES), client);
     }
 
-    private record Ref(DocRefOrigin origin, int segment, int doc) {
+    private record Ref(DocOrigin origin, int segment, int doc) {
         String id() {
             return "doc-" + origin.shardId().id() + "-" + segment + "-" + doc;
         }
@@ -462,7 +462,7 @@ public class FetchOperatorTests extends ComputeTestCase {
                     results.add(ShardResult.failed(shard.shardId(), new SearchContextMissingException(shard.contextId())));
                     continue;
                 }
-                DocRefOrigin origin = ORIGINS.stream().filter(o -> o.contextId().equals(shard.contextId())).findFirst().orElseThrow();
+                DocOrigin origin = ORIGINS.stream().filter(o -> o.contextId().equals(shard.contextId())).findFirst().orElseThrow();
                 try (
                     BytesRefBlock.Builder ids = blockFactory.newBytesRefBlockBuilder(shard.docCount());
                     LongBlock.Builder values = blockFactory.newLongBlockBuilder(shard.docCount())
@@ -495,7 +495,7 @@ public class FetchOperatorTests extends ComputeTestCase {
     }
 
     private static Page page(BlockFactory blockFactory, List<Ref> refs) {
-        List<DocRefOrigin> origins = new ArrayList<>();
+        List<DocOrigin> origins = new ArrayList<>();
         try (DocRefBlock.Builder builder = DocRefBlock.newBlockBuilder(blockFactory, refs.size())) {
             for (Ref ref : refs) {
                 if (origins.contains(ref.origin()) == false) {
@@ -521,7 +521,7 @@ public class FetchOperatorTests extends ComputeTestCase {
             BytesRefBlock ids = page.getBlock(1);
             LongBlock values = page.getBlock(2);
             for (int p = 0; p < page.getPositionCount(); p++) {
-                DocRefOrigin origin = refs.asVector().origin(p);
+                DocOrigin origin = refs.asVector().origin(p);
                 Ref ref = new Ref(origin, refs.asVector().segments().getInt(p), refs.asVector().docs().getInt(p));
                 assertThat(ids.getBytesRef(ids.getFirstValueIndex(p), scratch).utf8ToString(), equalTo(ref.id()));
                 assertThat(values.getLong(values.getFirstValueIndex(p)), equalTo(ref.value()));
@@ -531,7 +531,7 @@ public class FetchOperatorTests extends ComputeTestCase {
         return Collections.unmodifiableList(rows);
     }
 
-    private static DocRefOrigin origin(String nodeId, int shard) {
-        return new DocRefOrigin("", nodeId, new ShardId("index", "uuid", shard), new ShardSearchContextId("session", shard));
+    private static DocOrigin origin(String nodeId, int shard) {
+        return new DocOrigin("", nodeId, new ShardId("index", "uuid", shard), new ShardSearchContextId("session", shard));
     }
 }

@@ -17,7 +17,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * {@link Vector} where each entry references a lucene document by its {@link DocRefOrigin}, segment and doc id. Unlike
+ * {@link Vector} where each entry references a lucene document by its {@link DocOrigin}, segment and doc id. Unlike
  * a {@link DocVector} it pins no reader and stays meaningful on other nodes, so it can cross the network and come back
  * to the node that loads the document.
  * <p>
@@ -27,7 +27,7 @@ import java.util.Set;
 public final class DocRefVector extends AbstractVector implements Vector {
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DocRefVector.class);
 
-    private final DocRefOrigins origins;
+    private final DocOrigins origins;
     private final IntVector originOrdinals;
     private final IntVector segments;
     private final IntVector docs;
@@ -38,7 +38,7 @@ public final class DocRefVector extends AbstractVector implements Vector {
      *
      * @param mayContainDuplicates {@code false} promises that no two rows reference the same document
      */
-    public DocRefVector(DocRefOrigins origins, IntVector originOrdinals, IntVector segments, IntVector docs, boolean mayContainDuplicates) {
+    public DocRefVector(DocOrigins origins, IntVector originOrdinals, IntVector segments, IntVector docs, boolean mayContainDuplicates) {
         super(originOrdinals.getPositionCount(), originOrdinals.blockFactory());
         if (originOrdinals.getPositionCount() != segments.getPositionCount()
             || originOrdinals.getPositionCount() != docs.getPositionCount()) {
@@ -63,7 +63,7 @@ public final class DocRefVector extends AbstractVector implements Vector {
         blockFactory().adjustBreaker(BASE_RAM_BYTES_USED + origins.ramBytesUsed());
     }
 
-    public DocRefOrigins origins() {
+    public DocOrigins origins() {
         return origins;
     }
 
@@ -82,7 +82,7 @@ public final class DocRefVector extends AbstractVector implements Vector {
     /**
      * The origin of the document at {@code position}.
      */
-    public DocRefOrigin origin(int position) {
+    public DocOrigin origin(int position) {
         return origins.get(originOrdinals.getInt(position));
     }
 
@@ -270,7 +270,7 @@ public final class DocRefVector extends AbstractVector implements Vector {
     }
 
     private void assertValid() {
-        record Doc(DocRefOrigin origin, int segment, int doc) {}
+        record Doc(DocOrigin origin, int segment, int doc) {}
         Set<Doc> seen = mayContainDuplicates ? null : new HashSet<>(getPositionCount());
         for (int p = 0; p < getPositionCount(); p++) {
             int ordinal = originOrdinals.getInt(p);

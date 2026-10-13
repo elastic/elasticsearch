@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.fetch;
 
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.compute.data.DocRefOrigin;
+import org.elasticsearch.compute.data.DocOrigin;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
@@ -101,7 +101,7 @@ public class NodeFetchContextsTests extends FetchContextsTestCase {
         NodeFetchContexts contexts = newNodeContexts();
         SearchContext searchContext = open(contexts, INDEX, 0);
 
-        DocRefOrigin origin = contexts.originOf(searchContext);
+        DocOrigin origin = contexts.originOf(searchContext);
 
         assertThat(origin.clusterAlias(), equalTo(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY));
         assertThat(origin.nodeId(), equalTo(getInstanceFromNode(ClusterService.class).localNode().getId()));

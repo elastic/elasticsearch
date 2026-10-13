@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.esql.fetch;
 
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.DocOrigin;
 import org.elasticsearch.compute.data.DocRefBlock;
-import org.elasticsearch.compute.data.DocRefOrigin;
 import org.elasticsearch.compute.data.DocRefVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
@@ -89,7 +89,7 @@ final class FetchBatchPlanner {
                 int ordinal = originOrdinals.getInt(p);
                 ShardAccumulator shard = shardOfOrigin[ordinal];
                 if (shard == null) {
-                    DocRefOrigin origin = references.origins().get(ordinal);
+                    DocOrigin origin = references.origins().get(ordinal);
                     NodeAccumulator node = nodes.computeIfAbsent(new NodeKey(origin.clusterAlias(), origin.nodeId()), NodeAccumulator::new);
                     shard = node.shards.computeIfAbsent(origin.contextId(), id -> new ShardAccumulator(origin));
                     shardOfOrigin[ordinal] = shard;
@@ -143,7 +143,7 @@ final class FetchBatchPlanner {
     }
 
     private static final class ShardAccumulator {
-        private final DocRefOrigin origin;
+        private final DocOrigin origin;
         private int rows;
         /** The packed document of each row, then sorted, with the distinct documents first. */
         private long[] docs;
@@ -151,7 +151,7 @@ final class FetchBatchPlanner {
         private int distinctDocs;
         private int firstResponseRow;
 
-        ShardAccumulator(DocRefOrigin origin) {
+        ShardAccumulator(DocOrigin origin) {
             this.origin = origin;
         }
 

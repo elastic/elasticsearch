@@ -20,12 +20,12 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * The reader that the segment and doc id of a {@link DocRefBlock} row belong to. The shard index of a {@link DocVector}
- * only means something on the node that opened the shard. An origin names the cluster, the node, the shard and the
- * reader context, so the document can still be loaded after the row has left that node.
+ * The reader that the segment and doc id of a row belong to. The shard slot of a {@link DocVector} row only means
+ * something on the node that opened the shard. An origin names the cluster, the node, the shard and the reader context,
+ * so the document can still be loaded after the row has left that node.
  */
-public final class DocRefOrigin implements Writeable, Accountable {
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DocRefOrigin.class);
+public final class DocOrigin implements Writeable, Accountable {
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DocOrigin.class);
     private static final long SHARD_ID_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ShardId.class) + RamUsageEstimator
         .shallowSizeOfInstance(Index.class);
     private static final long CONTEXT_ID_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ShardSearchContextId.class);
@@ -43,7 +43,7 @@ public final class DocRefOrigin implements Writeable, Accountable {
      * @param shardId      the shard the reader reads
      * @param contextId    the reader context on that node
      */
-    public DocRefOrigin(String clusterAlias, String nodeId, ShardId shardId, ShardSearchContextId contextId) {
+    public DocOrigin(String clusterAlias, String nodeId, ShardId shardId, ShardSearchContextId contextId) {
         this.clusterAlias = Objects.requireNonNull(clusterAlias, "clusterAlias");
         this.nodeId = Objects.requireNonNull(nodeId, "nodeId");
         this.shardId = Objects.requireNonNull(shardId, "shardId");
@@ -51,8 +51,8 @@ public final class DocRefOrigin implements Writeable, Accountable {
         this.hash = Objects.hash(clusterAlias, nodeId, shardId, contextId);
     }
 
-    public static DocRefOrigin readFrom(StreamInput in) throws IOException {
-        return new DocRefOrigin(in.readString(), in.readString(), new ShardId(in), new ShardSearchContextId(in));
+    public static DocOrigin readFrom(StreamInput in) throws IOException {
+        return new DocOrigin(in.readString(), in.readString(), new ShardId(in), new ShardSearchContextId(in));
     }
 
     @Override
@@ -107,10 +107,10 @@ public final class DocRefOrigin implements Writeable, Accountable {
         if (this == o) {
             return true;
         }
-        if (o instanceof DocRefOrigin == false) {
+        if (o instanceof DocOrigin == false) {
             return false;
         }
-        DocRefOrigin other = (DocRefOrigin) o;
+        DocOrigin other = (DocOrigin) o;
         return hash == other.hash
             && clusterAlias.equals(other.clusterAlias)
             && nodeId.equals(other.nodeId)
@@ -125,6 +125,6 @@ public final class DocRefOrigin implements Writeable, Accountable {
 
     @Override
     public String toString() {
-        return "DocRefOrigin[" + clusterAlias + ":" + nodeId + shardId + contextId + "]";
+        return "DocOrigin[" + clusterAlias + ":" + nodeId + shardId + contextId + "]";
     }
 }

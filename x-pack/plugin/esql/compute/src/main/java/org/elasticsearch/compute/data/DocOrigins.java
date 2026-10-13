@@ -16,21 +16,21 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * The dictionary of a {@link DocRefVector}: the origins its rows point at by ordinal. Immutable and free of duplicates,
- * so vectors filtered or sliced from one vector share it.
+ * The origins the rows of a vector point at by ordinal, once the rows left the node that read them. Immutable and free
+ * of duplicates, so vectors filtered or sliced from one vector share it.
  */
-public final class DocRefOrigins implements Accountable {
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DocRefOrigins.class);
+public final class DocOrigins implements Accountable {
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DocOrigins.class);
 
-    public static final DocRefOrigins EMPTY = new DocRefOrigins(new DocRefOrigin[0]);
+    public static final DocOrigins EMPTY = new DocOrigins(new DocOrigin[0]);
 
-    private final DocRefOrigin[] origins;
+    private final DocOrigin[] origins;
     private final long ramBytesUsed;
 
-    private DocRefOrigins(DocRefOrigin[] origins) {
+    private DocOrigins(DocOrigin[] origins) {
         this.origins = origins;
         long bytes = BASE_RAM_BYTES_USED + RamUsageEstimator.shallowSizeOf(origins);
-        for (DocRefOrigin origin : origins) {
+        for (DocOrigin origin : origins) {
             bytes += origin.ramBytesUsed();
         }
         this.ramBytesUsed = bytes;
@@ -39,24 +39,24 @@ public final class DocRefOrigins implements Accountable {
     /**
      * @throws IllegalArgumentException if an origin is listed twice
      */
-    public static DocRefOrigins of(List<DocRefOrigin> origins) {
+    public static DocOrigins of(List<DocOrigin> origins) {
         if (origins.isEmpty()) {
             return EMPTY;
         }
-        Set<DocRefOrigin> seen = new HashSet<>(origins.size());
-        for (DocRefOrigin origin : origins) {
+        Set<DocOrigin> seen = new HashSet<>(origins.size());
+        for (DocOrigin origin : origins) {
             if (seen.add(origin) == false) {
                 throw new IllegalArgumentException("duplicate origin " + origin);
             }
         }
-        return new DocRefOrigins(origins.toArray(DocRefOrigin[]::new));
+        return new DocOrigins(origins.toArray(DocOrigin[]::new));
     }
 
     public int size() {
         return origins.length;
     }
 
-    public DocRefOrigin get(int ordinal) {
+    public DocOrigin get(int ordinal) {
         return origins[ordinal];
     }
 

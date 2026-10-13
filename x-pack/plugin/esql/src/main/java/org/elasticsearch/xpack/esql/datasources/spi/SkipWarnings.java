@@ -36,7 +36,7 @@ import java.util.function.Consumer;
  * <p>
  * A correctly bound thread is necessary but not sufficient: a scan the planner ships to another node runs its
  * drivers there, and that node's response headers reach the client only by chance, so a read-time notice written
- * straight to {@link HeaderWarning} from a driver thread is still lost (elastic/esql-planning#1837). Read paths
+ * straight to {@link HeaderWarning} from a driver thread is still lost. Read paths
  * therefore relay to a sink that ends in {@code DriverContext#addWarning}, the channel
  * {@code DriverCompletionInfo} carries back for the coordinator to emit. Plan-time work has the same problem in a
  * different coat: schema resolution runs on the metadata-read executor, so {@code ExternalSourceResolver} buffers
@@ -57,14 +57,14 @@ public class SkipWarnings {
     public static final int MAX_ADDED_WARNINGS = 20;
 
     /**
-     * Formats the standard absent-declared-column informational warning for {@code columnName}.
-     * Used when a declared column is entirely absent from a source file (Parquet, ORC, CSV, NDJSON).
+     * Formats the standard absent-column informational warning for {@code columnName}.
+     * Used when a resolved column is entirely absent from a source file (Parquet, ORC, CSV, NDJSON).
      * SchemaAdaptingIterator, ParquetFormatReader, OrcFormatReader, CsvFormatReader, NdJsonPageDecoder
      * and, for a column a complete schema lacks, ExternalSourceResolver use this method so that
      * InformationalWarningBudget's exact-string deduplication stays reliable across formats.
      */
-    public static String absentDeclaredColumnMessage(String columnName) {
-        return "declared column [" + columnName + "] is not present in some source files and reads null there";
+    public static String absentColumnMessage(String columnName) {
+        return "column [" + columnName + "] is not present in some source files and reads null there";
     }
 
     /**

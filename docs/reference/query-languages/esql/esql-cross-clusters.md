@@ -504,6 +504,8 @@ The `RERANK` and `COMPLETION` commands, and the `TEXT_EMBEDDING` and `EMBEDDING`
 
 {applies_to}`stack: preview 9.4` This also applies to `MMR` when its query vector comes from an inference function rather than from a literal or an existing vector field.
 
+{applies_to}`stack: preview 9.6+` This also applies to `DENSE_VECTOR`.
+
 Querying a [`semantic_text`](/reference/elasticsearch/mapping-reference/semantic-text.md) field works the other way around: each cluster generates query embeddings using its own `search_inference_id`, so the endpoint must exist on the cluster that holds the data.
 
 A query that does both needs endpoints on both clusters. The following reads no local data at all, and still requires the `semantic_text` field's endpoint on `my_remote_cluster` and the `rerank-1` endpoint on the local cluster:

@@ -18,12 +18,14 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.ResettableValue;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
@@ -230,5 +232,28 @@ public class DataStreamLifecycleFixtures {
             .addMinIndexDocsCondition(minDocs)
             .addMinPrimaryShardDocsCondition(minPrimaryShardDocs)
             .build();
+    }
+
+    public static DataStreamLifecycleSettings createDataStreamLifecycleSettings(
+        Boolean minimumLifecycleEnabled,
+        TimeValue globalDefaultRetention,
+        TimeValue globalMaxRetention
+    ) {
+        Settings.Builder clusterSettingsBuilder = Settings.builder();
+        if (globalDefaultRetention != null) {
+            clusterSettingsBuilder.put(DataStreamLifecycleSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING.getKey(), globalDefaultRetention);
+        }
+        if (globalMaxRetention != null) {
+            clusterSettingsBuilder.put(DataStreamLifecycleSettings.DATA_STREAMS_MAX_RETENTION_SETTING.getKey(), globalMaxRetention);
+        }
+        DataStreamLifecycleSettings settings = DataStreamLifecycleSettings.create(
+            ClusterSettings.createBuiltInClusterSettings(clusterSettingsBuilder.build())
+        );
+        // The minimum lifecycle for time series cannot be enabled via the cluster settings yet, so we spy on real settings and stub
+        // only this method. This should be replaced with the cluster setting once it is available.
+        if (minimumLifecycleEnabled != null) {
+            settings.setMinimumLifecycleEnabled(minimumLifecycleEnabled);
+        }
+        return settings;
     }
 }

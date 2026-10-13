@@ -4692,7 +4692,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         }
 
         /**
-         * Reads an INT64 {@code TIMESTAMP(MICROS|NANOS)} column into a {@code DATE_NANOS} block of epoch-nanoseconds.
+         * Reads an INT64 {@code TIMESTAMP(MICROS|NANOS)} column -- or a {@code TIME(MICROS|NANOS)}, whose value is a
+         * nanosecond of day -- into a {@code DATE_NANOS} block.
          * {@code NANOS} passes through; {@code MICROS} is scaled ×1_000. A {@code MICROS} value whose scaled instant
          * would fall outside the representable {@code date_nanos} range (~1677-2262) has no nanosecond representation,
          * so it is emitted as null (with a single deduplicated warning) rather than silently wrapping around.

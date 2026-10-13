@@ -6084,9 +6084,14 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * Reads a one-row LIST {@code column} as {@code datetime} through both decode engines and asserts the row's
-     * elements are {@code expectedMillis}. {@code declared} selects whether the column's {@code datetime} type comes
-     * from a declaration or from the file itself, which decides whether a coercion runs at all.
+     * Reads a one-row LIST {@code column} as {@code datetime} and asserts the row's elements are
+     * {@code expectedMillis}. {@code declared} selects whether the column's {@code datetime} type comes from a
+     * declaration or from the file itself, which decides whether a coercion runs at all.
+     *
+     * <p>As in {@link #assertListTemporalReads}, a LIST has one element decoder, not two: {@link PageColumnReader} is
+     * built only for columns with {@code maxRepLevel() == 0}, so every list decodes through
+     * {@code ParquetColumnDecoding}'s list arms under either iterator. The loop pins that the two iterators agree on
+     * framing and nulls.
      */
     private void assertListDatetimeReads(byte[] parquetData, String column, boolean declared, long... expectedMillis) throws Exception {
         StorageObject storageObject = createStorageObject(parquetData);
@@ -7445,10 +7450,10 @@ public class ParquetFormatReaderTests extends ESTestCase {
      * This list is hand-written, and nothing derives it from {@code ParquetFormatReader.convertParquetTypeToEsql}: a
      * NEW {@code from} type with no entry here fails on the {@code default} arm below, but a new physical SHAPE for a
      * type already listed goes unnoticed. The one shape knowingly left out is {@code FIXED_LEN_BYTE_ARRAY(16)}
-     * annotated {@code UUID}, which also renders KEYWORD. Both engines refuse it as a datetime and warn, so the value
-     * is the same either way, but the warning quotes different text: the optimized engine formats the 16 bytes as a
-     * hex UUID before parsing, the baseline arm parses them as UTF-8. Pinning that here would pin the divergence
-     * rather than the contract.
+     * annotated {@code UUID}, which also renders KEYWORD. Both decoders now render it as the same hex text -- that is
+     * what {@code ParquetColumnDecoding.declaredTextOf} is for -- and no hex UUID parses as a datetime, so the column
+     * is refused. This guard asserts a non-null first value, so a shape that is refused by contract cannot be
+     * expressed in it; {@code testDeclaredDatetimeOverListOfUuidIsRefusedLikeTheScalar} pins the refusal instead.
      */
     private static List<FusedShape> fusedShapesFor(DataType from) {
         String isoText = "2000-10-10T20:55:36Z"; // 20 chars, so the fixed-width shape below holds it exactly
@@ -7570,7 +7575,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
      * is never routed through {@code castBlock}, so a pair wired into only one reader's decode loops would silent-null
      * (or garbage-decode) in the other. It must do so for every PHYSICAL shape that renders the pair's {@code from}
      * type: the predicate is keyed on ESQL types while the decode arms see Parquet primitives, and nothing else forces
-     * the two keyings to agree. Both decode engines are exercised, since each carries its own copy of the dispatch.
+     * the two keyings to agree. Both decoders are exercised, since each carries its own copy of the dispatch, and the
+     * axis that reaches the second one is {@link ParquetFormatReader#withBaselinePath()} rather than the iterator
+     * flag: every shape here is flat, and {@code ParquetColumnIterator} builds a {@link PageColumnReader} for every
+     * flat column of a row group it reads without a record filter, so the flag alone would run the vectorized
+     * dispatch twice and leave the row-at-a-time copy -- the one this guard exists to protect -- unentered.
      *
      * <p>Enumerates the fused pairs mechanically, from {@code DataType.values()} crossed with itself, so a NEW fused
      * pair fails loudly until its author wires the native arm (in BOTH readers -- the ORC suite carries the twin of
@@ -7597,9 +7606,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
                     });
                     List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", to));
                     StorageObject storageObject = createStorageObject(parquetData);
-                    for (boolean optimized : List.of(true, false)) {
-                        ParquetFormatReader r = (ParquetFormatReader) new ParquetFormatReader(blockFactory, optimized)
-                            .withDeclaredTypeColumns(Set.of("x"));
+                    for (String decoder : List.of("pageReader", "rowAtATime")) {
+                        ParquetFormatReader engine = decoder.equals("rowAtATime")
+                            ? new ParquetFormatReader(blockFactory).withBaselinePath()
+                            : new ParquetFormatReader(blockFactory);
+                        ParquetFormatReader r = (ParquetFormatReader) engine.withDeclaredTypeColumns(Set.of("x"));
                         try (
                             CloseableIterator<Page> it = r.readRange(
                                 storageObject,
@@ -7607,7 +7618,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
                             )
                         ) {
                             Page page = it.next();
-                            String where = pair + " (optimized=" + optimized + ")";
+                            String where = pair + " (" + decoder + ")";
                             assertEquals(where, 1, page.getPositionCount());
                             assertFalse("fused pair " + where + " must decode natively, not silent-null", page.getBlock(0).isNull(0));
                             switch (to) {
@@ -10827,7 +10838,9 @@ public class ParquetFormatReaderTests extends ESTestCase {
      * A {@code TIMESTAMP(MICROS)} column — Arrow's and Spark's default timestamp unit — infers {@code date_nanos}, so
      * declaring it {@code date} narrows through {@code castBlock}. A value before 1970 is an ordinary instant for
      * {@code date}, and it must read rather than fail the whole column: the 1970 floor belongs to the source type.
-     * Both decode engines take the same route here (the pair is not fused), so the assertion covers both.
+     * The coercion is shared, but the {@code date_nanos} decode beneath it is not -- one decoder scales its batch
+     * array, the other reads value by value -- so the case runs both, selected with
+     * {@link ParquetFormatReader#withBaselinePath()}.
      */
     public void testPreEpochMicrosTimestampDeclaredDatetimeReads() throws Exception {
         MessageType schema = Types.buildMessage()
@@ -10844,10 +10857,10 @@ public class ParquetFormatReaderTests extends ESTestCase {
         });
         StorageObject storageObject = createStorageObject(parquetData);
         List<Attribute> asDatetime = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
-        for (boolean optimized : List.of(true, false)) {
-            ParquetFormatReader r = (ParquetFormatReader) new ParquetFormatReader(blockFactory, optimized).withDeclaredTypeColumns(
-                Set.of("ts")
-            );
+        for (String decoder : List.of("pageReader", "rowAtATime")) {
+            ParquetFormatReader base = new ParquetFormatReader(blockFactory);
+            ParquetFormatReader r = (ParquetFormatReader) (decoder.equals("rowAtATime") ? base.withBaselinePath() : base)
+                .withDeclaredTypeColumns(Set.of("ts"));
             try (
                 CloseableIterator<Page> it = r.readRange(
                     storageObject,
@@ -10855,8 +10868,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 )
             ) {
                 LongBlock l = (LongBlock) it.next().getBlock(0);
-                assertEquals("optimized=" + optimized, -152_366_400_000L, l.getLong(0));
-                assertEquals("optimized=" + optimized, 1_704_067_200_000L, l.getLong(1));
+                assertEquals(decoder, -152_366_400_000L, l.getLong(0));
+                assertEquals(decoder, 1_704_067_200_000L, l.getLong(1));
             }
         }
     }
@@ -10941,11 +10954,6 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * The discriminating control: a plain {@code INT32} list declared {@code long} reaches the same arm, and its
-     * elements must sign-extend. Widening every element unsigned reads {@code -1} as 4294967295 here, which is the
-     * regression the unsigned widening above could otherwise introduce unnoticed.
-     */
-    /**
      * The second half of the control. The bare-INT32 case below cannot tell {@code isSigned() == false} from a plain
      * {@code instanceof IntLogicalTypeAnnotation}, because an unannotated column fails both; dropping the signedness
      * half of the predicate therefore passes it. An explicitly signed {@code INT(32, true)} annotation separates them:
@@ -10970,6 +10978,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertListLongReads(parquetData, "vals", -1L, Integer.MIN_VALUE, 5L);
     }
 
+    /**
+     * The discriminating control: a plain {@code INT32} list declared {@code long} reaches the same arm, and its
+     * elements must sign-extend. Widening every element unsigned reads {@code -1} as 4294967295 here, which is the
+     * regression the unsigned widening above could otherwise introduce unnoticed.
+     */
     public void testListOfPlainInt32SignExtendsElements() throws Exception {
         MessageType schema = new MessageType(
             "test_schema",

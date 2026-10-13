@@ -111,7 +111,8 @@ id:integer | tods_ms:date
 ;
 
 // The microsecond-unit list, as the exact nanoseconds of day, for the same reason the scalar case uses TO_LONG:
-// one number per element says whether the x1_000 scale reached the list arm.
+// one number per element says whether the x1_000 scale reached the list arm. Every element is asserted, not the
+// maximum: a scale applied to one element and not the others would pass an MV_MAX assertion.
 listOfTimeOfDayMicrosScalesEveryElement
 required_capability: dataset_in_from_command
 required_capability: parquet_time_of_day_is_a_temporal_column
@@ -119,11 +120,11 @@ dataset: list_time_nanos: "{{list_time}}"
 
 FROM list_time_nanos
 | SORT id
-| EVAL elements = MV_MAX(TO_LONG(tods_us))
+| EVAL elements = TO_LONG(tods_us)
 | KEEP id, elements
 ;
 
 id:integer | elements:long
-1          | 86399999999000
+1          | [0, 37230000000000, 86399999999000]
 2          | 37230123456000
 ;

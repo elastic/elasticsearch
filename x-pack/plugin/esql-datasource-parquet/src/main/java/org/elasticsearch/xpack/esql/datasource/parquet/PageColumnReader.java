@@ -1796,7 +1796,8 @@ final class PageColumnReader implements Releasable {
 
     /**
      * Optimized-path counterpart of {@link ParquetFormatReader}'s {@code readDateNanosColumn}: decodes an INT64
-     * {@code TIMESTAMP(MICROS|NANOS)} column into a {@code DATE_NANOS} block of epoch-nanoseconds. {@code NANOS}
+     * {@code TIMESTAMP(MICROS|NANOS)} column -- or a {@code TIME(MICROS|NANOS)}, whose value is a nanosecond of day --
+     * into a {@code DATE_NANOS} block. {@code NANOS}
      * passes through; {@code MICROS} is scaled ×1_000. {@code MICROS} values whose scaled instant falls outside the
      * representable {@code date_nanos} range (~1677-2262) are emitted as null (with one deduplicated warning) rather
      * than silently wrapping. The common in-range case keeps the existing no-null fast vector path; a null mask is
@@ -1868,8 +1869,9 @@ final class PageColumnReader implements Releasable {
     }
 
     /**
-     * Scales a dense (no definition-level nulls) {@code MICROS} timestamp array to epoch-nanoseconds in place. A
-     * {@code NANOS} column is already in its final unit and is left untouched. Returns a mask of positions that
+     * Scales a dense (no definition-level nulls) {@code MICROS} array -- a {@code TIMESTAMP} or a {@code TIME} -- to
+     * nanoseconds in place, the same x1_000 {@code ParquetColumnDecoding.convertTemporalToNanos} applies on the
+     * row-at-a-time path. A {@code NANOS} column is already in its final unit and is left untouched. Returns a mask of positions that
      * overflowed the representable {@code date_nanos} range (for the caller to null out), or {@code null} when
      * nothing overflowed (the common case, which keeps the no-null fast path).
      */
@@ -1893,7 +1895,7 @@ final class PageColumnReader implements Releasable {
     }
 
     /**
-     * Scales the non-null {@code MICROS} timestamp positions to epoch-nanoseconds in place, extending {@code nulls}
+     * Scales the non-null {@code MICROS} positions ({@code TIMESTAMP} or {@code TIME}) to nanoseconds in place, extending {@code nulls}
      * with any positions that overflow the representable {@code date_nanos} range. A {@code NANOS} column needs no
      * scaling. Returns whether any overflow occurred.
      */

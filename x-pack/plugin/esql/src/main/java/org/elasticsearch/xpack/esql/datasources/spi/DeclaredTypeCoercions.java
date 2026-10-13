@@ -111,7 +111,8 @@ import java.util.function.IntFunction;
  * decides it, and it is the same rule for every temporal target:
  * <ol>
  *   <li><b>The file's annotation wins.</b> A physically-typed temporal column (a parquet
- *       {@code TIMESTAMP(unit)}) is already an instant, not a raw number: its unit is known, a
+ *       {@code TIMESTAMP(unit)}, or a {@code TIME(unit)}, which is a time of day rendered as an
+ *       instant on 1970-01-01) is already an instant, not a raw number: its unit is known, a
  *       {@code format} on it is rejected at resolution rather than obeyed, and the declaration only
  *       chooses the target precision (nanos&rarr;millis narrows, millis&rarr;nanos widens).</li>
  *   <li><b>Else the declared {@code format} wins</b>, naming the unit / parse dialect of the number

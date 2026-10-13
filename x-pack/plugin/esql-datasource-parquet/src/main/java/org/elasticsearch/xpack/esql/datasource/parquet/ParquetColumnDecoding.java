@@ -101,9 +101,14 @@ final class ParquetColumnDecoding {
      * ×1_000 scale to reach the epoch-nanoseconds a {@code DATE_NANOS} block holds: {@code TIMESTAMP(MICROS)} or
      * {@code TIME(MICROS)}.
      *
-     * <p>Only the timestamp can overflow that scale. A {@code TIME} value is a microsecond-of-day, so it is bounded
-     * by 86_400_000_000 and stays six orders of magnitude inside {@link #MAX_MICROS_AS_NANOS}; the overflow guard
-     * every caller pairs with this predicate is therefore dead for a {@code TIME} column rather than wrong for it.
+     * <p>This predicate decides the scale itself, not merely whether to range-check it: {@link PageColumnReader}
+     * reads it into a boolean and multiplies by {@link #NANOS_PER_MICRO} only when it is true, so narrowing it back
+     * to {@code TIMESTAMP} would silently stop scaling every {@code TIME(MICROS)} column.
+     *
+     * <p>Only the timestamp can overflow the scale. A well-formed {@code TIME} value is a microsecond-of-day, so it
+     * is bounded by 86_400_000_000 -- {@link #MAX_MICROS_AS_NANOS} divided by about 107_000 -- which makes the
+     * overflow guard paired with this predicate dead for such a column rather than wrong for it. A file that
+     * violates its own annotation is still nulled by that guard; see {@link #decodeCanNull}.
      */
     static boolean isMicrosTemporal(LogicalTypeAnnotation logicalType) {
         if (logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
@@ -129,10 +134,12 @@ final class ParquetColumnDecoding {
             return true; // a format parse can fail per value
         }
         if (primitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT32) {
-            // Every INT32 datetime decode is total (see DatetimeDecode): a DATE scales days to millis, a TIME(MILLIS)
-            // is already the millisecond of day, and a uint32 declared `date` reinterprets the widened value as epoch
-            // millis. None nulls, and a format arm is already handled above, so a no-format INT32 keeps its IS NULL
-            // pushdown.
+            // Every route an INT32 takes to a temporal block is total, not only the three DatetimeDecode arms (a DATE
+            // scales days to millis, a TIME(MILLIS) is already the millisecond of day, a uint32 declared `date`
+            // reinterprets the widened value as epoch millis). The castBlock routes are total too: the INTEGER arm is
+            // a widen, and the DOUBLE arm of an INT32 DECIMAL divides by a power of ten, whose quotient can be
+            // neither non-finite nor outside long range. A format arm is handled above, so a no-format INT32 keeps
+            // its IS NULL pushdown.
             return false;
         }
         if (primitiveType.getPrimitiveTypeName() != PrimitiveType.PrimitiveTypeName.INT64) {
@@ -143,10 +150,13 @@ final class ParquetColumnDecoding {
             && ts.getUnit() == LogicalTypeAnnotation.TimeUnit.MILLIS;
         boolean nanosAnnotated = logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts2
             && ts2.getUnit() == LogicalTypeAnnotation.TimeUnit.NANOS;
-        // A TIME column is bounded by the day -- at most 86_400_000_000 microseconds, six orders of magnitude inside
-        // the scale's overflow point -- so neither its x1_000 nor its narrowing can produce a null, whichever of the
-        // two temporal types it is read as.
-        boolean timeAnnotated = logical instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation;
+        // A TIME value is a time of day, so a well-formed one is at most 86_400_000_000 microseconds -- which is
+        // MAX_MICROS_AS_NANOS divided by about 107_000 -- and neither its scale nor its narrowing can null. But
+        // nothing enforces that a file obeys its own annotation, and a MICROS value past that bound is nulled by
+        // microsOverflowsNanos like any other, so only the units with no guard on their path relax here. Trusting
+        // the annotation instead would push IS NULL over a column whose decode can null, which drops rows.
+        boolean timeAnnotated = logical instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time2
+            && time2.getUnit() != LogicalTypeAnnotation.TimeUnit.MICROS;
         return switch (declaredType) {
             // An identity read never nulls, and neither does a narrowing: floorDiv is total over the whole long
             // domain. MICROS is the one arm that nulls, and it does so in the decode rather than the narrowing -- a
@@ -224,11 +234,20 @@ final class ParquetColumnDecoding {
             // the TIMESTAMP arm above applies for the same two units -- what the value counts from does not enter the
             // bound arithmetic. Sound against the footer because a TIME column's raw values compare chronologically
             // under signed comparison, the precondition decodeTemporalStat states for publishing their min/max.
-            // MILLIS is listed for completeness; it is physically an INT32 and never reaches here.
+            // Only a DATE_NANOS target gets a relation. A declared `date` over a TIME column composes to
+            // floorDiv(raw x 1000, 1e6) == floorDiv(raw, 1000), i.e. the ScaleDown(1000) the TIMESTAMP(MICROS) arm
+            // above already uses, so an arm for it is expressible -- it is simply not written, and declining costs
+            // pruning rather than rows.
+            //
+            // MILLIS declines rather than publishing a relation. The Parquet spec puts TIME(MILLIS) on an INT32 and
+            // parquet-mr enforces it -- Types rejects the pair with "TIME(MILLIS,true) can only annotate INT32" -- so
+            // the arm is unreachable through that API. It declines anyway because the two sides would disagree if it
+            // ever were reached: timeNanoMultiplier scales MILLIS by 1, while a nanosecond target wants 1_000_000.
+            // Declining loses pruning; publishing the mismatched relation would lose rows.
             return declaredType == DataType.DATE_NANOS ? switch (time.getUnit()) {
                 case NANOS -> new DeclaredTypeCoercions.RawDecodeRelation.Identity();
                 case MICROS -> new DeclaredTypeCoercions.RawDecodeRelation.ScaleUp(NANOS_PER_MICRO);
-                case MILLIS -> new DeclaredTypeCoercions.RawDecodeRelation.ScaleUp(NANOS_PER_MILLI);
+                case MILLIS -> null;
             } : null;
         }
         // DECIMAL, unsigned INT64 (sign-wrap ordering), and anything this method has never heard of: the scan
@@ -279,9 +298,12 @@ final class ParquetColumnDecoding {
      * <p>A {@code TIME} annotation takes the same unit arithmetic, because the unit question is the same one: the
      * file states a unit and the block holds nanoseconds. What the result counts from differs -- a {@code TIMESTAMP}
      * is an offset from the epoch, a {@code TIME} a nanosecond-of-day, which {@code DATE_NANOS} renders as an
-     * instant on 1970-01-01, at the annotation's own precision. The multiplier is {@link #timeNanoMultiplier}'s, so
-     * the scan and the footer-statistic decode ({@link #decodeTemporalStat}) scale a {@code TIME} column by the
-     * same factor.
+     * instant on 1970-01-01, at the annotation's own precision.
+     *
+     * <p>This method is the row-at-a-time and list path. The vectorized reader applies the same factor inline over
+     * its batch array, gated on {@link #isMicrosTemporal}, and the footer-statistic decode
+     * ({@link #decodeTemporalStat}) applies {@link #timeNanoMultiplier}; all three agree by construction, since for
+     * a {@code TIME} column every one of them is x1_000 for {@code MICROS} and the identity otherwise.
      */
     static long convertTemporalToNanos(long raw, LogicalTypeAnnotation logicalType) {
         if (logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
@@ -1525,10 +1547,14 @@ final class ParquetColumnDecoding {
                         tally.recordIfNullElement(elementDef);
                         input.consumeUndefined();
                     } else {
-                        // Always read the value so the data cursor advances, also past a row skip_row drops.
-                        String value = declaredTextOf(input.reader().getBinary(), info.logicalType());
+                        // Always read the value so the data cursor advances, also past a row skip_row drops. The
+                        // text render stays inside the try: formatUuid rejects a UUID annotation over anything but
+                        // 16 bytes, and that is a per-value failure for the error policy to handle, not a reason to
+                        // abandon the read with the cursor un-consumed.
+                        Binary raw = input.reader().getBinary();
                         if (rowDropped == false) {
                             try {
+                                String value = declaredTextOf(raw, info.logicalType());
                                 long millis = DeclaredTypeCoercions.parseDatetimeMillis(value, dateFormatter);
                                 if (open == false) {
                                     builder.beginPositionEntry();
@@ -1570,8 +1596,9 @@ final class ParquetColumnDecoding {
     }
 
     /**
-     * Reads a LIST of {@code DATE_NANOS} timestamps (Parquet INT64 {@code TIMESTAMP(MICROS|NANOS)}) into a
-     * {@code LongBlock} of epoch-nanoseconds. {@code MICROS} elements whose scaled value would overflow the
+     * Reads a LIST of {@code DATE_NANOS} elements -- a Parquet INT64 {@code TIMESTAMP(MICROS|NANOS)}, or a
+     * {@code TIME(MICROS|NANOS)} whose value is a nanosecond of day -- into a {@code LongBlock}. {@code MICROS}
+     * elements whose scaled value would overflow the
      * representable {@code date_nanos} range are dropped from their list (mirroring how the generic list reader
      * already skips null elements); a list whose elements <em>all</em> overflow becomes a null position. A single
      * deduplicated warning is reported when any element was dropped. This uses a lazy {@code beginPositionEntry} so

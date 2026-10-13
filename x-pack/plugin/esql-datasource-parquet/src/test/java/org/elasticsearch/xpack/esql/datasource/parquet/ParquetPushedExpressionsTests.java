@@ -586,6 +586,26 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
     }
 
     /**
+     * The complement of the decline below: a declared {@code long} over a {@code TIME(NANOS)} column pushes the
+     * literal unchanged, because {@code castBlock(DATE_NANOS -> LONG)} is the identity and the footer already holds
+     * that same nanosecond-of-day. Pinned so that widening the decline to every {@code TIME} unit loses pruning
+     * loudly rather than silently.
+     */
+    public void testDeclaredLongOverTimeNanosColumnPushes() {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .as(timeType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
+            .named("t")
+            .named("test");
+        long nanosOfDay = 43_200_000_000_123L;
+
+        Expression cmp = new GreaterThan(Source.EMPTY, attr("t", DataType.LONG), lit(nanosOfDay, DataType.LONG), null);
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(cmp)).toFilterPredicate(schema);
+        assertNotNull("a long bound over TIME(NANOS) is the identity and must push", fp);
+        assertThat(fp.toString(), containsString(String.valueOf(nanosOfDay)));
+    }
+
+    /**
      * A {@code TIME(MICROS)} column DECLARED as an integral type is the case that must still decline: the decode
      * then hands back the nanosecond-of-day as a plain number while the footer holds microseconds, and an integral
      * predicate carries no unit to reconcile them. {@code integralDecodeScalesRelativeToRawStats} owns that decline
@@ -1454,11 +1474,14 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
             new Case("date_nanos / TIMESTAMP(MICROS)", int64Ts(timestampType(true, micros)), DataType.DATE_NANOS, null, false),
             new Case("date_nanos / TIMESTAMP(NANOS)", int64Ts(timestampType(true, nanos)), DataType.DATE_NANOS, null, true),
             new Case("date_nanos / bare INT64 + epoch_second", int64Ts(null), DataType.DATE_NANOS, "epoch_second", false),
-            // A TIME column cannot reach the range edge whichever type it is read as: its values are bounded by the
-            // day, so the x1_000 scale and the narrowing are both total over its domain.
-            new Case("date_nanos / TIME(MICROS)", int64Ts(timeType(true, micros)), DataType.DATE_NANOS, null, true),
+            // A well-formed TIME value is bounded by the day, far inside the scale's edge -- but nothing enforces
+            // that a file obeys its own annotation, and the MICROS unit carries the same overflow guard a timestamp
+            // does, so a value past the bound nulls and IS NULL has to decline. NANOS has no guard on its path and
+            // its decode is the identity, so it pushes.
+            new Case("date_nanos / TIME(MICROS)", int64Ts(timeType(true, micros)), DataType.DATE_NANOS, null, false),
             new Case("date_nanos / TIME(NANOS)", int64Ts(timeType(true, nanos)), DataType.DATE_NANOS, null, true),
-            new Case("datetime / TIME(MICROS)", int64Ts(timeType(true, micros)), DataType.DATETIME, null, true),
+            new Case("datetime / TIME(MICROS)", int64Ts(timeType(true, micros)), DataType.DATETIME, null, false),
+            new Case("datetime / TIME(NANOS)", int64Ts(timeType(true, nanos)), DataType.DATETIME, null, true),
             // INT32 inferred DATE (days -> millis) and TIME(MILLIS) (already the millisecond of day) never null.
             new Case("date / INT32(DATE)", int32DateTs(), DataType.DATETIME, null, true),
             new Case("date / INT32(TIME(MILLIS))", int32TimeTs(), DataType.DATETIME, null, true)

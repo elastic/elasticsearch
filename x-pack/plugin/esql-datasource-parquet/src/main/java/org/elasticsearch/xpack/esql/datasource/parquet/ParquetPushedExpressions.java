@@ -609,9 +609,9 @@ final class ParquetPushedExpressions {
     /**
      * Builds a predicate for an ESQL {@code LONG} column, dispatching on the file's <b>physical</b>
      * primitive rather than the (possibly widened) ESQL type — see the class Javadoc's
-     * {@code INT32}/{@code INT64} split. Two Parquet shapes surface as ESQL {@code LONG} while their
-     * physical primitive is {@code INT32}: an unsigned 32-bit integer (values can exceed signed
-     * {@code int} range) and {@code TIME_MILLIS} (signed, but ESQL has no distinct "time of day" type).
+     * {@code INT32}/{@code INT64} split. One Parquet shape surfaces as ESQL {@code LONG} while its
+     * physical primitive is {@code INT32}: an unsigned 32-bit integer, whose values can exceed signed
+     * {@code int} range. ({@code TIME(MILLIS)} did too until it became a temporal column.)
      * A {@link FilterApi#longColumn} pushed against either would describe a column the file doesn't
      * have — {@code INT64} — and parquet-mr rejects it as a declared-type mismatch.
      *
@@ -634,8 +634,9 @@ final class ParquetPushedExpressions {
         // DATE(days)->epoch-millis (x86_400_000), TIME(MICROS)->nanos-of-day (x1000). The literal is in the decoded
         // unit, the stats are in the physical unit, so pushing it prunes row groups that genuinely match. Pruning is
         // unrecoverable — RECHECK guards against false positives, not against rows we never read — so decline and let
-        // FilterExec apply the real semantics. Reached via a DECLARED long over a TIMESTAMP/DATE column or an
-        // inferred TIME(MICROS) column; inferred datetime/date_nanos go through the unit-aware build*Predicate arms.
+        // FilterExec apply the real semantics. Reached via a DECLARED long over a TIMESTAMP, DATE or TIME column;
+        // every temporal annotation renders a temporal ESQL type now, so none of them arrives here inferred, and
+        // those go through the unit-aware build*Predicate arms instead.
         // IS NULL/IS NOT NULL (value == null) is exempt: null-checks operate on the null mask only, not on the
         // decoded value, so there is no unit mismatch to guard against.
         if (value != null && pushDeclinedForUnitMismatch(ptype.getLogicalTypeAnnotation())) {
@@ -727,8 +728,9 @@ final class ParquetPushedExpressions {
      * ordering for {@code UINT_32} columns when evaluating the pushed predicate against row-group /
      * page stats, so the signed-vs-unsigned interpretation is handled beneath this method.
      *
-     * <p>For a signed {@code INT32} widened to {@code LONG} (today: {@code TIME_MILLIS}, whose values
-     * are always small and positive), the standard signed round trip applies.
+     * <p>For a signed {@code INT32} widened to {@code LONG} -- which a declared {@code long} over an
+     * {@code integer} column reaches through the fused {@code INTEGER -> LONG} pair -- the standard signed round
+     * trip applies.
      */
     @Nullable
     private static Integer narrowLongToPhysicalInt32(long value, PrimitiveType ptype) {
@@ -1287,7 +1289,8 @@ final class ParquetPushedExpressions {
      * raw equality band: an identity column (NANOS) pushes every value exactly; a scaled column (MICROS, MILLIS, a
      * declared epoch format, or the un-annotated signed INT64 a declared {@code date_nanos} reads as epoch-millis)
      * drops the non-tick elements that no stored value can equal and pushes the rest; an un-pushable
-     * physical (TIME, unsigned INT64, unknown) resolves to a null relation and declines entirely.
+     * physical (unsigned INT64, DECIMAL, unknown) resolves to a null relation and declines entirely. A {@code TIME}
+     * column resolves to a relation and pushes, as the comparison path does.
      */
     private FilterPredicate translateDateNanosIn(
         String columnName,

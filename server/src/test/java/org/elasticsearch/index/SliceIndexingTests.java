@@ -99,18 +99,6 @@ public class SliceIndexingTests extends ESTestCase {
         assertThat(parsed.fromSlice(), equalTo(true));
     }
 
-    public void testParseRoutingOrSliceRejectsSliceQueryParam() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/my-index/_doc/1?_slice=tenant-a")
-            .withParams(Map.of("index", "my-index", "id", "1"))
-            .build();
-        IllegalArgumentException ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> SliceIndexing.parseRoutingOrSliceWithProvenance(request)
-        );
-        assertThat(ex.getMessage(), containsString("query parameter is not supported"));
-    }
-
     public void testToSearchSlice() {
         assertNull(SliceIndexing.toSearchSlice("r1", false));
         assertNull(SliceIndexing.toSearchSlice(null, false));

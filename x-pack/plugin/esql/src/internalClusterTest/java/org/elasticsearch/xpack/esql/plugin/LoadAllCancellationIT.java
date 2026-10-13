@@ -34,8 +34,8 @@ import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * End-to-end coverage for <a href="https://github.com/elastic/elasticsearch/issues/159914">#159914</a>: a {@code LOAD_ALL} query must
- * be cancellable while the coordinator is flattening the {@code _unmapped_fields} column into a single JSON object per row, not only before or
- * after that phase.
+ * be cancellable while the coordinator is flattening the {@code _unmapped_fields} column into a single JSON object per row, not only
+ * before or after that phase.
  * <p>
  * A cancellation that arrives during the compute phase already aborts the drivers, so it never reaches expansion. To land a
  * cancellation inside an in-progress expansion deterministically (mirroring the manual async-cancel test that motivated the fix),

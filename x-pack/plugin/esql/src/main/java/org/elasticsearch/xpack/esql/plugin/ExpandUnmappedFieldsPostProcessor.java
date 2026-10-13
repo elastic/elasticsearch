@@ -76,10 +76,10 @@ import java.util.function.BooleanSupplier;
  * tiny objects) costs only the leaves it flattens to, not an object graph many times its byte size.
  *
  * <p>The flattening scans every row of every page once, so it polls for cancellation at the start of every page and then every
- * {@link #ROWS_PER_CANCELLATION_CHECK} rows within one, and throws {@link TaskCancelledException} to abort promptly. Cancellation is row-granular: a single pathological row (deeply nested
- * {@code _source} with very many leaves) still parses and flattens to completion before the next poll. That is acceptable because the
- * cost scales with row count rather than any one row, and the circuit breaker - not cancellation - is what bounds the memory a wide row
- * can demand.
+ * {@link #ROWS_PER_CANCELLATION_CHECK} rows within one, and throws {@link TaskCancelledException} to abort promptly. Cancellation is
+ * row-granular: a single pathological row (deeply nested {@code _source} with very many leaves) still flattens to completion before
+ * the next poll. That is acceptable because the cost scales with row count rather than any one row, and the circuit breaker - not
+ * cancellation - is what bounds the memory a wide row can demand.
  *
  * <p>TODO every row's {@code _source} ends up parsed twice: the data node parses it to filter the column, then the coordinator parses
  *  the column once more here to flatten it. Flattening on the data node would remove the second parse; tracked by #158479.

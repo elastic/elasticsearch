@@ -4,9 +4,9 @@ import { tmpdir } from "os";
 import { join, resolve } from "path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
-const SCRIPT = resolve(`${import.meta.dirname}/validate-promql-coverage.sh`);
+const SCRIPT = resolve(`${import.meta.dirname}/validate-prometheus-compliance.sh`);
 const CORPUS = "grafanalabs-top100";
-const VERSION = "0.9.1+prometheus-3.13.1";
+const VERSION = "0.9.2+prometheus-3.13.1";
 
 type Status = "OK" | "FAIL" | "ERR" | "SKIP";
 type Case = [id: string, status: Status, expr: string];
@@ -30,7 +30,7 @@ function promcheckLog(cases: Case[]): string {
   );
 }
 
-describe("validate-promql-coverage.sh", () => {
+describe("validate-prometheus-compliance.sh", () => {
   let dir: string;
   let repo: string;
 
@@ -127,7 +127,7 @@ esac
       env: {
         ...process.env,
         PATH: `${join(dir, "bin")}:${process.env.PATH}`,
-        PROMQL_COVERAGE_TMPDIR: join(dir, "tmp"),
+        PROMETHEUS_COMPLIANCE_TMPDIR: join(dir, "tmp"),
         GH_TOKEN: "token",
         PROMCHECK_VER: VERSION,
         PROMCHECK_TEST_INSTANCE_TIMEOUT: "900",
@@ -138,7 +138,7 @@ esac
       },
       encoding: "utf8",
     });
-    const report = join(dir, "tmp", "validate-promql-coverage-output", `@${CORPUS}-report.md`);
+    const report = join(dir, "tmp", "validate-prometheus-compliance-output", `@${CORPUS}-report.md`);
     const read = (f: string) => (existsSync(f) ? readFileSync(f, "utf8") : "");
     return {
       status: result.status,
@@ -160,7 +160,7 @@ esac
     expect(r.status).toBe(0);
     expect(r.report.startsWith("<!-- promcheck-pr-report -->\n## Promcheck\n\n**No regressions**\n\nNo query compatibility changes detected.\n")).toBe(true);
     expect(r.report).not.toContain("<details>");
-    expect(r.agent).toContain("== annotate --context ctx-validate-promql-coverage --style success");
+    expect(r.agent).toContain("== annotate --context ctx-validate-prometheus-compliance --style success");
   });
 
   test("a regression is reported without failing the job, listing only the regressions", () => {
@@ -315,7 +315,7 @@ esac
       ["002", "FAIL", "rate(http_requests_total[5m])"],
     ]);
     const [, annotation, comment] = r.agent.split(/^== .*$/m);
-    expect(r.agent).toContain("== meta-data set pr_comment:validate-promql-coverage:body");
+    expect(r.agent).toContain("== meta-data set pr_comment:validate-prometheus-compliance:body");
     expect(comment.trim()).toBe(annotation.trim());
     expect(comment.trim()).toBe(r.report.trim());
   });
@@ -342,19 +342,19 @@ esac
       ids.map((id) => [id, "FAIL", `m${id}`] as Case)
     );
     expect(r.report.match(/^\| \d{3} \|/gm)).toHaveLength(50);
-    expect(r.report).toContain(`_2 more in <a href="artifact://${join(dir, "tmp").slice(1)}/validate-promql-coverage-output/@${CORPUS}-changes.tsv">`);
+    expect(r.report).toContain(`_2 more in <a href="artifact://${join(dir, "tmp").slice(1)}/validate-prometheus-compliance-output/@${CORPUS}-changes.tsv">`);
   });
 
   test("a control run that crashes is reported as not compared without failing the job", () => {
     const r = run(STABLE, STABLE, { controlRc: 2 });
     expect(r.status).toBe(0);
     expect(r.output).toContain("Not compared: The control run failed");
-    expect(r.agent).toContain("== annotate --context ctx-validate-promql-coverage --style warning");
+    expect(r.agent).toContain("== annotate --context ctx-validate-prometheus-compliance --style warning");
     expect(r.agent).toContain(
       "<!-- promcheck-pr-report -->\n## Promcheck\n\n**Not compared**\n\nThe control run failed.\n\n" +
         `[promcheck v${VERSION}](https://github.com/elastic/promcheck/releases/tag/v${VERSION})\n`
     );
-    expect(r.agent).toContain("== meta-data set pr_comment:validate-promql-coverage:body");
+    expect(r.agent).toContain("== meta-data set pr_comment:validate-prometheus-compliance:body");
     expect(r.report).toBe("");
   });
 

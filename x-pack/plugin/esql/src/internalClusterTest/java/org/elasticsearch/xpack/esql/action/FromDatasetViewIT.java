@@ -704,19 +704,19 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
     }
 
     // metadata
-    // TODO double check if this behavior is as expected
-    public void testClassAndNameUnknownOnDatasetView() {
+
+    public void testClassAndNameOnDatasetView() {
         registerEmployees();
         createView("emp_ds_view", "FROM employees");
-        // Outer METADATA is not attached to a lone view; KEEP is what surfaces Unknown column.
-        Exception ex = expectThrows(
-            Exception.class,
-            () -> run(syncEsqlQueryRequest("FROM emp_ds_view METADATA _class, _name | KEEP _class, _name | LIMIT 1"), TIMEOUT)
-        );
-        assertCauseMessageContains(ex, "Unknown column");
+        try (var response = run(syncEsqlQueryRequest("FROM emp_ds_view METADATA _class, _name | KEEP _class, _name | LIMIT 1"), TIMEOUT)) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of("view", "emp_ds_view"))));
+        }
+        try (var response = run(syncEsqlQueryRequest("FROM emp_ds_view METADATA _class | KEEP _class | LIMIT 1"), TIMEOUT)) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of("view"))));
+        }
     }
 
-    public void testClassAndNameNullOnDatasetViewAndDataset() {
+    public void testClassAndNameOnDatasetViewAndDataset() {
         registerEmployees();
         createView("emp_ds_view", "FROM employees");
         try (var response = run(syncEsqlQueryRequest("""
@@ -726,12 +726,12 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(6));
             long datasetRows = rows.stream().filter(r -> "dataset".equals(String.valueOf(r.get(1)))).count();
-            long viewRows = rows.stream().filter(r -> r.get(1) == null).count();
+            long viewRows = rows.stream().filter(r -> "view".equals(String.valueOf(r.get(1)))).count();
             assertThat(datasetRows, equalTo(3L));
             assertThat(viewRows, equalTo(3L));
             for (List<Object> row : rows) {
-                if (row.get(1) == null) {
-                    assertThat(row.get(2), nullValue());
+                if ("view".equals(String.valueOf(row.get(1)))) {
+                    assertThat(row.get(2).toString(), equalTo("emp_ds_view"));
                 } else {
                     assertThat(row.get(1).toString(), equalTo("dataset"));
                     assertThat(row.get(2).toString(), equalTo("employees"));
@@ -971,6 +971,7 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
     }
 
     public void testDatasetViewExceedsMaxBranchCount() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
         registerEmployees();
         registerEmployeesAlt();
         for (int i = 1; i <= 5; i++) {
@@ -989,6 +990,7 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
     }
 
     public void testDatasetViewExceedsMaxBranchLevel() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
         registerEmployees();
         registerEmployeesAlt();
         createView("emp_eval_union_view", "FROM (FROM employees), (FROM employees_alt) | EVAL tag = 1");

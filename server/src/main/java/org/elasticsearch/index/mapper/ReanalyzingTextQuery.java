@@ -157,15 +157,6 @@ public final class ReanalyzingTextQuery extends Query {
     }
 
     /**
-     * How often {@code terms} occur in order and adjacent across {@code values}, which is the frequency an index of
-     * them reports. Positions run on from one value to the next, as that index joins them.
-     *
-     * <p>A prefix of the phrase can only be continued by the token at the position after the one it ended at, and
-     * positions only advance, so one end position per prefix length is all there is to carry. What ends at the
-     * position in hand is held apart until that position is done, since several tokens can share one and a prefix
-     * starting on one of them must not be offered to the others.
-     */
-    /**
      * The text of one value a field holds, as the fetchers of those values spell it. A value read from a binary
      * column or from field data arrives as a string, and one read from a stored field as the bytes that were
      * stored, whose own {@code toString} spells them in hex rather than as text.
@@ -174,10 +165,23 @@ public final class ReanalyzingTextQuery extends Query {
         return value instanceof BytesRef bytes ? bytes.utf8ToString() : value.toString();
     }
 
+    /**
+     * How often {@code terms} occur in order and adjacent across {@code values}, which is the frequency an index of
+     * them reports. Positions run on from one value to the next, as that index joins them.
+     *
+     * <p>A prefix of the phrase can only be continued by the token at the position after the one it ended at, and
+     * positions only advance, so one end position per prefix length is all there is to carry. What ends at the
+     * position in hand is held apart until that position is done, since several tokens can share one and a prefix
+     * starting on one of them must not be offered to the others.
+     */
     static int walkPhraseFreq(Term[] terms, String field, Analyzer analyzer, List<Object> values) throws IOException {
         final int[] endedBefore = new int[terms.length];
         final int[] endedHere = new int[terms.length];
-        // The position the last phrase counted ended at, which no other one of the same phrase can end at.
+        // How many phrases a prefix ending at that position stands for, which is how often the phrase's first term
+        // was left at the position it started on.
+        final int[] standsForBefore = new int[terms.length];
+        final int[] standsForHere = new int[terms.length];
+        // The position the last phrase counted ended at, which no other token ending there counts again.
         int countedAt = Integer.MIN_VALUE;
         Arrays.fill(endedBefore, Integer.MIN_VALUE);
         Arrays.fill(endedHere, Integer.MIN_VALUE);
@@ -207,6 +211,7 @@ public final class ReanalyzingTextQuery extends Query {
                         for (int length = 0; length < terms.length; length++) {
                             if (endedHere[length] != Integer.MIN_VALUE) {
                                 endedBefore[length] = endedHere[length];
+                                standsForBefore[length] = standsForHere[length];
                                 endedHere[length] = Integer.MIN_VALUE;
                             }
                         }
@@ -216,21 +221,27 @@ public final class ReanalyzingTextQuery extends Query {
                     if (terms[0].bytes().equals(token)) {
                         if (terms.length == 1) {
                             freq++;
+                        } else if (endedHere[0] == position) {
+                            // An analyzer can leave the same term at one position more than once, and an index
+                            // counts a phrase starting on each of them.
+                            standsForHere[0]++;
                         } else {
                             endedHere[0] = position;
+                            standsForHere[0] = 1;
                         }
                     }
                     for (int length = 1; length < terms.length; length++) {
                         if (endedBefore[length - 1] == position - 1 && terms[length].bytes().equals(token)) {
                             if (length == terms.length - 1) {
-                                // Several tokens can end the phrase at one position, where an analyzer leaves more
-                                // than one of them there, and an index counts the phrase that ends there once.
+                                // Only the first term repeating multiplies the phrase; a later one repeating at the
+                                // position the phrase ends on is the same phrase ending there.
                                 if (position != countedAt) {
                                     countedAt = position;
-                                    freq++;
+                                    freq += standsForBefore[length - 1];
                                 }
-                            } else {
+                            } else if (endedHere[length] != position) {
                                 endedHere[length] = position;
+                                standsForHere[length] = standsForBefore[length - 1];
                             }
                         }
                     }

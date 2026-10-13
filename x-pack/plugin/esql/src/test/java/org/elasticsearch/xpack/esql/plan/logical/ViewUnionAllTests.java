@@ -148,10 +148,13 @@ public class ViewUnionAllTests extends ESTestCase {
     /** Builds a {@link ViewUnionAll} where every branch is a view branch (keys {@code "view_0"}, {@code "view_1"}, …). */
     private static ViewUnionAll viewUnionAll(LogicalPlan... children) {
         LinkedHashMap<String, LogicalPlan> namedChildren = LinkedHashMap.newLinkedHashMap(children.length);
+        LinkedHashMap<String, BranchIdentity> identities = LinkedHashMap.newLinkedHashMap(children.length);
         for (int i = 0; i < children.length; i++) {
-            namedChildren.put("view_" + i, children[i]);
+            String key = "view_" + i;
+            namedChildren.put(key, children[i]);
+            identities.put(key, BranchIdentity.view(key));
         }
-        return new ViewUnionAll(Source.EMPTY, namedChildren, namedChildren.keySet(), List.of());
+        return new ViewUnionAll(Source.EMPTY, namedChildren, identities, List.of());
     }
 
     private static UnresolvedRelation relation(String name) {

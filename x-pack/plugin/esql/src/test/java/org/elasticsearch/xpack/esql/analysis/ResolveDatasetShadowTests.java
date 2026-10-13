@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
+import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
 import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -499,7 +500,7 @@ public class ResolveDatasetShadowTests extends AnalyzerTestCase {
         LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
         children.put(name, new NamedSubquery(EMPTY, body, name));
         children.put(name + "#shadow", shadow);
-        return new ViewUnionAll(EMPTY, children, Set.of(name), List.of());
+        return new ViewUnionAll(EMPTY, children, Map.of(name, BranchIdentity.view(name)), List.of());
     }
 
     /** True if the plan subtree contains a node of the given type anywhere below (or at) the given root. */

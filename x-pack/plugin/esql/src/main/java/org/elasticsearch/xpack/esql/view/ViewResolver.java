@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -1010,25 +1011,28 @@ public class ViewResolver {
         // Bare UnresolvedRelation branches are never view branches: a pass-through view is
         // indistinguishable from its source index, so filtering the index and filtering the view's
         // output are the same operation. ViewShadowRelation branches are removed by ViewCompaction.
-        Set<String> viewBranchKeys = new HashSet<>();
+        LinkedHashMap<String, BranchIdentity> identities = new LinkedHashMap<>();
         for (ViewPlan vp : subqueries) {
             String key = makeUniqueKey(plans, vp.name);
             if (vp.plan instanceof NamedSubquery ns) {
                 assertNamesMatch("Unexpected subquery name mismatch", ns.name(), vp.name);
                 plans.put(key, ns);
-                viewBranchKeys.add(key);
+                // Identity carries the real view name; the key may be uniquified (e.g. "meow#2") and is just a label.
+                identities.put(key, BranchIdentity.view(vp.name));
             } else if (vp.plan instanceof UnresolvedRelation urp && urp.indexMode() == IndexMode.STANDARD) {
                 plans.put(key, urp);
                 // Bare UnresolvedRelation branch: either a pass-through view or a plain index/alias
                 // ref from the user's query. Neither is a view branch — see the note above.
+                identities.put(key, BranchIdentity.INDEX);
             } else if (vp.plan instanceof ViewShadowRelation) {
                 // Leave ViewShadowRelation bare — ViewCompaction's strip recognises it by
                 // type and removes it directly. Wrapping in NamedSubquery would hide it from the
                 // strip and keep its name out of the dropped-entries' keyspace.
                 plans.put(key, vp.plan);
+                identities.put(key, BranchIdentity.INDEX);
             } else {
                 plans.put(key, new NamedSubquery(ur.source(), vp.plan, key));
-                viewBranchKeys.add(key);
+                identities.put(key, BranchIdentity.view(vp.name));
             }
         }
 
@@ -1038,8 +1042,8 @@ public class ViewResolver {
         // of compactable views) folds into a single {@link UnresolvedRelation} entry rather than a
         // ViewUnionAll that would later trip {@link MergePlan} limit at logical verification.
         mergeCompatibleUnresolvedRelations(plans, buildAliasResolver());
-        // Remove any view-branch keys that were merged away (bare UR merge can eliminate entries).
-        viewBranchKeys.retainAll(plans.keySet());
+        // Drop identities of entries the bare-UR merge eliminated.
+        identities.keySet().retainAll(plans.keySet());
 
         // A single entry normally collapses to its child — the ViewUnionAll wrapper carries no
         // information when there is nothing to union. The one exception is a lone view branch while a
@@ -1048,12 +1052,12 @@ public class ViewResolver {
         // the view's source scan (integrateEsFilterIntoFragment), applying it below any STATS/EVAL the
         // view performs. Both conditions are required: no filter means collapse as before, and a lone
         // pass-through (bare-UR) branch is not a view branch so it collapses even with a filter.
-        boolean mustPreserveBoundary = preserveViewBoundaries && viewBranchKeys.isEmpty() == false;
+        boolean mustPreserveBoundary = preserveViewBoundaries && identities.values().stream().anyMatch(BranchIdentity::isView);
         if (plans.size() == 1 && mustPreserveBoundary == false) {
             return plans.values().iterator().next();
         }
         traceUnionAllBranches(depth, plans);
-        return new ViewUnionAll(ur.source(), plans, viewBranchKeys, List.of());
+        return new ViewUnionAll(ur.source(), plans, identities, List.of());
     }
 
     /**

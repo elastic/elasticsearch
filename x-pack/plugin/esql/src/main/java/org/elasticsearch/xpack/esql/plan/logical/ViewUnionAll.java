@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -36,39 +37,61 @@ import java.util.stream.Collectors;
  */
 public class ViewUnionAll extends UnionAll {
     private final LinkedHashMap<String, LogicalPlan> namedSubqueries = new LinkedHashMap<>();
-    /** Keys that are actual resolved view subplans, as opposed to bare-index or literal-subquery branches. */
-    private final Set<String> viewBranchKeys;
+    /** What each branch is — view (with its real name), subquery, or bare index — keyed like {@link #namedSubqueries}. */
+    private final Map<String, BranchIdentity> branchIdentities;
 
     /**
-     * Creates a {@link ViewUnionAll} with explicit view-branch tracking.
+     * Creates a {@link ViewUnionAll} with an explicit {@link BranchIdentity} per branch.
      *
-     * @param viewBranchKeys the keys in {@code children} that are actual resolved view subplans;
-     *                       bare-index and user-written subquery keys must not be included.
+     * @param branchIdentities identity per key in {@code children}; a missing entry means a bare index-pattern branch.
      */
-    public ViewUnionAll(Source source, LinkedHashMap<String, LogicalPlan> children, Set<String> viewBranchKeys, List<Attribute> output) {
+    public ViewUnionAll(
+        Source source,
+        LinkedHashMap<String, LogicalPlan> children,
+        Map<String, BranchIdentity> branchIdentities,
+        List<Attribute> output
+    ) {
         super(source, children.values().stream().toList(), output);
         namedSubqueries.putAll(children);
-        this.viewBranchKeys = Set.copyOf(viewBranchKeys);
+        // Never probe the caller's map by key: bare branches use the null key, which immutable maps (Map.of) reject.
+        // Iterate the caller's entries instead, keeping only identities for keys that are actually branches — a caller
+        // like pruneEmptyBranches passes its full pre-prune identity map and relies on the dropped keys being ignored.
+        LinkedHashMap<String, BranchIdentity> normalized = new LinkedHashMap<>();
+        for (String key : children.keySet()) {
+            normalized.put(key, BranchIdentity.INDEX);
+        }
+        for (Map.Entry<String, BranchIdentity> entry : branchIdentities.entrySet()) {
+            if (normalized.containsKey(entry.getKey())) {
+                normalized.put(entry.getKey(), entry.getValue());
+            }
+        }
+        this.branchIdentities = Collections.unmodifiableMap(normalized);
     }
 
     @Override
     public LogicalPlan replaceChildren(List<LogicalPlan> newChildren) {
-        return new ViewUnionAll(source(), asSubqueryMap(newChildren), viewBranchKeys, output());
+        return new ViewUnionAll(source(), asSubqueryMap(newChildren), branchIdentities, output());
     }
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, ViewUnionAll::new, namedSubqueries, viewBranchKeys, output());
+        return NodeInfo.create(
+            this,
+            (source, children, identities, output) -> new ViewUnionAll(source, children, identities, output),
+            namedSubqueries,
+            branchIdentities,
+            output()
+        );
     }
 
     @Override
     public ViewUnionAll replaceSubPlans(List<LogicalPlan> subPlans) {
-        return new ViewUnionAll(source(), asSubqueryMap(subPlans), viewBranchKeys, output());
+        return new ViewUnionAll(source(), asSubqueryMap(subPlans), branchIdentities, output());
     }
 
     @Override
     public ViewUnionAll replaceSubPlansAndOutput(List<LogicalPlan> subPlans, List<Attribute> output) {
-        return new ViewUnionAll(source(), asSubqueryMap(subPlans), viewBranchKeys, output);
+        return new ViewUnionAll(source(), asSubqueryMap(subPlans), branchIdentities, output);
     }
 
     // Currently for testing only, could also be useful for EXPLAIN and PROFILE
@@ -76,13 +99,28 @@ public class ViewUnionAll extends UnionAll {
         return namedSubqueries;
     }
 
+    /** What each branch is, keyed like {@link #namedSubqueries()}; every key has an entry. */
+    public Map<String, BranchIdentity> branchIdentities() {
+        return branchIdentities;
+    }
+
+    /** The identity of the branch stored under {@code key}; {@link BranchIdentity#INDEX} for unknown keys. */
+    public BranchIdentity branchIdentity(String key) {
+        return branchIdentities.getOrDefault(key, BranchIdentity.INDEX);
+    }
+
     /**
      * Returns the set of keys in {@link #namedSubqueries()} that correspond to actual resolved view subplans.
      * Keys for bare-index branches (e.g. {@code "main"}) and literal user-written subquery branches
-     * (e.g. {@code "unnamed_view_<hash>"}) are excluded.
+     * (e.g. {@code "unnamed_view_<hash>"}) are excluded. Note these are branch <em>labels</em>; the view's real
+     * name is {@link #branchIdentity(String)}'s {@link BranchIdentity#name()}, which uniquification never mangles.
      */
     public Set<String> viewBranchKeys() {
-        return viewBranchKeys;
+        return branchIdentities.entrySet()
+            .stream()
+            .filter(e -> e.getValue().isView())
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toUnmodifiableSet());
     }
 
     /**
@@ -91,7 +129,7 @@ public class ViewUnionAll extends UnionAll {
      * Returns {@code false} for {@code null} keys, which are always bare-plan branches.
      */
     public boolean isViewBranch(String key) {
-        return key != null && viewBranchKeys.contains(key);
+        return key != null && branchIdentity(key).isView();
     }
 
     private LinkedHashMap<String, LogicalPlan> asSubqueryMap(List<LogicalPlan> children) {
@@ -128,9 +166,8 @@ public class ViewUnionAll extends UnionAll {
         if (kept.size() == namedSubqueries.size()) {
             return this;
         }
-        // Retain only view-branch keys whose branches survived pruning.
-        Set<String> keptViewBranchKeys = viewBranchKeys.stream().filter(kept::containsKey).collect(Collectors.toSet());
-        return new ViewUnionAll(source(), kept, keptViewBranchKeys, output());
+        // The identity constructor retains only the surviving keys' identities.
+        return new ViewUnionAll(source(), kept, branchIdentities, output());
     }
 
     @Override
@@ -158,7 +195,7 @@ public class ViewUnionAll extends UnionAll {
             int v = Objects.hashCode(entry.getValue());
             h += k * (v + 1);
         }
-        return Objects.hash(ViewUnionAll.class, h, viewBranchKeys);
+        return Objects.hash(ViewUnionAll.class, h, branchIdentities);
     }
 
     @Override
@@ -172,6 +209,6 @@ public class ViewUnionAll extends UnionAll {
         }
         ViewUnionAll other = (ViewUnionAll) o;
 
-        return Objects.equals(namedSubqueries, other.namedSubqueries()) && Objects.equals(viewBranchKeys, other.viewBranchKeys);
+        return Objects.equals(namedSubqueries, other.namedSubqueries()) && Objects.equals(branchIdentities, other.branchIdentities);
     }
 }

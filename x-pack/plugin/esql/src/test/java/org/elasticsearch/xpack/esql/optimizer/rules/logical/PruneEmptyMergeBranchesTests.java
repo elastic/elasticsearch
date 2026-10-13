@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
+import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.equalTo;
@@ -162,7 +164,7 @@ public class PruneEmptyMergeBranchesTests extends AbstractLogicalPlanOptimizerTe
         children.put("name_a", keptA);
         children.put("name_empty", emptyBranch);
         children.put("name_b", keptB);
-        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, children, children.keySet(), List.of());
+        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, children, allViewIdentities(children.keySet()), List.of());
 
         LogicalPlan result = new PruneEmptyMergeBranches().apply(vua);
 
@@ -187,7 +189,7 @@ public class PruneEmptyMergeBranchesTests extends AbstractLogicalPlanOptimizerTe
         LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
         children.put("name_a", a);
         children.put("name_b", b);
-        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, children, children.keySet(), List.of());
+        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, children, allViewIdentities(children.keySet()), List.of());
 
         // Bypass PruneEmptyMergeBranches's all-empty pre-check by calling pruneEmptyBranches
         // directly — this is the contract the analyzer's PruneEmptyUnionAllBranch and
@@ -212,7 +214,7 @@ public class PruneEmptyMergeBranchesTests extends AbstractLogicalPlanOptimizerTe
         LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
         children.put("name_kept", kept);
         children.put("name_empty", emptyBranch);
-        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, children, children.keySet(), List.of());
+        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, children, allViewIdentities(children.keySet()), List.of());
 
         LogicalPlan result = new PruneEmptyMergeBranches().apply(vua);
 
@@ -220,5 +222,14 @@ public class PruneEmptyMergeBranchesTests extends AbstractLogicalPlanOptimizerTe
         assertEquals(1, pruned.children().size());
         assertSame(kept, pruned.children().getFirst());
         assertEquals(List.of("name_kept"), List.copyOf(pruned.namedSubqueries().keySet()));
+    }
+
+    /** Every key is a view branch named after itself, matching how these tests used to pass {@code children.keySet()}. */
+    private static Map<String, BranchIdentity> allViewIdentities(java.util.Set<String> keys) {
+        Map<String, BranchIdentity> identities = new LinkedHashMap<>();
+        for (String key : keys) {
+            identities.put(key, BranchIdentity.view(key));
+        }
+        return identities;
     }
 }

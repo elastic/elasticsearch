@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
@@ -22,7 +23,7 @@ import org.elasticsearch.xpack.esql.session.Versioned;
 
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 
@@ -79,6 +80,11 @@ public class MergeExecKindMapperTests extends ESTestCase {
         LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
         children.put("left", left);
         children.put("right", right);
-        return new ViewUnionAll(Source.EMPTY, children, Set.of("left", "right"), left.output());
+        return new ViewUnionAll(
+            Source.EMPTY,
+            children,
+            Map.of("left", BranchIdentity.view("left"), "right", BranchIdentity.view("right")),
+            left.output()
+        );
     }
 }

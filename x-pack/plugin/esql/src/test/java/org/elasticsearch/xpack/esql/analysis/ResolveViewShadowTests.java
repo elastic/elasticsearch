@@ -327,7 +327,7 @@ public class ResolveViewShadowTests extends AnalyzerTestCase {
         LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
         children.put(strictName, strict);
         children.put(shadow.viewName() + "#shadow", shadow);
-        return new ViewUnionAll(EMPTY, children, Set.of(), List.of());
+        return new ViewUnionAll(EMPTY, children, Map.of(), List.of());
     }
 
     /** Walks past one analyzer-inserted {@link Project} wrapper to expose the underlying relation. */

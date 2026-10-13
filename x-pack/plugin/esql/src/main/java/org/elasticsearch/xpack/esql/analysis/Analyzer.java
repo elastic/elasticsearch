@@ -164,6 +164,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
 import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -301,8 +302,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 new ResolveViewShadow(),
                 new ResolveDatasetShadow(),
                 new StripDatasetShadowRelations(),
-                new ViewCompactionPostIndexResolution(),
+                // Freezes _class/_name into literal Evals while every Subquery/NamedSubquery wrapper is still exactly as
+                // the parser and ViewResolver left it — BEFORE compaction below may lift or merge branches. Compaction
+                // then needs no metadata-driven flags: a branch topped by a frozen Eval is no longer a bare relation, so
+                // the merges that would lose identity are blocked by plan structure alone.
                 new ResolveSubqueryRelationColumns(),
+                new ViewCompactionPostIndexResolution(),
                 new UnwrapNamedSubqueries(),
                 new ResolveExternalRelations(),
                 new PruneEmptyUnionAllBranch(),
@@ -620,8 +625,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     /**
-     * Answers {@code _class} and {@code _name} for every view and subquery branch of a {@code FROM}. It runs while the branch
-     * wrappers still say which is which, before {@link UnwrapNamedSubqueries} removes the view wrappers.
+     * Answers {@code _class} and {@code _name} for every view and subquery branch of a {@code FROM}, freezing them into
+     * literal {@link Eval}s. It runs before {@link ViewCompactionPostIndexResolution}, while the branch wrappers are
+     * still exactly as the parser and {@code ViewResolver} left them, so the answers never depend on what compaction
+     * later lifts, merges, or unwraps ({@link UnwrapNamedSubqueries} strips the view wrappers right after).
      */
     private static class ResolveSubqueryRelationColumns extends ParameterizedAnalyzerRule<UnresolvedMetadata, AnalyzerContext> {
 
@@ -647,13 +654,44 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Source src = unresolvedMetadata.source();
 
             LogicalPlan answered;
-            if (child instanceof UnionAll unionAll) {
+            if (child instanceof ViewUnionAll vua) {
+                answered = answerFromIdentities(vua, relationColumns, src);
+            } else if (child instanceof UnionAll unionAll) {
                 List<LogicalPlan> branches = unionAll.children().stream().map(b -> answer(b, relationColumns, src, false)).toList();
                 answered = branches.equals(unionAll.children()) ? child : unionAll.replaceChildren(branches);
             } else {
                 answered = answer(child, relationColumns, src, true);
             }
             return answered.equals(child) ? unresolvedMetadata : new UnresolvedMetadata(src, answered, metadataFields);
+        }
+
+        /**
+         * Answers each branch from its surviving wrapper first, falling back to the branch's {@link BranchIdentity}
+         * when no wrapper is left. A wrapper, at this pre-compaction point, is fresh parser/resolver structure and
+         * states the request point directly: a literal subquery wrapping a view answers {@code subquery} even though
+         * the branch's identity kind is VIEW (the kind is the boundary truth the request-filter rewriter needs) — the
+         * wrapper is consumed exactly once, here, before compaction can disturb it. The identity fallback covers the
+         * one wrapper-less case: a pass-through view that {@code ViewResolver} folded down to its bare index pattern.
+         */
+        private static LogicalPlan answerFromIdentities(ViewUnionAll vua, List<NamedExpression> relationColumns, Source src) {
+            List<LogicalPlan> branches = new ArrayList<>(vua.children().size());
+            boolean changed = false;
+            for (Map.Entry<String, LogicalPlan> entry : vua.namedSubqueries().entrySet()) {
+                LogicalPlan branch = entry.getValue();
+                LogicalPlan answered = switch (branch) {
+                    case NamedSubquery view -> withRelationColumns(view, relationColumns, src, RelationClass.VIEW, view.name());
+                    case Subquery subquery -> withRelationColumns(subquery, relationColumns, src, RelationClass.SUBQUERY, null);
+                    default -> {
+                        BranchIdentity identity = vua.branchIdentity(entry.getKey());
+                        yield identity.isView()
+                            ? withRelationColumns(branch, relationColumns, src, RelationClass.VIEW, identity.name())
+                            : branch;
+                    }
+                };
+                changed |= answered != branch;
+                branches.add(answered);
+            }
+            return changed ? vua.replaceChildren(branches) : vua;
         }
 
         private static LogicalPlan answer(LogicalPlan branch, List<NamedExpression> relationColumns, Source src, boolean lone) {
@@ -1999,6 +2037,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<String> mergeColumns = outputUnion.stream().map(Attribute::name).toList();
             // FORK always copies a mention to siblings. LOAD_ALL subqueries do too. LOAD does not: a mention in one
             // independent-source branch loads that branch and Eval-nulls siblings.
+            // TODO(esql-planning#2273): VIEW-kind branches (ViewUnionAll.branchIdentity) should be excluded from
+            // unmapped-field materialization here — _source loading must not reach through the view boundary; the view
+            // branch should null-fill like a dataset would, pending the design discussion.
             boolean alignMentionedUnmapped = alignUnmappedAcrossBranches
                 || (mergePlan instanceof UnionAll && unmappedResolution.loadsAllUnmappedFields());
             Set<String> materializedUnmappedFieldNames = alignMentionedUnmapped ? materializedUnmappedFieldNames(mergePlan) : Set.of();

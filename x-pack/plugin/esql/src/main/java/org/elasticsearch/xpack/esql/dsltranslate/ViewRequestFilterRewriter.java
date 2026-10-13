@@ -217,7 +217,8 @@ public final class ViewRequestFilterRewriter {
                 QueryDslTranslator.TranslationResult result = translateFilter(child.output(), requestFilter, configuration, minimumVersion);
                 // The same construct can fail more than once on one view (two wildcard clauses, say); the set keeps the header short.
                 for (QueryDslTranslator.UnsupportedClause unsupported : result.unsupported()) {
-                    String where = "[" + unsupported.construct() + "] on view [" + key + "]";
+                    // The identity's name, not the map key: keys are uniquified labels ("meow#2"), names are the view's own.
+                    String where = "[" + unsupported.construct() + "] on view [" + vua.branchIdentity(key).name() + "]";
                     // Name the version reason, as RequestFilterRewriter does; "not supported" would be wrong.
                     if (unsupported.reason() == null) {
                         skipped.add(where);
@@ -239,8 +240,8 @@ public final class ViewRequestFilterRewriter {
         if (changed == false) {
             return vua;
         }
-        // Output columns are unchanged: a Filter never adds columns. Preserve viewBranchKeys.
-        return new ViewUnionAll(vua.source(), newSubqueries, vua.viewBranchKeys(), vua.output());
+        // Output columns are unchanged: a Filter never adds columns. Identities carry over untouched.
+        return new ViewUnionAll(vua.source(), newSubqueries, vua.branchIdentities(), vua.output());
     }
 
     /**
@@ -285,8 +286,10 @@ public final class ViewRequestFilterRewriter {
     private static void warnPushedIntoSources(LogicalPlan plan) {
         TreeSet<String> viewNames = new TreeSet<>();
         plan.forEachDown(ViewUnionAll.class, vua -> {
-            for (String key : vua.viewBranchKeys()) {
-                viewNames.add(key);
+            for (var identity : vua.branchIdentities().values()) {
+                if (identity.isView()) {
+                    viewNames.add(identity.name());
+                }
             }
         });
         if (viewNames.isEmpty() == false) {

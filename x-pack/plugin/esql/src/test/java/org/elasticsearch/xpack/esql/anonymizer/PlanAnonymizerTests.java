@@ -193,7 +193,9 @@ public class PlanAnonymizerTests extends ESTestCase {
         org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll vua = new org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll(
             Source.EMPTY,
             namedSubqueries,
-            namedSubqueries.keySet(),
+            namedSubqueries.keySet()
+                .stream()
+                .collect(java.util.stream.Collectors.toMap(k -> k, org.elasticsearch.xpack.esql.plan.logical.BranchIdentity::view)),
             List.<Attribute>of(attr)
         );
         LogicalPlan plan = new Limit(Source.EMPTY, new Literal(Source.EMPTY, 10, DataType.INTEGER), vua);

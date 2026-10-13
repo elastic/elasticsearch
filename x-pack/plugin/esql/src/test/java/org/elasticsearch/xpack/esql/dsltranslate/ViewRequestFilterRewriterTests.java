@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
+import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -42,7 +43,6 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -93,7 +93,7 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
         LinkedHashMap<String, LogicalPlan> map = new LinkedHashMap<>();
         map.put(null, bareIndex());
         map.put(viewName, viewPlan);
-        return new ViewUnionAll(Source.EMPTY, map, Set.of(viewName), List.of(viewOutputAttr));
+        return new ViewUnionAll(Source.EMPTY, map, Map.of(viewName, BranchIdentity.view(viewName)), List.of(viewOutputAttr));
     }
 
     /** Retrieves the named subplan for {@code viewName} from a (possibly rewritten) {@link ViewUnionAll}. */
@@ -156,7 +156,12 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
         LinkedHashMap<String, LogicalPlan> map = new LinkedHashMap<>();
         map.put(null, bare);
         map.put("myView", viewSubplan("myView", attr("y", DataType.INTEGER)));
-        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, map, Set.of("myView"), List.of(attr("y", DataType.INTEGER)));
+        ViewUnionAll vua = new ViewUnionAll(
+            Source.EMPTY,
+            map,
+            Map.of("myView", BranchIdentity.view("myView")),
+            List.of(attr("y", DataType.INTEGER))
+        );
 
         LogicalPlan result = ViewRequestFilterRewriter.rewrite(vua, QueryBuilders.termQuery("y", 42), CONFIG, CURRENT);
         assertThat(bareIndexChild(result), sameInstance(bare));
@@ -170,7 +175,7 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
     public void testPlanWithNoViewSubplansIsUnchanged() {
         LinkedHashMap<String, LogicalPlan> map = new LinkedHashMap<>();
         map.put(null, bareIndex());
-        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, map, Set.of(), List.of());
+        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, map, Map.of(), List.of());
 
         LogicalPlan result = ViewRequestFilterRewriter.rewrite(vua, QueryBuilders.termQuery("y", 42), CONFIG, CURRENT);
         assertSame(vua, result);
@@ -209,7 +214,12 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
         LinkedHashMap<String, LogicalPlan> map = new LinkedHashMap<>();
         map.put("viewA", viewSubplan("viewA", y));
         map.put("viewB", viewSubplan("viewB", z));
-        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, map, Set.of("viewA", "viewB"), List.of(y, z));
+        ViewUnionAll vua = new ViewUnionAll(
+            Source.EMPTY,
+            map,
+            Map.of("viewA", BranchIdentity.view("viewA"), "viewB", BranchIdentity.view("viewB")),
+            List.of(y, z)
+        );
 
         LogicalPlan result = ViewRequestFilterRewriter.rewrite(vua, QueryBuilders.termQuery("y", 1), CONFIG, CURRENT);
 
@@ -307,7 +317,12 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
         LinkedHashMap<String, LogicalPlan> map = new LinkedHashMap<>();
         map.put("viewA", viewSubplan("viewA", y));
         map.put("viewB", viewSubplan("viewB", y));
-        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, map, Set.of("viewA", "viewB"), List.of(y));
+        ViewUnionAll vua = new ViewUnionAll(
+            Source.EMPTY,
+            map,
+            Map.of("viewA", BranchIdentity.view("viewA"), "viewB", BranchIdentity.view("viewB")),
+            List.of(y)
+        );
 
         QueryBuilder twoWildcards = QueryBuilders.boolQuery()
             .must(QueryBuilders.wildcardQuery("y", "x*"))
@@ -352,7 +367,12 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
         LinkedHashMap<String, LogicalPlan> map = new LinkedHashMap<>();
         map.put("viewA", viewSubplan("viewA", y));
         map.put("viewB", viewSubplan("viewB", y));
-        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, map, Set.of("viewA", "viewB"), List.of(y));
+        ViewUnionAll vua = new ViewUnionAll(
+            Source.EMPTY,
+            map,
+            Map.of("viewA", BranchIdentity.view("viewA"), "viewB", BranchIdentity.view("viewB")),
+            List.of(y)
+        );
 
         ViewRequestFilterRewriter.rewrite(vua, QueryBuilders.termQuery("y", 1), CONFIG, TOO_OLD);
         assertWarnings(

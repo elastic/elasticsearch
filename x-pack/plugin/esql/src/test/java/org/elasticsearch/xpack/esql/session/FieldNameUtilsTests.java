@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -4870,7 +4871,7 @@ public class FieldNameUtilsTests extends ESTestCase {
         LinkedHashMap<String, LogicalPlan> branches = new LinkedHashMap<>();
         branches.put("v", new NamedSubquery(Source.EMPTY, viewBody, "v"));
         branches.put("v#shadow", new ViewShadowRelation(Source.EMPTY, "v", LinkedIndexPattern.Kind.OPTIONAL, "v"));
-        ViewUnionAll plan = new ViewUnionAll(Source.EMPTY, branches, Set.of("v"), List.of());
+        ViewUnionAll plan = new ViewUnionAll(Source.EMPTY, branches, Map.of("v", BranchIdentity.view("v")), List.of());
         assertThat(FieldNameUtils.resolveFieldNames(plan, false, includePrefixFields).fieldNames(), equalTo(ALL_FIELDS));
     }
 

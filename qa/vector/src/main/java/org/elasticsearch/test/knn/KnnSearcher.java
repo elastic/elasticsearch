@@ -562,6 +562,8 @@ public class KnnSearcher {
         finalResults.overSamplingFactor = searchParameters.overSamplingFactor();
         finalResults.filterSelectivity = searchParameters.filterSelectivity();
         finalResults.numCandidates = searchParameters.numCandidates();
+        finalResults.searchThreads = searchParameters.searchThreads();
+        finalResults.numSearchers = searchParameters.numSearchers();
         finalResults.topK = searchParameters.topK();
         finalResults.earlyTermination = searchParameters.earlyTermination();
         finalResults.postFilter = searchParameters.postFilter();

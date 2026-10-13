@@ -251,7 +251,12 @@ public class ArchiveTests extends PackagingTestCase {
             sh.run("Invoke-Command -ScriptBlock {echo '" + password + "'; echo '" + password + "'} | " + bin.keystoreTool + " passwd");
         });
         Shell.Result result = runElasticsearchStartCommand("some-wrong-password-here", false, false);
-        assertElasticsearchFailure(result, "Provided keystore password was incorrect", null);
+        // a wrong password fails the keystore's AES-GCM tag check; the BC FIPS provider reports that failure with a different
+        // exception than the JDK's provider, which the keystore reports as corruption (same allowance as KeyStoreWrapperTests)
+        List<String> expectedMessages = distribution.isFipsActivated()
+            ? List.of("Provided keystore password was incorrect", "Keystore has been corrupted or tampered with")
+            : List.of("Provided keystore password was incorrect");
+        assertElasticsearchFailure(result, expectedMessages, null);
         verifySecurityNotAutoConfigured(installation);
         if (RandomizedTest.randomBoolean()) {
             ServerUtils.addSettingToExistingConfiguration(installation, "node.name", "my-custom-random-node-name-here");

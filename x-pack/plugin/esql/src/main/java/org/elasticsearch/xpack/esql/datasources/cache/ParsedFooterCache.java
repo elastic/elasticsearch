@@ -39,7 +39,7 @@ import java.util.function.ToLongFunction;
  * Thrift/protobuf) deserialization runs at most once per {@code (storageIdentity, path, fileLength)} key across:
  * <ul>
  *   <li>concurrent splits of the same file taken by N producer threads;</li>
- *   <li>back-to-back queries against the same file within the access TTL.</li>
+ *   <li>back-to-back queries against the same file within the TTL.</li>
  * </ul>
  *
  * <h2>Why parsed metadata and not just raw bytes</h2>
@@ -62,10 +62,9 @@ import java.util.function.ToLongFunction;
  *       {@code FormatReaderRegistry} builds from node {@code Settings}) and shared by every
  *       derived reader via the reader copy constructors, exactly like the paired
  *       {@link FooterByteCache} (see its class Javadoc for why not per-query).</li>
- *   <li>Access-based TTL: constructed with the same value as the paired {@link FooterByteCache}
- *       so the two caches age out together; covers a single query's fan-out (where concurrent
- *       splits keep the entry alive) and bounds cross-query staleness: the key carries no
- *       modification time, so a same-length overwrite may be served until the TTL lapses.</li>
+ *   <li>Write-based TTL: the same value as the paired {@link FooterByteCache}. Unlike the byte cache, a store
+ *       here does NOT imply a storage read — an entry can be evicted while its bytes survive and the reparse
+ *       refills it from those bytes, so a footer can stand up to two TTLs past the read behind it.</li>
  *   <li>Byte-weighted LRU eviction: parsed metadata structures do not expose an exact byte
  *       size, so each format supplies a structural estimator (row groups × columns for Parquet,
  *       the analogous stripe shape for ORC) against a heap-relative budget
@@ -146,8 +145,8 @@ public final class ParsedFooterCache<T> {
      *
      * @throws IllegalArgumentException if {@code maxWeightBytes <= 0}
      */
-    public ParsedFooterCache(long maxWeightBytes, TimeValue expireAfterAccess, ToLongFunction<T> weigher) {
-        this(maxWeightBytes, expireAfterAccess, weigher, true);
+    public ParsedFooterCache(long maxWeightBytes, TimeValue expireAfterWrite, ToLongFunction<T> weigher) {
+        this(maxWeightBytes, expireAfterWrite, weigher, true);
     }
 
     /**
@@ -157,7 +156,7 @@ public final class ParsedFooterCache<T> {
      *
      * @throws IllegalArgumentException if {@code maxWeightBytes <= 0}
      */
-    public ParsedFooterCache(long maxWeightBytes, TimeValue expireAfterAccess, ToLongFunction<T> weigher, boolean coalesceAsyncLoads) {
+    public ParsedFooterCache(long maxWeightBytes, TimeValue expireAfterWrite, ToLongFunction<T> weigher, boolean coalesceAsyncLoads) {
         if (maxWeightBytes <= 0) {
             throw new IllegalArgumentException("maxWeightBytes must be positive, got [" + maxWeightBytes + "]");
         }
@@ -166,7 +165,7 @@ public final class ParsedFooterCache<T> {
         this.coalesceAsyncLoads = coalesceAsyncLoads;
         this.cache = CacheBuilder.<FooterByteCache.Key, Weighted<T>>builder()
             .setMaximumWeight(maxWeightBytes)
-            .setExpireAfterAccess(expireAfterAccess)
+            .setExpireAfterWrite(expireAfterWrite)
             .weigher((key, value) -> value.weight())
             .build();
     }
@@ -536,7 +535,7 @@ public final class ParsedFooterCache<T> {
      * @return the original cause (or the {@code ExecutionException} itself if the cause is null),
      *         for the caller to either rethrow or wrap
      * @throws IOException             if the cause is an {@link IOException}
-     * @throws CircuitBreakingException if the cause is a {@link CircuitBreakingException}
+     * @throws CircuitBreakingException a new copy, per caller, if the cause is a {@link CircuitBreakingException}
      * @throws ElasticsearchException  if the cause is an {@link ElasticsearchException}
      */
     public static Throwable rethrowStructural(ExecutionException e) throws IOException {
@@ -546,11 +545,31 @@ public final class ParsedFooterCache<T> {
             throw io;
         }
         if (cause instanceof CircuitBreakingException cbe) {
-            throw cbe;
+            throw copyOf(cbe);
         }
         if (cause instanceof ElasticsearchException ese) {
             throw ese;
         }
         return cause != null ? cause : e;
+    }
+
+    /**
+     * Every waiter on a failed load receives the loader's own exception. A breaker trip is the failure most likely to
+     * arrive in many splits at once, and splits suppress failures onto one another, so each caller gets its own copy
+     * rather than one instance live in dozens of exception graphs. The copy keeps the shared exception's cause but not
+     * its suppressed failures.
+     */
+    private static CircuitBreakingException copyOf(CircuitBreakingException shared) {
+        CircuitBreakingException copy = new CircuitBreakingException(
+            shared.getMessage(),
+            shared.getBytesWanted(),
+            shared.getByteLimit(),
+            shared.getDurability()
+        );
+        if (shared.getCause() != null) {
+            copy.initCause(shared.getCause());
+        }
+        copy.setStackTrace(shared.getStackTrace());
+        return copy;
     }
 }

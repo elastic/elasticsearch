@@ -74,8 +74,18 @@ public class ExponentialScaleUtilsTests extends ESTestCase {
 
             String baseMsg = " for input value " + testValue + " and scale " + scale;
 
-            assertThat("Expected lower bound to be less than input value", lowerBound, lessThanOrEqualTo(testValue));
-            assertThat("Expected upper bound to be greater than input value", upperBound, greaterThanOrEqualTo(upperBound));
+            // Indexing uses logarithms for positive scales while the boundaries are reconstructed with exponentiation.
+            // Close to a boundary, rounding from these operations can put the input just outside the reconstructed range.
+            assertThat(
+                "Expected lower bound to be less than input value" + baseMsg,
+                lowerBound,
+                lessThanOrEqualTo(testValue + testValue * 1e-12)
+            );
+            assertThat(
+                "Expected upper bound to be greater than input value" + baseMsg,
+                upperBound,
+                greaterThanOrEqualTo(testValue - testValue * 1e-12)
+            );
             assertThat("Expected lower bound to be less than upper bound" + baseMsg, lowerBound, lessThan(upperBound));
 
             // only do this check for ranges where we have enough numeric stability

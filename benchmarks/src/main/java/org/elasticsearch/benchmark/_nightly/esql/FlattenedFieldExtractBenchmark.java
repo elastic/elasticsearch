@@ -295,7 +295,7 @@ public class FlattenedFieldExtractBenchmark {
     /** The extracted value for a document is {@code i % VALUE_MOD}, so the checksum is order-independent. */
     private static final int VALUE_MOD = 1000;
     private static final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("none"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     public static IndexSettings defaultIndexSettings() {

@@ -300,6 +300,23 @@ public interface StorageObject {
     }
 
     /**
+     * Async start with optional permit barge. Default ignores {@code barge} and delegates to
+     * {@link #startReadBytesAsync(long, long, DirectBufferFactory, Executor, ActionListener)}.
+     * Limiters honor {@code barge}: untimed try-acquire so a retry continuation never parks.
+     * Wrappers that sit between retry and the limiter must forward {@code barge}.
+     */
+    default Releasable startReadBytesAsync(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener,
+        boolean barge
+    ) {
+        return startReadBytesAsync(position, length, factory, executor, listener);
+    }
+
+    /**
      * Async byte read into a caller-provided ByteBuffer.
      * <p>
      * Avoids per-call allocation by reading directly into the target buffer.
@@ -448,10 +465,11 @@ public interface StorageObject {
      * Attaches the node telemetry sink and the storage {@code scheme} dimension so that this object's
      * read/retry events are published to {@link ExternalSourceMetrics} (in addition to the profile
      * counters surfaced by {@link #metrics()}). Called once by the operator wiring when it opens the
-     * object. The default is a no-op for objects that don't track I/O; decorator wrappers must forward
-     * to the wrapped object so the metrics attach to the underlying store, not the wrapper layer.
+     * object. Decorator wrappers must forward to the wrapped object so the metrics attach to the underlying
+     * store, not the wrapper layer. Implementations with no I/O counters implement it as an explicit no-op.
+     * There is no default: a silent default let decorators drop the attach without any failure.
      */
-    default void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+    void attachMetrics(ExternalSourceMetrics metrics, String scheme);
 
     /**
      * Binds {@code io} to the query-budget scheduler that will grant this object's GETs.
@@ -460,9 +478,10 @@ public interface StorageObject {
     default void bindRowGroup(RowGroupIo io) {}
 
     /**
-     * Wait budget, in milliseconds, for a caller that must block on admission before issuing a
-     * GET. Decorators that wrap a query budget return that budget's timeout; the default is
-     * {@link QueryAdmission#DEFAULT_ACQUIRE_TIMEOUT_MS}.
+     * Timeout in milliseconds exposed by query-budget decorators for permit-acquire waits.
+     * Parquet coalesced PER_GET byte admission no longer reads this; that path uses tickets.
+     * Decorators that wrap a query budget still return {@link QueryAdmission#DEFAULT_ACQUIRE_TIMEOUT_MS}
+     * (or the budget acquire timeout) so tests and any remaining permit-wait callers can observe it.
      */
     default long admissionWaitTimeoutMs() {
         return QueryAdmission.DEFAULT_ACQUIRE_TIMEOUT_MS;

@@ -8,6 +8,7 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-heap-pressure-test'
 
 esplugin {
   name = 'wildcard'
@@ -24,4 +25,13 @@ dependencies {
   compileOnly project(':modules:lang-painless:spi')
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
+
+  heapPressureTestImplementation project(':test:framework')
+  heapPressureTestImplementation project(':test:test-clusters')
+  // The pausable field the heap pressure tests use to hold requests in flight.
+  clusterModules project(':test:external-modules:test-pausable-field')
+}
+
+tasks.named('heapPressureTest') {
+  usesDefaultDistribution("wildcard field type is an x-pack module, only shipped in the default distribution")
 }

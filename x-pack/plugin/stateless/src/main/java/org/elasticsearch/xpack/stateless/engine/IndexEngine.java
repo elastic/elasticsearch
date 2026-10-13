@@ -66,6 +66,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.DocumentSizeAccumulator;
 import org.elasticsearch.plugins.internal.DocumentSizeReporter;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
@@ -140,6 +141,7 @@ public class IndexEngine extends InternalEngine {
     private final ReshardIndexService reshardIndexService;
     private final IndexEngineDynamicSettings indexEngineDynamicSettings;
     private final CommitBCCResolver commitBCCResolver;
+    private final DocumentParsingProvider documentParsingProvider;
     private final DocumentSizeAccumulator documentSizeAccumulator;
     private final DocumentSizeReporter documentParsingReporter;
     private final TranslogRecoveryMetrics translogRecoveryMetrics;
@@ -217,6 +219,7 @@ public class IndexEngine extends InternalEngine {
         this.reshardIndexService = reshardIndexService;
         this.indexEngineDynamicSettings = indexEngineDynamicSettings;
         this.commitBCCResolver = commitBCCResolver;
+        this.documentParsingProvider = documentParsingProvider;
         this.documentSizeAccumulator = documentParsingProvider.createDocumentSizeAccumulator();
         this.documentParsingReporter = documentParsingProvider.newDocumentSizeReporter(
             shardId.getIndex(),
@@ -553,9 +556,14 @@ public class IndexEngine extends InternalEngine {
         IndexResult result = super.index(index);
 
         if (result.getResultType() == Result.Type.SUCCESS) {
-            documentParsingReporter.onIndexingCompleted(parsedDocument);
+            documentParsingReporter.onIndexingCompleted(parsedDocument, index.origin());
         }
         return result;
+    }
+
+    @Override
+    public XContentMeteringParserDecorator newMeteringParserDecorator() {
+        return documentParsingProvider.newMeteringParserDecorator();
     }
 
     @Override
@@ -568,7 +576,8 @@ public class IndexEngine extends InternalEngine {
         List<IndexResult> results = super.indexBatch(engineBatch);
         for (int i = 0; i < results.size(); i++) {
             if (results.get(i).getResultType() == Result.Type.SUCCESS) {
-                documentParsingReporter.onIndexingCompleted(operations.get(i).parsedDoc());
+                Index operation = operations.get(i);
+                documentParsingReporter.onIndexingCompleted(operation.parsedDoc(), operation.origin());
             }
         }
         return results;

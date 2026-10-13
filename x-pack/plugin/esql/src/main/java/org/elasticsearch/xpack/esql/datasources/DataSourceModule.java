@@ -504,10 +504,28 @@ public final class DataSourceModule implements Closeable {
         return externalSourceMetrics;
     }
 
+    /** Shared I/O byte tickets for this node. */
+    public NodeByteBudget nodeByteBudget() {
+        return nodeByteBudget;
+    }
+
     /** Null when this module was built without a {@link ThreadPool} (unit-test constructors). */
     @Nullable
-    AdmissionStallWatchdog admissionWatchdog() {
+    public AdmissionStallWatchdog admissionWatchdog() {
         return admissionWatchdog;
+    }
+
+    /**
+     * Writes live admission gauges (used, limit, untracked, waiters, rescues, permits) into
+     * {@code counters} under {@code datasources.admission.*}.
+     */
+    public void populateAdmissionStats(org.elasticsearch.xpack.core.watcher.common.stats.Counters counters) {
+        DataSourceCounters.populateAdmission(counters, nodeByteBudget, admissionWatchdog, permitSnapshots());
+    }
+
+    /** Live {@code [available, max]} per scheme that has a permit limiter. */
+    public Map<String, int[]> permitSnapshots() {
+        return storageProviderRegistry == null ? Map.of() : storageProviderRegistry.permitSnapshots();
     }
 
     /**

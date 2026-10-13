@@ -838,6 +838,17 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         }
 
         /**
+         * Every positional query this field answers reads its values, which carry the positions, so a query built
+         * for it may ask about them. It needs its own terms to find the documents to read, which is what
+         * {@link #failIfNotIndexedForPhraseQueries} asks for, and it needs the values themselves to be readable,
+         * which is what {@link #getValueFetcherProvider} asks for.
+         */
+        @Override
+        public boolean answersPositionsFromValues(SearchExecutionContext context) {
+            return indexType().hasTerms() && (hasDocValues() || context.isSourceEnabled());
+        }
+
+        /**
          * Phrase queries on a {@code match_only_text} field are confirmed against {@code _source}, but the candidate documents are
          * still seeded from the field's postings. When the field is mapped with {@code index: false} there are no postings, so the
          * approximation matches nothing and the phrase confirmation never runs, silently returning zero hits (see

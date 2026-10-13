@@ -50,19 +50,8 @@ public class EsqlFlags {
     );
 
     /**
-     * Enables coordinator-driven remote fetch for deferred TopN fields after node-level reduction.
-     * Off by default; enable with {@code esql.query.remote_fetch_topn.enabled}. An explicit value
-     * wins over the default.
-     */
-    public static final Setting<Boolean> ESQL_REMOTE_FETCH_TOPN = Setting.boolSetting(
-        "esql.query.remote_fetch_topn.enabled",
-        false,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    /**
      * Cluster-wide cap on the number of leaf branches an independently executed query may use.
+     * View compaction also uses this as the flatten budget for nested view unions.
      * An explicit {@link QueryPragmas#MAX_BRANCH_COUNT} pragma overrides this value for that query.
      */
     public static final Setting<Integer> ESQL_MAX_BRANCH_COUNT = Setting.intSetting(
@@ -81,6 +70,19 @@ public class EsqlFlags {
         "esql.query.max_branch_level",
         QueryPragmas.MAX_BRANCH_LEVEL.getDefault(Settings.EMPTY),
         1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Cluster-wide cap on how many direct children one merge may have. Applies to {@code FORK}, dataset rewrite, and a top-level PromQL
+     * {@code or} chain. An explicit {@link QueryPragmas#MAX_BRANCH_COUNT_PER_MERGE} pragma overrides this value for that query.
+     */
+    public static final Setting<Integer> ESQL_MAX_BRANCH_COUNT_PER_MERGE = Setting.intSetting(
+        "esql.query.max_branch_count_per_merge",
+        QueryPragmas.MAX_BRANCH_COUNT_PER_MERGE.getDefault(Settings.EMPTY),
+        1,
+        QueryPragmas.MAX_BRANCH_COUNT_PER_MERGE_MAX,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -106,9 +108,9 @@ public class EsqlFlags {
     public static List<Setting<?>> ALL_ESQL_FLAGS_SETTINGS = List.of(
         ESQL_STRING_LIKE_ON_INDEX,
         ESQL_ROUNDTO_PUSHDOWN_THRESHOLD,
-        ESQL_REMOTE_FETCH_TOPN,
         ESQL_MAX_BRANCH_COUNT,
         ESQL_MAX_BRANCH_LEVEL,
+        ESQL_MAX_BRANCH_COUNT_PER_MERGE,
         ESQL_MAX_FILLNULL_FIELDS
     );
 
@@ -119,9 +121,9 @@ public class EsqlFlags {
     public static final EsqlFlags DEFAULTS = new EsqlFlags(
         ESQL_STRING_LIKE_ON_INDEX.getDefault(Settings.EMPTY),
         ESQL_ROUNDTO_PUSHDOWN_THRESHOLD.getDefault(Settings.EMPTY),
-        ESQL_REMOTE_FETCH_TOPN.getDefault(Settings.EMPTY),
         ESQL_MAX_BRANCH_COUNT.getDefault(Settings.EMPTY),
         ESQL_MAX_BRANCH_LEVEL.getDefault(Settings.EMPTY),
+        ESQL_MAX_BRANCH_COUNT_PER_MERGE.getDefault(Settings.EMPTY),
         ESQL_MAX_FILLNULL_FIELDS.getDefault(Settings.EMPTY)
     );
 
@@ -129,11 +131,11 @@ public class EsqlFlags {
 
     private final int roundToPushdownThreshold;
 
-    private final boolean remoteFetchTopN;
-
     private final int maxBranchCount;
 
     private final int maxBranchLevel;
+
+    private final int maxBranchCountPerMerge;
 
     private final int maxFillNullFields;
 
@@ -141,41 +143,26 @@ public class EsqlFlags {
      * Constructor for tests.
      */
     public EsqlFlags(boolean stringLikeOnIndex) {
-        this(
-            stringLikeOnIndex,
-            ESQL_ROUNDTO_PUSHDOWN_THRESHOLD.getDefault(Settings.EMPTY),
-            ESQL_REMOTE_FETCH_TOPN.getDefault(Settings.EMPTY)
-        );
+        this(stringLikeOnIndex, ESQL_ROUNDTO_PUSHDOWN_THRESHOLD.getDefault(Settings.EMPTY));
     }
 
     /**
      * Constructor for tests.
      */
     public EsqlFlags(int roundToPushdownThreshold) {
-        this(
-            ESQL_STRING_LIKE_ON_INDEX.getDefault(Settings.EMPTY),
-            roundToPushdownThreshold,
-            ESQL_REMOTE_FETCH_TOPN.getDefault(Settings.EMPTY)
-        );
+        this(ESQL_STRING_LIKE_ON_INDEX.getDefault(Settings.EMPTY), roundToPushdownThreshold);
     }
 
     /**
      * Constructor for tests.
      */
     public EsqlFlags(boolean stringLikeOnIndex, int roundToPushdownThreshold) {
-        this(stringLikeOnIndex, roundToPushdownThreshold, ESQL_REMOTE_FETCH_TOPN.getDefault(Settings.EMPTY));
-    }
-
-    /**
-     * Constructor for tests.
-     */
-    public EsqlFlags(boolean stringLikeOnIndex, int roundToPushdownThreshold, boolean remoteFetchTopN) {
         this(
             stringLikeOnIndex,
             roundToPushdownThreshold,
-            remoteFetchTopN,
             ESQL_MAX_BRANCH_COUNT.getDefault(Settings.EMPTY),
             ESQL_MAX_BRANCH_LEVEL.getDefault(Settings.EMPTY),
+            ESQL_MAX_BRANCH_COUNT_PER_MERGE.getDefault(Settings.EMPTY),
             ESQL_MAX_FILLNULL_FIELDS.getDefault(Settings.EMPTY)
         );
     }
@@ -183,21 +170,46 @@ public class EsqlFlags {
     /**
      * Test helper that leaves the other flags at their defaults.
      */
-    public static EsqlFlags withRemoteFetchTopN(boolean remoteFetchTopN) {
-        return new EsqlFlags(true, ESQL_ROUNDTO_PUSHDOWN_THRESHOLD.getDefault(Settings.EMPTY), remoteFetchTopN);
+    public static EsqlFlags withMaxBranchLimits(int maxBranchCount, int maxBranchLevel) {
+        return withMaxBranchLimits(maxBranchCount, maxBranchLevel, ESQL_MAX_BRANCH_COUNT_PER_MERGE.getDefault(Settings.EMPTY));
     }
 
     /**
      * Test helper that leaves the other flags at their defaults.
      */
-    public static EsqlFlags withMaxBranchLimits(int maxBranchCount, int maxBranchLevel) {
+    public static EsqlFlags withMaxBranchCountPerMerge(int maxBranchCountPerMerge) {
+        return withMaxBranchLimits(
+            ESQL_MAX_BRANCH_COUNT.getDefault(Settings.EMPTY),
+            ESQL_MAX_BRANCH_LEVEL.getDefault(Settings.EMPTY),
+            maxBranchCountPerMerge
+        );
+    }
+
+    public static EsqlFlags withMaxBranchLimits(int maxBranchCount, int maxBranchLevel, int maxBranchCountPerMerge) {
         return new EsqlFlags(
             ESQL_STRING_LIKE_ON_INDEX.getDefault(Settings.EMPTY),
             ESQL_ROUNDTO_PUSHDOWN_THRESHOLD.getDefault(Settings.EMPTY),
-            ESQL_REMOTE_FETCH_TOPN.getDefault(Settings.EMPTY),
             maxBranchCount,
             maxBranchLevel,
+            maxBranchCountPerMerge,
             ESQL_MAX_FILLNULL_FIELDS.getDefault(Settings.EMPTY)
+        );
+    }
+
+    public EsqlFlags(
+        boolean stringLikeOnIndex,
+        int roundToPushdownThreshold,
+        int maxBranchCount,
+        int maxBranchLevel,
+        int maxFillNullFields
+    ) {
+        this(
+            stringLikeOnIndex,
+            roundToPushdownThreshold,
+            maxBranchCount,
+            maxBranchLevel,
+            ESQL_MAX_BRANCH_COUNT_PER_MERGE.getDefault(Settings.EMPTY),
+            maxFillNullFields
         );
     }
 
@@ -208,9 +220,9 @@ public class EsqlFlags {
         return new EsqlFlags(
             ESQL_STRING_LIKE_ON_INDEX.getDefault(Settings.EMPTY),
             ESQL_ROUNDTO_PUSHDOWN_THRESHOLD.getDefault(Settings.EMPTY),
-            ESQL_REMOTE_FETCH_TOPN.getDefault(Settings.EMPTY),
             ESQL_MAX_BRANCH_COUNT.getDefault(Settings.EMPTY),
             ESQL_MAX_BRANCH_LEVEL.getDefault(Settings.EMPTY),
+            ESQL_MAX_BRANCH_COUNT_PER_MERGE.getDefault(Settings.EMPTY),
             maxFillNullFields
         );
     }
@@ -218,16 +230,16 @@ public class EsqlFlags {
     public EsqlFlags(
         boolean stringLikeOnIndex,
         int roundToPushdownThreshold,
-        boolean remoteFetchTopN,
         int maxBranchCount,
         int maxBranchLevel,
+        int maxBranchCountPerMerge,
         int maxFillNullFields
     ) {
         this.stringLikeOnIndex = stringLikeOnIndex;
         this.roundToPushdownThreshold = roundToPushdownThreshold;
-        this.remoteFetchTopN = remoteFetchTopN;
         this.maxBranchCount = maxBranchCount;
         this.maxBranchLevel = maxBranchLevel;
+        this.maxBranchCountPerMerge = maxBranchCountPerMerge;
         this.maxFillNullFields = maxFillNullFields;
     }
 
@@ -235,9 +247,9 @@ public class EsqlFlags {
         this(
             settings.get(ESQL_STRING_LIKE_ON_INDEX),
             settings.get(ESQL_ROUNDTO_PUSHDOWN_THRESHOLD),
-            settings.get(ESQL_REMOTE_FETCH_TOPN),
             settings.get(ESQL_MAX_BRANCH_COUNT),
             settings.get(ESQL_MAX_BRANCH_LEVEL),
+            settings.get(ESQL_MAX_BRANCH_COUNT_PER_MERGE),
             settings.get(ESQL_MAX_FILLNULL_FIELDS)
         );
     }
@@ -255,19 +267,16 @@ public class EsqlFlags {
         return roundToPushdownThreshold;
     }
 
-    /**
-     * Controls whether ES|QL may rewrite eligible TopN plans to fetch deferred fields after reduction.
-     */
-    public boolean remoteFetchTopN() {
-        return remoteFetchTopN;
-    }
-
     public int maxBranchCount() {
         return maxBranchCount;
     }
 
     public int maxBranchLevel() {
         return maxBranchLevel;
+    }
+
+    public int maxBranchCountPerMerge() {
+        return maxBranchCountPerMerge;
     }
 
     public int maxFillNullFields() {
@@ -281,22 +290,16 @@ public class EsqlFlags {
         EsqlFlags that = (EsqlFlags) o;
         return stringLikeOnIndex == that.stringLikeOnIndex
             && roundToPushdownThreshold == that.roundToPushdownThreshold
-            && remoteFetchTopN == that.remoteFetchTopN
             && maxBranchCount == that.maxBranchCount
             && maxBranchLevel == that.maxBranchLevel
+            && maxBranchCountPerMerge == that.maxBranchCountPerMerge
             && maxFillNullFields == that.maxFillNullFields;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(
-            stringLikeOnIndex,
-            roundToPushdownThreshold,
-            remoteFetchTopN,
-            maxBranchCount,
-            maxBranchLevel,
-            maxFillNullFields
-        );
+        return Objects.hash(stringLikeOnIndex, roundToPushdownThreshold, maxBranchCount, maxBranchLevel, maxBranchCountPerMerge,
+            maxFillNullFields);
     }
 
     @Override
@@ -305,12 +308,12 @@ public class EsqlFlags {
             + stringLikeOnIndex
             + ", roundToPushdownThreshold="
             + roundToPushdownThreshold
-            + ", remoteFetchTopN="
-            + remoteFetchTopN
             + ", maxBranchCount="
             + maxBranchCount
             + ", maxBranchLevel="
             + maxBranchLevel
+            + ", maxBranchCountPerMerge="
+            + maxBranchCountPerMerge
             + ", maxFillNullFields="
             + maxFillNullFields
             + ']';

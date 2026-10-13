@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 
@@ -255,6 +256,32 @@ public class AnalyzerContext {
      */
     public boolean preserveViewBoundaries() {
         return preserveViewBoundaries;
+    }
+
+    /** Cluster flags for this request. Tests that omit them get {@link EsqlFlags#DEFAULTS}. */
+    public EsqlFlags flags() {
+        return flags;
+    }
+
+    /** Resolved {@code max_branch_count_per_merge}: a set query pragma overrides {@link EsqlFlags#maxBranchCountPerMerge()}. */
+    public int maxBranchCountPerMerge() {
+        QueryPragmas pragmas = configuration == null ? QueryPragmas.EMPTY : configuration.pragmas();
+        return pragmas.maxBranchCountPerMerge(flags.maxBranchCountPerMerge());
+    }
+
+    /** Label for whichever knob supplied {@link #maxBranchCountPerMerge()}. */
+    public String maxBranchCountPerMergeLimitSource() {
+        QueryPragmas pragmas = configuration == null ? QueryPragmas.EMPTY : configuration.pragmas();
+        return pragmas.maxBranchCountPerMergeLimitSource(EsqlFlags.ESQL_MAX_BRANCH_COUNT_PER_MERGE.getKey());
+    }
+
+    /**
+     * Resolved {@code max_branch_count}: a set query pragma overrides {@link EsqlFlags#maxBranchCount()}.
+     * View compaction uses this as the flatten budget for nested view unions.
+     */
+    public int maxBranchCount() {
+        QueryPragmas pragmas = configuration == null ? QueryPragmas.EMPTY : configuration.pragmas();
+        return pragmas.maxBranchCount(flags.maxBranchCount());
     }
 
     public AnalyzerContext(

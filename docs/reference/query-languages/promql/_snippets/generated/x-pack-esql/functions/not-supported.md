@@ -9,11 +9,8 @@
 * `histogram_stdvar`
 * `holt_winters`
 * `info`
-* `limit_ratio`
 * `mad_over_time`
 * `predict_linear`
 * `resets`
-* `sort`
 * `sort_by_label`
 * `sort_by_label_desc`
-* `sort_desc`

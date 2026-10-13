@@ -43,6 +43,7 @@ public record DriverStatus(
     String description,
     String clusterName,
     String nodeName,
+    String threadName,
     long started,
     long lastUpdated,
     long cpuNanos,
@@ -61,6 +62,7 @@ public record DriverStatus(
 
     private static final TransportVersion ESQL_DRIVER_NODE_DESCRIPTION = TransportVersion.fromName("esql_driver_node_description");
     private static final TransportVersion ESQL_DRIVER_TASK_DESCRIPTION = TransportVersion.fromName("esql_driver_task_description");
+    private static final TransportVersion ESQL_DRIVER_STATUS_THREAD_NAME = TransportVersion.fromName("esql_driver_status_thread_name");
 
     public static DriverStatus readFrom(StreamInput in) throws IOException {
         return new DriverStatus(
@@ -68,6 +70,7 @@ public record DriverStatus(
             in.getTransportVersion().supports(ESQL_DRIVER_TASK_DESCRIPTION) ? in.readString() : "",
             in.getTransportVersion().supports(ESQL_DRIVER_NODE_DESCRIPTION) ? in.readString() : "",
             in.getTransportVersion().supports(ESQL_DRIVER_NODE_DESCRIPTION) ? in.readString() : "",
+            in.getTransportVersion().supports(ESQL_DRIVER_STATUS_THREAD_NAME) ? in.readString() : "",
             in.readLong(),
             in.readLong(),
             in.readVLong(),
@@ -88,6 +91,9 @@ public record DriverStatus(
         if (out.getTransportVersion().supports(ESQL_DRIVER_NODE_DESCRIPTION)) {
             out.writeString(clusterName);
             out.writeString(nodeName);
+        }
+        if (out.getTransportVersion().supports(ESQL_DRIVER_STATUS_THREAD_NAME)) {
+            out.writeString(threadName);
         }
         out.writeLong(started);
         out.writeLong(lastUpdated);
@@ -111,6 +117,7 @@ public record DriverStatus(
         builder.field("description", description);
         builder.field("cluster_name", clusterName);
         builder.field("node_name", nodeName);
+        builder.field("thread_name", threadName);
         builder.field("started", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(started));
         builder.field("last_updated", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(lastUpdated));
         builder.field("cpu_nanos", cpuNanos);

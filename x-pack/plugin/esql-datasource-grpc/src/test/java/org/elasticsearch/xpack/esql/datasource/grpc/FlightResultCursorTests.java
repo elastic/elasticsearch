@@ -44,7 +44,7 @@ public class FlightResultCursorTests extends ESTestCase {
 
     @Before
     public void initAllocators() throws Exception {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         // Flight client creates a child allocator.
         allocator = blockFactory.arrowAllocator().newChildAllocator("flight", 0, Long.MAX_VALUE);
     }

@@ -281,7 +281,11 @@ public final class ExternalFailures {
         }
         if (t instanceof ElasticsearchException ese) {
             ElasticsearchException detached = detach(ese, failureLevel);
-            assert noStoragePathLeaked(detached) : "storage path leaked in ElasticsearchException: " + detached.getMessage();
+            // A circuit breaker is not raised at the storage boundary and its message legitimately carries a URL (the
+            // reference-docs link every CircuitBreakingException ends with), which the guard would mistake for a storage
+            // location and, under -ea, turn into a fatal AssertionError.
+            assert detached instanceof CircuitBreakingException || noStoragePathLeaked(detached)
+                : "storage path leaked in ElasticsearchException: " + detached.getMessage();
             return detached;
         }
         if (t instanceof EsRejectedExecutionException rejected) {

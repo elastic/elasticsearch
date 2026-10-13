@@ -74,7 +74,7 @@ public class FetchPhaseGoldenTests extends GoldenTestCase {
             """, EsqlTestUtils.TEST_SEARCH_STATS);
     }
 
-    /** Without a sort only the document reference crosses the exchange. */
+    /** Without a sort only the documents cross the exchange. */
     public void testLimit() {
         runBoth("""
             FROM employees

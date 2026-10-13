@@ -28,6 +28,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.DocOriginTable;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
@@ -109,7 +110,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
-import org.elasticsearch.xpack.esql.plan.physical.DocRefEncodeExec;
+import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
@@ -125,7 +126,6 @@ import org.elasticsearch.xpack.esql.planner.ExplainPlanTransformer;
 import org.elasticsearch.xpack.esql.planner.FetchOperatorProvider;
 import org.elasticsearch.xpack.esql.planner.FetchSourceProvider;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
-import org.elasticsearch.xpack.esql.planner.NodeReduceSplit;
 import org.elasticsearch.xpack.esql.planner.PlannerServices;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -142,7 +142,6 @@ import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -1498,8 +1497,8 @@ public class ComputeService {
         Map<String, OriginalIndices> clusterToOriginalIndices = getIndices(resolvedPlan, EsRelation::originalIndices);
         var localOriginalIndices = clusterToOriginalIndices.remove(LOCAL_CLUSTER);
         var localConcreteIndices = clusterToConcreteIndices.remove(LOCAL_CLUSTER);
-        // document references name the contexts the data nodes keep open for the fetch phase, freed when the query ends
-        final FetchContextLease fetchContextLease = dataNodePlan.anyMatch(DocRefEncodeExec.class::isInstance)
+        // documents that leave the data nodes name the contexts they keep open for the fetch phase, freed when the query ends
+        final FetchContextLease fetchContextLease = dataNodePlan.output().stream().anyMatch(EsQueryExec::isDocAttribute)
             ? fetchPhaseServices.contextService().leaseFor(rootTask)
             : null;
         /*
@@ -1548,12 +1547,17 @@ public class ComputeService {
                         })
                     )
                 ) {
-                    // the fetches of the query send their requests as children of its task, and count their drivers as its own
-                    FetchOperatorProvider fetchOperators = coordinatorPlan.anyMatch(FetchExec.class::isInstance)
-                        ? fetchPhaseServices.operatorProvider(
-                            new QueryFetchScope(rootTask, sessionId, configuration, localListener::acquireCompute)
-                        )
-                        : FetchOperatorProvider.UNSUPPORTED;
+                    FetchOperatorProvider fetchOperators = FetchOperatorProvider.UNSUPPORTED;
+                    ActionListener<DriverCompletionInfo> coordinatorListener = localListener.acquireCompute();
+                    if (coordinatorPlan.anyMatch(FetchExec.class::isInstance)) {
+                        // the TopN of the coordinator numbers the origins of the documents it keeps until its compute ends
+                        DocOriginTable docOrigins = new DocOriginTable(blockFactory.breaker());
+                        coordinatorListener = ActionListener.releaseAfter(coordinatorListener, docOrigins);
+                        // the fetches of the query send their requests as children of its task, and count their drivers as its own
+                        fetchOperators = fetchPhaseServices.operatorProvider(
+                            new QueryFetchScope(rootTask, sessionId, configuration, localListener::acquireCompute, docOrigins)
+                        );
+                    }
                     runCompute(
                         rootTask,
                         new ComputeContext(
@@ -1573,7 +1577,7 @@ public class ComputeService {
                         plannerSettings.get(),
                         LocalPhysicalOptimization.ENABLED,
                         planTimeProfile,
-                        localListener.acquireCompute()
+                        coordinatorListener
                     );
                     // starts computes on data nodes on the main cluster
                     if (localConcreteIndices != null && localConcreteIndices.indices().length > 0) {
@@ -2301,15 +2305,6 @@ public class ComputeService {
         PlanTimeProfile planTimeProfile
     ) {
         long startTime = planTimeProfile == null ? 0 : System.nanoTime();
-        // A node reduce stage the coordinator planned is split off as it is. It always runs, even on the coordinator's
-        // own node, because the coordinator relies on what it produces.
-        Optional<ReductionPlan> planned = NodeReduceSplit.split(originalPlan);
-        if (planned.isPresent()) {
-            if (planTimeProfile != null) {
-                planTimeProfile.addReductionPlanNanos(System.nanoTime() - startTime);
-            }
-            return verifyReductionPlan(planned.get(), originalPlan);
-        }
         PhysicalPlan source = new ExchangeSourceExec(originalPlan.source(), originalPlan.output(), originalPlan.isIntermediateAgg());
         ReductionPlan passThroughReduction = new ReductionPlan(originalPlan.replaceChild(source), originalPlan);
         if (reduceNodeLateMaterialization == false && runNodeLevelReduction == false) {

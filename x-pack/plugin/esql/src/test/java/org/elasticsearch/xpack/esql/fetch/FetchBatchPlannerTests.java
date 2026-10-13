@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.esql.fetch;
 
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocOrigin;
-import org.elasticsearch.compute.data.DocRefBlock;
+import org.elasticsearch.compute.data.DocOrigins;
+import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.index.shard.ShardId;
@@ -139,12 +141,29 @@ public class FetchBatchPlannerTests extends ComputeTestCase {
         }
     }
 
-    public void testRejectsAColumnWithoutDocumentReferences() {
+    public void testRejectsAColumnWithoutDocuments() {
         BlockFactory blockFactory = blockFactory();
         Page page = new Page(blockFactory.newConstantIntBlockWith(1, 2));
         try {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> FetchBatchPlanner.plan(List.of(page), 0));
-            assertThat(e.getMessage(), containsString("expected document references in channel [0]"));
+            assertThat(e.getMessage(), containsString("expected documents that left their node in channel [0]"));
+        } finally {
+            page.releaseBlocks();
+        }
+    }
+
+    /**
+     * The shard slots of documents that never left their node mean nothing on the coordinator.
+     */
+    public void testRejectsDocumentsOfTheirOwnNode() {
+        BlockFactory blockFactory = blockFactory();
+        Page page;
+        try (DocBlock.Builder builder = DocBlock.newBlockBuilder(blockFactory, 1)) {
+            page = new Page(builder.appendShard(0).appendSegment(0).appendDoc(0).build());
+        }
+        try {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> FetchBatchPlanner.plan(List.of(page), 0));
+            assertThat(e.getMessage(), containsString("expected documents that left their node in channel [0]"));
         } finally {
             page.releaseBlocks();
         }
@@ -155,17 +174,15 @@ public class FetchBatchPlannerTests extends ComputeTestCase {
     private Page page(Ref... refs) {
         BlockFactory blockFactory = blockFactory();
         List<DocOrigin> origins = new ArrayList<>();
-        try (DocRefBlock.Builder builder = DocRefBlock.newBlockBuilder(blockFactory, refs.length)) {
+        try (DocBlock.Builder builder = DocBlock.newBlockBuilder(blockFactory, refs.length)) {
             for (Ref ref : refs) {
                 if (origins.contains(ref.origin()) == false) {
                     origins.add(ref.origin());
-                    builder.addOrigin(ref.origin());
                 }
+                builder.appendShard(origins.indexOf(ref.origin())).appendSegment(ref.segment()).appendDoc(ref.doc());
             }
-            for (Ref ref : refs) {
-                builder.append(origins.indexOf(ref.origin()), ref.segment(), ref.doc());
-            }
-            return new Page(builder.build());
+            // rows may share a document
+            return new Page(builder.build(DocVector.config().origins(DocOrigins.of(origins)).mayContainDuplicates()));
         }
     }
 

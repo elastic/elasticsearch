@@ -10,12 +10,11 @@ package org.elasticsearch.xpack.esql.plan.physical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -24,25 +23,21 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Loads the deferred columns of the rows that survived a cut from the nodes that own their documents.
+ * Loads the fetched columns of the rows that survived a cut from the nodes that own their documents.
  * <p>
- * The left child produces the rows: the coordinator half of the cut, reading the cluster exchange, with a
- * {@link DataType#DOC_REF} column next to the columns the cut needed. The right child is the fetch plan,
- * {@code ProjectExec(FieldExtractExec(FetchSourceExec))}, a physical plan the coordinator builds and every owning node
- * runs as it is for the documents it is asked about. Nothing is planned on those nodes. The right child never runs on
- * the coordinator.
- * <p>
- * The output is the left output followed by the fetched columns. No columns are merged by name: the fetched columns
- * and the left columns come from disjoint sets.
+ * The child produces the rows: the coordinator half of the cut over the exchange, with the {@code _doc} of each row
+ * next to the columns the cut needed. Those documents left the nodes that read them and carry their origins, see
+ * {@link DocVector#origins()}. Like {@link FieldExtractExec}, the output is the child's output followed by the fetched
+ * columns, so the plan above this node doesn't change.
  */
-public final class FetchExec extends BinaryExec implements EstimatesRowSize {
+public final class FetchExec extends UnaryExec implements EstimatesRowSize {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,
         "FetchExec",
         FetchExec::new
     );
 
-    private final ReferenceAttribute docRef;
+    private final Attribute doc;
     private final List<Attribute> fetchedAttributes;
     private final String indexPattern;
     private final List<String> originalIndices;
@@ -50,9 +45,7 @@ public final class FetchExec extends BinaryExec implements EstimatesRowSize {
     private List<Attribute> lazyOutput;
 
     /**
-     * @param left              the rows to fetch columns for
-     * @param fetchPlan         the plan each owning node runs, its output is {@code fetchedAttributes}
-     * @param docRef            the {@link DataType#DOC_REF} column of {@code left}
+     * @param doc               the {@code _doc} column of {@code child}
      * @param fetchedAttributes the columns the fetch appends to each row
      * @param indexPattern      the index pattern of the relation the documents come from
      * @param originalIndices   the index expressions the user wrote for the local cluster. A fetch request carries
@@ -60,16 +53,15 @@ public final class FetchExec extends BinaryExec implements EstimatesRowSize {
      */
     public FetchExec(
         Source source,
-        PhysicalPlan left,
-        PhysicalPlan fetchPlan,
-        ReferenceAttribute docRef,
+        PhysicalPlan child,
+        Attribute doc,
         List<Attribute> fetchedAttributes,
         String indexPattern,
         List<String> originalIndices,
         Integer estimatedRowSize
     ) {
-        super(source, left, fetchPlan);
-        this.docRef = docRef;
+        super(source, child);
+        this.doc = doc;
         this.fetchedAttributes = fetchedAttributes;
         this.indexPattern = indexPattern;
         this.originalIndices = originalIndices;
@@ -80,8 +72,7 @@ public final class FetchExec extends BinaryExec implements EstimatesRowSize {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(PhysicalPlan.class),
-            in.readNamedWriteable(PhysicalPlan.class),
-            (ReferenceAttribute) in.readNamedWriteable(Attribute.class),
+            in.readNamedWriteable(Attribute.class),
             in.readNamedWriteableCollectionAsList(Attribute.class),
             in.readString(),
             in.readStringCollectionAsList(),
@@ -91,8 +82,9 @@ public final class FetchExec extends BinaryExec implements EstimatesRowSize {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeNamedWriteable(docRef);
+        Source.EMPTY.writeTo(out);
+        out.writeNamedWriteable(child());
+        out.writeNamedWriteable(doc);
         out.writeNamedWriteableCollection(fetchedAttributes);
         out.writeString(indexPattern);
         out.writeStringCollection(originalIndices);
@@ -104,13 +96,8 @@ public final class FetchExec extends BinaryExec implements EstimatesRowSize {
         return ENTRY.name;
     }
 
-    /** The plan each owning node runs for the documents of the rows. */
-    public PhysicalPlan fetchPlan() {
-        return right();
-    }
-
-    public ReferenceAttribute docRef() {
-        return docRef;
+    public Attribute doc() {
+        return doc;
     }
 
     public List<Attribute> fetchedAttributes() {
@@ -135,39 +122,23 @@ public final class FetchExec extends BinaryExec implements EstimatesRowSize {
     @Override
     public List<Attribute> output() {
         if (lazyOutput == null) {
-            List<Attribute> leftOutput = left().output();
-            List<Attribute> output = new ArrayList<>(leftOutput.size() + fetchedAttributes.size());
-            output.addAll(leftOutput);
+            List<Attribute> childOutput = child().output();
+            List<Attribute> output = new ArrayList<>(childOutput.size() + fetchedAttributes.size());
+            output.addAll(childOutput);
             output.addAll(fetchedAttributes);
             lazyOutput = output;
         }
         return lazyOutput;
     }
 
-    /** Only the left side feeds this node on the coordinator. The fetch plan runs elsewhere, on its own inputs. */
-    @Override
-    public AttributeSet inputSet() {
-        return left().outputSet();
-    }
-
     @Override
     protected AttributeSet computeReferences() {
-        return leftReferences();
-    }
-
-    @Override
-    public AttributeSet leftReferences() {
-        return AttributeSet.of(docRef);
-    }
-
-    @Override
-    public AttributeSet rightReferences() {
-        return AttributeSet.EMPTY;
+        return AttributeSet.of(doc);
     }
 
     /**
      * This node emits the pages that the fetched columns are added to, so it consumes the estimate. The cut below it
-     * is then sized for its own narrow rows, the reference and the columns it needs, and the whole cut reaches this
+     * is then sized for its own narrow rows, the documents and the columns it needs, and the whole cut reaches this
      * node in one page instead of being split into pages sized for the fetched columns.
      */
     @Override
@@ -176,36 +147,30 @@ public final class FetchExec extends BinaryExec implements EstimatesRowSize {
         int size = Math.max(1, state.consumeAllFields(false));
         return Objects.equals(size, estimatedRowSize)
             ? this
-            : new FetchExec(source(), left(), right(), docRef, fetchedAttributes, indexPattern, originalIndices, size);
+            : new FetchExec(source(), child(), doc, fetchedAttributes, indexPattern, originalIndices, size);
     }
 
     @Override
-    protected FetchExec replaceChildren(PhysicalPlan newLeft, PhysicalPlan newRight) {
-        return new FetchExec(source(), newLeft, newRight, docRef, fetchedAttributes, indexPattern, originalIndices, estimatedRowSize);
+    public FetchExec replaceChild(PhysicalPlan newChild) {
+        return new FetchExec(source(), newChild, doc, fetchedAttributes, indexPattern, originalIndices, estimatedRowSize);
     }
 
     @Override
     protected NodeInfo<FetchExec> info() {
-        return NodeInfo.create(
-            this,
-            FetchExec::new,
-            left(),
-            right(),
-            docRef,
-            fetchedAttributes,
-            indexPattern,
-            originalIndices,
-            estimatedRowSize
-        );
+        return NodeInfo.create(this, FetchExec::new, child(), doc, fetchedAttributes, indexPattern, originalIndices, estimatedRowSize);
     }
 
     @Override
     public boolean equals(Object obj) {
-        if (super.equals(obj) == false) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
         FetchExec other = (FetchExec) obj;
-        return docRef.equals(other.docRef)
+        return child().equals(other.child())
+            && doc.equals(other.doc)
             && fetchedAttributes.equals(other.fetchedAttributes)
             && indexPattern.equals(other.indexPattern)
             && originalIndices.equals(other.originalIndices)
@@ -214,6 +179,6 @@ public final class FetchExec extends BinaryExec implements EstimatesRowSize {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), docRef, fetchedAttributes, indexPattern, originalIndices, estimatedRowSize);
+        return Objects.hash(child(), doc, fetchedAttributes, indexPattern, originalIndices, estimatedRowSize);
     }
 }

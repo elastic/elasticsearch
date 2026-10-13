@@ -11,7 +11,7 @@ import org.elasticsearch.compute.data.DocOrigin;
 import org.elasticsearch.search.internal.SearchContext;
 
 /**
- * Names the reader of a shard for the rows that leave a data node as document references.
+ * Names the reader of a shard for the documents of rows that leave a data node.
  */
 @FunctionalInterface
 public interface DocOriginResolver {
@@ -21,10 +21,10 @@ public interface DocOriginResolver {
     DocOrigin originOf(SearchContext searchContext);
 
     /**
-     * For data node requests that open no fetch contexts. Nothing could load their rows by reference later, so a planner
-     * that makes references there has a bug.
+     * For data node requests that open no fetch contexts. Nothing could load the documents of their rows later, so a
+     * planner that sends documents off such a node has a bug.
      */
     DocOriginResolver NONE = searchContext -> {
-        throw new IllegalStateException("document references need fetch contexts, but this request opened none");
+        throw new IllegalStateException("documents can only leave their node for a fetch, but this request opened no fetch contexts");
     };
 }

@@ -49,21 +49,6 @@ public class ExtractorTests extends ESTestCase {
                 case UNKNOWN -> {
                     supportsNull = false;
                 }
-                case DOC_REF -> {
-                    supportsNull = false;
-                    TopNEncoder registry = DocRefEncoder.PROTOTYPE.forOperator(NoopCircuitBreaker.INSTANCE);
-                    cases.add(
-                        new Object[] {
-                            new TestCase(
-                                "doc_ref",
-                                e,
-                                registry,
-                                false,
-                                () -> RandomBlock.randomDocRefBlock(blockFactory, 1, 1).block(),
-                                b -> b
-                            ) }
-                    );
-                }
                 case COMPOSITE -> {
                     // TODO: add later
                     supportsNull = false;

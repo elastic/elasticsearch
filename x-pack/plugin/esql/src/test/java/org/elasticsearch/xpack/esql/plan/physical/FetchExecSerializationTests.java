@@ -7,36 +7,21 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.io.IOException;
 import java.util.List;
 
 public class FetchExecSerializationTests extends AbstractPhysicalPlanSerializationTests<FetchExec> {
     public static FetchExec randomFetchExec(int depth) {
-        List<Attribute> fetched = randomFieldAttributes(1, 5, false);
         return new FetchExec(
             randomSource(),
             randomChild(depth),
-            randomFetchPlan(fetched),
-            DocRefEncodeExecSerializationTests.randomDocRef(),
-            fetched,
+            FetchSourceExecSerializationTests.randomDoc(),
+            randomFieldAttributes(1, 5, false),
             randomAlphaOfLength(5),
             randomList(1, 3, () -> randomAlphaOfLength(5)),
             randomEstimatedRowSize()
-        );
-    }
-
-    /** The shape the planner builds: the fetched columns loaded over the fetch source. */
-    static PhysicalPlan randomFetchPlan(List<Attribute> fetched) {
-        FetchSourceExec source = FetchSourceExecSerializationTests.randomFetchSourceExec();
-        return new ProjectExec(
-            Source.EMPTY,
-            new FieldExtractExec(Source.EMPTY, source, fetched, MappedFieldType.FieldExtractPreference.NONE),
-            fetched
         );
     }
 
@@ -47,30 +32,25 @@ public class FetchExecSerializationTests extends AbstractPhysicalPlanSerializati
 
     @Override
     protected FetchExec mutateInstance(FetchExec instance) throws IOException {
-        PhysicalPlan left = instance.left();
-        PhysicalPlan fetchPlan = instance.fetchPlan();
-        ReferenceAttribute docRef = instance.docRef();
+        PhysicalPlan child = instance.child();
+        Attribute doc = instance.doc();
         List<Attribute> fetched = instance.fetchedAttributes();
         String indexPattern = instance.indexPattern();
         List<String> originalIndices = instance.originalIndices();
         Integer estimatedRowSize = instance.estimatedRowSize();
-        switch (between(0, 6)) {
-            case 0 -> left = randomValueOtherThan(left, () -> randomChild(0));
-            case 1 -> {
-                fetched = randomValueOtherThan(fetched, () -> randomFieldAttributes(1, 5, false));
-                fetchPlan = randomFetchPlan(fetched);
-            }
-            case 2 -> fetchPlan = randomValueOtherThan(fetchPlan, () -> randomFetchPlan(instance.fetchedAttributes()));
-            case 3 -> docRef = randomValueOtherThan(docRef, DocRefEncodeExecSerializationTests::randomDocRef);
-            case 4 -> indexPattern = randomValueOtherThan(indexPattern, () -> randomAlphaOfLength(5));
-            case 5 -> originalIndices = randomValueOtherThan(originalIndices, () -> randomList(1, 3, () -> randomAlphaOfLength(5)));
-            case 6 -> estimatedRowSize = randomValueOtherThan(
+        switch (between(0, 5)) {
+            case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
+            case 1 -> doc = randomValueOtherThan(doc, FetchSourceExecSerializationTests::randomDoc);
+            case 2 -> fetched = randomValueOtherThan(fetched, () -> randomFieldAttributes(1, 5, false));
+            case 3 -> indexPattern = randomValueOtherThan(indexPattern, () -> randomAlphaOfLength(5));
+            case 4 -> originalIndices = randomValueOtherThan(originalIndices, () -> randomList(1, 3, () -> randomAlphaOfLength(5)));
+            case 5 -> estimatedRowSize = randomValueOtherThan(
                 estimatedRowSize,
                 AbstractPhysicalPlanSerializationTests::randomEstimatedRowSize
             );
             default -> throw new AssertionError("Unexpected case");
         }
-        return new FetchExec(instance.source(), left, fetchPlan, docRef, fetched, indexPattern, originalIndices, estimatedRowSize);
+        return new FetchExec(instance.source(), child, doc, fetched, indexPattern, originalIndices, estimatedRowSize);
     }
 
     @Override

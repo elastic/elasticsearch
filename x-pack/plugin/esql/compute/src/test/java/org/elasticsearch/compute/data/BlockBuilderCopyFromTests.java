@@ -30,7 +30,6 @@ public class BlockBuilderCopyFromTests extends ESTestCase {
             if (e == ElementType.UNKNOWN
                 || e == ElementType.NULL
                 || e == ElementType.DOC
-                || e == ElementType.DOC_REF
                 || e == ElementType.COMPOSITE
                 || e == ElementType.EXPONENTIAL_HISTOGRAM
                 || e == ElementType.TDIGEST) {

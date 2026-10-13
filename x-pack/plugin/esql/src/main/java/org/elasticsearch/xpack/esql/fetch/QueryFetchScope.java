@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.fetch;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.compute.data.DocOriginTable;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -21,15 +22,19 @@ import java.util.function.Supplier;
  * @param rootTask       the task of the query. Every fetch request is its child, so cancelling the query cancels them.
  * @param completionInfo acquires a listener for the drivers of one fetch request. The query adds them to its own
  *                       counters and profile.
+ * @param docOrigins     numbers the origins of the documents the TopN of the query keeps. The coordinator releases it
+ *                       when its compute ends.
  */
 public record QueryFetchScope(
     CancellableTask rootTask,
     String sessionId,
     Configuration configuration,
-    Supplier<ActionListener<DriverCompletionInfo>> completionInfo
+    Supplier<ActionListener<DriverCompletionInfo>> completionInfo,
+    DocOriginTable docOrigins
 ) {
     public QueryFetchScope {
         Objects.requireNonNull(rootTask, "rootTask");
         Objects.requireNonNull(completionInfo, "completionInfo");
+        Objects.requireNonNull(docOrigins, "docOrigins");
     }
 }

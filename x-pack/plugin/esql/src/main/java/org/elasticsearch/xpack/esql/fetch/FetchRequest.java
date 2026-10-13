@@ -220,7 +220,7 @@ public final class FetchRequest extends AbstractTransportRequest implements Indi
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().supports(ESQL_FETCH) == false) {
-            // only nodes that ran the query phase with document references get fetch requests
+            // only nodes that sent documents to the coordinator in the query phase get fetch requests
             throw new IllegalStateException("can't send a fetch request to a node on [" + out.getTransportVersion() + "]");
         }
         super.writeTo(out);

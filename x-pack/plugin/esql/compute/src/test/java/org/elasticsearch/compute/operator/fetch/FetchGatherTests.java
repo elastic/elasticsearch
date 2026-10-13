@@ -11,7 +11,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.DocRefBlock;
+import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -143,7 +144,7 @@ public class FetchGatherTests extends ComputeTestCase {
         return switch (type) {
             case BOOLEAN, INT, LONG, FLOAT, DOUBLE, BYTES_REF -> 3;
             case AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, LONG_RANGE, DOUBLE_RANGE -> 1;
-            case NULL, DOC, DOC_REF, COMPOSITE, UNKNOWN -> throw new AssertionError("random blocks are never [" + type + "]");
+            case NULL, DOC, COMPOSITE, UNKNOWN -> throw new AssertionError("random blocks are never [" + type + "]");
         };
     }
 
@@ -175,24 +176,24 @@ public class FetchGatherTests extends ComputeTestCase {
     }
 
     /**
-     * The input of a real fetch carries its document references. They are shared when every row stays, and filtered
-     * with the other input columns when rows are dropped.
+     * The input of a real fetch carries its documents. They are shared when every row stays, and filtered with the other
+     * input columns when rows are dropped.
      */
-    public void testCarriesDocumentReferences() {
+    public void testCarriesDocuments() {
         BlockFactory blockFactory = blockFactory();
-        DocRefBlock docRefs = (DocRefBlock) RandomBlock.randomDocRefBlock(blockFactory, 3, between(1, 3)).block();
-        DocRefBlock expectedKept;
-        try (DocRefBlock.Builder builder = DocRefBlock.newBlockBuilder(blockFactory, 2)) {
-            builder.copyFrom(docRefs, 0, 1);
-            builder.copyFrom(docRefs, 2, 3);
-            expectedKept = builder.build();
+        DocBlock docs = (DocBlock) RandomBlock.randomDetachedDocBlock(blockFactory, 3, between(1, 3)).block();
+        DocBlock expectedKept;
+        try (DocBlock.Builder builder = DocBlock.newBlockBuilder(blockFactory, 2)) {
+            builder.copyFrom(docs, 0, 1);
+            builder.copyFrom(docs, 2, 3);
+            expectedKept = builder.build(DocVector.config().mayContainDuplicates(docs.asVector().mayContainDuplicates()));
         }
         boolean dropOne = randomBoolean();
         Page fetched = new Page(blockFactory.newLongArrayVector(new long[] { 1, 2, 3 }, 3).asBlock());
-        docRefs.incRef();
+        docs.incRef();
         List<Page> output = FetchGather.gather(
             blockFactory,
-            List.of(new Page(docRefs)),
+            List.of(new Page(docs)),
             List.of(fetched),
             List.of(ElementType.LONG),
             dropOne ? new int[] { 0, -1, 2 } : new int[] { 0, 1, 2 },
@@ -203,11 +204,11 @@ public class FetchGatherTests extends ComputeTestCase {
             if (dropOne) {
                 assertThat(gathered, equalTo(expectedKept));
             } else {
-                assertThat(gathered, sameInstance(docRefs));
+                assertThat(gathered, sameInstance(docs));
             }
         } finally {
             output.forEach(Page::releaseBlocks);
-            docRefs.decRef();
+            docs.decRef();
             expectedKept.close();
         }
     }
@@ -369,8 +370,8 @@ public class FetchGatherTests extends ComputeTestCase {
         Page input = new Page(blockFactory.newConstantIntBlockWith(0, 1));
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> FetchGather.gather(blockFactory, List.of(input), List.of(), List.of(ElementType.DOC_REF), new int[] { -1 }, false)
+            () -> FetchGather.gather(blockFactory, List.of(input), List.of(), List.of(ElementType.DOC), new int[] { -1 }, false)
         );
-        assertThat(e.getMessage(), equalTo("[DOC_REF] columns can't be fetched"));
+        assertThat(e.getMessage(), equalTo("[DOC] columns can't be fetched"));
     }
 }

@@ -109,7 +109,7 @@ public final class CountingStorageProvider implements StorageProvider {
     }
 
     /** Rewrites {@code countfs:///x} to {@code file:///x} so the real local provider serves it. */
-    private static StoragePath toFileScheme(StoragePath path) {
+    static StoragePath toFileScheme(StoragePath path) {
         return StoragePath.of("file://" + path.localPath());
     }
 
@@ -141,9 +141,7 @@ public final class CountingStorageProvider implements StorageProvider {
             while (inner.hasNext()) {
                 StorageEntry entry = inner.next();
                 // Hand the key back under the scheme the query asked for, or the glob will not match it.
-                entries.add(
-                    new StorageEntry(StoragePath.of(SCHEME + "://" + entry.path().localPath()), entry.length(), entry.lastModified())
-                );
+                entries.add(new StorageEntry(toCountScheme(entry.path()), entry.length(), entry.lastModified()));
             }
         }
         entries.sort(Comparator.comparing(e -> e.path().toString()));
@@ -189,9 +187,21 @@ public final class CountingStorageProvider implements StorageProvider {
         return new StorageChildren(files, directories);
     }
 
-    /** Inverse of {@link #toFileScheme}: re-labels a delegate path as one of this provider's. */
-    private static StoragePath toCountScheme(StoragePath path) {
-        return StoragePath.of(SCHEME + "://" + path.localPath());
+    /**
+     * Inverse of {@link #toFileScheme}: re-labels a delegate path as one of this provider's.
+     * <p>
+     * Built from {@link StoragePath#path()} and not {@code localPath()}, for the reason {@link #location} gives
+     * about the other direction. On Windows the delegate hands entries back as {@code file:///C:/Users/...},
+     * whose {@code localPath()} drops the leading slash so the drive letter can reach the OS; concatenated onto
+     * this scheme that gives {@code countfs://C:/Users/...}, where {@code C:} is read as the authority and splits
+     * into host {@code C} and an unparseable port, because the fold that would rescue it runs only for scheme
+     * {@code file}. Keeping the slash gives {@code countfs:///C:/Users/...}, which parses, shares its prefix with
+     * what {@link #location} registered, and rewrites back to the delegate's own spelling through
+     * {@link #toFileScheme}. On POSIX the two spellings are the same string, which is why only a Windows run, or
+     * {@link CountingStorageProviderTests}, tells them apart.
+     */
+    static StoragePath toCountScheme(StoragePath path) {
+        return StoragePath.of(SCHEME + "://" + path.path());
     }
 
     @Override

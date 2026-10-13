@@ -59,9 +59,13 @@ public class StoragePathTests extends ESTestCase {
     public void testAWindowsShapedFileUriParsesWithAndWithoutAnAuthority() {
         String windowsStyle = "/C:/Users/jenkins/tmp/dir";
         // Each spelling against the local path it must yield. Asserted on localPath() rather than toString(),
-        // which returns the location verbatim and so contains the drive letter whatever the parse did with it. The
-        // drive letter arriving in the path with NO leading slash is what shows the fold ran: read as an authority,
-        // "C:" would have become the host and the path would have started at the first segment after it.
+        // which returns the location verbatim and so contains the drive letter whatever the parse did with it.
+        // Two separate mechanisms produce these, and the spellings are chosen so that both are exercised: where
+        // the drive letter is already in the path it arrives with no leading slash because localPath() strips one
+        // it cannot hand to the OS, and in the last spelling -- which is the one two slashes rather than three
+        // produce, and what the countfs double's toFileScheme builds -- "C:" is read as the authority and only the
+        // fold in StoragePath#of puts it back in the path. Without the fold that spelling would resolve to host
+        // "C" and a path starting at the first segment after it.
         Map<String, String> expected = Map.of(
             "file://" + windowsStyle,
             "C:/Users/jenkins/tmp/dir",
@@ -72,7 +76,9 @@ public class StoragePathTests extends ESTestCase {
             "file://localhost" + windowsStyle + "/",
             "C:/Users/jenkins/tmp/dir/",
             "file://" + windowsStyle + "//",
-            "C:/Users/jenkins/tmp/dir//"
+            "C:/Users/jenkins/tmp/dir//",
+            "file://C:/Users/jenkins/tmp/dir",
+            "C:/Users/jenkins/tmp/dir"
         );
         for (Map.Entry<String, String> spelling : expected.entrySet()) {
             StoragePath path = StoragePath.of(spelling.getKey());

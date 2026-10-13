@@ -372,7 +372,8 @@ public abstract class AbstractPhysicalOperationProviders {
                             foldContext,
                             aggregateFunction.filter(),
                             layout,
-                            context.shardContexts()
+                            context.shardContexts(),
+                            analysisRegistry
                         );
                         // A filtered ToPartial must filter the rows folded into its intermediate state, i.e. wrap the
                         // inner aggregate's supplier rather than ToPartial itself (ToPartial drives the aggregator only
@@ -423,7 +424,7 @@ public abstract class AbstractPhysicalOperationProviders {
                                 // raw input (single phase): the partial side filters the trailing remainder rows itself
                                 partialSupplier = new FilteredAggregatorFunctionSupplier(
                                     supplier(aggregateFunction),
-                                    EvalMapper.toEvaluator(foldContext, sibling.filter(), layout, context.shardContexts())
+                                    EvalMapper.toEvaluator(foldContext, sibling.filter(), layout, context.shardContexts(), analysisRegistry)
                                 );
                             }
                             aggSupplier = new WindowAggregatorFunctionSupplier(aggSupplier, partialSupplier, windowInterval, remainder);

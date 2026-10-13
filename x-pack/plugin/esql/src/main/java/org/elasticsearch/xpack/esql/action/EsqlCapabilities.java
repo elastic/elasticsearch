@@ -4388,6 +4388,15 @@ public class EsqlCapabilities {
          * unsigned elements, which such nodes still fail.
          */
         PARQUET_LIST_UINT32_WIDENS_UNSIGNED,
+        /**
+         * A Parquet {@code TIME} column is read as a temporal column rather than as a number: {@code TIME(MILLIS)}
+         * as {@code date} holding the millisecond of day, {@code TIME(MICROS)} and {@code TIME(NANOS)} as
+         * {@code date_nanos} holding the nanosecond of day, each rendered as an instant on 1970-01-01. Older nodes
+         * reported every unit as {@code long}, so the number a query saw depended on the unit the writer chose and a
+         * column declared {@code date} over the microsecond or nanosecond unit read as an instant in year 3149.
+         * Gates the csv-spec cases asserting the temporal read, which such nodes still fail.
+         */
+        PARQUET_TIME_OF_DAY_IS_A_TEMPORAL_COLUMN,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

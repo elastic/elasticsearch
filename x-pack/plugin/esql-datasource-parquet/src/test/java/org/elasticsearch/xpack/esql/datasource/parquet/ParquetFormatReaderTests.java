@@ -3848,173 +3848,209 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     // --- TIME logical type tests (PARQUET-6) ---
-    // Storage rule: TIME_MILLIS (INT32) → DataType.LONG, raw ms value in LongBlock (no conversion);
-    // TIME_MICROS (INT64) → DataType.LONG, converted to nanoseconds (×1_000);
-    // TIME_NANOS (INT64) → DataType.LONG, raw ns value in LongBlock (no conversion).
+    // A TIME column is a time of day whose unit the file states, so it reads as a temporal column under the same
+    // rule as TIMESTAMP rather than as a raw number: TIME(MILLIS) (INT32) -> DATETIME holding the millisecond of
+    // day, TIME(MICROS)/TIME(NANOS) (INT64) -> DATE_NANOS holding the nanosecond of day. Both are rendered as an
+    // instant on 1970-01-01, which is what clickhouse local shows for the same file, at the annotation's own
+    // precision (DateTime64(3)/(6)/(9)).
 
-    public void testTimeMillisLogicalType() throws Exception {
-        // 12:00:00 encoded as TIME_MILLIS (INT32): 43_200_000 ms since midnight.
-        // TIME_MILLIS maps to LONG; raw ms value is widened to long and stored as-is.
+    /**
+     * {@code TIME(MILLIS)} reads as {@code datetime}: a millisecond of day IS the epoch-millis instant on
+     * 1970-01-01, so the raw value passes through unscaled. Two rows, the second carrying a fraction, so the
+     * assertion pins the precision the annotation states and not just the whole second.
+     */
+    public void testTimeMillisReadsAsDatetimeOnTheEpochDay() throws Exception {
         MessageType schema = Types.buildMessage()
             .required(PrimitiveType.PrimitiveTypeName.INT32)
             .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
             .named("start_time")
             .named("test_schema");
-
-        int rawMillis = 43_200_000; // 12:00:00 in ms since midnight
-
-        byte[] data = createParquetFile(schema, f -> List.of(f.newGroup().append("start_time", rawMillis)));
-        StorageObject so = createStorageObject(data);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-
-        SourceMetadata metadata = reader.metadata(so);
-        assertEquals("TIME_MILLIS should map to LONG", DataType.LONG, metadata.schema().get(0).dataType());
-
-        try (CloseableIterator<Page> iterator = reader.read(so, null, 10)) {
-            assertTrue(iterator.hasNext());
-            Page page = iterator.next();
-            LongBlock block = (LongBlock) page.getBlock(0);
-            assertEquals("TIME_MILLIS: raw ms value widened to long", (long) rawMillis, block.getLong(0));
-            page.releaseBlocks();
-        }
+        byte[] data = createParquetFile(schema, f -> {
+            Group exact = f.newGroup().append("start_time", 37_230_000);     // 10:20:30
+            Group fraction = f.newGroup().append("start_time", 37_230_123);  // 10:20:30.123
+            return List.of(exact, fraction);
+        });
+        // 1970-01-01T10:20:30.000Z and .123Z
+        assertInferredTemporalReads(data, "start_time", DataType.DATETIME, 37_230_000L, 37_230_123L);
     }
 
-    public void testTimeMicrosLogicalType() throws Exception {
-        // 12:00:00 encoded as TIME_MICROS (INT64): 43_200_000_000 µs since midnight.
-        // Expected in LongBlock: 43_200_000_000 * 1_000 = 43_200_000_000_000 ns.
+    /**
+     * {@code TIME(MICROS)} reads as {@code date_nanos}, the microsecond of day scaled x1_000 to the nanosecond of
+     * day the block holds -- the same unit arithmetic {@code TIMESTAMP(MICROS)} takes to reach the same type. The
+     * value is unchanged from before this column became temporal; what changed is that 37_230_123_456_000 is now
+     * labelled as the nanoseconds it is, rather than as a bare {@code long} a declared {@code date} would then read
+     * as epoch milliseconds, landing it in year 3149.
+     */
+    public void testTimeMicrosReadsAsDateNanosOnTheEpochDay() throws Exception {
         MessageType schema = Types.buildMessage()
             .required(PrimitiveType.PrimitiveTypeName.INT64)
             .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
             .named("start_time")
             .named("test_schema");
-
-        long rawMicros = 43_200_000_000L; // 12:00:00 in µs since midnight
-        long expectedNanos = rawMicros * 1_000L;
-
-        byte[] data = createParquetFile(schema, f -> List.of(f.newGroup().append("start_time", rawMicros)));
-        StorageObject so = createStorageObject(data);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-
-        SourceMetadata metadata = reader.metadata(so);
-        assertEquals("TIME_MICROS should map to LONG", DataType.LONG, metadata.schema().get(0).dataType());
-
-        try (CloseableIterator<Page> iterator = reader.read(so, null, 10)) {
-            assertTrue(iterator.hasNext());
-            Page page = iterator.next();
-            LongBlock block = (LongBlock) page.getBlock(0);
-            assertEquals("TIME_MICROS must be converted to nanoseconds (×1_000)", expectedNanos, block.getLong(0));
-            page.releaseBlocks();
-        }
+        byte[] data = createParquetFile(schema, f -> {
+            Group exact = f.newGroup().append("start_time", 37_230_000_000L);     // 10:20:30
+            Group fraction = f.newGroup().append("start_time", 37_230_123_456L);  // 10:20:30.123456
+            return List.of(exact, fraction);
+        });
+        // 1970-01-01T10:20:30.000000Z and .123456Z
+        assertInferredTemporalReads(data, "start_time", DataType.DATE_NANOS, 37_230_000_000_000L, 37_230_123_456_000L);
     }
 
-    public void testTimeNanosLogicalType() throws Exception {
-        // 12:00:00 encoded as TIME_NANOS (INT64): 43_200_000_000_000 ns since midnight.
-        // Expected in LongBlock: same raw value — already nanoseconds, no conversion.
+    /**
+     * {@code TIME(NANOS)} reads as {@code date_nanos} with no scaling: the file's unit is already the block's.
+     * This is the unit that pins the full nine digits.
+     */
+    public void testTimeNanosReadsAsDateNanosOnTheEpochDay() throws Exception {
         MessageType schema = Types.buildMessage()
             .required(PrimitiveType.PrimitiveTypeName.INT64)
             .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
             .named("start_time")
             .named("test_schema");
-
-        long rawNanos = 43_200_000_000_000L; // 12:00:00 in ns since midnight
-
-        byte[] data = createParquetFile(schema, f -> List.of(f.newGroup().append("start_time", rawNanos)));
-        StorageObject so = createStorageObject(data);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-
-        SourceMetadata metadata = reader.metadata(so);
-        assertEquals("TIME_NANOS should map to LONG", DataType.LONG, metadata.schema().get(0).dataType());
-
-        try (CloseableIterator<Page> iterator = reader.read(so, null, 10)) {
-            assertTrue(iterator.hasNext());
-            Page page = iterator.next();
-            LongBlock block = (LongBlock) page.getBlock(0);
-            assertEquals("TIME_NANOS value is already nanoseconds, stored as-is", rawNanos, block.getLong(0));
-            page.releaseBlocks();
-        }
+        byte[] data = createParquetFile(schema, f -> {
+            Group exact = f.newGroup().append("start_time", 37_230_000_000_000L);     // 10:20:30
+            Group fraction = f.newGroup().append("start_time", 37_230_123_456_789L);  // 10:20:30.123456789
+            return List.of(exact, fraction);
+        });
+        // 1970-01-01T10:20:30.000000000Z and .123456789Z
+        assertInferredTemporalReads(data, "start_time", DataType.DATE_NANOS, 37_230_000_000_000L, 37_230_123_456_789L);
     }
 
+    /**
+     * A declared {@code date} over a {@code TIME(MICROS)} column narrows the nanosecond of day to the millisecond
+     * of day, the ordinary {@code date_nanos -> date} narrowing, and lands on the instant both reference engines
+     * show. Before this column became temporal the same declaration reinterpreted the nanosecond of day as epoch
+     * millis and answered with a year-3149 instant, while the {@code TIME(MILLIS)} column beside it answered
+     * correctly -- two units of one annotation disagreeing.
+     */
+    public void testTimeMicrosDeclaredDatetimeNarrowsToTheMillisecondOfDay() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("ts")
+            .named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group exact = factory.newGroup();
+            exact.add("ts", 37_230_000_000L);
+            Group fraction = factory.newGroup();
+            fraction.add("ts", 37_230_123_456L);
+            return List.of(exact, fraction);
+        });
+        // The sub-millisecond digits floor away: .123456 -> .123
+        assertDeclaredDatetimeReads(parquetData, "ts", 37_230_000L, 37_230_123L);
+    }
+
+    /** A nullable {@code TIME(MILLIS)} column: the null row survives the temporal rendering. */
     public void testTimeMillisNullableLogicalType() throws Exception {
-        // Nullable TIME_MILLIS column: one null row, one value row.
-        // TIME_MILLIS maps to LONG; the block is a LongBlock with the raw ms value.
         MessageType schema = Types.buildMessage()
             .optional(PrimitiveType.PrimitiveTypeName.INT32)
             .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
             .named("start_time")
             .named("test_schema");
-
-        int rawMillis = 3_600_000; // 01:00:00 in ms
-
         byte[] data = createParquetFile(schema, f -> {
-            Group g1 = f.newGroup(); // null row
-            Group g2 = f.newGroup().append("start_time", rawMillis);
-            return List.of(g1, g2);
+            Group nullRow = f.newGroup();
+            Group valueRow = f.newGroup().append("start_time", 3_600_000); // 01:00:00
+            return List.of(nullRow, valueRow);
         });
-        StorageObject so = createStorageObject(data);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-
-        try (CloseableIterator<Page> iterator = reader.read(so, null, 10)) {
-            assertTrue(iterator.hasNext());
-            Page page = iterator.next();
-            LongBlock block = (LongBlock) page.getBlock(0);
-            assertTrue("first row should be null", block.isNull(0));
-            assertEquals("second row: raw ms value widened to long", (long) rawMillis, block.getLong(1));
-            page.releaseBlocks();
-        }
+        assertInferredTemporalReadsWithLeadingNull(data, "start_time", DataType.DATETIME, 3_600_000L);
     }
 
+    /** A nullable {@code TIME(MICROS)} column: the x1_000 scale leaves the null row alone. */
     public void testTimeMicrosNullableLogicalType() throws Exception {
         MessageType schema = Types.buildMessage()
             .optional(PrimitiveType.PrimitiveTypeName.INT64)
             .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
             .named("start_time")
             .named("test_schema");
-
-        long rawMicros = 3_600_000_000L; // 01:00:00 in µs
-        long expectedNanos = rawMicros * 1_000L;
-
         byte[] data = createParquetFile(schema, f -> {
-            Group g1 = f.newGroup(); // null row
-            Group g2 = f.newGroup().append("start_time", rawMicros);
-            return List.of(g1, g2);
+            Group nullRow = f.newGroup();
+            Group valueRow = f.newGroup().append("start_time", 3_600_000_000L); // 01:00:00
+            return List.of(nullRow, valueRow);
         });
-        StorageObject so = createStorageObject(data);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-
-        try (CloseableIterator<Page> iterator = reader.read(so, null, 10)) {
-            assertTrue(iterator.hasNext());
-            Page page = iterator.next();
-            LongBlock block = (LongBlock) page.getBlock(0);
-            assertTrue("first row should be null", block.isNull(0));
-            assertEquals("TIME_MICROS must be converted to nanoseconds (×1_000)", expectedNanos, block.getLong(1));
-            page.releaseBlocks();
-        }
+        assertInferredTemporalReadsWithLeadingNull(data, "start_time", DataType.DATE_NANOS, 3_600_000_000_000L);
     }
 
+    /** A nullable {@code TIME(NANOS)} column. */
     public void testTimeNanosNullableLogicalType() throws Exception {
         MessageType schema = Types.buildMessage()
             .optional(PrimitiveType.PrimitiveTypeName.INT64)
             .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
             .named("start_time")
             .named("test_schema");
-
-        long rawNanos = 3_600_000_000_000L; // 01:00:00 in ns
-
         byte[] data = createParquetFile(schema, f -> {
-            Group g1 = f.newGroup(); // null row
-            Group g2 = f.newGroup().append("start_time", rawNanos);
-            return List.of(g1, g2);
+            Group nullRow = f.newGroup();
+            Group valueRow = f.newGroup().append("start_time", 3_600_000_000_000L); // 01:00:00
+            return List.of(nullRow, valueRow);
         });
-        StorageObject so = createStorageObject(data);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        assertInferredTemporalReadsWithLeadingNull(data, "start_time", DataType.DATE_NANOS, 3_600_000_000_000L);
+    }
 
-        try (CloseableIterator<Page> iterator = reader.read(so, null, 10)) {
-            assertTrue(iterator.hasNext());
-            Page page = iterator.next();
-            LongBlock block = (LongBlock) page.getBlock(0);
-            assertTrue("first row should be null", block.isNull(0));
-            assertEquals("TIME_NANOS value is already nanoseconds, stored as-is", rawNanos, block.getLong(1));
-            page.releaseBlocks();
+    /**
+     * Asserts the column's INFERRED ESQL type -- no declaration anywhere -- and that both decoders produce
+     * {@code expected} for it. The type assertion is the load-bearing half: the values below are unchanged from
+     * when this column rendered {@code long}, and it is the type that decides whether they are read as an instant
+     * or as a number something downstream reinterprets.
+     *
+     * <p>The two decoders are selected with {@link ParquetFormatReader#withBaselinePath()}, not with the iterator
+     * flag: {@code ParquetColumnIterator} builds a {@link PageColumnReader} for every flat column of a row group it
+     * reads without a record filter, so the iterator flag alone runs the vectorized decoder under both iterators and
+     * leaves the row-at-a-time arms untouched. {@code withBaselinePath} is what suppresses the page readers.
+     */
+    private void assertInferredTemporalReads(byte[] data, String column, DataType expectedType, long... expected) throws Exception {
+        StorageObject so = createStorageObject(data);
+        assertEquals(expectedType, new ParquetFormatReader(blockFactory).metadata(so).schema().get(0).dataType());
+        List<Attribute> inferred = List.of(new ReferenceAttribute(Source.EMPTY, column, expectedType));
+        for (String decoder : List.of("pageReader", "rowAtATime")) {
+            ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+            if (decoder.equals("rowAtATime")) {
+                reader = reader.withBaselinePath();
+            }
+            try (
+                CloseableIterator<Page> it = reader.readRange(
+                    so,
+                    new RangeReadContext(List.of(column), 10, 0, data.length, inferred, ErrorPolicy.STRICT)
+                )
+            ) {
+                Page page = it.next();
+                try {
+                    LongBlock block = (LongBlock) page.getBlock(0);
+                    assertEquals(decoder, expected.length, block.getPositionCount());
+                    for (int i = 0; i < expected.length; i++) {
+                        assertEquals(decoder + " position " + i, expected[i], block.getLong(i));
+                    }
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+        }
+    }
+
+    /** {@link #assertInferredTemporalReads} for a column whose first row is null. */
+    private void assertInferredTemporalReadsWithLeadingNull(byte[] data, String column, DataType expectedType, long expected)
+        throws Exception {
+        StorageObject so = createStorageObject(data);
+        assertEquals(expectedType, new ParquetFormatReader(blockFactory).metadata(so).schema().get(0).dataType());
+        List<Attribute> inferred = List.of(new ReferenceAttribute(Source.EMPTY, column, expectedType));
+        for (String decoder : List.of("pageReader", "rowAtATime")) {
+            ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+            if (decoder.equals("rowAtATime")) {
+                reader = reader.withBaselinePath();
+            }
+            try (
+                CloseableIterator<Page> it = reader.readRange(
+                    so,
+                    new RangeReadContext(List.of(column), 10, 0, data.length, inferred, ErrorPolicy.STRICT)
+                )
+            ) {
+                Page page = it.next();
+                try {
+                    LongBlock block = (LongBlock) page.getBlock(0);
+                    assertEquals(decoder, 2, block.getPositionCount());
+                    assertTrue(decoder + " first row must be null", block.isNull(0));
+                    assertEquals(decoder, expected, block.getLong(1));
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
         }
     }
 
@@ -5914,9 +5950,10 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * The same keying defect on the other INT32 annotation that renders as {@code LONG}: {@code TIME(MILLIS)} is a
-     * raw millisecond-of-day value which the inferred read widens unchanged, so a declared {@code date} reads it as
-     * epoch millis rather than as a day count.
+     * A declared {@code date} over a {@code TIME(MILLIS)} column reads the millisecond of day, not a day count.
+     * The column renders {@code datetime} on its own, so the declaration is an identity rather than a coercion --
+     * but it is the shape whose value the day-scaling arm used to multiply by 86_400_000, and it reaches the arm
+     * through the declared route, so it stays pinned here as well as through the inferred one.
      */
     public void testTimeMillisDeclaredDatetimeReadsEpochMillis() throws Exception {
         MessageType schema = Types.buildMessage()
@@ -6077,19 +6114,24 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
     /**
      * Reads {@code column} as a declared {@code datetime} through every decode route a query can take -- the
-     * optimized page reader (production), the baseline iterator, and the deferred late-materialization extractor --
-     * and asserts all three produce {@code expectedMillis}. The routes are separate implementations of the same
-     * coercion, so a per-route answer is a wrong answer that depends on the query's plan shape; the extractor is the
-     * one that decodes at the file's own type and coerces through {@code castBlock}, which is the oracle the fused
-     * arms are written against.
+     * vectorized {@link PageColumnReader} (production), the row-at-a-time arms of {@code ParquetColumnIterator}, and
+     * the deferred late-materialization extractor -- and asserts all three produce {@code expectedMillis}. The routes
+     * are separate implementations of the same coercion, so a per-route answer is a wrong answer that depends on the
+     * query's plan shape; the extractor is the one that decodes at the file's own type and coerces through
+     * {@code castBlock}, which is the oracle the fused arms are written against.
+     *
+     * <p>The row-at-a-time decoder is selected with {@link ParquetFormatReader#withBaselinePath()}. The iterator
+     * flag does not reach it: {@code ParquetColumnIterator} builds a {@link PageColumnReader} per flat column
+     * whenever it reads a row group without a record filter, so both iterators run the vectorized decoder on a flat
+     * column and only {@code withBaselinePath} suppresses the page readers.
      */
     private void assertDeclaredDatetimeReads(byte[] parquetData, String column, long... expectedMillis) throws Exception {
         StorageObject storageObject = createStorageObject(parquetData);
         List<Attribute> asDatetime = List.of(new ReferenceAttribute(Source.EMPTY, column, DataType.DATETIME));
-        for (boolean optimized : List.of(true, false)) {
-            ParquetFormatReader r = (ParquetFormatReader) new ParquetFormatReader(blockFactory, optimized).withDeclaredTypeColumns(
-                Set.of(column)
-            );
+        for (String decoder : List.of("pageReader", "rowAtATime")) {
+            ParquetFormatReader base = new ParquetFormatReader(blockFactory);
+            ParquetFormatReader r = (ParquetFormatReader) (decoder.equals("rowAtATime") ? base.withBaselinePath() : base)
+                .withDeclaredTypeColumns(Set.of(column));
             try (
                 CloseableIterator<Page> it = r.readRange(
                     storageObject,
@@ -6097,9 +6139,9 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 )
             ) {
                 LongBlock l = (LongBlock) it.next().getBlock(0);
-                assertEquals("optimized=" + optimized, expectedMillis.length, l.getPositionCount());
+                assertEquals(decoder, expectedMillis.length, l.getPositionCount());
                 for (int i = 0; i < expectedMillis.length; i++) {
-                    assertEquals("optimized=" + optimized + " position " + i, expectedMillis[i], l.getLong(i));
+                    assertEquals(decoder + " position " + i, expectedMillis[i], l.getLong(i));
                 }
             }
         }
@@ -7449,39 +7491,9 @@ public class ParquetFormatReaderTests extends ESTestCase {
                     (g, col) -> g.add(col, 1000),
                     Map.of(DataType.DATETIME, 1000L)
                 ),
-                // TIME(MILLIS) is a raw millisecond-of-day value the inferred read widens unchanged
-                new FusedShape(
-                    "INT32 TIME(MILLIS)",
-                    Types.buildMessage()
-                        .required(PrimitiveType.PrimitiveTypeName.INT32)
-                        .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
-                        .named("x")
-                        .named("test_schema"),
-                    (g, col) -> g.add(col, 37_230_000),
-                    Map.of(DataType.DATETIME, 37_230_000L)
-                ),
-                // TIME(MICROS) renders LONG through the inferred read's own x1000 normalization to nanos-of-day
-                new FusedShape(
-                    "INT64 TIME(MICROS)",
-                    Types.buildMessage()
-                        .required(PrimitiveType.PrimitiveTypeName.INT64)
-                        .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
-                        .named("x")
-                        .named("test_schema"),
-                    (g, col) -> g.add(col, 1_000L),
-                    Map.of(DataType.DATETIME, 1_000_000L)
-                ),
-                // TIME(NANOS) is already nanos-of-day, so the inferred read passes it through
-                new FusedShape(
-                    "INT64 TIME(NANOS)",
-                    Types.buildMessage()
-                        .required(PrimitiveType.PrimitiveTypeName.INT64)
-                        .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
-                        .named("x")
-                        .named("test_schema"),
-                    (g, col) -> g.add(col, 1_000L),
-                    Map.of(DataType.DATETIME, 1_000L)
-                ),
+                // No TIME shape belongs here: all three units render a temporal type, so a declared date over one
+                // is DATETIME->DATETIME or the DATE_NANOS narrowing, never the fused long->datetime pair. The three
+                // testTime*ReadsAs* cases above pin that rendering.
                 // A signed 64-bit annotation is the identity on the value, and the shape whose normalizing loop the
                 // optimized engine used to skip
                 new FusedShape(
@@ -10975,12 +10987,12 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * {@code TIME(MILLIS)} is the other {@code INT32} annotation that renders ESQL {@code long}. Its raw
-     * millisecond-of-day value carries no unsigned annotation, so it widens unchanged, and this pins that the
-     * annotation is read rather than the primitive alone. The signed-regression control is the plain-{@code INT32}
-     * case above, whose negative elements discriminate; these values are non-negative and would not.
+     * A {@code LIST<TIME(MILLIS)>} reads each element exactly as a scalar {@code TIME(MILLIS)} column does -- the
+     * element type is {@code datetime}, the millisecond of day, with no scaling. The list arm reached that value by
+     * a different route before this change (the {@code long} arm, from which a declared {@code date} then had to
+     * reinterpret it), so the element type is asserted and not only the number.
      */
-    public void testListOfTimeMillisWidensSigned() throws Exception {
+    public void testListOfTimeMillisReadsElementsAsDatetime() throws Exception {
         MessageType schema = new MessageType(
             "test_schema",
             Types.optionalList()
@@ -10995,13 +11007,81 @@ public class ParquetFormatReaderTests extends ESTestCase {
             list.addGroup("list").append("element", 1);
             return List.of(g);
         });
-        assertListLongReads(parquetData, "tods", 37_230_000L, 1L);
+        assertEquals(
+            DataType.DATETIME,
+            new ParquetFormatReader(blockFactory).metadata(createStorageObject(parquetData)).schema().get(0).dataType()
+        );
+        assertListTemporalReads(parquetData, "tods", DataType.DATETIME, 37_230_000L, 1L);
     }
 
     /**
-     * Reads a one-row LIST {@code column} as a DECLARED ESQL {@code long} through both decode engines and asserts
-     * the row's elements. The two engines share the list decode, so this also pins that they cannot drift apart on
-     * it. The declared route is what brings a plain {@code INT32} list to the {@code long} arm at all.
+     * A {@code LIST<TIME(MICROS)>} likewise matches the scalar: {@code date_nanos} elements, each the microsecond of
+     * day scaled x1_000. The scalar and list paths disagreed about this shape's unit before the two were brought
+     * onto one classification.
+     */
+    public void testListOfTimeMicrosReadsElementsAsDateNanos() throws Exception {
+        MessageType schema = new MessageType(
+            "test_schema",
+            Types.optionalList()
+                .optionalElement(PrimitiveType.PrimitiveTypeName.INT64)
+                .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+                .named("tods")
+        );
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            Group list = g.addGroup("tods");
+            list.addGroup("list").append("element", 37_230_000_000L);     // 10:20:30
+            list.addGroup("list").append("element", 37_230_123_456L);     // 10:20:30.123456
+            return List.of(g);
+        });
+        assertEquals(
+            DataType.DATE_NANOS,
+            new ParquetFormatReader(blockFactory).metadata(createStorageObject(parquetData)).schema().get(0).dataType()
+        );
+        assertListTemporalReads(parquetData, "tods", DataType.DATE_NANOS, 37_230_000_000_000L, 37_230_123_456_000L);
+    }
+
+    /**
+     * Reads a one-row LIST {@code column} at its own temporal element type. Shaped like {@link #assertListLongReads}
+     * but without a declaration: these elements render temporal from the file.
+     *
+     * <p>Unlike the flat columns, a LIST has only one decoder to assert: {@link PageColumnReader} is built only for
+     * columns with {@code maxRepLevel() == 0}, so every list decodes through {@code ParquetColumnDecoding}'s list
+     * arms under either iterator. The loop therefore pins that the two iterators agree on framing and nulls, not two
+     * implementations of the element arithmetic -- there is only one.
+     */
+    private void assertListTemporalReads(byte[] parquetData, String column, DataType elementType, long... expected) throws Exception {
+        StorageObject storageObject = createStorageObject(parquetData);
+        List<Attribute> inferred = List.of(new ReferenceAttribute(Source.EMPTY, column, elementType));
+        for (boolean optimized : List.of(true, false)) {
+            try (
+                CloseableIterator<Page> it = new ParquetFormatReader(blockFactory, optimized).readRange(
+                    storageObject,
+                    new RangeReadContext(List.of(column), 10, 0, parquetData.length, inferred, ErrorPolicy.STRICT)
+                )
+            ) {
+                Page page = it.next();
+                try {
+                    LongBlock l = (LongBlock) page.getBlock(0);
+                    String where = "optimized=" + optimized;
+                    assertEquals(where, 1, l.getPositionCount());
+                    assertEquals(where + " element count", expected.length, l.getValueCount(0));
+                    int first = l.getFirstValueIndex(0);
+                    for (int i = 0; i < expected.length; i++) {
+                        assertEquals(where + " element " + i, expected[i], l.getLong(first + i));
+                    }
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+        }
+    }
+
+    /**
+     * Reads a one-row LIST {@code column} as a DECLARED ESQL {@code long} and asserts the row's elements. The
+     * declared route is what brings a plain {@code INT32} list to the {@code long} arm at all. As above, the list
+     * decode is shared: {@code PageColumnReader} never handles a repeated column, so the loop pins the iterators'
+     * agreement rather than two element decoders.
      */
     private void assertListLongReads(byte[] parquetData, String column, long... expected) throws Exception {
         StorageObject storageObject = createStorageObject(parquetData);

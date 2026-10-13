@@ -1003,8 +1003,9 @@ final class ParquetPushedExpressions {
      * not only the inferred {@code TIMESTAMP(MICROS|NANOS)} shapes. The raw-to-decoded relation and the bound math
      * are delegated to the shared {@link DeclaredTypeCoercions.RawDecodeRelation} authority (via
      * {@link #temporalBandPredicate} for {@code ==} and {@link #temporalBoundToRaw} for the ordered ops), which
-     * derives the relation from {@link ParquetColumnDecoding#rawDecodeRelation} — timestamps in all three units plus
-     * the un-annotated signed INT64 (epoch-millis, scaled x1e6) push; everything else (TIME, unsigned, unknown) resolves to a null
+     * derives the relation from {@link ParquetColumnDecoding#rawDecodeRelation} — timestamps in all three units, the
+     * INT64 TIME units (a nanosecond-of-day takes the same unit scale as an epoch offset), plus the un-annotated
+     * signed INT64 (epoch-millis, scaled x1e6) push; everything else (unsigned, DECIMAL, unknown) resolves to a null
      * relation and declines rather than pushing a raw-unit predicate that silently prunes matching row groups. The
      * bound is rounded outward so the pushed predicate is never stricter than the true nanosecond predicate. Safe
      * because temporal pushdown is always RECHECK (see {@link ParquetFilterPushdownSupport#isFullyEvaluable}), so

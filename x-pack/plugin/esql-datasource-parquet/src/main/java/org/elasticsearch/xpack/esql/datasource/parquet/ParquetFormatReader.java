@@ -3677,8 +3677,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 } else if (logical instanceof LogicalTypeAnnotation.DateLogicalTypeAnnotation) {
                     yield DataType.DATETIME;
                 } else if (logical instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation) {
-                    // TIME_MILLIS: stored as INT32 but ESQL represents time values as LONG
-                    yield DataType.LONG;
+                    // TIME(MILLIS) is a time of day, and the file states its unit, so it is a temporal column
+                    // under the same rule as TIMESTAMP rather than a raw number: a millisecond-of-day is the
+                    // epoch-millis instant on 1970-01-01, which is how both reference engines render it.
+                    // isAdjustedToUTC is ignored, as it is for TIMESTAMP.
+                    yield DataType.DATETIME;
                 } else if (logical instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation) {
                     yield DataType.DOUBLE;
                 }
@@ -3691,15 +3694,19 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     }
                 } else if (logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
                     // Map by unit so sub-millisecond precision is preserved: MILLIS fits DATETIME (epoch-millis),
-                    // while MICROS/NANOS require DATE_NANOS (epoch-nanos). See ParquetColumnDecoding#convertTimestampToNanos.
+                    // while MICROS/NANOS require DATE_NANOS (epoch-nanos). See ParquetColumnDecoding#convertTemporalToNanos.
                     yield switch (ts.getUnit()) {
                         case MILLIS -> DataType.DATETIME;
                         case MICROS, NANOS -> DataType.DATE_NANOS;
                     };
+                } else if (logical instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation) {
+                    // TIME(MICROS|NANOS), the INT64 units, for the same reason as TIME(MILLIS) above: a
+                    // nanosecond-of-day on 1970-01-01. DATE_NANOS keeps the sub-millisecond precision the
+                    // annotation states, exactly as TIMESTAMP(MICROS|NANOS) does.
+                    yield DataType.DATE_NANOS;
                 } else if (logical instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation) {
                     yield DataType.DOUBLE;
                 }
-                // TIME_MICROS/TIME_NANOS: both map to LONG; readColumnBlock scales TIME_MICROS ×1_000
                 yield DataType.LONG;
             }
             case INT96 -> DataType.DATETIME;
@@ -4436,13 +4443,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 case BOOLEAN -> readBooleanColumn(cr, info.maxDefLevel(), rowsToRead);
                 case INTEGER -> readIntColumn(cr, info.maxDefLevel(), rowsToRead);
                 case LONG, UNSIGNED_LONG -> {
-                    if (info.logicalType() instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time) {
-                        if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32) {
-                            // TIME_MILLIS: physical INT32, widen to long (raw ms value, no unit conversion)
-                            yield readInt32WidenedToLongColumn(cr, info.maxDefLevel(), rowsToRead, true);
-                        }
-                        yield readLongColumn(cr, info.maxDefLevel(), rowsToRead, ParquetColumnDecoding.timeNanoMultiplier(time), false);
-                    }
                     if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32) {
                         // Only an INT annotation declaring itself unsigned widens unsigned; a bare INT32 and any
                         // other annotation sign-extend. Asking the shared predicate rather than casting also keeps
@@ -4457,7 +4457,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     // A 64-bit unsigned column maps to UNSIGNED_LONG, which ESQL stores sign-flip-encoded
                     // (value ^ 2^63) so signed-long ordering matches unsigned ordering. The output edge always
                     // decodes UNSIGNED_LONG blocks, so the read path must emit the encoded form here.
-                    yield readLongColumn(cr, info.maxDefLevel(), rowsToRead, 1L, info.esqlType() == DataType.UNSIGNED_LONG);
+                    yield readLongColumn(cr, info.maxDefLevel(), rowsToRead, info.esqlType() == DataType.UNSIGNED_LONG);
                 }
                 case DOUBLE -> readDoubleColumn(cr, info, rowsToRead);
                 case KEYWORD, TEXT -> {
@@ -4532,16 +4532,15 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         }
 
         /**
-         * Reads a Parquet INT64 column into a {@code LONG}/{@code UNSIGNED_LONG} block.
+         * Reads a Parquet INT64 column into a {@code LONG}/{@code UNSIGNED_LONG} block. No unit conversion: the
+         * only annotation that ever scaled an INT64 on its way to a {@code LONG} block was {@code TIME}, which now
+         * renders {@code DATE_NANOS} and scales on the temporal arm instead.
          *
-         * @param multiplier     factor applied to each value, used to normalize Parquet TIME_* units to nanoseconds
-         *                       ({@code 1L} when no conversion is needed).
          * @param encodeUnsigned when {@code true} the column is an {@code unsigned_long}; each value is sign-flip-encoded
          *                       ({@code value ^ 2^63}) before landing in the block, mirroring the indexing path so the
-         *                       always-decoding output edge produces the true unsigned value. Mutually exclusive with a
-         *                       non-unit {@code multiplier} (a column is either a TIME type or {@code unsigned_long}).
+         *                       always-decoding output edge produces the true unsigned value.
          */
-        private Block readLongColumn(ColumnReader cr, int maxDef, int rows, long multiplier, boolean encodeUnsigned) {
+        private Block readLongColumn(ColumnReader cr, int maxDef, int rows, boolean encodeUnsigned) {
             long[] values = UninitializedArrays.newLongArray(rows);
             BitSet isNull = maxDef > 0 ? new BitSet(rows) : null;
             boolean noNulls = true;
@@ -4551,7 +4550,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     noNulls = false;
                 } else {
                     long value = cr.getLong();
-                    values[i] = encodeUnsigned ? ParquetColumnDecoding.encodeUnsignedLong(value) : value * multiplier;
+                    values[i] = encodeUnsigned ? ParquetColumnDecoding.encodeUnsignedLong(value) : value;
                 }
                 cr.consume();
             }
@@ -4700,7 +4699,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
          */
         private Block readDateNanosColumn(ColumnReader cr, ColumnInfo info, int rows) {
             LogicalTypeAnnotation logical = info.logicalType();
-            boolean micros = ParquetColumnDecoding.isMicrosTimestamp(logical);
+            boolean micros = ParquetColumnDecoding.isMicrosTemporal(logical);
             long[] values = UninitializedArrays.newLongArray(rows);
             BitSet isNull = info.maxDefLevel() > 0 ? new BitSet(rows) : null;
             boolean noNulls = true;
@@ -4719,7 +4718,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                         noNulls = false;
                         anyOverflow = true;
                     } else {
-                        values[i] = ParquetColumnDecoding.convertTimestampToNanos(raw, logical);
+                        values[i] = ParquetColumnDecoding.convertTemporalToNanos(raw, logical);
                     }
                 }
                 cr.consume();

@@ -14,7 +14,9 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Executor;
@@ -262,11 +264,79 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     // transform the node itself and its children
     //
 
+    /**
+     * Stack frame used by the iterative implementations of {@link #transformDown}, {@link #transformDownSkipBranch}, and
+     * {@link #transformUp}. Each frame stands in for one level of the recursion those methods used to perform on the JVM call
+     * stack; keeping an explicit {@link Deque} of these on the heap instead means traversal depth is bounded only by available
+     * heap, not by the (small, fixed) thread stack size — see {@link #transformDown(Function)}.
+     */
+    private static final class Frame<T extends Node<T>> {
+        /**
+         * For {@link #transformDown}/{@link #transformDownSkipBranch}: this node with the rule already applied (pre-order).
+         * For {@link #transformUp}: the original, not-yet-ruled node — the rule runs only after every child below has
+         * completed.
+         */
+        final T node;
+        final List<T> children;
+        /** Completed value of each child; starts as a copy of {@link #children} and is overwritten index by index. */
+        final List<T> results;
+        int nextChild = 0;
+        boolean anyChildChanged = false;
+
+        Frame(T node) {
+            this.node = node;
+            this.children = node.children();
+            this.results = new ArrayList<>(children);
+        }
+    }
+
+    /**
+     * Records {@code completed} — the fully-transformed value of {@code frame}'s child at {@code frame.nextChild} — into
+     * {@code frame}, advancing it to the next child. Shared by the iterative {@code transformDown}/{@code transformUp}
+     * loops: whenever a child frame finishes, its result is merged into its parent frame this way before the parent decides
+     * whether to move to its next child or, having none left, complete itself.
+     */
+    private static <T extends Node<T>> void mergeChildResult(Frame<T> frame, T completed) {
+        int idx = frame.nextChild;
+        T originalChild = frame.children.get(idx);
+        // The `==` check is a pure optimization, not a behavior change: equals() must be reflexive, so
+        // completed == originalChild implies completed.equals(originalChild). It matters because Node's
+        // equals()/subclass overrides recurse through the whole subtree with no identity fast-path — on a
+        // deep, unchanged chain (the common case, since identity is preserved whenever nothing changed) this
+        // avoids an O(depth) recursive equals() call at every single level.
+        if (completed != originalChild && completed.equals(originalChild) == false) {
+            frame.anyChildChanged = true;
+        }
+        frame.results.set(idx, completed);
+        frame.nextChild++;
+    }
+
+    /** {@code rule.apply(node)}, but returns {@code node} itself (not the rule's result) when the two are merely equal. */
+    private static <T extends Node<T>> T applyRulePreservingIdentity(Function<? super T, ? extends T> rule, T node) {
+        T result = rule.apply(node);
+        return node.equals(result) ? node : result;
+    }
+
     @SuppressWarnings("unchecked")
     public T transformDown(Function<? super T, ? extends T> rule) {
-        T root = rule.apply((T) this);
-        Node<T> node = this.equals(root) ? this : root;
-        return node.transformChildren(child -> child.transformDown(rule));
+        Deque<Frame<T>> stack = new ArrayDeque<>();
+        stack.push(new Frame<>(applyRulePreservingIdentity(rule, (T) this)));
+        T completed = null;
+
+        while (stack.isEmpty() == false) {
+            Frame<T> frame = stack.peek();
+            if (completed != null) {
+                mergeChildResult(frame, completed);
+                completed = null;
+            }
+            if (frame.nextChild < frame.children.size()) {
+                stack.push(new Frame<>(applyRulePreservingIdentity(rule, frame.children.get(frame.nextChild))));
+            } else {
+                stack.pop();
+                completed = frame.anyChildChanged ? frame.node.replaceChildrenSameSize(frame.results) : frame.node;
+            }
+        }
+        return completed;
     }
 
     @SuppressWarnings("unchecked")
@@ -275,15 +345,57 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
         return transformDownSkipBranch(skipBranch, rule);
     }
 
-    @SuppressWarnings("unchecked")
-    T transformDownSkipBranch(Holder<Boolean> skipBranch, BiFunction<? super T, Holder<Boolean>, ? extends T> rule) {
-        T root = rule.apply((T) this, skipBranch);
-        Node<T> node = this.equals(root) ? this : root;
+    /** {@code rule.apply(node, skipBranch)} with the same identity-preservation as {@link #applyRulePreservingIdentity}. */
+    private static <T extends Node<T>> T applyRuleSkipBranchPreservingIdentity(
+        BiFunction<? super T, Holder<Boolean>, ? extends T> rule,
+        T node,
+        Holder<Boolean> skipBranch
+    ) {
+        T result = rule.apply(node, skipBranch);
+        return node.equals(result) ? node : result;
+    }
+
+    /** If {@code skipBranch} was set, consumes (resets) it and returns {@code true} — mirrors the check in the old recursive body. */
+    private static boolean consumeSkipBranch(Holder<Boolean> skipBranch) {
         if (skipBranch.get()) {
             skipBranch.set(false);
-            return (T) node;
+            return true;
         }
-        return node.transformChildren(child -> child.transformDownSkipBranch(skipBranch, rule));
+        return false;
+    }
+
+    @SuppressWarnings("unchecked")
+    T transformDownSkipBranch(Holder<Boolean> skipBranch, BiFunction<? super T, Holder<Boolean>, ? extends T> rule) {
+        T root = applyRuleSkipBranchPreservingIdentity(rule, (T) this, skipBranch);
+        if (consumeSkipBranch(skipBranch)) {
+            return root;
+        }
+
+        Deque<Frame<T>> stack = new ArrayDeque<>();
+        stack.push(new Frame<>(root));
+        T completed = null;
+
+        while (stack.isEmpty() == false) {
+            Frame<T> frame = stack.peek();
+            if (completed != null) {
+                mergeChildResult(frame, completed);
+                completed = null;
+            }
+            if (frame.nextChild < frame.children.size()) {
+                T child = applyRuleSkipBranchPreservingIdentity(rule, frame.children.get(frame.nextChild), skipBranch);
+                if (consumeSkipBranch(skipBranch)) {
+                    // Do not descend into ruledChild's children — it is already the final value for this branch. Looping back
+                    // to the top with `completed` set merges it into `frame` exactly as a popped child frame would.
+                    completed = child;
+                } else {
+                    stack.push(new Frame<>(child));
+                }
+            } else {
+                stack.pop();
+                completed = frame.anyChildChanged ? frame.node.replaceChildrenSameSize(frame.results) : frame.node;
+            }
+        }
+        return completed;
     }
 
     @SuppressWarnings("unchecked")
@@ -363,9 +475,27 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
 
     @SuppressWarnings("unchecked")
     public T transformUp(Function<? super T, ? extends T> rule) {
-        T transformed = transformChildren(child -> child.transformUp(rule));
-        T node = this.equals(transformed) ? (T) this : transformed;
-        return rule.apply(node);
+        Deque<Frame<T>> stack = new ArrayDeque<>();
+        stack.push(new Frame<>((T) this));
+        T completed = null;
+
+        while (stack.isEmpty() == false) {
+            Frame<T> frame = stack.peek();
+            if (completed != null) {
+                mergeChildResult(frame, completed);
+                completed = null;
+            }
+            if (frame.nextChild < frame.children.size()) {
+                stack.push(new Frame<>(frame.children.get(frame.nextChild)));
+            } else {
+                stack.pop();
+                T childReplaced = frame.anyChildChanged ? frame.node.replaceChildrenSameSize(frame.results) : frame.node;
+                // No identity-preservation check on the rule's own output here — this asymmetry with transformDown is
+                // intentional and matches the previous recursive implementation.
+                completed = rule.apply(childReplaced);
+            }
+        }
+        return completed;
     }
 
     @SuppressWarnings("unchecked")
@@ -376,30 +506,6 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     @SuppressWarnings("unchecked")
     public <E extends T> T transformUp(Predicate<Node<?>> nodePredicate, Function<E, ? extends T> rule) {
         return transformUp((t) -> (nodePredicate.test(t) ? rule.apply((E) t) : t));
-    }
-
-    @SuppressWarnings("unchecked")
-    protected <R extends Function<? super T, ? extends T>> T transformChildren(Function<T, ? extends T> traversalOperation) {
-        boolean childrenChanged = false;
-
-        // Avoid creating a new array of children if no change is needed.
-        // And when it happens, look at using replacement to minimize the amount of method invocations.
-        List<T> transformedChildren = null;
-
-        for (int i = 0, s = children.size(); i < s; i++) {
-            T child = children.get(i);
-            T next = traversalOperation.apply(child);
-            if (child.equals(next) == false) {
-                // lazy copy + replacement in place
-                if (childrenChanged == false) {
-                    childrenChanged = true;
-                    transformedChildren = new ArrayList<>(children);
-                }
-                transformedChildren.set(i, next);
-            }
-        }
-
-        return (childrenChanged ? replaceChildrenSameSize(transformedChildren) : (T) this);
     }
 
     public final T replaceChildrenSameSize(List<T> newChildren) {

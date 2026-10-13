@@ -52,7 +52,7 @@ public abstract class TextFamilyFieldType extends StringFieldType {
         final BinaryDocValuesQueries values = valueQueries();
         return values == null
             ? super.wildcardLikeQuery(value, method, caseInsensitive, context)
-            : values.wildcard(name(), value, caseInsensitive);
+            : values.wildcard(name(), value, caseInsensitive, context.getCircuitBreaker());
     }
 
     /** A regular expression matched against the value whole. */

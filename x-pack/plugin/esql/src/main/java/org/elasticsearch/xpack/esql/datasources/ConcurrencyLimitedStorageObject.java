@@ -314,7 +314,7 @@ class ConcurrencyLimitedStorageObject implements StorageObject, ResumeBypassingS
      * Executor-wrapped storage (GCS; Azure/S3 without an async client;
      * {@link StorageObject} default) submits a blocking read on {@code executor}.
      * Prefetch passes {@code Runnable::run}, so those reads run on this thread;
-     * forking them onto {@code esql_external_io} would recreate Bug C. That
+     * forking them onto {@code esql_external_io} would queue a grant with no GET in flight. That
      * occupancy is a later fix.
      */
     private void startDelegate(

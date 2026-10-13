@@ -52,7 +52,7 @@ public abstract class TextFamilyFieldType extends StringFieldType {
         final BinaryDocValuesQueries values = valueQueries();
         return values == null
             ? super.wildcardLikeQuery(value, method, caseInsensitive, context)
-            : values.wildcard(name(), value, caseInsensitive);
+            : values.wildcard(name(), value, caseInsensitive, context.getCircuitBreaker());
     }
 
     /** A regular expression matched against the value whole. */
@@ -141,6 +141,14 @@ public abstract class TextFamilyFieldType extends StringFieldType {
             return new FieldExistsQuery(name() + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX);
         }
         return super.existsQuery(context);
+    }
+
+    /**
+     * Whether a query over positions this field did not index is answered by reading its values, which carry those
+     * positions. A query built for such a field may ask about positions, as one built for an indexed field does.
+     */
+    public boolean answersPositionsFromValues(SearchExecutionContext context) {
+        return false;
     }
 
     public TextFamilyFieldType(

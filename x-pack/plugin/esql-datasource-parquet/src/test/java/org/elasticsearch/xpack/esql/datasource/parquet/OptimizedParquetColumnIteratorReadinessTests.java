@@ -374,7 +374,7 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
             opci.revokeOvershootOnPark();
             assertEquals("park on space must drop look-ahead prefetches", 0, opci.pendingPrefetchCount());
             // M1: current-group overshoot owner is not cleared here. Clearing it while those
-            // bytes stay charged would admit a second overshoot. PR7 may re-ticket on park.
+            // bytes stay charged would admit a second overshoot. A later change may re-ticket on park.
         }
     }
 

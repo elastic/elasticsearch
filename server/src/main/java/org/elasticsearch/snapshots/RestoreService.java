@@ -169,6 +169,7 @@ public final class RestoreService implements ClusterStateApplier {
         SETTING_HISTORY_UUID,
         IndexSettings.MODE.getKey(),
         IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(),
+        IndexSettings.RETAINS_UNMAPPED_FIELDS_SETTING.getKey(),
         IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(),
         IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(),
         IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(),
@@ -259,8 +260,7 @@ public final class RestoreService implements ClusterStateApplier {
     }
 
     /**
-     * Registers the {@link RestoreLifecycleListener}, replacing any previous one. The listener runs
-     * inside master-service cluster-state updates and must not block or perform I/O.
+     * Registers the single {@link RestoreLifecycleListener} during node construction.
      */
     public void setLifecycleListener(RestoreLifecycleListener listener) {
         if (lifecycleListener != RestoreLifecycleListener.NOOP) {

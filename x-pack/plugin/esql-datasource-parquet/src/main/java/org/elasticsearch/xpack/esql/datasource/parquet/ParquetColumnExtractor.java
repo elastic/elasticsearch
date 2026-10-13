@@ -146,7 +146,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
      * {@code HeaderWarning}. Production always supplies one: it is the budget-gated wrapper that caps the whole
      * source and ends in {@code DriverContext#addWarning}. Running on the driver thread is not enough to make the
      * fallback correct — when the scan runs on a node other than the coordinator that thread's response headers do
-     * not reach the client (elastic/esql-planning#1837) — so the {@code null} case is for tests only.
+    * not reach the client — so the {@code null} case is for tests only.
      * See {@link #coercionWarnings()}.
      */
     @Nullable
@@ -611,6 +611,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         AtomicBoolean abandoned = new AtomicBoolean();
         BooleanSupplier cancel = () -> abandoned.get() || captured.getAsBoolean() || lease.isCancelled();
         CompletableFuture<ParquetIoWatermark.AdmitHold> ticket = new CompletableFuture<>();
+        // Fresh or rebound lease; affinity and GET start after grant. Holds no untracked bytes while waiting.
         watermark.admitAsync(prefetchBytes, lease, cancel, Runnable::run).addListener(ActionListener.wrap(hold -> {
             if (ticket.complete(hold) == false) {
                 hold.drop();
@@ -901,25 +902,26 @@ final class ParquetColumnExtractor implements ColumnExtractor {
      * column's declared date {@code format} via
      * {@link ParquetFormatReader#declaredDateFormatterFor}), and policy-aware failure behavior
      * ({@link #castBlockWarnings}) as the eager decode paths, so a deferred column reads exactly
-     * like an eagerly scanned one — including the declared-vs-inferred null-fill decision: the lossy
-     * {@link DeclaredTypeCoercions#supports} escape (which admits narrowing) is honored only for a
-     * DECLARED column, mirroring {@code validatePlannerTypesAgainstFile}. An inferred target may only
-     * widen ({@link ParquetFormatReader#plannerTypeCompatibleWithFileDerivedType}); a narrowing or a
-     * drifted-glob pair reads the column as all-null rather than downcasting (which would disagree
-     * with the eager scan of the same file). Always consumes {@code physical} and returns a fresh
-     * caller-owned block.
+     * like an eagerly scanned one. Whether the pair can be converted at all is
+     * {@link DeclaredTypeCoercions#supports}, the same question {@code validatePlannerTypesAgainstFile}
+     * asks; it used to be narrowed here to columns the user had declared, so a deferred inferred column
+     * that narrows was filled with nulls instead of converted. A column the query
+     * carries no type for ({@code NULL} or {@code UNSUPPORTED}) is skipped before that question, as both
+     * eager validations skip it. Always consumes {@code physical} and returns a fresh caller-owned block.
      */
     private Block coerceToTarget(Block physical, DataType fileType, DataType target, String columnName, int count, BlockFactory factory) {
         try {
-            // Same gate as the eager reader (validatePlannerTypesAgainstFile). castBlock only functions on a supports()
-            // pair, so that stays the precondition; on top of it the lossy narrowing it admits is licensed only for a
-            // DECLARED column — an inferred target may coerce only when the pair also widens. So an inferred narrowing
-            // (supports true, not widening, not declared) null-fills instead of downcasting, agreeing with the eager
-            // scan of the same file. columnName is physical here (the extractor projects physical names), matching the set.
-            boolean coercible = DeclaredTypeCoercions.supports(fileType, target)
-                && (ParquetFormatReader.plannerTypeCompatibleWithFileDerivedType(target, fileType)
-                    || reader.isDeclaredTypeColumn(columnName));
-            if (coercible) {
+            // A column the query carries no type for is not a conversion failure. Both eager validations skip a NULL
+            // or UNSUPPORTED planner type before asking whether the pair converts, and the scan reads the column as
+            // null; a deferred read of the same column has to do the same, or a fail_fast query fails on a column the
+            // eager path answers with nulls.
+            if (target == DataType.NULL || target == DataType.UNSUPPORTED) {
+                return factory.newConstantNullBlock(count);
+            }
+            // The same gate as the eager reader (validatePlannerTypesAgainstFile), and it has to be: a column must
+            // read the same whether or not extraction was deferred. castBlock functions on a supports() pair, so
+            // that is the whole question.
+            if (DeclaredTypeCoercions.supports(fileType, target)) {
                 return DeclaredTypeCoercions.castBlock(
                     physical,
                     fileType,
@@ -930,20 +932,16 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                     castBlockWarnings()
                 );
             }
-            if (reader.isDeclaredTypeColumn(columnName)) {
-                // A declared column follows the policy, as on the eager scan; skip_row never defers extraction
-                // for a declared read, so a live sink here means null_field.
-                DeclaredTypeCoercions.onUncoercibleColumn(
-                    columnName,
-                    messageLocation,
-                    fileType,
-                    target,
-                    castBlockWarnings() == null ? null : uncoercibleColumnWarnings()
-                );
-            } else {
-                // Once per column: every deferred batch rediscovers the same file-level mismatch.
-                uncoercibleColumnWarnings().addOnce(DeclaredTypeCoercions.uncoercibleColumnDetail(columnName, fileType, target));
-            }
+            // A typed pair nothing can convert follows the read's policy: fail_fast fails the read (the sink is
+            // null), and any other mode reads the column as null under the eager scan's summary. A read that drops
+            // rows cannot drop them here - the positions were chosen before extraction - so it nulls instead.
+            DeclaredTypeCoercions.onUncoercibleColumn(
+                columnName,
+                messageLocation,
+                fileType,
+                target,
+                castBlockWarnings() == null ? null : uncoercibleColumnWarnings()
+            );
             return factory.newConstantNullBlock(count);
         } finally {
             physical.close();
@@ -1014,10 +1012,11 @@ final class ParquetColumnExtractor implements ColumnExtractor {
     /**
      * The per-value coercion-failure sink handed to {@code castBlock}, or {@code null} under
      * {@code fail_fast} so the failure propagates — identical to the eager iterators'
-     * policy-aware {@code coercionWarnings()}. Its being {@code null} also fails a declared column the
-     * file cannot supply at all ({@link #coerceToTarget}) under {@code fail_fast}, exactly as the eager
-     * per-file validation does; otherwise that column, and the same fallback for an inferred column
-     * (which widens or nulls under every policy), report on {@link #uncoercibleColumnWarnings()}.
+     * policy-aware {@code coercionWarnings()}. Its being {@code null} also fails a column the file cannot
+     * supply at all ({@link #coerceToTarget}) under {@code fail_fast}, exactly as the eager per-file
+     * validation does; otherwise that column reports on {@link #uncoercibleColumnWarnings()}. Which
+     * columns reach that fallback is decided by the type pair, not by who typed the column: an
+     * undeclared column used to null-fill under every error mode.
      */
     @Nullable
     private SkipWarnings castBlockWarnings() {

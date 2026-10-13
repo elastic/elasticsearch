@@ -4443,14 +4443,15 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                         }
                         yield readLongColumn(cr, info.maxDefLevel(), rowsToRead, ParquetColumnDecoding.timeNanoMultiplier(time), false);
                     }
-                    var logicalType = (LogicalTypeAnnotation.IntLogicalTypeAnnotation) info.logicalType();
                     if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32) {
-                        // A plain INT32 with no logical-type annotation is historically "signed"
+                        // Only an INT annotation declaring itself unsigned widens unsigned; a bare INT32 and any
+                        // other annotation sign-extend. Asking the shared predicate rather than casting also keeps
+                        // an INT64 that renders LONG under some other annotation from reaching a cast that throws.
                         yield readInt32WidenedToLongColumn(
                             cr,
                             info.maxDefLevel(),
                             rowsToRead,
-                            logicalType == null || logicalType.isSigned()
+                            ParquetColumnDecoding.int32IsUnsigned(info.logicalType()) == false
                         );
                     }
                     // A 64-bit unsigned column maps to UNSIGNED_LONG, which ESQL stores sign-flip-encoded
@@ -4668,7 +4669,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     noNulls = false;
                 } else if (isStringCoercion) {
                     try {
-                        values[i] = DeclaredTypeCoercions.parseDatetimeMillis(cr.getBinary().toStringUsingUTF8(), info.dateFormatter());
+                        values[i] = DeclaredTypeCoercions.parseDatetimeMillis(
+                            ParquetColumnDecoding.declaredTextOf(cr.getBinary(), info.logicalType()),
+                            info.dateFormatter()
+                        );
                     } catch (IllegalArgumentException | DateTimeException e) {
                         DeclaredTypeCoercions.onCoercionFailure(columnName, DataType.KEYWORD, DataType.DATETIME, e, coercionWarnings());
                         if (skipRow) failedPositionSink.accept(i);

@@ -521,10 +521,21 @@ final class ParquetColumnDecoding {
      * which is not a fused {@code datetime} pair and never reaches this method -- and would widen identically anyway,
      * both maxima fitting the positive int range.
      */
+    /**
+     * Whether an {@code INT32} column's value widens to {@code long} as unsigned. Only an {@code INT} annotation
+     * that declares itself unsigned does; a bare {@code INT32}, a {@code TIME}, and any other annotation sign-extend,
+     * which is the historical reading. Every arm that widens an {@code INT32} asks this one method -- both engines'
+     * scalar arms, the list arm and {@link #int32AsInferredLong} -- because they previously open-coded it in two
+     * different idioms, and the cast idiom threw {@link ClassCastException} for an annotation that was neither
+     * {@code INT} nor {@code TIME}: reachable, since such a column renders {@code INTEGER} and a declared
+     * {@code long} over it is a fused pair.
+     */
+    static boolean int32IsUnsigned(@Nullable LogicalTypeAnnotation logical) {
+        return logical instanceof LogicalTypeAnnotation.IntLogicalTypeAnnotation intLogical && intLogical.isSigned() == false;
+    }
+
     static long int32AsInferredLong(int raw, @Nullable LogicalTypeAnnotation logical) {
-        return logical instanceof LogicalTypeAnnotation.IntLogicalTypeAnnotation intLogical && intLogical.isSigned() == false
-            ? Integer.toUnsignedLong(raw)
-            : raw;
+        return int32IsUnsigned(logical) ? Integer.toUnsignedLong(raw) : raw;
     }
 
     /**
@@ -656,6 +667,21 @@ final class ParquetColumnDecoding {
             }
         }
         return sb.toString();
+    }
+
+    /**
+     * The text an inferred {@code keyword} read of this column produces, which is what a declared
+     * {@code keyword -> datetime} coercion must parse: a {@code UUID}-annotated column renders as the canonical
+     * 8-4-4-4-12 hex string, every other binary as its own UTF-8 bytes. The list arm did not do this -- it parsed
+     * the raw 16 bytes -- so a {@code LIST<FIXED_LEN_BYTE_ARRAY(16)>} annotated {@code UUID} and declared
+     * {@code date} returned an instant decoded out of UUID bytes, while a scalar column of the identical shape is
+     * refused and the inferred read of the same list renders hex. Routing the parse through this method makes the
+     * list agree with both.
+     */
+    static String declaredTextOf(Binary binary, @Nullable LogicalTypeAnnotation logical) {
+        return logical instanceof LogicalTypeAnnotation.UUIDLogicalTypeAnnotation
+            ? formatUuid(binary.getBytes())
+            : binary.toStringUsingUTF8();
     }
 
     // ---- Skip helpers ----
@@ -1304,7 +1330,7 @@ final class ParquetColumnDecoding {
         NullElementTally tally,
         @Nullable LogicalTypeAnnotation logical
     ) {
-        boolean unsigned = logical instanceof LogicalTypeAnnotation.IntLogicalTypeAnnotation intLogical && intLogical.isSigned() == false;
+        boolean unsigned = int32IsUnsigned(logical);
         try (var builder = blockFactory.newLongBlockBuilder(rows)) {
             Runnable appender = unsigned
                 ? () -> builder.appendLong(Integer.toUnsignedLong(input.reader().getInteger()))
@@ -1471,7 +1497,7 @@ final class ParquetColumnDecoding {
                         input.consumeUndefined();
                     } else {
                         // Always read the value so the data cursor advances, also past a row skip_row drops.
-                        String value = input.reader().getBinary().toStringUsingUTF8();
+                        String value = declaredTextOf(input.reader().getBinary(), info.logicalType());
                         if (rowDropped == false) {
                             try {
                                 long millis = DeclaredTypeCoercions.parseDatetimeMillis(value, dateFormatter);

@@ -5977,23 +5977,6 @@ public class ParquetFormatReaderTests extends ESTestCase {
      * {@code date} is an epoch-millis reinterpret of each widened element, not a day count and not a sign-extension.
      */
     public void testDeclaredDatetimeOverListOfUnsignedInt32ReadsEpochMillis() throws Exception {
-    public void testListOfUnsignedInt32WidensElements() throws Exception {
-        assertListOfUnsignedInt32WidensElements(new ParquetFormatReader(blockFactory, false)); // baseline reader
-    }
-
-    public void testListOfUnsignedInt32WidensElementsOptimizedReader() throws Exception {
-        assertListOfUnsignedInt32WidensElements(new ParquetFormatReader(blockFactory, true)); // optimized reader
-    }
-
-    /**
-     * A LIST of {@code uint32} widens each element the way a scalar {@code uint32} column does — unsigned, because an
-     * unsigned 32-bit value can exceed {@code Integer.MAX_VALUE}, which is exactly why the type renders ESQL
-     * {@code long}. No declaration is involved, which the inferred-type assertion pins: the element renders
-     * {@code long} from the file. The row shapes follow the {@code unsigned_long} list precedent above — a null list,
-     * a null element inside a list, and an empty list — so the widening is pinned alongside the null handling it
-     * shares a loop with, and {@code 0xFFFFFFFF} pins the top of the domain.
-     */
-    private void assertListOfUnsignedInt32WidensElements(ParquetFormatReader reader) throws Exception {
         MessageType schema = new MessageType(
             "test_schema",
             Types.optionalList()
@@ -6078,122 +6061,6 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 CloseableIterator<Page> it = r.readRange(
                     storageObject,
                     new RangeReadContext(List.of(column), 10, 0, parquetData.length, asDatetime, ErrorPolicy.STRICT)
-                .named("ids")
-        );
-        byte[] parquetData = createParquetFile(schema, factory -> {
-            // Row 0: [1, 2^31, 4e9, 2^32-1] -- one below the sign boundary and three above it
-            Group g1 = factory.newGroup();
-            Group list1 = g1.addGroup("ids");
-            list1.addGroup("list").append("element", 1);
-            list1.addGroup("list").append("element", (int) 2_147_483_648L);
-            list1.addGroup("list").append("element", (int) 4_000_000_000L);
-            list1.addGroup("list").append("element", (int) 0xFFFFFFFFL);
-
-            // Row 1: null list (no addGroup call)
-            Group g2 = factory.newGroup();
-
-            // Row 2: [7, null element, 2^31]
-            Group g3 = factory.newGroup();
-            Group list3 = g3.addGroup("ids");
-            list3.addGroup("list").append("element", 7);
-            list3.addGroup("list"); // element absent -> null within the list
-            list3.addGroup("list").append("element", (int) 2_147_483_648L);
-
-            // Row 3: [] (empty, non-null list)
-            Group g4 = factory.newGroup();
-            g4.addGroup("ids");
-
-            return List.of(g1, g2, g3, g4);
-        });
-
-        StorageObject storageObject = createStorageObject(parquetData);
-        assertEquals(DataType.LONG, reader.metadata(storageObject).schema().get(0).dataType());
-
-        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
-            Page page = iterator.next();
-            assertEquals(4, page.getPositionCount());
-
-            LongBlock block = (LongBlock) page.getBlock(0);
-            assertFalse(block.isNull(0));
-            assertEquals(4, block.getValueCount(0));
-            int start0 = block.getFirstValueIndex(0);
-            assertEquals(1L, block.getLong(start0));
-            assertEquals(2_147_483_648L, block.getLong(start0 + 1));
-            assertEquals(4_000_000_000L, block.getLong(start0 + 2));
-            assertEquals(4_294_967_295L, block.getLong(start0 + 3));
-
-            assertTrue("a null list stays null", block.isNull(1));
-
-            assertFalse(block.isNull(2));
-            assertEquals("a null element is dropped from the list, as elsewhere in this reader", 2, block.getValueCount(2));
-            int start2 = block.getFirstValueIndex(2);
-            assertEquals(7L, block.getLong(start2));
-            assertEquals(2_147_483_648L, block.getLong(start2 + 1));
-
-            assertTrue("an empty list reads as null", block.isNull(3));
-            page.releaseBlocks();
-        }
-    }
-
-    /**
-     * The discriminating control: a plain {@code INT32} list declared {@code long} reaches the same arm, and its
-     * elements must sign-extend. Widening every element unsigned reads {@code -1} as 4294967295 here, which is the
-     * regression the unsigned widening above could otherwise introduce unnoticed.
-     */
-    public void testListOfPlainInt32SignExtendsElements() throws Exception {
-        MessageType schema = new MessageType(
-            "test_schema",
-            Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.INT32).named("vals")
-        );
-        byte[] parquetData = createParquetFile(schema, factory -> {
-            Group g = factory.newGroup();
-            Group list = g.addGroup("vals");
-            list.addGroup("list").append("element", -1);
-            list.addGroup("list").append("element", Integer.MIN_VALUE);
-            list.addGroup("list").append("element", 5);
-            return List.of(g);
-        });
-        assertListLongReads(parquetData, "vals", -1L, Integer.MIN_VALUE, 5L);
-    }
-
-    /**
-     * {@code TIME(MILLIS)} is the other {@code INT32} annotation that renders ESQL {@code long}. Its raw
-     * millisecond-of-day value carries no unsigned annotation, so it widens unchanged, and this pins that the
-     * annotation is read rather than the primitive alone. The signed-regression control is the plain-{@code INT32}
-     * case above, whose negative elements discriminate; these values are non-negative and would not.
-     */
-    public void testListOfTimeMillisWidensSigned() throws Exception {
-        MessageType schema = new MessageType(
-            "test_schema",
-            Types.optionalList()
-                .optionalElement(PrimitiveType.PrimitiveTypeName.INT32)
-                .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
-                .named("tods")
-        );
-        byte[] parquetData = createParquetFile(schema, factory -> {
-            Group g = factory.newGroup();
-            Group list = g.addGroup("tods");
-            list.addGroup("list").append("element", 37_230_000); // 10:20:30.000
-            list.addGroup("list").append("element", 1);
-            return List.of(g);
-        });
-        assertListLongReads(parquetData, "tods", 37_230_000L, 1L);
-    }
-
-    /**
-     * Reads a one-row LIST {@code column} as a DECLARED ESQL {@code long} through both decode engines and asserts
-     * the row's elements. The two engines share the list decode, so this also pins that they cannot drift apart on
-     * it. The declared route is what brings a plain {@code INT32} list to the {@code long} arm at all.
-     */
-    private void assertListLongReads(byte[] parquetData, String column, long... expected) throws Exception {
-        StorageObject storageObject = createStorageObject(parquetData);
-        List<Attribute> asLong = List.of(new ReferenceAttribute(Source.EMPTY, column, DataType.LONG));
-        for (boolean optimized : List.of(true, false)) {
-            ParquetFormatReader r = new ParquetFormatReader(blockFactory, optimized);
-            try (
-                CloseableIterator<Page> it = r.readRange(
-                    storageObject,
-                    new RangeReadContext(List.of(column), 10, 0, parquetData.length, asLong, ErrorPolicy.STRICT)
                 )
             ) {
                 LongBlock l = (LongBlock) it.next().getBlock(0);
@@ -6222,29 +6089,6 @@ public class ParquetFormatReaderTests extends ESTestCase {
         for (boolean optimized : List.of(true, false)) {
             ParquetFormatReader r = (ParquetFormatReader) new ParquetFormatReader(blockFactory, optimized).withDeclaredTypeColumns(
                 Set.of(column)
-     * A {@code TIMESTAMP(MICROS)} column — Arrow's and Spark's default timestamp unit — infers {@code date_nanos}, so
-     * declaring it {@code date} narrows through {@code castBlock}. A value before 1970 is an ordinary instant for
-     * {@code date}, and it must read rather than fail the whole column: the 1970 floor belongs to the source type.
-     * Both decode engines take the same route here (the pair is not fused), so the assertion covers both.
-     */
-    public void testPreEpochMicrosTimestampDeclaredDatetimeReads() throws Exception {
-        MessageType schema = Types.buildMessage()
-            .required(PrimitiveType.PrimitiveTypeName.INT64)
-            .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
-            .named("ts")
-            .named("test_schema");
-        byte[] parquetData = createParquetFile(schema, factory -> {
-            Group early = factory.newGroup();
-            early.add("ts", -152_366_400_000_000L); // 1965-03-04T12:00:00Z
-            Group late = factory.newGroup();
-            late.add("ts", 1_704_067_200_000_000L); // 2024-01-01T00:00:00Z
-            return List.of(early, late);
-        });
-        StorageObject storageObject = createStorageObject(parquetData);
-        List<Attribute> asDatetime = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
-        for (boolean optimized : List.of(true, false)) {
-            ParquetFormatReader r = (ParquetFormatReader) new ParquetFormatReader(blockFactory, optimized).withDeclaredTypeColumns(
-                Set.of("ts")
             );
             try (
                 CloseableIterator<Page> it = r.readRange(
@@ -6293,23 +6137,6 @@ public class ParquetFormatReaderTests extends ESTestCase {
             )
         ) {
             return fr.getFooter();
-        }
-                    new RangeReadContext(List.of("ts"), 10, 0, parquetData.length, asDatetime, ErrorPolicy.STRICT)
-                )
-            ) {
-                LongBlock l = (LongBlock) it.next().getBlock(0);
-                assertEquals("optimized=" + optimized, -152_366_400_000L, l.getLong(0));
-                assertEquals("optimized=" + optimized, 1_704_067_200_000L, l.getLong(1));
-            }
-        }
-    }
-
-                assertEquals(where + " element count", expected.length, l.getValueCount(0));
-                int first = l.getFirstValueIndex(0);
-                for (int i = 0; i < expected.length; i++) {
-                    assertEquals(where + " element " + i, expected[i], l.getLong(first + i));
-                }
-            }
         }
     }
 
@@ -10981,6 +10808,263 @@ public class ParquetFormatReaderTests extends ESTestCase {
         @Override
         public StoragePath path() {
             return file.path();
+        }
+    }
+
+    /**
+     * A {@code TIMESTAMP(MICROS)} column — Arrow's and Spark's default timestamp unit — infers {@code date_nanos}, so
+     * declaring it {@code date} narrows through {@code castBlock}. A value before 1970 is an ordinary instant for
+     * {@code date}, and it must read rather than fail the whole column: the 1970 floor belongs to the source type.
+     * Both decode engines take the same route here (the pair is not fused), so the assertion covers both.
+     */
+    public void testPreEpochMicrosTimestampDeclaredDatetimeReads() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("ts")
+            .named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group early = factory.newGroup();
+            early.add("ts", -152_366_400_000_000L); // 1965-03-04T12:00:00Z
+            Group late = factory.newGroup();
+            late.add("ts", 1_704_067_200_000_000L); // 2024-01-01T00:00:00Z
+            return List.of(early, late);
+        });
+        StorageObject storageObject = createStorageObject(parquetData);
+        List<Attribute> asDatetime = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
+        for (boolean optimized : List.of(true, false)) {
+            ParquetFormatReader r = (ParquetFormatReader) new ParquetFormatReader(blockFactory, optimized).withDeclaredTypeColumns(
+                Set.of("ts")
+            );
+            try (
+                CloseableIterator<Page> it = r.readRange(
+                    storageObject,
+                    new RangeReadContext(List.of("ts"), 10, 0, parquetData.length, asDatetime, ErrorPolicy.STRICT)
+                )
+            ) {
+                LongBlock l = (LongBlock) it.next().getBlock(0);
+                assertEquals("optimized=" + optimized, -152_366_400_000L, l.getLong(0));
+                assertEquals("optimized=" + optimized, 1_704_067_200_000L, l.getLong(1));
+            }
+        }
+    }
+
+    public void testListOfUnsignedInt32WidensElements() throws Exception {
+        assertListOfUnsignedInt32WidensElements(new ParquetFormatReader(blockFactory, false)); // baseline reader
+    }
+
+    public void testListOfUnsignedInt32WidensElementsOptimizedReader() throws Exception {
+        assertListOfUnsignedInt32WidensElements(new ParquetFormatReader(blockFactory, true)); // optimized reader
+    }
+
+    /**
+     * A LIST of {@code uint32} widens each element the way a scalar {@code uint32} column does — unsigned, because an
+     * unsigned 32-bit value can exceed {@code Integer.MAX_VALUE}, which is exactly why the type renders ESQL
+     * {@code long}. No declaration is involved, which the inferred-type assertion pins: the element renders
+     * {@code long} from the file. The row shapes follow the {@code unsigned_long} list precedent above — a null list,
+     * a null element inside a list, and an empty list — so the widening is pinned alongside the null handling it
+     * shares a loop with, and {@code 0xFFFFFFFF} pins the top of the domain.
+     */
+    private void assertListOfUnsignedInt32WidensElements(ParquetFormatReader reader) throws Exception {
+        MessageType schema = new MessageType(
+            "test_schema",
+            Types.optionalList()
+                .optionalElement(PrimitiveType.PrimitiveTypeName.INT32)
+                .as(LogicalTypeAnnotation.intType(32, false))
+                .named("ids")
+        );
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            // Row 0: [1, 2^31, 4e9, 2^32-1] -- one below the sign boundary and three above it
+            Group g1 = factory.newGroup();
+            Group list1 = g1.addGroup("ids");
+            list1.addGroup("list").append("element", 1);
+            list1.addGroup("list").append("element", (int) 2_147_483_648L);
+            list1.addGroup("list").append("element", (int) 4_000_000_000L);
+            list1.addGroup("list").append("element", (int) 0xFFFFFFFFL);
+
+            // Row 1: null list (no addGroup call)
+            Group g2 = factory.newGroup();
+
+            // Row 2: [7, null element, 2^31]
+            Group g3 = factory.newGroup();
+            Group list3 = g3.addGroup("ids");
+            list3.addGroup("list").append("element", 7);
+            list3.addGroup("list"); // element absent -> null within the list
+            list3.addGroup("list").append("element", (int) 2_147_483_648L);
+
+            // Row 3: [] (empty, non-null list)
+            Group g4 = factory.newGroup();
+            g4.addGroup("ids");
+
+            return List.of(g1, g2, g3, g4);
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        assertEquals(DataType.LONG, reader.metadata(storageObject).schema().get(0).dataType());
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
+            Page page = iterator.next();
+            assertEquals(4, page.getPositionCount());
+
+            LongBlock block = (LongBlock) page.getBlock(0);
+            assertFalse(block.isNull(0));
+            assertEquals(4, block.getValueCount(0));
+            int start0 = block.getFirstValueIndex(0);
+            assertEquals(1L, block.getLong(start0));
+            assertEquals(2_147_483_648L, block.getLong(start0 + 1));
+            assertEquals(4_000_000_000L, block.getLong(start0 + 2));
+            assertEquals(4_294_967_295L, block.getLong(start0 + 3));
+
+            assertTrue("a null list stays null", block.isNull(1));
+
+            assertFalse(block.isNull(2));
+            assertEquals("a null element is dropped from the list, as elsewhere in this reader", 2, block.getValueCount(2));
+            int start2 = block.getFirstValueIndex(2);
+            assertEquals(7L, block.getLong(start2));
+            assertEquals(2_147_483_648L, block.getLong(start2 + 1));
+
+            assertTrue("an empty list reads as null", block.isNull(3));
+            page.releaseBlocks();
+        }
+    }
+
+    /**
+     * The discriminating control: a plain {@code INT32} list declared {@code long} reaches the same arm, and its
+     * elements must sign-extend. Widening every element unsigned reads {@code -1} as 4294967295 here, which is the
+     * regression the unsigned widening above could otherwise introduce unnoticed.
+     */
+    /**
+     * The second half of the control. The bare-INT32 case below cannot tell {@code isSigned() == false} from a plain
+     * {@code instanceof IntLogicalTypeAnnotation}, because an unannotated column fails both; dropping the signedness
+     * half of the predicate therefore passes it. An explicitly signed {@code INT(32, true)} annotation separates them:
+     * under that mutation its elements widen unsigned and {@code -1} reads 4294967295.
+     */
+    public void testListOfSignedAnnotatedInt32SignExtendsElements() throws Exception {
+        MessageType schema = new MessageType(
+            "test_schema",
+            Types.optionalList()
+                .optionalElement(PrimitiveType.PrimitiveTypeName.INT32)
+                .as(LogicalTypeAnnotation.intType(32, true))
+                .named("vals")
+        );
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            Group list = g.addGroup("vals");
+            list.addGroup("list").append("element", -1);
+            list.addGroup("list").append("element", Integer.MIN_VALUE);
+            list.addGroup("list").append("element", 5);
+            return List.of(g);
+        });
+        assertListLongReads(parquetData, "vals", -1L, Integer.MIN_VALUE, 5L);
+    }
+
+    public void testListOfPlainInt32SignExtendsElements() throws Exception {
+        MessageType schema = new MessageType(
+            "test_schema",
+            Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.INT32).named("vals")
+        );
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            Group list = g.addGroup("vals");
+            list.addGroup("list").append("element", -1);
+            list.addGroup("list").append("element", Integer.MIN_VALUE);
+            list.addGroup("list").append("element", 5);
+            return List.of(g);
+        });
+        assertListLongReads(parquetData, "vals", -1L, Integer.MIN_VALUE, 5L);
+    }
+
+    /**
+     * {@code TIME(MILLIS)} is the other {@code INT32} annotation that renders ESQL {@code long}. Its raw
+     * millisecond-of-day value carries no unsigned annotation, so it widens unchanged, and this pins that the
+     * annotation is read rather than the primitive alone. The signed-regression control is the plain-{@code INT32}
+     * case above, whose negative elements discriminate; these values are non-negative and would not.
+     */
+    public void testListOfTimeMillisWidensSigned() throws Exception {
+        MessageType schema = new MessageType(
+            "test_schema",
+            Types.optionalList()
+                .optionalElement(PrimitiveType.PrimitiveTypeName.INT32)
+                .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+                .named("tods")
+        );
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            Group list = g.addGroup("tods");
+            list.addGroup("list").append("element", 37_230_000); // 10:20:30.000
+            list.addGroup("list").append("element", 1);
+            return List.of(g);
+        });
+        assertListLongReads(parquetData, "tods", 37_230_000L, 1L);
+    }
+
+    /**
+     * Reads a one-row LIST {@code column} as a DECLARED ESQL {@code long} through both decode engines and asserts
+     * the row's elements. The two engines share the list decode, so this also pins that they cannot drift apart on
+     * it. The declared route is what brings a plain {@code INT32} list to the {@code long} arm at all.
+     */
+    private void assertListLongReads(byte[] parquetData, String column, long... expected) throws Exception {
+        StorageObject storageObject = createStorageObject(parquetData);
+        List<Attribute> asLong = List.of(new ReferenceAttribute(Source.EMPTY, column, DataType.LONG));
+        for (boolean optimized : List.of(true, false)) {
+            ParquetFormatReader r = new ParquetFormatReader(blockFactory, optimized);
+            try (
+                CloseableIterator<Page> it = r.readRange(
+                    storageObject,
+                    new RangeReadContext(List.of(column), 10, 0, parquetData.length, asLong, ErrorPolicy.STRICT)
+                )
+            ) {
+                LongBlock l = (LongBlock) it.next().getBlock(0);
+                String where = "optimized=" + optimized;
+                assertEquals(where, 1, l.getPositionCount());
+                assertEquals(where + " element count", expected.length, l.getValueCount(0));
+                int first = l.getFirstValueIndex(0);
+                for (int i = 0; i < expected.length; i++) {
+                    assertEquals(where + " element " + i, expected[i], l.getLong(first + i));
+                }
+            }
+        }
+    }
+
+    /**
+     * A {@code LIST} element is parsed from the same text the inferred read of that column renders. For a
+     * {@code UUID}-annotated element that text is the canonical hex form, which is not a timestamp, so a declared
+     * {@code date} over such a list is refused -- exactly as a scalar column of the identical shape is refused.
+     * Parsing the raw 16 bytes instead returned 1704067200000 here, an instant decoded out of UUID bytes, which is
+     * both a wrong answer and a disagreement with the scalar arm.
+     */
+    public void testDeclaredDatetimeOverListOfUuidIsRefusedLikeTheScalar() throws Exception {
+        MessageType schema = new MessageType(
+            "test_schema",
+            Types.optionalList()
+                .optionalElement(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY)
+                .length(16)
+                .as(LogicalTypeAnnotation.uuidType())
+                .named("ts")
+        );
+        // Sixteen ASCII bytes are exactly a UUID's width, and these spell a timestamp the parser accepts.
+        byte[] spellsATimestamp = "2024-01-01T00:00".getBytes(StandardCharsets.US_ASCII);
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            Group list = g.addGroup("ts");
+            list.addGroup("list").append("element", Binary.fromConstantByteArray(spellsATimestamp));
+            return List.of(g);
+        });
+        StorageObject storageObject = createStorageObject(parquetData);
+        List<Attribute> asDatetime = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
+        for (boolean optimized : List.of(true, false)) {
+            ParquetFormatReader r = (ParquetFormatReader) new ParquetFormatReader(blockFactory, optimized).withDeclaredTypeColumns(
+                Set.of("ts")
+            );
+            try (
+                CloseableIterator<Page> it = r.readRange(
+                    storageObject,
+                    new RangeReadContext(List.of("ts"), 10, 0, parquetData.length, asDatetime, ErrorPolicy.PERMISSIVE)
+                )
+            ) {
+                LongBlock l = (LongBlock) it.next().getBlock(0);
+                assertTrue("optimized=" + optimized + ": a UUID's hex form is not a timestamp, so the element is refused", l.isNull(0));
+            }
         }
     }
 

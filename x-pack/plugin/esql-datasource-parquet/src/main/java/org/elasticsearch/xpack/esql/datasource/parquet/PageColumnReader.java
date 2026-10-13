@@ -264,9 +264,8 @@ final class PageColumnReader implements Releasable {
                     yield readLongBatch(maxRows, blockFactory, ParquetColumnDecoding.timeNanoMultiplier(time), false);
                 }
                 if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32) {
-                    var logicalType = (LogicalTypeAnnotation.IntLogicalTypeAnnotation) info.logicalType();
-                    // A plain INT32 with no logical-type annotation is historically "signed"
-                    yield readInt32AsLongBatch(maxRows, blockFactory, logicalType == null || logicalType.isSigned());
+                    // The same shared predicate the baseline arm and the list arm ask; see int32IsUnsigned.
+                    yield readInt32AsLongBatch(maxRows, blockFactory, ParquetColumnDecoding.int32IsUnsigned(info.logicalType()) == false);
                 }
                 // A 64-bit unsigned column maps to UNSIGNED_LONG, which ESQL stores sign-flip-encoded
                 // (value ^ 2^63) so signed-long ordering matches unsigned ordering. The output edge always

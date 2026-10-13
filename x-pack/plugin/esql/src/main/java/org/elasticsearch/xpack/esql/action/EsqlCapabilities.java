@@ -4373,6 +4373,7 @@ public class EsqlCapabilities {
          * epoch-millis read, which such nodes still fail.
          */
         PARQUET_DECLARED_DATETIME_IS_EPOCH_MILLIS_UNLESS_DATE,
+        /**
          * A column declared {@code date} over a file column that renders {@code date_nanos} — an annotated
          * {@code TIMESTAMP(MICROS)} or {@code TIMESTAMP(NANOS)} — narrows to epoch millis for the whole range
          * {@code date} represents, including before 1970. Older nodes borrowed {@code date_nanos}' own 1970 floor and
@@ -4380,6 +4381,7 @@ public class EsqlCapabilities {
          * all. Gates the csv-spec case asserting the pre-1970 instant, which such nodes still fail.
          */
         DATASET_DECLARED_DATE_NARROWS_BELOW_THE_EPOCH,
+        /**
          * Every element of a Parquet {@code LIST} of {@code uint32} widens unsigned, as a scalar {@code uint32}
          * column's values do. Older nodes sign-extended list elements, so an element at or above 2^31 read negative
          * and a filter on the column's sign dropped exactly the largest values. Gates the csv-spec case asserting the

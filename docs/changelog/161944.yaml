@@ -1,0 +1,5 @@
+area: Columnar
+issues: []
+pr: 161944
+summary: Remove the `columnar_codec` feature flag
+type: feature

@@ -10,6 +10,7 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.painless.api.Augmentation;
 import org.elasticsearch.painless.spi.PainlessTestScript;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
@@ -651,7 +652,9 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
     /**
      * A lambda shape. {@code SETUP} takes the body's setup, {@code BODY} its code and {@code STORE} its code with the final
      * return turned into {@code out.add(...)} for lambdas that cannot return the value. {@code chain} lists the lambdas from
-     * the outside in: T typed, D def, F a typed lambda that calls a user function, which always captures the script.
+     * the outside in: T typed, D def, F a typed lambda that calls a user function, which always captures the script. Lower
+     * case t and d are lambdas in the same call that do not hold the body, so a need inside the body never reaches them.
+     * {@code intParameter} says the body's {@code x} is a primitive int rather than a def.
      */
     private record Wrapper(String name, String functions, String setup, String expression, String chain, boolean intParameter) {
         Wrapper(String name, String functions, String setup, String expression, String chain) {
@@ -772,6 +775,103 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
             "",
             "Optional.of(1).map(q -> fn(q, params)).get()",
             "FT"
+        ),
+        // Allocating calls that take the lambda: the charge wrapper goes on before the lambda filter in Def.lookupMethod.
+        new Wrapper("def merge", "", "SETUP def m9 = ['a9': 'b'];", "m9.merge('a9', 'c', (p9, q9) -> { int x = 1; BODY })", "D", true),
+        new Wrapper("typed merge", "", "SETUP Map m9 = ['a9': 'b'];", "m9.merge('a9', 'c', (p9, q9) -> { int x = 1; BODY })", "T", true),
+        new Wrapper("def computeIfAbsent", "", "SETUP def m9 = [:];", "m9.computeIfAbsent('a9', k9 -> { int x = 1; BODY })", "D", true),
+        new Wrapper("typed computeIfAbsent", "", "SETUP Map m9 = [:];", "m9.computeIfAbsent('a9', k9 -> { int x = 1; BODY })", "T", true),
+        // Two-slot parameters sit after the injected script parameter and the captures.
+        new Wrapper(
+            "typed double parameter",
+            "",
+            "SETUP",
+            "Optional.of(1.0).map((double d9) -> { int x = (int) d9; BODY }).get()",
+            "T",
+            true
+        ),
+        new Wrapper(
+            "def long parameter",
+            "",
+            "SETUP def o1 = Optional.of(1L);",
+            "o1.map((long d9) -> { int x = (int) d9; BODY }).get()",
+            "D",
+            true
+        ),
+        new Wrapper(
+            "typed two long parameters",
+            "",
+            "SETUP",
+            "[1L].stream().reduce(0L, (long acc, long v9) -> { int x = (int) v9; BODY })",
+            "T",
+            true
+        ),
+        // Interfaces with primitive parameters or returns, which the lambda bootstrap has to convert.
+        new Wrapper(
+            "comparator",
+            "",
+            "SETUP List out = new ArrayList(); [1, 2].sort((p9, q9) -> { int x = 1; STORE return 0; });",
+            "out[0]",
+            "T",
+            true
+        ),
+        new Wrapper(
+            "def comparator",
+            "",
+            "SETUP List out = new ArrayList(); def l9 = [1, 2]; l9.sort((p9, q9) -> { int x = 1; STORE return 0; });",
+            "out[0]",
+            "D",
+            true
+        ),
+        // The untyped parameter takes the interface's int, so x is a primitive here.
+        new Wrapper("int stream function", "", "SETUP", "IntStream.range(1, 2).mapToObj(x -> { BODY }).findFirst().get()", "T", true),
+        new Wrapper(
+            "to-int function",
+            "",
+            "SETUP List out = new ArrayList(); [1].stream().mapToInt(x -> { STORE return x; }).sum();",
+            "out[0]",
+            "T"
+        ),
+        new Wrapper(
+            "def to-int function",
+            "",
+            "SETUP List out = new ArrayList(); def s9 = [1].stream(); s9.mapToInt(x -> { STORE return x; }).sum();",
+            "out[0]",
+            "D"
+        ),
+        new Wrapper(
+            "bi-consumer on a map",
+            "",
+            "SETUP List out = new ArrayList(); ['k9': 1].forEach((k9, x) -> { STORE });",
+            "out[0]",
+            "T"
+        ),
+        new Wrapper(
+            "def bi-consumer on a map",
+            "",
+            "SETUP List out = new ArrayList(); def m9 = ['k9': 1]; m9.forEach((k9, x) -> { STORE });",
+            "out[0]",
+            "D"
+        ),
+        new Wrapper("unary operator", "", "SETUP List l9 = [1]; l9.replaceAll(x -> { BODY });", "l9[0]", "T"),
+        new Wrapper("def unary operator", "", "SETUP def l9 = [1]; l9.replaceAll(x -> { BODY });", "l9[0]", "D"),
+        // More than one lambda in the same call.
+        new Wrapper("two lambdas in one call", "", "SETUP", "[1].stream().collect(Collectors.toMap(k9 -> k9, x -> { BODY })).get(1)", "tT"),
+        new Wrapper(
+            "three lambdas in one def call",
+            "",
+            "SETUP List out = new ArrayList(); def s9 = [1].stream(); "
+                + "s9.collect(() -> new ArrayList(), (acc, x) -> { STORE }, (p9, q9) -> { p9.addAll(q9); });",
+            "out[0]",
+            "dDd"
+        ),
+        new Wrapper(
+            "three lambdas in one typed call",
+            "",
+            "SETUP List out = new ArrayList(); "
+                + "[1].stream().collect(() -> new ArrayList(), (acc, x) -> { STORE }, (List p9, List q9) -> { p9.addAll(q9); });",
+            "out[0]",
+            "tTt"
         )
     );
 
@@ -1069,6 +1169,22 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
             "abcdef",
             SUBSTRING_BYTES,
             Need.ALWAYS
+        ),
+        // Two-slot captures sit between the injected script parameter and the lambda's own parameters.
+        new Body("long capture", "", "long c = 5L;", "return x + c;", "6", "return c + x - 5;", "1", 0, Need.NEVER),
+        new Body("double capture", "", "double c = 5.0;", "return x + c;", "6.0", "return c + x - 5;", "1.0", 0, Need.NEVER),
+        // The twins differ by one substring in a hundred, so the charged one trips a limit the neutral fits under on its
+        // hundredth call, not its first.
+        new Body(
+            "charges that add up",
+            "",
+            "def s = 'abcdef';",
+            "int n = 0; for (int i9 = 0; i9 < 100; ++i9) { String t9 = i9 < 100 ? s.substring(0, 3) : s; n = n + t9.length(); } return n;",
+            "300",
+            "int n = 0; for (int i9 = 0; i9 < 100; ++i9) { String t9 = i9 < 99 ? s.substring(0, 3) : s; n = n + t9.length(); } return n;",
+            "303",
+            SUBSTRING_BYTES,
+            Need.TRACKING
         )
     );
 
@@ -1815,13 +1931,16 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
     /**
      * How many of a shape's lambdas must be instance methods. A lambda captures the script when the context supports
      * cancellation, when it calls a user function, when it is a def lambda under tracking, or when a need inside it asks for
-     * the script, which also makes every lambda around it capture.
+     * the script, which also makes every lambda around it capture. A lower case sibling never holds the body, so the need
+     * never reaches it.
      */
     private static int expectedInstanceLambdas(Mode mode, Need need, String chain) {
         boolean asked = need == Need.ALWAYS || (need == Need.TRACKING && mode.tracking());
         int instance = 0;
         for (char kind : chain.toCharArray()) {
-            if (mode.cancellation || asked || kind == 'F' || (kind == 'D' && mode.tracking())) {
+            boolean holdsBody = Character.isUpperCase(kind);
+            boolean def = Character.toUpperCase(kind) == 'D';
+            if (mode.cancellation || kind == 'F' || (def && mode.tracking()) || (holdsBody && asked)) {
                 instance++;
             }
         }
@@ -2004,5 +2123,135 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
             }
         }
         assertTrue(problems.size() + " problems:\n" + String.join("\n", problems), problems.isEmpty());
+    }
+
+    /** True when a frame of the error, or of any cause, is in the script-aware iteration helpers. */
+    private static boolean thrownInIterationHelper(Throwable error) {
+        for (Throwable t = error; t != null; t = t.getCause()) {
+            for (StackTraceElement frame : t.getStackTrace()) {
+                if (Augmentation.class.getName().equals(frame.getClassName())) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Cancellation with no loop in script code. Every lambda polls at entry, and a script-aware iteration helper polls after
+     * each element, so eleven hundred elements fire the throttled check from one of those. A reference in the helper has no
+     * entry poll, which leaves the helper's own poll as the only one that can fire.
+     */
+    public void testCancellationFiresAtLambdaEntryAndInIterationHelpers() throws IOException {
+        record Shape(String name, String setup, String expression, String expected, String site) {}
+        List<Shape> shapes = List.of(
+            new Shape("typed int stream", "", "IntStream.range(0, 1100).map(x -> x + 1).sum()", "605550", "lambda"),
+            new Shape("def int stream", "def s9 = IntStream.range(0, 1100);", "s9.map(x -> x + 1).sum()", "605550", "lambda"),
+            new Shape(
+                "typed lambda in a typed lambda",
+                "",
+                "IntStream.range(0, 1100).map(x -> Optional.of(x).map(y -> y + 1).get()).sum()",
+                "605550",
+                "lambda"
+            ),
+            new Shape(
+                "def lambda in a typed lambda",
+                "",
+                "IntStream.range(0, 1100).map(x -> { def o9 = Optional.of(x); return o9.map(y -> y + 1).get(); }).sum()",
+                "605550",
+                "lambda"
+            ),
+            new Shape(
+                "helper with a reference",
+                "List out = new ArrayList(); Collections.nCopies(1100, 1).forEach(out::add);",
+                "out.size()",
+                "1100",
+                "helper"
+            ),
+            new Shape(
+                "def helper with a reference",
+                "List out = new ArrayList(); def l9 = Collections.nCopies(1100, 1); l9.forEach(out::add);",
+                "out.size()",
+                "1100",
+                "helper"
+            ),
+            new Shape(
+                "helper with a lambda",
+                "List out = new ArrayList(); Collections.nCopies(1100, 1).forEach(x -> out.add(x));",
+                "out.size()",
+                "1100",
+                "either"
+            )
+        );
+        Map<String, Object> params = matrixParams();
+        List<String> problems = new ArrayList<>();
+        for (Mode mode : Mode.values()) {
+            if (mode.cancellation == false) {
+                continue;
+            }
+            MatrixEngine engine = matrixEngine(mode);
+            for (Shape shape : shapes) {
+                String label = mode + " / " + shape.name;
+                String source = shape.setup + " " + matrixResult(mode, shape.expression);
+                int[] polls = new int[1];
+                Outcome counted = runMatrixCell(engine.engine, mode, source, params, () -> polls[0]++);
+                if (shape.expected.equals(String.valueOf(counted.value)) == false) {
+                    problems.add("with a counting check " + label + " got " + counted.value);
+                }
+                if (polls[0] < 1) {
+                    problems.add("never fired " + label);
+                }
+                try {
+                    runMatrixCell(engine.engine, mode, source, params, () -> { throw new IllegalStateException("cancelled"); });
+                    problems.add("not cancelled " + label);
+                } catch (ScriptException e) {
+                    boolean cancelled = false;
+                    for (Throwable t = e; t != null; t = t.getCause()) {
+                        cancelled |= t instanceof IllegalStateException && "cancelled".equals(t.getMessage());
+                    }
+                    if (cancelled == false) {
+                        problems.add("wrong error under cancellation " + label + ": " + e);
+                    } else if (shape.site.equals("lambda") && thrownInScriptLambda(e) == false) {
+                        problems.add("cancelled outside a lambda " + label);
+                    } else if (shape.site.equals("helper") && (thrownInIterationHelper(e) == false || thrownInScriptLambda(e))) {
+                        problems.add("cancelled outside the helper " + label);
+                    }
+                }
+            }
+        }
+        assertTrue(problems.size() + " problems:\n" + String.join("\n", problems), problems.isEmpty());
+    }
+
+    /** Creating a lambda is charged each time, so a limit that ninety-nine creations in a loop fit under trips on the hundredth. */
+    public void testLambdaCreationChargesAddUp() throws IOException {
+        Map<String, Object> params = matrixParams();
+        for (Mode mode : Mode.values()) {
+            if (mode.limit == false || mode.metrics) {
+                continue;
+            }
+            String few = creationLoop(mode, 99);
+            String more = creationLoop(mode, 100);
+            MatrixEngine open = matrixEngine(mode);
+            Outcome fewOutcome = runMatrixCellOrFail(open.engine, mode, few, params, mode + " ninety-nine creations");
+            Outcome moreOutcome = runMatrixCellOrFail(open.engine, mode, more, params, mode + " a hundred creations");
+            assertEquals(mode + " ninety-nine creations", "5049", String.valueOf(fewOutcome.value));
+            assertEquals(mode + " a hundred creations", "5150", String.valueOf(moreOutcome.value));
+            assertTrue(mode + " a creation must cost something", moreOutcome.bytes > fewOutcome.bytes);
+            MatrixEngine tight = matrixEngine(mode, fewOutcome.bytes + "b");
+            runMatrixCellOrFail(tight.engine, mode, few, params, mode + " ninety-nine creations at their own cost as the limit");
+            ScriptException e = expectThrows(ScriptException.class, () -> runMatrixCell(tight.engine, mode, more, params, (Runnable) null));
+            boolean tripped = false;
+            for (Throwable t = e; t != null; t = t.getCause()) {
+                tripped |= t.getMessage() != null && t.getMessage().contains("allocation limit exceeded");
+            }
+            assertTrue(mode + " the hundredth creation must trip: " + e, tripped);
+        }
+    }
+
+    private static String creationLoop(Mode mode, int creations) {
+        return "int c9 = 2; int n9 = 0; for (int i9 = 0; i9 < "
+            + creations
+            + "; ++i9) { n9 = n9 + Optional.of(i9).map(y -> y + c9).get(); } "
+            + matrixResult(mode, "n9");
     }
 }

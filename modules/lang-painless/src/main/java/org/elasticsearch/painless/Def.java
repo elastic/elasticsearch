@@ -469,7 +469,8 @@ public final class Def {
                 filter = MethodHandles.dropArguments(filter, 0, String.class);
                 handle = MethodHandles.collectArguments(handle, i + scriptThisOffset - (defEncoding.needsInstance ? 1 : 0), filter);
                 i += defEncoding.numCaptures;
-                replaced += defEncoding.numCaptures;
+                // The script slot a lambda captures is an extra argument too, so later lambdas must skip it as well.
+                replaced += defEncoding.numCaptures + (defEncoding.needsInstance ? 1 : 0);
             }
         }
 

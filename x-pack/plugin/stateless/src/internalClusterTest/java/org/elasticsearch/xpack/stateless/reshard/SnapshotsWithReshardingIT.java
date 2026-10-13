@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.cluster.routing.IndexRoutingTestHelper.makeIdThatRoutesToShard;
@@ -486,11 +487,47 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
     // Restoring over an open index while it is actively being resharded used to be rejected outright. The restore now discards the
     // resharding metadata and the extra target shards along with everything else, the same as any other in-place restore to a
     // different shard count. IndicesClusterStateService#isRestoreHistoryUuidTransition tears down and recreates every shard of the
-    // index, which safely unwinds the in-progress split too.
-    public void testRestoreOverOpenIndexWhileResharding() throws Exception {
-        var indexNode = startMasterAndIndexNode();
+    // index, which safely unwinds the in-progress split too. The tests below hold the split's target shards in each of the states they
+    // pass through before they are done, since the in-flight work that has to be abandoned differs in each.
+
+    /**
+     * Restores while the targets are still cloning from their sources. Unlike the other stages, the restore is not held back until the
+     * clone is finished: it is submitted as soon as the resharding metadata appears, so it races with the copy that is in progress.
+     */
+    public void testRestoreOverOpenIndexWhileResharding_targetsInClone() throws Exception {
+        restoreOverOpenIndexWhileResharding(IndexReshardingState.Split.TargetShardState.CLONE);
+    }
+
+    /** Restores once all targets have finished cloning and are about to hand off, while the sources are preparing for the handoff. */
+    public void testRestoreOverOpenIndexWhileResharding_targetsInHandoff() throws Exception {
+        restoreOverOpenIndexWhileResharding(IndexReshardingState.Split.TargetShardState.HANDOFF);
+    }
+
+    /** Restores once the handoff is complete and the targets are in the split state, waiting to be marked as done. */
+    public void testRestoreOverOpenIndexWhileResharding_targetsInSplit() throws Exception {
+        restoreOverOpenIndexWhileResharding(IndexReshardingState.Split.TargetShardState.SPLIT);
+    }
+
+    /**
+     * Starts a split, holds its target shards in {@code heldState}, restores the pre-split snapshot over the index, and verifies that the
+     * restore succeeds and that the abandoned split leaves nothing behind.
+     * <p>
+     * A target shard is held in a state by blocking, on the target's node, the request that would move it to the following state.
+     */
+    private void restoreOverOpenIndexWhileResharding(IndexReshardingState.Split.TargetShardState heldState) throws Exception {
+        final IndexReshardingState.Split.TargetShardState blockedTransition = switch (heldState) {
+            case CLONE -> IndexReshardingState.Split.TargetShardState.HANDOFF;
+            case HANDOFF -> IndexReshardingState.Split.TargetShardState.SPLIT;
+            case SPLIT -> IndexReshardingState.Split.TargetShardState.DONE;
+            case DONE -> throw new AssertionError("a split cannot be held in " + heldState);
+        };
+
+        // The master must be a different node from the one holding the shards. A state change request sent to the local master is
+        // executed directly instead of being sent over the transport, which would bypass the send behavior used below to hold it.
+        startMasterOnlyNode();
+        var indexNode = startIndexNode();
         startSearchNode();
-        ensureStableCluster(2);
+        ensureStableCluster(3);
 
         createRepository("test-repo", "fs");
 
@@ -514,18 +551,20 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
 
         var index = resolveIndex(indexName);
 
-        // Block the split's completion so that resharding metadata is still present when the restore is submitted.
+        // Block the transition out of heldState so that the targets stay in it, with the resharding metadata still present, until the
+        // restore has been applied. The count of blocked requests lets the test know when every target has reached that point.
         var latch = new CountDownLatch(1);
+        var blockedRequests = new AtomicInteger();
         MockTransportService indexTransportService = MockTransportService.getInstance(indexNode);
         indexTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
             try {
                 if (TransportUpdateSplitTargetShardStateAction.TYPE.name().equals(action)) {
                     TransportRequest actualRequest = MasterNodeRequestHelper.unwrapTermOverride(request);
-                    if (actualRequest instanceof SplitStateRequest splitStateRequest) {
-                        if (splitStateRequest.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.DONE
-                            && latch.getCount() > 0) {
-                            latch.await();
-                        }
+                    if (actualRequest instanceof SplitStateRequest splitStateRequest
+                        && splitStateRequest.getNewTargetShardState() == blockedTransition
+                        && latch.getCount() > 0) {
+                        blockedRequests.incrementAndGet();
+                        latch.await();
                     }
                 }
                 connection.sendRequest(requestId, action, request, options);
@@ -538,9 +577,32 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
         client().execute(TransportReshardAction.TYPE, reshardRequest).actionGet();
 
         awaitClusterState(indexNode, state -> state.metadata().projectFor(index).index(indexName).getReshardingMetadata() != null);
-        ensureGreen(indexName);
+        final int targetShards = clusterService().state()
+            .metadata()
+            .projectFor(index)
+            .index(indexName)
+            .getReshardingMetadata()
+            .getSplit()
+            .targetStates()
+            .toList()
+            .size();
 
         try {
+            if (heldState != IndexReshardingState.Split.TargetShardState.CLONE) {
+                // Wait until every target is held, in the cluster state and at the blocked request, before restoring.
+                awaitClusterState(
+                    indexNode,
+                    state -> state.metadata()
+                        .projectFor(index)
+                        .index(indexName)
+                        .getReshardingMetadata()
+                        .getSplit()
+                        .targetStates()
+                        .allMatch(targetState -> targetState == heldState)
+                );
+                assertBusy(() -> assertEquals(targetShards, blockedRequests.get()));
+            }
+
             // Restore over the open, actively-resharding index, back to its pre-split shard count.
             var restoreRequest = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, "test-repo", preSplitSnapshotName).indices(indexName)
                 .restoreOverExisting(true)
@@ -551,6 +613,8 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
             assertEquals(shards, restoreResponse.getRestoreInfo().successfulShards());
             assertEquals(0, restoreResponse.getRestoreInfo().failedShards());
         } finally {
+            // The held requests are only released after the restore, so that they reach the master as stale requests from shards
+            // that no longer exist.
             latch.countDown();
         }
 

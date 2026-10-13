@@ -242,7 +242,14 @@ public final class RefResolver {
         return target(ss, kind, fqcn, suitePath, yamlTest, testTasks);
     }
 
-    private BaseTarget target(SourceSetInfo ss, String kind, String fqcn, String suitePath, String yamlTest, List<TestTaskInfo> candidateTasks) {
+    private BaseTarget target(
+        SourceSetInfo ss,
+        String kind,
+        String fqcn,
+        String suitePath,
+        String yamlTest,
+        List<TestTaskInfo> candidateTasks
+    ) {
         TestTaskSelector.Selection selection = TestTaskSelector.select(ss.name(), ss.outputDir(), candidateTasks, taskCap);
         return new BaseTarget(
             project.projectPath(),
@@ -266,7 +273,8 @@ public final class RefResolver {
         if (includeTasks == null && excludeTasks == null) {
             return testTasks;
         }
-        return testTasks.stream().filter(task -> includeTasks == null || includeTasks.contains(task.taskPath()))
+        return testTasks.stream()
+            .filter(task -> includeTasks == null || includeTasks.contains(task.taskPath()))
             .filter(task -> excludeTasks == null || excludeTasks.contains(task.taskPath()) == false)
             .toList();
     }

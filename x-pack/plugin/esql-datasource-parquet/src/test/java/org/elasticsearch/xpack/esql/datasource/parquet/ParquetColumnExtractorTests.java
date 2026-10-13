@@ -300,6 +300,31 @@ public class ParquetColumnExtractorTests extends ESTestCase {
     }
 
     /**
+     * A column the query carries no type for reads as null on the deferred path under every error mode, including
+     * {@code fail_fast}, because both eager validations skip a NULL or UNSUPPORTED planner type before asking whether
+     * the file's type converts and the scan reads the column as null. Asking the type pair instead of who declared the
+     * column must not turn that into a failed query.
+     */
+    public void testDeferredColumnTheQueryDoesNotTypeReadsNull() throws IOException {
+        byte[] data = writeSingleInt64File(new long[] { 5L, 7L, 9L });
+        StorageObject so = createStorageObject(data);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        long[] positions = { 0, 1, 2 };
+        for (DataType untyped : List.of(DataType.UNSUPPORTED, DataType.NULL)) {
+            for (ErrorPolicy policy : List.of(ErrorPolicy.STRICT, ErrorPolicy.PERMISSIVE)) {
+                try (ColumnExtractor extractor = new ParquetColumnExtractor(so, reader, loadFooter(so), policy)) {
+                    Block[] blocks = extractor.extract(new String[] { "v" }, new DataType[] { untyped }, positions, blockFactory);
+                    try (Block block = blocks[0]) {
+                        assertTrue(untyped + " under " + policy.mode() + " must read null", block.areAllValuesNull());
+                        assertEquals(3, block.getPositionCount());
+                    }
+                }
+            }
+        }
+        assertTrue("an untyped column is not a conversion failure, got: " + drainWarnings(), drainWarnings().isEmpty());
+    }
+
+    /**
      * A DECLARED column whose file type cannot be read as declared (int64 for a declared ip) follows the policy on the
      * deferred path as on the eager one: {@code fail_fast} fails, a lenient policy null-fills with one detail however
      * many batches are extracted.

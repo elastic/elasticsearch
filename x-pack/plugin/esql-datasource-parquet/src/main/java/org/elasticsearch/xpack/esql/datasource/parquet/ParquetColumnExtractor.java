@@ -905,11 +905,19 @@ final class ParquetColumnExtractor implements ColumnExtractor {
      * like an eagerly scanned one. Whether the pair can be converted at all is
      * {@link DeclaredTypeCoercions#supports}, the same question {@code validatePlannerTypesAgainstFile}
      * asks; it used to be narrowed here to columns the user had declared, so a deferred inferred column
-     * that narrows was filled with nulls instead of converted (esql-planning#2076). Always consumes
-     * {@code physical} and returns a fresh caller-owned block.
+     * that narrows was filled with nulls instead of converted (esql-planning#2076). A column the query
+     * carries no type for ({@code NULL} or {@code UNSUPPORTED}) is skipped before that question, as both
+     * eager validations skip it. Always consumes {@code physical} and returns a fresh caller-owned block.
      */
     private Block coerceToTarget(Block physical, DataType fileType, DataType target, String columnName, int count, BlockFactory factory) {
         try {
+            // A column the query carries no type for is not a conversion failure. Both eager validations skip a NULL
+            // or UNSUPPORTED planner type before asking whether the pair converts, and the scan reads the column as
+            // null; a deferred read of the same column has to do the same, or a fail_fast query fails on a column the
+            // eager path answers with nulls.
+            if (target == DataType.NULL || target == DataType.UNSUPPORTED) {
+                return factory.newConstantNullBlock(count);
+            }
             // The same gate as the eager reader (validatePlannerTypesAgainstFile), and it has to be: a column must
             // read the same whether or not extraction was deferred. castBlock functions on a supports() pair, so
             // that is the whole question.
@@ -924,8 +932,9 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                     castBlockWarnings()
                 );
             }
-            // A pair nothing can convert follows the policy, as on the eager scan. Extraction is never deferred
-            // for a read that drops rows, so a live sink here means null_field.
+            // A typed pair nothing can convert follows the read's policy: fail_fast fails the read (the sink is
+            // null), and any other mode reads the column as null under the eager scan's summary. A read that drops
+            // rows cannot drop them here - the positions were chosen before extraction - so it nulls instead.
             DeclaredTypeCoercions.onUncoercibleColumn(
                 columnName,
                 messageLocation,

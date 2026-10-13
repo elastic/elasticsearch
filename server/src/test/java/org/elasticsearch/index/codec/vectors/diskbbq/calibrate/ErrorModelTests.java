@@ -662,6 +662,43 @@ public class ErrorModelTests extends ESTestCase {
         assertEquals(ESNextDiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER, ErrorModel.CENTROIDS_PER_PARENT_CLUSTER);
     }
 
+    public void testProjectErrorStdToSegment() {
+        double std = 0.01;
+        int sample = ErrorModel.REAL_RESIDUAL_SAMPLE;
+        int vpc = 384;
+        double invDim = 0.08;
+        // nothing to project when the segment is not larger than the sample, or without a usable slope
+        assertEquals(std, ErrorModel.projectErrorStdToSegment(std, sample, sample, vpc, invDim), 0.0);
+        assertEquals(std, ErrorModel.projectErrorStdToSegment(std, sample, 1_000_000, vpc, 0.0), 0.0);
+        assertEquals(std, ErrorModel.projectErrorStdToSegment(std, sample, 1_000_000, vpc, Double.NaN), 0.0);
+
+        // no parent clusters: only the document residuals shrink, as distances, i.e. with exponent invDim / 2
+        int small = 50_000;
+        assertTrue(ErrorModel.queriesUseGlobalCentroid(small, vpc));
+        assertEquals(
+            std * Math.pow((double) sample / small, invDim / 2),
+            ErrorModel.projectErrorStdToSegment(std, sample, small, vpc, invDim),
+            1e-15
+        );
+
+        // parent clusters: the query residual (relative to a 16-centroid parent) shrinks too
+        int large = 1_000_000;
+        assertFalse(ErrorModel.queriesUseGlobalCentroid(large, vpc));
+        double expected = std * Math.pow((double) sample / large, invDim / 2) * Math.pow(
+            (double) ErrorModel.CENTROIDS_PER_PARENT_CLUSTER * sample / large,
+            invDim / 2
+        );
+        assertEquals(expected, ErrorModel.projectErrorStdToSegment(std, sample, large, vpc, invDim), 1e-15);
+
+        // the projection only ever shrinks the error, and more so for larger segments
+        double previous = std;
+        for (int n : new int[] { 10_000, 50_000, 98_304, 200_000, 1_000_000, 10_000_000 }) {
+            double projected = ErrorModel.projectErrorStdToSegment(std, sample, n, vpc, invDim);
+            assertThat(projected, lessThan(previous + 1e-18));
+            previous = projected;
+        }
+    }
+
     public void testQueriesUseGlobalCentroidMatchesParentClusterThreshold() {
         int vpc = 384;
         int maxFlatCentroids = ErrorModel.CENTROIDS_PER_PARENT_CLUSTER * ErrorModel.CENTROIDS_PER_PARENT_CLUSTER;

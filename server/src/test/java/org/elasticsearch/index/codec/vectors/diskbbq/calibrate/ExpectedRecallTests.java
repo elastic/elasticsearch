@@ -140,6 +140,32 @@ public class ExpectedRecallTests extends ESTestCase {
         assertTrue(recall <= 1.0);
     }
 
+    public void testPerQueryRecallWithIdenticalCurvesMatchesPooledCurve() {
+        ManifoldModel.QueryCurves curves = new ManifoldModel.QueryCurves(
+            new double[] { ALPHA, ALPHA, ALPHA },
+            new double[] { INV_DIM, INV_DIM, INV_DIM }
+        );
+        for (double errorStd : new double[] { 0.01, 0.05, 0.2 }) {
+            VectorSimilarityFunction euclidean = VectorSimilarityFunction.EUCLIDEAN;
+            double pooled = ExpectedRecall.expectedRecallAtK(euclidean, CORPUS_SIZE, ALPHA, INV_DIM, errorStd, 10, 20);
+            double perQuery = ExpectedRecall.expectedRecallAtK(CORPUS_SIZE, curves, errorStd, 10, 20);
+            assertEquals(pooled, perQuery, 1e-12);
+        }
+    }
+
+    public void testPerQueryRecallIsTheAverageOfEachQueryRecall() {
+        double[] alphas = { -2.5, -2.0, -1.0 };
+        double[] slopes = { 0.2, 0.5, 0.8 };
+        double errorStd = 0.05;
+        double sum = 0;
+        for (int q = 0; q < alphas.length; q++) {
+            VectorSimilarityFunction euclidean = VectorSimilarityFunction.EUCLIDEAN;
+            sum += ExpectedRecall.expectedRecallAtK(euclidean, CORPUS_SIZE, alphas[q], slopes[q], errorStd, 10, 15);
+        }
+        double perQuery = ExpectedRecall.expectedRecallAtK(CORPUS_SIZE, new ManifoldModel.QueryCurves(alphas, slopes), errorStd, 10, 15);
+        assertEquals(sum / alphas.length, perQuery, 1e-12);
+    }
+
     public void testExpectedRecallAtKWithTinyErrorStdIsNearPerfect() {
         double recall = ExpectedRecall.expectedRecallAtK(VectorSimilarityFunction.EUCLIDEAN, CORPUS_SIZE, ALPHA, INV_DIM, 1e-6, 1, 50);
         assertThat(recall, greaterThan(0.99));

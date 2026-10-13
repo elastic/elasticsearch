@@ -70,6 +70,39 @@ public final class ErrorModel {
     }
 
     /**
+     * Projects the quantization error std measured on a {@code sampleDocs}-document sample, clustered at
+     * {@code nDocsPerCluster} documents per cluster, to a segment of {@code numVectors} vectors.
+     * <p>
+     * The error of the OSQ dot-product estimate is bilinear in the query and document residual norms. With a fixed
+     * number of documents per cluster, a cluster of the real segment covers a {@code sampleDocs / numVectors} smaller
+     * fraction of the data than a cluster of the sample, so document residuals (distances) shrink by
+     * {@code (sampleDocs / numVectors)^(1/d)}. The manifold slope {@code invDim} is fitted on <em>squared</em> distances,
+     * i.e. it is {@code 2/d}, hence the exponent {@code invDim / 2}. Query residuals only shrink when the segment
+     * has parent clusters: the reader then quantizes queries against a parent of {@link #CENTROIDS_PER_PARENT_CLUSTER}
+     * clusters, i.e. a {@code 16 * nDocsPerCluster / numVectors} fraction of the data, whereas the sample quantizes
+     * them against (clusters of) its document centroids, a {@code nDocsPerCluster / sampleDocs} fraction. Without
+     * parent clusters the reader uses the global centroid, which {@link #queriesUseGlobalCentroid} already mirrors
+     * in the sample, so the query residual needs no projection.
+     */
+    public static double projectErrorStdToSegment(
+        double sampleStd,
+        int sampleDocs,
+        int numVectors,
+        int nDocsPerCluster,
+        double invDim
+    ) {
+        if (numVectors <= sampleDocs || invDim <= 0 || Double.isFinite(invDim) == false) {
+            return sampleStd;
+        }
+        double exponent = invDim / 2;
+        double docFactor = Math.pow((double) sampleDocs / numVectors, exponent);
+        double queryFactor = queriesUseGlobalCentroid(numVectors, nDocsPerCluster)
+            ? 1.0
+            : Math.min(1.0, Math.pow((double) CENTROIDS_PER_PARENT_CLUSTER * sampleDocs / numVectors, exponent));
+        return sampleStd * docFactor * queryFactor;
+    }
+
+    /**
      * Quantized representation error standard deviation. Quantizes doc residuals and
      * query residuals using OSQ, estimates dot products, and compares to exact
      * similarities for each query's true top-5k documents (ranked by exact similarity, as in the
@@ -611,9 +644,10 @@ public final class ErrorModel {
      * <p>
      * Measures OSQ error once at {@link #REAL_RESIDUAL_SAMPLE} and anchors the intercept at that sample
      * size. The manifold slope is used as the scaling exponent, so evaluating at a corpus size {@code N}
-     * would extrapolate as {@code errorStd = measuredStd × (REAL_RESIDUAL_SAMPLE / N)^invDim}. Note that the fast
-     * calibration path evaluates the model at the sample size itself (no extrapolation): see
-     * {@code IvfAutoCalibration#sweepQuantizationCandidatesRealResiduals}.
+     * would extrapolate as {@code errorStd = measuredStd × (REAL_RESIDUAL_SAMPLE / N)^invDim}. The fast calibration
+     * path instead evaluates the model at the sample size and projects the measurement to the segment with
+     * {@link #projectErrorStdToSegment}, whose exponent accounts for {@code invDim} being fitted on squared distances
+     * and for whether query residuals shrink with the segment size.
      */
     public static QuantizationErrorStdModel estimateMagnitudeFromRealResiduals(
         double invDim,

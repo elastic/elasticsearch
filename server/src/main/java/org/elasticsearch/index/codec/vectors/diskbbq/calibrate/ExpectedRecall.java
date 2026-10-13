@@ -45,7 +45,7 @@ public final class ExpectedRecall {
         0.4786286704993665,
         0.2369268850561891 };
 
-    private static final int RERANK_WINDOW_RANK_MULTIPLIER = 20;
+    static final int RERANK_WINDOW_RANK_MULTIPLIER = 20;
 
     private ExpectedRecall() {}
 
@@ -81,6 +81,32 @@ public final class ExpectedRecall {
             total += expectedRecallOfK(rankDistances, errorStd, n, i);
         }
         return total / k;
+    }
+
+    /**
+     * Expected recall@k when reranking top-n candidates, averaged over the per-query distance curves of
+     * {@code curves} (see {@link ManifoldModel.QueryCurves}): the recall integral is evaluated on each query's own
+     * rank distances {@code exp(alpha[q] + slope[q] * (log(j) - log(numDocs)))} and the results are averaged, rather
+     * than evaluating it once on a pooled curve.
+     */
+    public static double expectedRecallAtK(int numDocs, ManifoldModel.QueryCurves curves, double errorStd, int k, int n) {
+        int maxRank = Math.min(RERANK_WINDOW_RANK_MULTIPLIER * n, numDocs);
+        double[] rankDistances = new double[maxRank];
+        double logN = Math.log(numDocs);
+        double total = 0;
+        for (int q = 0; q < curves.size(); q++) {
+            double alpha = curves.alpha()[q];
+            double slope = curves.slope()[q];
+            for (int i = 0; i < maxRank; i++) {
+                rankDistances[i] = Math.exp(alpha + (Math.log(i + 1) - logN) * slope);
+            }
+            double queryRecall = 0;
+            for (int i = 1; i <= k; i++) {
+                queryRecall += expectedRecallOfK(rankDistances, errorStd, n, i);
+            }
+            total += queryRecall / k;
+        }
+        return total / curves.size();
     }
 
     /**

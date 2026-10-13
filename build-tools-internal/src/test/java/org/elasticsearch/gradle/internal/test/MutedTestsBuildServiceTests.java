@@ -275,6 +275,22 @@ public class MutedTestsBuildServiceTests {
     }
 
     @Test
+    public void testUnknownFieldsAreIgnored() throws IOException {
+        File dir = temporaryFolder.newFolder();
+        writeMutedTestsYaml(dir, """
+            tests:
+            - class: org.elasticsearch.SomeTest
+              method: testFoo
+              owner: es-delivery
+              issue: https://github.com/elastic/elasticsearch/issues/18
+            """);
+
+        Set<String> patterns = registerService(dir).getExcludePatternsForTask(TEST_TASK_PATH);
+
+        assertThat(patterns, hasItems("org.elasticsearch.SomeTest.testFoo", "org.elasticsearch.SomeTest.testFoo *"));
+    }
+
+    @Test
     public void testDuplicateTaskValuesAreIgnoredAndPatternsStaySorted() throws IOException {
         File dir = temporaryFolder.newFolder();
         writeMutedTestsYaml(dir, """

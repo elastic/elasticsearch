@@ -137,9 +137,9 @@ public class FlakinessTargetsTests {
      */
     @Test
     public void testUnresolvedOnlyForClassRefsNoProjectClaimed() {
-        FlakinessRef claimedUnmute = new FlakinessRef(FlakinessRef.SOURCE_UNMUTE, null, "org.foo.ATests", null, null);
-        FlakinessRef orphanUnmute = new FlakinessRef(FlakinessRef.SOURCE_UNMUTE, null, "org.foo.GoneTests", null, null);
-        FlakinessRef orphanExplicit = new FlakinessRef(FlakinessRef.SOURCE_EXPLICIT, null, null, null, "org.foo.AlsoGoneTests");
+        FlakinessRef claimedUnmute = new FlakinessRef(FlakinessRef.SOURCE_UNMUTE, null, "org.foo.ATests", null, null, null, null);
+        FlakinessRef orphanUnmute = new FlakinessRef(FlakinessRef.SOURCE_UNMUTE, null, "org.foo.GoneTests", null, null, null, null);
+        FlakinessRef orphanExplicit = new FlakinessRef(FlakinessRef.SOURCE_EXPLICIT, null, null, null, "org.foo.AlsoGoneTests", null, null);
         FlakinessRef orphanChangedFile = changedFile("docs/README.asciidoc");
 
         FlakinessJson.BaseTargetsFile merged = FlakinessTargets.merge(
@@ -168,8 +168,8 @@ public class FlakinessTargetsTests {
      */
     @Test
     public void testUnknownRefSourceIsReportedNotSilentlyDropped() {
-        FlakinessRef futureSource = new FlakinessRef("some-future-source", null, "org.foo.ATests", null, null);
-        FlakinessRef missingSource = new FlakinessRef(null, null, "org.foo.BTests", null, null);
+        FlakinessRef futureSource = new FlakinessRef("some-future-source", null, "org.foo.ATests", null, null, null, null);
+        FlakinessRef missingSource = new FlakinessRef(null, null, "org.foo.BTests", null, null, null, null);
 
         FlakinessJson.BaseTargetsFile merged = FlakinessTargets.merge(
             List.of(futureSource, missingSource),
@@ -199,7 +199,7 @@ public class FlakinessTargetsTests {
     }
 
     private static FlakinessRef changedFile(String path) {
-        return new FlakinessRef(FlakinessRef.SOURCE_CHANGED_FILE, path, null, null, null);
+        return new FlakinessRef(FlakinessRef.SOURCE_CHANGED_FILE, path, null, null, null, null, null);
     }
 
     private static BaseTarget runnable(String project, String sourceSet, String fqcn) {

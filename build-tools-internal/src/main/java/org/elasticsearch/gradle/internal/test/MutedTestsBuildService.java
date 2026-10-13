@@ -10,6 +10,7 @@
 package org.elasticsearch.gradle.internal.test;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
@@ -103,6 +104,7 @@ public abstract class MutedTestsBuildService implements BuildService<MutedTestsB
         ListProperty<RegularFile> getAdditionalFiles();
     }
 
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class MutedTest {
         private final String className;
         private final String method;

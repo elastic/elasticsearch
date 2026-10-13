@@ -88,7 +88,10 @@ public class FaultInjectingS3HttpHandler implements HttpHandler {
                 delegate.handle(new TruncatingHttpExchange(exchange, fault.resetAfterBytes, fault.remaining));
                 return;
             }
-            if (fault.remaining.decrementAndGet() >= 0) {
+            // Consume one slot atomically. Concurrent GETs (adaptive fan-out) used to both
+            // observe remaining == 1, both decrementAndGet, and leave remaining at -1.
+            int previous = fault.remaining.getAndUpdate(n -> n > 0 ? n - 1 : n);
+            if (previous > 0) {
                 logger.debug(
                     "injecting fault [{}] for path [{}], remaining [{}]",
                     fault.type,

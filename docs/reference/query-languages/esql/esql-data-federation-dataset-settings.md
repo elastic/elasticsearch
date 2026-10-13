@@ -19,7 +19,7 @@ Dataset settings control how the files in a dataset are discovered, parsed, and 
 
 The following settings apply to every file-based data source, unless an entry lists specific formats.
 
-% hive_partitioning intentionally omitted. It is being deprecated to a warn-only no-op in https://github.com/elastic/esql-planning/issues/1881
+% hive_partitioning intentionally omitted. It is being deprecated to a warn-only no-op.
 
 ### Format and discovery
 
@@ -282,12 +282,12 @@ $$$amazon-s3-region$$$
 
     - **Default:** Auto-detected
     - **Valid values:** A non-empty AWS region name
-    - **Related:** `endpoint` and `sts_region` on the [data source](esql-data-federation-sources.md)
+    - **Related:** [`endpoint`](esql-data-federation-data-source-settings.md#endpoint) and [`sts_region`](esql-data-federation-data-source-settings.md#sts-region) on the data source
 
     Omit `region` for standard AWS S3. Set it when the data source uses a custom `endpoint`, such as MinIO or Scaleway, to skip region discovery on the first request.
 
     :::{dropdown} Region discovery and federated identity
-    Without an `endpoint`, the AWS SDK redirects requests to the bucket's region. With an `endpoint`, a `HeadBucket` request on first access discovers the region, and the result is cached for the lifetime of the data source. An explicit `region` is always used as set. A wrong value returns an error instead of redirecting.<br><br>With `auth: federated_identity`, `region` also selects the STS regional endpoint for role assumption, unless the data source sets `sts_region`. When neither is set, STS uses `us-east-1`. This works for standard commercial AWS but can fail for buckets in other AWS partitions, such as GovCloud or China.
+    Without an `endpoint`, the AWS SDK redirects requests to the bucket's region. With an `endpoint`, a `HeadBucket` request on first access discovers the region. {{es}} caches the result and clears it after a few minutes without requests. An explicit `region` is always used as set. A wrong value returns an error instead of redirecting.<br><br>With `auth: federated_identity`, `region` also selects the STS regional endpoint for role assumption, unless the data source sets `sts_region`. When neither is set, STS uses `us-east-1`. This works for standard commercial AWS but can fail for buckets in other AWS partitions, such as GovCloud or China.
 
     :::
 

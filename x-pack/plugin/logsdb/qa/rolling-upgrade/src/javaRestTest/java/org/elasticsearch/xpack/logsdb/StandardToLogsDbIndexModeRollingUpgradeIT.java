@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.logsdb;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.List;
@@ -43,16 +41,8 @@ public class StandardToLogsDbIndexModeRollingUpgradeIT extends AbstractStringTyp
             }
         }""";
 
-    @ClassRule
-    public static final ElasticsearchCluster cluster = Clusters.oldVersionClusterWithLogsDisabled(
-        USER,
-        PASS,
-        () -> initTestSeed().nextBoolean()
-    );
-
-    @Override
-    protected ElasticsearchCluster getCluster() {
-        return cluster;
+    public StandardToLogsDbIndexModeRollingUpgradeIT() {
+        super(Clusters.oldVersionClusterWithLogsDisabled(USER, PASS, () -> initTestSeed().nextBoolean()));
     }
 
     @Override

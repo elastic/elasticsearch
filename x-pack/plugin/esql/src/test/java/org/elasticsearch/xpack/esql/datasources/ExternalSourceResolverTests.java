@@ -2495,15 +2495,25 @@ public class ExternalSourceResolverTests extends ESTestCase {
             assertEquals("and opens no more files for it", opensForNoRows, readingProvider.schemaCallCount.get());
             assertEquals("one file defines the schema under first_file_wins", 1, opensForNoRows);
 
-            // And the bounded listing never reached the shared cache. This is the invariant with no downstream
-            // catch: a prefix served from the cache to a later query would have it read a fraction of the dataset
-            // and report success. A second resolve through the same cache has to list again.
-            resolveWithNoRowPaths(resolver, Set.of(GLOB));
-            assertThat(
-                "a truncated listing must never be served from the listing cache",
-                provider.listCallCount.get(),
-                greaterThan(listsForNoRows)
+            // And the bounded listing is shared with the next query that asks the same question. The hazard this
+            // guards - a prefix served to a query that wanted the dataset, which would read a fraction of it and
+            // report success - is held by the key rather than by refusing the cache: the extent is part of the
+            // address, so only a query asking for the same bound can be served this entry. Asking for the same
+            // bound is asking the same question, and the answer is the same listing.
+            ExternalSourceResolution.ResolvedSource second = resolveWithNoRowPaths(resolver, Set.of(GLOB)).resolvedSource(GLOB);
+            assertNotNull(second);
+            assertEquals(
+                "a second resolve asking for the same bound is served the cached prefix",
+                listsForNoRows,
+                provider.listCallCount.get()
             );
+            // Identity, not equality, and this is the assertion the incident is about. What killed a 1 GiB search
+            // node was not the cost of listing twice - it was holding the listing twice: every concurrent query
+            // kept its own 1,000-entry copy, charged to the request breaker until the query closed, and a few
+            // hundred of those is the whole heap. Two resolutions reaching the same object is what makes the
+            // resident cost one listing instead of one per query, and equality would pass while each query still
+            // held a copy of its own.
+            assertSame("and holds the same listing, not a copy of it", bounded.fileList(), second.fileList());
         }
     }
 
@@ -2814,6 +2824,66 @@ public class ExternalSourceResolverTests extends ESTestCase {
             24,
             boundedFuture.actionGet().resolvedSource(glob).fileList().fileCount()
         );
+    }
+
+    /**
+     * The same dashboard filters as {@link #testVpcHourlyHiveFoldedHintsListTwentyFourFilesOnDefaultFfw}, written the
+     * way a dashboard actually sends them: the timestamp is {@code TO_DATETIME("...")} rather than an already-folded
+     * {@code DATETIME} literal. That sibling fixture models the plan after conversion, so it never exercised the
+     * nested call, and the listing fold refuses an argument that is not yet a literal - so
+     * the outer {@code DATE_EXTRACT} could not fold, no hint was emitted, and the listing ran to its bound over the
+     * whole glob instead of the one matching day.
+     */
+    public void testVpcDashboardHintsFoldThroughToDatetime() {
+        String glob = "s3://bucket/data/year=*/month=*/day=*/hour=*/*.parquet";
+        EsqlFunctionRegistry registry = new EsqlFunctionRegistry();
+
+        Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> nested = PartitionFilterHintExtractor.extract(
+            FoldDateFunctionFiltersForListing.fold(vpcDashboardFilterPlanViaToDatetime(glob), TEST_CFG, registry)
+        );
+        List<PartitionFilterHintExtractor.PartitionFilterHint> pathHints = nested.get(glob);
+        assertNotNull("TO_DATETIME of a literal must fold so the DATE_EXTRACT above it can", pathHints);
+        assertEquals(3, pathHints.size());
+        assertEquals(List.of(2026L), pathHints.get(0).values());
+        assertEquals(List.of(7L), pathHints.get(1).values());
+        assertEquals(List.of(13L), pathHints.get(2).values());
+
+        // The nested form must narrow exactly as the pre-folded form does; a hint set that differs between the two
+        // would prune a different set of folders for the same query.
+        Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> preFolded = PartitionFilterHintExtractor.extract(
+            FoldDateFunctionFiltersForListing.fold(vpcDashboardFilterPlan(glob), TEST_CFG, registry)
+        );
+        List<PartitionFilterHintExtractor.PartitionFilterHint> expected = preFolded.get(glob);
+        assertNotNull("the pre-folded sibling fixture must still yield hints, or this comparison proves nothing", expected);
+        assertEquals(expected, pathHints);
+    }
+
+    /** {@link #vpcDashboardFilterPlan} with the timestamp left as the {@code TO_DATETIME} call a dashboard sends. */
+    private static LogicalPlan vpcDashboardFilterPlanViaToDatetime(String path) {
+        Source src = Source.EMPTY;
+        Expression ts = new UnresolvedFunction(src, "TO_DATETIME", List.of(Literal.keyword(src, "2026-07-13T00:00:00.000Z")));
+        Expression condition = new And(
+            src,
+            new And(
+                src,
+                new Equals(
+                    src,
+                    new UnresolvedAttribute(src, "year"),
+                    new UnresolvedFunction(src, "DATE_EXTRACT", List.of(Literal.keyword(src, "YEAR"), ts))
+                ),
+                new Equals(
+                    src,
+                    new UnresolvedAttribute(src, "month"),
+                    new UnresolvedFunction(src, "DATE_EXTRACT", List.of(Literal.keyword(src, "MONTH_OF_YEAR"), ts))
+                )
+            ),
+            new Equals(
+                src,
+                new UnresolvedAttribute(src, "day"),
+                new UnresolvedFunction(src, "DATE_EXTRACT", List.of(Literal.keyword(src, "DAY_OF_MONTH"), ts))
+            )
+        );
+        return new Filter(src, new UnresolvedExternalRelation(src, Literal.keyword(src, path), Map.of()), condition);
     }
 
     private static LogicalPlan vpcDashboardFilterPlan(String path) {

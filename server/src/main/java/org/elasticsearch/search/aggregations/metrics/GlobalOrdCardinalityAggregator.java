@@ -331,6 +331,17 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
 
     protected void doPostCollection() throws IOException {
         counts = new HyperLogLogPlusPlus(precision, bigArrays, visitedOrds.size());
+        if (anyOrdinalVisited() == false) {
+            // No collected document had a value for the field. The counts stay empty and the per-ordinal hashing is skipped, so
+            // its cost does not depend on the number of global ordinals. Bitsets created up front for dynamic pruning
+            // can be present but empty, so they are released here.
+            for (long bucket = 0; bucket < visitedOrds.size(); bucket++) {
+                Releasables.close(visitedOrds.get(bucket));
+            }
+            Releasables.close(visitedOrds);
+            visitedOrds = null;
+            return;
+        }
         try (LongArray hashes = bigArrays.newLongArray(maxOrd, false)) {
             try (BitArray allVisitedOrds = new BitArray(maxOrd, bigArrays)) {
                 for (long bucket = visitedOrds.size() - 1; bucket >= 0; --bucket) {
@@ -365,6 +376,19 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
             Releasables.close(visitedOrds);
             visitedOrds = null;
         }
+    }
+
+    /**
+     * Whether any bucket has at least one visited ordinal.
+     */
+    private boolean anyOrdinalVisited() {
+        for (long bucket = 0; bucket < visitedOrds.size(); bucket++) {
+            final BitArray bits = visitedOrds.get(bucket);
+            if (bits != null && bits.nextSetBit(0) < Long.MAX_VALUE) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override

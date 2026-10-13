@@ -2623,15 +2623,19 @@ public class ExternalSourceResolver {
                 // keeps the dataset aggregate from memoizing it.
                 if (rowCount instanceof Number n && listingPathsAreDistinct(listing)) {
                     // This write-through is NOT licence-gated: RunningFileStatsFold.finish returns its merged
-                    // fold whether or not every file licensed the crossing, so a lenient read's fold is stored
-                    // here too - and that fold may be a SURVIVOR count rather than the file's physical record
-                    // count, because the CSV reader drops a structurally malformed row under null_field as well
-                    // as skip_row (warmsRowCountSafely spells this out).
+                    // fold whether or not every file licensed the crossing, so a lenient read's fold - possibly
+                    // a SURVIVOR count rather than the file's physical record count - is stored here too
+                    // (warmsRowCountSafely spells out which policies drop).
                     //
-                    // What keeps that safe is the ADDRESS, not the error policy. DefinitionVersion.ofDataset
-                    // folds every setting of the dataset and its source, error_mode included, so a survivor
-                    // count is reachable only from the definition whose read produced it. Anything that widens
-                    // this address has to re-answer that, which is why the reason is recorded here.
+                    // What keeps that addressable is the PRODUCER, not the policy and not this key. A drop whose
+                    // outcome depends on the query's projection never reaches the cache at all: only the CSV and
+                    // NDJSON readers publish scan-derived statistics, and each suppresses its whole file's
+                    // publish when a projected column fails coercion under skip_row (projectionDependentDrop in
+                    // both); columnar formats publish none, their counts being footer-derived - see
+                    // stampInferredReadConfig. Every survivor count a fold can carry therefore drops whatever is
+                    // projected, so MIN(a) and COUNT(*) over one file agree and may share this address. Nothing
+                    // here enforces that: a third format that began publishing scan-derived statistics without
+                    // that flag would reopen it at this tier and the per-file one alike.
                     cacheService.putDatasetAggregate(datasetKey, n.longValue());
                 }
             }
@@ -5698,9 +5702,15 @@ public class ExternalSourceResolver {
             return null;
         }
         // The record's own schema stands in for the unified one, because a function built before the gather cannot
-        // see the union. Exact for the explicit single file and the anchor resolve, whose record IS the unified
-        // schema. Under union_by_name it diverges only for a column SOME files carry and this one does not, which
-        // is a separate defect: such a file stays cold either way, missing at an address of its own.
+        // see the union. Two known divergences, both leaving a file cold rather than wrong:
+        //
+        // Under union_by_name, a column SOME files carry and this one does not - a separate defect, and such a
+        // file stays cold either way, missing at an address of its own.
+        //
+        // And on a HIVE layout, a record's attributes are its physical schema while applyNonStrictOverlay's
+        // unified schema includes the path-derived partition columns. So a declaration naming a partition
+        // column's type sees it absent here and present there, and the two fingerprints part. Not exercised by
+        // any arm; the fix is to pass the unified schema in, which this rail has.
         return record -> {
             List<Attribute> own = record.toAttributes();
             return overlaidReadOf(own, own, declaredMapping, datasetFormat != null ? datasetFormat : record.sourceType()).fingerprint();

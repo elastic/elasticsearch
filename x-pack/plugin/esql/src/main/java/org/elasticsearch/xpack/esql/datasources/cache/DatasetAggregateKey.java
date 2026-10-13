@@ -23,7 +23,10 @@ import java.util.Objects;
  * is determined by one definition entire, so any edit to it moves this address and the previous definition's fold
  * becomes unreachable - this tier's invalidation protocol, in place of a notification.
  * <p>
- * No read configuration: one definition over one file set performs one read. A per-file record is addressed by
+ * No read configuration: one definition over one file set performs one read. A lenient policy does drop rows, but a
+ * drop decided by the query's projection never reaches the cache - the publishing readers suppress it - so what a fold
+ * can carry is projection-independent; the write-through in {@code ExternalSourceResolver.applyDatasetAggregate}
+ * carries that argument and what does not enforce it. A per-file record is addressed by
  * {@link DatasetIdentity} instead, because one file's measurements are reusable by any dataset reading it and
  * there a read configuration does have two reads to separate.
  */

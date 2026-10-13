@@ -11449,23 +11449,25 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /*
-     * NOT COVERED, deliberately recorded rather than left to be rediscovered: that cachedStatistics applies
+     * NOT COVERED, and worth more than this note: nothing proves that cachedStatistics applies
      * restrictToReadConfig to what the fallback finds. Mutating it to `return atOwnRead;` leaves every IT in
-     * this change GREEN, and no unit test here reaches it either.
+     * this change GREEN, and no unit test here reaches it.
      *
-     * Why a unit test could not be built: the restriction only consults the licence when the entry's
-     * fingerprint DIFFERS from the expected read - a matching read returns the stats untouched - so only a
-     * foreign read exercises it. And the licence is not data a caller can plant. Seeding through
-     * reconcileSourceStatsFromContributions parses it into a typed SourceStatsContribution field, and seeding
-     * through reconcileSourceStats re-derives the stored map; with both, the count persists (asserted by a
-     * positive control at the record's own address) while the licence does not, so the foreign read finds a
-     * count it is not permitted to cross to and the case cannot distinguish a missing restriction from a
-     * missing licence.
+     * It is not benign. fileStatisticsForFirstFileWins composes the cachedStatistics return straight into
+     * FileSchemaInfo.statistics, which feeds the per-file split statistics a data node consumes, and
+     * applyNonStrictOverlay's own restrictToReadConfig touches sourceMetadata rather than that path. So under
+     * the mutation a retyping declaration's split stats would carry the inferred read's extrema for the
+     * retyped column, and nothing would fail.
      *
-     * What would close it: a producer-level fixture that harvests under FAIL_FAST so the licence is attached
-     * by the code that owns it, or a package-private seam on the statistics store for tests. The restriction's
-     * own contract IS covered - see SourceStatisticsSerializerTests, which pins that a licensed count crosses
-     * a foreign read and that per-column statistics do not.
+     * An earlier version of this note said the licence cannot be planted by a caller. That was wrong: the
+     * whole-file contribution path stamps ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY into the stored map when the
+     * contribution carries it. What is actually missing is a seam - cachedStatistics is private, and the two
+     * call sites that pass readConfigStampOf(entry) return before the fallback, so only the three bound-read
+     * sites reach it. Seed a whole-file contribution stamped read X with the licence and a column extremum,
+     * then ask for read Y against a record stamped X: the count must cross and the extremum must not.
+     *
+     * The restriction's own contract IS covered - see SourceStatisticsSerializerTests, which pins that a
+     * licensed count crosses a foreign read and that per-column statistics do not.
      */
 
 }

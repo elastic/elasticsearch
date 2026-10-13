@@ -35,11 +35,16 @@ import java.util.regex.Pattern;
  * This fails the build on a NEW boundary. Each existing one is pinned behaviourally by its own round-trip test;
  * what those cannot do is notice a fourth {@code writeTo} appearing somewhere else.
  * <p>
- * <b>What it does not cover,</b> stated so the next reader does not rely on more than this checks. It requires
- * the enclosing {@code writeTo} to CALL {@code wireConfig} - comments are stripped before matching, so a comment
- * naming the method is not a guard - but it does not prove that the call wraps the argument actually written. A
- * {@code writeTo} that guarded one config and wrote a second unguarded one would pass. It also only recognises
- * the write forms in {@link #GENERIC_WRITE} and only sees a config whose expression says "config".
+ * <b>How it decides, and what it therefore catches.</b> For each write it takes the expression actually written,
+ * strips comments from it, resolves every identifier it names one hop back to that identifier's assignments, then
+ * deletes every {@code wireConfig(...)} span and fails if a raw {@code config} reference survives. So unwiring any
+ * existing strip fails it, a conditional that wraps one arm and writes the field raw on the other fails it, a
+ * comment naming the method is not a guard, and a second unguarded write in the same {@code writeTo} is caught
+ * too, because each write is judged on its own argument rather than on the method around it.
+ * <p>
+ * <b>What it does not cover,</b> stated so the next reader does not rely on more than this checks: a guard applied
+ * through more than one hop of assignment, a config whose expression does not say "config", a write form outside
+ * {@link #GENERIC_WRITE}, and any source root outside the esql plugin and the {@code esql-datasource-*} modules.
  */
 public class ConfigWireBoundaryCensusTests extends ESTestCase {
 

@@ -616,3 +616,6 @@ tests:
 - class: org.elasticsearch.xpack.wildcard.heappressure.WildcardFieldRegexpHeapPressureIT
   method: testSmallRegexpSucceeds
   issue: https://github.com/elastic/elasticsearch/issues/161777
+- class: org.elasticsearch.xpack.wildcard.heappressure.WildcardFieldRegexpHeapPressureIT
+  method: testConcurrentHeavyRegexpTripsBreaker
+  issue: https://github.com/elastic/elasticsearch/issues/161779

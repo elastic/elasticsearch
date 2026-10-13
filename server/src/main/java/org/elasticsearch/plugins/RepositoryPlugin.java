@@ -17,6 +17,7 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.SnapshotMetrics;
+import org.elasticsearch.snapshots.RestoreLifecycleListener;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -28,6 +29,14 @@ import java.util.function.BiConsumer;
  * An extension point for {@link Plugin} implementations to add custom snapshot repositories.
  */
 public interface RepositoryPlugin {
+
+    /**
+     * Returns a listener that is notified when restores start and finish, or {@code null} if this plugin does not provide one. Only one
+     * plugin may provide a RestoreLifecycleListener.
+     */
+    default RestoreLifecycleListener getRestoreLifecycleListener() {
+        return null;
+    }
 
     /**
      * Returns repository types added by this plugin.

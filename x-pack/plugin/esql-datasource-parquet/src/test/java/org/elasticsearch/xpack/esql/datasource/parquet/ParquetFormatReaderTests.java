@@ -3189,7 +3189,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-    * Pins the operator-isolation half of : each operator obtains its own
+     * Pins operator isolation: each operator obtains its own
      * {@link ParquetReaderCounters} via {@link ParquetFormatReader#newReadCounters()}, so two operators
      * reading from the same reader instance own independent counter structs. Sibling-parity with
      * {@code CsvFormatReaderStatusSnapshotTests#testSiblingQueryReadersHaveIsolatedCounters}.

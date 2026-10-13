@@ -50,7 +50,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 
@@ -283,10 +282,15 @@ public class PerFieldFormatSupplier {
 
     /**
      * How a string column is written, asked once per field by the codec. A field that is not stored as one is
-     * never asked, so the defaults here are only ever a fallback for a mapping that changed underneath.
+     * never asked, and asking about one fails rather than guessing the options.
      */
     StringColumnOptions resolveStringColumnOptions(final String field, final ColumnarFieldType type) {
-        final StringColumnOptions options = Objects.requireNonNullElse(columnarStringOptionsOf(field), StringColumnOptions.DEFAULT);
+        final StringColumnOptions options = columnarStringOptionsOf(field);
+        if (options == null) {
+            throw new IllegalStateException(
+                "field [" + field + "] is written as a ColumNAR string column but its mapper has no string options"
+            );
+        }
         if (mapperService.getIndexSettings().getMode() != IndexMode.VECTORDB_COLUMNAR) {
             return options;
         }

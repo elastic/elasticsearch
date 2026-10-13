@@ -92,7 +92,8 @@ public record DataState(long documents, long digest) {
                     .size(MAX_INDICES)
                     .subAggregation(AggregationBuilders.sum(SEQ_NO_SUM).field(SeqNoFieldMapper.NAME))
             );
-        return new SearchRequest(query.indices()).source(source).preference(SHARD_PREFERENCE + shard);
+        // a probe that leaves out the shards that failed would count fewer documents, and could still equal an incomplete state
+        return new SearchRequest(query.indices()).source(source).preference(SHARD_PREFERENCE + shard).allowPartialSearchResults(false);
     }
 
     /**
@@ -159,9 +160,6 @@ public record DataState(long documents, long digest) {
      * Adds what the response tells of the shards with the number, and returns whether there may be shards with a higher one.
      */
     private static boolean add(SearchResponse response, int shard, List<ShardState> states) {
-        if (response.getFailedShards() > 0) {
-            throw new IllegalStateException("the state of [" + response.getFailedShards() + "] shards could not be read");
-        }
         if (response.getTotalShards() == 0) {
             return false;
         }

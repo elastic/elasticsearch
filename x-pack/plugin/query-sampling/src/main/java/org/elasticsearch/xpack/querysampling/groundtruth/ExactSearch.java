@@ -47,7 +47,8 @@ public final class ExactSearch {
             exact.filter(filter);
         }
         SearchSourceBuilder source = new SearchSourceBuilder().query(exact).size(query.k()).fetchSource(false);
-        return new SearchRequest(query.indices()).source(source);
+        // an answer without the shards that failed would miss neighbours that they hold, and be kept as the true one
+        return new SearchRequest(query.indices()).source(source).allowPartialSearchResults(false);
     }
 
     /**

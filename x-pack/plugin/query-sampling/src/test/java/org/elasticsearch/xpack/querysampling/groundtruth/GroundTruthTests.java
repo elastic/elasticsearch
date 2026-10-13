@@ -121,13 +121,11 @@ public class GroundTruthTests extends ESTestCase {
         };
     }
 
-    public void testExactSearchOnlyScansAndLeavesTheStateOfTheDataToOtherSearches() {
-        CapturedQuery query = new CapturedQuery(new String[] { "idx" }, "vec", new float[] { 1f }, 10, 100, null, null, List.of(), null);
+    public void testNeitherTheExactSearchNorTheProbeIsAnsweredFromSomeOfTheShards() {
+        CapturedQuery query = query(1);
 
-        SearchRequest request = ExactSearch.request(query);
-
-        assertThat(request.source().aggregations(), nullValue());
-        assertThat(request.preference(), nullValue());
+        assertThat(ExactSearch.request(query).allowPartialSearchResults(), equalTo(false));
+        assertThat(DataState.probe(query, 0).allowPartialSearchResults(), equalTo(false));
     }
 
     public void testProbeMatchesWhatTheExactSearchScansAndOnlyCountsIt() {

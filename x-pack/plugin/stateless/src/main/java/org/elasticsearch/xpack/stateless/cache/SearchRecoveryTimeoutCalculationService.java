@@ -20,7 +20,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
 import java.util.function.IntSupplier;
-import java.util.function.Predicate;
 
 /// Computes how long search shard recovery should await offline warming (internal replicated-files path only), see
 /// [#searchRecoveryTimeout].
@@ -126,6 +125,11 @@ public class SearchRecoveryTimeoutCalculationService {
         return shardTable.getActiveSearchShardCount() > 0;
     }
 
+    private static int countShardsOnNode(ClusterState clusterState, String nodeId) {
+        var node = clusterState.getRoutingNodes().node(nodeId);
+        return node == null ? 0 : node.size();
+    }
+
     private static boolean hasActiveShutdownForRemovalNodes(ClusterState state) {
         for (Map.Entry<String, SingleNodeShutdownMetadata> entry : state.metadata().nodeShutdowns().getAll().entrySet()) {
             if (entry.getValue().getType().isRemovalType() && state.nodes().nodeExists(entry.getKey())) {
@@ -135,23 +139,24 @@ public class SearchRecoveryTimeoutCalculationService {
         return false;
     }
 
-    /// Returns the warming timeout for a shard whose relocation source is shutting down. This is the larger of the two
-    /// heuristics below, multiplied by `concurrentRelocations` and capped at `remaining`:
+    /// Returns the warming timeout for a shard whose relocation source is shutting down, as the maximum of two heuristics:
     ///
-    /// 1. _Equal-share_: `factor * (deadline - now) / pendingRelocations`, ensuring every shard that may still relocate
-    /// to the target gets a fair slice of the remaining grace period.
+    /// 1. _Equal-share_: `factor * (deadline - now) / shardsOnSource * concurrentRelocations`, ensuring every
+    /// shard on the shutting-down source gets a fair slice of the remaining grace period.
     /// 2. _Data-volume-proportional_ (contributes only when `totalBytesToWarm` is greater than zero): the fraction of the
     /// node's warming cache budget consumed by this shard's data multiplied by the remaining time,
-    /// i.e. `(totalBytesToWarm / (cacheSize * cacheRatio)) * remaining`.
+    /// i.e. `(totalBytesToWarm / (cacheSize * cacheRatio)) * remaining * concurrentRelocations`.
     ///
-    /// Here `deadline = start + min(metadata grace, cap)`, `pendingRelocations` is the number of search shards on
-    /// shutting-down nodes that may still relocate to the target, and `concurrentRelocations` is the number of
-    /// relocations the target node may be running concurrently at this time.
+    /// with `deadline = start + min(metadata grace, cap)`.
+    /// `concurrentRelocations` is the source's proportional share of the target's concurrent relocation slots:
+    /// `min(sourceToTarget, relocationCap * sourceToTarget / allShuttingDownToTarget)`, with `sourceToTarget` and
+    /// `allShuttingDownToTarget` counting relocations from the cluster state and relocationCap derived from .
     ///
-    /// This is a rough estimate: it assumes that every shard on a shutting-down node that has not started relocating yet
-    /// may be relocated to the target, and it ignores other recoveries that compete for the target's slots (which would reduce
-    /// `concurrentRelocations`). This should be good enough for now: relocations off shutting-down nodes are prioritized over
-    /// balancing relocations, and part of the target's recovery slots is reserved for unassigned shards.
+    /// The resulting timeout is capped at the remaining grace period.
+    ///
+    /// This is a rough estimate: it ignores other recoveries that compete for the target's slots (which would reduce
+    /// `concurrentRelocations`). This should be good enough for now: relocations off shutting-down nodes are prioritized
+    /// over balancing relocations, and part of the target's recovery slots is reserved for unassigned shards.
     private SearchRecoveryTimeout computeRelocationSourceShutdownWarmingTimeout(
         ClusterState state,
         String sourceNodeId,
@@ -171,11 +176,11 @@ public class SearchRecoveryTimeoutCalculationService {
         if (remaining <= 0) {
             return new SearchRecoveryTimeout(TimeValue.ZERO, "relocation source shutting down (grace period elapsed)");
         }
-        int pendingRelocations = countPendingRelocationsOffShuttingDownNodes(state, targetNodeId);
-        if (pendingRelocations <= 0) {
-            pendingRelocations = 1;
+        int shardsOnSource = countShardsOnNode(state, sourceNodeId);
+        if (shardsOnSource <= 0) {
+            shardsOnSource = 1;
         }
-        final double equalShareMs = (remaining / (double) pendingRelocations) * searchRecoveryWarmingSourceShutdownShareFactor;
+        final double equalShareMs = (remaining / (double) shardsOnSource) * searchRecoveryWarmingSourceShutdownShareFactor;
 
         // Data-volume-proportional heuristic: scale remaining time by the fraction of the warming cache this shard occupies.
         final long warmingCacheBytes = Math.round(cacheService.getCacheSize() * searchRecoveryWarmingCacheRatio);
@@ -184,14 +189,17 @@ public class SearchRecoveryTimeoutCalculationService {
         // Instead, this uses the same fixed baseline (which itself is of dubious inspiration).
         // But it's hard to do the accounting of the bytes warmed for shards for all the relocations of a given node shutting down.
         final double dataVolumeMs = warmingCacheBytes > 0 ? ((double) totalBytesToWarm / warmingCacheBytes) * remaining : 0;
-        int concurrentRelocations = Math.min(
-            countRelocationsFromShuttingDownNodesTo(state, targetNodeId),
-            maxConcurrentRelocationRecoveriesSupplier.getAsInt()
-        );
-        // The current shard is itself one such relocation; floor at 1 in case it is not yet visible in the target's cluster state.
-        if (concurrentRelocations <= 0) {
-            concurrentRelocations = 1;
+        int relocationsFromSourceToTarget = countOngoingRelocationsBetween(state, sourceNodeId, targetNodeId);
+        // The current shard is itself one such relocation; floor at 1 in case it is not yet visible on the source's RoutingNode.
+        if (relocationsFromSourceToTarget <= 0) {
+            relocationsFromSourceToTarget = 1;
         }
+        // Share the target's cap between shutting-down sources, preserving fractional shares below one slot.
+        final int allRelocationsToTarget = Math.max(1, countRelocationsFromShuttingDownNodesTo(state, targetNodeId));
+        double concurrentRelocations = Math.min(
+            relocationsFromSourceToTarget,
+            (double) maxConcurrentRelocationRecoveriesSupplier.getAsInt() * relocationsFromSourceToTarget / allRelocationsToTarget
+        );
 
         final double timeoutMs;
         final String context;
@@ -210,30 +218,29 @@ public class SearchRecoveryTimeoutCalculationService {
         return new SearchRecoveryTimeout(TimeValue.timeValueMillis(Math.round(timeoutMs)), context);
     }
 
-    /// Counts the search shards on nodes marked for removal that may still relocate to `targetNodeId`: those that have
-    /// not started relocating yet, plus those already relocating to `targetNodeId`.
-    private static int countPendingRelocationsOffShuttingDownNodes(ClusterState state, String targetNodeId) {
-        return countSearchShardsOnShuttingDownNodes(state, r -> r.relocating() == false || targetNodeId.equals(r.relocatingNodeId()));
+    /// Counts search relocations in the provided cluster state whose source is `sourceNodeId` and whose target is `targetNodeId`
+    /// (i.e. shards relocating from `sourceNodeId` to `targetNodeId`, as seen from the source's `RoutingNode`).
+    private static int countOngoingRelocationsBetween(ClusterState state, String sourceNodeId, String targetNodeId) {
+        final var sourceNode = state.getRoutingNodes().node(sourceNodeId);
+        if (sourceNode == null) {
+            return 0;
+        }
+        int count = 0;
+        for (ShardRouting shard : sourceNode.relocating()) {
+            if (shard.isPromotableToPrimary() == false && targetNodeId.equals(shard.relocatingNodeId())) {
+                count++;
+            }
+        }
+        return count;
     }
 
     /// Counts the search shards relocating from nodes marked for removal to `targetNodeId`.
     private static int countRelocationsFromShuttingDownNodesTo(ClusterState state, String targetNodeId) {
-        return countSearchShardsOnShuttingDownNodes(state, r -> r.relocating() && targetNodeId.equals(r.relocatingNodeId()));
-    }
-
-    /// Counts the search shards on nodes marked for removal that match `predicate`.
-    private static int countSearchShardsOnShuttingDownNodes(ClusterState state, Predicate<ShardRouting> predicate) {
         final var nodeShutdowns = state.metadata().nodeShutdowns();
         int count = 0;
         for (String nodeId : nodeShutdowns.getAll().keySet()) {
-            final var routingNode = state.getRoutingNodes().node(nodeId);
-            if (routingNode == null || nodeShutdowns.isNodeMarkedForRemoval(nodeId) == false) {
-                continue;
-            }
-            for (ShardRouting shard : routingNode) {
-                if (shard.isPromotableToPrimary() == false && predicate.test(shard)) {
-                    count++;
-                }
+            if (nodeShutdowns.isNodeMarkedForRemoval(nodeId)) {
+                count += countOngoingRelocationsBetween(state, nodeId, targetNodeId);
             }
         }
         return count;

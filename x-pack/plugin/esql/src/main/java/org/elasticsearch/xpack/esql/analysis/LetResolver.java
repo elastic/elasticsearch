@@ -82,17 +82,17 @@ public final class LetResolver {
 
         // Left fold: build the resolved map incrementally so binding N sees bindings 1..N-1.
         Map<String, LogicalPlan> resolved = new LinkedHashMap<>(letBindings.size());
-        var letAliases = letBindings.stream().map(LetBinding::name).collect(Collectors.toSet());
+        var allBindings = letBindings.stream().map(LetBinding::name).collect(Collectors.toSet());
         // Shared across all depth checks: bound plans are inserted by reference, so each distinct node is measured once.
         Map<LogicalPlan, Integer> depths = new IdentityHashMap<>();
         for (LetBinding binding : letBindings) {
             // Substitute earlier bindings into this binding's body (sequential scoping).
-            var current = substitute(binding.plan(), resolved, letAliases);
+            var current = substitute(binding.plan(), resolved, allBindings);
             checkPlanDepth(current, depths, "LET binding [" + binding.name() + "]");
             resolved.put(binding.name(), current);
         }
         // Substitute the full map into the main query plan.
-        var result = substitute(plan, resolved, letAliases);
+        var result = substitute(plan, resolved, allBindings);
         checkPlanDepth(result, depths, "query");
         return result;
     }
@@ -152,7 +152,7 @@ public final class LetResolver {
      * Also substitutes into subquery plans embedded in {@link InSubquery} and
      * {@link MultiColumnInSubquery} expressions.
      */
-    private static LogicalPlan substitute(LogicalPlan plan, Map<String, LogicalPlan> resolved, Set<String> letAliases) {
+    private static LogicalPlan substitute(LogicalPlan plan, Map<String, LogicalPlan> resolved, Set<String> allBindings) {
         // transformDownSkipBranch: when a replacement is made, set skipBranch so the replacement
         // subtree is not descended into. This enforces sequential scoping — a binding body that was
         // already evaluated against its own (partial) resolved map is not re-expanded with later
@@ -183,7 +183,7 @@ public final class LetResolver {
                         result.add(bindingPlan);
                     } else {
                         // the query contained a reference to a binding that has not been resolved yet
-                        if (letAliases.contains(current)) {
+                        if (allBindings.contains(current)) {
                             throw new VerificationException(
                                 "Forward reference in LET bindings: [{}] cannot be referenced before its declaration",
                                 current
@@ -203,11 +203,11 @@ public final class LetResolver {
             // plan-node children, so transformDownSkipBranch cannot reach it via the normal child
             // traversal. Substitute into those plans explicitly here.
             LogicalPlan result = p.transformExpressionsOnly(InSubquery.class, inSub -> {
-                LogicalPlan newSubquery = substitute(inSub.subquery(), resolved, letAliases);
+                LogicalPlan newSubquery = substitute(inSub.subquery(), resolved, allBindings);
                 return newSubquery != inSub.subquery() ? new InSubquery(inSub.source(), inSub.value(), newSubquery) : inSub;
             });
             return result.transformExpressionsOnly(MultiColumnInSubquery.class, mcsub -> {
-                LogicalPlan newSubquery = substitute(mcsub.subquery(), resolved, letAliases);
+                LogicalPlan newSubquery = substitute(mcsub.subquery(), resolved, allBindings);
                 return newSubquery != mcsub.subquery() ? new MultiColumnInSubquery(mcsub.source(), mcsub.values(), newSubquery) : mcsub;
             });
         });

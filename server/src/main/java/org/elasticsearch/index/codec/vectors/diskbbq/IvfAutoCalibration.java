@@ -564,7 +564,10 @@ public class IvfAutoCalibration {
                 );
                 errorModelCache.put(key, errorModel);
             }
-            // cap evaluation at the measured sample size to avoid extrapolating beyond its fitted range
+            // cap evaluation at the measured sample size to avoid extrapolating beyond its fitted range.
+            // The error measured on the coarse sample clustering over-estimates the error of large segments (whose
+            // clusters, and so residuals, are smaller), but that conservatism currently offsets the recall model's
+            // optimism on small segments: removing it without addressing the latter increases target misses.
             int effectiveN = Math.min(numVectors, state.ndocs());
             return errorModel.errorStd(vectorsPerCluster, effectiveN);
         });

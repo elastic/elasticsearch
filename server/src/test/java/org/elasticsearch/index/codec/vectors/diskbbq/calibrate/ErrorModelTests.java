@@ -15,6 +15,8 @@ import org.elasticsearch.index.codec.vectors.cluster.CentroidOps;
 import org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
+import org.elasticsearch.index.codec.vectors.diskbbq.es95.ES950DiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.test.ESTestCase;
 
@@ -655,6 +657,87 @@ public class ErrorModelTests extends ESTestCase {
         return rows;
     }
 
+    public void testCentroidsPerParentClusterMatchesFormats() {
+        assertEquals(ES950DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER, ErrorModel.CENTROIDS_PER_PARENT_CLUSTER);
+        assertEquals(ESNextDiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER, ErrorModel.CENTROIDS_PER_PARENT_CLUSTER);
+    }
+
+    public void testQueriesUseGlobalCentroidMatchesParentClusterThreshold() {
+        int vpc = 384;
+        int maxFlatCentroids = ErrorModel.CENTROIDS_PER_PARENT_CLUSTER * ErrorModel.CENTROIDS_PER_PARENT_CLUSTER;
+        assertTrue(ErrorModel.queriesUseGlobalCentroid(10_000, vpc));
+        assertTrue(ErrorModel.queriesUseGlobalCentroid(maxFlatCentroids * vpc, vpc));
+        assertFalse(ErrorModel.queriesUseGlobalCentroid((maxFlatCentroids + 1) * vpc, vpc));
+        assertFalse(ErrorModel.queriesUseGlobalCentroid(1_000_000, vpc));
+    }
+
+    /**
+     * Small segments have no parent clusters, so the reader quantizes queries against the segment's global centroid;
+     * the error model must do the same (one query centroid: the mean of the sampled documents), while large segments
+     * keep clustered query centroids.
+     */
+    public void testQueryCentroidFollowsSegmentSizeRegime() throws IOException {
+        int dim = 16;
+        float[][] rows = randomNormalizedRows(3000, dim, 13L);
+        FloatVectorValues fvv = KMeansFloatVectorValues.build(List.of(rows), null, dim);
+        int[] queryOrdinals = range(0, 32);
+        int[] corpusOrdinals = range(32, 2048);
+        int nDocs = corpusOrdinals.length;
+        int nDocsPerCluster = 128;
+        VectorSimilarityFunction sim = randomFrom(VectorSimilarityFunction.DOT_PRODUCT, VectorSimilarityFunction.EUCLIDEAN);
+
+        CalibrationSource small = new CalibrationSource(sim, dim, fvv, queryOrdinals, dim, false, false, null, corpusOrdinals, 10, 20_000);
+        ErrorModel.QuantizedErrorComputeResult global = ErrorModel.quantizedRepErrorStdWithCentroids(
+            small,
+            false,
+            nDocs,
+            nDocsPerCluster,
+            4,
+            1,
+            HierarchicalKMeans.ofSerial(CentroidOps.FLOAT, dim),
+            null,
+            null,
+            new ErrorModel.QuantizedErrorScratch(nDocs, dim, false, sim == VectorSimilarityFunction.EUCLIDEAN, false)
+        );
+        assertEquals(1, global.queryCentroids().length);
+        float[] mean = new float[dim];
+        for (int ord : corpusOrdinals) {
+            for (int d = 0; d < dim; d++) {
+                mean[d] += rows[ord][d] / nDocs;
+            }
+        }
+        assertArrayEquals(mean, global.queryCentroids()[0], 1e-4f);
+        assertThat(global.std(), greaterThan(0.0));
+
+        CalibrationSource large = new CalibrationSource(
+            sim,
+            dim,
+            fvv,
+            queryOrdinals,
+            dim,
+            false,
+            false,
+            null,
+            corpusOrdinals,
+            10,
+            2_000_000
+        );
+        ErrorModel.QuantizedErrorComputeResult clustered = ErrorModel.quantizedRepErrorStdWithCentroids(
+            large,
+            false,
+            nDocs,
+            nDocsPerCluster,
+            4,
+            1,
+            HierarchicalKMeans.ofSerial(CentroidOps.FLOAT, dim),
+            null,
+            null,
+            new ErrorModel.QuantizedErrorScratch(nDocs, dim, false, sim == VectorSimilarityFunction.EUCLIDEAN, false)
+        );
+        assertThat(clustered.queryCentroids().length, greaterThan(1));
+        assertThat(clustered.std(), greaterThan(0.0));
+    }
+
     public void testWarmStartQueryCentroidsAreGatedOnSpaceConsistency() throws IOException {
         int dim = 64;
         float[][] rows = skewedClusteredRows(2500, dim, 8);
@@ -675,7 +758,9 @@ public class ErrorModelTests extends ESTestCase {
             preconditioner,
             corpusOrdinals,
             10,
-            fvv.size()
+            // a segment large enough to have parent clusters, so queries are quantized against clustered query
+            // centroids (the code path whose warm start this test guards) rather than the global centroid
+            1_000_000
         );
 
         double invDim = ManifoldModel.estimateManifoldParameters(source).invDim();

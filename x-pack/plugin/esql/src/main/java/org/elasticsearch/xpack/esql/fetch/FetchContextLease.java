@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.fetch.lifetime;
+package org.elasticsearch.xpack.esql.fetch;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.util.concurrent.ThreadContext;

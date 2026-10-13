@@ -61,8 +61,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.fetch.FetchResponse.ShardResult;
-import org.elasticsearch.xpack.esql.fetch.lifetime.FetchContextsTestCase;
-import org.elasticsearch.xpack.esql.fetch.lifetime.NodeFetchContexts;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FetchSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;

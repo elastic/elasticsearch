@@ -11,7 +11,7 @@ import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.xpack.esql.fetch.lifetime.DocRefOriginResolver;
+import org.elasticsearch.xpack.esql.fetch.DocRefOriginResolver;
 
 import java.util.Arrays;
 import java.util.List;

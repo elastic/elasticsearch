@@ -37,6 +37,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -334,9 +335,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 ExternalClientException.Condition.OBJECT_ARCHIVED,
                 path,
                 S3FailureDetail.of(archived),
-                tier.isEmpty()
-                    ? "Restore it, or wait for a restore in progress to finish, before reading it."
-                    : "It is in " + tier + "; restore it, or wait for a restore in progress to finish, before reading it.",
+                S3FailureDetail.archivedRemedy(tier),
                 cause
             );
         }
@@ -732,14 +731,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 throw archived;
             }
             if (e.statusCode() == 416) {
-                // 416 Range Not Satisfiable: the object exists and is empty (0 bytes). A 416 is itself an
-                // answer from S3, not a failure to reach it, so this counts as a successful probe.
-                cachedExists = true;
-                cachedLength = 0L;
-                // The 416 carries no timestamp, and lastModified() would otherwise return null for an object
-                // that exists. EPOCH is sound for an empty one: the timestamp is a version token for content,
-                // and there is none.
-                cachedLastModified = Instant.EPOCH;
+                recordEmptyObject();
             } else if (e.statusCode() == 403) {
                 // Denied, and nothing cheaper is left to try: this request already is the cheapest read, and a
                 // HEAD needs the same s3:GetObject, so a second request would only be refused again.
@@ -751,6 +743,67 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             ExternalPlanningIo.addMetadataGet(0);
             throw throwReadFailure("Failed to read object metadata for", e);
         }
+    }
+
+    /**
+     * The object's length and modification time from a single {@code HeadObject}, for a caller that will not read
+     * the object — {@link org.elasticsearch.xpack.esql.datasources.spi.StorageProvider#objectMetadata}.
+     * <p>
+     * Deliberately not {@link #probeObject}, which this leaves untouched: that path serves callers who go on to
+     * read, so it uses a range GET and latches the generation in {@code pinnedEtag} for later ranged reads to
+     * validate against. This one issues no range GET when the HEAD answers, so it latches nothing; on the
+     * recovery path below it does, because the GET that recovers the error body latches the pin as any GET
+     * does.
+     */
+    StorageEntry headObjectMetadata() throws IOException {
+        HeadObjectResponse response;
+        try {
+            response = s3Client.headObject(HeadObjectRequest.builder().bucket(bucket).key(key).build());
+        } catch (Exception e) {
+            ExternalPlanningIo.addMetadataGet(0);
+            if (e instanceof S3Exception s3e
+                && s3e.statusCode() >= 400
+                && s3e.statusCode() < 500
+                && s3e.statusCode() != 404
+                && ExternalUnavailableException.isRetryableStatus(s3e.statusCode()) == false
+                && S3FailureDetail.lacksErrorCode(s3e)) {
+                // A HEAD carries no body, so no error code, and the conditions this layer distinguishes are read
+                // from one. A range GET recovers it. 404 is excluded as a cost choice rather than for want of
+                // anything to learn -- a GET can distinguish a missing key from a missing bucket, which a bodyless
+                // HEAD cannot -- because not-found is already the whole answer the resolve needs. A retryable
+                // status is excluded because the retry layer is about to ask again, and a second request per
+                // attempt against a store that answered 429 is the opposite of what it asked for.
+                probeObjectViaRangeGet();
+                if (Boolean.FALSE.equals(cachedExists)) {
+                    // The GET answered NoSuchKey, which probeObjectViaRangeGet records rather than throws. Without
+                    // this the method returns length 0 and an EPOCH timestamp for an object that is not there, and
+                    // the resolve path caches that as the file's metadata.
+                    throw new ExternalClientException(ExternalClientException.Condition.OBJECT_NOT_FOUND, path, "", "");
+                }
+                return new StorageEntry(path, cachedLength, cachedLastModified);
+            }
+            throw throwReadFailure("Failed to read object metadata for", e);
+        }
+
+        // Reading the response happens outside the try: these throws are this method's own conclusions about a
+        // successful HEAD, and a catch that re-mapped them would turn them into a read failure.
+        ExternalPlanningIo.addMetadataGet(0);
+        if (S3FailureDetail.isArchivedHeadResponse(response.storageClass(), response.archiveStatus(), response.restore())) {
+            // A HEAD on an archived object succeeds and reports the state in headers, where a GET is refused with
+            // InvalidObjectState. Without this the resolve accepts the object and the read fails later, with a
+            // message that no longer says to restore it.
+            throw new ExternalClientException(
+                ExternalClientException.Condition.OBJECT_ARCHIVED,
+                path,
+                "",
+                S3FailureDetail.archivedRemedy(S3FailureDetail.archivedTier(response.storageClass(), response.archiveStatus()))
+            );
+        }
+        Long length = response.contentLength();
+        if (length == null) {
+            throw new IOException("Failed to determine external object size: HeadObject response carried no Content-Length");
+        }
+        return new StorageEntry(path, length, response.lastModified());
     }
 
     private void probeObjectViaHead() throws IOException {
@@ -781,6 +834,8 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 throw archived;
             }
             if (e instanceof S3Exception s3e && s3e.statusCode() == 403) {
+                // Not a retry of a denial: probeObject throws on its own 403, so only an unrelated GET failure
+                // or a missing Content-Range reaches here.
                 probeObjectViaRangeGet();
             } else {
                 throw throwReadFailure("HeadObject request failed for", e);
@@ -806,10 +861,25 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         } catch (Exception e) {
             if (e instanceof NoSuchKeyException) {
                 setNotFound();
+            } else if (e instanceof S3Exception s3e && s3e.statusCode() == 416) {
+                recordEmptyObject();
             } else {
                 throw throwReadFailure("Failed to get metadata for", e);
             }
         }
+    }
+
+    /**
+     * What a 416 on a {@code bytes=0-0} range means: the object exists and is empty. A 416 is S3's answer, not a
+     * failure to reach it, so either probe that sees one has finished successfully.
+     * <p>
+     * The response carries no timestamp, and {@code lastModified()} would otherwise return null for an object that
+     * exists. EPOCH is sound for an empty one: the timestamp is a version token for content, and there is none.
+     */
+    private void recordEmptyObject() {
+        cachedExists = true;
+        cachedLength = 0L;
+        cachedLastModified = Instant.EPOCH;
     }
 
     private void setNotFound() {

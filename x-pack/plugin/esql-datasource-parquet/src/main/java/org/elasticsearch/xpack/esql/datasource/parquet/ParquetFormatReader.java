@@ -349,7 +349,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * can route flat vs list paths off of it.
      * <p>
      * {@code columnName} may be a dotted struct-leaf path (e.g. {@code "event.action"}) — the
-     * same D2 resolution rule as {@link #resolveFieldType} applies: literal top-level match wins
+     * same resolution rule as {@link #resolveFieldType} applies: literal top-level match wins
      * over dotted-path traversal.
      * <p>
      * Package-private because {@link ParquetColumnExtractor} is the only collaborator and we
@@ -1788,7 +1788,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * Whether a repeated leaf is a <b>top-level</b> list — one addressable by the attribute name
      * {@code path[0]} (a 3-level {@code LIST} group or a legacy 2-level {@code repeated} field). A list
      * nested in a STRUCT is not: its attribute is the dotted {@code s.blist}, not {@code path[0] == "s"},
-     * so it is left to the struct-nested-list work (esql-planning#1055) rather than mis-keyed here.
+    * so it is left to the struct-nested-list work rather than mis-keyed here.
      */
     private static boolean isTopLevelListLeaf(MessageType parquetSchema, String[] path) {
         Type top = parquetSchema.getType(path[0]);
@@ -1843,7 +1843,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     // answer row-level COUNT / IS NOT NULL. Publish only a size marker under the attribute
                     // name (path[0]) so findColumn hits but the unknown null_count makes COUNT decline the
                     // footer fast path and scan, rather than the absent-column contract answering 0.
-                    // esql-planning#1056.
                     colSizes.merge(path[0], new long[] { col.getTotalUncompressedSize() }, (a, b) -> {
                         a[0] += b[0];
                         return a;
@@ -2222,7 +2221,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             if (desc != null && desc.getMaxRepetitionLevel() > 0 && isTopLevelListLeaf(parquetSchema, path)) {
                 // Top-level list column: size marker only under the attribute name (path[0]); the unknown
                 // null_count makes COUNT decline the footer fast path and scan. Mirrors extractStatistics.
-                // esql-planning#1056.
                 stats.merge(
                     SourceStatisticsSerializer.columnSizeBytesKey(path[0]),
                     col.getTotalUncompressedSize(),
@@ -2772,13 +2770,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 // WindowedSeekableInputStream skip the cache lookup. Then release the raw
                 // dictionary/bloom buffers: the data path uses ColumnChunkPrefetcher, not these
                 // chunks, and holding them would pin untracked forceAdd bytes until iterator
-                // end while the driver waits for tickets (esql-planning#2270). Parsed column
+                // end while the driver waits for tickets. Parsed column
                 // and offset indexes stay on preloadedMetadata for the iterator.
                 adapter.installPreWarmedChunks(null);
                 // Optimized path only. Drop the open-time sliding window before ticket admission.
                 // The iterator reads through ColumnChunkPrefetcher, not the reader stream; the
                 // window would otherwise stay charged to the node byte budget while the driver
-                // waits for tickets (esql-planning#2252). Also runs when there is no record filter:
+                // waits for tickets. Also runs when there is no record filter:
                 // unfiltered LIMIT sequential OffsetIndex reads can allocate the same window.
                 // Do not call this on the row-based reader: it still reads through the stream.
                 adapter.releaseIdleWindows();
@@ -2862,6 +2860,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 columnInfos,
                 preloadedMetadata,
                 storageObject,
+                adapter,
                 allRowRanges,
                 survivingRowGroups,
                 rowGroupFirstRowGlobalOverride,
@@ -3281,7 +3280,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     private static MessageType buildProjectedSchema(MessageType fullSchema, List<Attribute> projectedAttributes) {
-        // Resolve each attribute to a path of segments. Per D2, exact top-level match wins over
+        // Resolve each attribute to a path of segments. Exact top-level match wins over
         // dotted-path traversal so that literal-dot top-level field names keep resolving to
         // themselves. Each entry maps the resolved top-level field name -> ordered, deduplicated
         // child paths (each a list of segments below that top-level field; empty for a literal
@@ -3433,7 +3432,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
 
     /**
      * Resolves a (possibly dotted) attribute name to its {@link Type} in {@code fullSchema}.
-     * Applies D2: literal top-level match wins over dotted-path traversal. Returns {@code null}
+     * Literal top-level match wins over dotted-path traversal. Returns {@code null}
      * when the name has no match.
      */
     private static Type resolveFieldType(MessageType fullSchema, String name) {
@@ -3548,7 +3547,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * internals ({@code metadata}, {@code value}, and {@code typed_value.*} when shredded), not
      * user fields: flattening them typed the raw binary encoding as {@code keyword}, so a query
      * returned the encoding's bytes instead of the user's data. Surfacing the group as one
-     * UNSUPPORTED attribute gives a clear unsupported answer instead (esql-planning#1970).
+     * UNSUPPORTED attribute gives a clear unsupported answer instead of leaking encoding fields.
      *
      * <p>Recursion is bounded by {@link #MAX_STRUCT_FLATTENING_DEPTH}; groups deeper than the cap
      * are emitted as a single UNSUPPORTED attribute and a DEBUG log line is recorded.

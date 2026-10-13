@@ -614,6 +614,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final IndexMetadata existingMetadata = indexService.getIndexSettings().getIndexMetadata();
 
             IndexRemovalReason reason = null;
+            boolean cleanUpRemovedShards = false;
             if (indexMetadata != null && indexMetadata.getState() != existingMetadata.getState()) {
                 reason = indexMetadata.getState() == IndexMetadata.State.CLOSE ? CLOSED : REOPENED;
             } else if (indexMetadata != null && isRestoreHistoryUuidTransition(existingMetadata, indexMetadata)) {
@@ -640,9 +641,23 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 reason = indexMetadata != null && indexMetadata.getState() == IndexMetadata.State.CLOSE ? CLOSED : NO_LONGER_ASSIGNED;
             }
 
+            // A restore (over an open or a closed index) may have reduced the shard count. If this node keeps shards of the index then the
+            // cleanup happens when the index service is recreated (see createIndicesAndUpdateShards), otherwise nothing else would ever
+            // remove the stores of the removed shards.
+            if (reason != null
+                && indexMetadata != null
+                && indexMetadata.getNumberOfShards() < existingMetadata.getNumberOfShards()
+                && historyUUID(existingMetadata).equals(historyUUID(indexMetadata)) == false
+                && (localRoutingNode == null || localRoutingNode.hasIndex(index) == false)) {
+                cleanUpRemovedShards = true;
+            }
+
             if (reason != null) {
                 logger.debug("{} removing index ({})", index, reason);
                 indicesService.removeIndex(index, reason, "removing index (" + reason + ")", shardCloseExecutor, getShardsClosedListener());
+                if (cleanUpRemovedShards) {
+                    deleteStoresOfShardsOutsideIndexRange(indexMetadata);
+                }
             } else {
                 // remove shards based on routing nodes (no deletion of data)
                 for (Shard shard : indexService) {
@@ -831,7 +846,27 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             for (ShardRouting shardRouting : entry.getValue()) {
                 createOrUpdateShard(state, shardRouting, indexService);
             }
+            // Also covers stores left behind by a restore that reduced the shard count, whether this node was restarted since or the
+            // index service was just recreated by that restore.
+            deleteStoresOfShardsOutsideIndexRange(indexMetadata);
         }
+    }
+
+    /**
+     * Removes stores of shards that are beyond the index's current shard count, which a restore over an existing index can leave
+     * behind. Waits for shards closed by this and earlier cluster states so that the shard locks are released first. A failure is
+     * only logged: the next time the index service is created on this node (e.g. after a restart) will try again.
+     */
+    private void deleteStoresOfShardsOutsideIndexRange(IndexMetadata indexMetadata) {
+        onClusterStateShardsClosed(
+            () -> indicesService.deleteShardsOutsideIndexRange(
+                indexMetadata,
+                ActionListener.wrap(
+                    ignored -> {},
+                    e -> logger.debug(() -> format("failed to clean up stores of shards removed from %s", indexMetadata.getIndex()), e)
+                )
+            )
+        );
     }
 
     private void createOrUpdateShard(ClusterState state, ShardRouting shardRouting, AllocatedIndex<? extends Shard> indexService) {
@@ -1596,6 +1631,15 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             Executor shardCloseExecutor,
             ActionListener<Void> shardsClosedListener
         );
+
+        /**
+         * Deletes the on-disk stores of any shards of the given index whose ID is not below its current number of shards, for example
+         * because a restore reduced the shard count. Runs asynchronously, off the calling thread.
+         *
+         * @param metadata the current metadata of the index
+         * @param listener completed when all such stores have been deleted
+         */
+        void deleteShardsOutsideIndexRange(IndexMetadata metadata, ActionListener<Void> listener);
 
         /**
          * Returns an IndexService for the specified index if exists otherwise returns <code>null</code>.

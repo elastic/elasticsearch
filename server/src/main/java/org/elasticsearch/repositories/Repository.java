@@ -206,7 +206,7 @@ public interface Repository extends LifecycleComponent {
      *                                     exceptionally.
      */
     void deleteSnapshots(
-        Collection<SnapshotId> snapshotIds,
+        Set<SnapshotId> snapshotIds,
         long repositoryDataGeneration,
         IndexVersion minimumNodeVersion,
         ActionListener<RepositoryData> repositoryDataUpdateListener,

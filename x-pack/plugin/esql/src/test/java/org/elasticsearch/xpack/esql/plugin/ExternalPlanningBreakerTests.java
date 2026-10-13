@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -91,7 +92,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.fetch.FetchService;
-import org.elasticsearch.xpack.esql.fetch.lifetime.FetchContextService;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
@@ -617,8 +617,6 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
 
         Set<Setting<?>> registered = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         registered.add(EsqlPlugin.GROK_WATCHDOG_MAX_EXECUTION_TIME);
-        registered.add(FetchContextService.MAX_OPEN_CONTEXTS);
-        registered.add(FetchContextService.CONTEXT_KEEP_ALIVE);
         registered.add(FetchService.MAX_CONCURRENT_SHARD_TASKS);
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, registered);
         ClusterService clusterService = mock(ClusterService.class);
@@ -663,6 +661,7 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
         TransportActionServices transport = new TransportActionServices(
             transportService,
             null,
+            new SearchTransportService(transportService, null, null),
             exchangeService,
             clusterService,
             null,

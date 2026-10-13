@@ -13,11 +13,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.xpack.esql.fetch.lifetime.OpenContextInfo;
 
 import java.io.IOException;
 import java.util.List;
@@ -29,7 +27,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class DataNodeComputeResponseTests extends ESTestCase {
     public void testOpenContextsRoundTrip() throws IOException {
-        List<OpenContextInfo> open = randomList(0, 5, DataNodeComputeResponseTests::randomOpenContext);
+        List<ShardSearchContextId> open = randomList(0, 5, DataNodeComputeResponseTests::randomOpenContext);
         DataNodeComputeResponse response = new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of()).withOpenContexts(open);
 
         DataNodeComputeResponse copy = roundTrip(response, TransportVersion.current());
@@ -50,11 +48,8 @@ public class DataNodeComputeResponseTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("can't send fetch contexts to a node on"));
     }
 
-    private static OpenContextInfo randomOpenContext() {
-        return new OpenContextInfo(
-            new ShardId(randomAlphaOfLength(5), randomAlphaOfLength(5), between(0, 10)),
-            new ShardSearchContextId(randomAlphaOfLength(10), randomNonNegativeLong(), randomBoolean() ? null : randomAlphaOfLength(8))
-        );
+    private static ShardSearchContextId randomOpenContext() {
+        return new ShardSearchContextId(randomAlphaOfLength(10), randomNonNegativeLong(), randomBoolean() ? null : randomAlphaOfLength(8));
     }
 
     private static DataNodeComputeResponse roundTrip(DataNodeComputeResponse response, TransportVersion version) throws IOException {

@@ -8,12 +8,10 @@
 package org.elasticsearch.xpack.esql.fetch.lifetime;
 
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.DocRefOrigin;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
@@ -36,9 +34,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * The reader contexts that one data node request opens for the fetch phase, one per shard.
  * <p>
- * Each context is registered in {@link SearchService}, so the reaper, index removal and node shutdown free it if nobody
- * else does. The request owns its contexts until it has sent its response. Then it frees the ones whose rows didn't
- * survive the node cut, and the coordinator owns the rest.
+ * Each one is a single-session reader context of {@link SearchService}, like the contexts the query phase of
+ * {@code _search} opens, so the reaper, index removal and node shutdown free it if nobody else does. The request owns its
+ * contexts until it has sent its response. Then it frees the ones whose rows didn't survive the node cut, and the
+ * coordinator owns the rest.
  * <p>
  * Until the request ends it holds its own reference on each context, so none expires while the drivers run or while the
  * coordinator drains the exchange. It drops those references last, in {@link #close}, on the generic pool, after the search
@@ -75,70 +74,39 @@ public final class NodeFetchContexts implements DocRefOriginResolver, Releasable
     }
 
     private final FetchContextService service;
-    private final TimeValue keepAlive;
     /**
-     * The creator of the contexts. Dropped when the request stops opening contexts, because a context can outlive the
-     * request by its keep-alive and holds this object through its marker.
+     * The creator of the contexts, logged when they open and close. Dropped when the request stops opening contexts.
      */
     @Nullable
     private volatile Task task;
     /**
-     * The contexts that are still open. A context leaves when it closes.
+     * The contexts this request opened. The request holds a reference on each until it ends, so none closes before.
      */
     private final Map<ShardSearchContextId, OpenContext> contexts = new ConcurrentHashMap<>();
     private State state = State.OPEN;
     private boolean released;
 
-    NodeFetchContexts(FetchContextService service, TimeValue keepAlive, @Nullable Task task) {
+    NodeFetchContexts(FetchContextService service, @Nullable Task task) {
         this.service = service;
-        this.keepAlive = keepAlive;
         this.task = task;
     }
 
     /**
-     * Opens a registered reader context for the shard of {@code shardRequest}, bound to the current user, and returns the
-     * search context the query phase reads it with. Every resource taken so far is released when it fails.
+     * Opens a single-session reader context for the shard of {@code shardRequest}, and returns the search context the
+     * query phase reads it with. Every resource taken so far is released when it fails.
      *
-     * @throws org.elasticsearch.ElasticsearchStatusException with status 429 when the node holds too many fetch contexts
-     * @throws IllegalArgumentException when the keep-alive is longer than this node allows
      * @throws TaskCancelledException when the request failed or was cancelled
      */
     public SearchContext open(ShardSearchRequest shardRequest) throws IOException {
         // checked first, so a cancelled request doesn't acquire a searcher for every remaining shard
         ensureOpen();
         SearchService searchService = service.searchService();
-        if (keepAlive.millis() > searchService.getMaxKeepAliveInMillis()) {
-            throw new IllegalArgumentException(
-                "the coordinator asks to keep fetch contexts for ["
-                    + keepAlive
-                    + "], set by ["
-                    + FetchContextService.CONTEXT_KEEP_ALIVE.getKey()
-                    + "], but ["
-                    + SearchService.MAX_KEEPALIVE_SETTING.getKey()
-                    + "] allows at most ["
-                    + TimeValue.timeValueMillis(searchService.getMaxKeepAliveInMillis())
-                    + "] on this node"
-            );
-        }
-        service.reserve();
-        FetchContextListener.OpenMarker marker = new FetchContextListener.OpenMarker(this);
         ReaderContext readerContext = null;
         SearchContext querySearchContext = null;
         Releasable nodeLease = null;
         boolean success = false;
         try {
-            ThreadContext threadContext = service.threadContext();
-            try (var ignored = threadContext.newStoredContextPreservingResponseHeaders()) {
-                // the listener runs inside the open, on this thread, and reads the marker
-                threadContext.putTransient(FetchContextListener.OPEN_MARKER, marker);
-                readerContext = searchService.openOwnedReaderContext(shardRequest, keepAlive, task);
-            }
-            if (marker.bound() == false) {
-                // without its owner and its marker, the context would be open to anyone who guesses its id
-                throw new IllegalStateException(
-                    "no fetch context listener bound reader context [" + readerContext.id() + "] of shard [" + shardRequest.shardId() + "]"
-                );
-            }
+            readerContext = searchService.createOrGetReaderContext(shardRequest, task);
             querySearchContext = searchService.createSearchContext(readerContext, shardRequest, SearchService.NO_TIMEOUT);
             // taken last: the query search context already holds a reference, so the context can't be gone
             nodeLease = readerContext.markAsUsed(-1L);
@@ -150,11 +118,6 @@ public final class NodeFetchContexts implements DocRefOriginResolver, Releasable
                 Releasables.closeWhileHandlingException(nodeLease, querySearchContext);
                 if (readerContext != null) {
                     searchService.freeReaderContext(readerContext.id());
-                }
-                if (marker.bound() == false) {
-                    // no listener follows this context, so its close releases nothing. Once a listener bound it, the
-                    // listener releases it when it closes, also when the open itself failed and closed it.
-                    service.release();
                 }
             }
         }
@@ -195,14 +158,14 @@ public final class NodeFetchContexts implements DocRefOriginResolver, Releasable
     }
 
     /**
-     * The contexts whose rows survived the node cut and that are still open, for the response. Changes no reference, so
-     * it can run on the thread that sends the response.
+     * The contexts whose rows survived the node cut, for the response. Changes no reference, so it can run on the thread
+     * that sends the response.
      */
-    public List<OpenContextInfo> listOpenContributing() {
-        List<OpenContextInfo> open = new ArrayList<>();
+    public List<ShardSearchContextId> listOpenContributing() {
+        List<ShardSearchContextId> open = new ArrayList<>();
         for (OpenContext context : contexts.values()) {
             if (context.flags().contributing) {
-                open.add(new OpenContextInfo(context.origin().shardId(), context.readerContext().id()));
+                open.add(context.readerContext().id());
             }
         }
         return open;
@@ -275,24 +238,6 @@ public final class NodeFetchContexts implements DocRefOriginResolver, Releasable
                 context.nodeLease().close();
             }
         });
-    }
-
-    /**
-     * Frees one context of this node, also one that hasn't finished opening yet.
-     */
-    void free(ShardSearchContextId id, String reason) {
-        onGeneric(() -> {
-            boolean found = service.searchService().freeReaderContext(id);
-            logger.debug("freed fetch context [{}] because {}{}", id, reason, found ? "" : ", it was already gone");
-        });
-    }
-
-    /**
-     * Called by the listener when a context of this request closed, on any path, also one that never finished opening.
-     */
-    void onReaderContextClosed(ReaderContext readerContext) {
-        service.release();
-        contexts.remove(readerContext.id());
     }
 
     private void freeOnce(OpenContext context, String reason) {

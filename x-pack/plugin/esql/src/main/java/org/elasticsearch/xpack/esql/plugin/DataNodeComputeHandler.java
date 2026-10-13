@@ -56,6 +56,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -81,7 +82,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException
 import org.elasticsearch.xpack.esql.fetch.lifetime.DocRefOriginResolver;
 import org.elasticsearch.xpack.esql.fetch.lifetime.FetchContextLease;
 import org.elasticsearch.xpack.esql.fetch.lifetime.NodeFetchContexts;
-import org.elasticsearch.xpack.esql.fetch.lifetime.OpenContextInfo;
 import org.elasticsearch.xpack.esql.plan.physical.DocRefEncodeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -282,7 +282,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 queryPragmas.nodeLevelReduction() && enableReduceNodeLateMaterialization,
                                 sameNodeAsCoordinator && queryPragmas.singleNodeOptimizations() && Strings.isEmpty(clusterAlias),
                                 List.of(),
-                                fetchContextLease == null ? null : fetchContextLease.keepAlive()
+                                fetchContextLease != null
                             );
                             ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
                             transportService.sendChildRequest(
@@ -293,7 +293,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 TransportRequestOptions.EMPTY,
                                 new ActionListenerResponseHandler<>(computeListener.acquireCompute().map(r -> {
                                     if (fetchContextLease != null) {
-                                        fetchContextLease.add(connection.getNode(), originalIndices, r.openContexts());
+                                        fetchContextLease.add(connection.getNode(), r.openContexts());
                                     }
                                     nodeResponseRef.set(r);
                                     return r.completionInfo();
@@ -1495,13 +1495,13 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             request.externalSplits(),
             request.declineIfNotReady(),
             request.requiredClusterStateVersion(),
-            request.fetchContextKeepAlive()
+            request.keepFetchContexts()
         );
         // the sender doesn't support retry on shard failures, so we need to fail fast here.
         final boolean failFastOnShardFailures = supportShardLevelRetryFailure(channelVersion) == false;
-        final NodeFetchContexts fetchContexts = request.fetchContextKeepAlive() == null
-            ? null
-            : computeService.fetchPhaseServices().contextService().newNodeContexts(request.fetchContextKeepAlive(), task);
+        final NodeFetchContexts fetchContexts = request.keepFetchContexts()
+            ? computeService.fetchPhaseServices().contextService().newNodeContexts(task)
+            : null;
         var computeSearchContexts = new AcquiredSearchContexts(
             request.shards().size(),
             fetchContexts == null ? DocRefOriginResolver.NONE : fetchContexts
@@ -1515,7 +1515,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 @Override
                 public void onResponse(DataNodeComputeResponse response) {
                     // the response lists the contexts the coordinator owns from now on
-                    List<OpenContextInfo> open = fetchContexts.listOpenContributing();
+                    List<ShardSearchContextId> open = fetchContexts.listOpenContributing();
                     listener.onResponse(response.withOpenContexts(open));
                     fetchContexts.responded();
                 }
@@ -1567,7 +1567,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
      * Rows that leave the node as document references must name contexts that the fetch phase finds again.
      */
     static void validateFetchContexts(PhysicalPlan plan, DataNodeRequest request) {
-        if (request.fetchContextKeepAlive() == null && plan.anyMatch(DocRefEncodeExec.class::isInstance)) {
+        if (request.keepFetchContexts() == false && plan.anyMatch(DocRefEncodeExec.class::isInstance)) {
             throw new IllegalStateException("document references need fetch contexts, but the request asked for none");
         }
     }

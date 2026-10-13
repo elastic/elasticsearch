@@ -15,6 +15,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
@@ -206,10 +207,9 @@ public class FetchActionIT extends AbstractEsqlIntegTestCase {
     private List<OpenShard> openEveryShard(String node, int shards) throws IOException {
         FetchContextService contextService = new FetchContextService(
             internalCluster().getInstance(SearchService.class, node),
-            internalCluster().getInstance(TransportService.class, node),
-            clusterService(node).getClusterSettings()
+            internalCluster().getInstance(SearchTransportService.class, node)
         );
-        NodeFetchContexts contexts = contextService.newNodeContexts(TimeValue.timeValueMinutes(5), null);
+        NodeFetchContexts contexts = contextService.newNodeContexts(null);
         List<SearchContext> opened = new ArrayList<>(shards);
         List<OpenShard> open = new ArrayList<>(shards);
         try {

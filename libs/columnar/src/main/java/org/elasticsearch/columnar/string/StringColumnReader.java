@@ -11,6 +11,7 @@ package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.TwoPhaseIterator;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -121,10 +122,10 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
     }
 
     /** A reader for {@code meta}, which decides whether the column has a dictionary to read through. */
-    public static StringColumnReader open(StringColumnMetadata meta, ColumnInputs inputs) throws IOException {
+    public static StringColumnReader open(StringColumnMetadata meta, ColumnInputs inputs, IndexInput skipIndex) throws IOException {
         return switch (meta) {
             case StringColumnMetadata.Dictionary column -> new DictionaryStringColumnReader(column, inputs);
-            case StringColumnMetadata.Plain column -> new PlainStringColumnReader(column, inputs);
+            case StringColumnMetadata.Plain column -> new PlainStringColumnReader(column, inputs, skipIndex);
         };
     }
 

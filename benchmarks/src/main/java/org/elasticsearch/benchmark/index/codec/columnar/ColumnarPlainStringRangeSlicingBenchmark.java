@@ -20,14 +20,20 @@ import java.io.IOException;
  * shapes that span the spectrum from maximally skip-friendly to skip-hostile:
  *
  * <ul>
- * <li>{@code SORTED_POD_NAME}: values arrive in term order, each term in one run. The interval
- *     {@code [minTerm, maxTerm]} covers a narrow portion of the vocabulary, so nearly every
- *     interval outside the query range is pruned. This is the best case for the byte skip index.</li>
- * <li>{@code SHUFFLED_POD_NAME}: the same multiset in uniformly random document order. Every
- *     interval spans roughly the full vocabulary, so no interval can be pruned. This is the
- *     worst case, and the direct complement to {@code SORTED_POD_NAME}.</li>
- * <li>{@code TRACE_ID}: all values are distinct hex strings. Intervals cover a modest portion of
- *     the lexicographic space, so some pruning is possible at low selectivities.</li>
+ * <li>{@code SORTED_POD_NAME}: values arrive in term order, so the column is bisected and the skip index
+ *     is not consulted. This is the control for a column that never needed one.</li>
+ * <li>{@code CLUSTERED_POD_NAME}: values rise through the vocabulary in eight runs, so the column is not in
+ *     term order but each interval covers a narrow band of it. Every interval outside the range is
+ *     skipped, which makes this the best case for the skip index.</li>
+ * <li>{@code SHUFFLED_POD_NAME}: the same multiset in uniformly random document order. Every interval
+ *     spans roughly the full vocabulary, so no interval can be skipped. This is the worst case and the
+ *     control for {@code CLUSTERED_POD_NAME}.</li>
+ * <li>{@code TRACE_ID}: all values are distinct hex strings in random order. Every interval spans most
+ *     of the lexicographic space, so nothing is skipped at any selectivity.</li>
+ * <li>{@code UUID_V4}: random UUIDs, distinct and in random order. Like {@code TRACE_ID}, nothing is
+ *     skipped.</li>
+ * <li>{@code UUID_V7}: time-ordered UUIDs arriving slightly out of order. The values are distinct and each
+ *     interval covers a narrow band of the space, so intervals outside the range are skipped.</li>
  * </ul>
  *
  * <p>Run commands (from the repository root):
@@ -35,13 +41,13 @@ import java.io.IOException;
  * # Smoke test: one fork, no warmup, one iteration (finishes in under a minute).
  * ./gradlew :benchmarks:run --args="ColumnarPlainStringRangeSlicingBenchmark -f 1 -wi 0 -i 1 -p numDocs=100000 -rf json -rff columnar-plain-range.json"
  *
- * # Full run: all three data shapes across four selectivity values and two doc counts.
+ * # Full run: all six data shapes across four selectivity values and two doc counts.
  * ./gradlew :benchmarks:run --args="ColumnarPlainStringRangeSlicingBenchmark -rf json -rff columnar-plain-range.json"
  * </pre>
  */
 public class ColumnarPlainStringRangeSlicingBenchmark extends AbstractStringRangeSlicingBenchmark {
 
-    @Param({ "SORTED_POD_NAME", "SHUFFLED_POD_NAME", "TRACE_ID" })
+    @Param({ "SORTED_POD_NAME", "CLUSTERED_POD_NAME", "SHUFFLED_POD_NAME", "TRACE_ID", "UUID_V4", "UUID_V7" })
     private StringData data;
 
     @Param({ "0.0", "0.001", "0.01", "0.1" })

@@ -11,6 +11,7 @@ package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.TwoPhaseIterator;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.columnar.substrate.ColumnInputs;
@@ -37,11 +38,18 @@ public final class PlainStringColumnReader extends StringColumnReader {
 
     private final boolean hasNullSlots;
 
-    PlainStringColumnReader(StringColumnMetadata.Plain column, ColumnInputs inputs) throws IOException {
+    /** Where the term bounds of the column's intervals are, or null when it wrote none. */
+    private final StringColumnMetadata.Plain.Skipper skipperMeta;
+
+    private final IndexInput skipIndex;
+
+    PlainStringColumnReader(StringColumnMetadata.Plain column, ColumnInputs inputs, IndexInput skipIndex) throws IOException {
         super(column, inputs, column.values() == null ? StringColumnOptions.DEFAULT_VALUES_PER_BLOCK : column.values().valuesPerBlock());
         this.valuesWorthNaming = column.valuesWorthNaming();
         this.values = column.numDocsWithField() == 0 ? null : column.values().open(inputs);
         this.hasNullSlots = column.hasNullSlots();
+        this.skipperMeta = column.skipper();
+        this.skipIndex = skipIndex;
     }
 
     @Override
@@ -222,9 +230,23 @@ public final class PlainStringColumnReader extends StringColumnReader {
         throws IOException {
         final ColumnIterator presence = iterator();
         final LastSeen lastSeen = new LastSeen();
-        return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(presence) {
+        final PlainSkippingStringDocs skipping = skipperMeta == null
+            ? null
+            : new PlainSkippingStringDocs(
+                presence,
+                new PlainStringColumnSkipper(skipperMeta, skipIndex),
+                lower,
+                includeLower,
+                upper,
+                includeUpper
+            );
+        final boolean intervalsDecide = skipping != null && hasNullSlots == false;
+        return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(skipping == null ? presence : skipping) {
             @Override
             public boolean matches() throws IOException {
+                if (intervalsDecide && skipping.interiorToRange() && valueCount(presence.rank()) > 0) {
+                    return true;
+                }
                 return matchesRangeRank(presence.rank(), lower, includeLower, upper, includeUpper, lastSeen);
             }
 

@@ -16,6 +16,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
@@ -27,6 +28,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarBinaryFieldType;
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarCodec;
@@ -65,6 +67,35 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
         }
     }
 
+    public void testTheSkipIndexSwitchSurvivesChangingOtherOptions() {
+        final StringColumnOptions off = StringColumnOptions.DEFAULT.withoutSkipIndex();
+        assertTrue(StringColumnOptions.DEFAULT.skipIndex());
+        assertFalse(off.skipIndex());
+        assertFalse(off.withPolicies(DictionaryPolicy.NONE, SummaryPolicy.NONE).skipIndex());
+        assertFalse(off.withSizes(StringColumnOptions.DEFAULT_SIZES).skipIndex());
+        assertTrue(StringColumnOptions.DEFAULT.withPolicies(DictionaryPolicy.NONE, SummaryPolicy.NONE).skipIndex());
+        assertTrue(StringColumnOptions.DEFAULT.withSizes(StringColumnOptions.DEFAULT_SIZES).skipIndex());
+    }
+
+    public void testAFieldWithoutASkipIndexWritesNoRegionThroughFlushesAndAMerge() throws IOException {
+        final int docsPerSegment = 4096 * 2;
+        final int count = docsPerSegment * 4;
+        final int half = count / 2;
+        final List<String> values = new ArrayList<>();
+        for (int d = 0; d < count; d++) {
+            values.add(String.format(Locale.ROOT, "host-%08d", d % half));
+        }
+        final StringColumnOptions plain = StringColumnOptions.DEFAULT.withPolicies(DictionaryPolicy.NONE, SummaryPolicy.NONE);
+        try (Directory with = newDirectory(); Directory without = newDirectory()) {
+            writeInSegments(with, (fieldName, type) -> plain, values, docsPerSegment);
+            writeInSegments(without, (fieldName, type) -> plain.withoutSkipIndex(), values, docsPerSegment);
+            assertTrue("the switch is what removes the region", skipBytes(with) > skipBytes(without));
+            try (DirectoryReader reader = DirectoryReader.open(without)) {
+                assertEquals(values, valuesOf(reader.leaves().get(0).reader(), NAMED, false));
+            }
+        }
+    }
+
     /** A field naming its own codec is read back through the codec its chunk index records, not a default. */
     public void testAFieldMayChooseItsChunkCodec() throws IOException {
         final List<String> values = new ArrayList<>();
@@ -77,7 +108,8 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
             StringColumnOptions.DEFAULT_SUMMARY,
             fieldName.equals(NAMED) ? ChunkCodec.ZSTD : ChunkCodec.IDENTITY,
             StringColumnOptions.DEFAULT_SIZES,
-            singleValued
+            singleValued,
+            true
         );
 
         try (Directory dir = newDirectory()) {
@@ -110,7 +142,8 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
                 StringColumnOptions.DEFAULT_SUMMARY,
                 ChunkCodec.ZSTD,
                 StringColumnOptions.DEFAULT_SIZES,
-                randomBoolean()
+                randomBoolean(),
+                true
             )
         );
         expectThrows(
@@ -120,7 +153,8 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
                 StringColumnOptions.DEFAULT_SUMMARY,
                 null,
                 StringColumnOptions.DEFAULT_SIZES,
-                randomBoolean()
+                randomBoolean(),
+                true
             )
         );
         expectThrows(
@@ -130,7 +164,8 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
                 StringColumnOptions.DEFAULT_SUMMARY,
                 ChunkCodec.ZSTD,
                 null,
-                randomBoolean()
+                randomBoolean(),
+                true
             )
         );
     }
@@ -219,6 +254,42 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
             }
             writer.commit();
         }
+    }
+
+    private static void writeInSegments(Directory dir, StringColumnOptionsSelector selector, List<String> values, int docsPerSegment)
+        throws IOException {
+        final ColumNARDocValuesFormat format = new ColumNARDocValuesFormat(
+            (fieldName, type) -> NumericPipeline::defaultPipeline,
+            field -> ColumnarFieldType.STRING,
+            ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
+            selector
+        );
+        final IndexWriterConfig config = new IndexWriterConfig().setCodec(columnarCodec(format))
+            .setMergePolicy(new LogDocMergePolicy())
+            .setUseCompoundFile(false);
+        config.getMergePolicy().setNoCFSRatio(0.0);
+        final FieldType type = columnarBinaryFieldType();
+        try (IndexWriter writer = new IndexWriter(dir, config)) {
+            for (String value : values) {
+                final Document doc = new Document();
+                doc.add(new Field(NAMED, stringPayload(value), type));
+                writer.addDocument(doc);
+                if (writer.getDocStats().numDocs % docsPerSegment == 0) {
+                    writer.commit();
+                }
+            }
+            writer.forceMerge(1);
+        }
+    }
+
+    private static long skipBytes(Directory dir) throws IOException {
+        long total = 0;
+        for (String file : dir.listAll()) {
+            if (file.endsWith(".cns")) {
+                total += dir.fileLength(file);
+            }
+        }
+        return total;
     }
 
     private static StringColumnReader readerOf(LeafReader leaf, String field) throws IOException {

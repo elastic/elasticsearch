@@ -668,6 +668,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         final StringColumnOptions text = supplier.columnarStringOptionsOf("body");
         assertNotNull("a columnar text field is written as a string column", text);
         assertEquals("surveying a text column for a dictionary is not worth it", DictionaryPolicy.NONE, text.dictionary());
+        assertFalse("no range query reaches a text column, so it records no term bounds", text.skipIndex());
         assertEquals(
             "a keyword column is still worth a dictionary",
             StringColumnOptions.DEFAULT_DICTIONARY,
@@ -686,6 +687,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         final StringColumnOptions options = supplier.columnarStringOptionsOf("category");
         assertNotNull("a columnar keyword field is written as a string column", options);
         assertEquals("a keyword column is worth a dictionary", StringColumnOptions.DEFAULT_DICTIONARY, options.dictionary());
+        assertTrue("a keyword column records term bounds for range queries", options.skipIndex());
         assertNull("a long field is not a string column", supplier.columnarStringOptionsOf("size"));
         assertNull("a double field is not a string column", supplier.columnarStringOptionsOf("score"));
     }

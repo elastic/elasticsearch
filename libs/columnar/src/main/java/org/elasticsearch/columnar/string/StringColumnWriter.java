@@ -82,14 +82,16 @@ public final class StringColumnWriter {
      *                                  a sparse column needing a survey, this is called once for the combined
      *                                  iterator-and-survey pass; for all other columns it is called once per
      *                                  remaining pass (values, and on the dictionary path the ordinals)
-     * @param options                   how the column is written: its dictionary policy, its chunk codec and
-     *                                  the units its streams are sized in
+     * @param options                   how the column is written: its dictionary policy, its chunk codec,
+     *                                  the units its streams are sized in and whether a plain column gets a
+     *                                  skip index
      * @param precomputedVocabulary     a vocabulary already worked out for these values, or null to survey
      *                                  them
      * @param directory                 directory a dictionary column stages its ordinals and escapes in
      * @param context                   IO context for those staged files
      * @param outputs                   values to its data, per-document tables to its addressing, per-block
      *                                  and per-chunk tables to its navigation
+     * @param skipIndex                 where a plain column writes the term bounds of its intervals
      */
     public static StringColumnMetadata write(
         int maxDoc,
@@ -99,7 +101,8 @@ public final class StringColumnWriter {
         Vocabulary.Terms precomputedVocabulary,
         Directory directory,
         IOContext context,
-        ColumnOutputs outputs
+        ColumnOutputs outputs,
+        IndexOutput skipIndex
     ) throws IOException {
         final int numDocsWithField = totals.numDocsWithField();
         final long numValues = totals.numValues();
@@ -204,8 +207,12 @@ public final class StringColumnWriter {
         // the comparison decides cannot be restored, and the value it would compare against is not kept.
         final BytesRefBuilder previous = new BytesRefBuilder();
         boolean hasPrevious = false;
+        final PlainSkipIndexCodec.Writer skip = options.skipIndex()
+            ? PlainSkipIndexCodec.DEFAULT.writer(skipIndex)
+            : PlainSkipIndexCodec.DEFAULT.disabledWriter();
         for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
             slots.startDocument(valueAddress);
+            skip.startDoc(doc);
             for (int i = 0, count = values.valueCount(); i < count; i++) {
                 values.nextValue();
                 final BytesRef value = values.value();
@@ -225,6 +232,7 @@ public final class StringColumnWriter {
                             hasPrevious = true;
                         }
                     }
+                    skip.add(value);
                     stream.add(value);
                 }
                 valueAddress++;
@@ -233,6 +241,7 @@ public final class StringColumnWriter {
         written = stream.finish();
         valuesWorthNaming = dictionaryPolicy.enabled() == false || stream.runs() * StringColumnReader.MIN_PAGE_REPEAT <= numValues;
         addressing = slots.finish(valueAddress);
+        final StringColumnMetadata.Plain.Skipper skipper = skip.finish(sorted && SlotAddressing.NONE.equals(addressing));
         // Checked rather than asserted: these are on the wire, and a reader, or the next merge, would trust them.
         if (nulls != numNullSlots) {
             throw new IllegalStateException("wrote " + nulls + " null slots, counted " + numNullSlots);
@@ -264,7 +273,7 @@ public final class StringColumnWriter {
                 written,
                 sorted,
                 valuesWorthNaming
-            ),
+            ).withSkipper(skipper),
             vocabulary,
             summaryPolicy,
             numValues - numNullSlots,

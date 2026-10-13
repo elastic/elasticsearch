@@ -9,9 +9,13 @@
 
 package org.elasticsearch.index.mapper.extras;
 
+import org.elasticsearch.columnar.string.DictionaryPolicy;
+import org.elasticsearch.columnar.string.StringColumnOptions;
 import org.elasticsearch.index.mapper.AbstractColumnarNullHandlingTestCase;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.plugins.Plugin;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 
@@ -28,5 +32,12 @@ public class MatchOnlyTextColumnarNullHandlingTests extends AbstractColumnarNull
     @Override
     protected String fieldTypeName() {
         return "match_only_text";
+    }
+
+    public void testTheColumnRecordsNoTermBounds() throws IOException {
+        final StringColumnOptions options = ((FieldMapper) codecMapperService().mappingLookup().getMapper(FIELD)).columnarStringOptions();
+        assertNotNull("a match_only_text field is written as a string column", options);
+        assertEquals(DictionaryPolicy.NONE, options.dictionary());
+        assertFalse("no range query reaches a match_only_text column", options.skipIndex());
     }
 }

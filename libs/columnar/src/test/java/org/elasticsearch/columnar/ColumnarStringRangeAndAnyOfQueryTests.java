@@ -36,6 +36,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.NavigableSet;
 import java.util.TreeSet;
 import java.util.function.Predicate;
@@ -53,6 +54,10 @@ import static org.hamcrest.Matchers.not;
 public class ColumnarStringRangeAndAnyOfQueryTests extends ESTestCase {
 
     private static final String FIELD = "kw";
+
+    private static final int ONE_SEGMENT = Integer.MAX_VALUE;
+
+    private static final int PLAIN_INTERVAL = 4096;
 
     /** A query and the predicate deciding, from the values themselves, which documents it must find. */
     private record Shape(String description, Query query, Predicate<BytesRef> matcher) {}
@@ -149,6 +154,50 @@ public class ColumnarStringRangeAndAnyOfQueryTests extends ESTestCase {
         assertShapes(docs);
     }
 
+    public void testPlainColumnSpanningSeveralIntervalsAcrossSegments() throws IOException {
+        final String[] terms = { "alpha", "bravo", "charlie", "delta" };
+        final int runs = between(2, 3);
+        final int perTerm = between(1500, 2500);
+        final List<List<String>> docs = new ArrayList<>();
+        for (int run = 0; run < runs; run++) {
+            for (String term : terms) {
+                for (int d = 0; d < perTerm; d++) {
+                    final String value = term + "-" + docs.size();
+                    docs.add(rarely() ? null : rarely() ? List.of(value, terms[between(0, terms.length - 1)]) : List.of(value));
+                }
+            }
+        }
+        assertShapes(docs, false, between(2000, 5000));
+    }
+
+    public void testALocalColumnKeepsItsSkipIndexAcrossSegmentsAndAMerge() throws IOException {
+        final int docsPerSegment = PLAIN_INTERVAL * between(2, 3);
+        final int count = docsPerSegment * between(4, 6);
+        final int half = (count + 1) / 2;
+        final List<List<String>> local = new ArrayList<>();
+        final List<List<String>> random = new ArrayList<>();
+        for (int d = 0; d < count; d++) {
+            local.add(List.of(String.format(Locale.ROOT, "alpha-%08d", d % half)));
+            random.add(List.of("alpha-" + randomAlphaOfLength(10)));
+        }
+        assertShapes(local, false, docsPerSegment);
+
+        final String low = String.format(Locale.ROOT, "alpha-%08d", between(0, half / 2));
+        final String high = String.format(Locale.ROOT, "alpha-%08d", half / 2 + between(0, half / 2));
+        try (Directory localDir = newDirectory(); Directory randomDir = newDirectory()) {
+            index(localDir, local, false, docsPerSegment, false);
+            index(randomDir, random, false, docsPerSegment, false);
+            assertEquals("one skip-index file once merged", 1, countFiles(localDir, ".cns"));
+            assertTrue("locality keeps a region, and random values do not", totalSize(localDir, ".cns") > totalSize(randomDir, ".cns"));
+            try (DirectoryReader reader = DirectoryReader.open(localDir)) {
+                assertEquals(
+                    matching(local, between(low, true, high, true)),
+                    found(new IndexSearcher(reader), range(low, true, high, true, false))
+                );
+            }
+        }
+    }
+
     public void testSortedColumn() throws IOException {
         final String[] terms = { "alpha", "bravo", "charlie", "delta" };
         final List<List<String>> docs = new ArrayList<>();
@@ -224,7 +273,7 @@ public class ColumnarStringRangeAndAnyOfQueryTests extends ESTestCase {
             new ColumnarStringAnyOfQuery(FIELD, termSet("term-0", "term-2"), singleValued, refuses)
         );
         try (Directory dir = newDirectory()) {
-            index(dir, docs, singleValued);
+            index(dir, docs, singleValued, ONE_SEGMENT);
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 final IndexSearcher searcher = new IndexSearcher(reader);
                 for (Query query : queries) {
@@ -249,7 +298,7 @@ public class ColumnarStringRangeAndAnyOfQueryTests extends ESTestCase {
         reversed.add(new BytesRef("alpha"));
         reversed.add(new BytesRef("charlie"));
         try (Directory dir = newDirectory()) {
-            index(dir, docs, true);
+            index(dir, docs, true, ONE_SEGMENT);
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 assertTrue(
                     "the values arrive in term order, which is the path that bisects",
@@ -266,10 +315,17 @@ public class ColumnarStringRangeAndAnyOfQueryTests extends ESTestCase {
         assertShapes(docs, false);
     }
 
-    /** As {@link #assertShapes(List)}, written single-valued when {@code singleValued}: each document holds one value or none. */
     private void assertShapes(List<List<String>> docs, boolean singleValued) throws IOException {
+        assertShapes(docs, singleValued, ONE_SEGMENT);
+    }
+
+    /**
+     * As {@link #assertShapes(List)}, written single-valued when {@code singleValued}: each document holds one value or
+     * none. The documents are flushed {@code docsPerSegment} to a segment and then merged into one.
+     */
+    private void assertShapes(List<List<String>> docs, boolean singleValued, int docsPerSegment) throws IOException {
         try (Directory dir = newDirectory()) {
-            index(dir, docs, singleValued);
+            index(dir, docs, singleValued, docsPerSegment);
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 // NOTE: the two searchers have to be reading the field two different ways, or the comparison below
                 // holds for the wrong reason: one of them answering everything a document at a time and agreeing
@@ -296,9 +352,19 @@ public class ColumnarStringRangeAndAnyOfQueryTests extends ESTestCase {
         }
     }
 
-    private static void index(Directory dir, List<List<String>> docs, boolean singleValued) throws IOException {
+    private static void index(Directory dir, List<List<String>> docs, boolean singleValued, int docsPerSegment) throws IOException {
+        index(dir, docs, singleValued, docsPerSegment, true);
+    }
+
+    private static void index(Directory dir, List<List<String>> docs, boolean singleValued, int docsPerSegment, boolean compoundFile)
+        throws IOException {
         final Codec codec = singleValued ? ColumnarTestUtils.singleValuedStringCodec() : columnarCodec(ColumnarFieldType.STRING);
-        final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(codec).setMergePolicy(new LogDocMergePolicy());
+        final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(codec)
+            .setMergePolicy(new LogDocMergePolicy())
+            .setUseCompoundFile(compoundFile);
+        if (compoundFile == false) {
+            iwc.getMergePolicy().setNoCFSRatio(0.0);
+        }
         final FieldType type = columnarBinaryFieldType();
         try (IndexWriter writer = new IndexWriter(dir, iwc)) {
             for (List<String> slots : docs) {
@@ -308,9 +374,32 @@ public class ColumnarStringRangeAndAnyOfQueryTests extends ESTestCase {
                     doc.add(new Field(FIELD, singleValued ? new BytesRef(slots.get(0)) : payload(slots), type));
                 }
                 writer.addDocument(doc);
+                if (writer.getDocStats().numDocs % docsPerSegment == 0) {
+                    writer.commit();
+                }
             }
             writer.forceMerge(1);
         }
+    }
+
+    private static int countFiles(Directory dir, String extension) throws IOException {
+        int count = 0;
+        for (String file : dir.listAll()) {
+            if (file.endsWith(extension)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static long totalSize(Directory dir, String extension) throws IOException {
+        long total = 0;
+        for (String file : dir.listAll()) {
+            if (file.endsWith(extension)) {
+                total += dir.fileLength(file);
+            }
+        }
+        return total;
     }
 
     private static List<Integer> matching(List<List<String>> docs, Predicate<BytesRef> matcher) {

@@ -178,12 +178,67 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         PlainValues.Metadata values,
         boolean valuesSorted,
         boolean valuesWorthNaming,
+        Skipper skipper,
         Summary summary
     ) implements StringColumnMetadata {
+
+        /**
+         * The per-interval term bounds of a plain column, written to the skip-index file. Absent when the
+         * column wrote none.
+         *
+         * @param dataOffset start of the interval entries in the skip-index file
+         * @param dataLength length of the interval entries
+         * @param maxDocId   largest doc id with a value
+         * @param maxLevel   levels the writer used, which bounds how many records an entry holds
+         * @param maxBoundBytes longest min or max term the writer kept whole; a longer value was cut to fit
+         * @param codecId    {@link PlainSkipIndexCodec} id that wrote the region
+         */
+        record Skipper(long dataOffset, long dataLength, int maxDocId, int maxLevel, int maxBoundBytes, byte codecId) {
+            void writeTo(DataOutput out) throws IOException {
+                out.writeVLong(dataOffset);
+                out.writeVLong(dataLength);
+                out.writeVInt(maxDocId);
+                out.writeVInt(maxLevel);
+                out.writeVInt(maxBoundBytes);
+                out.writeByte(codecId);
+            }
+
+            static Skipper readFrom(DataInput in) throws IOException {
+                return new Skipper(in.readVLong(), in.readVLong(), in.readVInt(), in.readVInt(), in.readVInt(), in.readByte());
+            }
+
+            /**
+             * Whether every bound is the exact min or max term of its interval, which holds when no value of the
+             * column was longer than the writer kept. It is conservative: one long value that never became a
+             * bound still makes it false.
+             */
+            boolean boundsAreExact(int columnMaxLength) {
+                return columnMaxLength <= maxBoundBytes;
+            }
+        }
 
         @Override
         public StringColumnLayout layout() {
             return StringColumnLayout.PLAIN;
+        }
+
+        /** The same column, with the skip region it wrote recorded beside it. */
+        public Plain withSkipper(Skipper skipper) {
+            return new Plain(
+                iterator,
+                numDocsWithField,
+                numValues,
+                numNullSlots,
+                valueBytes,
+                minLength,
+                maxLength,
+                addressing,
+                values,
+                valuesSorted,
+                valuesWorthNaming,
+                skipper,
+                summary
+            );
         }
 
         @Override
@@ -200,6 +255,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
                 values,
                 valuesSorted,
                 valuesWorthNaming,
+                skipper,
                 summary
             );
         }
@@ -208,6 +264,10 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         public void writeBody(DataOutput out) throws IOException {
             values.writeTo(out);
             out.writeByte((byte) (valuesWorthNaming ? 1 : 0));
+            out.writeByte((byte) (skipper == null ? 0 : 1));
+            if (skipper != null) {
+                skipper.writeTo(out);
+            }
         }
     }
 
@@ -333,6 +393,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
             values,
             valuesSorted,
             valuesWorthNaming,
+            null,
             null
         );
     }
@@ -444,6 +505,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
             case PLAIN -> {
                 final PlainValues.Metadata values = PlainValues.Metadata.readFrom(in);
                 final boolean valuesWorthNaming = in.readByte() != 0;
+                final Plain.Skipper skipper = in.readByte() != 0 ? Plain.Skipper.readFrom(in) : null;
                 yield plain(
                     iterator,
                     numDocsWithField,
@@ -456,7 +518,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
                     values,
                     valuesSorted,
                     valuesWorthNaming
-                );
+                ).withSkipper(skipper);
             }
             case DICTIONARY -> {
                 final int dictionarySize = in.readVInt();

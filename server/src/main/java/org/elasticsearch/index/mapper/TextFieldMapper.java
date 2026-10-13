@@ -1968,7 +1968,7 @@ public final class TextFieldMapper extends FieldMapper {
         // Text values are long and mostly all different, so surveying for a dictionary reads the column only to
         // conclude that nothing repeats often enough to name.
         return fieldType().usesColumnarPayload()
-            ? StringColumnOptions.DEFAULT.withPolicies(DictionaryPolicy.NONE, SummaryPolicy.NONE)
+            ? StringColumnOptions.DEFAULT.withPolicies(DictionaryPolicy.NONE, SummaryPolicy.NONE).withoutSkipIndex()
             : null;
     }
 

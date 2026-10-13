@@ -24,6 +24,10 @@ public class StringFrozenIdsTests extends ESTestCase {
         assertEquals((byte) 1, StringColumnLayout.DICTIONARY.id());
     }
 
+    public void testSkipIndexCodecIdIsStable() {
+        assertEquals((byte) 0, PlainSkipIndexCodec.ID);
+    }
+
     public void testLayoutRoundTripsThroughItsId() {
         for (StringColumnLayout layout : StringColumnLayout.values()) {
             assertEquals(layout, StringColumnLayout.fromId(layout.id()));

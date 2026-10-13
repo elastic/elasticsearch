@@ -192,7 +192,8 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
                 StringColumnOptions.DEFAULT_SUMMARY,
                 chunkCodec,
                 sizes,
-                StringColumnOptions.DEFAULT_SINGLE_VALUED
+                StringColumnOptions.DEFAULT_SINGLE_VALUED,
+                true
             ),
             check
         );
@@ -218,7 +219,7 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         try (Directory dir = newDirectory()) {
             final StringColumnMetadata metadata = writeColumn(dir, segmentId, docSlots, options);
             try (ColumnTestFiles.Inputs inputs = ColumnTestFiles.open(dir, COLUMN_FILES, segmentId)) {
-                check.check(metadata, StringColumnReader.open(metadata, inputs.inputs()));
+                check.check(metadata, StringColumnReader.open(metadata, inputs.inputs(), inputs.skipIndex()));
             }
         }
     }
@@ -386,7 +387,8 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
                 null,
                 dir,
                 IOContext.DEFAULT,
-                out.outputs()
+                out.outputs(),
+                out.skipIndex()
             );
         }
         try (IndexOutput meta = dir.createOutput(META_FILE, IOContext.DEFAULT)) {

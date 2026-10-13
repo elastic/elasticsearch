@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Random;
+import java.util.UUID;
 
 /**
  * Keyword column shapes, spanning the range that decides how a string column is stored: a handful of
@@ -277,6 +278,44 @@ public enum StringData {
                 builder.setLength(0);
                 builder.append(Long.toHexString(random.nextLong())).append(Long.toHexString(random.nextLong()));
                 values[i] = bytes(builder.toString());
+            }
+            return values;
+        }
+    },
+
+    /**
+     * A random (version 4) UUID: 122 random bits in the canonical 36-character form, entirely distinct. Nothing
+     * in document order relates one value to the next, so the bounds of any run of documents span the space.
+     */
+    UUID_V4 {
+        @Override
+        BytesRef[] generate(int count, Random random) {
+            final BytesRef[] values = new BytesRef[count];
+            for (int i = 0; i < count; i++) {
+                final long mostSignificant = (random.nextLong() & 0xFFFFFFFFFFFF0FFFL) | 0x4000L;
+                final long leastSignificant = (random.nextLong() & 0x3FFFFFFFFFFFFFFFL) | 0x8000000000000000L;
+                values[i] = bytes(new UUID(mostSignificant, leastSignificant).toString());
+            }
+            return values;
+        }
+    },
+
+    /**
+     * A time-ordered (version 7) UUID: a 48-bit millisecond timestamp, then random bits. Documents arrive about
+     * a millisecond apart, each stamped up to 64 milliseconds late, as events from several sources reach one
+     * index. The values are distinct and rise with document order without ever being in term order, so a run of
+     * documents covers a narrow band of the space.
+     */
+    UUID_V7 {
+        @Override
+        BytesRef[] generate(int count, Random random) {
+            final long start = 1_760_000_000_000L;
+            final BytesRef[] values = new BytesRef[count];
+            for (int i = 0; i < count; i++) {
+                final long timestamp = start + i + random.nextInt(65);
+                final long mostSignificant = (timestamp << 16) | 0x7000L | (random.nextLong() & 0x0FFFL);
+                final long leastSignificant = (random.nextLong() & 0x3FFFFFFFFFFFFFFFL) | 0x8000000000000000L;
+                values[i] = bytes(new UUID(mostSignificant, leastSignificant).toString());
             }
             return values;
         }

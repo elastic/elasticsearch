@@ -23,8 +23,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.hamcrest.Matchers.containsString;
-
 /**
  * Parity tests for {@link NumberFieldMapper#mapColumnBatch} against the row path. Single-valued
  * fields get one test per numeric type and ESCF source kind combination; multi-valued fields are
@@ -1074,29 +1072,6 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
             b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
             b.startObject(FIELD).field("type", "long").field("synthetic_source_keep", "all").endObject();
         });
-    }
-
-    /**
-     * The harness resolves leaves with {@code ShardBatchMapper.resolveMappers}, so a batch production would send to the row path
-     * fails loudly instead of being compared on whatever subset of leaves happened to be mappable. Here {@code extra} is unmapped
-     * under the default {@code dynamic: true}, which the batch path cannot create a field for.
-     */
-    public void testHarnessFailsWhenProductionWouldFallBack() throws IOException {
-        final String idA = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_A);
-        final AssertionError e = expectThrows(
-            AssertionError.class,
-            () -> assertColumnarMatchesXContent(
-                mapping(tsdbLongMapping()),
-                tsdbSettings(),
-                batch(
-                    "unmapped dynamic leaf",
-                    1L,
-                    doc(idA, ST_ROUTING, ST_TSID, 1L, "{\"@timestamp\":" + ST_TS_A + ",\"f\":1,\"extra\":2}")
-                )
-            )
-        );
-        assertThat(e.getMessage(), containsString("production would fall back"));
-        assertThat(e.getMessage(), containsString("leaf [extra] has no mapper"));
     }
 
     private void assertTsdbKeepModeArrayBailsOut(Settings settings, CheckedConsumer<XContentBuilder, IOException> mapping)

@@ -24,6 +24,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.mapper.flattened.UnmappedSinkFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -1140,7 +1141,13 @@ public final class DocumentParser {
 
         @Override
         public final Mapper getMapper(String name) {
-            return mappingLookup().getMapping().findMetadataOrRootMapper(name);
+            Mapper mapper = mappingLookup().getMapping().findMetadataOrRootMapper(name);
+            if (mapper == null && name.startsWith(FlattenedFieldMapper.UNMAPPED_SINK_NAME + ".")) {
+                // The sink reserves its name as a prefix: a root key like _unmapped.a resolves to the sink itself (null when there is
+                // none), so that every form of it is rejected by parseCreateField exactly like the key _unmapped.
+                return mappingLookup().getMapping().getMetadataMapperByName(FlattenedFieldMapper.UNMAPPED_SINK_NAME);
+            }
+            return mapper;
         }
 
         @Override

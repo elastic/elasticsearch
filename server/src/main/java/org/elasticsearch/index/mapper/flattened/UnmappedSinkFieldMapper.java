@@ -65,6 +65,15 @@ public final class UnmappedSinkFieldMapper extends MetadataFieldMapper {
     }
 
     /**
+     * {@code true} so that a document array {@code {"_unmapped": [..]}} reaches {@link MetadataFieldMapper#parseCreateField} and is
+     * rejected even when empty, instead of being silently accepted as an array with no elements to parse.
+     */
+    @Override
+    public boolean parsesArrayValue() {
+        return true;
+    }
+
+    /**
      * Absorbs the current parser value of the unmapped field {@code name} into the sink, keyed by its full dotted path.
      * See {@link FlattenedFieldMapper#indexValueAtPath}.
      */
@@ -98,17 +107,23 @@ public final class UnmappedSinkFieldMapper extends MetadataFieldMapper {
     }
 
     /**
-     * Rejects user fields at or below {@code _unmapped._keyed}: they have a different full path, so the duplicate-name check misses them,
-     * yet they write the same Lucene fields as the sink.
+     * Rejects every user field whose full path is under {@code _unmapped.}: the sink reserves its name as a prefix, in mappings as well as
+     * in documents (see {@code DocumentParser.RootDocumentParserContext#getMapper}).
      */
     @Override
     protected void doValidate(MappingLookup lookup) {
-        String keyed = fullPath() + FlattenedFieldMapper.KEYED_FIELD_SUFFIX;
+        String prefix = fullPath() + ".";
         for (Mapper mapper : lookup.fieldMappers()) {
-            String path = mapper.fullPath();
-            if (path.equals(keyed) || path.startsWith(keyed + ".")) {
-                throw new MapperParsingException("Field [" + path + "] collides with the internal fields of [" + fullPath() + "]");
-            }
+            rejectIfUnderSink(mapper, prefix);
+        }
+        for (Mapper mapper : lookup.objectMappers().values()) {
+            rejectIfUnderSink(mapper, prefix);
+        }
+    }
+
+    private void rejectIfUnderSink(Mapper mapper, String prefix) {
+        if (mapper.fullPath().startsWith(prefix)) {
+            throw new MapperParsingException("Field [" + mapper.fullPath() + "] is reserved by the metadata field [" + fullPath() + "]");
         }
     }
 

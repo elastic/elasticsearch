@@ -29,6 +29,8 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
@@ -115,24 +117,59 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), containsString("Field [_unmapped] is defined more than once"));
     }
 
-    public void testUserFieldUnderSinkKeyedFieldsRejected() {
-        String name = randomFrom(KEYED, KEYED + ".counts", KEYED + "._ignored");
-        var e = expectThrows(
+    /**
+     * A user object named {@code _unmapped}: a {@code nested} mapper keeps the name and collides with the sink; a plain {@code object} is
+     * flattened by {@code subobjects: false} into dotted leaves, which then hit the prefix reservation. An empty plain object is dropped
+     * by that flattening before any check runs, as for any other empty object on a columnar index, so there is nothing to reject.
+     */
+    public void testUserObjectWithSameNameAsSinkRejected() throws IOException {
+        String sink = FlattenedFieldMapper.UNMAPPED_SINK_NAME;
+        var nested = expectThrows(
             MapperParsingException.class,
-            () -> columnarService(b -> b.startObject(name).field("type", "keyword").endObject())
+            () -> columnarService(b -> b.startObject(sink).field("type", "nested").endObject())
         );
-        assertThat(e.getMessage(), containsString("Field [" + name + "] collides with the internal fields of [_unmapped]"));
+        assertThat(nested.getMessage(), containsString("Field [_unmapped] is defined both as an object and a field"));
+
+        String leaf = randomAlphaOfLength(5);
+        var object = expectThrows(MapperParsingException.class, () -> columnarService(b -> {
+            b.startObject(sink).field("type", "object");
+            b.startObject("properties").startObject(leaf).field("type", "keyword").endObject().endObject();
+            b.endObject();
+        }));
+        assertThat(object.getMessage(), containsString("Field [_unmapped." + leaf + "] is reserved by the metadata field [_unmapped]"));
+
+        MapperService mapperService = columnarService(b -> b.startObject(sink).field("type", "object").endObject());
+        assertTrue(isUnmappedSink(mapperService));
+        assertThat(mapperService.documentMapper().mappingSource().toString(), not(containsString(sink)));
     }
 
-    public void testUserFieldUnderSinkNameAccepted() throws IOException {
-        // Under subobjects: false, _unmapped.x is an ordinary leaf beside the sink: it writes its own Lucene field, not the sink's.
+    /**
+     * The sink reserves {@code _unmapped.} as a prefix in mappings: any user field or object under it is rejected, whether it is a plain
+     * leaf, a deeper dotted leaf, a nested object, or one of the sink's own internal {@code _keyed} fields.
+     */
+    public void testUserFieldUnderSinkPrefixRejected() {
+        String sink = FlattenedFieldMapper.UNMAPPED_SINK_NAME;
+        String name = randomFrom(
+            sink + "." + randomAlphaOfLength(5),
+            sink + "." + randomAlphaOfLength(5) + "." + randomAlphaOfLength(5),
+            KEYED,
+            KEYED + ".counts",
+            KEYED + "._ignored"
+        );
+        String type = randomFrom("keyword", "long", "flattened", "nested");
+        var e = expectThrows(MapperParsingException.class, () -> columnarService(b -> b.startObject(name).field("type", type).endObject()));
+        assertThat(e.getMessage(), containsString("Field [" + name + "] is reserved by the metadata field [_unmapped]"));
+    }
+
+    public void testUserFieldUnderSinkPrefixRejectedOnMerge() throws IOException {
+        MapperService mapperService = columnarService(b -> {});
         String name = FlattenedFieldMapper.UNMAPPED_SINK_NAME + "." + randomAlphaOfLength(5);
-        MapperService mapperService = columnarService(b -> b.startObject(name).field("type", "keyword").endObject());
+        var e = expectThrows(
+            MapperParsingException.class,
+            () -> merge(mapperService, mapping(b -> b.startObject(name).field("type", "keyword").endObject()))
+        );
+        assertThat(e.getMessage(), containsString("Field [" + name + "] is reserved by the metadata field [_unmapped]"));
         assertTrue(isUnmappedSink(mapperService));
-        String value = randomAlphanumericOfLength(6);
-        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field(name, value)));
-        assertFalse(doc.rootDoc().getFields(name).isEmpty());
-        assertFalse(hasKeyedSlot(doc, value));
     }
 
     public void testTopLevelSinkKeyNotConfigurable() {
@@ -143,40 +180,58 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), containsString("_unmapped is not configurable"));
     }
 
-    public void testDocumentKeyWithSameNameAsSinkRejected() throws IOException {
+    /**
+     * The sink reserves {@code _unmapped} and the prefix {@code _unmapped.} as root document keys. Every value shape is rejected the same
+     * way: scalar, null, object (including empty), array (including empty), and the dotted spellings that {@code subobjects: false}
+     * would otherwise treat as leaves of their own.
+     */
+    public void testDocumentKeyUnderSinkRejected() throws IOException {
         DocumentMapper mapper = columnarService(b -> {}).documentMapper();
+        String sink = FlattenedFieldMapper.UNMAPPED_SINK_NAME;
+        String dotted = sink + "." + randomAlphaOfLength(5);
+        String deeper = dotted + "." + randomAlphaOfLength(5);
+        String key = randomAlphaOfLength(5);
         String value = randomAlphanumericOfLength(6);
-        CheckedConsumer<XContentBuilder, IOException> body = randomBoolean()
-            ? b -> b.startObject(FlattenedFieldMapper.UNMAPPED_SINK_NAME).field(randomAlphaOfLength(5), value).endObject()
-            : b -> b.field(FlattenedFieldMapper.UNMAPPED_SINK_NAME, value);
-        var e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(body)));
-        assertThat(e.getMessage(), containsString("failed to parse field [_unmapped]"));
-        assertThat(
-            e.getCause().getMessage(),
-            containsString("Field [_unmapped] is a metadata field and cannot be added inside a document")
-        );
+        Map<String, CheckedConsumer<XContentBuilder, IOException>> shapes = new LinkedHashMap<>();
+        shapes.put("_unmapped: value", b -> b.field(sink, value));
+        shapes.put("_unmapped: null", b -> b.nullField(sink));
+        shapes.put("_unmapped: {}", b -> b.startObject(sink).endObject());
+        shapes.put("_unmapped: {a: value}", b -> b.startObject(sink).field(key, value).endObject());
+        shapes.put("_unmapped: {a: {b: value}}", b -> b.startObject(sink).startObject(key).field(key, value).endObject().endObject());
+        shapes.put("_unmapped: []", b -> b.startArray(sink).endArray());
+        shapes.put("_unmapped: [value]", b -> b.array(sink, value));
+        shapes.put("_unmapped: [{a: value}]", b -> b.startArray(sink).startObject().field(key, value).endObject().endArray());
+        shapes.put("_unmapped.a: value", b -> b.field(dotted, value));
+        shapes.put("_unmapped.a: null", b -> b.nullField(dotted));
+        shapes.put("_unmapped.a: {}", b -> b.startObject(dotted).endObject());
+        shapes.put("_unmapped.a: {b: value}", b -> b.startObject(dotted).field(key, value).endObject());
+        shapes.put("_unmapped.a: []", b -> b.startArray(dotted).endArray());
+        shapes.put("_unmapped.a: [value, value]", b -> b.array(dotted, value, randomAlphanumericOfLength(6)));
+        shapes.put("_unmapped.a.b: value", b -> b.field(deeper, value));
+        for (var shape : shapes.entrySet()) {
+            var e = expectThrows(DocumentParsingException.class, shape.getKey(), () -> mapper.parse(source(shape.getValue())));
+            assertThat(shape.getKey(), e.getMessage(), containsString("failed to parse field [_unmapped]"));
+            assertThat(
+                shape.getKey(),
+                e.getCause().getMessage(),
+                containsString("Field [_unmapped] is a metadata field and cannot be added inside a document")
+            );
+        }
     }
 
     /**
-     * Under {@code subobjects: false} the dotted key {@code {"_unmapped.a": ..}} is the same document as {@code {"_unmapped": {"a": ..}}},
-     * so it must be rejected the same way rather than silently dropped or absorbed.
+     * The reservation is on the full path, so {@code _unmapped} inside another object (flattened to {@code x._unmapped} under
+     * {@code subobjects: false}) is an ordinary unmapped name and is absorbed.
      */
-    public void testDottedDocumentKeyUnderSinkRejected() throws IOException {
+    public void testSinkNameInsideObjectIsNotReserved() throws IOException {
         DocumentMapper mapper = columnarService(b -> {}).documentMapper();
-        String name = FlattenedFieldMapper.UNMAPPED_SINK_NAME + "." + randomAlphaOfLength(5);
+        String outer = randomAlphaOfLength(5);
         String value = randomAlphanumericOfLength(6);
-        CheckedConsumer<XContentBuilder, IOException> body = switch (randomIntBetween(0, 2)) {
-            case 0 -> b -> b.field(name, value);
-            case 1 -> b -> b.array(name, value, randomAlphanumericOfLength(6));
-            case 2 -> b -> b.nullField(name);
-            default -> throw new AssertionError();
-        };
-        var e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(body)));
-        assertThat(e.getMessage(), containsString("failed to parse field [_unmapped]"));
-        assertThat(
-            e.getCause().getMessage(),
-            containsString("Field [_unmapped] is a metadata field and cannot be added inside a document")
+        ParsedDocument doc = mapper.parse(
+            source(b -> b.startObject(outer).field(FlattenedFieldMapper.UNMAPPED_SINK_NAME, value).endObject())
         );
+        assertNull(doc.dynamicMappingsUpdate());
+        assertTrue(hasKeyedSlot(doc, outer + "." + FlattenedFieldMapper.UNMAPPED_SINK_NAME + "\0" + value));
     }
 
     public void testAbsentWhenSettingOff() throws IOException {

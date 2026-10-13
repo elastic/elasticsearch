@@ -136,7 +136,9 @@ public class ReadOnlyEngine extends Engine {
                 this.indexWriterLock = indexWriterLock;
                 this.safeCommitInfo = new SafeCommitInfo(seqNoStats.getLocalCheckpoint(), lastCommittedSegmentInfos.totalMaxDoc());
 
-                completionStatsCache = new CompletionStatsCache(() -> acquireSearcher("completion_stats"));
+                completionStatsCache = new CompletionStatsCache(
+                    () -> acquireSearcher("completion_stats", SplitShardCountSummary.IRRELEVANT)
+                );
                 // no need to register a refresh listener to invalidate completionStatsCache since this engine is readonly
 
                 success = true;
@@ -610,7 +612,7 @@ public class ReadOnlyEngine extends Engine {
      */
     @Override
     public ShardLongFieldRange getRawFieldRange(String field) throws IOException {
-        try (Searcher searcher = acquireSearcher(FIELD_RANGE_SEARCH_SOURCE)) {
+        try (Searcher searcher = acquireSearcher(FIELD_RANGE_SEARCH_SOURCE, SplitShardCountSummary.IRRELEVANT)) {
             final DirectoryReader directoryReader = searcher.getDirectoryReader();
 
             final byte[] minPackedValue = PointValues.getMinPackedValue(directoryReader, field);

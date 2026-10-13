@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper.vectors;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -170,7 +171,7 @@ public class SyntheticVectorFieldsRecoveryTests extends EngineTestCase {
         }
         engine.flush();
 
-        var searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
+        var searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT);
         try (
             var snapshot = newRandomSnapshot(
                 engine.config().getMapperService(),

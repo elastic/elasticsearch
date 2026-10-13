@@ -116,8 +116,12 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 ) {
                     EngineTestCase.checkNoSoftDeletesLoaded(readOnlyEngineWithLazySoftDeletes);
                 }
-                Engine.Searcher external = readOnlyEngine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL);
-                Engine.Searcher internal = readOnlyEngine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
+                Engine.Searcher external = readOnlyEngine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT);
+                Engine.Searcher internal = readOnlyEngine.acquireSearcher(
+                    "test",
+                    Engine.SearcherScope.INTERNAL,
+                    SplitShardCountSummary.IRRELEVANT
+                );
                 assertSame(external.getIndexReader(), internal.getIndexReader());
                 assertThat(external.getIndexReader(), instanceOf(DirectoryReader.class));
                 DirectoryReader dirReader = external.getDirectoryReader();

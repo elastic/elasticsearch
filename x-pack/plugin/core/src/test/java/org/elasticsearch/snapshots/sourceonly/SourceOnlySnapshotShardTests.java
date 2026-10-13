@@ -532,7 +532,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         SeqNoStats seqNoStats = restoredShard.seqNoStats();
         assertEquals(seqNoStats.getMaxSeqNo(), seqNoStats.getLocalCheckpoint());
         final IndexShard targetShard;
-        try (Engine.Searcher searcher = restoredShard.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = restoredShard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             assertEquals(searcher.getIndexReader().maxDoc(), seqNoStats.getLocalCheckpoint());
             TopDocs search = searcher.search(Queries.ALL_DOCS_INSTANCE, Integer.MAX_VALUE);
             assertEquals(searcher.getIndexReader().numDocs(), search.totalHits.value());

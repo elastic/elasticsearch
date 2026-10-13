@@ -12,6 +12,7 @@ package org.elasticsearch.action.fieldcaps;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.core.Booleans;
@@ -83,7 +84,7 @@ class FieldCapabilitiesFetcher {
             indexShard.readAllowed();
             searcher = null;
         } else {
-            searcher = indexShard.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE);
+            searcher = indexShard.acquireExternalSearcher(Engine.CAN_MATCH_SEARCH_SOURCE, SplitShardCountSummary.IRRELEVANT);
         }
         try (searcher) {
             return doFetch(

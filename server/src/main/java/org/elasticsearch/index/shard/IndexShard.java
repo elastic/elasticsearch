@@ -1919,13 +1919,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return engine.acquireSearcher(source, Engine.SearcherScope.EXTERNAL, splitShardCountSummary, this::wrapSearcher);
     }
 
-    public Engine.Searcher acquireSearcher(String source) {
-        readAllowed();
-        markSearcherAccessed();
-        final Engine engine = getEngine();
-        return engine.acquireSearcher(source, Engine.SearcherScope.EXTERNAL, this::wrapSearcher);
-    }
-
     private void markSearcherAccessed() {
         lastSearcherAccess.lazySet(threadPool.relativeTimeInMillis());
     }

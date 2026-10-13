@@ -24,6 +24,7 @@ import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -132,7 +133,7 @@ class DownsampleShardIndexer {
         this.downsampleMetrics = downsampleMetrics;
         this.indexShard = indexService.getShard(shardId.id());
         this.downsampleIndex = downsampleIndex;
-        this.searcher = indexShard.acquireSearcher("downsampling");
+        this.searcher = indexShard.acquireExternalSearcher("downsampling", SplitShardCountSummary.IRRELEVANT);
         this.state = state;
         Closeable toClose = searcher;
         try {

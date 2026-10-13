@@ -14,6 +14,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -382,7 +383,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
             NavigableMap<Long, Engine.Searcher> searchers = new TreeMap<>();
             for (int i = 0; i < commits; ++i) {
                 if (randomBoolean()) {
-                    searchers.put(i + gen, engine.acquireSearcher("test"));
+                    searchers.put(i + gen, engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT));
                 }
                 engine.index(randomDoc(String.valueOf(i + 1)));
                 engine.flush(true, true);

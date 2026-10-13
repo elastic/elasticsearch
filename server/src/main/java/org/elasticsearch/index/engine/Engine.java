@@ -252,7 +252,7 @@ public abstract class Engine implements Closeable {
         // index.refresh_interval=-1 won't see any doc stats updates at all. This change will give more accurate statistics
         // when indexing but not refreshing in general. Yet, if a refresh happens the internal searcher is refresh as well so we are
         // safe here.
-        try (Searcher searcher = acquireSearcher(DOC_STATS_SOURCE, SearcherScope.INTERNAL)) {
+        try (Searcher searcher = acquireSearcher(DOC_STATS_SOURCE, SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)) {
             return docsStats(searcher.getIndexReader());
         }
     }
@@ -282,7 +282,7 @@ public abstract class Engine implements Closeable {
      * @throws AlreadyClosedException if the shard is closed
      */
     public ShardFieldStats shardFieldStats() {
-        try (var searcher = acquireSearcher("shard_field_stats", Engine.SearcherScope.INTERNAL)) {
+        try (var searcher = acquireSearcher("shard_field_stats", SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)) {
             return shardFieldStats(searcher.getLeafContexts(), isStateless);
         }
     }
@@ -291,7 +291,7 @@ public abstract class Engine implements Closeable {
      * @throws AlreadyClosedException if the shard is closed
      */
     public FieldInfos shardFieldInfos() {
-        try (var searcher = acquireSearcher(FIELD_HAS_VALUE_SOURCE)) {
+        try (var searcher = acquireSearcher(FIELD_HAS_VALUE_SOURCE, SplitShardCountSummary.IRRELEVANT)) {
             return FieldInfos.getMergedFieldInfos(searcher.getIndexReader());
         }
     }
@@ -405,7 +405,7 @@ public abstract class Engine implements Closeable {
         if (fields.isEmpty()) {
             return new DenseVectorStats(0);
         }
-        try (Searcher searcher = acquireSearcher(DOC_STATS_SOURCE, SearcherScope.INTERNAL)) {
+        try (Searcher searcher = acquireSearcher(DOC_STATS_SOURCE, SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)) {
             return denseVectorStats(searcher.getIndexReader(), fields);
         }
     }
@@ -447,7 +447,7 @@ public abstract class Engine implements Closeable {
             return new SparseVectorStats(0);
         }
         Collections.sort(fields);
-        try (Searcher searcher = acquireSearcher(DOC_STATS_SOURCE, SearcherScope.INTERNAL)) {
+        try (Searcher searcher = acquireSearcher(DOC_STATS_SOURCE, SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)) {
             return sparseVectorStats(searcher.getIndexReader(), fields);
         }
     }
@@ -1124,16 +1124,13 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public final Searcher acquireSearcher(String source) throws EngineException {
-        return acquireSearcher(source, SearcherScope.EXTERNAL);
+    public final Searcher acquireSearcher(String source, SplitShardCountSummary splitShardCountSummary) throws EngineException {
+        return acquireSearcher(source, SearcherScope.EXTERNAL, splitShardCountSummary);
     }
 
-    public Searcher acquireSearcher(String source, SearcherScope scope) throws EngineException {
-        return acquireSearcher(source, scope, Function.identity());
-    }
-
-    public Searcher acquireSearcher(String source, SearcherScope scope, Function<Searcher, Searcher> wrapper) throws EngineException {
-        return acquireSearcher(source, scope, SplitShardCountSummary.UNSET, wrapper);
+    public Searcher acquireSearcher(String source, SearcherScope scope, SplitShardCountSummary splitShardCountSummary)
+        throws EngineException {
+        return acquireSearcher(source, scope, splitShardCountSummary, Function.identity());
     }
 
     public Searcher acquireSearcher(
@@ -1305,7 +1302,7 @@ public abstract class Engine implements Closeable {
         ensureOpen();
         Set<String> segmentName = new HashSet<>();
         SegmentsStats stats = new SegmentsStats();
-        try (Searcher searcher = acquireSearcher(SEGMENTS_STATS_SOURCE, SearcherScope.INTERNAL)) {
+        try (Searcher searcher = acquireSearcher(SEGMENTS_STATS_SOURCE, SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)) {
             for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
                 SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
                 fillSegmentStats(segmentReader, includeSegmentFileSizes, stats);
@@ -1313,7 +1310,7 @@ public abstract class Engine implements Closeable {
             }
         }
 
-        try (Searcher searcher = acquireSearcher(SEGMENTS_STATS_SOURCE, SearcherScope.EXTERNAL)) {
+        try (Searcher searcher = acquireSearcher(SEGMENTS_STATS_SOURCE, SplitShardCountSummary.IRRELEVANT)) {
             for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
                 SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
                 if (segmentName.contains(segmentReader.getSegmentName()) == false) {
@@ -1386,13 +1383,13 @@ public abstract class Engine implements Closeable {
         ensureOpen();
         Map<String, Segment> segments = new HashMap<>();
         // first, go over and compute the search ones...
-        try (Searcher searcher = acquireSearcher("segments", SearcherScope.EXTERNAL)) {
+        try (Searcher searcher = acquireSearcher("segments", SplitShardCountSummary.IRRELEVANT)) {
             for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
                 fillSegmentInfo(Lucene.segmentReader(ctx.reader()), true, segments, includeVectorFormatsInfo, includeAutoCalibration);
             }
         }
 
-        try (Searcher searcher = acquireSearcher("segments", SearcherScope.INTERNAL)) {
+        try (Searcher searcher = acquireSearcher("segments", SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)) {
             for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
                 SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
                 if (segments.containsKey(segmentReader.getSegmentName()) == false) {

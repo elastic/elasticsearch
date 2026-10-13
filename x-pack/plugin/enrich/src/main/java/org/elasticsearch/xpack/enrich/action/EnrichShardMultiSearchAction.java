@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.cluster.routing.ShardsIterator;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -226,7 +227,7 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
         protected MultiSearchResponse shardOperation(Request request, ShardId shardId) throws IOException {
             final IndexService indexService = indicesService.indexService(shardId.getIndex());
             final IndexShard indexShard = indicesService.getShardOrNull(shardId);
-            try (Engine.Searcher searcher = indexShard.acquireSearcher("enrich_msearch")) {
+            try (Engine.Searcher searcher = indexShard.acquireExternalSearcher("enrich_msearch", SplitShardCountSummary.IRRELEVANT)) {
                 final FieldsVisitor visitor = new FieldsVisitor(true);
                 /*
                  * Enrich doesn't support defining runtime fields in its

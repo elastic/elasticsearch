@@ -13,6 +13,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.store.FieldInfoCachingDirectory;
 import org.hamcrest.Matchers;
@@ -39,7 +40,7 @@ public class InternalEngineFieldInfoCachingTests extends EngineTestCase {
         }
         engine.refresh("test");
 
-        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             DirectoryReader reader = searcher.getDirectoryReader();
             assertThat("test requires multiple segments", reader.leaves().size(), Matchers.greaterThan(1));
 

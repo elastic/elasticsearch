@@ -496,7 +496,7 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
         }
 
         shard.refresh("test");
-        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             assertThat(searcher.getIndexReader().numDocs(), equalTo(numDocs));
         }
 
@@ -533,7 +533,7 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
         }
 
         shard.refresh("test");
-        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             assertThat(searcher.getIndexReader().numDocs(), equalTo(numDocs));
         }
 
@@ -567,7 +567,7 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
         assertFalse(items[1].getPrimaryResponse().isFailed());
 
         shard.refresh("test");
-        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             assertThat(searcher.getIndexReader().numDocs(), equalTo(1));
         }
 
@@ -631,7 +631,7 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
             assertThat(result.location(), notNullValue());
 
             replica.refresh("test");
-            try (Engine.Searcher searcher = replica.acquireSearcher("test")) {
+            try (Engine.Searcher searcher = replica.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                 assertThat(searcher.getIndexReader().numDocs(), equalTo(numDocs));
             }
 
@@ -717,7 +717,7 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
             }
 
             shard.refresh("test");
-            try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+            try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                 assertThat(searcher.getIndexReader().numDocs(), equalTo(numDocs));
             }
         }
@@ -818,9 +818,9 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
 
             PhraseQuery boundaryPhrase = new PhraseQuery("f", "brown", "fox");
 
-            try (Engine.Searcher rowSearcher = rowShard.acquireSearcher("test")) {
+            try (Engine.Searcher rowSearcher = rowShard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                 TopDocs rowHits = rowSearcher.search(boundaryPhrase, 10);
-                try (Engine.Searcher batchSearcher = batchShard.acquireSearcher("test")) {
+                try (Engine.Searcher batchSearcher = batchShard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                     TopDocs batchHits = batchSearcher.search(boundaryPhrase, 10);
                     if (isZeroGap) {
                         assertThat("row path: gap=0 boundary phrase should match", rowHits.totalHits.value(), equalTo(1L));
@@ -832,8 +832,8 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
                 }
             }
 
-            try (Engine.Searcher rowSearcher = rowShard.acquireSearcher("test")) {
-                try (Engine.Searcher batchSearcher = batchShard.acquireSearcher("test")) {
+            try (Engine.Searcher rowSearcher = rowShard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
+                try (Engine.Searcher batchSearcher = batchShard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                     for (String term : new String[] { "quick", "fox" }) {
                         int rowPos = firstPosition(rowSearcher, "f", term);
                         int batchPos = firstPosition(batchSearcher, "f", term);

@@ -158,7 +158,12 @@ public abstract class BlockedSearcherRestCancellationTestCase extends HttpSmokeT
         }
 
         @Override
-        public Searcher acquireSearcher(String source, SearcherScope scope, Function<Searcher, Searcher> wrapper) throws EngineException {
+        public Searcher acquireSearcher(
+            String source,
+            SearcherScope scope,
+            org.elasticsearch.cluster.routing.SplitShardCountSummary splitShardCountSummary,
+            Function<Searcher, Searcher> wrapper
+        ) throws EngineException {
             if (blockedSearcherRestCancellationTestCaseLogger.isDebugEnabled()) {
                 blockedSearcherRestCancellationTestCaseLogger.debug(
                     Strings.format(
@@ -189,7 +194,7 @@ public abstract class BlockedSearcherRestCancellationTestCase extends HttpSmokeT
                 );
             }
 
-            return super.acquireSearcher(source, scope, wrapper);
+            return super.acquireSearcher(source, scope, splitShardCountSummary, wrapper);
         }
     }
 

@@ -11,6 +11,7 @@ package org.elasticsearch.test.engine;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.search.ReferenceManager;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.engine.Engine;
@@ -64,8 +65,13 @@ final class MockInternalEngine extends InternalEngine {
     }
 
     @Override
-    public Engine.Searcher acquireSearcher(String source, SearcherScope scope) {
-        final Engine.Searcher engineSearcher = super.acquireSearcher(source, scope);
+    public Engine.Searcher acquireSearcher(
+        String source,
+        SearcherScope scope,
+        SplitShardCountSummary splitShardCountSummary,
+        Function<Searcher, Searcher> wrapper
+    ) {
+        final Engine.Searcher engineSearcher = super.acquireSearcher(source, scope, splitShardCountSummary, wrapper);
         return support().wrapSearcher(engineSearcher);
     }
 

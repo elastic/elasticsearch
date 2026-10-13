@@ -127,6 +127,15 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         Setting.Property.NodeScope
     );
 
+    /// Setting gating eviction of cache regions that belong to obsolete segments on indexing nodes. Controlled separately from
+    /// [#STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING] so each tier can be rolled out and disabled on its own.
+    public static final Setting<Boolean> STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_INDEXING_ENABLED_SETTING = Setting.boolSetting(
+        "stateless.cache.evict_obsolete_regions.indexing.enabled",
+        true,
+        Setting.Property.OperatorDynamic,
+        Setting.Property.NodeScope
+    );
+
     /// Setting gating demotion of a closed shard's cache regions (see [SharedBlobCacheService#demoteAllAsync]). Any shard leaving this
     /// node closes its store, and will have its regions move to the front of the frequency-0 queue rather than
     /// being evicted, so they are the first eviction candidates while remaining usable if the shard relocates and relocates back.
@@ -170,6 +179,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     private final boolean objectStorePrefetchEnabled;
     private final boolean cacheBoostPreferenceEnabled;
     private volatile boolean evictObsoleteRegionsEnabled;
+    private volatile boolean evictObsoleteRegionsIndexingEnabled;
     private volatile boolean demoteClosedShardRegionsEnabled;
     private volatile boolean evictDeletedIndexRegionsEnabled;
 
@@ -249,6 +259,10 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         clusterSettings.initializeAndWatch(
             STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING,
             enabled -> this.evictObsoleteRegionsEnabled = enabled
+        );
+        clusterSettings.initializeAndWatch(
+            STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_INDEXING_ENABLED_SETTING,
+            enabled -> this.evictObsoleteRegionsIndexingEnabled = enabled
         );
         clusterSettings.initializeAndWatch(
             STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING,
@@ -443,9 +457,16 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         return getEvictionPolicy().hasRegionTimestampProtection();
     }
 
-    /// Whether to asynchronously force-evict cache regions corresponding to obsolete segments that are not referenced anymore.
+    /// Whether to asynchronously force-evict cache regions on search nodes corresponding to obsolete segments that are not referenced
+    /// anymore.
     public boolean isEvictObsoleteRegionsEnabled() {
         return evictObsoleteRegionsEnabled;
+    }
+
+    /// Whether to asynchronously force-evict cache regions on indexing nodes corresponding to files that are no longer present in the
+    /// index directory.
+    public boolean isEvictObsoleteRegionsIndexingEnabled() {
+        return evictObsoleteRegionsIndexingEnabled;
     }
 
     /// Whether to asynchronously demote the cache regions of a shard whose store was closed, making them the first eviction candidates.

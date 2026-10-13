@@ -23,6 +23,7 @@ import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
@@ -35,12 +36,15 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.TestUtils;
+import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.SearchEngine;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils;
+import org.elasticsearch.xpack.stateless.lucene.IndexBlobStoreCacheDirectory;
+import org.elasticsearch.xpack.stateless.lucene.IndexDirectory;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 
 import java.util.ArrayList;
@@ -48,6 +52,7 @@ import java.util.BitSet;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -59,12 +64,13 @@ import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_C
 import static org.elasticsearch.core.TimeValue.MINUS_ONE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils.doOpenInputWithoutReplicatedRanges;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * Verifies that cache regions belonging to obsolete segments are evicted on the search node.
+ * Verifies that cache regions belonging to obsolete segments are evicted on the search and indexing nodes.
  */
 public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginIntegTestCase {
 
@@ -77,6 +83,7 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
             StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING.getKey(),
             true
         )
+            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_INDEXING_ENABLED_SETTING.getKey(), true)
             // Tests are checking the regions populated in the cache, so we disable the features that increase regions content or prefetch
             // regions in the background. Tests also expect specific BCCs so we disable background flushes too.
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
@@ -689,6 +696,98 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
             }),
             equalTo(0L)
         );
+    }
+
+    public void testMergedSegmentsEvictedOnIndexNode() throws Exception {
+        startMasterAndIndexNode();
+
+        final String indexName = "test-merged-index-node";
+        createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), MINUS_ONE).build());
+        ensureGreen(indexName);
+
+        final var indexShard = findIndexShard(indexName);
+        final var indexEngine = getShardEngine(indexShard, IndexEngine.class);
+        final var indexDirectory = IndexDirectory.unwrapDirectory(indexShard.store().directory());
+        final var cacheDirectory = indexDirectory.getBlobStoreCacheDirectory();
+        final var cacheService = BlobStoreCacheDirectoryTestUtils.getCacheService(cacheDirectory);
+
+        final int nbSegments = randomIntBetween(2, 5);
+        for (int i = 0; i < nbSegments; i++) {
+            var bulkRequest = client().prepareBulk(indexName);
+            range(0, randomIntBetween(10, 50)).mapToObj(
+                n -> client().prepareIndex(indexName).setSource("value", n, "bytes", randomUnicodeOfLength(10))
+            ).forEach(bulkRequest::add);
+            assertNoFailures(bulkRequest.get());
+            refresh(indexName);
+        }
+        flush(indexName);
+
+        final var blobsBeforeMerge = readAllIndexFiles(indexEngine, cacheDirectory).values()
+            .stream()
+            .map(BlobLocation::blobName)
+            .collect(Collectors.toSet());
+        assertThat("segments should be in different BCCs", blobsBeforeMerge.size(), greaterThan(1));
+        assertThat(
+            "regions of the BCCs should be cached",
+            cacheService.countCachedRegions(indexShard.shardId(), (key, region) -> blobsBeforeMerge.contains(key.fileName())),
+            greaterThan(0L)
+        );
+
+        assertNoFailures(indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).get());
+        flush(indexName);
+
+        final var blobsAfterMerge = readAllIndexFiles(indexEngine, cacheDirectory).values()
+            .stream()
+            .map(BlobLocation::blobName)
+            .collect(Collectors.toSet());
+        assertThat(Sets.intersection(blobsAfterMerge, blobsBeforeMerge), empty());
+        final long cachedRegionsAfterMerge = cacheService.countCachedRegions(
+            indexShard.shardId(),
+            (key, region) -> blobsAfterMerge.contains(key.fileName())
+        );
+        assertThat(cachedRegionsAfterMerge, greaterThan(0L));
+
+        assertBusy(() -> {
+            indicesAdmin().prepareFlush(indexName).setForce(true).get();
+            assertThat(
+                cacheDirectory.getBlobFileRanges().stream().filter(ranges -> blobsBeforeMerge.contains(ranges.blobName())).toList(),
+                empty()
+            );
+        });
+
+        assertBusy(() -> {
+            assertThat(
+                "regions of the BCCs of the merged segments should be evicted",
+                cacheService.countCachedRegions(indexShard.shardId(), (key, region) -> blobsBeforeMerge.contains(key.fileName())),
+                equalTo(0L)
+            );
+            assertThat(BlobStoreCacheDirectoryTestUtils.pendingObsoleteRegionsEvictionTasks(cacheDirectory), equalTo(0L));
+        });
+        assertThat(
+            "regions of the BCC of the merged segment should still be cached",
+            cacheService.countCachedRegions(indexShard.shardId(), (key, region) -> blobsAfterMerge.contains(key.fileName())),
+            equalTo(cachedRegionsAfterMerge)
+        );
+    }
+
+    /**
+     * Reads every file of the last commit of the indexing engine through the cache directory to populate the cache, and returns the
+     * location of each file.
+     */
+    private static Map<String, BlobLocation> readAllIndexFiles(IndexEngine indexEngine, IndexBlobStoreCacheDirectory cacheDirectory)
+        throws Exception {
+        try (Engine.IndexCommitRef commitRef = indexEngine.acquireLastIndexCommit(false)) {
+            var locations = new HashMap<String, BlobLocation>();
+            for (var file : commitRef.getIndexCommit().getFileNames()) {
+                try (var input = cacheDirectory.openInput(file, IOContext.READONCE)) {
+                    CodecUtil.checksumEntireFile(input);
+                }
+                var blobLocation = BlobStoreCacheDirectoryTestUtils.getBlobLocation(cacheDirectory, file);
+                assertNotNull(blobLocation);
+                locations.put(file, blobLocation);
+            }
+            return locations;
+        }
     }
 
     /**

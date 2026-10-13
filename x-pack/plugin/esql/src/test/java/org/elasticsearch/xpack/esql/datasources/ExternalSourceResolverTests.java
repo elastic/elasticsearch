@@ -2845,10 +2845,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
         List<PartitionFilterHintExtractor.PartitionFilterHint> expected = preFolded.get(glob);
         assertNotNull("the pre-folded sibling fixture must still yield hints, or this comparison proves nothing", expected);
-        assertEquals(expected.size(), pathHints.size());
-        for (int i = 0; i < expected.size(); i++) {
-            assertEquals(expected.get(i).values(), pathHints.get(i).values());
-        }
+        assertEquals(expected, pathHints);
     }
 
     /** {@link #vpcDashboardFilterPlan} with the timestamp left as the {@code TO_DATETIME} call a dashboard sends. */

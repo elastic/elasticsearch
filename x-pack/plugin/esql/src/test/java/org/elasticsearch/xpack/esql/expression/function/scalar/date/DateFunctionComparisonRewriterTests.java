@@ -189,6 +189,26 @@ public class DateFunctionComparisonRewriterTests extends ESTestCase {
         assertEquals(12L, foldLiteral("DATE_EXTRACT", List.of(keyword("DAY_OF_MONTH"), innerFolded), minus5).value());
     }
 
+    public void testToDatetimeFoldsOffsetlessStringUsingQueryZone() {
+        // "2026-07-13" with no zone offset: parsed in -05:00 → 2026-07-13T05:00:00Z
+        Configuration minus5 = config(ZoneOffset.ofHours(-5));
+        long expectedMillis = Instant.parse("2026-07-13T05:00:00Z").toEpochMilli();
+        Literal folded = foldLiteral("TO_DATETIME", List.of(keyword("2026-07-13")), minus5);
+        assertEquals(DataType.DATETIME, folded.dataType());
+        assertEquals(expectedMillis, folded.value());
+        // DATE_EXTRACT in the same zone reads day 13; a zone-blind fold (always UTC) would give day 12
+        assertEquals(13L, foldLiteral("DATE_EXTRACT", List.of(keyword("DAY_OF_MONTH"), folded), minus5).value());
+    }
+
+    public void testToDatetimeFoldsDateNanosLiteral() {
+        Literal nanos = new Literal(SRC, DateUtils.toNanoSeconds(JULY_13_2026_UTC), DataType.DATE_NANOS);
+        UnresolvedFunction call = new UnresolvedFunction(SRC, "TO_DATETIME", List.of(nanos));
+        Literal folded = (Literal) DateFunctionComparisonRewriter.tryFoldCall(call, utc(), REGISTRY);
+        assertNotNull("DATE_NANOS argument must fold to a DATETIME millis literal", folded);
+        assertEquals(DataType.DATETIME, folded.dataType());
+        assertEquals(JULY_13_2026_UTC, folded.value());
+    }
+
     /**
      * Declines rather than folds. Each of these would make the fold disagree with what {@code ToDatetime} evaluates,
      * and a hint that disagrees prunes folders the query would have read - a silent short read, which is worse than

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
@@ -98,11 +99,6 @@ public final class DateFunctionComparisonRewriter {
      * {@link DateFunctionLiterals#literalArgs} refuses any argument that is not already a {@link Literal}, so the
      * outer call cannot fold while the inner one stands. The filter condition is walked bottom-up, so folding this
      * call hands the outer one two literals and its existing fold then applies.
-     * <p>
-     * Declines a {@code DATE_NANOS} argument, which is the conservative default rather than a correctness
-     * requirement: {@code ToDatetime#fromDatenanos} narrows to millis, so folding one would agree with evaluation.
-     * No such literal reaches here in production - the parser emits none and no fold arm produces one - so the
-     * branch exists to keep this helper exact about the types it handles.
      */
     private static Literal tryFoldToDatetime(Source source, List<Expression> args, Configuration config) {
         Literal[] literals = DateFunctionLiterals.literalArgs(args, 1);
@@ -110,10 +106,11 @@ public final class DateFunctionComparisonRewriter {
             return null;
         }
         DateFunctionLiterals.ParsedDate parsed = DateFunctionLiterals.parseDateLiteral(literals[0], DateFunctionLiterals.zoneId(config));
-        if (parsed == null || parsed.nanos()) {
+        if (parsed == null) {
             return null;
         }
-        return new Literal(source, parsed.epoch(), DataType.DATETIME);
+        long millis = parsed.nanos() ? DateUtils.toMilliSeconds(parsed.epoch()) : parsed.epoch();
+        return new Literal(source, millis, DataType.DATETIME);
     }
 
     /**

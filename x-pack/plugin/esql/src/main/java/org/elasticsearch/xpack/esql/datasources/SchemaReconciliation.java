@@ -157,8 +157,8 @@ public final class SchemaReconciliation {
          * read schema asks this rather than re-deriving the distinction from how the schema was declared.
          * <p>
          * Derived from {@link #inferredTypes} rather than stored, so the two cannot disagree. Storing it would
-         * admit a true with no type map, which is the #2076 failure itself: {@code normalizeSplitStats} would
-         * then take the pinned read schema for the file's own types. False therefore means one thing only - no
+         * admit a true with no type map: {@code normalizeSplitStats} would then take the pinned read schema for
+         * the file's own types, which is the wrong schema. False therefore means one thing only - no
          * rail opened this file, which is the case for a file a declared-strict read never examined and for a
          * first-file-wins file with no cached snapshot. Every rail that does read a file's schema records it.
          */

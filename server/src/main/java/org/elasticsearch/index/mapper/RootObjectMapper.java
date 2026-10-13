@@ -228,8 +228,9 @@ public class RootObjectMapper extends ObjectMapper {
             // Build child mappers first so that flattenBuildersIfNeeded has a chance to populate
             // prefixProperties before we pass them to the RootObjectMapper constructor.
             Map<String, Mapper> mappers = buildMappers(context.createChildContext(null, dynamic));
-            boolean retains = retainsUnmappedFields
-                || (tracksUnmappedFieldRetention && canRetainUnmappedFields(enabled.value(), dynamic, mappers.values(), prefixProperties));
+            // An untracked mapping records nothing, not even a value it is given: it reads as retaining either way.
+            boolean retains = tracksUnmappedFieldRetention
+                && (retainsUnmappedFields || canRetainUnmappedFields(enabled.value(), dynamic, mappers.values(), prefixProperties));
             return new RootObjectMapper(
                 leafName(),
                 enabled,
@@ -289,6 +290,7 @@ public class RootObjectMapper extends ObjectMapper {
         boolean retainsUnmappedFields
     ) {
         super(name, name, enabled, subobjects, sourceKeepMode, dynamic, mappers);
+        assert retainsUnmappedFields == false || tracksUnmappedFieldRetention : "an untracked mapping records nothing";
         this.tracksUnmappedFieldRetention = tracksUnmappedFieldRetention;
         this.retainsUnmappedFields = retainsUnmappedFields;
         this.runtimeFields = runtimeFields;
@@ -368,6 +370,7 @@ public class RootObjectMapper extends ObjectMapper {
             }
         }
         for (Mapper mapper : mappers) {
+            // Checks the object and, through its own mappers, every object below it.
             if (mapper instanceof ObjectMapper object
                 && canRetainUnmappedFields(object.isEnabled(), object.dynamic(), object.getMappers().values(), Map.of())) {
                 return true;

@@ -185,6 +185,7 @@ public class SearchContextStats implements SearchStats {
             return true;
         }
         String name = field.string();
+        // A name can lead into the value of a mapped field: span.gte where span is an integer_range.
         for (int dot = name.lastIndexOf('.'); dot > 0; dot = name.lastIndexOf('.', dot - 1)) {
             String ancestor = name.substring(0, dot);
             for (SearchExecutionContext context : contexts) {

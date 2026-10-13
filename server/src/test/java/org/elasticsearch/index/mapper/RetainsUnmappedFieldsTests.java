@@ -116,6 +116,10 @@ public class RetainsUnmappedFieldsTests extends MapperServiceTestCase {
             assertTrue(mapperService.mappingLookup().getMapping().getRoot().retainsUnmappedFields());
             assertThat(mapperService.documentMapper().mappingSource().string(), not(containsString(PROPERTY)));
         }
+        // Nor does it record a value it is given, such as a mapping copied from an index that tracks it.
+        MapperService mapperService = createMapperService(before, topMapping(b -> b.field(RootObjectMapper.RETAINS_UNMAPPED_FIELDS, true)));
+        assertTrue(mapperService.mappingLookup().getMapping().getRoot().retainsUnmappedFields());
+        assertThat(mapperService.documentMapper().mappingSource().string(), not(containsString(PROPERTY)));
     }
 
     public void testStoredSourceWithoutUnmappedFields() throws IOException {

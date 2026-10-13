@@ -144,7 +144,7 @@ public class LetResolverTests extends ESTestCase {
     }
 
     // -----------------------------------------------------------------------
-    // Cycle detection
+    // Forward references / cycle detection
     // -----------------------------------------------------------------------
 
     public void testLetResolutionSimpleCycle() {
@@ -182,7 +182,7 @@ public class LetResolverTests extends ESTestCase {
         );
     }
 
-    public void testLetResolutionComplexCycle() {
+    public void testForwardReferenceIsRejected() {
         // LET a = (FROM b | LIMIT 1);
         // LET b = (FROM a | LIMIT 1);
         // FROM a
@@ -195,60 +195,33 @@ public class LetResolverTests extends ESTestCase {
         );
     }
 
-    public void testLetResolutionCycleInInSubquery() {
-        // LET a = (FROM b | LIMIT 1);
-        // LET b = (FROM base | WHERE x IN (FROM a) | LIMIT 1);
+    public void testForwardReferenceInSubquery() {
+        // LET a = (FROM base | WHERE x IN (FROM a) | LIMIT 1);
         // FROM a
         // substitute replaces InSubquery(x, UR("a")) → InSubquery(x, Limit(UR("b"),1))
         // checkForCycles recurses into the subquery and finds UR("b") ∈ resolved → cycle
-        LetBinding a = binding("a", withLimit(relation("b")));
         Expression value = new UnresolvedAttribute(EMPTY, "x");
-        LetBinding b = binding("b", withLimit(new Filter(EMPTY, relation("base"), new InSubquery(EMPTY, value, relation("a")))));
+        LetBinding a = binding("a", withLimit(new Filter(EMPTY, relation("base"), new InSubquery(EMPTY, value, relation("a")))));
         expectThrows(
             VerificationException.class,
-            containsString("Forward reference in LET bindings: [b] cannot be referenced before its declaration"),
-            () -> LetResolver.resolve(relation("a"), List.of(a, b))
+            containsString("Forward reference in LET bindings: [a] cannot be referenced before its declaration"),
+            () -> LetResolver.resolve(relation("a"), List.of(a))
         );
     }
 
-    public void testLetResolutionCycleInMultiColumnInSubquery() {
-        // LET a = (FROM b | LIMIT 1);
-        // LET b = (FROM base | WHERE (x, y) IN (FROM a) | LIMIT 1);
+    public void testForwardReferenceMultiColumnInSubquery() {
+        // LET a = (FROM base | WHERE (x, y) IN (FROM a) | LIMIT 1);
         // FROM a
         // Same cycle as above but through a multi-column IN subquery.
-        LetBinding a = binding("a", withLimit(relation("b")));
         List<Expression> values = of(new UnresolvedAttribute(EMPTY, "x"), new UnresolvedAttribute(EMPTY, "y"));
-        LetBinding b = binding(
-            "b",
+        LetBinding a = binding(
+            "a",
             withLimit(new Filter(EMPTY, relation("base"), new MultiColumnInSubquery(EMPTY, values, relation("a"))))
         );
         expectThrows(
             VerificationException.class,
-            containsString("Forward reference in LET bindings: [b] cannot be referenced before its declaration"),
-            () -> LetResolver.resolve(relation("a"), List.of(a, b))
-        );
-    }
-
-    // -----------------------------------------------------------------------
-    // Forward references (binding A referencing binding B declared later)
-    // -----------------------------------------------------------------------
-
-    public void testForwardReferenceIsRejected() {
-        // LET a = (FROM b | LIMIT 1); -- a references b, declared later (forward reference)
-        // LET b = (FROM real_index);
-        // FROM a
-        //
-        // Sequential scoping: a is evaluated against the empty map (b is not yet declared),
-        // so UR("b") survives unresolved in a's body. The main substitution replaces UR("a")
-        // with Limit(UR("b")) and does NOT descend into the replacement (transformDownSkipBranch).
-        // checkForForwardReferences then finds UR("b") ∈ resolved and rejects the forward reference.
-        LetBinding a = binding("a", withLimit(relation("b")));
-        LetBinding b = binding("b", relation("real_index"));
-
-        expectThrows(
-            VerificationException.class,
-            containsString("Forward reference in LET bindings: [b] cannot be referenced before its declaration"),
-            () -> LetResolver.resolve(relation("a"), List.of(a, b))
+            containsString("Forward reference in LET bindings: [a] cannot be referenced before its declaration"),
+            () -> LetResolver.resolve(relation("a"), List.of(a))
         );
     }
 

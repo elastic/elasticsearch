@@ -16,6 +16,7 @@ import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.analysis.synonym.SynonymGraphFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.index.IndexSettings;
@@ -36,6 +37,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 /**
  * A {@code match_only_text} field indexes no positions and answers a phrase by reading its values, which carry them.
@@ -68,6 +72,26 @@ public class MatchOnlyTextSynonymPhraseTests extends MapperServiceTestCase {
         final List<Integer> matchOnlyText = matching("match_only_text", query);
         assertEquals("only the value holding the two words in order", List.of(0), indexingPositions);
         assertEquals(query.toString(), indexingPositions, matchOnlyText);
+    }
+
+    /**
+     * The field answers a phrase by reading its values, so it only asks about positions where those values can be
+     * read. Without doc values and without {@code _source} there is nothing to read, and the query is built from the
+     * synonym's words alone rather than failing on values it cannot reach.
+     */
+    public void testAFieldWhoseValuesCannotBeReadIsStillQueryable() throws IOException {
+        final MapperService mapperService = createMapperService(topMapping(b -> {
+            b.startObject("_source").field("enabled", false).endObject();
+            b.startObject("properties").startObject("field").field("type", "match_only_text").endObject().endObject();
+        }));
+        final SearchExecutionContext context = createSearchExecutionContext(mapperService);
+        final Query query = new MatchQueryBuilder("field", "ny").analyzer("synonym").toQuery(context);
+        assertThat(
+            "the synonym's words, asked for without their positions",
+            query.toString(),
+            containsString("+ConstantScore(field:new) +ConstantScore(field:york)")
+        );
+        assertThat("no phrase to confirm against values it cannot read", query.toString(), not(containsString("field:\"new york\"")));
     }
 
     /** Holds {@code new york} beside {@code ny}, as a multi word synonym does. */

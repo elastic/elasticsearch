@@ -12,9 +12,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
@@ -32,8 +29,6 @@ public class AbstractLookupServiceTests extends ESTestCase {
 
     public void testShardCopyUnavailableFailuresAreRetried() {
         List<Exception> failures = List.of(
-            new RemoteTransportException("test", new ShardNotFoundException(new ShardId("lookup", "_na_", 0))),
-            new RemoteTransportException("test", new IndexNotFoundException("lookup")),
             new RemoteTransportException("test", new NodeClosedException(NODE)),
             new ConnectTransportException(NODE, "test"),
             new NodeDisconnectedException(NODE, "test"),

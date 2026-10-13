@@ -1077,7 +1077,7 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
      * exactly {@code delta}. {@code escape} names the user function that can pass the reference through as a value.
      * {@code need} says when the charged reference makes a lambda around it capture the script, and {@code ownLambdas} lists
      * the lambdas inside the form's user functions, charged and neutral both, by what they need: n never, t under tracking,
-     * a always.
+     * a always. {@code LOOP} inside those lambdas is where the poll loop goes.
      */
     private record Ref(
         String name,
@@ -1360,8 +1360,8 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
         ),
         new Ref(
             "user function holding a lambda",
-            "def gl(def s) { return Optional.of(s).map(v -> v.substring(0, 3)).get(); } "
-                + "def hl(def s) { return Optional.of(s).map(v -> v).get(); } ",
+            "def gl(def s) { return Optional.of(s).map(v -> { LOOP return v.substring(0, 3); }).get(); } "
+                + "def hl(def s) { return Optional.of(s).map(v -> { LOOP return v; }).get(); } ",
             "",
             "Optional.of('abcdef')",
             ".map(REF).get()",
@@ -1377,8 +1377,8 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
         ),
         new Ref(
             "user function with no parameters holding a supplier lambda",
-            "def gz() { return Optional.empty().orElseGet(() -> 'abcdef'.substring(0, 3)); } "
-                + "def hz() { return Optional.empty().orElseGet(() -> 'abcdef'); } ",
+            "def gz() { return Optional.empty().orElseGet(() -> { LOOP return 'abcdef'.substring(0, 3); }); } "
+                + "def hz() { return Optional.empty().orElseGet(() -> { LOOP return 'abcdef'; }); } ",
             "",
             "Optional.empty()",
             ".orElseGet(REF)",
@@ -1395,8 +1395,8 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
         new Ref(
             "user function holding a lambda holding a reference",
             USER_FUNCTIONS
-                + "def gll(def s) { return Optional.of(1).map(q -> Optional.of(s).map(this::g).get()).get(); } "
-                + "def hll(def s) { return Optional.of(1).map(q -> Optional.of(s).map(this::h).get()).get(); } ",
+                + "def gll(def s) { return Optional.of(1).map(q -> { LOOP return Optional.of(s).map(this::g).get(); }).get(); } "
+                + "def hll(def s) { return Optional.of(1).map(q -> { LOOP return Optional.of(s).map(this::h).get(); }).get(); } ",
             "",
             "Optional.of('abcdef')",
             ".map(REF).get()",
@@ -1583,11 +1583,13 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
         String reference = context.refWrap.replace("ESCAPE", ref.escape).replace("REF", charged ? ref.charged : ref.neutral);
         String tail = (charged ? ref.chargedTail : ref.neutralTail).replace("REF", reference);
         boolean setupInFunction = context.functions.contains("REFSETUP");
-        String functions = ref.functions + context.functions.replace("REFSETUP", ref.setup)
-            .replace("RECEIVER", ref.receiver)
-            .replace("TAIL", tail);
+        // The loop goes in the lambda that runs last: the form's own lambda when it has one, else the context's lambda.
+        boolean loopInForm = ref.functions.contains("LOOP");
+        String formFunctions = ref.functions.replace("LOOP", loop && loopInForm ? POLL_LOOP : "");
+        String contextFunctions = context.functions.replace("REFSETUP", ref.setup).replace("RECEIVER", ref.receiver).replace("TAIL", tail);
+        String functions = formFunctions + contextFunctions;
         String setup = (setupInFunction ? "" : ref.setup) + " " + context.setup.replace("RECEIVER", ref.receiver);
-        String expression = context.expression.replace("LOOP", loop ? POLL_LOOP : "")
+        String expression = context.expression.replace("LOOP", loop && loopInForm == false ? POLL_LOOP : "")
             .replace("RECEIVER", ref.receiver)
             .replace("TAIL", tail);
         return functions + setup + " " + matrixResult(mode, expression);
@@ -1713,9 +1715,9 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
 
     /**
      * With a cancel check installed the cell runs as before. The check is throttled, firing once per thousand polls, so a
-     * variant with a loop inside the innermost lambda ({@code loopedCharged}, null when the cell has no lambda) polls enough
-     * for it to fire there: with a counting check it still runs as before and has polled, and with a cancelling check the
-     * script must stop with that cancellation and nothing else.
+     * variant with a loop inside the lambda that runs last ({@code loopedCharged}, null when the cell has no lambda) polls
+     * enough for it to fire there: with a counting check it still runs as before and has polled, and with a cancelling check
+     * the script must stop with that cancellation, thrown from inside a lambda, and nothing else.
      */
     private static void checkCancellation(
         PainlessScriptEngine engine,
@@ -1757,6 +1759,8 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
             }
             if (cancelled == false) {
                 problems.add("wrong error under cancellation " + label + ": " + e);
+            } else if (thrownInScriptLambda(e) == false) {
+                problems.add("cancelled outside a lambda " + label);
             }
         }
     }
@@ -1821,6 +1825,18 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
             }
         }
         return instance;
+    }
+
+    /** True when a frame of the error, or of any cause, is a lambda method of the generated script class. */
+    private static boolean thrownInScriptLambda(Throwable error) {
+        for (Throwable t = error; t != null; t = t.getCause()) {
+            for (StackTraceElement frame : t.getStackTrace()) {
+                if (WriterConstants.CLASS_NAME.equals(frame.getClassName()) && frame.getMethodName().startsWith("lambda$")) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /** Instance lambdas expected around a reference, plus those inside the form's own functions, which propagate nowhere. */
@@ -1942,7 +1958,7 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
                         neutral,
                         ref.neutralExpected,
                         ref.delta,
-                        context.chain.isEmpty() ? null : refSource(mode, context, ref, true, true)
+                        context.chain.isEmpty() && ref.ownLambdas.isEmpty() ? null : refSource(mode, context, ref, true, true)
                     );
                 }
             }

@@ -12,6 +12,7 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -40,25 +41,39 @@ public class DeleteViewAction extends ActionType<AcknowledgedResponse> {
 
     public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest.Replaceable {
         private String[] views;
+        private final boolean canDeleteReservedViews;
 
         public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String[] views) {
+            this(masterNodeTimeout, ackTimeout, views, false);
+        }
+
+        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String[] views, boolean canDeleteReservedViews) {
             super(masterNodeTimeout, ackTimeout);
             this.views = Objects.requireNonNull(views, "views cannot be null");
+            this.canDeleteReservedViews = canDeleteReservedViews;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            views = in.readStringArray();
+            this.views = in.readStringArray();
+            this.canDeleteReservedViews = in.getTransportVersion().supports(View.VIEW_RESERVED_VERSION) && in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeStringArray(views);
+            if (out.getTransportVersion().supports(View.VIEW_RESERVED_VERSION)) {
+                out.writeBoolean(canDeleteReservedViews);
+            }
         }
 
         public String[] views() {
             return views;
+        }
+
+        public boolean canDeleteReservedViews() {
+            return canDeleteReservedViews;
         }
 
         @Override
@@ -75,12 +90,12 @@ public class DeleteViewAction extends ActionType<AcknowledgedResponse> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Arrays.equals(views, request.views);
+            return Arrays.equals(views, request.views) && canDeleteReservedViews == request.canDeleteReservedViews;
         }
 
         @Override
         public int hashCode() {
-            return Arrays.hashCode(views);
+            return Objects.hash(Arrays.hashCode(views), canDeleteReservedViews);
         }
 
         @Override

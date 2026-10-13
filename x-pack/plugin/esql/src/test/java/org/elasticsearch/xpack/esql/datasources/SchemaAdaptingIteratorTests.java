@@ -661,7 +661,7 @@ public class SchemaAdaptingIteratorTests extends ESTestCase {
         }
 
         assertThat(warnings.size(), equalTo(1));
-        assertThat(warnings.get(0), equalTo(SkipWarnings.absentDeclaredColumnMessage("department")));
+        assertThat(warnings.get(0), equalTo(SkipWarnings.absentColumnMessage("department")));
     }
 
     /**

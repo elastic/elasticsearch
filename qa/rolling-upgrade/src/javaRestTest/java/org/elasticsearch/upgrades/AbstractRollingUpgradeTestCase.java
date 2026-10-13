@@ -31,7 +31,6 @@ public abstract class AbstractRollingUpgradeTestCase extends ParameterizedRollin
     private static final ElasticsearchCluster cluster = buildCluster();
 
     private static ElasticsearchCluster buildCluster() {
-        Version oldVersion = Version.fromString(OLD_CLUSTER_VERSION);
         var cluster = ElasticsearchCluster.local()
             .name("rolling-upgrade-cluster")
             .distribution(DistributionType.DEFAULT)
@@ -47,7 +46,7 @@ public abstract class AbstractRollingUpgradeTestCase extends ParameterizedRollin
             .setting("xpack.security.enabled", "false")
             .feature(FeatureFlag.TIME_SERIES_MODE);
 
-        if (oldVersion.before(Version.fromString("8.18.0"))) {
+        if (getOldClusterTestVersion().before(Version.fromString("8.18.0"))) {
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
         }

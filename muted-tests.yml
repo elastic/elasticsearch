@@ -105,12 +105,6 @@ tests:
 - class: org.elasticsearch.xpack.ilm.TimeSeriesLifecycleActionsIT
   method: testForceMergeActionWithCompressionCodec
   issue: https://github.com/elastic/elasticsearch/issues/159423
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {yaml=profiling/10_basic/Test topN functions from test-events}
-  issue: https://github.com/elastic/elasticsearch/issues/159424
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {yaml=ml/inference_crud/Test put model model aliases}
-  issue: https://github.com/elastic/elasticsearch/issues/159430
 - class: org.elasticsearch.xpack.inference.InferenceRestIT
   method: test {yaml=inference/30_semantic_text_inference/Calculates embeddings using the default ELSER 2 endpoint}
   issue: https://github.com/elastic/elasticsearch/issues/159673
@@ -135,15 +129,9 @@ tests:
 - class: org.elasticsearch.xpack.ilm.TimeSeriesLifecycleActionsIT
   method: testWaitForSnapshotFast
   issue: https://github.com/elastic/elasticsearch/issues/159836
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {yaml=security/authz/13_index_datemath/Test indexing documents with datemath, when permitted}
-  issue: https://github.com/elastic/elasticsearch/issues/159840
 - class: org.elasticsearch.xpack.ilm.TimeSeriesLifecycleActionsIT
   method: testHistoryIsWrittenWithSuccess
   issue: https://github.com/elastic/elasticsearch/issues/159841
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {yaml=vector-tile/10_basic/exact bounds}
-  issue: https://github.com/elastic/elasticsearch/issues/159844
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/search/search-your-data/retrievers-examples/line_1933}
   issue: https://github.com/elastic/elasticsearch/issues/159847
@@ -179,29 +167,11 @@ tests:
 - class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
   method: bwc expanded distribution folder can be resolved as bwc project artifact
   issue: https://github.com/elastic/elasticsearch/issues/160706
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {yaml=esql/130_spatial/geo_point unsortable with limit status}
-  issue: https://github.com/elastic/elasticsearch/issues/160707
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {yaml=ml/preview_data_frame_analytics/Test feature preview given job}
-  issue: https://github.com/elastic/elasticsearch/issues/160713
-- class: org.elasticsearch.xpack.security.QueryableReservedRolesIT
-  method: testConfiguredReservedRolesAfterClosingAndOpeningIndex
-  issue: https://github.com/elastic/elasticsearch/issues/160920
 - class: org.elasticsearch.xpack.ml.integration.InferenceIT
   method: testInferRegressionModel
   issue: https://github.com/elastic/elasticsearch/issues/160936
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {yaml=security/authz/55_auto_configure/auto_configure privilege permits auto-create of indices}
-  issue: https://github.com/elastic/elasticsearch/issues/160952
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {yaml=security/authz/20_get_doc/Test get a document when not allowed}
-  issue: https://github.com/elastic/elasticsearch/issues/160960
 - class: org.elasticsearch.xpack.search.AsyncSearchActionIT
   issue: https://github.com/elastic/elasticsearch/issues/161084
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {yaml=migrate/10_reindex/Test Reindex With Nonexistent Data Stream}
-  issue: https://github.com/elastic/elasticsearch/issues/161199
 - class: org.elasticsearch.indices.mapping.UpdateMappingIntegrationIT
   method: testDynamicUpdates
   issue: https://github.com/elastic/elasticsearch/issues/161200
@@ -211,24 +181,12 @@ tests:
 - class: org.elasticsearch.indices.recovery.IndexRecoveryIT
   method: testOngoingRecoveryAndMasterFailOver
   issue: https://github.com/elastic/elasticsearch/issues/161202
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {yaml=ml/jobs_get_result_overall_buckets/Test overall buckets given top_n is 2}
-  issue: https://github.com/elastic/elasticsearch/issues/161206
 - class: org.elasticsearch.upgrades.MlMappingsUpgradeIT
   method: testMappingsUpgrade {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/159043
 - class: org.elasticsearch.integration.FieldLevelSecurityTests
   method: testPercolatorConstantKeywordQueryDependsOnIndexingUsersFls
   issue: https://github.com/elastic/elasticsearch/issues/161396
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {yaml=security/authz/14_cat_indices/Test empty request while single authorized index}
-  issue: https://github.com/elastic/elasticsearch/issues/161609
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {yaml=api_key/30_update/Test update api key}
-  issue: https://github.com/elastic/elasticsearch/issues/161612
-- class: org.elasticsearch.xpack.core.security.authc.AuthenticationSerializationTests
-  method: testWriteToWithCrossClusterAccessThrowsOnUnsupportedVersion
-  issue: https://github.com/elastic/elasticsearch/issues/161631
 - class: org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoaderTests
   method: testObjectAndDottedNameInParentKeptInIgnoredSource
   issue: https://github.com/elastic/elasticsearch/issues/161649

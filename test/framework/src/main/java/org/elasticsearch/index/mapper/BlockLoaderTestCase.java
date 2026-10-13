@@ -275,7 +275,10 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     }
 
     public void testBlockLoaderForFieldInObject() throws IOException {
-        assumeFalse("Skip test for Geo tests and LOGSDB", params.indexMode() == IndexMode.LOGSDB && this.getClass().getSimpleName().equals("GeoPointFieldBlockLoaderTests"));
+        assumeFalse(
+            "Skip test for Geo tests and LOGSDB",
+            params.indexMode() == IndexMode.LOGSDB && this.getClass().getSimpleName().equals("GeoPointFieldBlockLoaderTests")
+        );
         testBlockLoaderForFieldInObject(newLimitedBreaker(TEST_BREAKER_SIZE));
     }
 

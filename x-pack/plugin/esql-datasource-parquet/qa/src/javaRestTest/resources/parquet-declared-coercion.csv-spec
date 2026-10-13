@@ -16,14 +16,13 @@
 strictDeclaredStringReadsAsDoubleOnParquetUnderNullFieldPolicy
 required_capability: dataset_in_from_command
 required_capability: external_dataset_messages
-required_capability: external_source_converts_undeclared_columns
 dataset: employees_declared_parse: "{{employees_no_mv}}" WITH {"error_mode": "null_field", "mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "change": {"type": "double", "path": "salary_change.keyword"}}}}
 
 FROM employees_declared_parse
 | SORT id
 | LIMIT 3;
 warningRegex:column \[salary_change.keyword\]: cannot read \[keyword\] as \[double\]: empty String
-warningRegex:Some values in \[.*\] cannot be read as the type the query uses; returning null
+warningRegex:Some values in \[.*\] cannot be read as their declared type; returning null
 warningRegex:\.\.\. further warnings suppressed .*
 
 id:long | change:double

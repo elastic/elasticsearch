@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 
 import java.io.IOException;
 import java.util.Map;
@@ -32,27 +33,18 @@ import java.util.Set;
  *       default / file-level {@code datetime_format}. Physicalized to file-column names at the reader boundary
  *       ({@code FileSourceFactory}). Empty when no column declares a {@code format}.</li>
  *   <li>{@code declaredTypeColumns} — the <b>logical</b> names of the columns whose target type came from an explicit
- *       declaration (as opposed to inference). <b>No reader reads this.</b> Whether a value is converted or the column
- *       is nulled is decided from the type pair alone, by
- *       {@link org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions}: who typed a column does not
- *       change whether a conversion can fail, and keying a read on it made one set of bytes behave two ways.
- *       Nothing left asks <em>which</em> columns are in the set; every reader asks only
- *       whether it is <em>empty</em>, through {@link #isEmpty()} or
- *       {@link #declaresNoStatsAffectingInstructions()} — the latter is how a split decides whether a footer
- *       statistic still describes the read. Retiring the field needs a transport version, so it still crosses
- *       the wire.
- *       Empty when the mapping declares no column types.</li>
+ *       declaration (as opposed to inference). A declared type licenses a lossy read-time coercion toward it — e.g. a
+ *       declared {@code integer} over an {@code int64} file column narrows per value (null on overflow). An inferred
+ *       target must never narrow: a cross-file clash widens-or-nulls. The by-name columnar readers (Parquet/ORC) key
+ *       their whole-column incompatibility null-fill on this set — a declared column keeps the coercion escape, an
+ *       inferred one null-fills whenever the file type is not widening-compatible. Physicalized to file-column names at
+ *       the reader boundary ({@code FileSourceFactory}); the text readers ignore it (they parse straight into the
+ *       target). Empty when the mapping declares no column types.</li>
  *   <li>{@code provenance} — whether the {@code readSchema} this spec accompanies is a
  *       {@link SchemaProvenance#DECLARED} claim (bind by name, report absent columns) or was
  *       {@link SchemaProvenance#INFERRED} from the file (bind by position). The axis {@code dynamic} actually
  *       selects; the data node reads provenance, never the mode. Defaults to {@code INFERRED} — the identity a
- *       pre-gate peer and every non-declared read carry.
- *       <p>
- *       Its one remaining job is binding a <b>text</b> file's columns: a headerless CSV or TSV binds by
- *       {@code col<N>} name when declared and by position when inferred, and a headered one binds the same way
- *       while any node predates {@code esql_external_text_header_every_split}. Nothing about a value's conversion
- *       asks it. The fix that removes it is to bind by name everywhere, which makes the field unnecessary rather
- *       than merely unread.</li>
+ *       pre-gate peer and every non-declared read carry.</li>
  * </ul>
  * A plain {@link Writeable}: its wire gate lives on the enclosing plan nodes, which only read/write it when the
  * {@code dataset_declared_schema} transport version is supported (mirrors how {@code DatasetMapping.Mappings} is gated
@@ -124,16 +116,27 @@ public record DeclaredReadSpec(
     }
 
     /**
-     * True when the mapping declared nothing that changes how a file's statistics map onto the read schema — no
-     * rename to rekey, no parse-format to poison, no declared type to differ from the file's own.
+     * True when reading this spec under {@code policy} can drop a whole row: the read asked for
+     * {@link ErrorPolicy.Mode#SKIP_ROW} <em>and</em> declares column types that a value can fail to coerce into.
+     * With no declared types there is nothing to coerce, so no row is ever dropped and {@code skip_row} is
+     * indistinguishable from {@code fail_fast} on the columnar readers.
      * <p>
-     * Deliberately blind to {@link #provenance}, unlike {@link #isEmpty()}. The binding mode is an instruction to
-     * the text readers and has to survive the wire, which is why {@code isEmpty()} consults it; it says nothing
-     * about whether a footer statistic still describes the read. Asking {@code isEmpty()} here made the split-side
-     * statistics decision turn on whether a declaration existed.
+     * This is the single predicate for that combination. It gates three independent decisions that must agree for
+     * one read — whether {@code PushFiltersToSource} pushes the filter, whether {@code InsertExternalFieldExtraction}
+     * inserts an {@code ExternalFieldExtractExec}, and whether the operator factory enables deferred extraction —
+     * because each of those moves the page's shape away from the point where the reader drops rows. Two of them are
+     * plan-time and one is execution-time, so any drift between them shows up as a plan the factory cannot honour.
+     * <p>
+     * Footer statistics need no such gate: {@code FileSplitProvider} already poisons declared-retyped and
+     * date-format columns out of the published stats (their pre-coercion extrema are untrustworthy), and the
+     * surviving {@code row_count} is what a {@code COUNT(*)} scan returns anyway — that scan projects no column, so
+     * nothing is decoded and no row can be dropped.
+     * <p>
+     * Keyed on the <b>logical</b> {@code declaredTypeColumns}; {@code FileSourceFactory} physicalizes the same set
+     * through the {@code path} renames for the by-name readers, which is a 1:1 map and so cannot change emptiness.
      */
-    public boolean declaresNoStatsAffectingInstructions() {
-        return renames.isEmpty() && dateFormats.isEmpty() && declaredTypeColumns.isEmpty();
+    public boolean dropsRowsOnCoercionFailure(ErrorPolicy policy) {
+        return policy.mode() == ErrorPolicy.Mode.SKIP_ROW && declaredTypeColumns.isEmpty() == false;
     }
 
     @Override

@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ReadConfigFingerprint;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.TypeWidening;
@@ -163,14 +164,24 @@ public final class SourceStatisticsSerializer {
      * would reproduce the old plan exactly, and it is schema provenance wearing another name: a signal whose value
      * is decided by how the schema was produced, consulted while reading. Reintroducing it here would undo the
      * point of esql-planning#2076 for every plan in the upgrade window.
-     * <p>
-     * The one implementation of the question. Three decisions turn on it for a single read - whether the filter
-     * reaches the reader, whether field extraction is deferred, and whether the operator factory enables it - and
-     * they have to agree, because each moves the page away from the point where a failing row is dropped. Two of
-     * them are plan-time and one is execution-time, so a second copy shows up as a plan the factory cannot honour.
      */
     public static boolean conversionMayNarrowOrIsUnstamped(Map<String, Object> sourceMetadata) {
         return conversionNarrowingStamped(sourceMetadata) == false || conversionMayNarrow(sourceMetadata);
+    }
+
+    /**
+     * Whether this read drops whole rows when a value fails to convert: the error mode asks for it, and a value in
+     * this source can fail at all.
+     * <p>
+     * The one implementation of that question, and it has to be. Three decisions turn on it for a single read -
+     * whether the filter reaches the reader, whether field extraction is deferred, and whether the operator factory
+     * enables it - and they have to agree, because each moves the page away from the point where a failing row is
+     * dropped. Two are plan-time and one is execution-time, so a second copy shows up as a plan the factory cannot
+     * honour. It was spelled out at all three sites once, and {@code PushFiltersToSource} then grew a third term of
+     * its own, which is how copies start to diverge.
+     */
+    public static boolean dropsRowsOnConversionFailure(ErrorPolicy errorPolicy, Map<String, Object> sourceMetadata) {
+        return errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW && conversionMayNarrowOrIsUnstamped(sourceMetadata);
     }
 
     /**

@@ -32,18 +32,25 @@ import java.util.Set;
  *       default / file-level {@code datetime_format}. Physicalized to file-column names at the reader boundary
  *       ({@code FileSourceFactory}). Empty when no column declares a {@code format}.</li>
  *   <li>{@code declaredTypeColumns} — the <b>logical</b> names of the columns whose target type came from an explicit
- *       declaration (as opposed to inference). A declared type licenses a lossy read-time coercion toward it — e.g. a
- *       declared {@code integer} over an {@code int64} file column narrows per value (null on overflow). An inferred
- *       target must never narrow: a cross-file clash widens-or-nulls. The by-name columnar readers (Parquet/ORC) key
- *       their whole-column incompatibility null-fill on this set — a declared column keeps the coercion escape, an
- *       inferred one null-fills whenever the file type is not widening-compatible. Physicalized to file-column names at
- *       the reader boundary ({@code FileSourceFactory}); the text readers ignore it (they parse straight into the
- *       target). Empty when the mapping declares no column types.</li>
+ *       declaration (as opposed to inference). <b>No reader reads this.</b> Whether a value is converted or the column
+ *       is nulled is decided from the type pair alone, by {@link org.elasticsearch.xpack.esql.datasources.spi
+ *       .DeclaredTypeCoercions}: who typed a column does not change whether a conversion can fail, and keying a read
+ *       on it made one set of bytes behave two ways (esql-planning#2076). What remains are two coordinator-side
+ *       readers, both of which ask only whether the set is <em>empty</em> — see
+ *       {@link #declaresNoStatsAffectingInstructions()}, which is how a split decides whether a footer statistic
+ *       still describes the read. Retiring the field needs a transport version, so it still crosses the wire.
+ *       Empty when the mapping declares no column types.</li>
  *   <li>{@code provenance} — whether the {@code readSchema} this spec accompanies is a
  *       {@link SchemaProvenance#DECLARED} claim (bind by name, report absent columns) or was
  *       {@link SchemaProvenance#INFERRED} from the file (bind by position). The axis {@code dynamic} actually
  *       selects; the data node reads provenance, never the mode. Defaults to {@code INFERRED} — the identity a
- *       pre-gate peer and every non-declared read carry.</li>
+ *       pre-gate peer and every non-declared read carry.
+ *       <p>
+ *       Its one remaining job is binding a <b>text</b> file's columns: a headerless CSV or TSV binds by
+ *       {@code col<N>} name when declared and by position when inferred, and a headered one binds the same way
+ *       while any node predates {@code esql_external_text_header_every_split}. Nothing about a value's conversion
+ *       asks it. The fix that removes it is to bind by name everywhere, which makes the field unnecessary rather
+ *       than merely unread.</li>
  * </ul>
  * A plain {@link Writeable}: its wire gate lives on the enclosing plan nodes, which only read/write it when the
  * {@code dataset_declared_schema} transport version is supported (mirrors how {@code DatasetMapping.Mappings} is gated

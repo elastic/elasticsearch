@@ -4781,6 +4781,36 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * file's own type against the type it is read as. Every row here holds the schema fixed and varies only the
      * file's native type, so nothing but that comparison can be producing the answer.
      */
+    /**
+     * A column the query reads at {@code NULL} or {@code UNSUPPORTED} is never decoded, so no value of it can fail
+     * to convert and it must not stamp the source. Both reader-side askers of the same question skip these types
+     * first; without the same guard in the resolver one such column answered for every other column in the read,
+     * and a {@code skip_row} read lost its filter pushdown and deferred extraction for a column nobody reads.
+     */
+    public void testAColumnTheReaderNeverDecodesDoesNotStampNarrowing() {
+        for (DataType undecodable : List.of(DataType.NULL, DataType.UNSUPPORTED)) {
+            ExternalSchema onlyUndecodable = new ExternalSchema(List.of(attr("x", undecodable)));
+            assertFalse(
+                undecodable + " alone: nothing is decoded, so no value can fail",
+                stampedMayNarrow(onlyUndecodable, Map.of("x", DataType.KEYWORD))
+            );
+
+            // Beside a column that genuinely converts losslessly, the undecodable one must not flip the answer.
+            ExternalSchema besideALosslessColumn = new ExternalSchema(List.of(attr("x", undecodable), attr("y", DataType.LONG)));
+            assertFalse(
+                undecodable + " beside a lossless column: still nothing can fail",
+                stampedMayNarrow(besideALosslessColumn, Map.of("x", DataType.KEYWORD, "y", DataType.INTEGER))
+            );
+
+            // It must not mask a real narrowing on another column either.
+            ExternalSchema besideANarrowingColumn = new ExternalSchema(List.of(attr("x", undecodable), attr("y", DataType.LONG)));
+            assertTrue(
+                undecodable + " must not mask another column's narrowing",
+                stampedMayNarrow(besideANarrowingColumn, Map.of("x", DataType.KEYWORD, "y", DataType.DOUBLE))
+            );
+        }
+    }
+
     public void testConversionMayNarrowStampFollowsTheFilesOwnTypes() {
         ExternalSchema readAsLong = new ExternalSchema(List.of(attr("x", DataType.LONG)));
 

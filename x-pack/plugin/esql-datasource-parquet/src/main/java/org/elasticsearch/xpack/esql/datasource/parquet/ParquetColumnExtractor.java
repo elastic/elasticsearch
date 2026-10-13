@@ -1002,10 +1002,11 @@ final class ParquetColumnExtractor implements ColumnExtractor {
     /**
      * The per-value coercion-failure sink handed to {@code castBlock}, or {@code null} under
      * {@code fail_fast} so the failure propagates — identical to the eager iterators'
-     * policy-aware {@code coercionWarnings()}. Its being {@code null} also fails a declared column the
-     * file cannot supply at all ({@link #coerceToTarget}) under {@code fail_fast}, exactly as the eager
-     * per-file validation does; otherwise that column, and the same fallback for an inferred column
-     * (which widens or nulls under every policy), report on {@link #uncoercibleColumnWarnings()}.
+     * policy-aware {@code coercionWarnings()}. Its being {@code null} also fails a column the file cannot
+     * supply at all ({@link #coerceToTarget}) under {@code fail_fast}, exactly as the eager per-file
+     * validation does; otherwise that column reports on {@link #uncoercibleColumnWarnings()}. Which
+     * columns reach that fallback is decided by the type pair, not by who typed the column: an
+     * undeclared column used to null-fill under every error mode (esql-planning#2076).
      */
     @Nullable
     private SkipWarnings castBlockWarnings() {

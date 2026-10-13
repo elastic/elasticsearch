@@ -272,9 +272,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         // stamped at resolution; it was previously answered by asking whether the user had declared any column
         // types, so the identical read pushed or withheld by declaration alone (esql-planning#2076).
         ErrorPolicy errorPolicy = ErrorPolicy.forReader(externalExec.config(), formatReader);
-        if (formatReader.dropsRowsUnderPushedFilter() == false
-            && errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW
-            && externalExec.conversionMayNarrow()) {
+        if (formatReader.dropsRowsUnderPushedFilter() == false && externalExec.dropsRowsOnConversionFailure(errorPolicy)) {
             return filterExec;
         }
 

@@ -1763,9 +1763,17 @@ public class ExternalSourceResolver {
                 // type - the same translation normalizeSplitStats and fileBackedPhysicalColumns perform. Reading
                 // the logical name out of the physical map silently found nothing and called the column safe.
                 // A column this file does not supply is absent from the map and null-fills, converting nothing.
+                DataType readAt = attr.dataType();
+                if (readAt == DataType.NULL || readAt == DataType.UNSUPPORTED) {
+                    // No reader decodes such a column, so no value of it can fail to convert. Both reader-side
+                    // askers of the same question skip these first (OrcFormatReader#conversionCanNull,
+                    // ParquetFormatReader); without the same guard here one such column stamped the whole source
+                    // may-narrow, which costs a skip_row read its pushdown for a column nobody reads.
+                    continue;
+                }
                 String physical = PhysicalNames.translate(attr.name(), renames);
                 DataType nativeType = nativeTypes.get(physical);
-                if (nativeType != null && DeclaredTypeCoercions.readsLossless(nativeType, attr.dataType()) == false) {
+                if (nativeType != null && DeclaredTypeCoercions.readsLossless(nativeType, readAt) == false) {
                     return true;
                 }
             }

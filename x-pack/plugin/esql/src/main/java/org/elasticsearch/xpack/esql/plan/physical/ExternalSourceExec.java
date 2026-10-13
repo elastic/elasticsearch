@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -511,6 +512,15 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
      */
     public boolean conversionMayNarrow() {
         return SourceStatisticsSerializer.conversionMayNarrowOrIsUnstamped(sourceMetadata);
+    }
+
+    /**
+     * Whether this read drops whole rows when a value fails to convert, under {@code errorPolicy}. The plan-side
+     * view of {@link SourceStatisticsSerializer#dropsRowsOnConversionFailure}, which the operator factory asks with
+     * the same source metadata, so a rule and the factory cannot reach different verdicts for one read.
+     */
+    public boolean dropsRowsOnConversionFailure(ErrorPolicy errorPolicy) {
+        return SourceStatisticsSerializer.dropsRowsOnConversionFailure(errorPolicy, sourceMetadata);
     }
 
     /**

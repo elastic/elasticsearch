@@ -43,6 +43,11 @@ import static org.hamcrest.Matchers.not;
  */
 public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
     private String indexName;
+    /**
+     * Without node-level reduction the data drivers send their documents straight to the coordinator, instead of the
+     * node reduce driver. Both runs of a test use the same choice.
+     */
+    private final boolean nodeLevelReduction = randomBoolean();
 
     /**
      * The result and the profile of one run.
@@ -625,7 +630,8 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
         // one driver per shard keeps the shards and the node reduction of the plans deterministic
         Settings.Builder pragmas = Settings.builder()
             .put(QueryPragmas.TASK_CONCURRENCY.getKey(), 1)
-            .put(QueryPragmas.DATA_PARTITIONING.getKey(), "shard");
+            .put(QueryPragmas.DATA_PARTITIONING.getKey(), "shard")
+            .put(QueryPragmas.NODE_LEVEL_REDUCTION.getKey(), nodeLevelReduction);
         if (fetchPhase != null) {
             pragmas.put(QueryPragmas.FETCH_PHASE.getKey(), fetchPhase);
         }

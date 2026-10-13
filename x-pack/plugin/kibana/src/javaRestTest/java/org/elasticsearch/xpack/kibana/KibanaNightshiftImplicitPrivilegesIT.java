@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.kibana;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -29,6 +30,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 /**
  * End-to-end coverage for {@code KibanaNightshiftImplicitPrivilegesProvider} against a real default-distribution
@@ -136,6 +138,33 @@ public class KibanaNightshiftImplicitPrivilegesIT extends ESRestTestCase {
         assertThat(entityAsMap(response).get("values"), equalTo(List.of(List.of("hello"))));
     }
 
+    public void testViewGrantDoesNotExposeDataBehindTheView() throws Exception {
+        putKibanaPrivileges();
+        putRole("nightshift_view_only", NIGHTSHIFT_READ_PRIVILEGE, "space:marketing");
+        putUser("nightshift_view_only_user", "nightshift_view_only");
+        createViewFixtures();
+
+        // Control: the implicit grant does give this user the view definition, and nothing grants the data index.
+        assertThat(viewStatusAs("nightshift_view_only_user", "GET", MARKETING_VIEW), equalTo(200));
+        final ResponseException direct = expectThrows(
+            ResponseException.class,
+            () -> queryAs("nightshift_view_only_user", "FROM " + VIEW_DATA_INDEX + " | KEEP message | LIMIT 10")
+        );
+        // ES|QL reports an index the caller cannot read as unknown, so it does not reveal that the index exists.
+        assertThat(direct.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(direct.getResponse().getEntity()), containsString("Unknown index"));
+
+        // Reading a view is not reading its data: the view's query runs with the caller's own index privileges.
+        final ResponseException viaView = expectThrows(
+            ResponseException.class,
+            () -> queryAs("nightshift_view_only_user", "FROM " + MARKETING_VIEW + " | KEEP message | LIMIT 10")
+        );
+        assertThat(viaView.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        final String viaViewBody = EntityUtils.toString(viaView.getResponse().getEntity());
+        assertThat(viaViewBody, containsString("Unknown index"));
+        assertThat(viaViewBody, not(containsString("hello")));
+    }
+
     public void testAllRoleReadsButCannotWriteViewsDirectly() throws Exception {
         putKibanaPrivileges();
         putRole("nightshift_view_manager", NIGHTSHIFT_ALL_PRIVILEGE, "space:marketing");
@@ -149,6 +178,13 @@ public class KibanaNightshiftImplicitPrivilegesIT extends ESRestTestCase {
         assertThat(viewStatusAs("nightshift_view_manager_user", "PUT", MARKETING_VIEW), equalTo(403));
         assertThat(viewStatusAs("nightshift_view_manager_user", "PUT", "$.nightshift.sources.marketing.new"), equalTo(403));
         assertThat(viewStatusAs("nightshift_view_manager_user", "DELETE", MARKETING_VIEW), equalTo(403));
+    }
+
+    private Response queryAs(String username, String esql) throws Exception {
+        final Request query = new Request("POST", "/_query");
+        query.setJsonEntity("{\"query\": \"" + esql + "\"}");
+        query.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuth(username, USER_PASSWORD)));
+        return client().performRequest(query);
     }
 
     private void createViewFixtures() throws Exception {

@@ -1405,7 +1405,7 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code exemplars} query setting.
          */
-        EXEMPLARS_SETTING_DEVELOPMENT_V1(Build.current().isSnapshot()),
+        EXEMPLARS_SETTING_DEVELOPMENT_V2(Build.current().isSnapshot()),
 
         /**
          * Are the {@code documents_found} and {@code values_loaded} fields available
@@ -4033,6 +4033,11 @@ public class EsqlCapabilities {
         PROMQL_LABEL_FUNCTIONS(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * Support for the PromQL {@code sort} and {@code sort_desc} functions, which order an instant vector by sample value.
+         */
+        PROMQL_SORT(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Fix mixing of millisecond roundings with nanosecond timestamps in time-series aggregations over
          * {@code date_nanos} indices. This covers window bucket expansion, the window merge in the final
          * aggregation, the window row filter for windows smaller than the time bucket, and the neighbor-bucket
@@ -4138,12 +4143,6 @@ public class EsqlCapabilities {
          * {@code CombineProjections} drops it.
          */
         TS_STATS_LITERAL_AGG_FIX,
-
-        /**
-         * Coordinator-driven remote fetch phase for deferred TopN fields after node-level reduction.
-         * Runtime enablement is gated by {@code esql.query.remote_fetch_topn.enabled}.
-         */
-        REMOTE_FETCH_TOPN_FETCH_PHASE,
 
         /**
          * KNN function support for runtime expressions, not just ES mapped fields.
@@ -4365,6 +4364,15 @@ public class EsqlCapabilities {
          * gate the external csv-spec tests asserting the {@code null}, which such nodes still fail.
          */
         FIX_DERIVED_EXTERNAL_GROUPING_MULTIVALUE,
+
+        /**
+         * A column whose file type differs from the type the query reads it as is converted value by value, whether or
+         * not the dataset declared that column. Older nodes converted only declared columns and replaced an undeclared
+         * one with nulls for its whole length, plus a warning. The read now follows {@code error_mode} for every column,
+         * and the refusal text names the type the query uses rather than a declared type. Used to gate the external
+         * csv-spec tests asserting the converted values and the new text, which such nodes still fail.
+         */
+        EXTERNAL_SOURCE_CONVERTS_UNDECLARED_COLUMNS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

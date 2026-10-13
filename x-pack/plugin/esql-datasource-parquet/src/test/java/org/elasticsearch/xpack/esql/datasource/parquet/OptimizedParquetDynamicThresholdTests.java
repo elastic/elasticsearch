@@ -58,7 +58,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.ObjIntConsumer;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -592,7 +591,7 @@ public class OptimizedParquetDynamicThresholdTests extends ESTestCase {
             .errorPolicy(ErrorPolicy.PERMISSIVE)
             .informationalWarningSink(ignored -> {})
             .build();
-        ParquetFormatReader reader = (ParquetFormatReader) reader(threshold).withDeclaredTypeColumns(Set.of("id"));
+        ParquetFormatReader reader = reader(threshold);
         try (threshold; CloseableIterator<Page> iterator = reader.read(storageObject(data), context)) {
             List<Long> values = new ArrayList<>();
             while (iterator.hasNext()) {
@@ -823,7 +822,7 @@ public class OptimizedParquetDynamicThresholdTests extends ESTestCase {
             .errorPolicy(errorPolicy)
             .informationalWarningSink(ignored -> {})
             .build();
-        ParquetFormatReader reader = (ParquetFormatReader) reader(threshold).withDeclaredTypeColumns(Set.of("id"));
+        ParquetFormatReader reader = reader(threshold);
         try (threshold; CloseableIterator<Page> iterator = reader.read(storageObject(data), context)) {
             List<Integer> values = new ArrayList<>();
             while (iterator.hasNext()) {

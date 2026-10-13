@@ -24,6 +24,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -1161,8 +1162,9 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * Stress test the consumer's EOF predicate against the race between the segmentator's final
      * {@code chunksDispatched.incrementAndGet()} and the dispatched parser task's
      * {@code tasksOutstanding.decrementAndGet()} in its {@code finally} block. The EOF condition
-     * — {@code currentChunk >= chunksDispatched && tasksOutstanding == 0} — must be re-checked
-     * after the apparent-empty branch of {@code takeNextPage}; without the re-read, the consumer
+     * — {@code tasksOutstanding == 0} then {@code currentChunk >= chunksDispatched} — must be re-checked
+     * after the apparent-empty branch of {@code takeNextPage}. {@code isReadyNow} / {@code producersDoneAndDrained}
+     * read {@code tasksOutstanding} first; the reverse order is the race. Without the re-read, the consumer
      * can return false while a parser is mid-page-publish, dropping the last chunk's rows.
      * <p>
      * Tiny chunks plus a small input plus high parallelism maximises the chance the consumer
@@ -3176,8 +3178,9 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
-     * A planner-bound read keeps the header names and the schema chunk 0 infers for the rest of the read, and a declared
-     * read is not capped by the file's width, so both stay charged to the breaker until the read closes.
+     * A planner-bound read keeps the header names and the schema chunk 0 infers for the rest of the read, and a read
+     * whose schema the planner settled is bounded by the ceiling rather than by {@code schema_max_fields}, so both
+     * stay charged to the breaker until the read closes.
      */
     public void testPlannerBoundReadChargesTheSchemaChunkZeroKeepsUntilClose() throws Exception {
         int columns = 2_000;
@@ -3522,6 +3525,92 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         } finally {
             executor.shutdownNow();
         }
+    }
+
+    /**
+     * Which schema the coordinator resolves a first chunk through, in each of the three states the planner's pin
+     * can arrive in. The width that resolve is held to is read off the schema the reader carries, so this is the
+     * decision a gzipped {@code first_file_wins} glob turns on, pinned here without a cluster.
+     * <p>
+     * A reader's own schema is the query's <em>projection</em> and must never reach the resolve. It is empty under
+     * {@code COUNT(*)} with a pin settled, and non-empty on a read with no pin at all, so a resolve left to read it
+     * bounded the file by what the query asked for - refusing a file under {@code COUNT(*)} that it read under a
+     * {@code KEEP}, and admitting one to the ceiling where {@code schema_max_fields} should have held it.
+     * Resolving through the reader's own schema, or dropping the settled one, turns this
+     * red; passing an empty pin straight through is width-equivalent and passes, which is what the unsettled arms
+     * assert rather than asserting which of {@code null} or empty carried the absence.
+     */
+    public void testTheFirstChunkResolveSeesThePinAndNotTheProjection() throws Exception {
+        List<Attribute> projection = List.of(pinAttribute("line"));
+        List<Attribute> settled = List.of(pinAttribute("line"), pinAttribute("unprojected"));
+        byte[] bytes = "a\nb\n".getBytes(StandardCharsets.UTF_8);
+        for (List<Attribute> readSchema : Arrays.<List<Attribute>>asList(settled, List.of(), null)) {
+            String arm = "readSchema=" + readSchema;
+            AtomicReference<List<Attribute>> resolvedWith = new AtomicReference<>();
+            AtomicInteger resolveCalls = new AtomicInteger();
+            PinRecordingLineFormatReader reader = new PinRecordingLineFormatReader(projection, resolvedWith, resolveCalls);
+            CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(16));
+            ExecutorService executor = Executors.newFixedThreadPool(2);
+            try (
+                CloseableIterator<Page> it = parallelReadWithReadSchema(
+                    reader,
+                    new ByteArrayInputStream(bytes),
+                    readSchema,
+                    breaker,
+                    executor
+                )
+            ) {
+                while (it.hasNext()) {
+                    it.next().releaseBlocks();
+                }
+            } finally {
+                executor.shutdownNow();
+            }
+            assertEquals(arm + ": the first chunk is resolved once per file", 1, resolveCalls.get());
+            if (readSchema == settled) {
+                assertEquals(arm + ": a settled schema is what the resolve is bounded by", settled, resolvedWith.get());
+            } else {
+                // Both readers' widthBound() treat null and an empty list alike, so what this has to pin is that
+                // the resolve did not receive the projection - not which of the two forms the absence took, which
+                // would go red on a refactor that changes no width.
+                List<Attribute> resolved = resolvedWith.get();
+                assertFalse(
+                    arm + ": with nothing settled the resolve runs on the cap, not on the projection, but got " + resolved,
+                    resolved != null && resolved.isEmpty() == false
+                );
+            }
+            assertEquals(arm + ": nothing stays charged", 0L, breaker.getUsed());
+        }
+    }
+
+    private static CloseableIterator<Page> parallelReadWithReadSchema(
+        SegmentableFormatReader reader,
+        InputStream stream,
+        @Nullable List<Attribute> readSchema,
+        CircuitBreaker breaker,
+        Executor executor
+    ) throws IOException {
+        return StreamingParallelParsingCoordinator.parallelRead(
+            reader,
+            stream,
+            null,
+            List.of("line"),
+            50,
+            2,
+            executor,
+            ErrorPolicy.STRICT,
+            readSchema,
+            0L,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            null,
+            -1L,
+            StripeColumnScope.PROJECTED,
+            StreamingParallelParsingCoordinator.WarningSinks.NONE,
+            StreamingSegmentatorAdmission.unbounded(),
+            breaker,
+            ExternalReadCounters.NOOP,
+            null
+        );
     }
 
     private static CloseableIterator<Page> parallelReadWithBreaker(
@@ -4490,9 +4579,94 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
+    /** One attribute of a pinned schema, shaped like the ones a planner-settled schema carries. */
+    private static Attribute pinAttribute(String name) {
+        return new ReferenceAttribute(Source.EMPTY, null, name, DataType.KEYWORD, Nullability.TRUE, null, false);
+    }
+
     /**
-     * {@link LineFormatReader} whose inferred schema is {@code columns} wide and which binds a declared schema by name,
-     * the shape of a declared read over a wide headered file: chunk 0 captures the header names and binds the schema.
+     * Records the schema the reader was carrying when {@code metadata} was called, so a test can pin which schema
+     * the coordinator resolves a first chunk through rather than only what a reader does with the one it has.
+     * Reads no header line, so the recorded call is the schema resolve and nothing else.
+     */
+    private static final class PinRecordingLineFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+        private final LineFormatReader delegate;
+        @Nullable
+        private final List<Attribute> carried;
+        private final AtomicReference<List<Attribute>> resolvedWith;
+        private final AtomicInteger resolveCalls;
+
+        PinRecordingLineFormatReader(
+            @Nullable List<Attribute> carried,
+            AtomicReference<List<Attribute>> resolvedWith,
+            AtomicInteger resolveCalls
+        ) {
+            this(new LineFormatReader(64), carried, resolvedWith, resolveCalls);
+        }
+
+        private PinRecordingLineFormatReader(
+            LineFormatReader delegate,
+            @Nullable List<Attribute> carried,
+            AtomicReference<List<Attribute>> resolvedWith,
+            AtomicInteger resolveCalls
+        ) {
+            this.delegate = delegate;
+            this.carried = carried;
+            this.resolvedWith = resolvedWith;
+            this.resolveCalls = resolveCalls;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            resolveCalls.incrementAndGet();
+            resolvedWith.set(carried);
+            return new SimpleSourceMetadata(List.of(pinAttribute("line")), formatName(), object.path().toString());
+        }
+
+        @Override
+        public FormatReader withSchema(List<Attribute> schema) {
+            return new PinRecordingLineFormatReader((LineFormatReader) delegate.withSchema(schema), schema, resolvedWith, resolveCalls);
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            return delegate.read(object, context);
+        }
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return delegate.rowPositionStrategy();
+        }
+
+        @Override
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return delegate.recordSplitter(maxRecordBytes);
+        }
+
+        @Override
+        public long minimumSegmentSize() {
+            return delegate.minimumSegmentSize();
+        }
+
+        @Override
+        public String formatName() {
+            return delegate.formatName();
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return delegate.fileExtensions();
+        }
+
+        @Override
+        public void close() {
+            delegate.close();
+        }
+    }
+
+    /**
+     * {@link LineFormatReader} whose inferred schema is {@code columns} wide and which binds a settled schema by name,
+     * the shape of a read over a wide headered file: chunk 0 captures the header names and binds the schema.
      */
     private static final class WideHeaderLineFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
         private final LineFormatReader delegate;

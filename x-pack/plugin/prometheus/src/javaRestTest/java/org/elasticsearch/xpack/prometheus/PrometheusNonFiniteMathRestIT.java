@@ -146,8 +146,33 @@ public class PrometheusNonFiniteMathRestIT extends AbstractPrometheusRestIT {
 
     // ---------------------------------------------------------------------------------------------------------------
     // Across-series aggregations honor Prometheus/IEEE-754 non-finite semantics via the PromQL-only lenient aggregator
-    // path (max, min). See the matching csv-spec blocks (nonfinite_max_all_negative_infinity, etc.).
+    // path (sum, avg, max, min, stddev, stdvar, quantile). See the matching csv-spec blocks
+    // (nonfinite_avg_propagates_infinity, etc.).
     // ---------------------------------------------------------------------------------------------------------------
+
+    /**
+     * The {@code sum} aggregator propagates non-finite inputs: two positive series multiplied by {@code Inf} both become
+     * {@code +Inf}, so their sum is {@code +Inf} rather than a dropped result.
+     */
+    public void testSumPropagatesPositiveInfinity() throws Exception {
+        ingestTwoSeries("agg_sum_pos", 5.0, 7.0);
+        assertSingleValue("sum(agg_sum_pos * Inf)", "+Inf");
+    }
+
+    /**
+     * The {@code sum} aggregator over a {@code +Inf} and a {@code -Inf} contribution yields {@code NaN} (IEEE-754
+     * {@code +Inf + -Inf}), matching Prometheus, rather than dropping the result.
+     */
+    public void testSumOfPositiveAndNegativeInfinityIsNaN() throws Exception {
+        ingestTwoSeries("agg_sum_mixed", 5.0, -7.0);
+        assertSingleValue("sum(agg_sum_mixed * Inf)", "NaN");
+    }
+
+    /** Prometheus {@code avg} propagates non-finite: the average of two {@code +Inf} series is {@code +Inf}. */
+    public void testAvgPropagatesPositiveInfinity() throws Exception {
+        ingestTwoSeries("agg_avg_pos", 5.0, 7.0);
+        assertSingleValue("avg(agg_avg_pos * Inf)", "+Inf");
+    }
 
     /** Prometheus {@code max} treats {@code -Inf} as an ordinary (smallest) value, so all-{@code -Inf} is {@code -Inf}. */
     public void testMaxOfAllNegativeInfinityIsNegativeInfinity() throws Exception {
@@ -204,6 +229,58 @@ public class PrometheusNonFiniteMathRestIT extends AbstractPrometheusRestIT {
     public void testMinOfAllNaNIsNaN() throws Exception {
         ingestTwoSeries("agg_min_allnan", -1.0, -4.0);
         assertSingleValue("min(sqrt(agg_min_allnan))", "NaN");
+    }
+
+    /**
+     * Prometheus {@code stddev} over a set containing non-finite values is {@code NaN}: the lenient (PromQL) path
+     * reports a non-finite {@code m2} as {@code NaN} rather than dropping the result to null.
+     */
+    public void testStddevOfNonFiniteIsNaN() throws Exception {
+        ingestTwoSeries("agg_stddev", 5.0, 7.0);
+        assertSingleValue("stddev(agg_stddev * Inf)", "NaN");
+    }
+
+    /**
+     * Prometheus {@code stdvar} over a set containing non-finite values is {@code NaN}: the lenient (PromQL) path
+     * reports a non-finite {@code m2} as {@code NaN} rather than dropping the result to null.
+     */
+    public void testStdvarOfNonFiniteIsNaN() throws Exception {
+        ingestTwoSeries("agg_stdvar", 5.0, 7.0);
+        assertSingleValue("stdvar(agg_stdvar * Inf)", "NaN");
+    }
+
+    /** Prometheus {@code quantile} over an all-{@code NaN} set is {@code NaN} ({@code sqrt} of two negatives). */
+    public void testQuantileOfAllNaNIsNaN() throws Exception {
+        ingestTwoSeries("agg_quantile_allnan", -1.0, -4.0);
+        assertSingleValue("quantile(0.5, sqrt(agg_quantile_allnan))", "NaN");
+    }
+
+    /** Prometheus {@code quantile} over an all-{@code +Inf} set is {@code +Inf} rather than a dropped result. */
+    public void testQuantileOfAllPositiveInfinityIsPositiveInfinity() throws Exception {
+        ingestTwoSeries("agg_quantile_pos", 5.0, 7.0);
+        assertSingleValue("quantile(0.5, agg_quantile_pos * Inf)", "+Inf");
+    }
+
+    /**
+     * Prometheus {@code quantile} ranks {@code NaN} below every other value. {@code sqrt} of {4, -9, 16} is {2, NaN, 4},
+     * so the lowest rank is {@code NaN}, the median is the finite {@code 2} and the highest rank is {@code 4}.
+     */
+    public void testQuantileRanksNaNLowest() throws Exception {
+        ingestSeries("agg_quantile_nan_rank", 4.0, -9.0, 16.0);
+        assertSingleValue("quantile(0, sqrt(agg_quantile_nan_rank))", "NaN");
+        assertSingleValue("quantile(0.5, sqrt(agg_quantile_nan_rank))", "2.0");
+        assertSingleValue("quantile(1, sqrt(agg_quantile_nan_rank))", "4.0");
+    }
+
+    /**
+     * Prometheus {@code quantile} ranks {@code +Inf} above every finite value and interpolates towards it. {@code 8 / {0, 4}}
+     * is {@code {+Inf, 2}}, so the lowest rank is the finite {@code 2} and the median, halfway to {@code +Inf}, is
+     * {@code +Inf}.
+     */
+    public void testQuantileInterpolatesTowardsPositiveInfinity() throws Exception {
+        ingestTwoSeries("agg_quantile_posinf", 0.0, 4.0);
+        assertSingleValue("quantile(0, 8 / agg_quantile_posinf)", "2.0");
+        assertSingleValue("quantile(0.5, 8 / agg_quantile_posinf)", "+Inf");
     }
 
     /**

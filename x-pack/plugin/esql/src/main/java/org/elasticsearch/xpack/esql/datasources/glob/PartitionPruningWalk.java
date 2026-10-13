@@ -41,7 +41,9 @@ import java.util.Set;
  * {@link #MAX_LISTED_CHILDREN}), when a listing fails mid-walk, and after one probe listing when no level matched a
  * hint (typically a data-column filter), and at the first level no pending hint matches — whether a pending hint
  * is a deeper partition key or a data column is unknowable without listing every level in between, and
- * {@code WHERE <partition> AND <data column>} is the everyday shape, so the walk never descends speculatively.
+     * {@code WHERE <partition> AND <data column>} is the everyday shape, so the walk never descends speculatively
+     * on a {@code **} glob. A keyed glob ({@code key=*} / {@code key=literal} segments) may descend an
+     * unhinted leading identity key when a hinted key of that glob is still pending.
  * Survivors are finished with one recursive listing each, but only when something was pruned and the survivor
  * count satisfies {@link #MAX_FINISH_SURVIVORS} / {@link #MAX_FINISH_SURVIVOR_FRACTION}; otherwise one flat
  * listing is cheaper.
@@ -63,6 +65,12 @@ final class PartitionPruningWalk {
      * 512 fits realistic Hive trees with a leading-key filter (tens to low hundreds of listings).
      */
     static final int MAX_DIRECTORY_LISTINGS = 512;
+
+    /**
+     * Ceiling on pruned directories retained as probe sources for a one-file inference anchor. Outermost pruned
+     * folders first; the walk records them as it goes and does not list them again.
+     */
+    static final int MAX_PRUNED_DIRS_FOR_ANCHOR = 16;
 
     /**
      * Ceiling on one directory's materialized children — {@link StorageProvider#listChildren} buffers a whole
@@ -98,6 +106,8 @@ final class PartitionPruningWalk {
      * type inferred for each partition key from all values seen during the walk (including a one-level retroactive
      * peek into pruned dirs — see {@link #walk}). The caller compares these types against the types detected in the
      * walked file set to catch cases where a pruned subtree was the sole source of a type-widening folder value.
+     * {@link #prunedDirs} is the outermost-first probe list (capped at {@link #MAX_PRUNED_DIRS_FOR_ANCHOR}) used
+     * when the walk matched nothing: an empty glob under surviving dirs still needs a directory that holds a file.
      */
     record WalkResult(
         List<StorageEntry> matched,
@@ -105,7 +115,8 @@ final class PartitionPruningWalk {
         int excludedCount,
         String excludedExample,
         String excludedExampleEntry,
-        Map<String, DataType> columnFullTypes
+        Map<String, DataType> columnFullTypes,
+        List<StoragePath> prunedDirs
     ) {}
 
     /**
@@ -119,14 +130,33 @@ final class PartitionPruningWalk {
         GlobMatcher matcher,
         ExclusionConfig.NameFilter nameFilter,
         List<PartitionFilterHint> hints,
-        int maxDiscoveredFiles
+        int maxDiscoveredFiles,
+        String glob
     ) {
         try {
-            return walk(provider, prefix, matcher, nameFilter, hints, maxDiscoveredFiles);
+            return walk(provider, prefix, matcher, nameFilter, hints, maxDiscoveredFiles, keyedGlobKeys(glob));
         } catch (IOException | ExternalUnavailableException e) {
             logger.debug(() -> "Partition-pruning walk of [" + prefix + "] failed; falling back to a flat listing", e);
             return null;
         }
+    }
+
+    /**
+     * Hive {@code key=} segments of {@code globPart} (star or pinned value). A {@code **} glob has none, so
+     * the walk still withdraws at an unhinted first level.
+     */
+    static Set<String> keyedGlobKeys(String glob) {
+        if (glob == null || glob.isEmpty()) {
+            return Set.of();
+        }
+        Set<String> keys = new HashSet<>();
+        for (String segment : glob.split("/")) {
+            String key = PartitionValueMatcher.folderKey(segment);
+            if (key != null) {
+                keys.add(key);
+            }
+        }
+        return keys;
     }
 
     @Nullable
@@ -136,7 +166,8 @@ final class PartitionPruningWalk {
         GlobMatcher matcher,
         ExclusionConfig.NameFilter nameFilter,
         List<PartitionFilterHint> hints,
-        int maxDiscoveredFiles
+        int maxDiscoveredFiles,
+        Set<String> keyedGlobKeys
     ) throws IOException {
         Collector collector = new Collector(prefix.toString(), matcher, nameFilter, maxDiscoveredFiles);
         Set<String> pending = new HashSet<>();
@@ -155,6 +186,7 @@ final class PartitionPruningWalk {
             }
         }
         Set<String> prunedColumns = new HashSet<>();
+        List<StoragePath> prunedDirs = new ArrayList<>();
         boolean anyLevelHinted = false;
         List<StoragePath> dirs = List.of(prefix);
         int listings = 0;
@@ -175,7 +207,15 @@ final class PartitionPruningWalk {
             if (pending.isEmpty() || listings + dirs.size() > MAX_DIRECTORY_LISTINGS) {
                 // No hint can narrow a deeper level (or the budget is spent): finish each surviving subtree with
                 // one recursive listing, unless one flat listing of the whole prefix is cheaper.
-                return finishSurvivors(collector, provider, dirs, prunedColumns, inferColumnTypes(seenValues), lastHintedLevelPeerCount);
+                return finishSurvivors(
+                    collector,
+                    provider,
+                    dirs,
+                    prunedColumns,
+                    inferColumnTypes(seenValues),
+                    lastHintedLevelPeerCount,
+                    prunedDirs
+                );
             }
 
             List<StoragePath> shapedDirs = new ArrayList<>();
@@ -271,11 +311,24 @@ final class PartitionPruningWalk {
                         newPeeks = new ArrayList<>();
                     }
                     newPeeks.add(shapedDirs.get(i));
+                    if (prunedDirs.size() < MAX_PRUNED_DIRS_FOR_ANCHOR) {
+                        prunedDirs.add(shapedDirs.get(i));
+                    }
                 }
             }
             pendingPeeks = newPeeks != null ? newPeeks : List.of();
 
             if (hintedLevel == false) {
+                if (descendUnhintedKeyedLevel(byKey.keySet(), pending, keyedGlobKeys)) {
+                    // Leading identity keys of a keyed glob (aws-account-id=*, aws-region=*) with year/month/day
+                    // still pending: keep every child and walk on. Do not prune this level. A ** glob has no
+                    // keyed segments and never takes this path.
+                    for (StorageEntry file : levelFiles) {
+                        collector.add(file);
+                    }
+                    dirs = next;
+                    continue;
+                }
                 if (anyLevelHinted == false) {
                     // No level has matched a hint yet — typically a data-column filter, where walking on would
                     // spend a LIST per folder for nothing. Withdrawing after one probe also forfeits pruning for
@@ -287,7 +340,15 @@ final class PartitionPruningWalk {
                 // LIST per directory — and `WHERE <partition> AND <data column>` is the everyday shape. Keep the
                 // pruning already done and finish by recursively listing each surviving PARENT dir (dirs), not each
                 // child (next): listing the parent once enumerates the same files with one round trip instead of N.
-                return finishSurvivors(collector, provider, dirs, prunedColumns, inferColumnTypes(seenValues), lastHintedLevelPeerCount);
+                return finishSurvivors(
+                    collector,
+                    provider,
+                    dirs,
+                    prunedColumns,
+                    inferColumnTypes(seenValues),
+                    lastHintedLevelPeerCount,
+                    prunedDirs
+                );
             }
             // Commit direct files now that we know finishSurvivors won't re-enumerate them.
             for (StorageEntry file : levelFiles) {
@@ -297,7 +358,33 @@ final class PartitionPruningWalk {
             lastHintedLevelPeerCount = shapedDirs.size();
             dirs = next;
         }
-        return collector.result(prunedColumns, inferColumnTypes(seenValues));
+        return collector.result(prunedColumns, inferColumnTypes(seenValues), prunedDirs);
+    }
+
+    /**
+     * A keyed glob may walk through an unhinted hive level (keep every child) when a hinted key of that
+     * glob is still pending. Never prune the unhinted level. Empty keyed set ({@code **}) stays fail-closed.
+     */
+    private static boolean descendUnhintedKeyedLevel(Set<String> levelKeys, Set<String> pending, Set<String> keyedGlobKeys) {
+        if (keyedGlobKeys.isEmpty() || levelKeys.isEmpty()) {
+            return false;
+        }
+        boolean pendingKeyedHint = false;
+        for (String column : pending) {
+            if (keyedGlobKeys.contains(column)) {
+                pendingKeyedHint = true;
+                break;
+            }
+        }
+        if (pendingKeyedHint == false) {
+            return false;
+        }
+        for (String key : levelKeys) {
+            if (keyedGlobKeys.contains(key)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -362,7 +449,8 @@ final class PartitionPruningWalk {
         List<StoragePath> dirs,
         Set<String> prunedColumns,
         Map<String, DataType> columnFullTypes,
-        int lastHintedLevelPeerCount
+        int lastHintedLevelPeerCount,
+        List<StoragePath> prunedDirs
     ) throws IOException {
         if (prunedColumns.isEmpty()) {
             return null;
@@ -376,7 +464,7 @@ final class PartitionPruningWalk {
         for (StoragePath dir : dirs) {
             collector.addRecursively(provider, dir);
         }
-        return collector.result(prunedColumns, columnFullTypes);
+        return collector.result(prunedColumns, columnFullTypes, prunedDirs);
     }
 
     /**
@@ -431,8 +519,16 @@ final class PartitionPruningWalk {
             }
         }
 
-        WalkResult result(Set<String> prunedColumns, Map<String, DataType> columnFullTypes) {
-            return new WalkResult(matched, prunedColumns, excludedCount, excludedExample, excludedExampleEntry, columnFullTypes);
+        WalkResult result(Set<String> prunedColumns, Map<String, DataType> columnFullTypes, List<StoragePath> prunedDirs) {
+            return new WalkResult(
+                matched,
+                prunedColumns,
+                excludedCount,
+                excludedExample,
+                excludedExampleEntry,
+                columnFullTypes,
+                List.copyOf(prunedDirs)
+            );
         }
     }
 }

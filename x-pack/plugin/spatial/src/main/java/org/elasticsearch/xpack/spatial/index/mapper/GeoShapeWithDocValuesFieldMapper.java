@@ -596,16 +596,6 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         return (GeoShapeWithDocValuesFieldType) super.fieldType();
     }
 
-    @Override
-    protected void checkIncomingMergeType(FieldMapper mergeWith) {
-        if (mergeWith instanceof GeoShapeWithDocValuesFieldMapper == false && CONTENT_TYPE.equals(mergeWith.typeName())) {
-            throw new IllegalArgumentException(
-                "mapper [" + fullPath() + "] of type [geo_shape] cannot change strategy from [BKD] to [recursive]"
-            );
-        }
-        super.checkIncomingMergeType(mergeWith);
-    }
-
     public static class GeoShapeDocValuesField extends AbstractScriptFieldFactory<GeoShapeValues.GeoShapeValue>
         implements
             Field<GeoShapeValues.GeoShapeValue>,

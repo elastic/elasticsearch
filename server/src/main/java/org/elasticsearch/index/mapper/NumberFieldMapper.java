@@ -1732,7 +1732,7 @@ public class NumberFieldMapper extends FieldMapper {
 
                 for (Object value : values) {
                     if (hasDecimalPart(value) == false) {
-                        v[upTo++] = parse(value, true);
+                        v[upTo++] = objectToLong(value, true);
                     }
                 }
 
@@ -2102,6 +2102,9 @@ public class NumberFieldMapper extends FieldMapper {
         public static long objectToLong(Object value, boolean coerce) {
             if (value instanceof Long) {
                 return (Long) value;
+            }
+            if (value instanceof Integer || value instanceof Short || value instanceof Byte) {
+                return ((Number) value).longValue();
             }
 
             double doubleValue = objectToDouble(value);

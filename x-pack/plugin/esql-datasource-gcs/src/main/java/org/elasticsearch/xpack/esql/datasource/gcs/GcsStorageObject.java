@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalPlanningIo;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -142,18 +143,13 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
     @Override
     public InputStream newStream() throws IOException {
         long startNanos = System.nanoTime();
-        long bytes = 0L;
         try {
             ReadChannel reader = openReader();
-            // GCS ReadChannel does not expose content length on open; fall back to cached size if known.
-            if (cachedLength != null) {
-                bytes = cachedLength;
-            }
-            return new GcsTransientTypingInputStream(Channels.newInputStream(reader), path);
+            return metered(new GcsTransientTypingInputStream(Channels.newInputStream(reader), path));
         } catch (StorageException e) {
             throw throwReadFailure("Failed to read object from", e);
         } finally {
-            counters.addRequest(System.nanoTime() - startNanos, bytes);
+            counters.addRequest(System.nanoTime() - startNanos, 0L);
         }
     }
 
@@ -175,11 +171,11 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
             if (toEnd == false) {
                 reader.limit(position + length);
             }
-            return new GcsTransientTypingInputStream(Channels.newInputStream(reader), path);
+            return metered(new GcsTransientTypingInputStream(Channels.newInputStream(reader), path));
         } catch (StorageException e) {
             throw throwReadFailure("Range request failed for", e);
         } finally {
-            counters.addRequest(System.nanoTime() - startNanos, toEnd ? 0L : length);
+            counters.addRequest(System.nanoTime() - startNanos, 0L);
         }
     }
 
@@ -599,6 +595,7 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
     private void fetchMetadata() throws IOException {
         try {
             Blob blob = storage.get(BlobId.of(bucket, objectName));
+            ExternalPlanningIo.addMetadataGet(0);
             if (blob != null) {
                 cachedExists = true;
                 // exists()/length()/lastModified() must not establish or move the read pin, and must not
@@ -615,6 +612,7 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
                 setNotFound();
             }
         } catch (StorageException e) {
+            ExternalPlanningIo.addMetadataGet(0);
             if (e.getCode() == 404) {
                 setNotFound();
             } else if (e.getCode() == 403) {
@@ -635,7 +633,9 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
             try (InputStream is = Channels.newInputStream(reader)) {
                 objectExists = is.read() >= 0;
             }
+            ExternalPlanningIo.addMetadataGet(objectExists ? 1 : 0);
         } catch (Exception e) {
+            ExternalPlanningIo.addMetadataGet(0);
             if (e instanceof StorageException se && se.getCode() == 404) {
                 setNotFound();
                 return;

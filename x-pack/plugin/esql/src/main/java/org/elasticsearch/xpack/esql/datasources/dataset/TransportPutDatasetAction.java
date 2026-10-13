@@ -20,9 +20,11 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.datasources.FederationLicense;
 
 public class TransportPutDatasetAction extends AcknowledgedTransportMasterNodeProjectAction<PutDatasetAction.Request> {
     private final DatasetService datasetService;
+    private final FederationLicense federationLicense;
 
     @Inject
     public TransportPutDatasetAction(
@@ -31,7 +33,8 @@ public class TransportPutDatasetAction extends AcknowledgedTransportMasterNodePr
         ThreadPool threadPool,
         ActionFilters actionFilters,
         DatasetService datasetService,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        FederationLicense federationLicense
     ) {
         super(
             PutDatasetAction.NAME,
@@ -44,6 +47,7 @@ public class TransportPutDatasetAction extends AcknowledgedTransportMasterNodePr
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.datasetService = datasetService;
+        this.federationLicense = federationLicense;
     }
 
     @Override
@@ -53,6 +57,7 @@ public class TransportPutDatasetAction extends AcknowledgedTransportMasterNodePr
         ProjectState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
+        federationLicense.check();
         datasetService.putDataset(state.projectId(), request, listener);
     }
 

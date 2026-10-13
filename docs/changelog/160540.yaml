@@ -1,0 +1,6 @@
+area: Vector Search
+issues:
+ - 159517
+pr: 160540
+summary: Fix ConjunctionDISI desync in filtered exact kNN
+type: bug

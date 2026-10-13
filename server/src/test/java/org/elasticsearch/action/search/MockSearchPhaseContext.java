@@ -56,7 +56,7 @@ import static org.mockito.Mockito.mock;
 /**
  * SearchPhaseContext for tests
  */
-public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<SearchPhaseResult> {
+public class MockSearchPhaseContext extends AbstractSearchAsyncAction<SearchPhaseResult> {
     private static final Logger logger = LogManager.getLogger(MockSearchPhaseContext.class);
     public final AtomicReference<Throwable> phaseFailure = new AtomicReference<>();
     public final AtomicInteger phaseFailures = new AtomicInteger();
@@ -68,7 +68,7 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
     public final AtomicReference<SearchResponse> searchResponse = new AtomicReference<>();
 
     public MockSearchPhaseContext(int numShards) {
-        this(numShards, new NoopCircuitBreaker(CircuitBreaker.REQUEST));
+        this(numShards, NoopCircuitBreaker.INSTANCE);
     }
 
     public MockSearchPhaseContext(int numShards, CircuitBreaker circuitBreaker) {

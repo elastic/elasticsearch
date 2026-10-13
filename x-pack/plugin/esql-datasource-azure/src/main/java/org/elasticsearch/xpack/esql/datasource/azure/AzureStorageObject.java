@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalPlanningIo;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -177,17 +178,13 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
     @Override
     public InputStream newStream() throws IOException {
         long startNanos = System.nanoTime();
-        long bytes = 0L;
         try {
             BlobInputStream blobStream = validateOpenedBlob(blobClient.openInputStream(null, requestConditions()));
-            if (cachedLength != null) {
-                bytes = cachedLength;
-            }
-            return new AzureTransientTypingInputStream(blobStream, path);
+            return metered(new AzureTransientTypingInputStream(blobStream, path));
         } catch (Exception e) {
             throw throwReadFailure("Failed to read object from", e);
         } finally {
-            counters.addRequest(System.nanoTime() - startNanos, bytes);
+            counters.addRequest(System.nanoTime() - startNanos, 0L);
         }
     }
 
@@ -250,7 +247,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             // READ_TO_END: the offset-only BlobRange reads from position to the end of the blob — no length() lookup.
             BlobRange range = toEnd ? new BlobRange(position) : new BlobRange(position, length);
             BlobInputStream blobStream = validateOpenedBlob(blobClient.openInputStream(range, requestConditions()));
-            return new AzureTransientTypingInputStream(blobStream, path);
+            return metered(new AzureTransientTypingInputStream(blobStream, path));
         } catch (Exception e) {
             if (toEnd && e instanceof BlobStorageException bse && bse.getStatusCode() == 416) {
                 // Open-ended read at/after the end of an (empty or shorter) object: nothing to read. The SPI
@@ -259,7 +256,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             }
             throw throwReadFailure("Range request failed for", e);
         } finally {
-            counters.addRequest(System.nanoTime() - startNanos, toEnd ? 0L : length);
+            counters.addRequest(System.nanoTime() - startNanos, 0L);
         }
     }
 
@@ -378,6 +375,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
     private void fetchMetadata() throws IOException {
         try {
             var properties = blobClient.getProperties();
+            ExternalPlanningIo.addMetadataGet(0);
             cachedExists = true;
             // getProperties() transfers no blob bytes: it reports whatever version is current, which is
             // not necessarily the one reads are pinned to. It must neither establish the pin nor
@@ -388,6 +386,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             }
             cachedLastModified = properties.getLastModified() != null ? properties.getLastModified().toInstant() : null;
         } catch (Exception e) {
+            ExternalPlanningIo.addMetadataGet(0);
             if (e instanceof BlobStorageException bse && bse.getStatusCode() == 404) {
                 setNotFound();
             } else if (e instanceof BlobStorageException bse && bse.getStatusCode() == 403) {
@@ -413,6 +412,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
                 null
             );
             var headers = response.getDeserializedHeaders();
+            ExternalPlanningIo.addMetadataGet(output.size());
             cachedExists = true;
             observeEtag(headers.getETag());
             Long total = ContentRangeParser.parseTotalLength(headers.getContentRange());
@@ -426,6 +426,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
         } catch (IOException e) {
             throw e;
         } catch (Exception e) {
+            ExternalPlanningIo.addMetadataGet(0);
             if (e instanceof BlobStorageException bse && bse.getStatusCode() == 404) {
                 setNotFound();
             } else if (e instanceof BlobStorageException bse && bse.getStatusCode() == 412) {

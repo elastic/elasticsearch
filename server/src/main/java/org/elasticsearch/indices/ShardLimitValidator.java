@@ -11,6 +11,7 @@ package org.elasticsearch.indices;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -177,6 +178,35 @@ public class ShardLimitValidator {
             ValidationException ex = new ValidationException();
             ex.addValidationError(errorMessageFrom(result));
             throw ex;
+        }
+    }
+
+    /**
+     * Checks the net shard increase of a restore, including changes to existing indices. Closed destinations contribute no existing
+     * shards to the limit. Checking the entire restore together also accounts for multiple indices restored in one state update.
+     */
+    public void validateShardLimitOnRestore(
+        DiscoveryNodes discoveryNodes,
+        Metadata metadata,
+        ProjectId projectId,
+        List<IndexMetadata> restoredIndices
+    ) {
+        final List<LimitGroup> limitGroups = applicableLimitGroups(isStateless);
+        final Map<LimitGroup, Integer> shardsToCreatePerGroup = new HashMap<>();
+        for (IndexMetadata restored : restoredIndices) {
+            final IndexMetadata current = metadata.getProject(projectId).index(restored.getIndex().getName());
+            for (LimitGroup group : limitGroups) {
+                final int previous = current != null && current.getState() == IndexMetadata.State.OPEN
+                    ? group.newShardsTotal(current.getSettings())
+                    : 0;
+                shardsToCreatePerGroup.merge(group, group.newShardsTotal(restored.getSettings()) - previous, Integer::sum);
+            }
+        }
+        final Result result = checkShardLimitOnGroups(limitGroups, shardsToCreatePerGroup, discoveryNodes, metadata);
+        if (result.canAddShards == false) {
+            final ValidationException e = new ValidationException();
+            e.addValidationError(errorMessageFrom(result));
+            throw e;
         }
     }
 

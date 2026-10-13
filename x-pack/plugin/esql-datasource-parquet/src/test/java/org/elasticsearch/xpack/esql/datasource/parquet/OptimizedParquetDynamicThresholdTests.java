@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -57,7 +58,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.ObjIntConsumer;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -591,7 +591,7 @@ public class OptimizedParquetDynamicThresholdTests extends ESTestCase {
             .errorPolicy(ErrorPolicy.PERMISSIVE)
             .informationalWarningSink(ignored -> {})
             .build();
-        ParquetFormatReader reader = (ParquetFormatReader) reader(threshold).withDeclaredTypeColumns(Set.of("id"));
+        ParquetFormatReader reader = reader(threshold);
         try (threshold; CloseableIterator<Page> iterator = reader.read(storageObject(data), context)) {
             List<Long> values = new ArrayList<>();
             while (iterator.hasNext()) {
@@ -721,6 +721,9 @@ public class OptimizedParquetDynamicThresholdTests extends ESTestCase {
     private static StorageObject storageObject(byte[] data) {
         return new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -819,7 +822,7 @@ public class OptimizedParquetDynamicThresholdTests extends ESTestCase {
             .errorPolicy(errorPolicy)
             .informationalWarningSink(ignored -> {})
             .build();
-        ParquetFormatReader reader = (ParquetFormatReader) reader(threshold).withDeclaredTypeColumns(Set.of("id"));
+        ParquetFormatReader reader = reader(threshold);
         try (threshold; CloseableIterator<Page> iterator = reader.read(storageObject(data), context)) {
             List<Integer> values = new ArrayList<>();
             while (iterator.hasNext()) {

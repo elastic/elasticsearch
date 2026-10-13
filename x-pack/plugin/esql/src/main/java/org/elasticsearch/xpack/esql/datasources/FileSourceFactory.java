@@ -40,7 +40,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -202,7 +201,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
     private final ExternalSourceMetrics externalSourceMetrics;
     /**
      * Per-node gate bounding concurrent stream-only-compressed segmentators on the shared {@code esql_external_io}
-     * pool so their per-chunk parser tasks always have a free thread (elastic/esql-planning #1093, item 4). This
+     * pool so their per-chunk parser tasks always have a free thread. This
      * factory is a per-node singleton (built once in {@link DataSourceModule}) and every read resolves to the same
      * node-level pool, so one controller here is shared across all queries/operators — no external registry needed.
      */
@@ -647,9 +646,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     // Declared per-column date formats: the spec keys them by logical name, but the reader sees physical
                     // (file) column names, so physicalize the keys through the same `path` renames here at the last mile.
                     .withDeclaredDateFormats(physicalDateFormats(context.declaredReadSpec()))
-                    // Declared-type columns (licensed to narrow toward their target): same logical->physical last-mile
-                    // translation, so the by-name columnar readers can key their null-fill escape on the physical names.
-                    .withDeclaredTypeColumns(physicalDeclaredTypeColumns(context.declaredReadSpec()))
                     // Keyed on provenance, not renames: a DECLARED schema binds by name even with no `path`, and an
                     // INFERRED (dynamic) schema must never re-bind at the reader (its positions already came from the file).
                     .withDeclaredProvenanceBinding(context.declaredReadSpec().provenance() == SchemaProvenance.DECLARED)
@@ -664,12 +660,17 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     partitionValues = fileSplit.partitionValues();
                 }
 
-                // Whether this read drops whole rows on a coercion failure. The plan already accounted for it:
-                // PushFiltersToSource withheld the pushdown for readers that cannot drop rows once filtered, and
-                // InsertExternalFieldExtraction skipped the extract exec. Recomputed here (rather than trusted from
-                // the plan) so the factory's own deferred-extraction decision cannot drift from the rule's — both
-                // resolve the policy against the same reader default via ErrorPolicy.forReader.
-                boolean dropsRowsOnCoercionFailure = context.declaredReadSpec().dropsRowsOnCoercionFailure(errorPolicy);
+                // Whether this read drops whole rows when a value fails to convert. The plan already accounted for
+                // it: PushFiltersToSource withheld the pushdown for readers that cannot drop rows once filtered, and
+                // InsertExternalFieldExtraction skipped the extract exec. The two halves are resolved the same way
+                // here as there, so the factory's own deferred-extraction decision cannot drift from the rules':
+                // the error mode against the reader's default via ErrorPolicy.forReader, and whether a value can
+                // fail at all from the resolution-time stamp the plan carries. Reading that stamp rather than the
+                // schema map is what makes the answer the same on a data node, where the map can be empty.
+                boolean dropsRowsOnConversionFailure = SourceStatisticsSerializer.dropsRowsOnConversionFailure(
+                    errorPolicy,
+                    context.sourceMetadata()
+                );
 
                 List<Expression> pushedExpressions = context.pushedExpressions();
                 // Note: this only controls the per-file re-mint in AsyncExternalSourceOperatorFactory#readerForFile
@@ -708,12 +709,13 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 // projection is NOT a valid signal on its own — InjectRowPositionForRecordRef also
                 // injects it for plain _file.record_ref composition, where enabling deferred mode would create a
                 // SourceExtractors registry no extract operator ever closes.
-                // Additionally, deferred extraction is disabled when skip_row is active with declared-type
-                // coercion columns: the extractor runs after the page shape is fixed and cannot drop rows
-                // that fail coercion; the columnar iterator must do the filtering at emit time instead.
+                // Additionally, deferred extraction is disabled when skip_row is active over files whose values the
+                // scan may have to convert: the extractor runs after the page shape is fixed and cannot drop rows
+                // that fail, so the columnar iterator must do the filtering at emit time instead. Keyed on the
+                // resolution-time stamp, not on whether any column was declared.
                 boolean deferredExtraction = format instanceof ColumnExtractorAware
                     && context.deferredExtraction()
-                    && dropsRowsOnCoercionFailure == false;
+                    && dropsRowsOnConversionFailure == false;
 
                 AsyncExternalSourceOperatorFactory built = AsyncExternalSourceOperatorFactory.builder(
                     storage,
@@ -785,25 +787,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
         return physical;
     }
 
-    /**
-     * The declared-type columns as the physical (file) names the by-name columnar readers see. The spec keys them by
-     * logical name; physicalize through the same {@code path} renames as {@link #physicalDateFormats}. Empty in, empty
-     * out. A declared-type column is licensed to coerce (including narrow) toward its target; an inferred column may only
-     * widen, so the reader keys its whole-column incompatibility null-fill on membership in this set.
-     */
-    private static Set<String> physicalDeclaredTypeColumns(DeclaredReadSpec spec) {
-        Set<String> logical = spec.declaredTypeColumns();
-        if (logical.isEmpty()) {
-            return Set.of();
-        }
-        Map<String, String> renames = spec.renames();
-        Set<String> physical = new HashSet<>(logical.size());
-        for (String col : logical) {
-            physical.add(PhysicalNames.translate(col, renames));
-        }
-        return physical;
-    }
-
     /** Delegates to {@link ErrorPolicy#forReader(Map, FormatReader)}, the one resolution the plan-time rules use too.
      *  Kept here so existing call sites and tests do not have to change. */
     static ErrorPolicy resolveErrorPolicy(Map<String, Object> config, FormatReader format) {
@@ -838,7 +821,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
      * Config-bearing pool borrow that does not call {@code createProvider} until the first storage
      * operation. {@link #close()} is a no-op if the factory never ran {@code get()}.
      */
-    private static final class DeferredPoolLease implements StorageProvider {
+    static final class DeferredPoolLease extends DelegatingStorageProvider {
         private final Supplier<StorageProvider> supplier;
         private StorageProvider inner;
         private boolean closed;
@@ -847,7 +830,12 @@ final class FileSourceFactory implements ExternalSourceFactory {
             this.supplier = supplier;
         }
 
-        private StorageProvider inner() {
+        /**
+         * Borrowed on first use rather than when the factory is built, so a driver that is planned and never
+         * started does not pin an SDK client. Every forwarded call resolves through here.
+         */
+        @Override
+        protected StorageProvider delegate() {
             synchronized (this) {
                 if (closed) {
                     throw new IllegalStateException("storage lease already returned");
@@ -859,51 +847,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
             }
         }
 
-        @Override
-        public StorageObject newObject(StoragePath path) {
-            return inner().newObject(path);
-        }
-
-        @Override
-        public StorageObject newObject(StoragePath path, long length) {
-            return inner().newObject(path, length);
-        }
-
-        @Override
-        public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
-            return inner().newObject(path, length, lastModified);
-        }
-
-        @Override
-        public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
-            return inner().listObjects(prefix, recursive);
-        }
-
-        @Override
-        public StorageChildren listChildren(StoragePath prefix, int limit) throws IOException {
-            return inner().listChildren(prefix, limit);
-        }
-
-        @Override
-        public boolean exists(StoragePath path) throws IOException {
-            return inner().exists(path);
-        }
-
-        @Override
-        public List<String> supportedSchemes() {
-            return inner().supportedSchemes();
-        }
-
-        @Override
-        public boolean supportsStableMetadata() {
-            return inner().supportsStableMetadata();
-        }
-
-        @Override
-        public boolean listsInKeyOrder() {
-            return inner().listsInKeyOrder();
-        }
-
+        /** Returns the lease to the pool. Never borrows one to close: an unused lease has nothing to return. */
         @Override
         public void close() {
             StorageProvider current;

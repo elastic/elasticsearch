@@ -32,7 +32,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
@@ -285,6 +287,13 @@ public class MetadataMappingService {
                 final Settings.Builder additionalIndexSettings = Settings.builder();
                 indexMetadataBuilder.mappingVersion(1 + indexMetadataBuilder.mappingVersion())
                     .mappingsUpdatedVersion(IndexVersion.current());
+                // Never cleared: the documents indexed under this mapping stay.
+                if (indexMetadata.getCreationVersion().onOrAfter(IndexVersions.TRACKS_UNMAPPED_FIELD_RETENTION)
+                    && IndexSettings.RETAINS_UNMAPPED_FIELDS_SETTING.get(indexMetadata.getSettings()) == false
+                    && mergedMapper.mapping().getRoot().canRetainUnmappedFields()) {
+                    additionalIndexSettings.put(IndexSettings.RETAINS_UNMAPPED_FIELDS_SETTING.getKey(), true);
+                    updatedSettings = true;
+                }
                 for (IndexSettingProvider provider : indexSettingProviders.getIndexSettingProviders()) {
                     Settings.Builder newAdditionalSettingsBuilder = Settings.builder();
                     provider.onUpdateMappings(indexMetadata, mergedMapper, newAdditionalSettingsBuilder);

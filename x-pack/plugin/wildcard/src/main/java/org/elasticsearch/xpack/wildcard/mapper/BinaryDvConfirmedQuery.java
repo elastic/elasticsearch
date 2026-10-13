@@ -26,6 +26,7 @@ import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
@@ -347,9 +348,7 @@ abstract class BinaryDvConfirmedQuery extends Query implements BinaryDocValuesSc
 
         @Override
         public long ramBytesUsed() {
-            // Only what the shallow size of this query misses; MaxClauseCountQueryVisitor adds the shallow size itself for
-            // BinaryDocValuesScanCost.
-            return byteRunAutomaton.ramBytesUsed();
+            return byteRunAutomaton.ramBytesUsed() + RamUsageEstimator.shallowSizeOf(this.getClass());
         }
 
         @Override

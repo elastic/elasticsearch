@@ -15,16 +15,25 @@ import org.elasticsearch.columnar.substrate.ChunkCodec;
 
 /**
  * How one string column is written. Every choice here is a write-time one that the column records for
- * itself: the chunk codec is named in the chunk index and the layout in the column's metadata, so two
- * fields written differently are read by the same reader and a field may be written differently tomorrow
- * than it was today.
+ * itself: the chunk codec is named in the chunk index, the layout in the column's metadata and the framing
+ * beside the column's type, so two fields written differently are read by the same reader and a field may
+ * be written differently tomorrow than it was today.
  *
  * @param dictionary when the column's values are named by ordinals rather than stored
  * @param summary    how much of what the column held it summarises for a later merge
  * @param chunkCodec what compresses the chunks the values are written in
  * @param sizes      the units the column's streams are written in
+ * @param singleValued whether each document's blob is its value's own bytes rather than a
+ *                     {@link StringBinaryPayload}. Unlike the other options it cannot change for a field: a merge
+ *                     decodes a source that is not a ColumNAR column with the target's framing
  */
-public record StringColumnOptions(DictionaryPolicy dictionary, SummaryPolicy summary, ChunkCodec chunkCodec, Sizes sizes) {
+public record StringColumnOptions(
+    DictionaryPolicy dictionary,
+    SummaryPolicy summary,
+    ChunkCodec chunkCodec,
+    Sizes sizes,
+    boolean singleValued
+) {
 
     /**
      * The units a string column's streams are written in: what a block addresses, and what closes a chunk of
@@ -179,11 +188,19 @@ public record StringColumnOptions(DictionaryPolicy dictionary, SummaryPolicy sum
      */
     public static final SummaryPolicy DEFAULT_SUMMARY = SummaryPolicy.sized(DEFAULT_DICTIONARY.maxBytes());
 
+    /**
+     * A payload holds every shape a document can take, so it is correct for every field. The bare value is correct only
+     * when the mapping guarantees one non-null value per document. A column that reads a payload as a bare value stores
+     * the whole payload as the value.
+     */
+    public static final boolean DEFAULT_SINGLE_VALUED = false;
+
     public static final StringColumnOptions DEFAULT = new StringColumnOptions(
         DEFAULT_DICTIONARY,
         DEFAULT_SUMMARY,
         ChunkCodec.ZSTD,
-        DEFAULT_SIZES
+        DEFAULT_SIZES,
+        DEFAULT_SINGLE_VALUED
     );
 
     public StringColumnOptions {
@@ -207,11 +224,16 @@ public record StringColumnOptions(DictionaryPolicy dictionary, SummaryPolicy sum
      * so twice rather than setting one and inheriting the other.
      */
     public StringColumnOptions withPolicies(DictionaryPolicy dictionaryPolicy, SummaryPolicy summaryPolicy) {
-        return new StringColumnOptions(dictionaryPolicy, summaryPolicy, chunkCodec, sizes);
+        return new StringColumnOptions(dictionaryPolicy, summaryPolicy, chunkCodec, sizes, singleValued);
     }
 
     /** These options with different sizes, for a field whose shape is not what the defaults were measured on. */
     public StringColumnOptions withSizes(Sizes other) {
-        return new StringColumnOptions(dictionary, summary, chunkCodec, other);
+        return new StringColumnOptions(dictionary, summary, chunkCodec, other, singleValued);
+    }
+
+    /** These options for a field whose documents each hold exactly one value, handed over as its own bytes. */
+    public StringColumnOptions withSingleValued(boolean singleValued) {
+        return new StringColumnOptions(dictionary, summary, chunkCodec, sizes, singleValued);
     }
 }

@@ -44,10 +44,10 @@ import java.util.function.Supplier;
  * <p>
  * For now only searches with a single top-level {@code knn} section, a literal float query vector, no
  * additional {@code query}, no {@code similarity} threshold and no other change to which documents are searched or which hits
- * come back (routing, shard preference, point in time, scroll, offset, minimum score, post filter, collapse, rescore, or fewer hits
- * than {@code k}) are eligible. Searches with a parent task
- * are skipped: those are the remote side of a cross-cluster search or searches issued internally by other
- * features, not user traffic arriving at this node.
+ * come back (routing, shard preference, point in time, scroll, offset, minimum score, post filter, collapse, rescore) are eligible.
+ * A search that asks for fewer hits than its {@code k} returns the nearest of those, which is what its recall is told for.
+ * Searches with a parent task are skipped: those are the remote side of a cross-cluster search or searches issued internally by
+ * other features, not user traffic arriving at this node.
  */
 public final class QueryCaptureFilter implements MappedActionFilter {
 
@@ -231,17 +231,24 @@ public final class QueryCaptureFilter implements MappedActionFilter {
     }
 
     /**
-     * The recall compares the nearest k that the search returned with the exact nearest k, so what comes back has to be those:
-     * hits that start further down, that are fewer than k, or that are cut, collapsed or reordered after the kNN are not.
+     * The recall compares the nearest hits that the search returned with the exact nearest ones, so what comes back has to be
+     * those: hits that start further down, or that are cut, collapsed or rescored after the kNN are not.
      */
     private static boolean returnsOtherHitsThanTheNearestK(SearchSourceBuilder source) {
-        int size = source.size() < 0 ? DEFAULT_SIZE : source.size();
         return source.from() > 0
-            || size < source.knnSearch().get(0).k()
             || source.minScore() != null
             || source.postFilter() != null
             || source.collapse() != null
             || (source.rescores() != null && source.rescores().isEmpty() == false);
+    }
+
+    /**
+     * How many of the nearest the search returns: its {@code k}, or fewer when it asks for fewer hits, as with the default size
+     * of 10 and a bigger {@code k}. It is what the exact search is asked for and what the recall is told over.
+     */
+    private static int hitsReturned(SearchSourceBuilder source, KnnSearchBuilder knn) {
+        int size = source.size() < 0 ? DEFAULT_SIZE : source.size();
+        return Math.min(knn.k(), size);
     }
 
     private static CapturedQuery capture(Task task, SearchRequest request, KnnSearchBuilder knn) {
@@ -249,7 +256,7 @@ public final class QueryCaptureFilter implements MappedActionFilter {
             request.indices().clone(),
             knn.getField(),
             knn.getQueryVector().floatVector().clone(),
-            knn.k(),
+            hitsReturned(request.source(), knn),
             knn.getNumCands(),
             knn.getVisitPercentage(),
             knn.getRescoreVectorBuilder() == null ? null : knn.getRescoreVectorBuilder().oversample(),

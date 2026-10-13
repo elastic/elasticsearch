@@ -214,7 +214,6 @@ public class CaptureTests extends ESTestCase {
         notComparable.add(knnSearch(randomVector(8)).preference("_shards:0"));
         notComparable.add(knnSearch(randomVector(8)).scroll(TimeValue.timeValueMinutes(1)));
         notComparable.add(knnSearch(randomVector(8)).source(knnSource().from(5)));
-        notComparable.add(knnSearch(randomVector(8)).source(knnSource().size(5)));
         notComparable.add(knnSearch(randomVector(8)).source(knnSource().minScore(0.5f)));
         notComparable.add(knnSearch(randomVector(8)).source(knnSource().postFilter(QueryBuilders.termQuery("category", 1))));
         for (SearchRequest request : notComparable) {
@@ -223,10 +222,24 @@ public class CaptureTests extends ESTestCase {
 
         assertTrue(captured.isEmpty());
         assertThat(filter.knnSearches(), equalTo(0L));
-        // a shard preference that does not leave shards out, and a size of at least k, are still searches of everything
+        // a shard preference that does not leave shards out is still a search of everything
         assertTrue(queryCaptureFilterApply(filter, knnSearch(randomVector(8)).preference("_local"), TaskId.EMPTY_TASK_ID));
-        assertTrue(queryCaptureFilterApply(filter, knnSearch(randomVector(8)).source(knnSource().size(20)), TaskId.EMPTY_TASK_ID));
-        assertThat(filter.knnSearches(), equalTo(2L));
+        assertThat(filter.knnSearches(), equalTo(1L));
+    }
+
+    public void testTheRecallIsToldOverTheHitsThatTheSearchReturns() {
+        QueryCaptureFilter filter = filter(true, 1.0, captured::add);
+        KnnSearchBuilder knn = new KnnSearchBuilder("vec", randomVector(8), 100, 1000, null, null, null);
+        // k of 100 with the default size of 10, k of 100 with a size of 5, and a size larger than k
+        for (Integer size : new Integer[] { null, 5, 200 }) {
+            SearchSourceBuilder source = new SearchSourceBuilder().knnSearch(List.of(knn));
+            if (size != null) {
+                source.size(size);
+            }
+            assertTrue(queryCaptureFilterApply(filter, new SearchRequest("idx").source(source), TaskId.EMPTY_TASK_ID));
+        }
+
+        assertThat(captured.stream().map(search -> search.query().k()).toList(), equalTo(List.of(10, 5, 100)));
     }
 
     public void testIgnoresChildSearches() {

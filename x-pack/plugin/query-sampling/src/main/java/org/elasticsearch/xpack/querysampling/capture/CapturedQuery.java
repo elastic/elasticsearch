@@ -19,7 +19,7 @@ import java.util.List;
  * @param indices         index expressions of the search, as given by the user
  * @param field           the dense vector field searched
  * @param queryVector     a copy of the query vector
- * @param k               number of nearest neighbours requested
+ * @param k               number of nearest neighbours the search returns: its {@code k}, or fewer if it asks for fewer hits
  * @param numCandidates   candidates considered per shard
  * @param visitPercentage visit percentage for IVF-style indices, if set
  * @param oversample      rescore oversampling factor, if set

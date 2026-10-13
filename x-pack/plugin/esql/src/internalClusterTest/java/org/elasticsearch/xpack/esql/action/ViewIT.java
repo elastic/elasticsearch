@@ -47,6 +47,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.contains;
@@ -144,6 +145,38 @@ public class ViewIT extends AbstractEsqlIntegTestCase {
 
         try (EsqlQueryResponse response = run("FROM alias-view")) {
             assertThat(getValuesList(response), equalTo(List.of(List.of(42))));
+        }
+    }
+
+    public void testViewOverTimeSeries() {
+        assertAcked(
+            indicesAdmin().prepareCreate("ts-source")
+                .setSettings(Settings.builder().put("index.mode", "time_series").putList("index.routing_path", List.of("host")))
+                .setMapping(
+                    "@timestamp",
+                    "type=date",
+                    "host",
+                    "type=keyword,time_series_dimension=true",
+                    "cpu",
+                    "type=long,time_series_metric=gauge"
+                )
+        );
+        long now = System.currentTimeMillis();
+        String time1 = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(now);
+        String time2 = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(now + 1000);
+        assertNoFailures(
+            client().prepareBulk()
+                .add(prepareIndex("ts-source").setSource("@timestamp", time1, "host", "a", "cpu", 10))
+                .add(prepareIndex("ts-source").setSource("@timestamp", time2, "host", "a", "cpu", 30))
+                .add(prepareIndex("ts-source").setSource("@timestamp", time1, "host", "b", "cpu", 20))
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get()
+        );
+
+        // Per-series averages are 20 (host a) and 20 (host b). A plain sum over all docs would give 60.
+        assertAcked(createView("ts-view", "TS ts-source | STATS total = sum(avg_over_time(cpu)) | EVAL f1=1"));
+        try (EsqlQueryResponse response = run("FROM ts-view | EVAL f2=2")) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(40.0, 1, 2))));
         }
     }
 

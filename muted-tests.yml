@@ -466,3 +466,6 @@ tests:
 - class: org.elasticsearch.search.vectors.RescoreKnnVectorQueryTests
   method: testRescoreDocs
   issue: https://github.com/elastic/elasticsearch/issues/161638
+- class: org.elasticsearch.compute.operator.exchange.ExchangeServiceTests
+  method: testExchangeSourceContinueOnFailure
+  issue: https://github.com/elastic/elasticsearch/issues/157535

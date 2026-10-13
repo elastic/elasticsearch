@@ -56,12 +56,13 @@ public interface ColumnExtractorProducer {
      * range-restricted footer) at construction time.
      *
      * @param driverThreadWarningSink where the extractor relays per-value declared-coercion warnings
-     *                                (see {@link SkipWarnings}). The extractor runs on the driver
-     *                                thread, so this sink emits directly to the response headers; it
-     *                                is budget-gated so the whole source stays within one cap. May be
-     *                                {@code null}, in which case the extractor falls back to emitting
-     *                                warnings directly (per-instance cap only): the on-driver-thread
-     *                                default used by tests and benchmarks.
+     *                                (see {@link SkipWarnings}). The extractor invokes this sink on the driver
+     *                                thread; production binds it to {@code DriverContext#addWarning} so
+     *                                {@code DriverCompletionInfo} can carry warnings back from a remote scan. It is
+     *                                budget-gated so the whole source stays within one cap. May be {@code null}, in
+     *                                which case the extractor falls back to direct response-header emission
+     *                                (per-instance cap only). That fallback is for tests and benchmarks only because
+     *                                it is not transport-safe when the driver runs away from the coordinator.
      */
     ColumnExtractor createColumnExtractor(@Nullable Consumer<String> driverThreadWarningSink) throws IOException;
 

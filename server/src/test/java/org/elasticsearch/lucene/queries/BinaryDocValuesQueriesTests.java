@@ -16,6 +16,8 @@ import org.elasticsearch.columnar.ColumnarStringAnyOfQuery;
 import org.elasticsearch.columnar.ColumnarStringAutomatonQuery;
 import org.elasticsearch.columnar.ColumnarStringRangeQuery;
 import org.elasticsearch.columnar.ColumnarStringTermQuery;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.breaker.TrackingCircuitBreaker;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.test.ESTestCase;
 
@@ -46,11 +48,15 @@ public class BinaryDocValuesQueriesTests extends ESTestCase {
             new Shape("fuzzy", q -> q.fuzzy(FIELD, "abc", 1, 0, true), ColumnarStringAutomatonQuery.class),
             new Shape("term ci", q -> q.caseInsensitiveTerm(FIELD, "a"), ColumnarStringAutomatonQuery.class),
             // A pattern naming a whole value, a prefix or a contained run is rewritten to the query that answers it.
-            new Shape("wildcard literal", q -> q.wildcard(FIELD, "abc", false), ColumnarStringTermQuery.class),
-            new Shape("wildcard prefix", q -> q.wildcard(FIELD, "abc*", false), ColumnarStringTermQuery.class),
-            new Shape("wildcard contains", q -> q.wildcard(FIELD, "*abc*", false), ColumnarStringTermQuery.class),
-            new Shape("wildcard", q -> q.wildcard(FIELD, "a*b*c", false), ColumnarStringAutomatonQuery.class),
-            new Shape("wildcard ci", q -> q.wildcard(FIELD, "a*b", true), ColumnarStringAutomatonQuery.class),
+            new Shape("wildcard literal", q -> q.wildcard(FIELD, "abc", false, NoopCircuitBreaker.INSTANCE), ColumnarStringTermQuery.class),
+            new Shape("wildcard prefix", q -> q.wildcard(FIELD, "abc*", false, NoopCircuitBreaker.INSTANCE), ColumnarStringTermQuery.class),
+            new Shape(
+                "wildcard contains",
+                q -> q.wildcard(FIELD, "*abc*", false, NoopCircuitBreaker.INSTANCE),
+                ColumnarStringTermQuery.class
+            ),
+            new Shape("wildcard", q -> q.wildcard(FIELD, "a*b*c", false, NoopCircuitBreaker.INSTANCE), ColumnarStringAutomatonQuery.class),
+            new Shape("wildcard ci", q -> q.wildcard(FIELD, "a*b", true, NoopCircuitBreaker.INSTANCE), ColumnarStringAutomatonQuery.class),
             new Shape("regexp", q -> q.regexp(FIELD, "a.*", 0, 0, 10000, null), ColumnarStringAutomatonQuery.class),
             new Shape("automaton", q -> q.automaton(FIELD, Automata.makeString("a"), "described"), ColumnarStringAutomatonQuery.class)
         );
@@ -96,11 +102,29 @@ public class BinaryDocValuesQueriesTests extends ESTestCase {
         assertNotEquals(queries.fuzzy(FIELD, "alpha", 1, 0, true), queries.fuzzy(FIELD, "alpha", 1, 3, true));
         // Whether a transposition counts as one edit or two, so "alhpa" is accepted by one and not the other.
         assertNotEquals(queries.fuzzy(FIELD, "alpha", 1, 0, true), queries.fuzzy(FIELD, "alpha", 1, 0, false));
-        assertNotEquals(queries.wildcard(FIELD, "a*b", false), queries.wildcard(FIELD, "a*c", false));
-        assertNotEquals(queries.wildcard(FIELD, "a*b", false), queries.wildcard(FIELD, "a*b", true));
+        assertNotEquals(
+            queries.wildcard(FIELD, "a*b", false, NoopCircuitBreaker.INSTANCE),
+            queries.wildcard(FIELD, "a*c", false, NoopCircuitBreaker.INSTANCE)
+        );
+        assertNotEquals(
+            queries.wildcard(FIELD, "a*b", false, NoopCircuitBreaker.INSTANCE),
+            queries.wildcard(FIELD, "a*b", true, NoopCircuitBreaker.INSTANCE)
+        );
         assertNotEquals(queries.prefix(FIELD, "abc", true), queries.prefix(FIELD, "abd", true));
         assertNotEquals(queries.caseInsensitiveTerm(FIELD, "abc"), queries.caseInsensitiveTerm(FIELD, "abd"));
         assertNotEquals(queries.regexp(FIELD, "a.*", 0, 0, 10000, null), queries.regexp(FIELD, "b.*", 0, 0, 10000, null));
+    }
+
+    // '*' + 65 'a's: subset construction creates 66 DFA states, CB fires at state 64.
+    private static final String COMPLEX_WILDCARD = "*" + "a".repeat(65);
+
+    public void testColumnarCircuitBreakerConsultedForWildcard() {
+        final BinaryDocValuesQueries queries = BinaryDocValuesQueries.forFormat(BinaryDocValuesFormat.COLUMNAR_PAYLOAD);
+        for (boolean caseInsensitive : new boolean[] { false, true }) {
+            final TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+            queries.wildcard(FIELD, COMPLEX_WILDCARD, caseInsensitive, breaker);
+            assertTrue("circuit breaker should be consulted for caseInsensitive=" + caseInsensitive, breaker.wasCalled());
+        }
     }
 
     /** A columnar field is answered by its column, so asking for a scan of one fails where it is asked. */

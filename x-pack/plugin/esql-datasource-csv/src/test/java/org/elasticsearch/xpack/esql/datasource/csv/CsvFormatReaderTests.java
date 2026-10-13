@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorExcerpts;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
@@ -187,7 +188,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * The other half of elastic/esql-planning#1807, end to end: a schemaless column holding a bare
+     * The other half of schemaless typing, end to end: a schemaless column holding a bare
      * number and a timestamp must come back as strings. Before, inference typed it datetime and the
      * reader's epoch shortcut turned {@code 42} into an instant 42 milliseconds after 1970 — a value
      * nobody wrote, served as data.
@@ -6806,6 +6807,9 @@ public class CsvFormatReaderTests extends ESTestCase {
     private StorageObject createStorageObject(byte[] bytes) {
         return new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -7887,7 +7891,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
-    // --- declared `path` binding under a pinned (declared) schema: esql-planning#1307 ---
+    // --- declared `path` binding under a pinned (declared) schema: ---
 
     /**
      * A declaration that names every column of the file must read the same values under declared and inferred binding:

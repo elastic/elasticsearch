@@ -389,7 +389,7 @@ This source build is correct but slow, and every parallel BWC test job repeats i
 ### Pre-built snapshot fast path
 
 Instead of cloning the BWC branch and compiling it from source, Gradle can download pre-built snapshot artifacts directly.
-Distribution archives come from the [DRA](https://github.com/elastic/apm-pipeline-library/blob/main/vars/README.md#publishToBuildkiteDRA) (Distribution Release Artifacts) snapshot server at `artifacts-snapshot.elastic.co`, while plain Maven jars come from `snapshots.elastic.co/maven`.
+Distribution archives come from the DRA (Distribution Release Artifacts) snapshot server at `artifacts-snapshot.elastic.co`, while plain Maven jars come from `snapshots.elastic.co/maven`.
 Gradle downloads archives through an Ivy repository and unpacks them with the existing `SymbolicLinkPreservingUntarTransform` / `UnzipTransform` — no custom HTTP or extraction code.
 
 The fast path covers:

@@ -48,6 +48,7 @@ import org.elasticsearch.index.query.GeoDistanceQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.node.NodeMocksPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
@@ -101,6 +102,7 @@ public class BatchBulkIT extends ESIntegTestCase {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true)
+            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING.getKey(), "memory")
             .build();
     }
 

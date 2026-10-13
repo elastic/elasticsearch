@@ -849,9 +849,13 @@ public class ExternalSourceResolver {
                 // under INFERRED provenance), the reader must bind by name instead. The overlay grows the schema by
                 // exactly those columns, so comparing sizes is how this rail learns there were any.
                 //
-                // The upgrade is overlaidReadSpec's and is not written again here: one method decides both the spec
-                // the read PERFORMS and the spec a statistics address is derived from, and two copies of that rule
-                // is how the two came to disagree.
+                // The upgrade RULE is overlaidReadSpec's and is not written again here: one method decides both the
+                // spec the read PERFORMS and the spec a statistics address is derived from, and two copies of that
+                // rule is how the two came to disagree. Its boolean INPUT is still derived twice - from the schema
+                // growth here, from unified.absent() inside overlaidReadOf - which is equivalent only because the
+                // overlay appends exactly the absent columns and nothing else. Threading the overlay's own absent
+                // set out of applyNonStrictOverlay would make it one derivation; that is a change to its return
+                // type, not to this line.
                 boolean appendedAbsent = finalSource.metadata().schema().size() > resolvedSource.metadata().schema().size();
                 effectiveReadSpec = overlaidReadSpec(declaredMapping, appendedAbsent, resolvedSource.metadata().sourceType());
             } else {
@@ -5706,7 +5710,7 @@ public class ExternalSourceResolver {
             return null;
         }
         // The record's own schema stands in for the unified one, because a function built before the gather cannot
-        // see the union. Two known divergences, both leaving a file cold rather than wrong:
+        // see the union. Two known divergences:
         //
         // Under union_by_name, a column SOME files carry and this one does not - a separate defect, and such a
         // file stays cold either way, missing at an address of its own.
@@ -5715,6 +5719,15 @@ public class ExternalSourceResolver {
         // unified schema includes the path-derived partition columns. So a declaration naming a partition
         // column's type sees it absent here and present there, and the two fingerprints part. Not exercised by
         // any arm; the fix is to pass the unified schema in, which this rail has.
+        //
+        // "Cold" is the usual outcome but not the guaranteed one, and the premise is worth stating rather than
+        // assuming: the address this derives can already HOLD a harvest, because the same definition over an
+        // earlier listing in which no file carried the column performed exactly that read and stamped it there,
+        // and an unchanged file's own SchemaCacheKey does not move when a new file arrives. The lookup then hits
+        // a count measured under a different BINDING of the same file. It is still the same number, and not
+        // because of anything here: under a lenient policy only projection-independent drops reach the cache at
+        // all (see applyDatasetAggregate), and a structural drop does not depend on whether the reader binds by
+        // name or by position. Nothing in this derivation enforces that.
         return record -> {
             List<Attribute> own = record.toAttributes();
             return overlaidReadOf(own, own, declaredMapping, datasetFormat != null ? datasetFormat : record.sourceType()).fingerprint();
@@ -5726,7 +5739,7 @@ public class ExternalSourceResolver {
      * unified inferred schema.
      * <p>
      * Absent declared columns are appended to every per-file schema. NDJSON resolves values by JSON key and
-     * Parquet/ORC by column name; for CSV/TSV {@link #resolveNextPath} upgrades provenance to
+     * Parquet/ORC by column name; for CSV/TSV {@link #overlaidReadSpec} upgrades provenance to
      * {@link SchemaProvenance#DECLARED} so the reader binds by header name rather than by position. Rows not
      * carrying the field null-fill the slot and the reader warns.
      * <p>
@@ -5748,8 +5761,9 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * The read spec a non-strict declaration resolves to, provenance upgrade included. {@link #resolveNextPath}
-     * asks this too, so the spec the read performs and the spec an address is derived from cannot diverge.
+     * The read spec a non-strict declaration resolves to, provenance upgrade included. This method owns the
+     * upgrade; {@link #resolveNextPath} and {@link #overlaidReadOf} both ask it, so the spec the read performs
+     * and the spec an address is derived from cannot diverge.
      */
     private static DeclaredReadSpec overlaidReadSpec(DatasetMapping declaredMapping, boolean hasAbsentColumns, String sourceType) {
         DeclaredReadSpec spec = declaredReadSpecOf(declaredMapping);
@@ -5787,8 +5801,9 @@ public class ExternalSourceResolver {
      * {@link DeclaredSchemaResolver.Overlaid#absent()}) rather than rejected, and reads null with a warning where the
      * data does not carry it: it may be a sparse field the sample window did not reach, a column only later files of
      * a {@code first_file_wins} glob carry, or one the source does not carry at all (see {@link #isSchemaComplete}).
-     * The caller ({@link #resolveNextPath}) upgrades the {@link DeclaredReadSpec} provenance to
-     * {@link SchemaProvenance#DECLARED} for CSV/TSV so the reader binds by name rather than schema position.
+     * {@link #overlaidReadSpec} upgrades the {@link DeclaredReadSpec} provenance to
+     * {@link SchemaProvenance#DECLARED} for CSV/TSV so the reader binds by name rather than schema position; both
+     * this method's caller and {@link #overlaidReadOf} get it from there.
      * <p>
      * A declared column a file stores under a type that cannot be read as declared is checked here per file only
      * under {@code fail_fast}; otherwise the readers apply the error policy to it when they open the file.

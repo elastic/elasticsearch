@@ -714,12 +714,20 @@ public class DefinitionVersionTests extends ESTestCase {
      * fixture. It was wrong once - splitting a record header on every comma tore {@code Map<String, V>} in half -
      * and a scanner that silently finds the wrong set makes the census above pass while checking nothing.
      */
+    /** A run of annotations, each optionally parenthesised, as they may appear before or after the modifiers. */
+    private static final String ANNOTATIONS = "(?:@\\w+(?:\\([^)]*\\))?\\s+)*";
+
     static Set<String> declaredFieldsIn(String source) {
         Set<String> names = new TreeSet<>();
-        // {4,} not {4}: a field declared on a NESTED type is indented deeper. And the declaration may end at an
-        // initializer rather than the semicolon. Both shapes were invisible, and a field this misses is a field
-        // the census above cannot report - so the fixture below demands them rather than expecting their absence.
-        Matcher field = Pattern.compile("^\\s{4,}private final [\\w<>,\\[\\] ?.]+ (\\w+)\\s*[;=]", Pattern.MULTILINE).matcher(source);
+        // {4,} not {4}: a field declared on a NESTED type is indented deeper. The declaration may end at an
+        // initializer rather than the semicolon. And an annotation may sit on either side of the modifiers, on the
+        // same line - the fixture only ever put one on its own line, so that shape was invisible while looking
+        // covered. Each was invisible in turn, and a field this misses is a field the census above cannot report,
+        // so the fixture below demands them rather than expecting their absence.
+        Matcher field = Pattern.compile(
+            "^\\s{4,}" + ANNOTATIONS + "private final " + ANNOTATIONS + "[\\w<>,\\[\\] ?.]+ (\\w+)\\s*[;=]",
+            Pattern.MULTILINE
+        ).matcher(source);
         while (field.find()) {
             names.add(field.group(1));
         }
@@ -762,6 +770,9 @@ public class DefinitionVersionTests extends ESTestCase {
                 @Nullable
                 private final Map<String, List<Integer>> settings;
                 private final String withInitializer = "x";
+                @Nullable private final String annotatedBefore;
+                private final @Nullable String annotatedAfter;
+                @SuppressWarnings("unchecked") private final String annotatedWithArgument;
 
                 public static final class Nested {
                     private final long nestedField;
@@ -771,9 +782,19 @@ public class DefinitionVersionTests extends ESTestCase {
             }
             """;
         assertEquals(
-            "every declaration shape must be seen: plain, generic, initialized, nested, and both components of a "
-                + "record whose type carries a comma",
-            Set.of("name", "settings", "withInitializer", "nestedField", "dynamic", "properties"),
+            "every declaration shape must be seen: plain, generic, initialized, nested, annotated on either side of "
+                + "the modifiers, annotated with an argument, and both components of a record whose type carries a comma",
+            Set.of(
+                "name",
+                "settings",
+                "withInitializer",
+                "nestedField",
+                "dynamic",
+                "properties",
+                "annotatedBefore",
+                "annotatedAfter",
+                "annotatedWithArgument"
+            ),
             declaredFieldsIn(source)
         );
     }

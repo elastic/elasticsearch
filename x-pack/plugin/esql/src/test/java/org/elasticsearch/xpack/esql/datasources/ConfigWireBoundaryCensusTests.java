@@ -45,18 +45,28 @@ import java.util.regex.Pattern;
  * method around it. {@link #testWhatTheCensusDecides} pins every one of those, through the same entry point the
  * file walk uses.
  * <p>
- * <b>Resolution, not a wider word test, is what closes the helper shape,</b> and the distinction is load-bearing.
- * Failing on any identifier merely CONTAINING "config" would catch {@code splitConfig()} and also redden
- * {@code ExternalSourceExec}, which writes {@code planConfig(onTheWire)} - a transform of the already-stripped
- * map, correctly guarded. The name of a helper says nothing; what its value resolves to says everything.
+ * <b>Resolution first, the name only as a fallback,</b> and the order is load-bearing. Failing on any identifier
+ * merely CONTAINING "config" would catch {@code splitConfig()} and also redden {@code ExternalSourceExec}, which
+ * writes {@code planConfig(onTheWire)} - a transform of the already-stripped map, correctly guarded. So what a
+ * name resolves to decides wherever it resolves, and the name decides only where nothing resolved at all: an
+ * identifier this scan cannot follow, whose own name says config, is counted a leak rather than waved through.
  * <p>
- * <b>What it does not cover,</b> stated so the next reader does not rely on more than this checks: a guard or a
- * leak applied through more than one hop, a config whose expression does not say "config", a write form outside
- * {@link #GENERIC_WRITE} or through a receiver not named {@code out}, a wire method whose {@code StreamOutput} is
- * not its first parameter (the signature probe looks for {@code "(StreamOutput "}), and any source root outside
- * the esql plugin and the {@code esql-datasource-*} modules. A helper defined in ANOTHER file is out of reach too,
- * which costs little for the shape that matters: to hand back a raw {@code config} field it would have to be
- * declared where that private field is, and one taking the field as a parameter leaves the word in the argument.
+ * <b>What it does not cover.</b> This list is not what the design intended to leave out; it is what an external
+ * probe of these predicates actually reported guarded, and it is written down because the next reader's instinct
+ * will be to trust the sentence above instead:
+ * <ul>
+ *   <li>a resolved local MUTATED after it is assigned - {@code onTheWire.putAll(config)} is not an assignment,
+ *       so the local still resolves to the guard it was assigned;</li>
+ *   <li>an alias whose own name does not say config, assigned somewhere other than between the signature and
+ *       the write - a constructor, say - which resolves to nothing and is named after nothing;</li>
+ *   <li>a guard or a leak more than one hop away;</li>
+ *   <li>a write form outside {@link #GENERIC_WRITE} or through a receiver not named {@code out};</li>
+ *   <li>a wire method whose {@code StreamOutput} is not its first parameter, since the signature probe looks
+ *       for {@code "(StreamOutput "};</li>
+ *   <li>any source root outside the esql plugin and the {@code esql-datasource-*} modules.</li>
+ * </ul>
+ * The first two are leaks this reports as guarded, which is the failure mode worth stating plainly: a green
+ * census is evidence about the shapes {@link #testWhatTheCensusDecides} pins and nothing else.
  */
 public class ConfigWireBoundaryCensusTests extends ESTestCase {
 
@@ -143,10 +153,11 @@ public class ConfigWireBoundaryCensusTests extends ESTestCase {
             if (effective.toLowerCase(Locale.ROOT).contains("config") == false) {
                 continue; // this write carries something else
             }
+            Set<String> unresolved = unresolvedConfigNames(body, stripped, written);
             // Guarded means NOTHING survives once every wireConfig(...) span is removed. Asking only whether the
             // text appears would pass a conditional that wraps one arm and not the other - and the unwrapped arm
             // can be the one every current node takes.
-            (unwrappedConfigReference(effective) ? unguarded : guarded).add(site);
+            (unwrappedConfigReference(effective, unresolved) ? unguarded : guarded).add(site);
         }
     }
 
@@ -187,35 +198,90 @@ public class ConfigWireBoundaryCensusTests extends ESTestCase {
                 found.append(assigned.group(1)).append(' ');
             }
             // Only a CALLED name has a return to resolve. Asking for every identifier would look up locals and
-            // types as if they were methods, and the declaration pattern below is not tight enough to be asked
-            // a question that broad.
+            // types as if they were methods, and the declaration pattern is not tight enough to be asked a
+            // question that broad.
             if (Pattern.compile("\\b" + Pattern.quote(name.group()) + "\\s*\\(").matcher(expression).find()) {
-                found.append(firstReturnOf(fileSource, name.group())).append(' ');
+                found.append(returnsOf(fileSource, name.group())).append(' ');
             }
         }
         return found.toString();
     }
 
     /**
-     * The first {@code return} expression inside a method of this name DECLARED in this file, or empty when the
-     * file declares none. First rather than every one: a helper handing back a config has one, and a method whose
-     * early returns are guard clauses would otherwise contribute their expressions as if they were the value.
+     * EVERY {@code return} expression inside a method of this name DECLARED in this file, or empty when the file
+     * declares none. Every one rather than the first: a helper that returns the stripped map on one branch and the
+     * raw field on another is a leak whose first {@code return} is clean, and taking only the first reported it
+     * guarded. The cost is that an unrelated early {@code return} in a long method contributes its expression too,
+     * which can only produce a false alarm the author resolves in place - the safe direction for a census.
+     * <p>
+     * Bounded by the method's closing brace, found by counting braces from the declaration, so a later method's
+     * returns are not attributed here.
      * <p>
      * A return type immediately before the name is what tells a declaration from a call, because a call can be
-     * followed by an opening brace too - an {@code if} over a version check is exactly that shape - and the call
-     * would otherwise adopt whatever the enclosing method returns next.
+     * followed by an opening brace too - an {@code if} over a version check is exactly that shape.
      */
-    private static String firstReturnOf(String fileSource, String methodName) {
+    private static String returnsOf(String fileSource, String methodName) {
         Matcher declaration = Pattern.compile(
             "[A-Za-z_$][\\w.$<>\\[\\], ]*\\s" + Pattern.quote(methodName) + "\\s*\\([^)]*\\)\\s*(?:throws [^{]*)?\\{"
         ).matcher(fileSource);
-        if (declaration.find()) {
-            Matcher returned = Pattern.compile("\\breturn\\s+([^;]*);").matcher(fileSource);
-            if (returned.find(declaration.end())) {
-                return returned.group(1);
+        if (declaration.find() == false) {
+            return "";
+        }
+        int open = fileSource.indexOf('{', declaration.end() - 1);
+        int depth = 0;
+        int close = fileSource.length();
+        for (int i = open; i < fileSource.length(); i++) {
+            char ch = fileSource.charAt(i);
+            if (ch == '{') {
+                depth++;
+            } else if (ch == '}' && --depth == 0) {
+                close = i;
+                break;
             }
         }
-        return "";
+        StringBuilder found = new StringBuilder();
+        Matcher returned = Pattern.compile("\\breturn\\s+([^;]*);").matcher(fileSource.substring(open, close));
+        while (returned.find()) {
+            found.append(returned.group(1)).append(' ');
+        }
+        return found.toString();
+    }
+
+    /** Whether an identifier's own name claims to be about a config - the only thing knowable about an unresolved one. */
+    private static boolean namesSomethingCalledConfig(String identifier) {
+        return identifier.toLowerCase(Locale.ROOT).contains("config");
+    }
+
+    /**
+     * The config-named identifiers in the written expression that resolved to NOTHING - no assignment in the
+     * enclosing method, no {@code return} in a same-file method of that name. Whatever each stands for was
+     * written somewhere this scan cannot see: a field the method never assigns, an accessor declared on a
+     * supertype. Counting the unseeable as guarded is what let two of the probed shapes through.
+     * <p>
+     * A name called WITH an argument is left out: that is the shape of a transform applied to an already-stripped
+     * map ({@code ExternalSourceExec}'s {@code planConfig(onTheWire)}), and its argument is what resolves.
+     * <p>
+     * Which of these actually matters is decided after the {@code wireConfig(...)} spans are removed, not here -
+     * the raw field is unresolved at EVERY site including the correctly wrapped ones, and deciding on it before
+     * removal reported all three live boundaries unguarded.
+     */
+    private static Set<String> unresolvedConfigNames(String body, String fileSource, String expression) {
+        Set<String> unresolved = new HashSet<>();
+        Matcher name = Pattern.compile("[A-Za-z_$][A-Za-z0-9_$]*").matcher(expression);
+        while (name.find()) {
+            String identifier = name.group();
+            if (identifier.toLowerCase(Locale.ROOT).contains("config") == false) {
+                continue;
+            }
+            if (Pattern.compile("\\b" + Pattern.quote(identifier) + "\\s*\\(\\s*[^)\\s]").matcher(expression).find()) {
+                continue; // called with an argument: the argument carries the answer
+            }
+            boolean assigned = Pattern.compile("\\b" + Pattern.quote(identifier) + "\\s*=\\s*[^;]*;").matcher(body).find();
+            if (assigned == false && returnsOf(fileSource, identifier).isEmpty()) {
+                unresolved.add(identifier);
+            }
+        }
+        return unresolved;
     }
 
     /**
@@ -223,7 +289,7 @@ public class ConfigWireBoundaryCensusTests extends ESTestCase {
      * the question, rather than whether the text appears: a {@code writeTo} may wrap one arm of a conditional and
      * write the field directly on the other, and the direct arm can be the one every current node takes.
      */
-    private static boolean unwrappedConfigReference(String expression) {
+    private static boolean unwrappedConfigReference(String expression, Set<String> unresolved) {
         StringBuilder remaining = new StringBuilder(expression);
         for (int at = remaining.indexOf("wireConfig("); at >= 0; at = remaining.indexOf("wireConfig(")) {
             int open = remaining.indexOf("(", at);
@@ -240,7 +306,18 @@ public class ConfigWireBoundaryCensusTests extends ESTestCase {
             }
             remaining.delete(at, end);
         }
-        return Pattern.compile("\\bconfig\\b", Pattern.CASE_INSENSITIVE).matcher(remaining).find();
+        if (Pattern.compile("\\bconfig\\b", Pattern.CASE_INSENSITIVE).matcher(remaining).find()) {
+            return true;
+        }
+        // Nothing the scan could follow survived, but an identifier it could NOT follow may have. Asked here
+        // rather than during resolution, because the raw field is unresolved at a wrapped site too and its
+        // mention lives inside the span just removed.
+        for (String name : unresolved) {
+            if (Pattern.compile("\\b" + Pattern.quote(name) + "\\b").matcher(remaining).find()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -277,6 +354,21 @@ public class ConfigWireBoundaryCensusTests extends ESTestCase {
             "        out.writeGenericMap(splitConfig());",
             "    private Map<String, Object> splitConfig() {\n        return config;\n    }\n"
         );
+        // A helper whose FIRST return is clean and whose second is the raw field. Taking only the first return
+        // reported this guarded, and no stated limit covered it: it is one hop and it says config.
+        assertUnguarded(
+            "a helper that leaks on its second branch",
+            "        out.writeGenericMap(maybeStripped());",
+            "    private Map<String, Object> maybeStripped() {\n"
+                + "        if (v.supports(K)) {\n            return ExternalSourceResolver.wireConfig(config);\n        }\n"
+                + "        return config;\n    }\n"
+        );
+        // A no-argument accessor this file does not declare: on a supertype, or on another class. Nothing here can
+        // see what it returns, and the name is all there is to go on.
+        assertUnguarded("an accessor declared elsewhere", "        out.writeGenericMap(getConfig());");
+        // A raw field whose name merely CONTAINS config. The whole-word exit test misses it; the unresolved rule
+        // does not, because nothing in this method assigns it.
+        assertUnguarded("a raw field named configuration", "        out.writeGenericMap(configuration);");
     }
 
     /**

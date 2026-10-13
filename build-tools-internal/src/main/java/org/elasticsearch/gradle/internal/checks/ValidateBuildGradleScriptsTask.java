@@ -284,7 +284,9 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
                     spec -> spec.contextualLabel(label)
                         .details(details)
                         .fileLocation(rootBuildFile.getAbsolutePath())
-                        .solution("Remove or update the stale ignore entry from the validateBuildGradleScripts task configuration in the root build.gradle file.")
+                        .solution(
+                            "Remove or update the stale ignore entry from the validateBuildGradleScripts task configuration in the root build.gradle file."
+                        )
                 )
             );
         }
@@ -327,10 +329,15 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
         try {
             count = Integer.parseInt(rawCount);
         } catch (NumberFormatException e) {
-            throw new GradleException(String.format(Locale.ROOT, "Ignore count for rule [%s] must be an integer: [%s]", ruleId, rawValue), e);
+            throw new GradleException(
+                String.format(Locale.ROOT, "Ignore count for rule [%s] must be an integer: [%s]", ruleId, rawValue),
+                e
+            );
         }
         if (count < 0) {
-            throw new GradleException(String.format(Locale.ROOT, "Ignore count for rule [%s] must be non-negative: [%s]", ruleId, rawValue));
+            throw new GradleException(
+                String.format(Locale.ROOT, "Ignore count for rule [%s] must be non-negative: [%s]", ruleId, rawValue)
+            );
         }
         return new IgnoreEntry(ruleId, relativePath, count);
     }

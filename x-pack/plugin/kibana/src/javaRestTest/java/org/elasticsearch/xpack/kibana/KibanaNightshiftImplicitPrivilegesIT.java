@@ -136,17 +136,19 @@ public class KibanaNightshiftImplicitPrivilegesIT extends ESRestTestCase {
         assertThat(entityAsMap(response).get("values"), equalTo(List.of(List.of("hello"))));
     }
 
-    public void testAllRoleManagesOnlyItsSpaceViews() throws Exception {
+    public void testAllRoleReadsButCannotWriteViewsDirectly() throws Exception {
         putKibanaPrivileges();
         putRole("nightshift_view_manager", NIGHTSHIFT_ALL_PRIVILEGE, "space:marketing");
         putUser("nightshift_view_manager_user", "nightshift_view_manager");
         createViewFixtures();
 
-        final String managed = "$.nightshift.sources.marketing.managed";
-        assertThat(viewStatusAs("nightshift_view_manager_user", "PUT", managed), equalTo(200));
-        assertThat(viewStatusAs("nightshift_view_manager_user", "GET", managed), equalTo(200));
-        assertThat(viewStatusAs("nightshift_view_manager_user", "DELETE", managed), equalTo(200));
-        assertThat(viewStatusAs("nightshift_view_manager_user", "PUT", "$.nightshift.sources.other.managed"), equalTo(403));
+        assertThat(viewStatusAs("nightshift_view_manager_user", "GET", MARKETING_VIEW), equalTo(200));
+        assertThat(viewStatusAs("nightshift_view_manager_user", "GET", OTHER_VIEW), equalTo(403));
+        // Kibana writes the views as kibana_system, so end users calling Elasticsearch directly must not be able to
+        // change them, even with the manage Kibana privilege.
+        assertThat(viewStatusAs("nightshift_view_manager_user", "PUT", MARKETING_VIEW), equalTo(403));
+        assertThat(viewStatusAs("nightshift_view_manager_user", "PUT", "$.nightshift.sources.marketing.new"), equalTo(403));
+        assertThat(viewStatusAs("nightshift_view_manager_user", "DELETE", MARKETING_VIEW), equalTo(403));
     }
 
     private void createViewFixtures() throws Exception {

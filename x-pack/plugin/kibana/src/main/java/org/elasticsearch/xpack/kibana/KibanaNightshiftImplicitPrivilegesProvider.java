@@ -45,10 +45,9 @@ import java.util.stream.Collectors;
  * indicators, for instance, are never space-scoped), and this provider mirrors that so both layers agree.
  * When the user has the wildcard resource ({@code *}), full document access is granted with no DLS restriction.
  * <p>
- * It also grants access to the ES|QL source views Kibana creates per space, named
- * {@code $.nightshift.sources.<spaceId>.<slug>}: {@code read} and {@code read_view_metadata} for {@code api:read_nightshift},
- * {@code manage_view} for {@code api:manage_nightshift}. Each action takes its own resources, so read in one space and
- * manage in another yields the right grant per space.
+ * It also grants {@code read} and {@code read_view_metadata} on the ES|QL source views Kibana creates per space, named
+ * {@code $.nightshift.sources.<spaceId>.<slug>}, scoped to the spaces the user has {@code api:read_nightshift} in. Writes
+ * are not granted: Kibana manages the views as {@code kibana_system}.
  */
 public class KibanaNightshiftImplicitPrivilegesProvider implements ImplicitPrivilegesProvider {
 
@@ -59,13 +58,10 @@ public class KibanaNightshiftImplicitPrivilegesProvider implements ImplicitPrivi
     // Prefix shared by every data stream the Kibana significant_events plugin registers; see the DataStreamDefinitions under
     // x-pack/solutions/observability/plugins/significant_events/server/lib in the Kibana repo.
     static final String[] SIGNIFICANT_EVENTS_INDICES = { ".significant_events-*" };
-    // Mirrors NIGHTSHIFT_API_PRIVILEGES.manage in the same Kibana file.
-    static final String MANAGE_NIGHTSHIFT_ACTION = "api:manage_nightshift";
     // Mirrors NIGHTSHIFT_SOURCE_VIEW_PREFIX in Kibana's src/sources/view_name.ts; views are named "<prefix><spaceId>.<slug>".
     static final String SOURCE_VIEW_PREFIX = "$.nightshift.sources.";
-    // Index privileges from IndexPrivilege: read_view_metadata allows the view get action, manage_view covers put, get and delete.
+    // Index privilege from IndexPrivilege that allows the ES|QL view get action.
     static final String READ_VIEW_METADATA_PRIVILEGE = "read_view_metadata";
-    static final String MANAGE_VIEW_PRIVILEGE = "manage_view";
     // Mirrors SPACE_ID_REGEX in Kibana. Resource text comes from admin-authored roles, so ids that could act as wildcards or
     // contain dots (e.g. "space:*") are rejected rather than widening the view pattern to other spaces.
     private static final Pattern VALID_SPACE_ID = Pattern.compile("^[a-z0-9_\\-]+$");
@@ -73,7 +69,6 @@ public class KibanaNightshiftImplicitPrivilegesProvider implements ImplicitPrivi
     static final String ALL_RESOURCES = "*";
     static final String INDEX_READ_PRIVILEGE = "read";
     private static final String[] READ_VIEW_PRIVILEGES = { INDEX_READ_PRIVILEGE, READ_VIEW_METADATA_PRIVILEGE };
-    private static final String[] MANAGE_VIEW_PRIVILEGES = { MANAGE_VIEW_PRIVILEGE };
     // Written by Kibana's data streams client; see src/platform/packages/private/kbn-data-streams/src/space_utils.ts
     static final String SPACE_IDS_FIELD = "kibana.space_ids";
 
@@ -85,10 +80,7 @@ public class KibanaNightshiftImplicitPrivilegesProvider implements ImplicitPrivi
 
         final Set<String> readResources = collectResources(applicationPrivileges, READ_NIGHTSHIFT_ACTION);
         significantEventsGrant(readResources).ifPresent(grants::add);
-        viewGrant(readResources, READ_VIEW_PRIVILEGES).ifPresent(grants::add);
-
-        final Set<String> manageResources = collectResources(applicationPrivileges, MANAGE_NIGHTSHIFT_ACTION);
-        viewGrant(manageResources, MANAGE_VIEW_PRIVILEGES).ifPresent(grants::add);
+        viewGrant(readResources).ifPresent(grants::add);
         return grants;
     }
 
@@ -112,11 +104,13 @@ public class KibanaNightshiftImplicitPrivilegesProvider implements ImplicitPrivi
     }
 
     /**
-     * Grants {@code privileges} on the source views of every space in {@code resources}. No DLS query is attached because
-     * views hold no documents; the space id embedded in the view name is the only scoping. Space ids cannot contain dots or
-     * wildcards, so {@code $.nightshift.sources.<spaceId>.*} never matches another space's views.
+     * Grants read access to the source views of every space in {@code resources}. Writes are deliberately not granted:
+     * Kibana creates, updates and deletes the views as {@code kibana_system} so they cannot drift from their saved objects.
+     * No DLS query is attached because views hold no documents; the space id embedded in the view name is the only scoping.
+     * Space ids cannot contain dots or wildcards, so {@code $.nightshift.sources.<spaceId>.*} never matches another space's
+     * views.
      */
-    private static Optional<RoleDescriptor.IndicesPrivileges> viewGrant(Set<String> resources, String[] privileges) {
+    private static Optional<RoleDescriptor.IndicesPrivileges> viewGrant(Set<String> resources) {
         final String[] patterns = resources.contains(ALL_RESOURCES)
             ? new String[] { SOURCE_VIEW_PREFIX + "*" }
             : spaceIds(resources).stream()
@@ -127,7 +121,7 @@ public class KibanaNightshiftImplicitPrivilegesProvider implements ImplicitPrivi
         if (patterns.length == 0) {
             return Optional.empty();
         }
-        return Optional.of(RoleDescriptor.IndicesPrivileges.builder().indices(patterns).privileges(privileges).build());
+        return Optional.of(RoleDescriptor.IndicesPrivileges.builder().indices(patterns).privileges(READ_VIEW_PRIVILEGES).build());
     }
 
     /** Space ids of the {@code space:<id>} resources; resources without the prefix are ignored. */

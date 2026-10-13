@@ -30,10 +30,13 @@ import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.oneOf;
 
 public class KibanaNightshiftImplicitPrivilegesProviderTests extends ESTestCase {
 
@@ -130,15 +133,15 @@ public class KibanaNightshiftImplicitPrivilegesProviderTests extends ESTestCase 
         Collection<RoleDescriptor.IndicesPrivileges> result = grants(role(pattern, "space:default"), List.of());
         assertThat(spaceIdsInQuery(significantEventsGrant(result)), containsInAnyOrder("default"));
         assertThat(viewGrant(result, "read_view_metadata").isPresent(), is(true));
-        assertThat(viewGrant(result, "manage_view").isPresent(), is(pattern.equals("api:*")));
+        assertNoWritePrivileges(result);
     }
 
     public void testRoleWithSuperWildcardPrivilege() {
         Collection<RoleDescriptor.IndicesPrivileges> result = grants(role("*", "*"), List.of());
-        assertThat(result, hasSize(3));
+        assertThat(result, hasSize(2));
         assertThat(significantEventsGrant(result).getQuery(), is(nullValue()));
         assertThat(viewGrant(result, "read_view_metadata").orElseThrow().getIndices(), arrayContainingInAnyOrder("$.nightshift.sources.*"));
-        assertThat(viewGrant(result, "manage_view").orElseThrow().getIndices(), arrayContainingInAnyOrder("$.nightshift.sources.*"));
+        assertNoWritePrivileges(result);
     }
 
     public void testReadInOneSpaceGrantsReadViewPrivilegesOnThatSpacePattern() {
@@ -152,79 +155,6 @@ public class KibanaNightshiftImplicitPrivilegesProviderTests extends ESTestCase 
         assertThat(view.getIndices(), arrayContainingInAnyOrder("$.nightshift.sources.marketing.*"));
         assertThat(view.getPrivileges(), arrayContainingInAnyOrder("read", "read_view_metadata"));
         assertThat(view.getQuery(), is(nullValue()));
-        assertThat(viewGrant(result, "manage_view").isPresent(), is(false));
-    }
-
-    public void testManageInOneSpaceGrantsManageViewOnThatSpacePattern() {
-        Collection<RoleDescriptor.IndicesPrivileges> result = grants(
-            role("feature_nightshift.manage", "space:marketing"),
-            List.of(new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "feature_nightshift.manage", Set.of(MANAGE_ACTION), Map.of()))
-        );
-
-        assertThat(result, hasSize(1));
-        RoleDescriptor.IndicesPrivileges view = result.iterator().next();
-        assertThat(view.getIndices(), arrayContainingInAnyOrder("$.nightshift.sources.marketing.*"));
-        assertThat(view.getPrivileges(), arrayContainingInAnyOrder("manage_view"));
-        assertThat(view.getQuery(), is(nullValue()));
-    }
-
-    public void testAllPrivilegeGrantsReadAndManageViewsOnTheSameSpace() {
-        Collection<RoleDescriptor.IndicesPrivileges> result = grants(
-            role("feature_nightshift.all", "space:marketing"),
-            List.of(
-                new ApplicationPrivilegeDescriptor(
-                    KIBANA_APPLICATION,
-                    "feature_nightshift.all",
-                    Set.of(READ_ACTION, MANAGE_ACTION),
-                    Map.of()
-                )
-            )
-        );
-
-        assertThat(result, hasSize(3));
-        assertThat(
-            viewGrant(result, "read_view_metadata").orElseThrow().getIndices(),
-            arrayContainingInAnyOrder("$.nightshift.sources.marketing.*")
-        );
-        assertThat(
-            viewGrant(result, "manage_view").orElseThrow().getIndices(),
-            arrayContainingInAnyOrder("$.nightshift.sources.marketing.*")
-        );
-    }
-
-    public void testReadAndManageInDifferentSpacesGetSeparateViewGrants() {
-        Collection<ApplicationPrivilegeDescriptor> stored = List.of(
-            new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "feature_nightshift.read", Set.of(READ_ACTION), Map.of()),
-            new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "feature_nightshift.manage", Set.of(MANAGE_ACTION), Map.of())
-        );
-        RoleDescriptor role = new RoleDescriptor(
-            "test_role",
-            null,
-            null,
-            new RoleDescriptor.ApplicationResourcePrivileges[] {
-                RoleDescriptor.ApplicationResourcePrivileges.builder()
-                    .application(KIBANA_APPLICATION)
-                    .privileges("feature_nightshift.read")
-                    .resources("space:a")
-                    .build(),
-                RoleDescriptor.ApplicationResourcePrivileges.builder()
-                    .application(KIBANA_APPLICATION)
-                    .privileges("feature_nightshift.manage")
-                    .resources("space:b")
-                    .build() },
-            null,
-            null,
-            null,
-            null
-        );
-
-        Collection<RoleDescriptor.IndicesPrivileges> result = grants(role, stored);
-
-        assertThat(
-            viewGrant(result, "read_view_metadata").orElseThrow().getIndices(),
-            arrayContainingInAnyOrder("$.nightshift.sources.a.*")
-        );
-        assertThat(viewGrant(result, "manage_view").orElseThrow().getIndices(), arrayContainingInAnyOrder("$.nightshift.sources.b.*"));
     }
 
     public void testMultipleSpacesYieldOneViewPatternEach() {
@@ -263,15 +193,28 @@ public class KibanaNightshiftImplicitPrivilegesProviderTests extends ESTestCase 
             viewGrant(result, "read_view_metadata").orElseThrow().getIndices(),
             arrayContainingInAnyOrder("$.nightshift.sources.good.*")
         );
-        assertThat(viewGrant(result, "manage_view").orElseThrow().getIndices(), arrayContainingInAnyOrder("$.nightshift.sources.good.*"));
+        assertNoWritePrivileges(result);
     }
 
-    public void testManageOnlyDoesNotGrantSignificantEventsRead() {
-        Collection<RoleDescriptor.IndicesPrivileges> result = grants(
-            role("feature_nightshift.manage", "space:marketing"),
-            List.of(new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "feature_nightshift.manage", Set.of(MANAGE_ACTION), Map.of()))
+    public void testManageActionAloneGrantsNothing() {
+        Collection<ApplicationPrivilegeDescriptor> stored = List.of(
+            new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "feature_nightshift.manage", Set.of(MANAGE_ACTION), Map.of())
         );
-        assertThat(result.stream().anyMatch(g -> Arrays.equals(g.getIndices(), SIGNIFICANT_EVENTS_INDICES)), is(false));
+        assertThat(grants(role("feature_nightshift.manage", "space:marketing"), stored), is(empty()));
+    }
+
+    public void testAllPrivilegeDoesNotGrantViewWrites() {
+        Collection<ApplicationPrivilegeDescriptor> stored = List.of(
+            new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "feature_nightshift.all", Set.of(READ_ACTION, MANAGE_ACTION), Map.of())
+        );
+        Collection<RoleDescriptor.IndicesPrivileges> result = grants(role("feature_nightshift.all", "space:marketing"), stored);
+
+        assertThat(result, hasSize(2));
+        assertThat(
+            viewGrant(result, "read_view_metadata").orElseThrow().getIndices(),
+            arrayContainingInAnyOrder("$.nightshift.sources.marketing.*")
+        );
+        assertNoWritePrivileges(result);
     }
 
     public void testBuildSpaceIdsDlsQueryIncludesSpaceAgnosticDocuments() {
@@ -307,6 +250,16 @@ public class KibanaNightshiftImplicitPrivilegesProviderTests extends ESTestCase 
             .toList();
         assertThat(matching, hasSize(1));
         return matching.get(0);
+    }
+
+    /** Kibana writes the views as kibana_system, so no implicit grant may carry a view write privilege. */
+    private static void assertNoWritePrivileges(Collection<RoleDescriptor.IndicesPrivileges> grants) {
+        grants.forEach(
+            g -> assertThat(
+                Arrays.asList(g.getPrivileges()),
+                everyItem(not(oneOf("manage_view", "create_view", "delete_view", "manage", "all", "write")))
+            )
+        );
     }
 
     private static Optional<RoleDescriptor.IndicesPrivileges> viewGrant(

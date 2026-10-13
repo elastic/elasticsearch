@@ -1593,7 +1593,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     ) {
         if (repositoryOperations.startDeletion(deleteEntry.uuid())) {
             assert currentlyFinalizing.contains(new ProjectRepo(deleteEntry.projectId(), deleteEntry.repository()));
-            final List<SnapshotId> snapshotIds = deleteEntry.snapshots();
+            final Set<SnapshotId> snapshotIds = Set.copyOf(deleteEntry.snapshots());
             assert deleteEntry.state() == SnapshotDeletionsInProgress.State.STARTED : "incorrect state for entry [" + deleteEntry + "]";
             if (snapshotIds.isEmpty()) {
                 // this deletion overlapped one or more deletions that were successfully processed and there is no remaining snapshot to

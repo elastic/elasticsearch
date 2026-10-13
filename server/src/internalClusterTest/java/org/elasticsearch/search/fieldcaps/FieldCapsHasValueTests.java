@@ -194,7 +194,7 @@ public class FieldCapsHasValueTests extends ESIntegTestCase {
     public void testUnmappedFieldsWithValueAfterRestart() throws Exception {
         prepareIndex(INDEX1).setSource("unmapped", "unmapped-text").get();
         internalCluster().fullRestart();
-        ensureGreen(INDEX1);
+        ensureGreen(INDEX1, INDEX2, INDEX3);
 
         FieldCapabilitiesResponse response = client().prepareFieldCaps()
             .setFields("*")

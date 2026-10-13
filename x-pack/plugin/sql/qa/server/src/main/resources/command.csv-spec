@@ -226,13 +226,13 @@ SHOW CATALOGS;
 
      name      |     type
 ---------------+---------------
-javaRestTest      |local
+javaRestTest   |local
 ;
 
 showTables
 SHOW TABLES;
 
-catalog    |       name        |  type |  kind
+catalog       |       name        |  type |  kind
 javaRestTest  |apps               |TABLE  |INDEX
 javaRestTest  |empty_mapping      |TABLE  |INDEX
 javaRestTest  |logs               |TABLE  |INDEX
@@ -247,14 +247,14 @@ javaRestTest  |test_emp_copy      |TABLE  |INDEX
 showTablesSimpleLike
 SHOW TABLES LIKE 'test_emp';
 
-catalog:s  | name:s        | type:s| kind:s
+catalog:s     | name:s        | type:s| kind:s
 javaRestTest  |test_emp       |TABLE  |INDEX
 ;
 
 showTablesMultiLike
 SHOW TABLES LIKE 'test_emp%';
 
-catalog:s  | name:s        |type:s |kind:s
+catalog:s     | name:s        |type:s |kind:s
 javaRestTest  |test_emp       |TABLE  |INDEX
 javaRestTest  |test_emp_copy  |TABLE  |INDEX
 ;
@@ -262,21 +262,21 @@ javaRestTest  |test_emp_copy  |TABLE  |INDEX
 showTablesIdentifier
 SHOW TABLES "test_emp";
 
-catalog:s  | name:s        |type:s |kind:s
+catalog:s     | name:s        |type:s |kind:s
 javaRestTest  |test_emp       |TABLE  |INDEX
 ;
 
 showTablesIdentifierPattern
 SHOW TABLES "test_e*,-test_emp";
 
-catalog:s  | name:s        |type:s |kind:s
+catalog:s     | name:s        |type:s |kind:s
 javaRestTest  |test_emp_copy  |TABLE  |INDEX
 ;
 
 showTablesIdentifierPatternOnAliases
 SHOW TABLES "test*,-test_emp*";
 
-catalog:s  | name:s        | type:s | kind:s
+catalog:s     | name:s        | type:s | kind:s
 javaRestTest  |test_alias     |VIEW    |ALIAS
 javaRestTest  |test_alias_emp |VIEW    |ALIAS
 ;
@@ -284,7 +284,7 @@ javaRestTest  |test_alias_emp |VIEW    |ALIAS
 showTablesLocalCatalog
 SHOW TABLES CATALOG 'javaRestTest';
 
-catalog    |       name        |  type |  kind
+catalog       |       name        |  type |  kind
 javaRestTest  |apps               |TABLE  |INDEX
 javaRestTest  |empty_mapping      |TABLE  |INDEX
 javaRestTest  |logs               |TABLE  |INDEX

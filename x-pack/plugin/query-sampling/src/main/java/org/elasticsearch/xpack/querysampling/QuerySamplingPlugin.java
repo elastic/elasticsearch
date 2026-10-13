@@ -56,10 +56,15 @@ import org.elasticsearch.xpack.querysampling.sampling.PickBudget;
 import org.elasticsearch.xpack.querysampling.sampling.QuerySampler;
 import org.elasticsearch.xpack.querysampling.sampling.SelectivityStrata;
 import org.elasticsearch.xpack.querysampling.sampling.SpatialStrata;
+import org.elasticsearch.xpack.querysampling.storage.GoldenGrower;
 import org.elasticsearch.xpack.querysampling.storage.GoldenIndex;
+import org.elasticsearch.xpack.querysampling.storage.GoldenPromotionJob;
+import org.elasticsearch.xpack.querysampling.storage.GoldenReader;
+import org.elasticsearch.xpack.querysampling.storage.GoldenWriter;
 import org.elasticsearch.xpack.querysampling.storage.QuerySamplingIndex;
 import org.elasticsearch.xpack.querysampling.storage.SampleRetention;
 import org.elasticsearch.xpack.querysampling.storage.SampleWriter;
+import org.elasticsearch.xpack.querysampling.storage.StoredSamples;
 import org.elasticsearch.xpack.querysampling.storage.WeightsRefresher;
 
 import java.util.Collection;
@@ -149,6 +154,21 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
         );
         if (QUERY_SAMPLING_FEATURE_FLAG.isEnabled()) {
             retention.start(services.threadPool(), services.threadPool().generic());
+        }
+        GoldenReader goldenReader = new GoldenReader(client::search, services.xContentRegistry());
+        GoldenGrower goldenGrower = new GoldenGrower(
+            goldenReader,
+            new StoredSamples(client::search, services.xContentRegistry()),
+            new GoldenWriter(client::search, client::index, client::bulk, client::update, services.threadPool()::absoluteTimeInMillis)
+        );
+        GoldenPromotionJob goldenPromotion = new GoldenPromotionJob(
+            goldenGrower::grow,
+            () -> services.clusterService().state().nodes().isLocalNodeElectedMaster()
+        );
+        goldenPromotion.watch(clusterSettings);
+        TimeValue goldenInterval = QuerySamplingSettings.GOLDEN_PROMOTION_INTERVAL.get(services.clusterService().getSettings());
+        if (QUERY_SAMPLING_FEATURE_FLAG.isEnabled() && goldenInterval.millis() > 0) {
+            goldenPromotion.start(services.threadPool(), services.threadPool().generic(), goldenInterval);
         }
         // the values below only stand until the settings are read
         QuerySampler sampler = new QuerySampler(

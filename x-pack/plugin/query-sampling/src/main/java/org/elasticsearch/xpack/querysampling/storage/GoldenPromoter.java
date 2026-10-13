@@ -83,7 +83,7 @@ public final class GoldenPromoter {
     /**
      * The most recent of the stored queries of each fingerprint, in the order they came.
      */
-    private static List<StoredSample> oncePerQuery(List<StoredSample> stored) {
+    static List<StoredSample> oncePerQuery(List<StoredSample> stored) {
         Set<String> seen = new HashSet<>();
         List<StoredSample> once = new ArrayList<>();
         for (StoredSample sample : stored) {

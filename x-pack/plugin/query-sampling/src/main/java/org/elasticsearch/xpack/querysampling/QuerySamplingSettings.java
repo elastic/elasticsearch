@@ -188,6 +188,32 @@ public final class QuerySamplingSettings {
     );
 
     /**
+     * How often the golden dataset is grown by itself: every so often the stored sampled queries that have ground truth and are
+     * not in the dataset yet are added to a new version of it, see {@link #GOLDEN_MAX_QUERIES}. Only the elected master does it.
+     * 0 does not grow it by itself, and queries are only promoted when asked for.
+     */
+    public static final Setting<TimeValue> GOLDEN_PROMOTION_INTERVAL = Setting.timeSetting(
+        "xpack.query_sampling.golden_promotion_interval",
+        TimeValue.ZERO,
+        TimeValue.ZERO,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * The most queries that a version of the golden dataset has when it is grown by itself. When there are more, those that
+     * were picked longest ago are left out of the new version, which is what keeps the dataset from growing without limit.
+     * Versions that were made when asked for are not held to it.
+     */
+    public static final Setting<Integer> GOLDEN_MAX_QUERIES = Setting.intSetting(
+        "xpack.query_sampling.golden_max_queries",
+        1000,
+        1,
+        10_000,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * γ, the scale of the probability with which a query is picked: how likely a query seen for the first time is
      * picked (about 0.69·γ), and how fast that falls as the query is searched more. A bigger value samples more
      * queries, and more of the popular ones.
@@ -241,6 +267,8 @@ public final class QuerySamplingSettings {
             HARDNESS_TILT,
             EVENT_SLICE_RATE,
             ESTIMATE_SELECTIVITY,
+            GOLDEN_PROMOTION_INTERVAL,
+            GOLDEN_MAX_QUERIES,
             ACCEPTANCE_SCALE,
             HEAD_THRESHOLD,
             MULTIPLICITY_WINDOW,

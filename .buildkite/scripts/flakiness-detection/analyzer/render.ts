@@ -7,6 +7,11 @@ const MAX_MESSAGE_CHARS = 400;
 const MAX_ANNOTATION_BYTES = 900_000;
 const TRUNCATION_MARKER = "\n\n_Annotation truncated to stay under the Buildkite size limit._";
 
+// Shown on any report with a flakiness found.
+// Placed right under the heading so truncation of a large report can never cut it off.
+export const CONTACT_NOTE =
+  "> If you think this result is wrong - contact #es-core-infra.";
+
 function truncateMessage(msg: string): string {
   return msg.length <= MAX_MESSAGE_CHARS ? msg : `${msg.slice(0, MAX_MESSAGE_CHARS)}…`;
 }
@@ -27,6 +32,10 @@ export function renderMarkdown(report: FlakinessReport, buildFailed = false, inp
   const lines: string[] = [];
   lines.push("## Flakiness summary");
   lines.push("");
+  if (totals.realFailures > 0) {
+    lines.push(CONTACT_NOTE);
+    lines.push("");
+  }
   // The compile phase failed, so every batch was skipped and the
   // totals below are all zero. Explain that up front so the run does not read
   // as a clean pass.

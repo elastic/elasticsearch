@@ -143,6 +143,14 @@ public abstract class TextFamilyFieldType extends StringFieldType {
         return super.existsQuery(context);
     }
 
+    /**
+     * Whether a query over positions this field did not index is answered by reading its values, which carry those
+     * positions. A query built for such a field may ask about positions, as one built for an indexed field does.
+     */
+    public boolean answersPositionsFromValues(SearchExecutionContext context) {
+        return false;
+    }
+
     public TextFamilyFieldType(
         String name,
         IndexType indexType,

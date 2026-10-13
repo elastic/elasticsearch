@@ -402,8 +402,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
                     )
                     .put(DataStreamLifecycleSettings.DATA_STREAMS_MAX_RETENTION_SETTING.getKey(), dataGlobalRetention.maxRetention())
                     .build()
-            ),
-            Settings.EMPTY
+            )
         );
         response = TransportGetDataStreamsAction.innerOperation(
             state,

@@ -173,14 +173,6 @@ public class DataStreamLifecycleSettings {
         return create(clusterSettings, Settings.EMPTY);
     }
 
-    // For testing
-    public static DataStreamLifecycleSettings createWithMinimumLifecycleSetting(Settings nodeSettings) {
-        // Mimics the ILM plugin, which is the one registering the minimum lifecycle setting.
-        Set<Setting<?>> settingsSet = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        settingsSet.add(MINIMUM_LIFECYCLE_ENABLED_SETTING);
-        return create(new ClusterSettings(nodeSettings, settingsSet), nodeSettings);
-    }
-
     /**
      * Creates an instance and initialises the cluster settings listeners
      * @param clusterSettings it will register the cluster settings listeners to monitor for changes

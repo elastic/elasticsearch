@@ -170,6 +170,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     private final ColumnInfo[] columnInfos;
     private final PreloadedRowGroupMetadata preloadedMetadata;
     private final StorageObject storageObject;
+    private final ParquetStorageObjectAdapter adapter;
     private final Set<String> projectedColumnPaths;
     private final Set<String> listColumnPaths;
     private final Set<String> predicateColumnPaths;
@@ -500,6 +501,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         ColumnInfo[] columnInfos,
         PreloadedRowGroupMetadata preloadedMetadata,
         StorageObject storageObject,
+        ParquetStorageObjectAdapter adapter,
         RowRanges[] allRowRanges,
         boolean[] survivingRowGroups,
         long[] rowGroupFirstRowGlobalOverride,
@@ -535,6 +537,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         this.columnInfos = columnInfos;
         this.preloadedMetadata = preloadedMetadata;
         this.storageObject = storageObject;
+        this.adapter = adapter;
         this.breaker = blockFactory.breaker();
         this.allRowRanges = allRowRanges;
         this.survivingRowGroups = survivingRowGroups;
@@ -838,6 +841,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         boolean first = rowGroupOrdinal < 0 && pendingPrefetches.isEmpty();
         setPhase(first ? ReadinessPhase.OPEN_PENDING : ReadinessPhase.GROUP_TICKET_PENDING);
         ticketAbandoned.set(false);
+        // I/O starts in consumeGrantedIo after grant. This lease holds no force-added bytes while waiting.
         SubscribableListener<ParquetIoWatermark.AdmitHold> ticket = watermark.admitAsync(
             reservation,
             lease,
@@ -1023,7 +1027,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         }
     }
 
-    private static void attachHoldToFuture(
+    private void attachHoldToFuture(
         CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future,
         ParquetIoWatermark.AdmitHold hold,
         long decodeBytes
@@ -1031,13 +1035,29 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         attachHoldToFuture(future, hold, decodeBytes, true);
     }
 
-    private static void attachHoldToFuture(
+    private void attachHoldToFuture(
         CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future,
         ParquetIoWatermark.AdmitHold hold,
         long decodeBytes,
         boolean dropOnError
     ) {
+        attachHoldToFuture(future, hold, decodeBytes, dropOnError, () -> closed.get() || ticketAbandoned.get());
+    }
+
+    private static void attachHoldToFuture(
+        CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future,
+        ParquetIoWatermark.AdmitHold hold,
+        long decodeBytes,
+        boolean dropOnError,
+        BooleanSupplier abandoned
+    ) {
         future.whenComplete((chunks, error) -> {
+            if (abandoned.getAsBoolean()) {
+                // Close/abandon always drops; dropOnError=false is only for a live Phase-2 retry.
+                // Do not release chunks here — DirectReadBuffer.close() is not idempotent.
+                hold.drop();
+                return;
+            }
             if (error != null || chunks == null) {
                 if (dropOnError) {
                     hold.drop();
@@ -3001,7 +3021,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 chunks.release().close();
             }
         } catch (CompletionException | CancellationException ignored) {
-            // Cancelled or failed GET produced no chunks.
+            // Cancelled or failed GET produced no chunks. prefetchCoalesced releases buffers
+            // when complete() loses to cancel.
         }
     }
 
@@ -3782,6 +3803,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             if (storageObject != null) {
                 storageObject.bindRowGroup(lease);
             }
+            adapter.bindRowGroup(lease);
         }
         return lease;
     }
@@ -4330,7 +4352,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         if (pageColumnReaders != null && pageColumnReaders[colIndex] != null) {
             // PageColumnReader handles maxDefLevel > 1 for nested-flat STRUCT leaves (e.g.
             // `event.action`). maxRepLevel must stay 0 because LIST<STRUCT> is intentionally
-            // unsupported in this PR — see issue elastic/esql-planning#435. Enforce the invariant
+            // unsupported. Enforce the invariant
             // with a hard throw rather than an assertion so it survives production builds where
             // assertions are disabled — a LIST<STRUCT> leaf reaching this branch would otherwise
             // silently emit wrong data.
@@ -4456,14 +4478,18 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         }
         CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> inFlightPhase2 = phase2Future;
         phase2Future = null;
-        releasePhase2Future(inFlightPhase2);
         readinessPhase = ReadinessPhase.DONE;
         signalReady();
         try {
-            releaseHeldIo(true);
+            releasePhase2Future(inFlightPhase2);
         } finally {
-            finishRemainingLeases();
-            reader.close();
+            try {
+                releaseHeldIo(true);
+            } finally {
+                dropCurrentGroupHold();
+                finishRemainingLeases();
+                reader.close();
+            }
         }
     }
 

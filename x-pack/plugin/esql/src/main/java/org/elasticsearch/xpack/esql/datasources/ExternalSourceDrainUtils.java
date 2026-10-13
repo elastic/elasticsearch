@@ -29,7 +29,9 @@ import java.util.function.Consumer;
  * full, and resumes via the provided {@link Executor} when space is freed (cold path). No timeout is
  * needed — cancellation propagates via {@link AsyncExternalSourceBuffer#finish(boolean)} setting
  * {@code noMoreInputs}, which causes {@link AsyncExternalSourceBuffer#waitForSpace()} to return an
- * already-completed listener so the drain loop exits promptly.
+ * already-completed listener and, through {@link AsyncExternalSourceBuffer#waitForReadyOrFinished},
+ * ends a park on the iterator's {@link CloseableIterator#waitForReady()} as well, so the drain loop
+ * exits promptly whichever signal it was parked on.
  */
 public final class ExternalSourceDrainUtils {
 
@@ -59,6 +61,9 @@ public final class ExternalSourceDrainUtils {
      * every drain step (initial and executor-resumed) — mirroring the {@code runProducerLoop} read path.
      * The hot loop parks on {@link CloseableIterator#waitForReady()} rather than blocking
      * {@code hasNext()}, so an async iterator can yield the executor slot while I/O is in flight.
+     * That park is registered through {@link AsyncExternalSourceBuffer#waitForReadyOrFinished}, so
+     * {@code buffer.finish(..)} also ends it: the drain does not wait for the iterator's I/O to
+     * settle before it can observe {@code noMoreInputs}.
      * EOF is {@code tryAdvance() == null} after {@code waitForReady()} is done; the drain never
      * calls {@code hasNext()}.
      */
@@ -212,9 +217,9 @@ public final class ExternalSourceDrainUtils {
     }
 
     /**
-     * Parks the drain until {@code signal} fires, then force-submits one continuation
-     * on {@code executor}. {@code heldPage} is a page already pulled from the iterator; it is
-     * sunk on resume or released if the drain has stopped.
+     * Parks the drain until {@code signal} fires or the buffer is finished, then force-submits
+     * one continuation on {@code executor}. {@code heldPage} is a page already pulled from the
+     * iterator; it is sunk on resume or released if the drain has stopped.
      */
     private static void park(
         SubscribableListener<Void> signal,
@@ -230,9 +235,10 @@ public final class ExternalSourceDrainUtils {
         Object token
     ) {
         // Unlock before addListener so an already-done signal (DIRECT inline completion) can
-        // claim the run. This task must not mutate drain state after this point.
+        // claim the run. This task must not mutate drain state after this point. An already
+        // finished buffer completes the park inline as well.
         session.run.compareAndSet(token, null);
-        signal.addListener(ActionListener.wrap(v -> {
+        buffer.waitForReadyOrFinished(signal).addListener(ActionListener.wrap(v -> {
             boolean consumed = heldPage == null;
             try {
                 if (heldPage != null) {

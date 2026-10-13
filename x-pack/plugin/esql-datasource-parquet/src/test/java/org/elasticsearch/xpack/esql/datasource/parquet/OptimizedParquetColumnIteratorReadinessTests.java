@@ -198,6 +198,89 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
         }
     }
 
+    public void testFillPrefetchQueueFailureOnRetryFailsWithoutSyncFetch() throws Exception {
+        byte[] parquet = smallFile();
+        ThrowOnRetryAsyncStorage storage = new ThrowOnRetryAsyncStorage(parquet, asyncIo, new IOException("injected prefetch miss"));
+        Exception thrown = null;
+        try (CloseableIterator<Page> iter = open(storage, null)) {
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+            while (thrown == null && System.nanoTime() < deadline) {
+                if (iter.waitForReady().isDone()) {
+                    try {
+                        iter.tryAdvance();
+                    } catch (RuntimeException e) {
+                        thrown = e;
+                    }
+                }
+            }
+        } catch (RuntimeException openFailure) {
+            thrown = openFailure;
+        }
+        assertNotNull("fillPrefetchQueue failure must fail the query", thrown);
+        assertTrue(
+            "expected injected fillPrefetchQueue failure, got " + thrown,
+            thrown.getMessage() != null && thrown.getMessage().contains("injected fillPrefetchQueue failure")
+        );
+        assertEquals("async retry must not fall through to fetchSync", 0, storage.syncReads.get());
+    }
+
+    public void testDrainRecheckParksOnPhase2WithoutBlockingHasNext() throws Exception {
+        byte[] parquet = twoColumnFile();
+        CountDownLatch allowPhase2 = new CountDownLatch(1);
+        AtomicBoolean gatePhase2 = new AtomicBoolean();
+        GatedOnDemandStorage storage = new GatedOnDemandStorage(parquet, asyncIo, gatePhase2, allowPhase2);
+        ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
+        Expression filter = new LessThan(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 4L, DataType.LONG), null);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(
+            new ParquetPushedExpressions(List.of(filter))
+        );
+        try (CloseableIterator<Page> iter = reader.read(storage, FormatReadContext.of(null, 64))) {
+            assertBusy(() -> assertTrue(iter.waitForReady().isDone()), 5, TimeUnit.SECONDS);
+            gatePhase2.set(true);
+            long started = System.nanoTime();
+            Page page = iter.tryAdvance();
+            assertNull("phase-2 GET must not be joined on tryAdvance", page);
+            SubscribableListener<Void> recheck = iter.waitForReady();
+            assertFalse("drain recheck must park, not call hasNext", recheck.isDone());
+            assertTrue("worker must return without awaiting phase-2 GET", System.nanoTime() - started < TimeUnit.SECONDS.toNanos(2));
+            allowPhase2.countDown();
+            assertBusy(() -> assertTrue(iter.waitForReady().isDone()), 5, TimeUnit.SECONDS);
+            page = iter.tryAdvance();
+            if (page != null) {
+                page.releaseBlocks();
+            }
+        } finally {
+            allowPhase2.countDown();
+        }
+    }
+
+    public void testRevokeLookAheadDoesNotConsumeNextGroupRetry() throws Exception {
+        byte[] parquet = multiRowGroupFile();
+        FailOnceAfterArmStorage storage = new FailOnceAfterArmStorage(parquet, asyncIo, new IOException("injected post-revoke miss"));
+        try (CloseableIterator<Page> iter = open(storage, new ParquetIoWatermark(1 << 20))) {
+            OptimizedParquetColumnIterator opci = (OptimizedParquetColumnIterator) iter;
+            assertBusy(() -> assertTrue(iter.waitForReady().isDone()), 5, TimeUnit.SECONDS);
+            Page page = iter.tryAdvance();
+            assertNotNull(page);
+            page.releaseBlocks();
+            assertBusy(() -> assertTrue(opci.pendingPrefetchCount() > 0), 5, TimeUnit.SECONDS);
+            opci.revokeOvershootOnPark();
+            assertEquals(0, opci.pendingPrefetchCount());
+            storage.arm.set(true);
+            Page next = null;
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+            while (next == null && System.nanoTime() < deadline) {
+                if (iter.waitForReady().isDone()) {
+                    next = iter.tryAdvance();
+                }
+            }
+            assertNotNull("revoke-cancel must not spend the next group's re-ticket", next);
+            next.releaseBlocks();
+            assertEquals(1, storage.failures.get());
+            assertTrue(storage.successes.get() >= 1);
+        }
+    }
+
     public void testUnsupportedOnlyProjectionEmitsNullsWithoutSyncFallbackAssert() throws Exception {
         byte[] parquet = unsupportedListOfStructFile();
         try (CloseableIterator<Page> iter = open(new ImmediateAsyncStorage(parquet, asyncIo), null)) {
@@ -638,6 +721,68 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
         ) {
             failures.incrementAndGet();
             super.asyncIo.execute(() -> listener.onFailure(failure));
+        }
+    }
+
+    private static final class ThrowOnRetryAsyncStorage extends ImmediateAsyncStorage {
+        private final Exception failure;
+        private final AtomicInteger asyncAttempts = new AtomicInteger();
+        private final AtomicInteger syncReads = new AtomicInteger();
+
+        private ThrowOnRetryAsyncStorage(byte[] data, ExecutorService asyncIo, Exception failure) {
+            super(data, asyncIo);
+            this.failure = failure;
+        }
+
+        @Override
+        public int readBytes(long position, java.nio.ByteBuffer target) throws IOException {
+            syncReads.incrementAndGet();
+            return super.readBytes(position, target);
+        }
+
+        @Override
+        public void readBytesAsync(
+            long position,
+            long length,
+            DirectBufferFactory factory,
+            Executor executor,
+            ActionListener<DirectReadBuffer> listener
+        ) {
+            if (asyncAttempts.getAndIncrement() == 0) {
+                super.asyncIo.execute(() -> listener.onFailure(failure));
+                return;
+            }
+            throw new RuntimeException("injected fillPrefetchQueue failure");
+        }
+    }
+
+    private static final class FailOnceAfterArmStorage extends ImmediateAsyncStorage {
+        private final Exception failure;
+        private final AtomicBoolean arm = new AtomicBoolean();
+        private final AtomicBoolean failNext = new AtomicBoolean(true);
+        private final AtomicInteger failures = new AtomicInteger();
+        private final AtomicInteger successes = new AtomicInteger();
+
+        private FailOnceAfterArmStorage(byte[] data, ExecutorService asyncIo, Exception failure) {
+            super(data, asyncIo);
+            this.failure = failure;
+        }
+
+        @Override
+        public void readBytesAsync(
+            long position,
+            long length,
+            DirectBufferFactory factory,
+            Executor executor,
+            ActionListener<DirectReadBuffer> listener
+        ) {
+            if (arm.get() && failNext.compareAndSet(true, false)) {
+                failures.incrementAndGet();
+                super.asyncIo.execute(() -> listener.onFailure(failure));
+                return;
+            }
+            successes.incrementAndGet();
+            super.readBytesAsync(position, length, factory, executor, listener);
         }
     }
 

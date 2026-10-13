@@ -5724,7 +5724,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
                 @Override
                 public boolean hasNext() {
-                    return emitted == false && ready.isDone();
+                    throw new AssertionError("AESOF drain must not call hasNext");
                 }
 
                 @Override

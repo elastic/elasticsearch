@@ -42,11 +42,14 @@ public final class ExternalSourceCacheTestAccess {
      * accepted for others leaves a count here below the file count, while every value assertion still passes.
      */
     public static int enrichedPerFileEntries(ExternalSourceCacheService service, String pathSubstring) {
+        // Counted over the STATISTICS store: a harvested row count is a measurement, so it no longer sits on
+        // the schema record. One address per (file, read), so a file read under two configurations contributes
+        // two — which is what the enrichment question is actually about, and what the single-store shape could
+        // not express.
         int[] enriched = { 0 };
-        service.schemaCache().forEach((key, entry) -> {
-            if (key.isDatasetAggregate() == false
-                && key.canonicalPath().contains(pathSubstring)
-                && entry.safeMetadata().containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT)) {
+        service.statisticsCache().forEach((key, record) -> {
+            if (key.file().location().contains(pathSubstring)
+                && record.measurements().containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT)) {
                 enriched[0]++;
             }
         });
@@ -56,6 +59,10 @@ public final class ExternalSourceCacheTestAccess {
     /**
      * Sum of {@link SchemaCacheEntry#estimatedBytes()} over every entry currently in the schema cache.
      * Used by weight-accounting cluster tests to assert retained heap stays inside the schema budget slice.
+     * <p>
+     * Schema records only. Measurements live in their own store against their own budget, so a test that means
+     * to bound total retained identity heap sums this and {@link #retainedStatisticsWeightBytes}, each against
+     * its own slice — summing them against one budget would compare a total to a part.
      */
     public static long retainedSchemaWeightBytes(ExternalSourceCacheService service) {
         long[] total = { 0L };
@@ -63,10 +70,17 @@ public final class ExternalSourceCacheTestAccess {
         return total[0];
     }
 
+    /** Sum of {@link StatisticsRecord#estimatedBytes()} over every entry currently in the statistics cache. */
+    public static long retainedStatisticsWeightBytes(ExternalSourceCacheService service) {
+        long[] total = { 0L };
+        service.statisticsCache().forEach((key, record) -> total[0] += record.estimatedBytes());
+        return total[0];
+    }
+
     /**
-     * Invalidates every per-file schema-cache entry whose canonical path contains {@code pathSubstring},
-     * leaving dataset-aggregate entries (marker-suffixed formatType) in place — the surgical arms of the
-     * warm-fold regression tests must remove FILE entries, never the dataset aggregate under test.
+     * Invalidates every per-file schema-cache entry whose canonical path contains {@code pathSubstring}.
+     * The dataset aggregate under test is untouched because it is not in this store: the surgical arms of the
+     * warm-fold regression tests must remove FILE entries, and now they structurally cannot reach the fold.
      * Returns the number of entries invalidated.
      */
     public static int invalidatePerFileSchemaEntries(ExternalSourceCacheService service, String pathSubstring) {
@@ -83,12 +97,26 @@ public final class ExternalSourceCacheTestAccess {
     public static int invalidatePerFileSchemaEntries(ExternalSourceCacheService service, String pathSubstring, int maxEntries) {
         List<SchemaCacheKey> victims = new ArrayList<>();
         service.schemaCache().forEach((key, entry) -> {
-            if (victims.size() < maxEntries && key.canonicalPath().contains(pathSubstring) && key.isDatasetAggregate() == false) {
+            if (victims.size() < maxEntries && key.location().contains(pathSubstring)) {
                 victims.add(key);
             }
         });
         for (SchemaCacheKey victim : victims) {
             service.schemaCache().invalidate(victim);
+        }
+        // Evicting "the file" means both kinds of fact about it. The arms that call this construct an exact
+        // missing subset and then assert the dataset does not warm; leaving the measurements resident would
+        // let the fold still answer and the arm would pass without testing anything.
+        List<StatisticsKey> statsVictims = new ArrayList<>();
+        service.statisticsCache().forEach((key, record) -> {
+            for (SchemaCacheKey victim : victims) {
+                if (key.file().equals(victim)) {
+                    statsVictims.add(key);
+                }
+            }
+        });
+        for (StatisticsKey victim : statsVictims) {
+            service.statisticsCache().invalidate(victim);
         }
         return victims.size();
     }

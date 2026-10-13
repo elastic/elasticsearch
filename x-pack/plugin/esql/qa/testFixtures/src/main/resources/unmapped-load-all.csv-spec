@@ -5593,7 +5593,7 @@ required_capability: optional_fields_load_all_hides_nested
 request_time_filter: 2024-01-02T00:00:00.000Z,2024-01-02T23:59:59.999Z
 
 SET unmapped_fields="LOAD_ALL"\;
-FROM nested_paths_mapped, nested_paths_unmapped
+FROM nested_paths_*
 ;
 
 @timestamp:datetime      | id:keyword | items.name:keyword | items.parts.pn:keyword | items.qty:keyword | items_info.total:keyword | meta.events.kind:keyword | meta.events.note:keyword | meta.owner:keyword | tag:keyword
@@ -5605,7 +5605,7 @@ required_capability: optional_fields_load_all_hides_nested
 request_time_filter: 2024-01-01T00:00:00.000Z,2024-01-01T23:59:59.999Z
 
 SET unmapped_fields="LOAD_ALL"\;
-FROM nested_paths_mapped, nested_paths_unmapped METADATA _source
+FROM nested_paths_* METADATA _source
 | SORT id
 ;
 

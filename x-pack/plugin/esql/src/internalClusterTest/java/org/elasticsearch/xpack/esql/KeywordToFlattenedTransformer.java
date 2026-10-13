@@ -88,6 +88,11 @@ import static org.elasticsearch.test.ESTestCase.randomIntBetween;
  * (e.g. {@code labels.service}) rather than through {@code field_extract}, so they are outside this
  * variant's rewrite scope regardless. See {@link #isFlattenedField}.
  *
+ * <h2>Keyword fields below a nested object</h2>
+ * The rewrite stops at a {@code nested} object: ES|QL drops the mapped fields below one, and their values sit under the nested object's
+ * key rather than under a top-level dotted key, so they could not be wrapped. Each such keyword is reported as
+ * {@link SkipReason#BELOW_NESTED_OBJECT}.
+ *
  * <h2>TSDB dimension keyword fields</h2>
  * {@code keyword} fields that declare {@code time_series_dimension: true} are handled specially
  * rather than being left as {@code keyword}: they are converted to {@code flattened} with
@@ -159,6 +164,7 @@ public final class KeywordToFlattenedTransformer {
 
     private static final String KEYWORD_TYPE = "keyword";
     private static final String FLATTENED_TYPE = "flattened";
+    private static final String NESTED_TYPE = "nested";
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     /**
@@ -188,7 +194,7 @@ public final class KeywordToFlattenedTransformer {
 
     /**
      * One {@code keyword} field declaration that this helper intentionally left untouched, with
-     * the reason for the skip. Skips fall into two categories:
+     * the reason for the skip. Skips fall into three categories:
      * <ul>
      *   <li>{@link SkipReason#INCOMPATIBLE_PARAMETER}: the field declares one of the parameters
      *       in {@link #PARAMS_INCOMPATIBLE_WITH_FLATTENED}; {@link #parameter} carries the
@@ -196,6 +202,8 @@ public final class KeywordToFlattenedTransformer {
      *   <li>{@link SkipReason#CALLER_EXCLUDED_PATH}: the field's dotted path appeared in the
      *       caller-supplied {@code excludedPaths} set passed to
      *       {@link #transformMapping(String, Set)}; {@link #parameter} is {@code null}.</li>
+     *   <li>{@link SkipReason#BELOW_NESTED_OBJECT}: the field sits below a {@code nested} object;
+     *       {@link #parameter} is {@code null}.</li>
      * </ul>
      * Callers (typically the test variant's logger) inventory these so the set of "fields where
      * {@code field_extract} is never exercised" is visible in run output rather than implicit.
@@ -207,7 +215,9 @@ public final class KeywordToFlattenedTransformer {
         /** Field declared a parameter in {@link #PARAMS_INCOMPATIBLE_WITH_FLATTENED}. */
         INCOMPATIBLE_PARAMETER,
         /** Field's dotted path was in the caller-supplied {@code excludedPaths} set. */
-        CALLER_EXCLUDED_PATH
+        CALLER_EXCLUDED_PATH,
+        /** Field sits below a {@code nested} object, whose mapped fields ES|QL drops. */
+        BELOW_NESTED_OBJECT
     }
 
     /**
@@ -231,7 +241,8 @@ public final class KeywordToFlattenedTransformer {
     /**
      * Walks {@code originalMapping} JSON, rewrites every {@code "type":"keyword"} declaration reachable
      * from the root via {@code "properties"} chains to {@code "type":"flattened"}, and returns the
-     * transformed mapping along with the dotted paths of every rewritten field.
+     * transformed mapping along with the dotted paths of every rewritten field. Keywords below a
+     * {@code nested} object are left alone, see class-level Javadoc.
      * <p>
      * Multi-field sub-fields under {@code "fields"} are not rewritten &mdash; see class-level
      * Javadoc.
@@ -472,14 +483,34 @@ public final class KeywordToFlattenedTransformer {
                 }
             }
             JsonNode nested = fieldObj.path("properties");
-            // Values are wrapped only under a top-level key holding the full dotted path, so ones in a nested object's array stay bare.
-            if (nested.isObject() && isFlattenedField(fieldObj) == false && "nested".equals(fieldObj.path("type").asText()) == false) {
-                rewriteKeywords((ObjectNode) nested, fullPath, paths, excludedPaths, skipped);
+            if (nested.isObject() && isFlattenedField(fieldObj) == false) {
+                if (NESTED_TYPE.equals(fieldObj.path("type").asText())) {
+                    skipKeywordsBelowNested((ObjectNode) nested, fullPath, skipped);
+                } else {
+                    rewriteKeywords((ObjectNode) nested, fullPath, paths, excludedPaths, skipped);
+                }
             }
             // Multi-fields under "fields" are intentionally skipped here; if a keyword parent has
             // a "fields" block we already refuse to rewrite the parent itself via
             // findIncompatibleParameter, which keeps the multi-field children consistent with their
             // (still scalar) parent source.
+        }
+    }
+
+    /** Reports every {@code keyword} declaration below a {@code nested} object as skipped, rewriting none of them. */
+    private static void skipKeywordsBelowNested(ObjectNode propertiesNode, String prefix, List<SkippedField> skipped) {
+        Iterator<Map.Entry<String, JsonNode>> it = propertiesNode.fields();
+        while (it.hasNext()) {
+            Map.Entry<String, JsonNode> entry = it.next();
+            if (entry.getValue() instanceof ObjectNode fieldObj) {
+                String fullPath = prefix + "." + entry.getKey();
+                if (KEYWORD_TYPE.equals(fieldObj.path("type").asText())) {
+                    skipped.add(new SkippedField(fullPath, SkipReason.BELOW_NESTED_OBJECT, null));
+                }
+                if (fieldObj.path("properties") instanceof ObjectNode properties && isFlattenedField(fieldObj) == false) {
+                    skipKeywordsBelowNested(properties, fullPath, skipped);
+                }
+            }
         }
     }
 

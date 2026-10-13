@@ -103,14 +103,15 @@ import static org.elasticsearch.xpack.esql.KeywordToFlattenedTransformer.Flatten
  * Three categories are emitted:
  * <ul>
  *   <li>{@code skip-convert; dataset=&lt;X&gt;; field=&lt;Y&gt;; reason=...} &mdash; once at startup
- *       per keyword field that this variant will never convert to {@code flattened}. Three reasons
+ *       per keyword field that this variant will never convert to {@code flattened}. Four reasons
  *       are produced: {@code reason=enrich-policy match_field for [policy]} for fields that must
  *       remain {@code keyword} in the source dataset of an enrich policy,
  *       {@code reason=LOOKUP JOIN match field for [target]} for fields used as join keys in any
  *       csv-spec {@code LOOKUP JOIN ... ON ...} clause (kept as keyword on every dataset that
  *       participates in the join, so neither side becomes {@code flattened} and the join's type
- *       check passes), and {@code reason=keyword carries [param]} for fields whose declaration
- *       uses a parameter in {@link KeywordToFlattenedTransformer#PARAMS_INCOMPATIBLE_WITH_FLATTENED}.</li>
+ *       check passes), {@code reason=keyword carries [param]} for fields whose declaration
+ *       uses a parameter in {@link KeywordToFlattenedTransformer#PARAMS_INCOMPATIBLE_WITH_FLATTENED},
+ *       and {@code reason=below a nested object} for fields declared below a {@code nested} object.</li>
  *   <li>{@code scope-excluded; field=&lt;X&gt;; reason=keyword in {...} but non-keyword in {...}} &mdash;
  *       per launched query (and per recursive subquery), once per field whose cross-dataset path
  *       intersection eliminates it from the rewrite scope. The two dataset sets identify which
@@ -452,7 +453,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
             // keep both sides of the join type-aligned and to dodge the engine's lack of support
             // for JOIN on flattened.
             // * mapping-denylist hits: keyword fields declaring TSDB / multi-fields / copy_to /
-            // runtime-script parameters that are incompatible with flattened.
+            // runtime-script parameters that are incompatible with flattened, or declared below a nested object.
             logEnrichMatchFieldExclusions(model.enrichExclusions());
             logLookupJoinFieldExclusions(model.lookupExclusions());
             logMappingDenylistHits(model.skippedFieldsByDataset());
@@ -1259,14 +1260,11 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         }
 
         /**
-         * Emits one INFO line per keyword field declaration that
-         * {@link KeywordToFlattenedTransformer} left untouched because the field declared a
-         * {@link KeywordToFlattenedTransformer#PARAMS_INCOMPATIBLE_WITH_FLATTENED}
-         * parameter. The {@link KeywordToFlattenedTransformer.SkipReason#CALLER_EXCLUDED_PATH}
-         * subset is intentionally not logged from here: those are the enrich-policy exclusions
-         * already reported by {@link #logEnrichMatchFieldExclusions} (with the policy name as
-         * extra context), so re-emitting them under {@code reason=keyword carries [...]} would
-         * double-count. Output is sorted by {@code (dataset, field)} for deterministic grep.
+         * Emits one INFO line per keyword field declaration that {@link KeywordToFlattenedTransformer} left untouched because the field
+         * declared a {@link KeywordToFlattenedTransformer#PARAMS_INCOMPATIBLE_WITH_FLATTENED} parameter or sits below a {@code nested}
+         * object. {@link KeywordToFlattenedTransformer.SkipReason#CALLER_EXCLUDED_PATH} is not logged here, since
+         * {@link #logEnrichMatchFieldExclusions} and {@link #logLookupJoinFieldExclusions} already report those paths with more context.
+         * Output is sorted by {@code (dataset, field)} for deterministic grep.
          */
         private static void logMappingDenylistHits(Map<String, List<KeywordToFlattenedTransformer.SkippedField>> skippedByDataset) {
             List<String> datasets = new ArrayList<>(skippedByDataset.keySet());
@@ -1275,15 +1273,21 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                 List<KeywordToFlattenedTransformer.SkippedField> skipped = new ArrayList<>(skippedByDataset.get(dataset));
                 skipped.sort(Comparator.comparing(KeywordToFlattenedTransformer.SkippedField::fieldPath));
                 for (KeywordToFlattenedTransformer.SkippedField field : skipped) {
-                    if (field.reason() != KeywordToFlattenedTransformer.SkipReason.INCOMPATIBLE_PARAMETER) {
-                        continue;
+                    switch (field.reason()) {
+                        case INCOMPATIBLE_PARAMETER -> logger.info(
+                            "keyword→flattened: skip-convert; dataset={}; field={}; reason=keyword carries [{}]",
+                            dataset,
+                            field.fieldPath(),
+                            field.parameter()
+                        );
+                        case BELOW_NESTED_OBJECT -> logger.info(
+                            "keyword→flattened: skip-convert; dataset={}; field={}; reason=below a nested object",
+                            dataset,
+                            field.fieldPath()
+                        );
+                        case CALLER_EXCLUDED_PATH -> {
+                        }
                     }
-                    logger.info(
-                        "keyword→flattened: skip-convert; dataset={}; field={}; reason=keyword carries [{}]",
-                        dataset,
-                        field.fieldPath(),
-                        field.parameter()
-                    );
                 }
             }
         }

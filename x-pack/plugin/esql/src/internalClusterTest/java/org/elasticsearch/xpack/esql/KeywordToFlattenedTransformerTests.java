@@ -13,8 +13,12 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.KeywordToFlattenedTransformer.FlattenedJunkConfig;
+import org.elasticsearch.xpack.esql.KeywordToFlattenedTransformer.MappingResult;
+import org.elasticsearch.xpack.esql.KeywordToFlattenedTransformer.SkipReason;
+import org.elasticsearch.xpack.esql.KeywordToFlattenedTransformer.SkippedField;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -22,7 +26,8 @@ import java.util.Set;
  * <p>
  * These tests exercise {@link FlattenedJunkConfig#selectJunkFields} and the
  * {@link KeywordToFlattenedTransformer#wrapKeywordValuesAsFlattened(String, Set, FlattenedJunkConfig)}
- * overload that accepts a junk config.
+ * overload that accepts a junk config, plus which keyword fields
+ * {@link KeywordToFlattenedTransformer#transformMapping(String)} leaves alone.
  */
 public class KeywordToFlattenedTransformerTests extends ESTestCase {
 
@@ -138,6 +143,34 @@ public class KeywordToFlattenedTransformerTests extends ESTestCase {
 
         String result = KeywordToFlattenedTransformer.wrapKeywordValuesAsFlattened(documentJson, paths, junk);
         assertEquals("non-object document must be returned unchanged", documentJson, result);
+    }
+
+    /**
+     * Keywords below a nested object, at any depth, keep their type and are reported as skipped; the others are rewritten. A flattened
+     * field there stays a leaf whose mapped sub-fields are not reported.
+     */
+    public void testKeywordsBelowNestedObjectAreSkipped() throws IOException {
+        String mapping = """
+            {"properties": {"id": {"type": "keyword"}, "obj": {"properties": {"tag": {"type": "keyword"}}}, "items": {"type": "nested",
+            "properties": {"name": {"type": "keyword"}, "meta": {"properties": {"kind": {"type": "keyword"}}},
+            "parts": {"type": "nested", "properties": {"pn": {"type": "keyword"}}},
+            "labels": {"type": "flattened", "properties": {"svc": {"type": "keyword"}}}}}}}""";
+
+        MappingResult result = KeywordToFlattenedTransformer.transformMapping(mapping);
+
+        assertEquals(Set.of("id", "obj.tag"), result.keywordFieldPaths());
+        assertEquals(
+            List.of(
+                new SkippedField("items.name", SkipReason.BELOW_NESTED_OBJECT, null),
+                new SkippedField("items.meta.kind", SkipReason.BELOW_NESTED_OBJECT, null),
+                new SkippedField("items.parts.pn", SkipReason.BELOW_NESTED_OBJECT, null)
+            ),
+            result.skippedFields()
+        );
+        JsonNode items = MAPPER.readTree(result.transformedMapping()).path("properties").path("items").path("properties");
+        assertEquals("keyword", items.path("name").path("type").asText());
+        assertEquals("keyword", items.path("meta").path("properties").path("kind").path("type").asText());
+        assertEquals("keyword", items.path("parts").path("properties").path("pn").path("type").asText());
     }
 
 }

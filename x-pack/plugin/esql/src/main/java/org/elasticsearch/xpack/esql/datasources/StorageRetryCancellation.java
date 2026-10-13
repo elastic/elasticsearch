@@ -70,6 +70,13 @@ import java.util.function.BooleanSupplier;
  * uncancellable operation off the scoped thread; that residual case is bounded only by the underlying layer's
  * own timeout, not by cancellation. Closing that gap needs interrupt-/stream-abort-based cancellation and is a
  * separate change.
+ *
+ * <p><b>Parked, not blocked.</b> Everything above concerns a producer <em>blocked</em> inside a page pull. A
+ * producer that instead <em>parks</em> on the iterator's {@code waitForReady()} (async Parquet: a byte-budget
+ * ticket or an in-flight GET) never enters this scope's sleep; it is woken by
+ * {@code AsyncExternalSourceBuffer#waitForReadyOrFinished} on any finish — STOP included — and exits between
+ * pages, closing the iterator and with it the pending ticket / GET. Neither the STOP lag nor the degenerate case
+ * described above applies to that park.
  */
 public final class StorageRetryCancellation {
 

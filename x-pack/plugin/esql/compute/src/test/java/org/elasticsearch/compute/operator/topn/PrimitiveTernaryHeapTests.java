@@ -22,7 +22,7 @@ import static org.hamcrest.Matchers.greaterThan;
 
 public class PrimitiveTernaryHeapTests extends ESTestCase {
 
-    private final CircuitBreaker breaker = new NoopCircuitBreaker(CircuitBreaker.REQUEST);
+    private final CircuitBreaker breaker = NoopCircuitBreaker.INSTANCE;
 
     public void testEmptyState() {
         try (PrimitiveTernaryHeap heap = new PrimitiveTernaryHeap(breaker, 1, false)) {

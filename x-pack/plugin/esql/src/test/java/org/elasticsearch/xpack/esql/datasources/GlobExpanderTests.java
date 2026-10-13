@@ -247,7 +247,7 @@ public class GlobExpanderTests extends ESTestCase {
 
     /**
      * A Spark _SUCCESS marker at the same prefix level must not appear in the expansion result.
-     * Hidden-file convention: objects whose name begins with '_' are excluded (esql-planning#1544).
+     * Hidden-file convention: objects whose name begins with '_' are excluded.
      */
     public void testExpandGlobExcludesUnderscorePrefixedMarker() throws IOException {
         List<StorageEntry> listing = List.of(
@@ -268,7 +268,7 @@ public class GlobExpanderTests extends ESTestCase {
 
     /**
      * A .crc sidecar file must not appear in the expansion result.
-     * Hidden-file convention: objects whose name begins with '.' are excluded (esql-planning#1544).
+     * Hidden-file convention: objects whose name begins with '.' are excluded.
      */
     public void testExpandGlobExcludesDotPrefixedSidecar() throws IOException {
         List<StorageEntry> listing = List.of(
@@ -287,7 +287,7 @@ public class GlobExpanderTests extends ESTestCase {
 
     /**
      * A _metadata file must not appear in the expansion result.
-     * Hidden-file convention: objects whose name begins with '_' are excluded (esql-planning#1544).
+     * Hidden-file convention: objects whose name begins with '_' are excluded.
      */
     public void testExpandGlobExcludesMetadataFile() throws IOException {
         List<StorageEntry> listing = List.of(entry("s3://bucket/data/_metadata", 512), entry("s3://bucket/data/file1.parquet", 100));
@@ -303,7 +303,7 @@ public class GlobExpanderTests extends ESTestCase {
 
     /**
      * A zero-byte directory placeholder key (ending in '/') must not appear in the expansion result.
-     * Object stores create these when the S3 console creates a "folder" (esql-planning#1544).
+     * Object stores create these when the S3 console creates a "folder".
      */
     @SuppressWarnings("RegexpMultiline")
     public void testExpandGlobExcludesZeroByteDirectoryPlaceholder() throws IOException {
@@ -373,7 +373,7 @@ public class GlobExpanderTests extends ESTestCase {
     /**
      * Mixed non-data objects (_SUCCESS marker, .crc sidecars, zero-byte placeholder) alongside real
      * Parquet data files: only the data files must be returned, exactly as Hive/Spark/Trino behave
-     * on the same prefix (esql-planning#1544).
+     * on the same prefix.
      */
     public void testExpandGlobExcludesAllNonDataObjectsFromCleanPrefix() throws IOException {
         List<StorageEntry> listing = List.of(
@@ -823,7 +823,7 @@ public class GlobExpanderTests extends ESTestCase {
     /**
      * End-to-end: an IN over a Hive-escaped partition folder lists it. Folders `category=login/` and the escaped
      * `category=ns%3Aclick/` (Spark's on-disk spelling of value `ns:click`); `WHERE category IN ("login","ns:click")`
-     * must list both, not silently drop the escaped one. Red before the escape-spelling fix (esql-planning#1176).
+     * must list both, not silently drop the escaped one. Red before the escape-spelling fix.
      */
     public void testInListMatchesHiveEscapedFolder() throws IOException {
         PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
@@ -2022,7 +2022,7 @@ public class GlobExpanderTests extends ESTestCase {
      * A single glob with an IN-list mixing single- and multi-digit values on a zero-padded partition. `month=11`
      * matches the rewrite so the listing is non-empty and the empty-fallback never fires; without the zero-padded
      * spelling in the brace, `month=06` is silently dropped even though the row filter would keep it. (Same wrong-data
-     * class as the human-reviewed comma bug, single-glob form; esql-planning#1176.)
+     * class as the human-reviewed comma bug, single-glob form.)
      */
     public void testInListMixedDigitValuesMatchZeroPaddedFolders() throws IOException {
         PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
@@ -3632,7 +3632,7 @@ public class GlobExpanderTests extends ESTestCase {
         );
     }
 
-    // -- `**` glob: partition-pruned listing walk (esql-planning#1173) --
+    // -- `**` glob: partition-pruned listing walk --
 
     /** The 4-file {@code year=/month=/} Hive tree under {@code s3://bucket/data/}, years x months = {2024,2025} x {01,06}. */
     private static TreeStubProvider hiveTree() {
@@ -3669,6 +3669,22 @@ public class GlobExpanderTests extends ESTestCase {
                         ),
                         100
                     )
+                );
+            }
+        }
+        return entries;
+    }
+
+    /** Same calendar coverage as {@link #hourlyHiveYear} with template segments {@code yyyy/MM/dd/HH}. */
+    static List<StorageEntry> hourlyTemplateYear(int year, String fileName) {
+        List<StorageEntry> entries = new ArrayList<>(366 * 24);
+        LocalDate end = LocalDate.of(year, 12, 31);
+        for (LocalDate day = LocalDate.of(year, 1, 1); day.isAfter(end) == false; day = day.plusDays(1)) {
+            String month = String.format(Locale.ROOT, "%02d", day.getMonthValue());
+            String dayOfMonth = String.format(Locale.ROOT, "%02d", day.getDayOfMonth());
+            for (int hour = 0; hour < 24; hour++) {
+                entries.add(
+                    entry(String.format(Locale.ROOT, "s3://bucket/data/%d/%s/%s/%02d/%s", year, month, dayOfMonth, hour, fileName), 100)
                 );
             }
         }
@@ -3744,6 +3760,148 @@ public class GlobExpanderTests extends ESTestCase {
         assertThat(listingPlanningCharge(walked) * 50, lessThan(listingPlanningCharge(unnarrowed)));
     }
 
+    /**
+     * A 15-minute window on a full-year hourly hive used to list 365 × 24 files
+     * (year IN only) and trip {@code max_discovered_files=100}. Finer grain IN
+     * lists the one hour folder. Template slot rewrite does the same.
+     */
+    public void testHourlyYearListingCapPassesWithFinerGrainIn() throws IOException {
+        List<StorageEntry> hiveFiles = hourlyHiveYear(2026, "f.ext");
+        PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts), day(ts), hour(ts)");
+        Instant start = Instant.parse("2026-10-13T10:00:00Z");
+        Instant end = Instant.parse("2026-10-13T10:15:00Z");
+        var tsHints = List.of(
+            hint("ts", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, start),
+            hint("ts", PartitionFilterHintExtractor.Operator.LESS_THAN, end)
+        );
+        String hiveGlob = "s3://bucket/data/year=*/month=*/day=*/hour=*/*.ext";
+        IllegalArgumentException thrown = expectThrows(
+            IllegalArgumentException.class,
+            () -> GlobExpander.expand(
+                hiveGlob,
+                new TreeStubProvider(hiveFiles),
+                PartitionSpec.parse("year(ts)").projectListingHints(tsHints),
+                HIVE_ON,
+                100,
+                MAX
+            )
+        );
+        assertThat(thrown.getMessage(), containsString("max_discovered_files"));
+
+        var hints = spec.projectListingHints(tsHints);
+        TreeStubProvider hive = new TreeStubProvider(hiveFiles);
+        FileList hiveListed = GlobExpander.expand(hiveGlob, hive, hints, HIVE_ON, 100, MAX);
+        assertEquals(1, hiveListed.fileCount());
+        assertEquals(List.of("s3://bucket/data/year=2026/month=10/day=13/hour=10/f.ext"), paths(hiveListed));
+        assertFalse("must not flat-list the year root", hive.listedPrefixes.contains("s3://bucket/data/"));
+        assertThat(hive.listedPrefixes, hasItem(containsString("year=2026/month=10/day=13/hour=10/")));
+
+        List<StorageEntry> templateFiles = hourlyTemplateYear(2026, "f.ext");
+        Map<String, Object> template = Map.of(
+            PartitionConfig.CONFIG_PARTITIONING_DETECTION,
+            "template",
+            PartitionConfig.CONFIG_PARTITIONING_PATH,
+            "{year}/{month}/{day}/{hour}"
+        );
+        TreeStubProvider templateProvider = new TreeStubProvider(templateFiles);
+        FileList templateListed = GlobExpander.expand("s3://bucket/data/*/*/*/*/*.ext", templateProvider, hints, template, 100, MAX);
+        assertEquals(1, templateListed.fileCount());
+        assertEquals(List.of("s3://bucket/data/2026/10/13/10/f.ext"), paths(templateListed));
+        assertFalse(templateProvider.listedPrefixes.contains("s3://bucket/data/"));
+        assertThat(templateProvider.listedPrefixes, hasItem(containsString("2026/10/13/10/")));
+    }
+
+    /**
+     * Docs AWS glob: leading {@code aws-account-id=*} / {@code aws-region=*} with year/month/day/hour IN.
+     * The walk must not recursively list {@code AWSLogs/}.
+     */
+    public void testKeyedAwsGlobWalksPastLeadingIdentityKeys() throws IOException {
+        List<StorageEntry> files = List.of(
+            entry(
+                "s3://bucket/AWSLogs/aws-account-id=111/aws-service=vpcflowlogs/"
+                    + "aws-region=us-east-1/year=2026/month=10/day=13/hour=10/a.parquet",
+                100
+            ),
+            entry(
+                "s3://bucket/AWSLogs/aws-account-id=111/aws-service=vpcflowlogs/"
+                    + "aws-region=us-east-1/year=2026/month=10/day=13/hour=11/b.parquet",
+                100
+            ),
+            entry(
+                "s3://bucket/AWSLogs/aws-account-id=111/aws-service=vpcflowlogs/"
+                    + "aws-region=eu-west-1/year=2026/month=10/day=13/hour=10/c.parquet",
+                100
+            ),
+            entry(
+                "s3://bucket/AWSLogs/aws-account-id=222/aws-service=vpcflowlogs/"
+                    + "aws-region=us-east-1/year=2026/month=10/day=13/hour=10/d.parquet",
+                100
+            ),
+            entry(
+                "s3://bucket/AWSLogs/aws-account-id=111/aws-service=vpcflowlogs/"
+                    + "aws-region=us-east-1/year=2026/month=10/day=12/hour=10/e.parquet",
+                100
+            )
+        );
+        PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts), day(ts), hour(ts)");
+        Instant start = Instant.parse("2026-10-13T10:00:00Z");
+        Instant end = Instant.parse("2026-10-13T10:15:00Z");
+        var hints = spec.projectListingHints(
+            List.of(
+                hint("ts", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, start),
+                hint("ts", PartitionFilterHintExtractor.Operator.LESS_THAN, end)
+            )
+        );
+        String glob = "s3://bucket/AWSLogs/aws-account-id=*/aws-service=vpcflowlogs/aws-region=*/year=*/month=*/day=*/hour=*/*.parquet";
+        TreeStubProvider provider = new TreeStubProvider(files);
+        FileList result = GlobExpander.expand(glob, provider, hints, HIVE_ON, MAX, MAX);
+        assertEquals(
+            Set.of(
+                "s3://bucket/AWSLogs/aws-account-id=111/aws-service=vpcflowlogs/"
+                    + "aws-region=us-east-1/year=2026/month=10/day=13/hour=10/a.parquet",
+                "s3://bucket/AWSLogs/aws-account-id=111/aws-service=vpcflowlogs/"
+                    + "aws-region=eu-west-1/year=2026/month=10/day=13/hour=10/c.parquet",
+                "s3://bucket/AWSLogs/aws-account-id=222/aws-service=vpcflowlogs/"
+                    + "aws-region=us-east-1/year=2026/month=10/day=13/hour=10/d.parquet"
+            ),
+            new LinkedHashSet<>(paths(result))
+        );
+        assertFalse("must not recursively list AWSLogs/", provider.listedPrefixes.contains("s3://bucket/AWSLogs/"));
+        for (String listed : provider.listedPrefixes) {
+            assertFalse("recursive AWSLogs listing: " + listed, listed.equals("s3://bucket/AWSLogs/"));
+        }
+    }
+
+    /** {@code **} on the same AWS tree still withdraws at unhinted {@code aws-account-id}. */
+    public void testGlobstarOnAwsTreeStillWithdrawsAtUnhintedAccountId() throws IOException {
+        List<StorageEntry> files = List.of(
+            entry(
+                "s3://bucket/AWSLogs/aws-account-id=111/aws-service=vpcflowlogs/"
+                    + "aws-region=us-east-1/year=2026/month=10/day=13/hour=10/a.parquet",
+                100
+            ),
+            entry(
+                "s3://bucket/AWSLogs/aws-account-id=111/aws-service=vpcflowlogs/"
+                    + "aws-region=us-east-1/year=2025/month=10/day=13/hour=10/old.parquet",
+                100
+            )
+        );
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.IN, 2026, 2030));
+        TreeStubProvider provider = new TreeStubProvider(files);
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String globstar = "s3://bucket/AWSLogs/**/*.parquet";
+        FileList result = GlobExpander.expand(globstar, provider, hints, HIVE_ON, MAX, MAX);
+        assertEquals(1, result.fileCount());
+        assertEquals(
+            List.of(
+                "s3://bucket/AWSLogs/aws-account-id=111/aws-service=vpcflowlogs/"
+                    + "aws-region=us-east-1/year=2026/month=10/day=13/hour=10/a.parquet"
+            ),
+            paths(result)
+        );
+        assertTrue("** glob must flat-list AWSLogs/ after withdrawing", provider.listedPrefixes.contains("s3://bucket/AWSLogs/"));
+    }
+
     /** The paths a listing returned, for asserting what was — and was not — enumerated. */
     private static List<String> paths(FileList result) {
         List<String> paths = new ArrayList<>();
@@ -3782,7 +3940,7 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * The headline case of esql-planning#1173: on a bare {@code **} glob a partition-column filter must narrow the
+    * The headline case of : on a bare {@code **} glob a partition-column filter must narrow the
      * enumeration itself — non-matching folders are never listed, not merely left unread.
      */
     public void testGlobstarPartitionHintNarrowsTheListing() throws IOException {
@@ -4005,7 +4163,7 @@ public class GlobExpanderTests extends ESTestCase {
         );
     }
 
-    /** The LIST request counts esql-planning#1173 asks for: equality prunes with one probe and one survivor chain. */
+    /** The LIST request counts asks for: equality prunes with one probe and one survivor chain. */
     public void testGlobstarEqualityHintListRequestCount() throws IOException {
         TreeStubProvider provider = hiveTree();
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2025));
@@ -4422,7 +4580,7 @@ public class GlobExpanderTests extends ESTestCase {
 
     /**
      * The walk is a new hint channel into the listing: on a walk-eligible pattern, partition hints change which files
-     * a path lists and must join the cache key, or a filtered query poisons the cache (the esql-planning#1174 class).
+    * a path lists and must join the cache key, or a filtered query poisons the cache (the class).
      */
     public void testListingCacheDiscriminatorReflectsPartitionHintsOnGlobstar() {
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2025));
@@ -5566,10 +5724,10 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * Only {@code city} is hinted under {@code year=*}/{@code city=*}. The walk probes the year level and withdraws.
-     * The flat filter still keeps the encoded city.
+     * Only {@code city} is hinted under {@code year=*}/{@code city=*}. The keyed glob walks past unhinted
+     * {@code year} and prunes {@code city}; the encoded folder stays.
      */
-    public void testUnhintedParentKeyWithdrawsAndKeepsEncodedCity() throws IOException {
+    public void testKeyedGlobWalksPastUnhintedParentKeyKeepsEncodedCity() throws IOException {
         TreeStubProvider provider = new TreeStubProvider(
             List.of(
                 entry("s3://bucket/data/year=2024/city=New%20York/a.parquet", 100),
@@ -5585,8 +5743,10 @@ public class GlobExpanderTests extends ESTestCase {
             List.of("s3://bucket/data/year=2024/city=New%20York/a.parquet", "s3://bucket/data/year=2025/city=Paris/c.parquet"),
             paths(result)
         );
-        assertEquals(List.of("s3://bucket/data/"), provider.childListedPrefixes);
-        assertEquals(List.of("s3://bucket/data/"), provider.listedPrefixes);
+        assertFalse("keyed glob must not flat-list the parent", provider.listedPrefixes.contains("s3://bucket/data/"));
+        assertThat(provider.childListedPrefixes, hasItem("s3://bucket/data/"));
+        assertThat(provider.childListedPrefixes, hasItem("s3://bucket/data/year=2024/"));
+        assertThat(provider.childListedPrefixes, hasItem("s3://bucket/data/year=2025/"));
     }
 
     /** {@code ==} still splices the concrete folder. The walk is not used. */

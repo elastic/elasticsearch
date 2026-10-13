@@ -170,6 +170,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     private final ColumnInfo[] columnInfos;
     private final PreloadedRowGroupMetadata preloadedMetadata;
     private final StorageObject storageObject;
+    private final ParquetStorageObjectAdapter adapter;
     private final Set<String> projectedColumnPaths;
     private final Set<String> listColumnPaths;
     private final Set<String> predicateColumnPaths;
@@ -500,6 +501,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         ColumnInfo[] columnInfos,
         PreloadedRowGroupMetadata preloadedMetadata,
         StorageObject storageObject,
+        ParquetStorageObjectAdapter adapter,
         RowRanges[] allRowRanges,
         boolean[] survivingRowGroups,
         long[] rowGroupFirstRowGlobalOverride,
@@ -535,6 +537,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         this.columnInfos = columnInfos;
         this.preloadedMetadata = preloadedMetadata;
         this.storageObject = storageObject;
+        this.adapter = adapter;
         this.breaker = blockFactory.breaker();
         this.allRowRanges = allRowRanges;
         this.survivingRowGroups = survivingRowGroups;
@@ -838,6 +841,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         boolean first = rowGroupOrdinal < 0 && pendingPrefetches.isEmpty();
         setPhase(first ? ReadinessPhase.OPEN_PENDING : ReadinessPhase.GROUP_TICKET_PENDING);
         ticketAbandoned.set(false);
+        // I/O starts in consumeGrantedIo after grant. This lease holds no force-added bytes while waiting.
         SubscribableListener<ParquetIoWatermark.AdmitHold> ticket = watermark.admitAsync(
             reservation,
             lease,
@@ -3799,6 +3803,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             if (storageObject != null) {
                 storageObject.bindRowGroup(lease);
             }
+            adapter.bindRowGroup(lease);
         }
         return lease;
     }
@@ -4347,7 +4352,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         if (pageColumnReaders != null && pageColumnReaders[colIndex] != null) {
             // PageColumnReader handles maxDefLevel > 1 for nested-flat STRUCT leaves (e.g.
             // `event.action`). maxRepLevel must stay 0 because LIST<STRUCT> is intentionally
-            // unsupported in this PR — see issue elastic/esql-planning#435. Enforce the invariant
+            // unsupported. Enforce the invariant
             // with a hard throw rather than an assertion so it survives production builds where
             // assertions are disabled — a LIST<STRUCT> leaf reaching this branch would otherwise
             // silently emit wrong data.

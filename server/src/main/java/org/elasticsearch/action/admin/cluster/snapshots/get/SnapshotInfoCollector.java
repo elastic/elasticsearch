@@ -96,7 +96,7 @@ interface SnapshotInfoCollector {
         BoundedSnapshotInfoCollector(Comparator<SnapshotInfo> comparator, int offset, int size) {
             assert size > 0;
             this.capacity = offset + size;
-            this.snapshotInfos = new PriorityQueue<>(capacity, comparator.reversed()); // throws IAE if size+offset overflowed
+            this.snapshotInfos = new PriorityQueue<>(Math.min(capacity, 1000), comparator.reversed()); // throws IAE if size+offset overflow
             this.comparator = comparator;
             this.offset = offset;
         }

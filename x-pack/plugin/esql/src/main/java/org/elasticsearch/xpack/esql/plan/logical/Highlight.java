@@ -127,6 +127,8 @@ public class Highlight extends UnaryPlan
      */
     private final Map<String, TextEsField> fieldMappings;
 
+    private List<Attribute> lazyOutput;
+
     public Highlight(
         Source source,
         LogicalPlan child,
@@ -388,7 +390,10 @@ public class Highlight extends UnaryPlan
 
     @Override
     public List<Attribute> output() {
-        return mergeOutputAttributes(generatedFields, child().output());
+        if (lazyOutput == null) {
+            lazyOutput = mergeOutputAttributes(generatedFields, child().output());
+        }
+        return lazyOutput;
     }
 
     @Override

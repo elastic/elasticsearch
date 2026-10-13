@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
@@ -467,7 +468,7 @@ public class OrcFormatReaderTests extends ESTestCase {
                 assertEquals(3, page.getBlockCount());
                 assertTrue("absent column must be a null block", page.getBlock(2).isNull(0));
                 assertEquals(1, warnings.size());
-                assertEquals(SkipWarnings.absentDeclaredColumnMessage("department"), warnings.get(0));
+                assertEquals(SkipWarnings.absentColumnMessage("department"), warnings.get(0));
             } finally {
                 page.releaseBlocks();
             }
@@ -3419,6 +3420,9 @@ public class OrcFormatReaderTests extends ESTestCase {
 
     private StorageObject createStorageObject(byte[] data) {
         return new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
             @Override
             public StorageIdentity storageIdentity() {
                 return NOOP_IDENTITY;

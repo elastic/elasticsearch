@@ -33,6 +33,8 @@ public class EvalExec extends UnaryExec implements EstimatesRowSize, RowCountPre
 
     private final List<Alias> fields;
 
+    private List<Attribute> lazyOutput;
+
     public EvalExec(Source source, PhysicalPlan child, List<Alias> fields) {
         super(source, child);
         this.fields = fields;
@@ -60,7 +62,10 @@ public class EvalExec extends UnaryExec implements EstimatesRowSize, RowCountPre
 
     @Override
     public List<Attribute> output() {
-        return mergeOutputAttributes(fields, child().output());
+        if (lazyOutput == null) {
+            lazyOutput = mergeOutputAttributes(fields, child().output());
+        }
+        return lazyOutput;
     }
 
     @Override

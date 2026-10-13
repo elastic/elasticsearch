@@ -50,7 +50,8 @@ public class OrcFormatReaderStateLifecycleTests extends ESTestCase {
         "pushedFilter",
         "pushedExpressions",
         "dynamicThreshold",
-        "declaredDateFormats"
+        "declaredDateFormats",
+        "declaredTypeColumns"
     );
 
     /** Internally mutable fields written during reads. Counters are now passed via context, not stored as fields. */
@@ -71,6 +72,7 @@ public class OrcFormatReaderStateLifecycleTests extends ESTestCase {
         Map.entry("withPushedFilter", WitherLifecycle.CREATES_COPY),
         Map.entry("withDynamicThreshold", WitherLifecycle.CREATES_COPY),
         Map.entry("withDeclaredDateFormats", WitherLifecycle.CREATES_COPY),
+        Map.entry("withDeclaredTypeColumns", WitherLifecycle.CREATES_COPY),
         Map.entry("withConfigTrackingConsumedKeys", WitherLifecycle.IDENTITY_NO_COPY),
         Map.entry("withConfig", WitherLifecycle.IDENTITY_NO_COPY),
         Map.entry("withSchema", WitherLifecycle.IDENTITY_NO_COPY),
@@ -208,6 +210,7 @@ public class OrcFormatReaderStateLifecycleTests extends ESTestCase {
             // null is accepted by withDynamicThreshold and always produces a copy (no identity shortcut).
             case "withDynamicThreshold" -> new Object[] { null };
             case "withDeclaredDateFormats" -> new Object[] { Map.of("x", "yyyy-MM-dd") };
+            case "withDeclaredTypeColumns" -> new Object[] { Set.of("x") };
             case "withConfigTrackingConsumedKeys", "withConfig" -> new Object[] { Map.of() };
             case "withSchema" -> new Object[] { List.of() };
             case "withDeclaredProvenanceBinding" -> new Object[] { false };

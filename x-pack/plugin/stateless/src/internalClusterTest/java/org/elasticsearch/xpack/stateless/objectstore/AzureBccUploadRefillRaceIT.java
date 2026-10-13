@@ -31,6 +31,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.azure.AzureRepositoryPlugin;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.TestUtils;
@@ -310,9 +311,10 @@ public class AzureBccUploadRefillRaceIT extends AbstractStatelessPluginIntegTest
             RepositoriesService repositoriesService,
             ThreadPool threadPool,
             ClusterService clusterService,
-            ProjectResolver projectResolver
+            ProjectResolver projectResolver,
+            MeterRegistry meterRegistry
         ) {
-            return new ObjectStoreService(settings, repositoriesService, threadPool, clusterService, projectResolver) {
+            return new ObjectStoreService(settings, repositoriesService, threadPool, clusterService, projectResolver, meterRegistry) {
                 @Override
                 public void uploadBatchedCompoundCommitFile(
                     long primaryTerm,

@@ -268,9 +268,9 @@ public final class SampleRecord {
         Map<String, Object> state = groundTruth.get("data_state") == null ? null : map(groundTruth.get("data_state"));
         return new GroundTruth(
             hits(groundTruth.get("neighbors")),
-            state == null
+            state == null || state.get("digest") == null
                 ? null
-                : new DataState(((Number) state.get("documents")).longValue(), ((Number) state.get("seq_no_sum")).doubleValue())
+                : new DataState(((Number) state.get("documents")).longValue(), ((Number) state.get("digest")).longValue())
         );
     }
 
@@ -319,7 +319,7 @@ public final class SampleRecord {
         if (groundTruth.dataState() != null) {
             builder.startObject("data_state");
             builder.field("documents", groundTruth.dataState().documents());
-            builder.field("seq_no_sum", groundTruth.dataState().seqNoSum());
+            builder.field("digest", groundTruth.dataState().digest());
             builder.endObject();
         }
     }

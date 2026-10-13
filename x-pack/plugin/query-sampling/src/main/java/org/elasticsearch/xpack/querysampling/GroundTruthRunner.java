@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.querysampling;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
+import org.elasticsearch.xpack.querysampling.groundtruth.DataState;
 import org.elasticsearch.xpack.querysampling.groundtruth.ExactSearch;
 import org.elasticsearch.xpack.querysampling.groundtruth.GroundTruth;
 
@@ -74,19 +76,12 @@ public final class GroundTruthRunner {
             return;
         }
         T query = queries.get(index);
-        ActionListener<SearchResponse> exactSearchListener = new ActionListener<>() {
+        ActionListener<GroundTruth> computedListener = new ActionListener<>() {
             // a search function may complete the listener and then still throw, only the first outcome counts
             private final AtomicBoolean completed = new AtomicBoolean();
 
             @Override
-            public void onResponse(SearchResponse response) {
-                GroundTruth groundTruth;
-                try {
-                    groundTruth = ExactSearch.parse(response);
-                } catch (Exception e) {
-                    onFailure(e);
-                    return;
-                }
+            public void onResponse(GroundTruth groundTruth) {
                 if (completed.compareAndSet(false, true) == false) {
                     return;
                 }
@@ -104,7 +99,59 @@ public final class GroundTruthRunner {
             }
         };
         try {
-            search.accept(ExactSearch.request(queryOf.apply(query)), exactSearchListener);
+            compute(queryOf.apply(query), computedListener);
+        } catch (Exception e) {
+            computedListener.onFailure(e);
+        }
+    }
+
+    /**
+     * The state of the data is read before the exact search, so that if the data changes while it runs the ground truth looks
+     * out of date later, and not up to date. If it cannot be read the ground truth is left without one, which is as out of date.
+     */
+    private void compute(CapturedQuery query, ActionListener<GroundTruth> listener) {
+        DataState.read(search, query, new ActionListener<>() {
+            @Override
+            public void onResponse(DataState state) {
+                scan(query, state, listener);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.debug("failed to read the state of the data before the exact search of a sampled kNN search", e);
+                scan(query, null, listener);
+            }
+        });
+    }
+
+    private void scan(CapturedQuery query, @Nullable DataState state, ActionListener<GroundTruth> listener) {
+        ActionListener<SearchResponse> exactSearchListener = new ActionListener<>() {
+            // a search function may complete the listener and then still throw, only the first outcome counts
+            private final AtomicBoolean completed = new AtomicBoolean();
+
+            @Override
+            public void onResponse(SearchResponse response) {
+                GroundTruth groundTruth;
+                try {
+                    groundTruth = ExactSearch.parse(response);
+                } catch (Exception e) {
+                    onFailure(e);
+                    return;
+                }
+                if (completed.compareAndSet(false, true)) {
+                    listener.onResponse(new GroundTruth(groundTruth.neighbors(), state));
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (completed.compareAndSet(false, true)) {
+                    listener.onFailure(e);
+                }
+            }
+        };
+        try {
+            search.accept(ExactSearch.request(query), exactSearchListener);
         } catch (Exception e) {
             exactSearchListener.onFailure(e);
         }

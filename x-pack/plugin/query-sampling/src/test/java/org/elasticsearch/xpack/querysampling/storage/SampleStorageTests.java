@@ -199,7 +199,7 @@ public class SampleStorageTests extends ESTestCase {
                 GroundTruth.KEY,
                 new GroundTruth(
                     List.of(new CapturedSearch.Hit("a", "d3", 1f)),
-                    randomBoolean() ? null : new DataState(randomNonNegativeInt(), randomDoubleBetween(0, 1e15, true))
+                    randomBoolean() ? null : new DataState(randomNonNegativeInt(), randomLong())
                 )
             );
         }

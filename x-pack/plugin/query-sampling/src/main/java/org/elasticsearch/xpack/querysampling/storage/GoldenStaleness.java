@@ -125,27 +125,16 @@ public final class GoldenStaleness {
             next(records, statuses, listener);
             return;
         }
-        ActionListener<SearchResponse> done = new ActionListener<>() {
+        ActionListener<DataState> done = new ActionListener<>() {
             // a search function may complete the listener and then still throw, only the first outcome counts
             private final AtomicBoolean completed = new AtomicBoolean();
 
             @Override
-            public void onResponse(SearchResponse response) {
-                DataState now;
-                try {
-                    now = DataState.of(response);
-                } catch (Exception e) {
-                    onFailure(e);
-                    return;
-                }
-                if (now == null) {
-                    onFailure(new IllegalStateException("the search did not tell the state of the data"));
-                    return;
-                }
+            public void onResponse(DataState now) {
                 if (completed.compareAndSet(false, true) == false) {
                     return;
                 }
-                statuses.add(stored.sameAs(now) ? Status.FRESH : Status.STALE);
+                statuses.add(stored.equals(now) ? Status.FRESH : Status.STALE);
                 next(records, statuses, listener);
             }
 
@@ -160,7 +149,7 @@ public final class GoldenStaleness {
             }
         };
         try {
-            probe.accept(DataState.probe(record.search().query()), done);
+            DataState.read(probe, record.search().query(), done);
         } catch (Exception e) {
             done.onFailure(e);
         }

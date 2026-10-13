@@ -88,7 +88,7 @@ public final class GroundTruthWorker {
             sampleSearch,
             sampleBulk,
             (request, listener) -> exactSearch.accept(request, ActionListener.wrap(response -> {
-                charge(response.getTook().millis());
+                charge(response.getTook().millis(), DataState.isProbe(request));
                 listener.onResponse(response);
             }, listener::onFailure)),
             registry,
@@ -150,12 +150,15 @@ public final class GroundTruthWorker {
     }
 
     /**
-     * An exact search took {@code millis}: it is paid for, and tells what the next ones are likely to cost.
+     * A search of a ground truth took {@code millis}: it is paid for. An exact search also tells what the next ones are likely to
+     * cost, which the reads of the state of the data are too small to say.
      */
-    private synchronized void charge(long millis) {
+    private synchronized void charge(long millis, boolean readsState) {
         double cost = Math.max(1, millis);
         budget.spend(cost);
-        costMillis = COST_SMOOTHING * cost + (1 - COST_SMOOTHING) * costMillis;
+        if (readsState == false) {
+            costMillis = COST_SMOOTHING * cost + (1 - COST_SMOOTHING) * costMillis;
+        }
     }
 
     /**

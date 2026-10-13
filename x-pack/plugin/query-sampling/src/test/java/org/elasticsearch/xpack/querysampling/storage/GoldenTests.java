@@ -28,14 +28,11 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.SystemIndices;
-import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -51,6 +48,7 @@ import org.elasticsearch.xpack.querysampling.dedup.Selectivity;
 import org.elasticsearch.xpack.querysampling.dedup.Stratum;
 import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
 import org.elasticsearch.xpack.querysampling.groundtruth.DataState;
+import org.elasticsearch.xpack.querysampling.groundtruth.FakeShards;
 import org.elasticsearch.xpack.querysampling.groundtruth.GroundTruth;
 
 import java.io.IOException;
@@ -73,9 +71,28 @@ public class GoldenTests extends ESTestCase {
         new SearchModule(Settings.EMPTY, List.of()).getNamedXContents()
     );
 
-    private static final DataState STORED = new DataState(5, 10.0);
+    private static final FakeShards STORED_SHARDS = FakeShards.of(
+        new FakeShards.Shard("idx", 0, 3, 6),
+        new FakeShards.Shard("idx", 1, 2, 4)
+    );
 
-    private static final DataState CHANGED = new DataState(6, 15.0);
+    private static final FakeShards CHANGED_SHARDS = FakeShards.of(
+        new FakeShards.Shard("idx", 0, 3, 6),
+        new FakeShards.Shard("idx", 1, 2, 9)
+    );
+
+    private static final DataState STORED = STORED_SHARDS.state();
+
+    private static final DataState CHANGED = CHANGED_SHARDS.state();
+
+    /**
+     * The shards of the state are read one number after the other, up to the first that none has: 0 and 1, and 2.
+     */
+    private static final int PROBES_PER_STATE = 3;
+
+    private static FakeShards shardsOf(DataState state) {
+        return state.equals(STORED) ? STORED_SHARDS : CHANGED_SHARDS;
+    }
 
     private final List<SearchRequest> sampleSearches = new ArrayList<>();
 
@@ -110,7 +127,7 @@ public class GoldenTests extends ESTestCase {
             if (noGoldenIndex) {
                 listener.onFailure(new IndexNotFoundException(GoldenIndex.NAME));
             } else {
-                respond(listener, latestVersion == 0 ? List.of() : List.of(manifest(latestVersion)), null);
+                respond(listener, latestVersion == 0 ? List.of() : List.of(manifest(latestVersion)));
             }
         }, (request, listener) -> {
             manifests.add(request);
@@ -140,9 +157,9 @@ public class GoldenTests extends ESTestCase {
             if (noGoldenIndex) {
                 listener.onFailure(new IndexNotFoundException(GoldenIndex.NAME));
             } else if (request.source().size() == 1) {
-                respond(listener, latestVersion == 0 ? List.of() : List.of(manifest(latestVersion)), null);
+                respond(listener, latestVersion == 0 ? List.of() : List.of(manifest(latestVersion)));
             } else {
-                respond(listener, golden, null);
+                respond(listener, golden);
             }
         }, REGISTRY);
     }
@@ -153,7 +170,7 @@ public class GoldenTests extends ESTestCase {
             if (failSampleRead) {
                 listener.onFailure(new IllegalStateException("read failed"));
             } else {
-                respond(listener, goldenUpdaterStored, null);
+                respond(listener, goldenUpdaterStored);
             }
         }, REGISTRY);
     }
@@ -170,9 +187,13 @@ public class GoldenTests extends ESTestCase {
             if (failingProbes.contains(n)) {
                 listener.onFailure(new IllegalStateException("no"));
             } else {
-                respond(listener, List.of(), now.apply(n));
+                shardsOf(now.apply(n)).accept(request, listener);
             }
         }), (request, listener) -> {
+            if (FakeShards.isProbe(request)) {
+                CHANGED_SHARDS.accept(request, listener);
+                return;
+            }
             exactSearches.add(request);
             long n = numberOf(request);
             if (failingExact.contains(n)) {
@@ -182,7 +203,7 @@ public class GoldenTests extends ESTestCase {
             SearchHit hit = SearchHit.unpooled(0, "fresh" + n);
             hit.score(1f);
             hit.shard(new SearchShardTarget("node", new ShardId("idx" + n, "_na_", 0), null));
-            respond(listener, List.of(hit), CHANGED);
+            respond(listener, List.of(hit));
         });
     }
 
@@ -306,9 +327,9 @@ public class GoldenTests extends ESTestCase {
             refreshed.contains("\"id\":\"fresh2\""),
             equalTo(true)
         );
-        assertThat(refreshed.contains("\"documents\":6"), equalTo(true));
+        assertThat(refreshed.contains("\"digest\":" + CHANGED.digest()), equalTo(true));
         String copied = ((IndexRequest) bulks.get(0).requests().get(0)).source().utf8ToString();
-        assertThat("as it was", copied.contains("\"documents\":5"), equalTo(true));
+        assertThat("as it was", copied.contains("\"digest\":" + STORED.digest()), equalTo(true));
     }
 
     public void testWhatIsComputedAgainAndWhatIsAddedAreInTheSameVersion() throws IOException {
@@ -340,7 +361,7 @@ public class GoldenTests extends ESTestCase {
 
         assertThat(result, equalTo(new GoldenUpdater.Result(4, 5, 1, 1, 0, 0, 0)));
         assertThat(exactSearches.size(), equalTo(1));
-        assertThat("nothing to compare, so no probe", probes.size(), equalTo(1));
+        assertThat("nothing to compare, so no probe for it", probes.size(), equalTo(PROBES_PER_STATE));
     }
 
     public void testQueriesThatCannotBeLookedAtOrComputedAreLeftOutAndCounted() throws IOException {
@@ -430,14 +451,9 @@ public class GoldenTests extends ESTestCase {
         return hit;
     }
 
-    private static void respond(ActionListener<SearchResponse> listener, List<SearchHit> hits, DataState state) {
-        long total = state == null ? hits.size() : state.documents();
-        SearchHits searchHits = new SearchHits(hits.toArray(SearchHit[]::new), new TotalHits(total, TotalHits.Relation.EQUAL_TO), 1f);
-        SearchResponse response = state == null
-            ? SearchResponseUtils.successfulResponse(searchHits)
-            : SearchResponseUtils.response(searchHits)
-                .aggregations(InternalAggregations.from(List.of(new Sum("seq_no_sum", state.seqNoSum(), DocValueFormat.RAW, Map.of()))))
-                .build();
+    private static void respond(ActionListener<SearchResponse> listener, List<SearchHit> hits) {
+        SearchHits searchHits = new SearchHits(hits.toArray(SearchHit[]::new), new TotalHits(hits.size(), TotalHits.Relation.EQUAL_TO), 1f);
+        SearchResponse response = SearchResponseUtils.successfulResponse(searchHits);
         searchHits.decRef();
         try {
             listener.onResponse(response);
@@ -450,7 +466,7 @@ public class GoldenTests extends ESTestCase {
 
     private Long latestCompleted = 3L;
 
-    private Function<Float, DataState> goldenStalenessNow = x -> new DataState(5, 10.0);
+    private Function<Float, DataState> goldenStalenessNow = x -> STORED;
 
     private GoldenStaleness goldenStalenessStaleness(BiConsumer<SearchRequest, ActionListener<SearchResponse>> probe) {
         GoldenReader reader = new GoldenReader((request, listener) -> {
@@ -458,9 +474,9 @@ public class GoldenTests extends ESTestCase {
             if (latestCompleted == null) {
                 listener.onFailure(new IndexNotFoundException(GoldenIndex.NAME));
             } else if (request.source().size() == 1) {
-                goldenStalenessRespond(listener, latestCompleted == 0 ? List.of() : List.of(manifest(latestCompleted)), null);
+                respond(listener, latestCompleted == 0 ? List.of() : List.of(manifest(latestCompleted)));
             } else {
-                goldenStalenessRespond(listener, records, null);
+                respond(listener, records);
             }
         }, REGISTRY);
         return new GoldenStaleness(reader, (request, listener) -> {
@@ -470,9 +486,9 @@ public class GoldenTests extends ESTestCase {
     }
 
     private GoldenStaleness goldenStalenessStaleness() {
-        return goldenStalenessStaleness((request, listener) -> {
-            goldenStalenessRespond(listener, List.of(), goldenStalenessNow.apply(firstOf(request)));
-        });
+        return goldenStalenessStaleness(
+            (request, listener) -> { shardsOf(goldenStalenessNow.apply(firstOf(request))).accept(request, listener); }
+        );
     }
 
     private static float firstOf(SearchRequest request) {
@@ -486,8 +502,8 @@ public class GoldenTests extends ESTestCase {
     }
 
     public void testQueriesWhoseDataIsAsItWasAreFreshAndThoseWhoseDataChangedAreStale() throws IOException {
-        records = List.of(record(1, new DataState(5, 10.0)), record(2, new DataState(5, 10.0)), record(3, new DataState(5, 9.0)));
-        goldenStalenessNow = x -> new DataState(5, 10.0);
+        records = List.of(record(1, STORED), record(2, STORED), record(3, CHANGED));
+        goldenStalenessNow = x -> STORED;
 
         GoldenStaleness.Result result = check(goldenStalenessStaleness(), 3, 10);
 
@@ -495,16 +511,16 @@ public class GoldenTests extends ESTestCase {
     }
 
     public void testGroundTruthWithoutTheStateOfTheDataCannotBeTold() throws IOException {
-        records = List.of(record(1, null), record(2, new DataState(5, 10.0)));
+        records = List.of(record(1, null), record(2, STORED));
 
         GoldenStaleness.Result result = check(goldenStalenessStaleness(), 3, 10);
 
         assertThat(result, equalTo(new GoldenStaleness.Result(3, 2, 1, 0, 1, 0)));
-        assertThat("there is nothing to compare, so no search is made for it", probes.size(), equalTo(1));
+        assertThat("there is nothing to compare, so no search is made for it", probes.size(), equalTo(PROBES_PER_STATE));
     }
 
     public void testWithoutAVersionTheLatestOneThatIsCompleteIsChecked() throws IOException {
-        records = List.of(record(1, new DataState(5, 10.0)));
+        records = List.of(record(1, STORED));
         latestCompleted = 7L;
 
         GoldenStaleness.Result result = check(goldenStalenessStaleness(), 0, 10);
@@ -519,12 +535,12 @@ public class GoldenTests extends ESTestCase {
     }
 
     public void testAFailedProbeIsCountedAsFailedAndDoesNotStopTheOthers() throws IOException {
-        records = List.of(record(1, new DataState(5, 10.0)), record(2, new DataState(5, 10.0)), record(3, new DataState(5, 10.0)));
+        records = List.of(record(1, STORED), record(2, STORED), record(3, STORED));
         GoldenStaleness goldenStalenessStaleness = goldenStalenessStaleness((request, listener) -> {
             if (firstOf(request) == 2f) {
                 listener.onFailure(new IllegalStateException("no"));
             } else {
-                goldenStalenessRespond(listener, List.of(), new DataState(5, 10.0));
+                STORED_SHARDS.accept(request, listener);
             }
         });
 
@@ -532,12 +548,12 @@ public class GoldenTests extends ESTestCase {
     }
 
     public void testAProbeThatThrowsAndAResponseWithoutAStateAreFailures() throws IOException {
-        records = List.of(record(1, new DataState(5, 10.0)), record(2, new DataState(5, 10.0)));
+        records = List.of(record(1, STORED), record(2, STORED));
         GoldenStaleness goldenStalenessStaleness = goldenStalenessStaleness((request, listener) -> {
             if (firstOf(request) == 1f) {
                 throw new IllegalStateException("no");
             }
-            goldenStalenessRespond(listener, List.of(), null);
+            respond(listener, List.of());
         });
 
         assertThat(check(goldenStalenessStaleness, 3, 10), equalTo(new GoldenStaleness.Result(3, 2, 0, 0, 0, 2)));
@@ -546,7 +562,7 @@ public class GoldenTests extends ESTestCase {
     public void testUnreadableRecordsAreCountedAsFailed() throws IOException {
         SearchHit broken = SearchHit.unpooled(9, "broken");
         broken.sourceRef(new BytesArray("{\"kind\":\"record\"}"));
-        records = List.of(record(1, new DataState(5, 10.0)), broken);
+        records = List.of(record(1, STORED), broken);
 
         assertThat(check(goldenStalenessStaleness(), 3, 10), equalTo(new GoldenStaleness.Result(3, 2, 1, 0, 0, 1)));
     }
@@ -573,25 +589,6 @@ public class GoldenTests extends ESTestCase {
         return hit;
     }
 
-    private static void goldenStalenessRespond(ActionListener<SearchResponse> listener, List<SearchHit> hits, DataState state) {
-        SearchHits searchHits = new SearchHits(
-            hits.toArray(SearchHit[]::new),
-            new TotalHits(state == null ? hits.size() : state.documents(), TotalHits.Relation.EQUAL_TO),
-            1f
-        );
-        SearchResponse response = state == null
-            ? SearchResponseUtils.successfulResponse(searchHits)
-            : SearchResponseUtils.response(searchHits)
-                .aggregations(InternalAggregations.from(List.of(new Sum("seq_no_sum", state.seqNoSum(), DocValueFormat.RAW, Map.of()))))
-                .build();
-        searchHits.decRef();
-        try {
-            listener.onResponse(response);
-        } finally {
-            response.decRef();
-        }
-    }
-
     private static StoredSample goldenRecordSample(Stratum stratum, Hardness hardness, Selectivity selectivity) {
         CapturedQuery query = new CapturedQuery(
             new String[] { "a", "b" },
@@ -605,7 +602,7 @@ public class GoldenTests extends ESTestCase {
             "q7"
         );
         TrackedQuery.Weights weights = new TrackedQuery.Weights(3, 30.0, 0.5, 0.25, 0.1);
-        GroundTruth groundTruth = new GroundTruth(List.of(new CapturedSearch.Hit("a", "d1", 1f)), new DataState(5, 10.0));
+        GroundTruth groundTruth = new GroundTruth(List.of(new CapturedSearch.Hit("a", "d1", 1f)), STORED);
         return new StoredSample(
             "s1",
             "0000000000000001ffffffffffffffff",
@@ -646,7 +643,7 @@ public class GoldenTests extends ESTestCase {
         assertThat(((List<?>) ((Map<String, Object>) record.get("live_hits")).get("hits")).size(), equalTo(1));
         Map<String, Object> groundTruth = (Map<String, Object>) record.get("ground_truth");
         assertThat(((List<?>) groundTruth.get("neighbors")).size(), equalTo(1));
-        assertThat(groundTruth.get("data_state"), equalTo(Map.of("documents", 5, "seq_no_sum", 10.0)));
+        assertThat(groundTruth.get("data_state"), equalTo(Map.of("documents", 5, "digest", STORED.digest())));
         assertThat("it is not a goldenRecordSample, and has nothing to refresh", record, not(hasKey("has_ground_truth")));
         assertThat(record, not(hasKey("updated_at")));
     }

@@ -26,8 +26,7 @@ import java.util.List;
  * Turns a captured kNN search into the search that finds its true answer, and reads that answer back.
  * <p>
  * The exact search scores every document that has a vector and matches the filters, so it costs a scan of
- * the index and must stay off the search path. As it matches all of them it also counts them and sums their
- * sequence numbers, which is the {@link DataState} that the answer is of.
+ * the index and must stay off the search path.
  */
 public final class ExactSearch {
 
@@ -47,17 +46,13 @@ public final class ExactSearch {
         for (QueryBuilder filter : query.filters()) {
             exact.filter(filter);
         }
-        // the same scan tells what the data is like, over what is matched, so that it is of the very data the answer is of
-        SearchSourceBuilder source = new SearchSourceBuilder().query(exact)
-            .size(query.k())
-            .fetchSource(false)
-            .trackTotalHits(true)
-            .aggregation(DataState.aggregation());
+        SearchSourceBuilder source = new SearchSourceBuilder().query(exact).size(query.k()).fetchSource(false);
         return new SearchRequest(query.indices()).source(source);
     }
 
     /**
-     * Copies the answer out of the response, which is ref-counted and cannot be kept.
+     * Copies the answer out of the response, which is ref-counted and cannot be kept. It does not tell the state of the data,
+     * which is read apart from the search.
      */
     public static GroundTruth parse(SearchResponse response) {
         SearchHit[] searchHits = response.getHits().getHits();
@@ -65,6 +60,6 @@ public final class ExactSearch {
         for (SearchHit hit : searchHits) {
             neighbors.add(new CapturedSearch.Hit(hit.getIndex(), hit.getId(), hit.getScore()));
         }
-        return new GroundTruth(List.copyOf(neighbors), DataState.of(response));
+        return new GroundTruth(List.copyOf(neighbors), null);
     }
 }

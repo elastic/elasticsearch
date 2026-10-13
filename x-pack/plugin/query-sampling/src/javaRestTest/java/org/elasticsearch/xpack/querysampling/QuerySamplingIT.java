@@ -64,7 +64,7 @@ public class QuerySamplingIT extends QuerySamplingRestTestCase {
         assertBusy(() -> assertThat(storedValue(x, "has_ground_truth"), equalTo(true)));
         assertThat(((List<?>) storedValue(x, "ground_truth.neighbors")).size(), equalTo(3));
         assertThat(((Number) storedValue(x, "ground_truth.data_state.documents")).longValue(), equalTo(5L));
-        assertThat(((Number) storedValue(x, "ground_truth.data_state.seq_no_sum")).doubleValue(), equalTo(10.0));
+        assertNotNull("the state of the data that was scanned", storedValue(x, "ground_truth.data_state.digest"));
 
         refreshSampleIndex();
         ObjectPath estimate = ObjectPath.createFromResponse(

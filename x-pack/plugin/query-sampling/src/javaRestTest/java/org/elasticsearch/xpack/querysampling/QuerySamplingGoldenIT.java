@@ -19,6 +19,7 @@ import java.util.Locale;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 
 public class QuerySamplingGoldenIT extends QuerySamplingRestTestCase {
 
@@ -101,14 +102,11 @@ public class QuerySamplingGoldenIT extends QuerySamplingRestTestCase {
         assertThat(((Number) updated.evaluate("copied")).intValue(), equalTo(0));
         assertThat(((Number) updated.evaluate("failed")).intValue(), equalTo(0));
         assertThat(((Number) searchGolden("version", 2).evaluate("hits.hits.0._source.source_version")).longValue(), equalTo(1L));
-        assertThat(
-            ((Number) searchGolden("record", 2).evaluate("hits.hits.0._source.ground_truth.data_state.seq_no_sum")).doubleValue(),
-            equalTo(15.0)
-        );
-        assertThat(
-            ((Number) searchGolden("record", 1).evaluate("hits.hits.0._source.ground_truth.data_state.seq_no_sum")).doubleValue(),
-            equalTo(10.0)
-        );
+        long digestOfVersion2 = ((Number) searchGolden("record", 2).evaluate("hits.hits.0._source.ground_truth.data_state.digest"))
+            .longValue();
+        long digestOfVersion1 = ((Number) searchGolden("record", 1).evaluate("hits.hits.0._source.ground_truth.data_state.digest"))
+            .longValue();
+        assertThat("the state is of the data as it was", digestOfVersion2, not(equalTo(digestOfVersion1)));
         ObjectPath freshAgain = check("");
         assertThat(((Number) freshAgain.evaluate("version")).longValue(), equalTo(2L));
         assertThat(((Number) freshAgain.evaluate("fresh")).intValue(), equalTo(added));

@@ -5137,8 +5137,7 @@ public class GlobExpanderTests extends ESTestCase {
      * glob roots at the parent of every sibling partition the dataset has, so the enumeration cost was a property
      * of the dataset rather than of the query: twelve years listed to answer about one.
      * <p>
-     * Pinned as an exact count of distinct prefixes, each of which must be a matching date, so a failure names
-     * what was read rather than only how much.
+     * Pinned as the exact set of prefixes, so a failure names the folders that were read.
      */
     public void testFanOutDoesNotListAFolderTheGlobCannotMatch() throws Exception {
         // The wildcard sits INSIDE a segment, so patternPrefix cuts above every date folder and the slot list is
@@ -5172,12 +5171,18 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals(9, result.fileCount());
         // The count is the assertion: one listObjects per slot, so slots must follow the matching set. Without the
         // filter this is 1209.
-        assertEquals("one listing per matching folder and none for the 1200 it cannot match", 9, provider.listedPrefixes.size());
-        // Distinct, because listedPrefixes is a list: nine listings of one folder would satisfy the count.
-        assertEquals("and nine different folders", 9, Set.copyOf(provider.listedPrefixes).size());
-        for (String prefix : provider.listedPrefixes) {
-            assertThat("and the ones it did list are the matched dates", prefix, containsString("date=2024-01-0"));
+        // The set, so a failure prints the folders that were read rather than only how many. A count would be
+        // satisfied by nine listings of one folder, and would not name the 1200 when it regressed.
+        Set<String> expected = new LinkedHashSet<>();
+        for (int d = 1; d <= 9; d++) {
+            expected.add(String.format(Locale.ROOT, "s3://bucket/data/date=2024-01-%02d/", d));
         }
+        assertEquals(
+            "one listing per matching folder and none for the 1200 it cannot match",
+            expected,
+            Set.copyOf(provider.listedPrefixes)
+        );
+        assertEquals("and none of them listed twice", 9, provider.listedPrefixes.size());
     }
 
     /**

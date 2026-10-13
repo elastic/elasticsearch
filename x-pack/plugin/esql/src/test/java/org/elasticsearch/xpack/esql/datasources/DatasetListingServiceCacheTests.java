@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
@@ -30,6 +31,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
+
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * What the two rails are allowed to hand each other through the shared listing cache.
@@ -271,10 +275,9 @@ public class DatasetListingServiceCacheTests extends ESTestCase {
      * nothing takes it back out afterwards: the month equality is integral, which is the splice's job and not the
      * folder post-filter's, and this glob's first segment is {@code *}, so under this fixture's default strategy
      * it neither walks nor value-filters. Only the closed range on {@code year} is applied, and the extra file is
-     * inside it. The retry
-     * therefore holds a file the spliced drain the unbounded rail runs cannot reach — and because nothing
-     * withdrew, nothing suppressed a filter, so before this was fixed the listing carried a real count and was
-     * published.
+     * inside it. The retry therefore holds a file the spliced drain the unbounded rail runs cannot reach — and
+     * because nothing withdrew, nothing suppressed a filter, so before this was fixed the listing carried a real
+     * count and was published.
      *
      * <p>Worse than the walk routes, because the extra file's rows satisfy the {@code WHERE} — month 6 of 2024 —
      * so the rows the query returns change, not only the file a schema is taken from.
@@ -332,9 +335,9 @@ public class DatasetListingServiceCacheTests extends ESTestCase {
      * threaded to it. Nothing about the divergence changes: the narrowed pass is bounded, so it is still flat, and
      * the retry still lists the spelling the splice never asked for. The concurrency is what the sync tests cannot
      * reach -- at 1 the fan-out is ineligible, so with those tests alone the fan-out could record a real count
-     * and publish the wider set with nothing failing. The request count is asserted exactly, so this test also
-     * fails where the fan-out declines and the flat drain answers instead: that is the rail the sync test covers,
-     * and it would leave this one passing on a tree where the code under test never ran.
+     * and publish the wider set with nothing failing. The prefixes listed are asserted too, so this test fails
+     * rather than passing silently where the fan-out declines and the flat drain answers instead: that is the
+     * rail the sync test covers, and it would leave this one green on a tree where the code under test never ran.
      */
     public void testTheSpellingMissRetryIsNotPublishedWhenTheRetryFansOut() throws Exception {
         try (ExternalSourceCacheService cache = new ExternalSourceCacheService(cacheEnabled())) {
@@ -362,11 +365,12 @@ public class DatasetListingServiceCacheTests extends ESTestCase {
                 List.of(SPELLING_ALT, SPELLING_KEPT),
                 paths(future.get())
             );
-            // The listing requests, not the attempt to build slots: `buildSlots` lists children before it can
-            // decide anything, so counting that counts the routes where it then declines and the flat drain runs
-            // -- which is the drain the sync test above already covers. Three is one flat narrowed pass plus one
-            // per folder slot; the flat route would be two.
-            assertEquals("and the retry got there by fanning out", 3L, provider.listObjectsCalls.get());
+            // What was listed, not that slots were attempted: `buildSlots` lists children before it can decide
+            // anything, so counting that counts the routes where it then declines and the flat drain runs -- the
+            // drain the sync test above already covers. Only a folder slot addresses a prefix below the pattern's
+            // own; both flat passes list `logs/` itself. Asserted that way rather than as a request count, which
+            // would also have to change if slots were ever cut finer.
+            assertThat("and the retry got there by fanning out", provider.listedPrefixes, hasItem(startsWith("s3://bucket/logs/x/")));
 
             long listsAfterBounded = provider.listObjectsCalls.get();
             FileList whole = service.cachedListing(
@@ -456,6 +460,7 @@ public class DatasetListingServiceCacheTests extends ESTestCase {
     private static final class TreeProvider implements StorageProvider {
         private final List<StorageEntry> entries;
         final AtomicLong listObjectsCalls = new AtomicLong();
+        final List<String> listedPrefixes = Collections.synchronizedList(new ArrayList<>());
 
         TreeProvider(List<StorageEntry> entries) {
             List<StorageEntry> sorted = new ArrayList<>(entries);
@@ -471,6 +476,7 @@ public class DatasetListingServiceCacheTests extends ESTestCase {
         public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
             listObjectsCalls.incrementAndGet();
             String p = withSlash(prefix.toString());
+            listedPrefixes.add(p);
             List<StorageEntry> under = new ArrayList<>();
             for (StorageEntry e : entries) {
                 if (e.path().toString().startsWith(p)) {

@@ -535,9 +535,12 @@ public final class GlobExpander {
      * than a slow query.
      *
      * <p>So emptiness after a rewrite is decided by listing the original glob once more, with the bound dropped and
-     * the rewrite skipped, while the partition hints stay. {@link PartitionValueMatcher} keeps a spelling the splice
-     * missed ({@code month=06} for {@code month == 6}) and drops folders the typed comparison excludes. The
-     * {@code _file.*} filters stay too — they are exact and can hide nothing.
+     * the rewrite skipped, while the partition hints stay. The splice is a literal folder name and a hint is a
+     * comparison on the typed value, so that re-list reaches a spelling the splice missed ({@code month=06} for
+     * {@code month == 6}). Where a value filter runs on the original pattern, {@link PartitionValueMatcher} keeps
+     * that spelling and drops folders the typed comparison excludes; where {@code PartitionValueFilter#forGlob}
+     * declines the pattern there is no filter to drop anything. The {@code _file.*} filters stay too — they are
+     * exact and can hide nothing.
      *
      * <p>A spelling miss with survivors is not an unfiltered re-list. A value filter that keeps nothing still
      * keeps one inference-anchor file from the excluded set when that prune is trusted, so that pass is not
@@ -2766,11 +2769,12 @@ public final class GlobExpander {
      * <p>The splice is a literal folder name; the hint it came from is a comparison on the typed value. So a drain
      * on the spliced pattern never lists {@code month=06} for {@code month == 6}, and the retry, which lists the
      * original pattern, does. Nothing the retry applies afterwards takes it back out, whether or not a value
-     * filter runs. Where one does -- a TEMPLATE strategy value-filters even a glob that cannot walk -- it compares
-     * the typed value, so {@code PartitionValueMatcher.keepsIsolated} keeps the other spelling. Where none does,
-     * nothing applies the equality at all: splicing it is what handles it, so {@link #folderPostFilterHints}
-     * leaves an integral equality out. The retry therefore holds files the other drain cannot reach, and
-     * {@link FileList#UNKNOWN_GLOB_MATCH_COUNT} is the value that says so.
+     * filter runs on that pattern -- and both happen, since a splice can leave the original walkable while the
+     * spliced pattern is not, and a TEMPLATE strategy value-filters a pattern that never walks. Where a filter
+     * runs it compares the typed value, so {@code PartitionValueMatcher.keepsIsolated} keeps the other spelling.
+     * Where none runs, nothing applies the equality at all: splicing it is what handles it, so
+     * {@link #folderPostFilterHints} leaves an integral equality out. The retry therefore holds files the other
+     * drain cannot reach, and {@link FileList#UNKNOWN_GLOB_MATCH_COUNT} is the value that says so.
      */
     private static boolean spliceSkipped(
         String pattern,

@@ -13,11 +13,17 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.Before;
 import org.junit.ClassRule;
+import org.junit.rules.ExternalResource;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -51,19 +57,39 @@ import static org.hamcrest.Matchers.is;
 public class LogsDataStreamIndexModeMigrationRestIT extends ESRestTestCase {
 
     private static final String DATA_STREAM_NAME = "logs-apache-dev";
+    private static final String USER = "x_pack_rest_user";
+    private static final String PASS = "x-pack-test-password";
+
+    private static String licenseType;
+
+    private static final ExternalResource randomizeLicenseRule = new ExternalResource() {
+        @Override
+        protected void before() {
+            licenseType = randomFrom("basic", "trial");
+        }
+    };
+
+    private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .setting("xpack.security.enabled", "true")
+        .user(USER, PASS)
+        .setting("xpack.license.self_generated.type", () -> licenseType)
+        .build();
 
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .distribution(DistributionType.DEFAULT)
-        .setting("xpack.security.enabled", "false")
-        .setting("xpack.license.self_generated.type", "trial")
-        .build();
+    public static TestRule ruleChain = RuleChain.outerRule(randomizeLicenseRule).around(cluster);
 
     private RestClient client;
 
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
+    }
+
+    @Override
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
+        return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     @Before
@@ -255,7 +281,7 @@ public class LogsDataStreamIndexModeMigrationRestIT extends ESRestTestCase {
               "query": {
                 "bool": {
                   "filter": [
-                    { "range": { "@timestamp": { "gte": "%s", "lte": "%s", "format": "strict_date_optional_time" } } }
+                    { "range": { "@timestamp": { "gte": %d, "lte": %d, "format": "epoch_millis" } } }
                   ]
                 }
               },
@@ -265,7 +291,7 @@ public class LogsDataStreamIndexModeMigrationRestIT extends ESRestTestCase {
                 }
               }
             }
-            """, size, gte, lte));
+            """, size, gte.toEpochMilli(), lte.toEpochMilli()));
         final Map<String, Object> response = entityAsMap(client.performRequest(request));
 
         final Map<String, Object> hitsObject = (Map<String, Object>) response.get("hits");
@@ -305,12 +331,12 @@ public class LogsDataStreamIndexModeMigrationRestIT extends ESRestTestCase {
               "filter": {
                 "bool": {
                   "filter": [
-                    { "range": { "@timestamp": { "gte": "%s", "lte": "%s", "format": "strict_date_optional_time" } } }
+                    { "range": { "@timestamp": { "gte": %d, "lte": %d, "format": "epoch_millis" } } }
                   ]
                 }
               }
             }
-            """, DATA_STREAM_NAME, limit, gte, lte));
+            """, DATA_STREAM_NAME, limit, gte.toEpochMilli(), lte.toEpochMilli()));
         assertThat(rows.size(), equalTo(Math.min(limit, inRange.size())));
         for (int i = 0; i < rows.size(); i++) {
             final Map<String, Object> row = rows.get(i);

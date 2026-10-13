@@ -34,7 +34,8 @@ public class CountingStorageProviderTests extends ESTestCase {
         assertEquals(CountingStorageProvider.SCHEME, relabelled.scheme());
         assertEquals("countfs:///C:/Users/jenkins/tmp/dir/a.csv", relabelled.toString());
         // What location(dir) spells for the directory holding that entry. Built here as a string rather than from a
-        // Path, because a Windows Path cannot be constructed on the platform this test usually runs on.
+        // Path, because a Windows ABSOLUTE path cannot be constructed on the platform this test usually runs on --
+        // the same spelling parses there as a relative path, which is not what location(dir) would be handed.
         assertThat(relabelled.toString(), startsWith(CountingStorageProvider.SCHEME + ":///C:/Users/jenkins/tmp/dir"));
     }
 

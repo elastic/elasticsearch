@@ -196,9 +196,10 @@ public final class CountingStorageProvider implements StorageProvider {
      * this scheme that gives {@code countfs://C:/Users/...}, where {@code C:} is read as the authority and splits
      * into host {@code C} and an unparseable port, because the fold that would rescue it runs only for scheme
      * {@code file}. Keeping the slash gives {@code countfs:///C:/Users/...}, which parses, shares its prefix with
-     * what {@link #location} registered, and rewrites back to the delegate's own spelling through
-     * {@link #toFileScheme}. On POSIX the two spellings are the same string, which is why only a Windows run, or
-     * {@link CountingStorageProviderTests}, tells them apart.
+     * what {@link #location} registered, and rewrites through {@link #toFileScheme} to a location the delegate
+     * resolves to the same local path -- not to the delegate's own spelling of it, which carries a third slash, and
+     * which {@link StoragePath#equals} would therefore call a different path. On POSIX all of these are the same
+     * string, which is why only a Windows run, or {@link CountingStorageProviderTests}, tells them apart.
      */
     static StoragePath toCountScheme(StoragePath path) {
         return StoragePath.of(SCHEME + "://" + path.path());

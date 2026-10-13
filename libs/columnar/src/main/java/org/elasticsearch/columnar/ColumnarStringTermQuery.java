@@ -111,6 +111,7 @@ public final class ColumnarStringTermQuery extends Query {
                             return DocIdSetIterator.empty();
                         }
                         if (values instanceof StringColumnSource columnar) {
+                            assert columnar.singleValued() == singleValued : "framing of [" + field + "] differs between query and column";
                             final StringColumnReader column = columnar.reader();
                             return switch (where) {
                                 case WHOLE -> column.matchTerm(term);

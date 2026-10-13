@@ -189,6 +189,34 @@ public class ColumnarBinaryDocValuesQueriesTests extends ESTestCase {
         }
     }
 
+    public void testQueriesBuiltForTheOtherFramingAreRejectedOnAColumn() throws IOException {
+        final boolean singleValued = randomBoolean();
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig().setCodec(columnarCodec(singleValued)))) {
+                for (int d = 0; d < 50; d++) {
+                    final String value = TERMS[d % TERMS.length];
+                    final Document doc = new Document();
+                    doc.add(singleValued ? new BinaryDocValuesField(FIELD, new BytesRef(value)) : payloadField(FIELD, value));
+                    writer.addDocument(doc);
+                }
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                final IndexSearcher searcher = new IndexSearcher(reader);
+                final ColumnarBinaryDocValuesQueries other = queries(singleValued == false);
+                final List<Query> queries = List.of(
+                    other.term(FIELD, new BytesRef("alpha")),
+                    other.prefix(FIELD, "al", false),
+                    other.terms(FIELD, List.of(new BytesRef("alpha"), new BytesRef("beta"))),
+                    other.range(FIELD, new BytesRef("a"), new BytesRef("b"), true, true),
+                    other.regexp(FIELD, "al.*", 0, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, null)
+                );
+                for (Query query : queries) {
+                    expectThrows(AssertionError.class, () -> searcher.search(query, 1));
+                }
+            }
+        }
+    }
+
     /** Every pattern, in both framings the column holds, against what Lucene's automaton for it finds. */
     private void assertPatterns(List<String> values) throws IOException {
         for (boolean singleValued : new boolean[] { false, true }) {

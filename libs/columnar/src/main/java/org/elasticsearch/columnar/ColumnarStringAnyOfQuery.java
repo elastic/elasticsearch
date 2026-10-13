@@ -95,6 +95,7 @@ public final class ColumnarStringAnyOfQuery extends Query {
                             return DocIdSetIterator.empty();
                         }
                         if (values instanceof StringColumnSource columnar) {
+                            assert columnar.singleValued() == singleValued : "framing of [" + field + "] differs between query and column";
                             return columnar.reader().matchAnyOf(terms, membership);
                         }
                         return fallbackIterator(values);

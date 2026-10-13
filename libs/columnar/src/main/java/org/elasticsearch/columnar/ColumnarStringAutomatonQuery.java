@@ -119,6 +119,7 @@ public final class ColumnarStringAutomatonQuery extends Query {
                             return DocIdSetIterator.empty();
                         }
                         if (values instanceof StringColumnSource columnar) {
+                            assert columnar.singleValued() == singleValued : "framing of [" + field + "] differs between query and column";
                             final StringColumnReader column = columnar.reader();
                             return column.match(value -> automaton.run(value.bytes, value.offset, value.length));
                         }

@@ -24,7 +24,8 @@ import org.elasticsearch.columnar.substrate.ChunkCodec;
  * @param chunkCodec what compresses the chunks the values are written in
  * @param sizes      the units the column's streams are written in
  * @param singleValued whether each document's blob is its value's own bytes rather than a
- *                     {@link StringBinaryPayload}
+ *                     {@link StringBinaryPayload}. Unlike the other options it cannot change for a field: a merge
+ *                     decodes a source that is not a ColumNAR column with the target's framing
  */
 public record StringColumnOptions(
     DictionaryPolicy dictionary,

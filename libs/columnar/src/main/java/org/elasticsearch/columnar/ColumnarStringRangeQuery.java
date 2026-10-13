@@ -100,6 +100,7 @@ public final class ColumnarStringRangeQuery extends Query {
                             return DocIdSetIterator.empty();
                         }
                         if (values instanceof StringColumnSource columnar) {
+                            assert columnar.singleValued() == singleValued : "framing of [" + field + "] differs between query and column";
                             return columnar.reader().matchRange(lower, includeLower, upper, includeUpper);
                         }
                         return fallbackIterator(values);

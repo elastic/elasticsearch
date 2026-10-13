@@ -183,19 +183,6 @@ count:long | gender:keyword
 57         | "M"
 ;
 
-// TEMP DIAGNOSTIC for #161664 — remove before merge. Expects no rows; on a mixed-version run the failure
-// output lists the rows whose salary reads as null.
-omittedSalaryNullRowsDiagnostic
-required_capability: dataset_in_from_command
-dataset: employees_multifile_split_brackets: "{{employees_multifile_split}}" WITH {"multi_value_syntax": "brackets"}
-
-FROM employees_multifile_split_brackets
-| WHERE salary IS NULL
-| KEEP emp_no, first_name, gender, salary;
-
-emp_no:integer | first_name:keyword | gender:keyword | salary:integer
-;
-
 omittedSalaryStats
 required_capability: dataset_in_from_command
 dataset: employees_multifile_split_brackets: "{{employees_multifile_split}}" WITH {"multi_value_syntax": "brackets"}

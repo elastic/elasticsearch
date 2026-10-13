@@ -269,8 +269,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         // Queries can time out in the test cluster (e.g. ip_location on non-IP values, wide
         // inline-stats schemas, CHANGE_POINT + LOOKUP JOIN). The timeout itself is a test
         // infrastructure limit; the query was valid ES|QL.
+        // The client formats the timeout with the default locale, so its digits and grouping separators vary.
         // https://github.com/elastic/elasticsearch/issues/158881
-        "\\d[\\d ,]*milliseconds timeout on connection.*"
+        "milliseconds timeout on connection"
     );
 
     /**
@@ -633,6 +634,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isFieldFullTextError(ctx.normalizedErrorMessage, ctx.currentSchema),
         ctx -> isFullTextAfterWhereBugs(ctx.normalizedErrorMessage),
         ctx -> isFullTextAfterSubqueryInFromBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isFullTextAfterForkBranchBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isLenientFalseFailedToCreateFullTextQueryError(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isFullTextNullQueryBuilderUnmappedLoadBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isUnsupportedTypeAfterForkError(ctx.normalizedErrorMessage, ctx.query),
@@ -1184,6 +1186,18 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             return false;
         }
         return SUBQUERY_IN_FROM_PATTERN.matcher(query).find() && FULL_TEXT_AFTER_SUBQUERY_IN_FROM_PATTERN.matcher(errorMessage).matches();
+    }
+
+    /**
+     * Full-text rejected after a command that lives inside a {@code FORK} branch. When a filter on {@code _fork} prunes
+     * {@code FORK} down to that branch, the verifier names the branch's command (e.g. {@code MV_EXPAND}) instead of
+     * {@code FORK}. Like {@link #isFullTextAfterSubqueryInFromBug}, the generator only inspects the outer command list.
+     */
+    static boolean isFullTextAfterForkBranchBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        return FORK_COMMAND_PATTERN.matcher(query).find() && FULL_TEXT_AFTER_SUBQUERY_IN_FROM_PATTERN.matcher(errorMessage).matches();
     }
 
     private static final Pattern MATCH_LENIENT_FALSE_PATTERN = Pattern.compile(

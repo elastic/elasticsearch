@@ -11,6 +11,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.generator.Column;
 
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Tests the predicates that classify known generative-test failures as allowed failures.
@@ -219,5 +220,30 @@ public class GenerativeRestTestTests extends ESTestCase {
         String query = "FROM books, (FROM books | RENAME title AS title2) | WHERE match(title2, \"world\")";
         String error = "verification_exception: line 1:64: [MATCH] function cannot be used after RENAME";
         assertFalse(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
+    }
+
+    public void testFullTextAfterForkBranchMatchesMvExpandInsidePrunedBranch() {
+        String query = "FROM airports | FORK (WHERE true) (WHERE scalerank >= 52 | MV_EXPAND client_ip) | WHERE _fork == \"fork2\" "
+            + "| DROP _fork | WHERE match_phrase(type, \"hello ring\")";
+        String error = "verification_exception: line 1:354: [MATCH_PHRASE] function cannot be used after MV_EXPAND "
+            + "when it targets an indexed field";
+
+        assertTrue(GenerativeRestTest.isFullTextAfterForkBranchBug(error, query));
+    }
+
+    public void testFullTextAfterForkBranchRequiresFork() {
+        String query = "FROM airports | MV_EXPAND client_ip | WHERE match_phrase(type, \"hello ring\")";
+        String error = "verification_exception: line 1:61: [MATCH_PHRASE] function cannot be used after MV_EXPAND "
+            + "when it targets an indexed field";
+
+        assertFalse(GenerativeRestTest.isFullTextAfterForkBranchBug(error, query));
+    }
+
+    public void testClientTimeoutIsAllowedInEveryLocale() {
+        // The REST client formats this message with String.format("%,d ...") in the default locale.
+        for (Locale locale : Locale.getAvailableLocales()) {
+            String error = String.format(locale, "%,d milliseconds timeout on connection http-outgoing-0 [ACTIVE]", 60_000);
+            assertTrue(locale + ": " + error, GenerativeRestTest.isAllowedError(error));
+        }
     }
 }

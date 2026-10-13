@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.generator.command.source.PromQLGenerator;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.Rule;
@@ -132,6 +133,10 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             // A wildcard FROM pattern that expands to include an external dataset creates a
             // federated/subquery-like structure internally; FORK cannot follow such a source.
             "FORK after subquery is not supported",
+            // A wildcard FROM pattern such as "parquet*" expands to several external datasets, each one a union branch,
+            // so with FORK the query can exceed the branch cap (esql.query.max_branch_count); the generator cannot predict
+            // how many datasets a pattern matches.
+            "query resolved to \\d+ branches in total, exceeding the limit of \\d+",
             // Full-text functions and the [:] operator are not allowed when the FROM clause resolves
             // to include external (parquet) datasets — the verifier rejects them with a message of the
             // form "[X] function/operator cannot be used after from <pattern>" (explicit index list) or
@@ -373,6 +378,24 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                     throw e;
                 }
             }
+        }
+    }
+
+    /**
+     * The cluster is preserved across {@link com.carrotsearch.randomizedtesting.annotations.ParametersFactory
+     * @ParametersFactory} cases, so external datasets registered by {@link #availableIndices()} would otherwise stay visible
+     * to every case that runs after {@link GenerativeFeature#PARQUET_DATASET}. Wildcard sources such as {@code FROM *} would
+     * then pick them up and fail on commands that are unsupported on federated sources. Remove them after each such case.
+     */
+    @After
+    public void cleanupExternalDatasetsAfterCase() throws IOException {
+        if (isFeatureEnabled(GenerativeFeature.PARQUET_DATASET) == false) {
+            return;
+        }
+        try {
+            DatasetRegistry.cleanup(adminClient());
+        } finally {
+            DatasetRegistry.clearCaches();
         }
     }
 

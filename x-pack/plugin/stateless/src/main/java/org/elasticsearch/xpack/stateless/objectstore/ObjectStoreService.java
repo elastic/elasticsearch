@@ -1771,19 +1771,27 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 } else {
                     virtualBatchedCompoundCommit.mustIncRef();
                     try {
+                        final Set<Long> recordedOffsets = ConcurrentHashMap.newKeySet();
                         final long uploadStartNanos = threadPool.relativeTimeInNanos();
                         blobContainer.writeBlobAtomic(
                             OperationPurpose.INDICES,
                             virtualBatchedCompoundCommit.getBlobName(),
                             totalSizeInBytes,
                             (offset, length) -> {
+
                                 // The repository records the following metric before it starts uploading a part during a BCC-upload
-                                // attempt. Note that a retry to upload the BCC in `BatchedCompoundCommitUploadTask` will end up recording
-                                // again for the same part.
-                                bccMultipartUploadPartStartLatencyHistogram.record(
-                                    TimeUnit.NANOSECONDS.toMillis(threadPool.relativeTimeInNanos() - uploadStartNanos),
-                                    Map.of("multipart", length < totalSizeInBytes)
-                                );
+                                // attempt. Because Azure underlying retries might call the provider more than once we track the
+                                // `recordedOffsets` to avoid recording the metric during retries that would have tainted the metric
+                                // if we did (i.e., we could see long latency times but due to Azure retries and not due to queueing).
+                                // Note that a high-level retry to upload the BCC in `BatchedCompoundCommitUploadTask` will end up
+                                // recording again for the same part, but this applies across all CSPs.
+                                if (recordedOffsets.add(offset)) {
+                                    bccMultipartUploadPartStartLatencyHistogram.record(
+                                        TimeUnit.NANOSECONDS.toMillis(threadPool.relativeTimeInNanos() - uploadStartNanos),
+                                        Map.of("multipart", length < totalSizeInBytes)
+                                    );
+                                }
+
                                 return new LocalIOInputStream(virtualBatchedCompoundCommit.getFrozenInputStreamForUpload(offset, length));
                             },
                             false,

@@ -1395,7 +1395,12 @@ public class ObjectStoreServiceTests extends ESTestCase {
     public void testBccMultipartUploadRecordsBccMultipartUploadPartStartLatency() throws Exception {
         final var time = new AtomicLong(0);
         final var meterRegistry = new RecordingMeterRegistry();
+
         final boolean isMultipart = randomBoolean();
+        // A retry of an upload-part request should not record the metric: only the first upload-part request should record.
+        // We retry each part at least once to assert that at the end we only recorded the metric once per part.
+        final int retriesPerPart = randomIntBetween(1, 5);
+
         final var waitForUploadLatch = new CountDownLatch(1);
 
         try (
@@ -1448,13 +1453,21 @@ public class ObjectStoreServiceTests extends ESTestCase {
                             boolean failIfAlreadyExists,
                             Executor executor
                         ) throws IOException {
-                            // a single upload asks for the whole blob (i.e., `blobSize`) at once while a multipart upload asks for
-                            // one part at a time advancing the clock by 10, 20 and 30 milliseconds before each request
+                            // A single upload asks for the whole blob (i.e., `blobSize`) at once while a multipart upload asks for
+                            // one part at a time advancing the clock by 10, 20 and 30 milliseconds before each request.
                             final int parts = isMultipart ? 3 : 1;
+                            final long partSize = blobSize / parts;
 
                             for (int part = 1; part <= parts; part++) {
                                 time.addAndGet(TimeUnit.MILLISECONDS.toNanos(10L * part));
-                                provider.apply(0, isMultipart ? blobSize / parts : blobSize).close();
+
+                                final long offset = (part - 1) * partSize;
+                                final long length = part == parts ? blobSize - offset : partSize;
+
+                                provider.apply(offset, length).close();
+                                for (int retry = 0; retry < retriesPerPart; retry++) {
+                                    provider.apply(offset, length).close();
+                                }
                             }
                         }
                     };

@@ -266,11 +266,14 @@ public class DatasetListingServiceCacheTests extends ESTestCase {
      * And the retry must not be published where nothing walked at all — the route that defeats both halves of a
      * rule written about the walk.
      *
-     * <p>The splice is a literal string; the value filter is a comparison on the typed value. So a folder spelled
-     * {@code month=06} is kept by a {@code month == 6} filter and missed by a spliced {@code month=6}, and the
-     * retry on the original pattern keeps it where the spliced drain the unbounded rail runs never lists it. The
-     * glob's first segment is {@code *}, so neither pattern is walkable: nothing withdraws, nothing suppresses the
-     * filter, and before this was fixed the listing carried a real count and was published.
+     * <p>The splice is a literal folder name, so a drain on the spliced pattern asks the store only for
+     * {@code month=6} and never lists {@code month=06}. The retry lists the original pattern, so it does, and
+     * nothing takes it back out afterwards: the month equality is integral, which is the splice's job and not the
+     * folder post-filter's, and this glob's first segment is {@code *} so it cannot walk and value-filters nothing
+     * either. Only the closed range on {@code year} is applied, and the extra file is inside it. The retry
+     * therefore holds a file the spliced drain the unbounded rail runs cannot reach — and because nothing
+     * withdrew, nothing suppressed a filter, so before this was fixed the listing carried a real count and was
+     * published.
      *
      * <p>Worse than the walk routes, because the extra file's rows satisfy the {@code WHERE} — month 6 of 2024 —
      * so the rows the query returns change, not only the file a schema is taken from.
@@ -292,7 +295,74 @@ public class DatasetListingServiceCacheTests extends ESTestCase {
                 PlanningMemory.NONE,
                 () -> false
             );
-            assertEquals("the retry keeps the other spelling the splice hid", List.of(SPELLING_ALT, SPELLING_KEPT), paths(boundedFirst));
+            assertEquals(
+                "the retry lists the spelling the splice never asked for",
+                List.of(SPELLING_ALT, SPELLING_KEPT),
+                paths(boundedFirst)
+            );
+
+            long listsAfterBounded = provider.listObjectsCalls.get();
+            FileList whole = service.cachedListing(
+                SPELLING_GLOB,
+                StoragePath.of(SPELLING_GLOB),
+                provider,
+                "",
+                "",
+                spellingHints(),
+                Map.of(),
+                PlanningMemory.NONE,
+                () -> false
+            );
+
+            assertEquals("a query that wants the whole pattern gets its own file set", List.of(SPELLING_KEPT), paths(whole));
+            assertTrue(
+                "which means it listed for itself rather than reading the retry's wider set",
+                provider.listObjectsCalls.get() > listsAfterBounded
+            );
+        }
+    }
+
+    /**
+     * And the same refusal where the retry fans out, which is the rail a bounded listing reaches in production.
+     *
+     * <p>The retry is unbounded, so with concurrency to spare and a key-ordered store it drains the prefix's
+     * folders in parallel instead of flat. That is a second recorder of the glob-match count, inside
+     * {@code fanOutAsync} rather than the flat drain, and the flag saying the count is not comparable has to be
+     * threaded to it. Nothing about the divergence changes: the narrowed pass is bounded, so it is still flat, and
+     * the retry still lists the spelling the splice never asked for. The concurrency is what the sync tests cannot
+     * reach -- at 1 the fan-out is ineligible, so with those tests alone the fan-out could record a real count
+     * and publish the wider set with nothing failing.
+     */
+    public void testTheSpellingMissRetryIsNotPublishedWhenTheRetryFansOut() throws Exception {
+        try (ExternalSourceCacheService cache = new ExternalSourceCacheService(cacheEnabled())) {
+            DatasetListingService service = new DatasetListingService(Settings.EMPTY, cache, null, null, null);
+            TreeProvider provider = spellingFixture();
+
+            PlainActionFuture<FileList> future = new PlainActionFuture<>();
+            service.boundedListingAsync(
+                SPELLING_GLOB,
+                StoragePath.of(SPELLING_GLOB),
+                provider,
+                "",
+                "",
+                spellingHints(),
+                Map.of(),
+                new ListingExtents(1),
+                PlanningMemory.NONE,
+                () -> false,
+                4,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                future
+            );
+            assertEquals(
+                "the retry lists the spelling the splice never asked for",
+                List.of(SPELLING_ALT, SPELLING_KEPT),
+                paths(future.get())
+            );
+            // Without this the test would pass on a tree the fan-out declined, which is the flat drain the sync
+            // test already covers. This glob cannot walk, and the bounded pass is flat, so slot construction is
+            // the only thing that lists children.
+            assertTrue("and the retry got there by fanning out", provider.listChildrenCalls.get() > 0);
 
             long listsAfterBounded = provider.listObjectsCalls.get();
             FileList whole = service.cachedListing(
@@ -326,7 +396,10 @@ public class DatasetListingServiceCacheTests extends ESTestCase {
         );
     }
 
-    /** {@code month} splices into the glob; the closed range on {@code year} does not, so it drops a glob match. */
+    /**
+     * {@code month} is an integral equality, so it splices into the glob; the closed range on {@code year} does not,
+     * and is applied after the glob has already counted a file against the bound.
+     */
     private static List<PartitionFilterHintExtractor.PartitionFilterHint> spellingHints() {
         return List.of(
             new PartitionFilterHintExtractor.PartitionFilterHint("month", PartitionFilterHintExtractor.Operator.EQUALS, List.of(6)),
@@ -379,6 +452,7 @@ public class DatasetListingServiceCacheTests extends ESTestCase {
     private static final class TreeProvider implements StorageProvider {
         private final List<StorageEntry> entries;
         final AtomicLong listObjectsCalls = new AtomicLong();
+        final AtomicLong listChildrenCalls = new AtomicLong();
 
         TreeProvider(List<StorageEntry> entries) {
             List<StorageEntry> sorted = new ArrayList<>(entries);
@@ -419,6 +493,7 @@ public class DatasetListingServiceCacheTests extends ESTestCase {
 
         @Override
         public StorageChildren listChildren(StoragePath prefix, int limit) {
+            listChildrenCalls.incrementAndGet();
             String p = withSlash(prefix.toString());
             List<StorageEntry> files = new ArrayList<>();
             Set<String> dirs = new LinkedHashSet<>();

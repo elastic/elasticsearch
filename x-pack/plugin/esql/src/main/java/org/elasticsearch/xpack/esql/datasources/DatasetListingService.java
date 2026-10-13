@@ -221,13 +221,14 @@ public final class DatasetListingService {
      * unbounded query a listing that is not what it would have listed: under {@code first_file_wins} it would
      * take its schema from a different file, so the answer would depend on which query ran first.
      * <p>
-     * The walk reaches that superset by two separate routes, so both are refused here:
+     * Two conjuncts, because the rails can end up with different file sets by more than one route:
      * <ul>
-     *     <li>the listing in hand has no glob-match count, which is what every suppressed-filter re-list records.
-     *     A bounded listing acquires one by that route too: where the narrowed pass drains its bound entirely on
-     *     matches the value filter then drops, the empty result is retried unbounded on the <em>original</em>
-     *     pattern, and that pattern walks even when the narrowed one cannot. So the superset can be this rail's
-     *     own product, and no prediction about the other rail would catch it;</li>
+     *     <li>the listing in hand has no glob-match count. A suppressed-filter re-list records none, and so does
+     *     the retry this rail's own narrowed pass triggers: where that pass drains its whole bound on matches a
+     *     hint then drops, the empty result is retried unbounded on the <em>original</em> pattern. That retry
+     *     reaches the superset two ways — the original pattern walks even when the narrowed one cannot, and,
+     *     whether anything walks or not, dropping the splice lists folder names the spliced drain never asks for.
+     *     So the superset can be this rail's own product, and no prediction about the other rail would catch it;</li>
      *     <li>or the pattern an unbounded query would list can itself route through the walk, in which case the
      *     entry this rail is about to publish is the narrower of the two sets rather than the wider.</li>
      * </ul>

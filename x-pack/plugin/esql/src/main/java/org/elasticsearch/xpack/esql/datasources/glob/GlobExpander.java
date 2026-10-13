@@ -856,10 +856,7 @@ public final class GlobExpander {
         Check.notNull(provider, "provider cannot be null");
 
         String effectivePattern = allowRewrite ? effectivePattern(pattern, hints, partitionConfig) : pattern;
-        // The empty-rewrite retry lists the original pattern where another query's drain lists the spliced one, and
-        // the splice hides every other spelling of the hinted value while the value filter keeps them. So this drain
-        // can return files that drain never sees, and the count it stops on is not that drain's number.
-        boolean spliceSkipped = allowRewrite == false && effectivePattern(pattern, hints, partitionConfig).equals(pattern) == false;
+        boolean spliceSkipped = spliceSkipped(pattern, hints, partitionConfig, allowRewrite);
 
         StoragePath storagePath = StoragePath.of(effectivePattern);
 
@@ -1276,12 +1273,20 @@ public final class GlobExpander {
         // globKeptCount, not matched.size(): the count the bound was measured against, before the value filter, the
         // closed-range narrowing and the _file.* hints each dropped from it. See FileList#globMatchCount.
         //
-        // Except when this drain SUPPRESSED the value filter, which happens only after the partition walk withdrew.
-        // Then this listing is the unfiltered superset while a bounded query's own drain applies the filter and keeps
-        // a subset -- the two trust checks judge different populations, so they can disagree: the walk types a
+        // Except where this drain and another query's drain narrowed differently, which is what countNotComparable
+        // marks. Two drains do:
+        //
+        // This one SUPPRESSED the value filter, which happens only after the partition walk withdrew. Then this
+        // listing is the unfiltered superset while a bounded query's own drain applies the filter and keeps a
+        // subset -- the two trust checks judge different populations, so they can disagree: the walk types a
         // partition column from the FOLDER NAMES it enumerated, the drain from the FILES it matched, and a key=value
         // folder holding no matching file (a console placeholder, a _SUCCESS, another format) is visible only to the
-        // walk. Recording no count keeps the entry cacheable for a query that wants the whole pattern and refuses it
+        // walk.
+        //
+        // Or this one SKIPPED THE SPLICE, as the empty-rewrite retry does, and so lists folder names the spliced
+        // drain never asks the store for -- see spliceSkipped.
+        //
+        // Recording no count keeps the entry cacheable for a query that wants the whole pattern and refuses it
         // to a bounded one, which re-lists -- the conservative direction servesThisBound documents.
         int recordedCount = countNotComparable ? FileList.UNKNOWN_GLOB_MATCH_COUNT : globKeptCount;
         return new GenericFileList(matched, pattern, partitionMetadata, listingWarnings, truncated, false, recordedCount);
@@ -1493,9 +1498,7 @@ public final class GlobExpander {
         // Fan-out eligible path: re-derive just enough of doExpandGlob's header to handle early exits
         // (non-pattern, enumerable) inline, then attempt to build slots for the fan-out.
         String effectivePattern = allowRewrite ? effectivePattern(pattern, hints, partitionConfig) : pattern;
-        // See doExpandGlob: a retry that skipped the splice keeps spellings the spliced drain never lists, so the
-        // count it stops on is not that drain's number. The fan-out reaches this too, because a retry is unbounded.
-        boolean spliceSkipped = allowRewrite == false && effectivePattern(pattern, hints, partitionConfig).equals(pattern) == false;
+        boolean spliceSkipped = spliceSkipped(pattern, hints, partitionConfig, allowRewrite);
         StoragePath storagePath;
         try {
             storagePath = StoragePath.of(effectivePattern);
@@ -2757,6 +2760,26 @@ public final class GlobExpander {
         PartitionMetadata partitionMetadata = detectPartitions(allEntries, partitionConfig, listingWarnings::add);
 
         return new GenericFileList(allEntries, pathList, partitionMetadata, listingWarnings);
+    }
+
+    /**
+     * Whether this drain is the empty-rewrite retry on a pattern a splice would have narrowed -- which makes the
+     * count it stops on incomparable with the count that stops another query's drain.
+     *
+     * <p>The splice is a literal folder name; the hint it came from is a comparison on the typed value. So a drain
+     * on the spliced pattern never lists {@code month=06} for {@code month == 6}, and the retry, which lists the
+     * original pattern, does. Nothing the retry applies afterwards takes it back out: an integral equality is the
+     * splice's job, so {@link #folderPostFilterHints} leaves it out, and where the glob cannot walk there is no
+     * value filter either ({@code PartitionValueFilter#forGlob} returns none). The retry therefore holds files the
+     * other drain cannot reach, and {@link FileList#UNKNOWN_GLOB_MATCH_COUNT} is the value that says so.
+     */
+    private static boolean spliceSkipped(
+        String pattern,
+        @Nullable List<PartitionFilterHint> hints,
+        PartitionConfig partitionConfig,
+        boolean allowRewrite
+    ) {
+        return allowRewrite == false && effectivePattern(pattern, hints, partitionConfig).equals(pattern) == false;
     }
 
     /**

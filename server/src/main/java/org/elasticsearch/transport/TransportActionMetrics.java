@@ -24,13 +24,13 @@ import java.util.Map;
  */
 public final class TransportActionMetrics implements TransportMessageListener {
 
-    public static final String SENT_REQUEST_SIZE_METRIC = "es.transport.sent.request.size";
-    public static final String RECEIVED_REQUEST_SIZE_METRIC = "es.transport.received.request.size";
-    public static final String SENT_RESPONSE_SIZE_METRIC = "es.transport.sent.response.size";
-    public static final String RECEIVED_RESPONSE_SIZE_METRIC = "es.transport.received.response.size";
+    static final String SENT_REQUEST_SIZE_METRIC = "es.transport.sent.request.size";
+    static final String RECEIVED_REQUEST_SIZE_METRIC = "es.transport.received.request.size";
+    static final String SENT_RESPONSE_SIZE_METRIC = "es.transport.sent.response.size";
+    static final String RECEIVED_RESPONSE_SIZE_METRIC = "es.transport.received.response.size";
 
-    public static final String ACTION_NAME_ATTRIBUTE = "es.transport.action.name";
-    public static final String IS_REMOTE_CONNECTION_ATTRIBUTE = "es.transport.connection.is_remote";
+    static final String ACTION_NAME_ATTRIBUTE = "es_transport_action_name";
+    static final String IS_REMOTE_CONNECTION_ATTRIBUTE = "es_transport_connection_is_remote";
 
     private static final List<Long> BUCKET_BOUNDARIES = Arrays.stream(TransportActionStatsTracker.getBucketUpperBounds())
         .asLongStream()
@@ -108,13 +108,13 @@ public final class TransportActionMetrics implements TransportMessageListener {
         return RemoteConnectionManager.resolveRemoteClusterProjectInfo(connection).isPresent();
     }
 
-    private static void record(LongHistogram histogram, String action, long bytes, boolean isRemoteConnection) {
-        if (bytes < 0) {
+    private static void record(LongHistogram histogram, String action, long networkMessageSize, boolean isRemoteConnection) {
+        if (networkMessageSize < 0) {
             return;
         }
         final Map<String, Object> attributes = isRemoteConnection
             ? Map.of(ACTION_NAME_ATTRIBUTE, action, IS_REMOTE_CONNECTION_ATTRIBUTE, true)
             : Map.of(ACTION_NAME_ATTRIBUTE, action);
-        histogram.record(bytes, attributes);
+        histogram.record(networkMessageSize, attributes);
     }
 }

@@ -176,9 +176,9 @@ public class TransportActionMetricsTests extends ESTestCase {
 
     private static Measurement measurement(long bytes, String action, boolean isRemoteConnection) {
         final Map<String, Object> attributes = new HashMap<>();
-        attributes.put("es.transport.action.name", action);
+        attributes.put("es_transport_action_name", action);
         if (isRemoteConnection) {
-            attributes.put("es.transport.connection.is_remote", true);
+            attributes.put("es_transport_connection_is_remote", true);
         }
         return new Measurement(bytes, attributes, false);
     }

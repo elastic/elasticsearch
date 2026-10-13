@@ -3419,7 +3419,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         safeAwait(responseLatch);
     }
 
-    public void testActionMetrics() {
+    public void testActionMetrics() throws Exception {
         final String action = "internal:testActionMetrics";
         serviceA.registerRequestHandler(
             action,
@@ -3437,22 +3437,31 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         );
         safeGet(future);
 
-        // each message is recorded once by the node sending it and once by the node receiving it, with the same size as the action stats
-        final var stats = serviceA.getRequestHandler(action).getStats();
-        assertThat(stats.requestCount(), equalTo(1L));
-        assertThat(stats.responseCount(), equalTo(1L));
-        assertThat(messageSizes(serviceB, TransportActionMetrics.SENT_REQUEST_SIZE_METRIC, action), contains(stats.totalRequestSize()));
-        assertThat(messageSizes(serviceA, TransportActionMetrics.RECEIVED_REQUEST_SIZE_METRIC, action), contains(stats.totalRequestSize()));
-        assertThat(messageSizes(serviceA, TransportActionMetrics.SENT_RESPONSE_SIZE_METRIC, action), contains(stats.totalResponseSize()));
-        assertThat(
-            messageSizes(serviceB, TransportActionMetrics.RECEIVED_RESPONSE_SIZE_METRIC, action),
-            contains(stats.totalResponseSize())
-        );
-        // each node only records what it sends and receives
-        assertThat(messageSizes(serviceA, TransportActionMetrics.SENT_REQUEST_SIZE_METRIC, action), empty());
-        assertThat(messageSizes(serviceB, TransportActionMetrics.RECEIVED_REQUEST_SIZE_METRIC, action), empty());
-        assertThat(messageSizes(serviceB, TransportActionMetrics.SENT_RESPONSE_SIZE_METRIC, action), empty());
-        assertThat(messageSizes(serviceA, TransportActionMetrics.RECEIVED_RESPONSE_SIZE_METRIC, action), empty());
+        assertBusy(() -> {
+            // each message is recorded once by the node sending it and once by the node receiving it, with the same size as the action
+            // stats
+            final var stats = serviceA.getRequestHandler(action).getStats();
+            assertThat(stats.requestCount(), equalTo(1L));
+            assertThat(stats.responseCount(), equalTo(1L));
+            assertThat(messageSizes(serviceB, TransportActionMetrics.SENT_REQUEST_SIZE_METRIC, action), contains(stats.totalRequestSize()));
+            assertThat(
+                messageSizes(serviceA, TransportActionMetrics.RECEIVED_REQUEST_SIZE_METRIC, action),
+                contains(stats.totalRequestSize())
+            );
+            assertThat(
+                messageSizes(serviceA, TransportActionMetrics.SENT_RESPONSE_SIZE_METRIC, action),
+                contains(stats.totalResponseSize())
+            );
+            assertThat(
+                messageSizes(serviceB, TransportActionMetrics.RECEIVED_RESPONSE_SIZE_METRIC, action),
+                contains(stats.totalResponseSize())
+            );
+            // each node only records what it sends and receives
+            assertThat(messageSizes(serviceA, TransportActionMetrics.SENT_REQUEST_SIZE_METRIC, action), empty());
+            assertThat(messageSizes(serviceB, TransportActionMetrics.RECEIVED_REQUEST_SIZE_METRIC, action), empty());
+            assertThat(messageSizes(serviceB, TransportActionMetrics.SENT_RESPONSE_SIZE_METRIC, action), empty());
+            assertThat(messageSizes(serviceA, TransportActionMetrics.RECEIVED_RESPONSE_SIZE_METRIC, action), empty());
+        });
     }
 
     private static List<Long> messageSizes(MockTransportService service, String metric, String action) {

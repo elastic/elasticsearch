@@ -735,6 +735,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             b.startObject("kwd").field("type", "keyword").endObject();
             b.startObject("ignored").field("type", "keyword").field("ignore_above", 3).endObject();
             b.startObject("num").field("type", "long").endObject();
+            b.startObject("z_id").field("type", "keyword").endObject();
             b.startObject("obj");
             {
                 b.startObject("properties");
@@ -749,7 +750,9 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         List<Map<String, Object>> expectedSources = new ArrayList<>();
         List<ParsedDocument> parsedDocs = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
+            // The index may end up in several segments, and in any order, so every document says which one it is.
             Map<String, Object> doc = new LinkedHashMap<>();
+            doc.put("z_id", Integer.toString(i));
             if (randomBoolean()) {
                 doc.put("kwd", randomKeywords(1, 6));
             }
@@ -776,14 +779,20 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             }
         }, reader -> {
             SourceLoader loader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP, null);
-            LeafReaderContext leaf = reader.leaves().get(0);
-            int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
-            SourceLoader.Leaf sourceLeaf = loader.leaf(leaf, docIds);
-            LeafStoredFieldLoader sfLoader = StoredFieldLoader.create(false, loader.requiredStoredFields()).getLoader(leaf, docIds);
-            for (int docId = 0; docId < numDocs; docId++) {
-                sfLoader.advanceTo(docId);
-                assertThat("doc " + docId, sourceLeaf.source(sfLoader, docId).source(), equalTo(expectedSources.get(docId)));
+            int checked = 0;
+            for (LeafReaderContext leaf : reader.leaves()) {
+                int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
+                SourceLoader.Leaf sourceLeaf = loader.leaf(leaf, docIds);
+                LeafStoredFieldLoader sfLoader = StoredFieldLoader.create(false, loader.requiredStoredFields()).getLoader(leaf, docIds);
+                for (int docId : docIds) {
+                    sfLoader.advanceTo(docId);
+                    Map<String, Object> source = sourceLeaf.source(sfLoader, docId).source();
+                    int id = Integer.parseInt((String) source.get("z_id"));
+                    assertThat("doc " + id, source, equalTo(expectedSources.get(id)));
+                    checked++;
+                }
             }
+            assertThat(checked, equalTo(numDocs));
         });
     }
 

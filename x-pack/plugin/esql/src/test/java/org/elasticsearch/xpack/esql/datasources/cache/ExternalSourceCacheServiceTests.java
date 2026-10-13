@@ -369,12 +369,18 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     }
 
     /**
+     * CPU a follower burns in the metering tests. Large relative to the leader's own cold-path CPU (exception stack trace, class
+     * init), which can reach tens of ms on slow CI, so a burn leaked onto the leader stays distinguishable from noise.
+     */
+    private static final long FOLLOWER_BURN_NANOS = TimeUnit.MILLISECONDS.toNanos(250);
+
+    /**
      * The leader's thread completes a coalesced follower, so the follower's continuation must be metered for the
      * follower's own query rather than counted in the leader's planning CPU.
      */
     public void testAsyncListingFollowerContinuationIsMeteredForTheFollower() throws Exception {
         assumeTrue("thread CPU time unsupported", ThreadCpuTimer.currentNanos() >= 0);
-        long burnNanos = TimeUnit.MILLISECONDS.toNanos(50);
+        long burnNanos = FOLLOWER_BURN_NANOS;
         PlanningCpuTracker leaderCpu = new PlanningCpuTracker();
         PlanningCpuTracker followerCpu = new PlanningCpuTracker();
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
@@ -410,7 +416,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
      */
     public void testAsyncListingFollowerRetryIsMeteredForTheFollower() throws Exception {
         assumeTrue("thread CPU time unsupported", ThreadCpuTimer.currentNanos() >= 0);
-        long burnNanos = TimeUnit.MILLISECONDS.toNanos(50);
+        long burnNanos = FOLLOWER_BURN_NANOS;
         PlanningCpuTracker leaderCpu = new PlanningCpuTracker();
         PlanningCpuTracker followerCpu = new PlanningCpuTracker();
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {

@@ -771,26 +771,13 @@ public class FileSplitProvider implements SplitProvider {
                 PartitionSpec.fromConfig(config)
             );
             List<PartitionFilterHintExtractor.PartitionFilterHint> narrowing = hints.isEmpty() ? null : hints;
-            if (extents.boundsFileSet()) {
-                // Not the cache, though the key would now hold it: the extent joins the listing cache identity
-                // (GlobExpander#listingCacheDiscriminator), so a prefix is addressed as a prefix and two queries
-                // asking the same bound are asking one question. Sharing here is therefore a correctness-neutral
-                // change and is deliberately not part of this one, which is scoped to the listing resolution
-                // charges per query. A read path left listing privately pays its own walk, not a wrong answer.
-                return listingService.expand(
-                    pattern,
-                    provider,
-                    narrowing,
-                    config,
-                    storagePath,
-                    extents,
-                    scanMemory(context),
-                    context.isCancelled()
-                );
-            }
-            // The whole pattern either way, so it is cacheable: the query's file set is the dataset's, narrowed by
-            // filters the cache key already distinguishes. Without this a warm second query over the same dataset
-            // pays the listing again, where resolution's own listing would have been served from the cache.
+            // Cacheability alone decides the rail, for a bounded demand exactly as for the whole pattern. How far
+            // the listing was asked to run is part of the cache key (GlobExpander#listingCacheDiscriminator), so a
+            // prefix is addressed as a prefix: a query wanting the dataset cannot be served one, and a query asking
+            // the same bound is asking the same question. A bounded scan had to list privately only while the key
+            // could not say which of the two values an entry held; it shares now, so a dataset read concurrently
+            // under the same row demand holds one listing rather than one per query. The query's file set is the
+            // dataset's, narrowed by filters the key already distinguishes.
             return listingService.isCacheable(provider)
                 ? listingService.cachedListing(
                     pattern,
@@ -802,7 +789,7 @@ public class FileSplitProvider implements SplitProvider {
                     config,
                     scanMemory(context),
                     context.isCancelled(),
-                    ListingExtents.UNBOUNDED
+                    extents
                 )
                 : listingService.expand(
                     pattern,
@@ -810,7 +797,7 @@ public class FileSplitProvider implements SplitProvider {
                     narrowing,
                     config,
                     storagePath,
-                    ListingExtents.UNBOUNDED,
+                    extents,
                     scanMemory(context),
                     context.isCancelled()
                 );

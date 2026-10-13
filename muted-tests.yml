@@ -635,3 +635,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/161848
 - class: org.elasticsearch.xpack.esql.action.ExternalProvenanceParityIT
   issue: https://github.com/elastic/elasticsearch/issues/161850
+- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
+  method: testStopQuery
+  issue: https://github.com/elastic/elasticsearch/issues/159131

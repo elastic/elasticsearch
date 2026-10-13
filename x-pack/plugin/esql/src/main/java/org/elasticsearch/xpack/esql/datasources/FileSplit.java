@@ -351,7 +351,10 @@ public class FileSplit implements ExternalSplit {
         out.writeVLong(offset);
         out.writeVLong(length);
         out.writeOptionalString(format);
-        out.writeGenericMap(config);
+        // The dataset-tier definition version is coordinator-only. A split is built on the coordinator and read
+        // on every data node, so it is a boundary the key must not cross - defence in depth here, since a data
+        // node reads a split's config only for the split markers.
+        out.writeGenericMap(ExternalSourceResolver.wireConfig(config));
         out.writeGenericMap(partitionValuesToWrite(out.getTransportVersion()));
         if (columnMapping != null) {
             out.writeBoolean(true);

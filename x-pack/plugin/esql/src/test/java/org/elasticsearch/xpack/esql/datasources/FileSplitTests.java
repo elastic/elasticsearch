@@ -93,6 +93,29 @@ public class FileSplitTests extends ESTestCase {
         assertEquals(original.partitionValues(), deserialized.partitionValues());
     }
 
+    /**
+     * A split is the route by which a query's config reaches every data node, so it is the route the
+     * coordinator-only dataset version must not take.
+     * <p>
+     * Defence in depth rather than a live hazard: a data node reads a split's config only for the split markers,
+     * and the storage provider is built from the external source's config, not a split's. The strip is here
+     * because "nothing reads it today" is not a property the next change preserves.
+     */
+    public void testTheDatasetVersionDoesNotRideASplitToADataNode() throws IOException {
+        Map<String, Object> config = new LinkedHashMap<>();
+        config.put("endpoint", "https://s3.example.com");
+        config.put(DefinitionVersion.DATASET_CONFIG_KEY, "whatever-the-coordinator-minted");
+        FileSplit original = new FileSplit("file", StoragePath.of("s3://bucket/a.csv"), 0, 2048, ".csv", config, Map.of());
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeNamedWriteable(original);
+        StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry);
+        FileSplit deserialized = (FileSplit) in.readNamedWriteable(ExternalSplit.class);
+
+        assertEquals(Map.of("endpoint", "https://s3.example.com"), deserialized.config());
+        assertTrue("the coordinator kept its own copy", original.config().containsKey(DefinitionVersion.DATASET_CONFIG_KEY));
+    }
+
     public void testNamedWriteableRoundTripMinimal() throws IOException {
         StoragePath path = StoragePath.of("s3://bucket/file.csv");
         FileSplit original = new FileSplit("file", path, 0, 500, null, Map.of(), Map.of());

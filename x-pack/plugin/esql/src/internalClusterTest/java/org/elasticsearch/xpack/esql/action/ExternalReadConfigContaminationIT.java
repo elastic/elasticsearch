@@ -183,11 +183,15 @@ public class ExternalReadConfigContaminationIT extends AbstractExternalDataSourc
     }
 
     /**
-     * The other direction, so the fix cannot be an over-restriction. Under the default FAIL_FAST policy the physical
-     * record count is the same number for every declaration, and the producers stamp a licence saying so. That
-     * licence must survive the multi-file fold as an AND, and the declared read must still be served the count
-     * without re-reading. This one is NOT red on the parent -- it passes there through the unstamped pass-through --
-     * so read it as a guard against the fix taking too much, not as evidence the fix works.
+     * The other direction, so the fix cannot be an over-restriction. Under the default FAIL_FAST policy the
+     * physical record count is the same number for every declaration, and the producers stamp a licence saying so.
+     * That licence must survive the multi-file fold as an AND, and the declared read must still be served the count
+     * without re-reading.
+     * <p>
+     * This is NOT red on the parent - it passes there - so read it as a guard against the fix taking too much. It
+     * caught exactly that: addressing statistics by the overlaid read alone left this cold, because the licensed
+     * count sits at the record's OWN address and nothing asked for it any more. The fallback in
+     * {@code cachedStatistics} is what keeps it, and this assertion is why that fallback exists.
      */
     public void testLicensedCountStillCrossesTheMultiFileFold() throws Exception {
         String uris = writeTwoFileFixture(false);
@@ -228,6 +232,39 @@ public class ExternalReadConfigContaminationIT extends AbstractExternalDataSourc
         // The same question as the first, and it must still be the file's row count — not the survivor count the
         // projected read measured.
         assertCount(dataset, "STATS c = COUNT(*)", ROWS);
+    }
+
+    /**
+     * The SINGLE-FILE case, where no dataset-level fold exists to be credited or blamed. A dataset tier needs at
+     * least two files, so this isolates the per-file half: a retyping read asks its own overlaid address first, and
+     * on a miss falls back to the record's own, where the licensed physical row count sits.
+     * <p>
+     * So a declaration over an already-measured file is served its count without re-reading it. Only the extrema
+     * are configuration-bound, and those are covered by the dialect cases above.
+     */
+    public void testASingleFileRetypingReadIsServedTheLicensedCount() throws Exception {
+        String uri = writeOneFileFixture();
+        String plain = register("single_plain", uri, null, false);
+        String declared = register("single_declared", uri, mappingTsWithDialect(), false);
+
+        assertScanRows(plain, ROWS);
+        assertScanRows(plain, 0L);
+        // A different definition over the same file. Its own address holds nothing, but the record's does, and
+        // under fail_fast that count is the same number for every declaration.
+        assertScanRows(declared, 0L);
+        assertScanRows(declared, 0L);
+    }
+
+    /** One file of the dialect fixture, so no dataset-level fold can exist (that tier needs two files or more). */
+    private String writeOneFileFixture() throws Exception {
+        String[] dates = { "2024-03-02", "2024-01-05", "2024-12-01", "2024-07-08", "2024-05-11" };
+        StringBuilder a = new StringBuilder("id:integer,ts:datetime\n");
+        for (int i = 0; i < ROWS; i++) {
+            a.append(i).append(',').append(dates[i % dates.length]).append("T00:00:00").append('\n');
+        }
+        Path file = createTempDir().resolve("single.csv");
+        Files.writeString(file, a.toString());
+        return StoragePath.fileUri(file);
     }
 
     /**

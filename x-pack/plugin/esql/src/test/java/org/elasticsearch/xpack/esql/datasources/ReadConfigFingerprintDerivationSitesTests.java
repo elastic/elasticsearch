@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
+import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -24,6 +26,7 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -105,25 +108,26 @@ public class ReadConfigFingerprintDerivationSitesTests extends ESTestCase {
         ),
         new Site(
             RESOLVER,
-            "declared serve gate, per-file loop — of(perFile.fileSchema(), declaredReadSpec); same value as the "
-                + "harvest BY CONSTRUCTION (folded into the loop that builds the per-file schema)",
+            "OverlaidRead#fingerprint — the SOLE derivation for a non-strict declaration. Serves three consumers that "
+                + "must not disagree: the per-file serve expectation, its defensive fallback when the schemaMap is "
+                + "empty, and the statistics address every rail's lookup asks (overlaidBoundReadOf / ffwBoundRead). "
+                + "They were three call sites; a declaration that retyped a column made the lookup's differ from the "
+                + "other two, which is the defect",
             Role.SERVE_EXPECTATION,
-            "HARVEST + STAMP; partitioned/shadowed layouts pinned by CsvExternalReadConfigParityIT hive pins"
+            "HARVEST + STAMP; the overlaid-read derivation pinned by ExternalSourceResolverTests"
+                + "#testOverlaidReadOfDerivesTheReadTheDataNodeWillBind, the first-file-wins pairing by "
+                + "testFirstFileWinsStatisticsLookupAddressesTheOverlaidAnchorRead below, partitioned/shadowed layouts "
+                + "by CsvExternalReadConfigParityIT hive pins"
         ),
         new Site(
             RESOLVER,
-            "declared serve gate, defensive fallback — of(dataOnlyUnifiedOverlaid, declaredReadSpec) when the "
-                + "schemaMap is empty (documented unreachable for stamped entries)",
-            Role.SERVE_EXPECTATION,
-            "same pairing as the per-file loop; kept only as a fallback"
-        ),
-        new Site(
-            RESOLVER,
-            "first-file-wins statistics lookup — of(base.schema(), declaredReadSpecOf(declaredMapping)) handed to the "
-                + "per-file gather, which addresses each file's statistics record by the read it is about to do",
+            "ffwBoundRead, undeclared and strict branch — of(base.schema(), declaredReadSpecOf(declaredMapping)) "
+                + "handed to the per-file gather, which addresses each file's statistics record by the read it is "
+                + "about to do. A non-strict declaration takes the overlaid derivation above instead",
             Role.SERVE_EXPECTATION,
             "the HARVEST over perFileReadSchema, which on this rail IS the anchor's schema shipped per split; pinned by "
-                + "testFirstFileWinsStatisticsLookupAgreesWithTheHarvestOverThePin below"
+                + "testFirstFileWinsStatisticsLookupAgreesWithTheHarvestOverThePin and "
+                + "testFirstFileWinsStatisticsLookupAddressesTheOverlaidAnchorRead below"
         )
     );
 
@@ -275,6 +279,41 @@ public class ReadConfigFingerprintDerivationSitesTests extends ESTestCase {
                 + "file unlike the anchor permanently cold",
             lookupSide,
             ownSchemaSide
+        );
+    }
+
+    /**
+     * The first-file-wins statistics lookup under a NON-STRICT declaration: every file is read at the anchor's
+     * schema, and a declaration retypes that schema before the reader binds it, so the address asked must be the
+     * OVERLAID anchor read.
+     * <p>
+     * Its sibling above derives both sides with {@link DeclaredReadSpec#NONE} and cannot reach this - with no
+     * mapping the pre-fix derivation is byte-identical to the overlaid value, which is why the defect shipped.
+     */
+    public void testFirstFileWinsStatisticsLookupAddressesTheOverlaidAnchorRead() {
+        List<Attribute> anchor = List.of(attr("id", DataType.INTEGER), attr("order_id", DataType.INTEGER));
+        // The anchor schema AS THE READER WILL BIND IT once the declaration is applied. Built by hand, so this is an
+        // independent expectation rather than a second call of the production derivation.
+        List<Attribute> overlaidAnchor = List.of(attr("id", DataType.INTEGER), attr("order_id", DataType.KEYWORD));
+
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("order_id", new DatasetFieldMapping("keyword", null));
+        DatasetMapping retyping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+
+        // The HARVEST side: FileSourceFactory hashes the per-file read schema, which on this rail is the anchor's -
+        // overlaid. No rename and no declared format, so the spec contributes nothing the fingerprint hashes beyond
+        // its INFERRED provenance, which NONE also carries.
+        String harvest = ReadConfigFingerprint.of(overlaidAnchor, DeclaredReadSpec.NONE);
+
+        String lookup = ExternalSourceResolver.overlaidReadOf(anchor, anchor, retyping, "csv").fingerprint();
+        assertEquals("the statistics address asked must be the read the harvest is stamped with", harvest, lookup);
+
+        String preOverlay = ReadConfigFingerprint.of(anchor, DeclaredReadSpec.NONE);
+        assertNotEquals(
+            "deriving the address from the anchor's PRE-overlay schema addresses a read nothing performs, so "
+                + "every repeated aggregate over a retyping dataset re-reads every byte",
+            harvest,
+            preOverlay
         );
     }
 

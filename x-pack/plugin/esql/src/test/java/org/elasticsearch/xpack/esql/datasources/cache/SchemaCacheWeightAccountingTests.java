@@ -288,7 +288,7 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
             DatasetAggregateKey key = DatasetAggregateKey.of(
                 "file:///tmp/warm-fold/*.ndjson",
                 new FileSetFingerprint(11, 22),
-                TestDatasetIdentities.identity("ndjson", "", Map.of("format", "ndjson"))
+                "0123456789abcdef0123456789abcdef"
             );
             cache.putDatasetAggregate(key, 828_090L);
             assertThat(

@@ -439,10 +439,12 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         out.writeString(sourcePath);
         out.writeString(sourceType);
         out.writeNamedWriteableCollection(attributes);
-        // Encrypted secrets in _datasource ride to data nodes that support the carrier; strip them for
-        // older targets, which cannot deserialize the carrier and revert to prior behavior.
+        // The dataset-tier definition version is coordinator-only and never travels: see
+        // ExternalSourceResolver.wireConfig. Encrypted secrets in _datasource ride to data nodes that support the
+        // carrier; strip them for older targets, which cannot deserialize the carrier and revert to prior behavior.
+        Map<String, Object> onTheWire = ExternalSourceResolver.wireConfig(config);
         out.writeGenericValue(
-            out.getTransportVersion().supports(DATA_SOURCE_ENCRYPTED_DATA) ? config : ExternalSourceResolver.planConfig(config)
+            out.getTransportVersion().supports(DATA_SOURCE_ENCRYPTED_DATA) ? onTheWire : ExternalSourceResolver.planConfig(onTheWire)
         );
         out.writeGenericValue(sourceMetadata);
         out.writeOptionalVInt(estimatedRowSize);

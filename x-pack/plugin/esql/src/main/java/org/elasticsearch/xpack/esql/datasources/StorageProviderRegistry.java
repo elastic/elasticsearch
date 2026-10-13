@@ -222,10 +222,10 @@ public class StorageProviderRegistry implements Closeable {
      * and must not be forwarded to storage provider configurations. References the canonical
      * constants so adding/renaming a framework option in one place updates the filter here too.
      * <p>
-     * {@link DefinitionVersion#CONFIG_KEY} is here because the provider cache keys on the whole
-     * config map: left in, it would fragment the client pool per dataset, since the version differs
-     * whenever any part of a dataset's definition does while the credentials the provider is built
-     * from may be identical.
+     * Both definition versions are here because the provider cache keys on the whole config map: left
+     * in, either would fragment the client pool per dataset, since a version differs whenever any part
+     * of a definition does while the credentials the provider is built from may be identical. The
+     * dataset-tier version fragments it harder, because it also moves on a rename and on a mapping edit.
      */
     static final Set<String> FRAMEWORK_KEYS = Set.of(
         FormatNameResolver.CONFIG_FORMAT,
@@ -233,7 +233,8 @@ public class StorageProviderRegistry implements Closeable {
         ErrorPolicy.CONFIG_MAX_ERRORS,
         ErrorPolicy.CONFIG_MAX_ERROR_RATIO,
         ErrorPolicy.CONFIG_ERROR_MODE,
-        DefinitionVersion.CONFIG_KEY
+        DefinitionVersion.CONFIG_KEY,
+        DefinitionVersion.DATASET_CONFIG_KEY
     );
 
     /**

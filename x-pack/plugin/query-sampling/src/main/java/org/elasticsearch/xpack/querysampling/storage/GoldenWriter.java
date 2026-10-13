@@ -17,6 +17,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.core.Nullable;
@@ -176,7 +177,10 @@ public final class GoldenWriter {
     private void complete(long version, int written, int failed, ActionListener<Written> listener) {
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             UpdateRequest request = new UpdateRequest(GoldenIndex.NAME, GoldenRecord.manifestId(version)).retryOnConflict(3)
-                .doc(GoldenRecord.completion(builder, written));
+                .doc(GoldenRecord.completion(builder, written))
+                // the next update looks for this version by a search, so what was written has to be visible by then: the dataset is on
+                // one shard, so this makes the manifest and the records visible too
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             update.accept(
                 request,
                 ActionListener.wrap(response -> listener.onResponse(new Written(version, written, failed)), listener::onFailure)

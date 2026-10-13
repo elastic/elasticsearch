@@ -18,6 +18,8 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -106,6 +108,8 @@ public class GoldenTests extends ESTestCase {
 
     private final List<BulkRequest> bulks = new ArrayList<>();
 
+    private final List<UpdateRequest> completions = new ArrayList<>();
+
     private List<SearchHit> goldenUpdaterStored = List.of();
 
     private List<SearchHit> golden = List.of();
@@ -143,12 +147,12 @@ public class GoldenTests extends ESTestCase {
                 );
             }
             listener.onResponse(new BulkResponse(items, 1));
-        },
-            (request, listener) -> listener.onResponse(
+        }, (request, listener) -> {
+            completions.add(request);
+            listener.onResponse(
                 new UpdateResponse(new ShardId(GoldenIndex.NAME, "_na_", 0), request.id(), 0, 1, 1, DocWriteResponse.Result.UPDATED)
-            ),
-            () -> 42L
-        );
+            );
+        }, () -> 42L);
     }
 
     private GoldenReader reader() {
@@ -234,6 +238,11 @@ public class GoldenTests extends ESTestCase {
         assertThat(manifests.get(0).id(), equalTo("version_1"));
         assertThat("it is not made from another", manifests.get(0).source().utf8ToString().contains("source_version"), equalTo(false));
         assertThat(bulks.get(0).numberOfActions(), equalTo(3));
+        assertThat(
+            "the next update has to find the version",
+            completions.get(0).getRefreshPolicy(),
+            equalTo(WriteRequest.RefreshPolicy.IMMEDIATE)
+        );
     }
 
     public void testOnlyQueriesThatAreNotInTheLatestVersionAreAddedAndTheOnesThereAreKept() throws IOException {

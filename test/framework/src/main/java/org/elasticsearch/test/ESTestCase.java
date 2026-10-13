@@ -287,18 +287,22 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /**
      * Promise warnings we tolerate instead of failing a test on. A listener that throws is normally one of our own
-     * callbacks breaking, which is what the capture above exists to catch; these are third-party listeners throwing
-     * during their library's own teardown, where nothing on our side is wrong and nothing on our side can fix it.
+     * callbacks breaking, which is what the DefaultPromise appender below exists to catch; these are third-party
+     * listeners throwing while their own library shuts down, where nothing on our side is wrong or fixable.
      * <p>
      * Each entry names the class that declares the listener, which is the stable part of what Netty reports: for a
      * lambda it logs the declaring class followed by a generated suffix that differs from run to run. Deliberately not
      * the package — that would also cover these clients' request paths, where a throw is worth seeing.
      */
     private static final List<String> TOLERATED_PROMISE_WARNINGS = List.of(
-        // gRPC's transport, throwing from a listener for an HTTP/2 stream it had already closed. See #144244, #144263.
+        // gRPC's transport, throwing from a ChannelFutureListener for an HTTP/2 stream it had already closed, after
+        // FlightServer.close() returned. A known source of flakiness for the Arrow Flight based tests, which is where
+        // this first showed up. Logged as "An exception was thrown by io.grpc.netty.NettyServerHandler$X
+        // .operationComplete()". See #144244, #144263.
         "An exception was thrown by io.grpc.netty.NettyServerHandler",
-        // The AWS SDK's connection pool, whose idle-count bookkeeping is submitted to an event executor that the
-        // client's own shutdown may already have terminated. See #161727.
+        // The AWS SDK's connection pool. Its idle-count bookkeeping — on the acquire and release paths as well as on
+        // channel close — is submitted to an event executor that the client's own shutdown may already have terminated.
+        // See #161727.
         "An exception was thrown by software.amazon.awssdk.http.nio.netty.internal.IdleConnectionCountingChannelPool"
     );
 

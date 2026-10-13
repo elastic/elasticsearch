@@ -281,7 +281,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
             ProjectResolver projectResolver,
             MeterRegistry meterRegistry
         ) {
-            return new ObjectStoreService(settings, repositoriesService, threadPool, clusterService, projectResolver) {
+            return new ObjectStoreService(settings, repositoriesService, threadPool, clusterService, projectResolver, meterRegistry) {
                 @Override
                 public void asyncDeleteShardFile(StaleCompoundCommit staleCompoundCommit) {
                     if (shouldDeleteShardFiles.get()) {

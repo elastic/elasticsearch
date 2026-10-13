@@ -883,7 +883,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             ProjectResolver projectResolver,
             MeterRegistry meterRegistry
         ) {
-            return new TestObjectStoreService(settings, repositoriesService, threadPool, clusterService, projectResolver);
+            return new TestObjectStoreService(settings, repositoriesService, threadPool, clusterService, projectResolver, meterRegistry);
         }
     }
 
@@ -894,9 +894,10 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             RepositoriesService repositoriesService,
             ThreadPool threadPool,
             ClusterService clusterService,
-            ProjectResolver projectResolver
+            ProjectResolver projectResolver,
+            MeterRegistry meterRegistry
         ) {
-            super(settings, repositoriesService, threadPool, clusterService, projectResolver);
+            super(settings, repositoriesService, threadPool, clusterService, projectResolver, meterRegistry);
         }
 
         @Override

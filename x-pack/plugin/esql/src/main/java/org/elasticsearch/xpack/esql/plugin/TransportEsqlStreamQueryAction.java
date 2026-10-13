@@ -463,7 +463,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
 
     static List<ColumnInfoImpl> buildColumns(List<Attribute> output, Map<NameId, Map<String, Object>> columnMetadata) {
         assert output.stream().noneMatch(a -> a instanceof UnmappedFieldsAttribute)
-            : UnmappedFieldsAttribute.ATTRIBUTE_NAME + " reached the stream header unflattened: " + Expressions.names(output);
+            : UnmappedFieldsAttribute.ATTRIBUTE_NAME + " reached the stream header unnamed: " + Expressions.names(output);
         return output.stream().map(c -> {
             List<String> originalTypes = null;
             if (c instanceof UnsupportedAttribute ua) {

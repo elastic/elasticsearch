@@ -186,6 +186,10 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         and: "no nested Gradle build was triggered"
         result.output.contains("> Task :x-pack:plugin:sql:jdbc:assemble") == false
 
+        and: "the warning explains that the hash override does not pin Maven snapshots"
+        result.output.contains("tests.bwc.dra.hash is set")
+        result.output.contains("does not pin this JAR")
+
         and: "the DRA log message names the snapshot build ID"
         result.output.contains("DRA snapshot ${buildId}")
 

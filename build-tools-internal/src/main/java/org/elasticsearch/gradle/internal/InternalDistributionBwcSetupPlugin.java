@@ -41,6 +41,7 @@ import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.jvm.toolchain.JavaToolchainService;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
+import java.util.concurrent.TimeUnit;
 
 import java.io.File;
 import java.io.IOException;
@@ -187,6 +188,9 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             .orElse("https://snapshots.elastic.co/maven");
         String bwcMode = providerFactory.systemProperty("tests.bwc.mode").getOrElse("gradle");
         validateBwcMode(bwcMode);
+        Provider<String> bwcHashOverride = versionInfoProvider.map(info -> info.branch())
+            .flatMap(branch -> providerFactory.systemProperty("tests.bwc.dra.hash." + branch))
+            .orElse("");
         Provider<String> draBuildId = providerFactory.of(DraSnapshotBuildIdValueSource.class, spec -> {
             spec.getParameters().getVersion().set(versionInfoProvider.map(info -> info.version().toString()));
             Provider<String> branch = versionInfoProvider.map(info -> info.branch());
@@ -196,9 +200,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             spec.getParameters().getMode().set(providerFactory.systemProperty("tests.bwc.mode").orElse("gradle"));
             // -Dtests.bwc.dra.hash.{branch} overrides the local remote-tracking ref lookup,
             // allowing the pre-built snapshot fast path on stale or absent refs.
-            spec.getParameters()
-                .getHashOverride()
-                .set(branch.flatMap(b -> providerFactory.systemProperty("tests.bwc.dra.hash." + b)).orElse(""));
+            spec.getParameters().getHashOverride().set(bwcHashOverride);
             spec.getParameters().getBaseUrl().set(draBaseUrl);
         });
         bwcGitPlugin.configureDraBuildId(draBuildId);
@@ -238,6 +240,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 ),
                 buildBwcTaskProvider,
                 draBuildId,
+                bwcHashOverride,
                 draBaseUrl,
                 mavenSnapshotsBaseUrl
             );
@@ -269,6 +272,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             ),
             buildBwcTaskProvider,
             draBuildId,
+            bwcHashOverride,
             draBaseUrl,
             mavenSnapshotsBaseUrl
         );
@@ -313,6 +317,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 ),
                 buildBwcTaskProvider,
                 draBuildId,
+                bwcHashOverride,
                 draBaseUrl,
                 mavenSnapshotsBaseUrl
             );
@@ -539,6 +544,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         BwcArtifact artifact,
         TaskProvider<Task> bwcTaskProvider,
         Provider<String> draBuildId,
+        Provider<String> bwcHashOverride,
         Provider<String> draBaseUrl,
         Provider<String> mavenSnapshotsBaseUrl
     ) {
@@ -557,6 +563,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 draBaseUrl.get(),
                 mavenSnapshotsBaseUrl.get(),
                 buildId,
+                bwcHashOverride.get().isEmpty() == false,
                 bwcVersion,
                 expectedOutputFile,
                 buildParams,
@@ -629,6 +636,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         String draBaseUrl,
         String mavenSnapshotsBaseUrl,
         String buildId,
+        boolean hasHashOverride,
         Provider<Version> bwcVersion,
         File expectedOutputFile,
         BuildParameterExtension buildParams,
@@ -645,6 +653,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 artifact,
                 bwcTaskName,
                 buildId,
+                hasHashOverride,
                 bwcVersion,
                 dependencyNotation,
                 prebuiltConfig,
@@ -672,6 +681,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         Configuration prebuiltConfig = project.getConfigurations().create(artifact.prebuiltConfigurationName(bwcVersion));
         prebuiltConfig.setCanBeResolved(true);
         prebuiltConfig.setCanBeConsumed(false);
+        prebuiltConfig.getResolutionStrategy().cacheChangingModulesFor(1, TimeUnit.HOURS);
         prebuiltConfig.getAttributes().attribute(BWC_DISTRIBUTION_ATTRIBUTE, true);
         prebuiltConfig.getAttributes()
             .attribute(
@@ -698,6 +708,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         BwcArtifact artifact,
         String bwcTaskName,
         String buildId,
+        boolean hasHashOverride,
         Provider<Version> bwcVersion,
         String dependencyNotation,
         Configuration prebuiltConfig,
@@ -711,15 +722,24 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         // A typed task class also avoids Configuration Cache issues: a plain
         // DefaultTask doLast lambda cannot capture a Configuration object.
         project.getTasks().register(bwcTaskName, DownloadMavenJarTask.class, task -> {
-            task.doFirst(
-                t -> t.getLogger()
+            task.doFirst(t -> {
+                if (hasHashOverride) {
+                    t.getLogger()
+                        .warn(
+                            "BWC [{}]: tests.bwc.dra.hash is set, but Maven snapshot artifact [{}] still resolves the mutable version-SNAPSHOT coordinate from snapshots.elastic.co/maven; the pinned build ID [{}] does not pin this JAR",
+                            bwcVersion.get(),
+                            dependencyNotation,
+                            buildId
+                        );
+                }
+                t.getLogger()
                     .lifecycle(
                         "BWC [{}]: downloading pre-built Maven snapshot artifact [{}] from snapshots.elastic.co (DRA snapshot {}) — skipping source build",
                         bwcVersion.get(),
                         dependencyNotation,
                         buildId
-                    )
-            );
+                    );
+            });
             task.getDraJar().from(prebuiltConfig);
             task.getDraBuildId().set(buildId);
             task.getOutputJar().set(artifact.projectArtifact().distFile);

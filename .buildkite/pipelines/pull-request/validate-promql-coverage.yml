@@ -1,12 +1,15 @@
-# Compares PromQL compliance with Prometheus between a pull request and its merge base. The pull request pipeline
-# triggers it for PRs labelled :StorageEngine/PromQL, and the build bot posts the report as a PR comment.
+# This pipeline detects regressions in PromQL query coverage.
+
+config:
+  auto-retry: false
+  allow-labels: ":StorageEngine/PromQL"
 env:
   PROMCHECK_VER: "0.9.1+prometheus-3.13.1"
   PROMCHECK_TEST_INSTANCE_TIMEOUT: "900"
 steps:
-  - label: validate-prometheus-compliance
-    key: validate-prometheus-compliance
-    command: .buildkite/scripts/validate-prometheus-compliance.sh grafanalabs-top100
+  - label: validate-promql-coverage
+    key: validate-promql-coverage
+    command: .buildkite/scripts/validate-promql-coverage.sh grafanalabs-top100
     timeout_in_minutes: 120
     retry:
       automatic:
@@ -15,7 +18,7 @@ steps:
         - exit_status: 137
           limit: 2
     artifact_paths:
-      - "/tmp/validate-prometheus-compliance-output/*"
+      - "/tmp/validate-promql-coverage-output/*"
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404

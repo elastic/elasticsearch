@@ -2,7 +2,7 @@
 
 # Compares PromQL compliance with Prometheus between the PR and its merge base, using the promcheck Go binary
 # (https://github.com/elastic/promcheck), and reports the queries whose result changed on the build and the PR.
-# The elasticsearch-pull-request-promql-compliance pipeline (catalog-info.yaml) runs it with the PR's
+# The elasticsearch-pull-request-promql-coverage pipeline (catalog-info.yaml) runs it with the PR's
 # GITHUB_PR_* variables, so that the build bot also posts the report as a PR comment.
 #
 # The step never fails on the result. Buildkite's GitHub commit status mirrors the step state and ignores
@@ -10,14 +10,14 @@
 # run, is annotated and the step exits 0. Only a misconfigured pipeline fails it.
 #
 # Usage:
-#   validate-prometheus-compliance.sh <corpus>
+#   validate-promql-coverage.sh <corpus>
 #
 # <corpus> names a testcase bundle in the promcheck release (e.g. grafanalabs-top100.tar.gz): the seeded
 # dataset plus the queries, piped whole into the binary. No Python, no Docker: Prometheus runs in-process.
 
 set -euo pipefail
 
-readonly CORPUS="${1:?Usage: validate-prometheus-compliance.sh <corpus>}"
+readonly CORPUS="${1:?Usage: validate-promql-coverage.sh <corpus>}"
 
 for var in PROMCHECK_VER PROMCHECK_TEST_INSTANCE_TIMEOUT GITHUB_PR_TARGET_BRANCH; do
   [[ -n "${!var:-}" ]] || { echo "$var must be set" >&2; exit 1; }
@@ -37,15 +37,15 @@ if [[ -z "$GITHUB_API_TOKEN" ]]; then
 fi
 
 readonly RELEASE_URL="https://github.com/elastic/promcheck/releases/tag/v$PROMCHECK_VER"
-readonly ANNOTATION_CONTEXT="ctx-validate-prometheus-compliance"
-readonly PR_COMMENT_KEY="pr_comment:validate-prometheus-compliance:body"
+readonly ANNOTATION_CONTEXT="ctx-validate-promql-coverage"
+readonly PR_COMMENT_KEY="pr_comment:validate-promql-coverage:body"
 # Changed queries listed per section; the full list is the changes artifact.
 readonly MAX_ROWS=50
 
 # The pipeline uploads OUTPUT_DIR as artifacts. Tests point TMP_ROOT at a scratch directory.
-readonly TMP_ROOT="${PROMETHEUS_COMPLIANCE_TMPDIR:-/tmp}"
-readonly WORK_DIR="$TMP_ROOT/validate-prometheus-compliance"
-readonly OUTPUT_DIR="$TMP_ROOT/validate-prometheus-compliance-output"
+readonly TMP_ROOT="${PROMQL_COVERAGE_TMPDIR:-/tmp}"
+readonly WORK_DIR="$TMP_ROOT/validate-promql-coverage"
+readonly OUTPUT_DIR="$TMP_ROOT/validate-promql-coverage-output"
 readonly PROMCHECK_BIN="$WORK_DIR/promcheck"
 readonly BUNDLE="$WORK_DIR/$CORPUS.tar.gz"
 readonly CONTROL_LOG="$OUTPUT_DIR/@$CORPUS-control.log"
@@ -257,7 +257,7 @@ git fetch --no-tags origin "$GITHUB_PR_TARGET_BRANCH" \
 base=$(git merge-base "origin/$GITHUB_PR_TARGET_BRANCH" HEAD) \
   || not_compared "This PR has no merge base with $GITHUB_PR_TARGET_BRANCH"
 revision=$(git rev-parse HEAD)
-control_dir=$(mktemp -d "$TMP_ROOT/validate-prometheus-compliance-control-XXXXXX")
+control_dir=$(mktemp -d "$TMP_ROOT/validate-promql-coverage-control-XXXXXX")
 trap cleanup EXIT
 git worktree add --detach "$control_dir" "$base" || not_compared "Could not check out the merge base $base"
 

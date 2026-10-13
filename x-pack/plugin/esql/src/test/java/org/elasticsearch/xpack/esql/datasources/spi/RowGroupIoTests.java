@@ -35,4 +35,14 @@ public class RowGroupIoTests extends ESTestCase {
         lease.setWake("late", ran::incrementAndGet);
         assertEquals(0, ran.get());
     }
+
+    public void testUntrackedAddAndRelease() {
+        RowGroupIo lease = new RowGroupIo();
+        lease.addUntracked(12);
+        assertEquals(12, lease.untracked());
+        lease.releaseUntracked(5);
+        assertEquals(7, lease.untracked());
+        lease.releaseUntracked(20);
+        assertEquals(0, lease.untracked());
+    }
 }

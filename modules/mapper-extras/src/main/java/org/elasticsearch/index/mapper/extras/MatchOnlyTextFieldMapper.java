@@ -425,6 +425,13 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         }
 
         /** How this field's binary doc values are framed, and so which decoder reads them back. */
+        @Override
+        public BinaryDocValuesQueries valueQueries() {
+            // The strictly columnar modes write the values as the codec's payload, which a query reads a page at a
+            // time. Any other framing is read a document at a time, which is no better than reading the rows.
+            return usesColumnarPayload() ? BinaryDocValuesQueries.forFormat(binaryFormat()) : null;
+        }
+
         public BinaryDocValuesFormat binaryFormat() {
             if (useColumnarPayload) {
                 return BinaryDocValuesFormat.COLUMNAR_PAYLOAD;
@@ -668,7 +675,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             }
             failIfNotIndexedNorDocValuesFallback(context);
             if (usesBinaryDocValues) {
-                return binaryQueries().wildcard(name(), value, caseInsensitive);
+                return binaryQueries().wildcard(name(), value, caseInsensitive, context.getCircuitBreaker());
             }
             if (caseInsensitive == false) {
                 Term term = new Term(name(), value);
@@ -682,7 +689,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx),
                 name(),
                 value,
-                true
+                true,
+                context.getCircuitBreaker()
             );
         }
 

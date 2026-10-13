@@ -26,7 +26,6 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.notNullValue;
@@ -247,16 +246,16 @@ public class ExternalPrefixNeverScansPartOfADatasetIT extends AbstractExternalDa
     }
 
     /**
-     * A text format, where a file's columns come from reading it rather than from a footer, and where the read is
-     * positional. One file defines the dataset's columns; the eleven past it carry a fourth column it does not have,
-     * and a row that does not fit the dataset's schema is a row error.
+     * A text format, where a file's columns come from reading it rather than from a footer. One file defines the
+     * dataset's columns; the eleven past it carry a fourth column it does not have. Every file binds to the dataset's
+     * columns by its own header, so a file of another width reads every row: the extra column is ignored, and a column
+     * a file lacks reads null.
      * <p>
      * {@code partition_sample_size} is 1 so the prefix is a single file, which is what makes this deterministic
      * without naming a file order — naming one declines the bound. Whichever file the provider lists first, the
-     * other width does not fit it, so the error is raised either way; and answered from that one file alone there is
-     * nothing to disagree with it and no error at all, which is what fails when the seam is reverted.
+     * columns it defines are the ones read from every file, and the columns this query keeps are in all of them.
      */
-    public void testATextFilePastThePrefixIsReadUnderTheAnchorsColumns() throws Exception {
+    public void testATextFileOfAnotherWidthPastThePrefixReadsEveryRowByItsOwnHeader() throws Exception {
         Path dir = createTempDir();
         int files = 12;
         int rowsPerFile = 10;
@@ -276,24 +275,14 @@ public class ExternalPrefixNeverScansPartOfADatasetIT extends AbstractExternalDa
         settings.put("partition_sample_size", 1);
         String dataset = registerLocalFileDataset("prefix_csv_ds", dir.toUri() + "*.csv", settings);
 
-        Exception e = expectThrows(
-            Exception.class,
-            () -> run(syncEsqlQueryRequest("FROM " + dataset + " | KEEP id, value | LIMIT " + files * rowsPerFile)).close()
-        );
-        assertThat(
-            "a file past the prefix is read under the dataset's columns, so a row of another width is an error",
-            e.getMessage() + causeChain(e),
-            containsString("columns, the schema has")
-        );
-    }
-
-    /** Flattens an exception's causes so an assertion can match a message the transport wrapped. */
-    private static String causeChain(Throwable t) {
-        StringBuilder sb = new StringBuilder();
-        for (Throwable c = t.getCause(); c != null; c = c.getCause()) {
-            sb.append(' ').append(c.getMessage());
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | KEEP id, value | LIMIT " + files * rowsPerFile))) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat("every file is read, whatever its width", rows.size(), equalTo(files * rowsPerFile));
+            for (List<Object> row : rows) {
+                long id = ((Number) row.get(0)).longValue();
+                assertThat("each row's value belongs to its own id", ((Number) row.get(1)).longValue(), equalTo(id * 10));
+            }
         }
-        return sb.toString();
     }
 
     /**

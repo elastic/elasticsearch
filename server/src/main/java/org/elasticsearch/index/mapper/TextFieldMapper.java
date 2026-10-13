@@ -292,7 +292,7 @@ public final class TextFieldMapper extends FieldMapper {
 
         final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> ((TextFieldMapper) m).similarity);
 
-        final Parameter<String> indexOptions = TextParams.textIndexOptions(m -> ((TextFieldMapper) m).indexOptions);
+        final Parameter<String> indexOptions;
         final Parameter<String> termVectors = TextParams.termVectors(m -> ((TextFieldMapper) m).termVectors);
 
         final Parameter<Boolean> fieldData = Parameter.boolParam("fielddata", true, m -> ((TextFieldMapper) m).fieldData, false);
@@ -352,6 +352,24 @@ public final class TextFieldMapper extends FieldMapper {
                 m -> (((TextFieldMapper) m).positionIncrementGap),
                 indexSettings.getIndexVersionCreated()
             );
+            // Strictly columnar indices default index_options to "docs": positions and freqs are not needed since values are read from
+            // doc values and norms are off by default, so there is nothing for freqs to feed. The default is resolved lazily because it
+            // depends on index_phrases and position_increment_gap, whose values are only known once parsing has finished:
+            // - gated on the index version so existing columnar indices, whose segments may already carry positions, keep "positions"
+            // on upgrade;
+            // - search-optimized columnar modes (e.g. vectordb_columnar) are excluded because relevance search is their main access
+            // pattern, so they keep "positions";
+            // - index_phrases and position_increment_gap require positions, so when either is set without an explicit index_options we
+            // keep the "positions" default (mirroring standard mode, where they work out of the box).
+            this.indexOptions = TextParams.textIndexOptions(m -> ((TextFieldMapper) m).indexOptions, () -> {
+                boolean docsByDefault = indexSettings.getIndexVersionCreated()
+                    .onOrAfter(IndexVersions.TEXT_INDEX_OPTIONS_DOCS_BY_DEFAULT_IN_COLUMNAR)
+                    && indexSettings.getMode().isStrictColumnar()
+                    && indexSettings.getMode().isSearchOptimizedColumnar() == false
+                    && indexPhrases.getValue() == false
+                    && analyzers.positionIncrementGap.isConfigured() == false;
+                return docsByDefault ? "docs" : "positions";
+            });
 
             IndexMode indexMode = indexSettings.getMode();
             this.norms = Parameter.normsParam(m -> ((TextFieldMapper) m).norms, () -> {
@@ -957,6 +975,13 @@ public final class TextFieldMapper extends FieldMapper {
             return BinaryDocValuesQueries.forFormat(binaryFormat());
         }
 
+        @Override
+        public BinaryDocValuesQueries valueQueries() {
+            // The strictly columnar modes write the values as the codec's payload, which a query reads a page at a
+            // time. Any other framing is read a document at a time, which is no better than reading the rows.
+            return usesColumnarPayload() ? BinaryDocValuesQueries.forFormat(binaryFormat()) : null;
+        }
+
         /** How this field's binary doc values are framed, and so which decoder reads them back. */
         public BinaryDocValuesFormat binaryFormat() {
             if (useColumnarPayload) {
@@ -1098,7 +1123,7 @@ public final class TextFieldMapper extends FieldMapper {
             }
             failIfNotIndexedNorDocValuesFallback(context);
             if (usesBinaryDocValues) {
-                return binaryQueries().wildcard(name(), value, caseInsensitive);
+                return binaryQueries().wildcard(name(), value, caseInsensitive, context.getCircuitBreaker());
             }
             if (caseInsensitive == false) {
                 Term term = new Term(name(), value);
@@ -1112,7 +1137,8 @@ public final class TextFieldMapper extends FieldMapper {
                 ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx),
                 name(),
                 value,
-                true
+                true,
+                context.getCircuitBreaker()
             );
         }
 

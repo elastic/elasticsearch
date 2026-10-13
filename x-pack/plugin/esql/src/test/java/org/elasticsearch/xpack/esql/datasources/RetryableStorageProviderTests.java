@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
@@ -39,7 +40,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class RetryableStorageProviderTests extends ESTestCase {
 
-    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(NoopCircuitBreaker.INSTANCE);
 
     public void testNewObjectWrapsWithRetry() throws IOException {
         AtomicInteger streamCalls = new AtomicInteger();
@@ -189,6 +190,9 @@ public class RetryableStorageProviderTests extends ESTestCase {
         AtomicInteger asyncCalls = new AtomicInteger();
         StorageObject inner = new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -274,6 +278,9 @@ public class RetryableStorageProviderTests extends ESTestCase {
     private static StorageObject stubObject(String location, IOStreamSupplier streamSupplier) {
         StoragePath path = StoragePath.of(location);
         return new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;

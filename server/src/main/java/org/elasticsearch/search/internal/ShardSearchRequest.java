@@ -208,7 +208,7 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
 
     // Used by tests
     public ShardSearchRequest(ShardId shardId, long nowInMillis, AliasFilter aliasFilter) {
-        this(shardId, nowInMillis, aliasFilter, null, SplitShardCountSummary.UNSET);
+        this(shardId, nowInMillis, aliasFilter, null, SplitShardCountSummary.IRRELEVANT);
     }
 
     // Used by ESQL, field_caps API, TransportExplainAction

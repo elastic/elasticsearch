@@ -150,4 +150,15 @@ public class BinaryDocValuesRangeQueryTests extends ESTestCase {
         }
     }
 
+    /**
+     * The description must name the query's own field and relation regardless of the default field passed to
+     * {@link Query#toString(String)}, since {@code _explanation} and profile output use {@link Query#toString()}.
+     */
+    public void testToString() {
+        Query query = RangeType.LONG.dvRangeQuery("long_field", WITHIN, 1L, 10L, true, true);
+        String expected = "BinaryDocValuesRangeQuery(fieldName=long_field,queryType=WITHIN,from=1,to=10)";
+        assertEquals(expected, query.toString());
+        assertEquals(expected, query.toString("long_field"));
+        assertEquals(expected, query.toString("other_field"));
+    }
 }

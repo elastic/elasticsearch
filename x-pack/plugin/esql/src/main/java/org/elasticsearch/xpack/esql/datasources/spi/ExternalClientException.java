@@ -40,6 +40,16 @@ public final class ExternalClientException extends ExternalException {
         super(condition, path, detailCode, remedy);
     }
 
+    /**
+     * The refusal for a schema wider than {@code schema_max_fields}. A 400 rather than the breaker's 429: the limit is
+     * configured, so retrying the same request cannot succeed, and {@code detail} says which setting to raise.
+     */
+    public static ExternalClientException schemaTooWide(String detail) {
+        ExternalClientException e = new ExternalClientException(Condition.SCHEMA_TOO_WIDE, StoragePath.NONE, "", "");
+        e.setDetail(detail);
+        return e;
+    }
+
     private ExternalClientException(ExternalClientException source) {
         super(source);
     }

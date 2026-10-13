@@ -73,6 +73,75 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assertThat(oldLookup.fieldTypesLookup().get("cat"), nullValue());
     }
 
+    public void testMappingLookupPassthroughStatus() throws IOException {
+        MapperService mapperService = createMapperService("""
+            { "_doc": {
+              "properties": {
+                "passthrough_object": {
+                  "type": "passthrough",
+                  "priority": 10,
+                  "properties": {
+                    "host.name": { "type": "keyword" }
+                  }
+                },
+                "plain_object": {
+                  "properties": {
+                    "field": { "type": "keyword" }
+                  }
+                },
+                "nested_object": {
+                  "type": "nested",
+                  "properties": {
+                    "field": { "type": "keyword" }
+                  }
+                },
+                "passthrough_flattened": {
+                  "type": "flattened",
+                  "passthrough": { "priority": 20 },
+                  "properties": {
+                    "service.name": { "type": "keyword" }
+                  }
+                },
+                "plain_flattened": { "type": "flattened" },
+                "keyword": { "type": "keyword" }
+              }
+            } }
+            """);
+
+        MappingLookup lookup = mapperService.mappingLookup();
+        assertEquals(Boolean.TRUE, lookup.isPassthrough("passthrough_object"));
+        assertEquals(Boolean.FALSE, lookup.isPassthrough("plain_object"));
+        assertNull(lookup.isPassthrough("nested_object"));
+        assertEquals(Boolean.TRUE, lookup.isPassthrough("passthrough_flattened"));
+        assertEquals(Boolean.FALSE, lookup.isPassthrough("plain_flattened"));
+        assertNull(lookup.isPassthrough("keyword"));
+        assertNull(lookup.isPassthrough("host.name"));
+        assertNull(lookup.isPassthrough("unknown"));
+    }
+
+    public void testMappingLookupAutoFlattenedPassthroughStatus() throws IOException {
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperService mapperService = createMapperService(settings, topMapping(b -> {
+                b.field("subobjects", false);
+                b.startObject("properties");
+                b.startObject("resource.attributes").field("type", "passthrough").field("priority", 10);
+                b.startObject("properties").startObject("host.name").field("type", "keyword").endObject().endObject();
+                b.endObject();
+                b.startObject("plain").field("dynamic", false);
+                b.startObject("properties").startObject("field").field("type", "keyword").endObject().endObject();
+                b.endObject();
+                b.endObject();
+            }));
+
+            MappingLookup lookup = mapperService.mappingLookup();
+            assertEquals(Boolean.TRUE, lookup.isPassthrough("resource.attributes"));
+            assertEquals(Boolean.FALSE, lookup.isPassthrough("plain"));
+            assertNull(lookup.isPassthrough("resource.attributes.host.name"));
+            assertNull(lookup.isPassthrough("unknown"));
+        }
+    }
+
     /**
      * Test that we can have at least the number of fields in new mappings that are defined by "index.mapping.total_fields.limit".
      * Any additional field should trigger an IllegalArgumentException.

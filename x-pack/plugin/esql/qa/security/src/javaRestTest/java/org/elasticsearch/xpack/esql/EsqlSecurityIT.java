@@ -88,13 +88,13 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("user1", "x-pack-test-password", "user1", false)
         .user("user2", "x-pack-test-password", "user2", false)
         .user("user3", "x-pack-test-password", "user3", false)
-        .user("remote_fetch_dls_fls", "x-pack-test-password", "remote_fetch_dls_fls", false)
         .user("user_dataset_authorize_only", "x-pack-test-password", "user_dataset_authorize_only", false)
         .user("ds_repro_broad_reader", "x-pack-test-password", "ds_repro_broad_reader", false)
         .user("user4", "x-pack-test-password", "user4", false)
         .user("user5", "x-pack-test-password", "user5", false)
         .user("fls_cross_index_user", "x-pack-test-password", "fls_cross_index", false)
         .user("fls_user", "x-pack-test-password", "fls_user", false)
+        .user("fls_alias_user", "x-pack-test-password", "fls_alias_user", false)
         .user("fls_partial_no_source_user", "x-pack-test-password", "fls_partial_no_source", false)
         .user("fls_per_index_access_user", "x-pack-test-password", "fls_partial_no_source,read_full_mapping", false)
         .user("fls_no_source_no_value_user", "x-pack-test-password", "fls_no_source_no_value_user", false)
@@ -912,33 +912,6 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(respMap.get("values"), equalTo(List.of(List.of(10.0))));
     }
 
-    public void testRemoteFetchUsesRetainedDlsAndFlsContext() throws Exception {
-        setRemoteFetchTopNEnabled(true);
-        try {
-            Request request = new Request("POST", "_query");
-            XContentBuilder json = JsonXContent.contentBuilder();
-            json.startObject();
-            json.field("query", "FROM index,indexpartial | SORT value DESC | LIMIT 2 | KEEP value, org");
-            json.field("profile", true);
-            json.field("accept_pragma_risks", true);
-            json.startObject("pragma");
-            json.field("node_level_reduction", true);
-            json.field("data_partitioning", "shard");
-            json.endObject();
-            json.endObject();
-            request.setJsonEntity(Strings.toString(json));
-            request.setOptions(runAsUserOptions("remote_fetch_dls_fls", null));
-
-            Response response = client().performRequest(request);
-            assertOK(response);
-            Map<String, Object> responseMap = entityAsMap(response);
-            assertThat(responseMap.get("values"), equalTo(List.of(Arrays.asList(40.0, null), List.of(10.0, "sales"))));
-            assertTrue("query profile must contain the remote fetch operator", containsRemoteFetchOperator(responseMap.get("profile")));
-        } finally {
-            setRemoteFetchTopNEnabled(null);
-        }
-    }
-
     public void testDocumentLevelSecurityFromStar() throws Exception {
         Response resp = runESQLCommand("user3", "from in*x | stats sum=sum(value)");
         assertOK(resp);
@@ -962,6 +935,24 @@ public class EsqlSecurityIT extends ESRestTestCase {
                 )
                 .entry("values", List.of(List.of("sales10.0", 10.0)))
         );
+    }
+
+    public void testFieldCapsCacheWithFieldLevelSecurity() throws Exception {
+        String query = "FROM index | KEEP org | LIMIT 1";
+        assertOK(runESQLCommand("test-admin", query));
+
+        ResponseException e = expectThrows(ResponseException.class, () -> runESQLCommand("fls_user", query));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("Unknown column [org]"));
+    }
+
+    public void testFieldCapsCacheWithFieldLevelSecurityThenUnrestricted() throws Exception {
+        String query = "FROM index | KEEP org | LIMIT 1";
+        ResponseException e = expectThrows(ResponseException.class, () -> runESQLCommand("fls_user", query));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("Unknown column [org]"));
+
+        assertOK(runESQLCommand("test-admin", query));
     }
 
     public void testFieldLevelSecurityAllowPartial() throws Exception {
@@ -1877,6 +1868,288 @@ public class EsqlSecurityIT extends ESRestTestCase {
         );
     }
 
+    public void testFieldLevelSecurityWithConstantKeyword() throws Exception {
+        assumeTrue(
+            "Requires unmapped_fields=LOAD support",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.capabilityName()))
+        );
+
+        var hidden = "hidden_value";
+
+        putConstantKeywordMapping("index", hidden);
+
+        // FLS hides the field from field caps, so default ES|QL should not resolve it.
+        ResponseException unknownField = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("fls_user", "FROM index | EVAL projected = test_constant | KEEP value, projected | SORT value | LIMIT 2")
+        );
+        assertThat(unknownField.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(unknownField.getResponse().getEntity()), containsString("Unknown column [test_constant]"));
+
+        // unmapped_fields=load may introduce the name, but must not recover the mapping-backed constant.
+        Response projection = runESQLCommand("fls_user", """
+            SET unmapped_fields="load";
+            FROM index
+            | EVAL projected = test_constant
+            | KEEP value, projected
+            | SORT value
+            | LIMIT 2
+            """);
+        assertOK(projection);
+        assertMap(
+            entityAsMap(projection),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(
+                        matchesMap().entry("name", "value").entry("type", "double"),
+                        matchesMap().entry("name", "projected").entry("type", "keyword")
+                    )
+                )
+                .entry("values", List.of(Arrays.asList(10.0, null), Arrays.asList(20.0, null)))
+        );
+
+        // A filtered field must not affect predicate evaluation.
+        Response correctGuess = runESQLCommand("fls_user", """
+            SET unmapped_fields="load";
+            FROM index
+            | WHERE test_constant == "hidden_value"
+            | KEEP value
+            | SORT value
+            | LIMIT 2
+            """);
+        assertOK(correctGuess);
+        assertMap(
+            entityAsMap(correctGuess),
+            matchesMap().extraOk()
+                .entry("columns", List.of(matchesMap().entry("name", "value").entry("type", "double")))
+                .entry("values", List.of())
+        );
+    }
+
+    public void testFieldLevelSecurityWithConstantKeywordVisibleOnOneIndex() throws Exception {
+        assumeTrue(
+            "Requires unmapped_fields=LOAD support",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.capabilityName()))
+        );
+
+        putConstantKeywordMapping("index", "visible");
+        putConstantKeywordMapping("index-user1", "hidden");
+
+        Response projection = runESQLCommand("fls_cross_index_user", """
+            SET unmapped_fields="load";
+            FROM index,index-user1 METADATA _index
+            | KEEP _index, test_constant
+            | SORT _index
+            """);
+        assertOK(projection);
+        assertMap(
+            entityAsMap(projection),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(
+                        matchesMap().entry("name", "_index").entry("type", "keyword"),
+                        matchesMap().entry("name", "test_constant").entry("type", "keyword")
+                    )
+                )
+                .entry(
+                    "values",
+                    List.of(
+                        List.of("index", "visible"),
+                        List.of("index", "visible"),
+                        Arrays.asList("index-user1", null),
+                        Arrays.asList("index-user1", null)
+                    )
+                )
+        );
+
+        // The mapping constant from an index where the field is not visible must not affect predicate evaluation.
+        Response hiddenGuess = runESQLCommand("fls_cross_index_user", """
+            SET unmapped_fields="load";
+            FROM index,index-user1 METADATA _index
+            | WHERE test_constant == "hidden"
+            | KEEP _index
+            | SORT _index
+            """);
+        assertOK(hiddenGuess);
+        assertMap(
+            entityAsMap(hiddenGuess),
+            matchesMap().extraOk()
+                .entry("columns", List.of(matchesMap().entry("name", "_index").entry("type", "keyword")))
+                .entry("values", List.of())
+        );
+
+        // Control: the field remains usable on the index where FLS permits it.
+        Response visibleGuess = runESQLCommand("fls_cross_index_user", """
+            SET unmapped_fields="load";
+            FROM index,index-user1 METADATA _index
+            | WHERE test_constant == "visible"
+            | KEEP _index
+            | SORT _index
+            """);
+        assertOK(visibleGuess);
+        assertMap(
+            entityAsMap(visibleGuess),
+            matchesMap().extraOk()
+                .entry("columns", List.of(matchesMap().entry("name", "_index").entry("type", "keyword")))
+                .entry("values", List.of(List.of("index"), List.of("index")))
+        );
+
+        Response statsCount = runESQLCommand("fls_cross_index_user", """
+            SET unmapped_fields="load";
+            FROM index,index-user1 METADATA _index
+            | STATS visible = COUNT(test_constant), rows = COUNT(*) BY _index
+            | SORT _index
+            """);
+        assertOK(statsCount);
+        assertMap(
+            entityAsMap(statsCount),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(
+                        matchesMap().entry("name", "visible").entry("type", "long"),
+                        matchesMap().entry("name", "rows").entry("type", "long"),
+                        matchesMap().entry("name", "_index").entry("type", "keyword")
+                    )
+                )
+                .entry("values", List.of(List.of(2, 2, "index"), List.of(0, 2, "index-user1")))
+        );
+    }
+
+    public void testFieldLevelSecurityWithRuntimeMappingTargetingConstantKeyword() throws Exception {
+        Request putMapping = new Request("PUT", "/index/_mapping");
+        putMapping.setJsonEntity("""
+            {
+              "runtime": {
+                "constant_values_count": {
+                  "type": "long",
+                  "script": "emit(doc['test_constant'].size())"
+                }
+              },
+              "properties": {
+                "test_constant": {
+                  "type": "constant_keyword",
+                  "value": "hidden_value"
+                }
+              }
+            }
+            """);
+        assertOK(client().performRequest(putMapping));
+
+        var visibleResponse = runESQLCommand("test-admin", "FROM index | KEEP constant_values_count");
+        assertOK(visibleResponse);
+        assertMap(
+            entityAsMap(visibleResponse),
+            matchesMap().extraOk()
+                .entry("columns", List.of(matchesMap().entry("name", "constant_values_count").entry("type", "long")))
+                .entry("values", List.of(List.of(1), List.of(1)))
+        );
+
+        var hiddenResponse = runESQLCommand("fls_user", "FROM index | KEEP constant_values_count");
+        assertOK(hiddenResponse);
+        assertMap(
+            entityAsMap(hiddenResponse),
+            matchesMap().extraOk()
+                .entry("columns", List.of(matchesMap().entry("name", "constant_values_count").entry("type", "long")))
+                .entry("values", List.of(List.of(0), List.of(0)))
+        );
+    }
+
+    public void testFieldLevelSecurityWithConstantKeywordAlias() throws Exception {
+        assumeTrue(
+            "Requires unmapped_fields=LOAD support",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.capabilityName()))
+        );
+
+        Request putMapping = new Request("PUT", "/index/_mapping");
+        putMapping.setJsonEntity("""
+            {
+              "properties": {
+                "test_constant": {
+                  "type": "constant_keyword",
+                  "value": "hidden_value"
+                },
+                "constant_value_alias": {
+                  "type": "alias",
+                  "path": "test_constant"
+                }
+              }
+            }
+            """);
+        assertOK(client().performRequest(putMapping));
+
+        // Positive control: the alias resolves normally without FLS.
+        Response adminResponse = runESQLCommand("test-admin", """
+            FROM index
+            | KEEP constant_value_alias
+            | LIMIT 2
+            """);
+        assertOK(adminResponse);
+        assertMap(
+            entityAsMap(adminResponse),
+            matchesMap().extraOk()
+                .entry("columns", List.of(matchesMap().entry("name", "constant_value_alias").entry("type", "keyword")))
+                .entry("values", List.of(List.of("hidden_value"), List.of("hidden_value")))
+        );
+
+        // Field Caps checks the alias's concrete target, so the alias isn't in the
+        // restricted user's coordinator schema.
+        ResponseException unknownField = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("fls_alias_user", "FROM index | KEEP constant_value_alias")
+        );
+        assertThat(unknownField.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(unknownField.getResponse().getEntity()), containsString("Unknown column [constant_value_alias]"));
+
+        // LOAD can introduce the alias name, but must not recover the value of its
+        // restricted concrete target.
+        Response projection = runESQLCommand("fls_alias_user", """
+            SET unmapped_fields="load";
+            FROM index
+            | KEEP constant_value_alias
+            | LIMIT 2
+            """);
+        assertOK(projection);
+        assertMap(
+            entityAsMap(projection),
+            matchesMap().extraOk()
+                .entry("columns", List.of(matchesMap().entry("name", "constant_value_alias").entry("type", "keyword")))
+                .entry("values", List.of(Arrays.asList((Object) null), Arrays.asList((Object) null)))
+        );
+
+        // Guessing the hidden constant through the alias must not match rows.
+        Response filtered = runESQLCommand("fls_alias_user", """
+            SET unmapped_fields="load";
+            FROM index
+            | WHERE constant_value_alias == "hidden_value"
+            | STATS rows = COUNT(*)
+            """);
+        assertOK(filtered);
+        assertMap(
+            entityAsMap(filtered),
+            matchesMap().extraOk()
+                .entry("columns", List.of(matchesMap().entry("name", "rows").entry("type", "long")))
+                .entry("values", List.of(List.of(0)))
+        );
+    }
+
+    private void putConstantKeywordMapping(String index, String value) throws IOException {
+        Request putMapping = new Request("PUT", "/" + index + "/_mapping");
+        putMapping.setJsonEntity("""
+            {
+              "properties": {
+                "test_constant": {
+                  "type": "constant_keyword",
+                  "value": "%s"
+                }
+              }
+            }
+            """.formatted(value));
+        assertOK(client().performRequest(putMapping));
+    }
+
     public void testRowCommand() throws Exception {
         String user = randomFrom("test-admin", "user1", "user2");
         Response resp = runESQLCommand(user, "row a = 5, b = 2 | stats count=sum(b) by a");
@@ -2466,6 +2739,29 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertOK(resp);
         Map<String, Object> respMap = entityAsMap(resp);
         assertThat(respMap.get("values"), equalTo(List.of()));
+    }
+
+    public void testLookupJoinConstantKeywordRespectsFieldLevelSecurity() throws Exception {
+        assumeTrue(
+            "Requires LOOKUP JOIN capability",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName()))
+        );
+
+        putConstantKeywordMapping("lookup-user2", "hidden_value");
+
+        String query = "ROW value = 40.0 | LOOKUP JOIN lookup-user2 ON value";
+
+        Response admin = runESQLCommand("test-admin", query);
+        assertOK(admin);
+        EsqlResult adminResult = esqlResult(admin);
+        assertThat(adminResult.values("org"), equalTo(List.of("sales")));
+        assertThat(adminResult.values("test_constant"), equalTo(List.of("hidden_value")));
+
+        Response restricted = runESQLCommand("fls_user2", query);
+        assertOK(restricted);
+        EsqlResult restrictedResult = esqlResult(restricted);
+        assertThat(restrictedResult.values("org"), equalTo(List.of("sales")));
+        assertThat(restrictedResult.columnNames(), not(hasItem("test_constant")));
     }
 
     public void testFromLookupIndexForbidden() throws Exception {
@@ -3272,36 +3568,6 @@ public class EsqlSecurityIT extends ESRestTestCase {
         );
         setUser(request, "test-admin");
         assertOK(client().performRequest(request));
-    }
-
-    private void setRemoteFetchTopNEnabled(@Nullable Boolean enabled) throws IOException {
-        Request request = new Request("PUT", "/_cluster/settings");
-        request.setJsonEntity(
-            "{\"persistent\":{\"esql.query.remote_fetch_topn.enabled\":" + (enabled == null ? "null" : enabled.toString()) + "}}"
-        );
-        setUser(request, "test-admin");
-        assertOK(client().performRequest(request));
-    }
-
-    private static boolean containsRemoteFetchOperator(Object value) {
-        if (value instanceof Map<?, ?> map) {
-            Object operator = map.get("operator");
-            if (operator instanceof String operatorName && operatorName.startsWith("RemoteFetchOperator")) {
-                return true;
-            }
-            for (Object child : map.values()) {
-                if (containsRemoteFetchOperator(child)) {
-                    return true;
-                }
-            }
-        } else if (value instanceof List<?> list) {
-            for (Object child : list) {
-                if (containsRemoteFetchOperator(child)) {
-                    return true;
-                }
-            }
-        }
-        return false;
     }
 
     private void deleteIndexQuietly(String indexName) {

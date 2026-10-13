@@ -425,6 +425,13 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         }
 
         /** How this field's binary doc values are framed, and so which decoder reads them back. */
+        @Override
+        public BinaryDocValuesQueries valueQueries() {
+            // The strictly columnar modes write the values as the codec's payload, which a query reads a page at a
+            // time. Any other framing is read a document at a time, which is no better than reading the rows.
+            return usesColumnarPayload() ? BinaryDocValuesQueries.forFormat(binaryFormat()) : null;
+        }
+
         public BinaryDocValuesFormat binaryFormat() {
             if (useColumnarPayload) {
                 return BinaryDocValuesFormat.COLUMNAR_PAYLOAD;
@@ -668,7 +675,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             }
             failIfNotIndexedNorDocValuesFallback(context);
             if (usesBinaryDocValues) {
-                return binaryQueries().wildcard(name(), value, caseInsensitive);
+                return binaryQueries().wildcard(name(), value, caseInsensitive, context.getCircuitBreaker());
             }
             if (caseInsensitive == false) {
                 Term term = new Term(name(), value);
@@ -682,7 +689,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx),
                 name(),
                 value,
-                true
+                true,
+                context.getCircuitBreaker()
             );
         }
 
@@ -827,6 +835,17 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             failIfNotIndexedForPhraseQueries("phrase prefix queries");
             final Query query = textFieldType.phrasePrefixQuery(stream, slop, maxExpansions, queryShardContext);
             return toQuery(query, queryShardContext);
+        }
+
+        /**
+         * Every positional query this field answers reads its values, which carry the positions, so a query built
+         * for it may ask about them. It needs its own terms to find the documents to read, which is what
+         * {@link #failIfNotIndexedForPhraseQueries} asks for, and it needs the values themselves to be readable,
+         * which is what {@link #getValueFetcherProvider} asks for.
+         */
+        @Override
+        public boolean answersPositionsFromValues(SearchExecutionContext context) {
+            return indexType().hasTerms() && (hasDocValues() || context.isSourceEnabled());
         }
 
         /**

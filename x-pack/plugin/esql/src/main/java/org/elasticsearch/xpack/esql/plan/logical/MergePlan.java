@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
@@ -17,6 +18,8 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,21 +41,11 @@ import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferen
  */
 public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanVerificationAware, ExecutesOn.Coordinator {
 
-    public static final int MAX_BRANCHES = 8;
     private final List<Attribute> output;
 
     protected MergePlan(Source source, List<LogicalPlan> children, List<Attribute> output) {
         super(source, children);
         this.output = output;
-    }
-
-    /**
-     * Branch-count predicate shared by every {@link MergePlan} and any caller that wants to fail
-     * earlier with a more user-facing message. Returns {@code true} if {@code count} would exceed the
-     * branch cap. Centralizes the comparison so the cap can move in one place.
-     */
-    public static boolean exceedsMaxBranches(int count) {
-        return count > MAX_BRANCHES;
     }
 
     @Override
@@ -124,7 +117,7 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
      *       with zero children. The caller is expected either to short-circuit the
      *       all-empty case before calling (e.g. {@code PruneEmptyMergeBranches} replaces with
      *       a {@code LocalRelation} when every branch reduces to empty) or to let the
-     *       analyzer's verifier surface the empty-merge state via {@link #checkNonEmpty}.</li>
+     *       analyzer's verifier surface the empty-merge state via {@link #checkBranchCount}.</li>
      * </ul>
      * Single-survivor collapse semantics — a {@link UnionAll}/{@link ViewUnionAll} with one
      * branch left is equivalent to that branch — are not part of this primitive; callers that
@@ -249,20 +242,23 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
     }
 
     @Override
-    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
-        return MergePlan::checkNonEmpty;
+    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification(
+        AnalysisRegistry analysisRegistry,
+        QueryPragmas pragmas,
+        EsqlFlags flags
+    ) {
+        return (plan, failures) -> {
+            if (plan != this) {
+                return;
+            }
+            checkBranchCount(plan, failures, pragmas, flags);
+            postAnalysisPlanVerification().accept(plan, failures);
+        };
     }
 
-    /**
-     * Shared empty-merge check for every {@link MergePlan} subclass. Lives at post-analysis verification rather than the constructor so
-     * that compaction passes (e.g. ViewCompaction) get a chance to reduce the count first. Called from both {@code Fork::checkFork} and
-     * {@code UnionAll::checkUnionAll} since each subclass dispatches to its own {@link #postAnalysisPlanVerification()} override. This
-     * check can be deferred to logical verifier once we have a logical planner rule that can flatten and simplify a {@code MergePlan}
-     * further.
-     */
-    static void checkNonEmpty(LogicalPlan plan, Failures failures) {
-        if (plan instanceof MergePlan merge && merge.children().isEmpty()) {
-            failures.add(Failure.fail(merge, "{} requires at least one branch", merge.getClass().getSimpleName()));
+    void checkBranchCount(LogicalPlan plan, Failures failures, QueryPragmas pragmas, EsqlFlags flags) {
+        if (plan.children().isEmpty()) {
+            failures.add(Failure.fail(plan, "{} requires at least one branch", plan.getClass().getSimpleName()));
         }
     }
 }

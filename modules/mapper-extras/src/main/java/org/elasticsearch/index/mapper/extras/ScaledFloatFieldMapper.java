@@ -10,6 +10,8 @@
 package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DoubleValues;
+import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Setting;
@@ -890,6 +892,22 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         @Override
         public SortedNumericDoubleValues getDoubleValues() {
             final SortedNumericLongValues values = scaledFieldData.getLongValues();
+            // For a singleton field, read straight off the unwrapped LongValues, skipping the
+            // extra SortedNumericLongValues.singleton(...) wrapper layer.
+            final LongValues singleton = SortedNumericLongValues.unwrapSingleton(values);
+            if (singleton != null) {
+                return SortedNumericDoubleValues.singleton(new DoubleValues() {
+                    @Override
+                    public double doubleValue() throws IOException {
+                        return singleton.longValue() * scalingFactorInverse;
+                    }
+
+                    @Override
+                    public boolean advanceExact(int doc) throws IOException {
+                        return singleton.advanceExact(doc);
+                    }
+                });
+            }
             return new SortedNumericDoubleValues.SortedNumericLongWrapper(values) {
                 @Override
                 public double nextValue() throws IOException {

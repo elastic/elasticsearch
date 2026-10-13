@@ -40,10 +40,12 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.join.ParentJoinPlugin;
+import org.elasticsearch.painless.PainlessPlugin;
 import org.elasticsearch.percolator.PercolateQueryBuilder;
 import org.elasticsearch.percolator.PercolatorPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -59,7 +61,10 @@ import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.constantkeyword.ConstantKeywordMapperPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.termsenum.action.TermsEnumAction;
+import org.elasticsearch.xpack.core.termsenum.action.TermsEnumRequest;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
@@ -78,8 +83,14 @@ import java.util.Set;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
+import static org.elasticsearch.index.query.QueryBuilders.fuzzyQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.prefixQuery;
+import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
+import static org.elasticsearch.index.query.QueryBuilders.regexpQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
+import static org.elasticsearch.index.query.QueryBuilders.wildcardQuery;
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasChildQuery;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
@@ -90,9 +101,12 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResp
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class FieldLevelSecurityTests extends SecurityIntegTestCase {
@@ -109,7 +123,9 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             PercolatorPlugin.class,
             SpatialPlugin.class,
             MapperExtrasPlugin.class,
-            Wildcard.class
+            Wildcard.class,
+            ConstantKeywordMapperPlugin.class,
+            PainlessPlugin.class
         );
     }
 
@@ -144,6 +160,9 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             + "user9:"
             + usersPasswHashed
             + "\n"
+            + "user_dls_fls:"
+            + usersPasswHashed
+            + "\n"
             + "user_different_fields:"
             + usersPasswHashed
             + "\n";
@@ -160,6 +179,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             role6:user5,user7
             role7:user6
             role8:user9
+            role_dls_fls:user_dls_fls
             role_different_fields:user_different_fields""";
     }
 
@@ -223,6 +243,13 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
                     privileges: [ ALL ]
                     field_security:
                        grant: [ 'field*', 'query' ]
+            role_dls_fls:
+              indices:
+                - names: [ 'test' ]
+                  privileges: [ read ]
+                  field_security:
+                    grant: [ 'visible' ]
+                  query: '{"term": {"hidden": "value"}}'
             role_different_fields:
               indices:
                 - names: [ 'partial1*' ]
@@ -420,6 +447,212 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         );
     }
 
+    public void testQueryConstantKeyword() {
+        assertAcked(indicesAdmin().prepareCreate("test").setMapping("field1", "type=constant_keyword,value=value1"));
+        prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
+
+        assertConstantKeywordQueryRespectsFls(termQuery("field1", "value1"));
+        assertConstantKeywordQueryRespectsFls(termsQuery("field1", "other", "value1"));
+        assertConstantKeywordQueryRespectsFls(prefixQuery("field1", "value"));
+        assertConstantKeywordQueryRespectsFls(wildcardQuery("field1", "value?"));
+        assertConstantKeywordQueryRespectsFls(existsQuery("field1"));
+        assertConstantKeywordQueryRespectsFls(rangeQuery("field1").gte("value1").lte("value1"));
+        assertConstantKeywordQueryRespectsFls(fuzzyQuery("field1", "value2"));
+        assertConstantKeywordQueryRespectsFls(regexpQuery("field1", "value[0-9]"));
+    }
+
+    private void assertConstantKeywordQueryRespectsFls(QueryBuilder query) {
+        assertHitCount(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareSearch("test")
+                .setQuery(query),
+            1
+        );
+
+        assertHitCount(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .prepareSearch("test")
+                .setQuery(query),
+            0
+        );
+    }
+
+    public void testFetchConstantKeywordRespectsFls() throws Exception {
+        assertAcked(
+            indicesAdmin().prepareCreate("test")
+                .setMapping("field1", "type=constant_keyword,value=value1", "field1_alias", "type=alias,path=field1")
+        );
+        prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
+
+        SearchRequest fieldsRequest = new SearchRequest("test").source(new SearchSourceBuilder().fetchSource(false).fetchField("field1"));
+
+        // user1 may see field1
+        assertResponse(
+            client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))).search(fieldsRequest),
+            response -> assertThat(response.getHits().getAt(0).field("field1").getValue(), equalTo("value1"))
+        );
+
+        // user2 may not see field1
+        assertResponse(
+            client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD))).search(fieldsRequest),
+            response -> assertFalse(response.getHits().getAt(0).getDocumentFields().containsKey("field1"))
+        );
+
+        SearchRequest docValuesRequest = new SearchRequest("test").source(
+            new SearchSourceBuilder().fetchSource(false).docValueField("field1")
+        );
+
+        assertResponse(
+            client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))).search(docValuesRequest),
+            response -> assertThat(response.getHits().getAt(0).field("field1").getValue(), equalTo("value1"))
+        );
+
+        // user2 may not see field1 values
+        assertResponse(
+            client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD))).search(docValuesRequest),
+            response -> assertThat(response.getHits().getAt(0).getDocumentFields().get("field1").getValues(), empty())
+        );
+
+        SearchRequest aliasFieldsRequest = new SearchRequest("test").source(
+            new SearchSourceBuilder().fetchSource(false).fetchField("field1_alias")
+        );
+        // user1 may see field1 through alias
+        assertResponse(
+            client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))).search(aliasFieldsRequest),
+            response -> assertThat(response.getHits().getAt(0).field("field1_alias").getValue(), equalTo("value1"))
+        );
+
+        // user2 may not see field1 through alias
+        assertResponse(
+            client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD))).search(aliasFieldsRequest),
+            response -> assertFalse(response.getHits().getAt(0).getDocumentFields().containsKey("field1_alias"))
+        );
+
+        SearchRequest aliasDocValuesRequest = new SearchRequest("test").source(
+            new SearchSourceBuilder().fetchSource(false).docValueField("field1_alias")
+        );
+
+        assertResponse(
+            client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))).search(aliasDocValuesRequest),
+            response -> assertThat(response.getHits().getAt(0).field("field1_alias").getValue(), equalTo("value1"))
+        );
+
+        // user2 may not see field1 value through alias
+        assertResponse(
+            client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD))).search(aliasDocValuesRequest),
+            response -> assertThat(response.getHits().getAt(0).getDocumentFields().get("field1_alias").getValues(), empty())
+        );
+    }
+
+    public void testConstantKeywordFieldDataSortRespectsFieldLevelSecurity() {
+        assertAcked(prepareCreate("test").setMapping("field1", "type=constant_keyword,value=hidden-value"));
+        prepareIndex("test").setSource("other", "value").get();
+        refresh("test");
+
+        assertResponse(
+            client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareSearch("test")
+                .addSort(SortBuilders.fieldSort("field1").missing("missing")),
+            response -> assertThat(response.getHits().getAt(0).getSortValues()[0], equalTo("hidden-value"))
+        );
+
+        assertResponse(
+            client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .prepareSearch("test")
+                .addSort(SortBuilders.fieldSort("field1").missing("missing")),
+            response -> assertThat(response.getHits().getAt(0).getSortValues()[0], equalTo("missing"))
+        );
+    }
+
+    public void testConstantKeywordFieldDataAggregationRespectsFieldLevelSecurity() {
+        assertAcked(prepareCreate("test").setMapping("field1", "type=constant_keyword,value=hidden-value"));
+        prepareIndex("test").setSource("other", "value").get();
+        refresh("test");
+
+        assertResponse(
+            client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareSearch("test")
+                .setSize(0)
+                .addAggregation(AggregationBuilders.terms("values").field("field1").missing("missing")),
+            response -> {
+                Terms terms = response.getAggregations().get("values");
+                assertThat(terms.getBucketByKey("hidden-value"), notNullValue());
+                assertThat(terms.getBucketByKey("hidden-value").getDocCount(), equalTo(1L));
+            }
+        );
+
+        assertResponse(
+            client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .prepareSearch("test")
+                .setSize(0)
+                .addAggregation(AggregationBuilders.terms("values").field("field1").missing("missing")),
+            response -> {
+                Terms terms = response.getAggregations().get("values");
+                assertThat(terms.getBucketByKey("hidden-value"), nullValue());
+                assertThat(terms.getBucketByKey("missing").getDocCount(), equalTo(1L));
+            }
+        );
+    }
+
+    public void testConstantKeywordScriptFieldRespectsFieldLevelSecurity() {
+        assertAcked(prepareCreate("test").setMapping("field1", "type=constant_keyword,value=hidden-value"));
+        prepareIndex("test").setSource("other", "value").get();
+        refresh("test");
+
+        var script = new Script("doc['field1'].size() == 0 ? 'missing' : doc['field1'].value");
+
+        assertResponse(
+            client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareSearch("test")
+                .addScriptField("result", script),
+            response -> assertThat(response.getHits().getAt(0).getFields().get("result").getValue(), equalTo("hidden-value"))
+        );
+
+        assertResponse(
+            client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .prepareSearch("test")
+                .addScriptField("result", script),
+            response -> assertThat(response.getHits().getAt(0).getFields().get("result").getValue(), equalTo("missing"))
+        );
+    }
+
+    public void testConstantKeywordTermsEnumRespectsFieldLevelSecurity() {
+        assertAcked(
+            prepareCreate("test").setMapping("field1", "type=constant_keyword,value=hidden-value", "field2", "type=alias,path=field1")
+        );
+        prepareIndex("test").setSource("other", "value").get();
+        refresh("test");
+
+        var visible = client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+            .execute(TermsEnumAction.INSTANCE, new TermsEnumRequest("test").field("field1"))
+            .actionGet();
+
+        assertThat(visible.getTerms(), contains("hidden-value"));
+
+        var hidden = client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+            .execute(TermsEnumAction.INSTANCE, new TermsEnumRequest("test").field("field1"))
+            .actionGet();
+
+        assertThat(hidden.getTerms(), empty());
+
+        var hiddenViaAlias = client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+            .execute(TermsEnumAction.INSTANCE, new TermsEnumRequest("test").field("field2"))
+            .actionGet();
+
+        assertThat(hiddenViaAlias.getTerms(), empty());
+    }
+
+    public void testTermsEnumDoesNotApplyFlsRestrictionToDlsQuery() {
+        assertAcked(prepareCreate("test").setMapping("visible", "type=keyword", "hidden", "type=constant_keyword,value=value"));
+        prepareIndex("test").setSource("visible", "visible-term").setRefreshPolicy(IMMEDIATE).get();
+
+        var response = client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_dls_fls", USERS_PASSWD)))
+            .execute(TermsEnumAction.INSTANCE, new TermsEnumRequest("test").field("visible"))
+            .actionGet();
+
+        assertThat(response.getTerms(), contains("visible-term"));
+    }
+
     public void testKnnSearch() throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder()
             .startObject()
@@ -537,6 +770,51 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
                 .prepareSearch("query_index")
                 .setQuery(percolateQuery),
             0
+        );
+    }
+
+    public void testPercolatorConstantKeywordQueryDependsOnIndexingUsersFls() throws IOException {
+        // This test documents the current behaviour, and shouldn't necessarily be taken as documentation of the _desired_ behaviour.
+        // Broadly: when a user creates a percolator query, their FLS policy gets baked into the query, so other users with different
+        // policies get restricted in the same way.
+        assertAcked(
+            indicesAdmin().prepareCreate("query_index")
+                .setMapping("query", "type=percolator", "field1", "type=constant_keyword,value=prod", "field2", "type=text")
+        );
+
+        var percolatorQuery = """
+            {"query": {"term": {"field1": "prod"}}}""";
+
+        client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+            .prepareIndex("query_index")
+            .setId("restricted-writer")
+            .setSource(percolatorQuery, XContentType.JSON)
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+        client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user7", USERS_PASSWD)))
+            .prepareIndex("query_index")
+            .setId("unrestricted-writer")
+            .setSource(percolatorQuery, XContentType.JSON)
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+
+        var percolateQuery = new PercolateQueryBuilder(
+            "query",
+            BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field2", "value2").endObject()),
+            XContentType.JSON
+        );
+
+        assertSearchHitsWithoutFailures(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user7", USERS_PASSWD)))
+                .prepareSearch("query_index")
+                .setQuery(percolateQuery),
+            "unrestricted-writer"
+        );
+        assertSearchHitsWithoutFailures(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .prepareSearch("query_index")
+                .setQuery(percolateQuery),
+            "unrestricted-writer"
         );
     }
 

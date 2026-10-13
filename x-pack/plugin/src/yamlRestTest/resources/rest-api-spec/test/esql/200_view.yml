@@ -57,7 +57,7 @@ setup:
 
   - do:
       esql.get_view:
-        name: "*,-.ml-anomalies"
+        name: "*,-.*"
 
   - match: { views.0.name: "dogs" }
   - match: { views.0.query: 'FROM test | WHERE animal == "dog"' }
@@ -83,7 +83,7 @@ setup:
 
   - do:
       esql.get_view:
-        name: "*,-.ml-anomalies"
+        name: "*,-.*"
 
   - match: { views: [] }
   - length: { views: 0 }
@@ -147,7 +147,7 @@ setup:
 
   - do:
       esql.get_view:
-        name: "*,-.ml-anomalies"
+        name: "*,-.*"
 
   - length: { views: 3 }
 
@@ -157,7 +157,7 @@ setup:
 
   - do:
       esql.get_view:
-        name: "*,-.ml-anomalies"
+        name: "*,-.*"
 
   - length: { views: 1 }
   - match: { views.0.name: "foxes" }
@@ -168,7 +168,7 @@ setup:
 
   - do:
       esql.get_view:
-        name: "*,-.ml-anomalies"
+        name: "*,-.*"
 
   - length: { views: 0 }
 
@@ -194,7 +194,7 @@ setup:
 
   - do:
       esql.get_view:
-        name: "*,-.ml-anomalies"
+        name: "*,-.*"
 
   - length: { views: 3 }
 
@@ -204,7 +204,7 @@ setup:
 
   - do:
       esql.get_view:
-        name: "*,-.ml-anomalies"
+        name: "*,-.*"
 
   - length: { views: 1 }
   - match: { views.0.name: "faxes" }
@@ -225,17 +225,17 @@ setup:
 
   - do:
       esql.get_view:
-        name: "*,-.ml-anomalies"
+        name: "*,-.*"
 
   - length: { views: 2 }
 
   - do:
       esql.delete_view:
-        name: "*,-.ml-anomalies"
+        name: "*,-.*"
 
   - do:
       esql.get_view:
-        name: "*,-.ml-anomalies"
+        name: "*,-.*"
 
   - length: { views: 0 }
 
@@ -335,7 +335,7 @@ setup:
 
   - do:
       esql.get_view:
-        name: "*,-.ml-anomalies"
+        name: "*,-.*"
 
   - match: { views: [] }
 

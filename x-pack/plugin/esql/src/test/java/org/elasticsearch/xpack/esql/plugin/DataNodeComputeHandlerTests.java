@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -53,13 +52,13 @@ public class DataNodeComputeHandlerTests extends ESTestCase {
 
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> DataNodeComputeHandler.validateFetchContexts(plan, request(plan, null))
+            () -> DataNodeComputeHandler.validateFetchContexts(plan, request(plan, false))
         );
         assertThat(e.getMessage(), equalTo("document references need fetch contexts, but the request asked for none"));
-        DataNodeComputeHandler.validateFetchContexts(plan, request(plan, TimeValue.timeValueMinutes(1)));
+        DataNodeComputeHandler.validateFetchContexts(plan, request(plan, true));
     }
 
-    private static DataNodeRequest request(ExchangeSinkExec plan, TimeValue fetchContextKeepAlive) {
+    private static DataNodeRequest request(ExchangeSinkExec plan, boolean keepFetchContexts) {
         return new DataNodeRequest(
             "session",
             EsqlTestUtils.TEST_CFG,
@@ -73,7 +72,7 @@ public class DataNodeComputeHandlerTests extends ESTestCase {
             true,
             false,
             List.of(),
-            fetchContextKeepAlive
+            keepFetchContexts
         );
     }
 }

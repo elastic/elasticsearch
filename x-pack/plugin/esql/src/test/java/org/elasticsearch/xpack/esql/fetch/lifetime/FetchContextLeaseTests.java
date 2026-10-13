@@ -7,37 +7,27 @@
 
 package org.elasticsearch.xpack.esql.fetch.lifetime;
 
-import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
-import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.After;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -47,7 +37,7 @@ import static org.hamcrest.Matchers.sameInstance;
 public class FetchContextLeaseTests extends FetchContextsTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        // records the free requests the lease sends
+        // counts the free requests the lease sends
         return CollectionUtils.appendToCopy(super.getPlugins(), MockTransportService.TestPlugin.class);
     }
 
@@ -60,7 +50,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
         createIndexWithDocs(INDEX);
         CancellableTask task = rootTask();
         FetchContextLease lease = service.leaseFor(task);
-        lease.add(localNode(), originalIndices(INDEX), respond(INDEX));
+        lease.add(localNode(), respond(INDEX));
         assertThat(searchService().getActiveContexts(), equalTo(SHARDS));
 
         service.closeLease(task.getId());
@@ -69,21 +59,18 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
     }
 
     /**
-     * The contexts of one node and index expressions go in one free request.
+     * Each context goes in its own request, to the free action of {@code _search}.
      */
-    public void testFreesTheContextsOfANodeInOneRequest() throws Exception {
+    public void testFreesEachContextWithTheFreeActionOfSearch() throws Exception {
         createIndexWithDocs(INDEX);
         CancellableTask task = rootTask();
-        List<OpenContextInfo> open = respond(INDEX);
-        service.leaseFor(task).add(localNode(), originalIndices(INDEX), open);
-        List<ShardSearchContextId> ids = open.stream().map(OpenContextInfo::contextId).toList();
-        List<List<ShardSearchContextId>> freeRequests = recordFreeRequests();
+        service.leaseFor(task).add(localNode(), respond(INDEX));
+        AtomicInteger freeRequests = countFreeRequests();
 
         service.closeLease(task.getId());
 
-        assertBusy(() -> assertThat(freeRequests, hasSize(1)));
-        assertThat(freeRequests.getFirst(), containsInAnyOrder(ids.toArray()));
         assertAllFreed();
+        assertThat(freeRequests.get(), equalTo(SHARDS));
     }
 
     /**
@@ -95,7 +82,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
         FetchContextLease lease = service.leaseFor(rootTask());
         lease.close();
 
-        lease.add(localNode(), originalIndices(INDEX), respond(INDEX));
+        lease.add(localNode(), respond(INDEX));
 
         assertAllFreed();
     }
@@ -119,7 +106,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
     public void testCancellingTheQueryFreesItsContexts() throws Exception {
         createIndexWithDocs(INDEX);
         CancellableTask task = rootTask();
-        service.leaseFor(task).add(localNode(), originalIndices(INDEX), respond(INDEX));
+        service.leaseFor(task).add(localNode(), respond(INDEX));
 
         TaskCancelHelper.cancel(task, "the user cancelled the query");
 
@@ -127,16 +114,16 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
     }
 
     /**
-     * An administrator can cancel the query of another user. The lease still frees the contexts as their owner, because
-     * the data nodes only let the owner free them.
+     * An administrator can cancel the query of another user. The lease still frees the contexts, as the user who ran the
+     * query.
      */
-    public void testLeaseFreesAsTheOwnerOfTheQuery() throws Exception {
+    public void testCancelledByAnotherUserFreesTheContexts() throws Exception {
         createIndexWithDocs(INDEX);
         Authentication owner = AuthenticationTestHelper.builder().user(new User("owner")).build();
         Authentication administrator = AuthenticationTestHelper.builder().user(new User("administrator")).build();
         CancellableTask task = rootTask();
         as(owner, () -> {
-            service.leaseFor(task).add(localNode(), originalIndices(INDEX), respond(INDEX));
+            service.leaseFor(task).add(localNode(), respond(INDEX));
             return null;
         });
 
@@ -148,59 +135,18 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
         assertAllFreed();
     }
 
-    public void testOnlyTheOwnerFreesAContext() throws Exception {
-        createIndexWithDocs(INDEX);
-        Authentication owner = AuthenticationTestHelper.builder().user(new User("owner")).build();
-        Authentication other = AuthenticationTestHelper.builder().user(new User("other")).build();
-        List<OpenContextInfo> open = as(owner, () -> respond(INDEX));
-
-        as(other, () -> sendFree(open));
-        assertThat(searchService().getActiveContexts(), equalTo(SHARDS));
-
-        as(owner, () -> sendFree(open));
-        assertAllFreed();
-    }
-
     /**
      * Freeing a context twice, or one the reaper already freed, does nothing.
      */
     public void testFreeingAMissingContextDoesNothing() throws Exception {
         createIndexWithDocs(INDEX);
-        List<OpenContextInfo> open = respond(INDEX);
-        sendFree(open);
+        List<ShardSearchContextId> open = respond(INDEX);
+        open.forEach(id -> service.sendFree(localNode(), id));
         assertAllFreed();
 
-        sendFree(open);
-        assertAllFreed();
-    }
-
-    /**
-     * A free request only frees fetch contexts, so it can't free a scroll or a point in time whose id it learned.
-     */
-    public void testFreesOnlyFetchContexts() throws Exception {
-        createIndexWithDocs(INDEX);
-        ShardSearchRequest shardRequest = shardRequest(new ShardId(resolveIndex(INDEX), 0));
-        ReaderContext other = searchService().openOwnedReaderContext(shardRequest, TimeValue.timeValueMinutes(5), null);
-        try {
-            sendFreeIds(List.of(other.id()));
-            assertThat(searchService().getActiveContexts(), equalTo(1));
-        } finally {
-            searchService().freeReaderContext(other.id());
-        }
-        assertAllFreed();
-    }
-
-    /**
-     * An id that this node can't look up doesn't keep the request from freeing the other contexts.
-     */
-    public void testAnUnreadableIdDoesNotKeepTheOthersOpen() throws Exception {
-        createIndexWithDocs(INDEX);
-        List<ShardSearchContextId> ids = new ArrayList<>(respond(INDEX).stream().map(OpenContextInfo::contextId).toList());
-        // a lookup without a session id fails with an IllegalArgumentException
-        ids.add(between(0, ids.size()), new ShardSearchContextId("", randomNonNegativeLong()));
-
-        sendFreeIds(ids);
-
+        AtomicInteger freeRequests = countFreeRequests();
+        open.forEach(id -> service.sendFree(localNode(), id));
+        assertBusy(() -> assertThat(freeRequests.get(), equalTo(SHARDS)));
         assertAllFreed();
     }
 
@@ -209,37 +155,17 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
     }
 
     /**
-     * The context ids of every free request this node receives from now on.
+     * Counts the requests of the free action of {@code _search} that this node receives from now on.
      */
-    private List<List<ShardSearchContextId>> recordFreeRequests() {
-        List<List<ShardSearchContextId>> freeRequests = new CopyOnWriteArrayList<>();
-        ((MockTransportService) getInstanceFromNode(TransportService.class)).<FetchFreeRequest>addRequestHandlingBehavior(
-            FetchContextService.FREE_ACTION_NAME,
+    private AtomicInteger countFreeRequests() {
+        AtomicInteger freeRequests = new AtomicInteger();
+        ((MockTransportService) getInstanceFromNode(TransportService.class)).<TransportRequest>addRequestHandlingBehavior(
+            SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME,
             (handler, request, channel, task) -> {
-                freeRequests.add(request.contextIds());
+                freeRequests.incrementAndGet();
                 handler.messageReceived(request, channel, task);
             }
         );
         return freeRequests;
-    }
-
-    private Void sendFree(List<OpenContextInfo> open) {
-        return sendFreeIds(open.stream().map(OpenContextInfo::contextId).toList());
-    }
-
-    /**
-     * Sends a free request to this node in the current thread context, and waits for its response.
-     */
-    private Void sendFreeIds(List<ShardSearchContextId> ids) {
-        PlainActionFuture<ActionResponse.Empty> response = new PlainActionFuture<>();
-        getInstanceFromNode(TransportService.class).sendRequest(
-            localNode(),
-            FetchContextService.FREE_ACTION_NAME,
-            new FetchFreeRequest(originalIndices(INDEX), ids),
-            TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(response, in -> ActionResponse.Empty.INSTANCE, EsExecutors.DIRECT_EXECUTOR_SERVICE)
-        );
-        response.actionGet();
-        return null;
     }
 }

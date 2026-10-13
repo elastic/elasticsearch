@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.stats.CCSUsage;
 import org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry;
+import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
@@ -135,6 +136,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         ActionFilters actionFilters,
         PlanExecutor planExecutor,
         SearchService searchService,
+        SearchTransportService searchTransportService,
         ExchangeService exchangeService,
         ClusterService clusterService,
         ViewResolver viewResolver,
@@ -222,6 +224,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         this.services = new TransportActionServices(
             transportService,
             searchService,
+            searchTransportService,
             exchangeService,
             clusterService,
             projectResolver,

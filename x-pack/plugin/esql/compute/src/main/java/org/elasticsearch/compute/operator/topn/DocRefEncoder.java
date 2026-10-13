@@ -10,8 +10,8 @@ package org.elasticsearch.compute.operator.topn;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.compute.data.DocOrigin;
 import org.elasticsearch.compute.data.DocRefBlock;
-import org.elasticsearch.compute.data.DocRefOrigin;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.core.Releasable;
 
@@ -41,14 +41,14 @@ public class DocRefEncoder extends DefaultUnsortableTopNEncoder {
     /**
      * The ordinal of {@code origin} in the registry of the operator, interning it on first sight.
      */
-    int intern(DocRefOrigin origin) {
+    int intern(DocOrigin origin) {
         throw new IllegalStateException("encode document references with the encoder from forOperator");
     }
 
     /**
      * The origin an ordinal from {@link #intern} stands for.
      */
-    DocRefOrigin origin(int ordinal) {
+    DocOrigin origin(int ordinal) {
         throw new IllegalStateException("decode document references with the encoder from forOperator");
     }
 
@@ -68,9 +68,9 @@ public class DocRefEncoder extends DefaultUnsortableTopNEncoder {
             + RamUsageEstimator.NUM_BYTES_OBJECT_REF;
 
         private final CircuitBreaker breaker;
-        private final Map<DocRefOrigin, Integer> ordinals = new ConcurrentHashMap<>();
+        private final Map<DocOrigin, Integer> ordinals = new ConcurrentHashMap<>();
         // written under the lock, published to the threads that decode by the volatile write
-        private volatile DocRefOrigin[] origins = new DocRefOrigin[4];
+        private volatile DocOrigin[] origins = new DocOrigin[4];
         private int size;
         private long reservedBytes;
         private boolean closed;
@@ -80,7 +80,7 @@ public class DocRefEncoder extends DefaultUnsortableTopNEncoder {
         }
 
         @Override
-        int intern(DocRefOrigin origin) {
+        int intern(DocOrigin origin) {
             Integer ordinal = ordinals.get(origin);
             if (ordinal != null) {
                 return ordinal;
@@ -97,7 +97,7 @@ public class DocRefEncoder extends DefaultUnsortableTopNEncoder {
                 long bytes = origin.ramBytesUsed() + ENTRY_BYTES;
                 breaker.addEstimateBytesAndMaybeBreak(bytes, "topn");
                 reservedBytes += bytes;
-                DocRefOrigin[] current = origins;
+                DocOrigin[] current = origins;
                 if (size == current.length) {
                     current = Arrays.copyOf(current, size * 2);
                 }
@@ -109,7 +109,7 @@ public class DocRefEncoder extends DefaultUnsortableTopNEncoder {
         }
 
         @Override
-        DocRefOrigin origin(int ordinal) {
+        DocOrigin origin(int ordinal) {
             return origins[ordinal];
         }
 

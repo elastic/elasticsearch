@@ -10,9 +10,9 @@ package org.elasticsearch.compute.operator.fetch;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.DocOrigin;
+import org.elasticsearch.compute.data.DocOrigins;
 import org.elasticsearch.compute.data.DocRefBlock;
-import org.elasticsearch.compute.data.DocRefOrigin;
-import org.elasticsearch.compute.data.DocRefOrigins;
 import org.elasticsearch.compute.data.DocRefVector;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntVector;
@@ -41,7 +41,7 @@ public final class DocRefEncodeOperator implements Operator {
      * @param origins the origin of each shard slot of the page, usually {@link ShardContext#origin()} mapped lazily over
      *                the shard contexts. Only slots that rows reference are read.
      */
-    public record Factory(int docChannel, IndexedByShardId<DocRefOrigin> origins) implements OperatorFactory {
+    public record Factory(int docChannel, IndexedByShardId<DocOrigin> origins) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
             return new DocRefEncodeOperator(driverContext.blockFactory(), docChannel, origins);
@@ -55,7 +55,7 @@ public final class DocRefEncodeOperator implements Operator {
 
     private final BlockFactory blockFactory;
     private final int docChannel;
-    private final IndexedByShardId<DocRefOrigin> origins;
+    private final IndexedByShardId<DocOrigin> origins;
 
     private Page output;
     private boolean finished;
@@ -65,7 +65,7 @@ public final class DocRefEncodeOperator implements Operator {
     private long rowsReceived;
     private long rowsEmitted;
 
-    public DocRefEncodeOperator(BlockFactory blockFactory, int docChannel, IndexedByShardId<DocRefOrigin> origins) {
+    public DocRefEncodeOperator(BlockFactory blockFactory, int docChannel, IndexedByShardId<DocOrigin> origins) {
         this.blockFactory = blockFactory;
         this.docChannel = docChannel;
         this.origins = origins;
@@ -121,7 +121,7 @@ public final class DocRefEncodeOperator implements Operator {
         IntVector shards = doc.shards();
         // The distinct shards in the order rows first reference them. A TopN builds the shard vector as an array even when
         // every row comes from one shard, so the check runs on the rows and not on isConstant.
-        List<DocRefOrigin> referenced = new ArrayList<>();
+        List<DocOrigin> referenced = new ArrayList<>();
         int[] ordinalOfSlot = null;
         if (positions > 0) {
             if (shards.isConstant()) {
@@ -157,7 +157,7 @@ public final class DocRefEncodeOperator implements Operator {
             segments.incRef();
             docs = doc.docs();
             docs.incRef();
-            result = new DocRefVector(DocRefOrigins.of(referenced), ordinals, segments, docs, doc.mayContainDuplicates()).asBlock();
+            result = new DocRefVector(DocOrigins.of(referenced), ordinals, segments, docs, doc.mayContainDuplicates()).asBlock();
             return result;
         } finally {
             if (result == null) {

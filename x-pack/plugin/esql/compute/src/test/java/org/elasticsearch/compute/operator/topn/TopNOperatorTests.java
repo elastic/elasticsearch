@@ -24,8 +24,11 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.DocOrigin;
+import org.elasticsearch.compute.data.DocOriginTable;
+import org.elasticsearch.compute.data.DocOrigins;
 import org.elasticsearch.compute.data.DocRefBlock;
-import org.elasticsearch.compute.data.DocRefOrigin;
+import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -2665,9 +2668,9 @@ public class TopNOperatorTests extends OperatorTestCase {
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
         var layout = ChannelLayout.forDataColumns(2, groupKeys());
-        List<DocRefOrigin> origins = new ArrayList<>();
+        List<DocOrigin> origins = new ArrayList<>();
         while (origins.size() < 4) {
-            DocRefOrigin origin = RandomBlock.randomDocRefOrigin();
+            DocOrigin origin = RandomBlock.randomDocOrigin();
             if (origins.contains(origin) == false) {
                 origins.add(origin);
             }
@@ -2683,13 +2686,13 @@ public class TopNOperatorTests extends OperatorTestCase {
         int next = 0;
         while (next < keys.size()) {
             int positions = Math.min(between(1, 50), keys.size() - next);
-            List<DocRefOrigin> pageOrigins = new ArrayList<>(randomSubsetOf(between(1, origins.size()), origins));
+            List<DocOrigin> pageOrigins = new ArrayList<>(randomSubsetOf(between(1, origins.size()), origins));
             Collections.shuffle(pageOrigins, random());
             try (
                 LongBlock.Builder keyColumn = blockFactory.newLongBlockBuilder(positions);
                 DocRefBlock.Builder refColumn = DocRefBlock.newBlockBuilder(blockFactory, positions)
             ) {
-                for (DocRefOrigin origin : pageOrigins) {
+                for (DocOrigin origin : pageOrigins) {
                     refColumn.addOrigin(origin);
                 }
                 for (int p = 0; p < positions; p++) {
@@ -2742,7 +2745,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                     try {
                         LongBlock keyColumn = page.getBlock(layout.dataChannel(0));
                         DocRefBlock refColumn = page.getBlock(layout.dataChannel(1));
-                        Set<DocRefOrigin> referenced = new HashSet<>();
+                        Set<DocOrigin> referenced = new HashSet<>();
                         for (int p = 0; p < page.getPositionCount(); p++) {
                             BlockUtils.DocRef ref = (BlockUtils.DocRef) toJavaObject(refColumn, p);
                             referenced.add(ref.origin());
@@ -2760,6 +2763,111 @@ public class TopNOperatorTests extends OperatorTestCase {
             )
         ) {
             new TestDriverRunner().run(driver);
+        }
+
+        rows.sort(Comparator.comparing(Tuple::v1));
+        actual.sort(Comparator.comparing(Tuple::v1));
+        assertThat(actual, equalTo(rows.subList(0, topCount)));
+    }
+
+    /**
+     * Documents that left their nodes keep their origins through the TopN, though each page numbers its origins in its own
+     * way. Each output page only names the origins its own rows reference. {@link ParallelTopNOperatorTests} runs this with
+     * workers that see the origins in a different order and share the table of the query.
+     */
+    public void testDetachedDocsFromManyOrigins() {
+        DriverContext driverContext = driverContext();
+        BlockFactory blockFactory = driverContext.blockFactory();
+        var layout = ChannelLayout.forDataColumns(2, groupKeys());
+        List<DocOrigin> origins = RandomBlock.randomDocOrigins(4);
+        // distinct keys, so the winners don't depend on how ties break
+        List<Long> keys = new ArrayList<>();
+        for (long k = 0; k < 400; k++) {
+            keys.add(k);
+        }
+        Collections.shuffle(keys, random());
+        List<Tuple<Long, BlockUtils.DocRef>> rows = new ArrayList<>();
+        List<Page> pages = new ArrayList<>();
+        int next = 0;
+        while (next < keys.size()) {
+            int positions = Math.min(between(1, 50), keys.size() - next);
+            List<DocOrigin> pageOrigins = new ArrayList<>(randomSubsetOf(between(1, origins.size()), origins));
+            Collections.shuffle(pageOrigins, random());
+            try (
+                LongBlock.Builder keyColumn = blockFactory.newLongBlockBuilder(positions);
+                DocBlock.Builder docColumn = DocBlock.newBlockBuilder(blockFactory, positions)
+            ) {
+                for (int p = 0; p < positions; p++) {
+                    long key = keys.get(next++);
+                    int ordinal = between(0, pageOrigins.size() - 1);
+                    int segment = between(0, 3);
+                    int doc = between(0, 1000);
+                    keyColumn.appendLong(key);
+                    docColumn.appendShard(ordinal).appendSegment(segment).appendDoc(doc);
+                    rows.add(tuple(key, new BlockUtils.DocRef(pageOrigins.get(ordinal), segment, doc)));
+                }
+                DocVector.Config config = DocVector.config().origins(DocOrigins.of(pageOrigins)).mayContainDuplicates();
+                pages.add(new Page(layout.buildPageBlocks(positions, blockFactory, keyColumn.build(), docColumn.build(config))));
+            }
+        }
+        int topCount = between(1, rows.size());
+
+        List<Tuple<Long, BlockUtils.DocRef>> actual = new ArrayList<>();
+        try (DocOriginTable table = new DocOriginTable(blockFactory.breaker())) {
+            List<ElementType> elementTypes = new ArrayList<>();
+            List<TopNEncoder> encoders = new ArrayList<>();
+            for (int ch = 0; ch < layout.totalChannels(); ch++) {
+                if (layout.groupKeySet().contains(ch)) {
+                    elementTypes.add(INT);
+                    encoders.add(DEFAULT_UNSORTABLE);
+                } else if (ch == layout.dataChannel(0)) {
+                    elementTypes.add(LONG);
+                    encoders.add(DEFAULT_SORTABLE);
+                } else {
+                    elementTypes.add(ElementType.DOC);
+                    encoders.add(new DocVectorEncoder(AlwaysReferencedIndexedByShardId.INSTANCE, table));
+                }
+            }
+            try (
+                Driver driver = TestDriverFactory.create(
+                    driverContext,
+                    new CannedSourceOperator(pages.iterator()),
+                    List.of(
+                        createTopNOperatorFactory(
+                            topCount,
+                            elementTypes,
+                            encoders,
+                            List.of(new TopNOperator.SortOrder(layout.dataChannel(0), true, false)),
+                            groupKeys(),
+                            randomPageSize(),
+                            randomJumboPageBytes(),
+                            InputOrdering.NOT_SORTED,
+                            null
+                        ).get(driverContext)
+                    ),
+                    new PageConsumerOperator(page -> {
+                        try {
+                            LongBlock keyColumn = page.getBlock(layout.dataChannel(0));
+                            DocBlock docColumn = page.getBlock(layout.dataChannel(1));
+                            Set<DocOrigin> referenced = new HashSet<>();
+                            for (int p = 0; p < page.getPositionCount(); p++) {
+                                BlockUtils.DocRef doc = (BlockUtils.DocRef) toJavaObject(docColumn, p);
+                                referenced.add(doc.origin());
+                                actual.add(tuple(keyColumn.getLong(p), doc));
+                            }
+                            assertThat(
+                                "the page names only its own origins",
+                                docColumn.asVector().origins().size(),
+                                equalTo(referenced.size())
+                            );
+                        } finally {
+                            page.releaseBlocks();
+                        }
+                    })
+                )
+            ) {
+                new TestDriverRunner().run(driver);
+            }
         }
 
         rows.sort(Comparator.comparing(Tuple::v1));

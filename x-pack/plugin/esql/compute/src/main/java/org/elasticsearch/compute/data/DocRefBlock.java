@@ -55,12 +55,12 @@ public final class DocRefBlock extends AbstractVectorBlock implements Block {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         int positions = getPositionCount();
-        DocRefOrigins origins = vector.origins();
+        DocOrigins origins = vector.origins();
         IntVector ordinals = vector.originOrdinals();
 
         // the ordinal each referenced origin gets on the wire, plus one so that zero marks an unreferenced origin
         int[] wireOrdinals = new int[origins.size()];
-        List<DocRefOrigin> referenced = new ArrayList<>();
+        List<DocOrigin> referenced = new ArrayList<>();
         int scan = ordinals.isConstant() ? Math.min(1, positions) : positions;
         for (int p = 0; p < scan; p++) {
             int ordinal = ordinals.getInt(p);
@@ -73,7 +73,7 @@ public final class DocRefBlock extends AbstractVectorBlock implements Block {
         out.writeByte(vector.mayContainDuplicates() ? FLAG_MAY_CONTAIN_DUPLICATES : 0);
         out.writeVInt(positions);
         out.writeVInt(referenced.size());
-        for (DocRefOrigin origin : referenced) {
+        for (DocOrigin origin : referenced) {
             origin.writeTo(out);
         }
         if (referenced.size() > 1) {
@@ -108,10 +108,10 @@ public final class DocRefBlock extends AbstractVectorBlock implements Block {
         DocRefBlock result = null;
         try {
             // the counts are not trusted with allocations, the breaker accounts for the origins as they arrive
-            List<DocRefOrigin> origins = new ArrayList<>();
-            Set<DocRefOrigin> seen = new HashSet<>();
+            List<DocOrigin> origins = new ArrayList<>();
+            Set<DocOrigin> seen = new HashSet<>();
             for (int i = 0; i < originCount; i++) {
-                DocRefOrigin origin = DocRefOrigin.readFrom(in);
+                DocOrigin origin = DocOrigin.readFrom(in);
                 blockFactory.adjustBreaker(origin.ramBytesUsed());
                 reserved += origin.ramBytesUsed();
                 if (seen.add(origin) == false) {
@@ -128,7 +128,7 @@ public final class DocRefBlock extends AbstractVectorBlock implements Block {
             blockFactory.adjustBreaker(-reserved);
             reserved = 0;
             boolean mayContainDuplicates = (flags & FLAG_MAY_CONTAIN_DUPLICATES) != 0;
-            result = new DocRefVector(DocRefOrigins.of(origins), ordinals, segments, docs, mayContainDuplicates).asBlock();
+            result = new DocRefVector(DocOrigins.of(origins), ordinals, segments, docs, mayContainDuplicates).asBlock();
             return result;
         } finally {
             if (result == null) {
@@ -282,12 +282,12 @@ public final class DocRefBlock extends AbstractVectorBlock implements Block {
         private final IntVector.Builder ordinals;
         private final IntVector.Builder segments;
         private final IntVector.Builder docs;
-        private final Map<DocRefOrigin, Integer> ordinalsByOrigin = new HashMap<>();
-        private final List<DocRefOrigin> origins = new ArrayList<>();
+        private final Map<DocOrigin, Integer> ordinalsByOrigin = new HashMap<>();
+        private final List<DocOrigin> origins = new ArrayList<>();
         private boolean mayContainDuplicates = true;
 
         // copyFrom usually reads many rows from one source block, so the source to builder ordinal map is kept
-        private DocRefOrigins copySource;
+        private DocOrigins copySource;
         private int[] copySourceOrdinals;
 
         private Builder(BlockFactory blockFactory, int estimatedSize) {
@@ -314,7 +314,7 @@ public final class DocRefBlock extends AbstractVectorBlock implements Block {
          *
          * @return the ordinal rows use to point at the origin
          */
-        public int addOrigin(DocRefOrigin origin) {
+        public int addOrigin(DocOrigin origin) {
             Integer existing = ordinalsByOrigin.get(origin);
             if (existing != null) {
                 return existing;
@@ -393,7 +393,7 @@ public final class DocRefBlock extends AbstractVectorBlock implements Block {
         @Override
         public long estimatedBytes() {
             long bytes = DocRefVector.BASE_RAM_BYTES_USED + ordinals.estimatedBytes() + segments.estimatedBytes() + docs.estimatedBytes();
-            for (DocRefOrigin origin : origins) {
+            for (DocOrigin origin : origins) {
                 bytes += origin.ramBytesUsed();
             }
             return bytes;
@@ -415,8 +415,7 @@ public final class DocRefBlock extends AbstractVectorBlock implements Block {
                 } else {
                     builtOrdinals = ordinals.build();
                 }
-                result = new DocRefVector(DocRefOrigins.of(origins), builtOrdinals, builtSegments, builtDocs, mayContainDuplicates)
-                    .asBlock();
+                result = new DocRefVector(DocOrigins.of(origins), builtOrdinals, builtSegments, builtDocs, mayContainDuplicates).asBlock();
                 return result;
             } finally {
                 if (result == null) {

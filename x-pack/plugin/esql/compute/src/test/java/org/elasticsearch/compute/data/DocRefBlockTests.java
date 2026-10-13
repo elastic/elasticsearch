@@ -29,9 +29,9 @@ import static org.hamcrest.Matchers.sameInstance;
  * {@link DocRefBlock} and {@link DocRefVector}. The base class checks that every test leaves the breaker at zero.
  */
 public class DocRefBlockTests extends SerializationTestCase {
-    private final DocRefOrigin a = RandomBlock.randomDocRefOrigin();
-    private final DocRefOrigin b = randomValueOtherThan(a, RandomBlock::randomDocRefOrigin);
-    private final DocRefOrigin c = randomValueOtherThanMany(o -> o.equals(a) || o.equals(b), RandomBlock::randomDocRefOrigin);
+    private final DocOrigin a = RandomBlock.randomDocOrigin();
+    private final DocOrigin b = randomValueOtherThan(a, RandomBlock::randomDocOrigin);
+    private final DocOrigin c = randomValueOtherThanMany(o -> o.equals(a) || o.equals(b), RandomBlock::randomDocOrigin);
 
     public void testOneOriginBuildsConstantOrdinals() {
         int positions = between(1, 100);
@@ -240,9 +240,9 @@ public class DocRefBlockTests extends SerializationTestCase {
         });
     }
 
-    private DocRefBlock build(List<DocRefOrigin> origins, boolean mayContainDuplicates, int[][] rows) {
+    private DocRefBlock build(List<DocOrigin> origins, boolean mayContainDuplicates, int[][] rows) {
         try (DocRefBlock.Builder builder = DocRefBlock.newBlockBuilder(blockFactory, rows.length)) {
-            for (DocRefOrigin origin : origins) {
+            for (DocOrigin origin : origins) {
                 builder.addOrigin(origin);
             }
             for (int[] row : rows) {

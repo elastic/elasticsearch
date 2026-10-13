@@ -7,24 +7,24 @@
 
 package org.elasticsearch.xpack.esql.fetch;
 
-import org.elasticsearch.compute.data.DocRefOrigin;
+import org.elasticsearch.compute.data.DocOrigin;
 import org.elasticsearch.search.internal.SearchContext;
 
 /**
  * Names the reader of a shard for the rows that leave a data node as document references.
  */
 @FunctionalInterface
-public interface DocRefOriginResolver {
+public interface DocOriginResolver {
     /**
      * The origin of the rows read through {@code searchContext}. Asking means some of those rows survived the node cut.
      */
-    DocRefOrigin originOf(SearchContext searchContext);
+    DocOrigin originOf(SearchContext searchContext);
 
     /**
      * For data node requests that open no fetch contexts. Nothing could load their rows by reference later, so a planner
      * that makes references there has a bug.
      */
-    DocRefOriginResolver NONE = searchContext -> {
+    DocOriginResolver NONE = searchContext -> {
         throw new IllegalStateException("document references need fetch contexts, but this request opened none");
     };
 }

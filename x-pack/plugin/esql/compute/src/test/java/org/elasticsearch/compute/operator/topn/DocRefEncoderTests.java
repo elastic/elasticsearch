@@ -10,7 +10,7 @@ package org.elasticsearch.compute.operator.topn;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DocRefOrigin;
+import org.elasticsearch.compute.data.DocOrigin;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.compute.test.TestBlockFactory;
@@ -32,8 +32,8 @@ public class DocRefEncoderTests extends ESTestCase {
     public void testInternsEachOriginOnce() {
         CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
         try (DocRefEncoder.Registry registry = registry(breaker)) {
-            DocRefOrigin a = RandomBlock.randomDocRefOrigin();
-            DocRefOrigin b = randomValueOtherThan(a, RandomBlock::randomDocRefOrigin);
+            DocOrigin a = RandomBlock.randomDocOrigin();
+            DocOrigin b = randomValueOtherThan(a, RandomBlock::randomDocOrigin);
             int ordinalA = registry.intern(a);
             int ordinalB = registry.intern(b);
             assertThat(registry.intern(a), equalTo(ordinalA));
@@ -45,10 +45,10 @@ public class DocRefEncoderTests extends ESTestCase {
     public void testReturnsItsBytesWhenClosed() {
         CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
         DocRefEncoder.Registry registry = registry(breaker);
-        DocRefOrigin known = RandomBlock.randomDocRefOrigin();
+        DocOrigin known = RandomBlock.randomDocOrigin();
         registry.intern(known);
         for (int i = 0; i < 10; i++) {
-            registry.intern(RandomBlock.randomDocRefOrigin());
+            registry.intern(RandomBlock.randomDocOrigin());
         }
         assertThat(registry.ramBytesUsed(), greaterThan(0L));
         assertThat(breaker.getUsed(), equalTo(registry.ramBytesUsed()));
@@ -56,7 +56,7 @@ public class DocRefEncoderTests extends ESTestCase {
         registry.close();
         assertThat(breaker.getUsed(), equalTo(0L));
         // a parallel worker may still run after its merge target closed, so new origins must not reserve bytes
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> registry.intern(RandomBlock.randomDocRefOrigin()));
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> registry.intern(RandomBlock.randomDocOrigin()));
         assertThat(e.getMessage(), containsString("closed"));
         assertThat(registry.intern(known), equalTo(0));
         assertThat(breaker.getUsed(), equalTo(0L));
@@ -66,7 +66,7 @@ public class DocRefEncoderTests extends ESTestCase {
     public void testBreaks() {
         CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(100));
         try (DocRefEncoder.Registry registry = registry(breaker)) {
-            expectThrows(Exception.class, () -> registry.intern(RandomBlock.randomDocRefOrigin()));
+            expectThrows(Exception.class, () -> registry.intern(RandomBlock.randomDocOrigin()));
             assertThat(registry.ramBytesUsed(), equalTo(0L));
         }
         assertThat(breaker.getUsed(), equalTo(0L));
@@ -74,9 +74,9 @@ public class DocRefEncoderTests extends ESTestCase {
 
     public void testConcurrentInterning() throws Exception {
         CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(10));
-        List<DocRefOrigin> origins = new ArrayList<>();
+        List<DocOrigin> origins = new ArrayList<>();
         for (int i = 0; i < 50; i++) {
-            origins.add(RandomBlock.randomDocRefOrigin());
+            origins.add(RandomBlock.randomDocOrigin());
         }
         try (DocRefEncoder.Registry registry = registry(breaker)) {
             int threadCount = between(2, 8);
@@ -115,7 +115,7 @@ public class DocRefEncoderTests extends ESTestCase {
     }
 
     public void testOnlyTheOperatorEncoderEncodes() {
-        expectThrows(IllegalStateException.class, () -> DocRefEncoder.PROTOTYPE.intern(RandomBlock.randomDocRefOrigin()));
+        expectThrows(IllegalStateException.class, () -> DocRefEncoder.PROTOTYPE.intern(RandomBlock.randomDocOrigin()));
         expectThrows(IllegalStateException.class, () -> DocRefEncoder.PROTOTYPE.origin(0));
         try (DocRefEncoder.Registry registry = registry(newLimitedBreaker(ByteSizeValue.ofMb(1)))) {
             expectThrows(IllegalStateException.class, () -> registry.forOperator(newLimitedBreaker(ByteSizeValue.ofMb(1))));

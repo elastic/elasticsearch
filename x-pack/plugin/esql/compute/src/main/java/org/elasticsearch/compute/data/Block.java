@@ -529,6 +529,10 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
             // the planner only plans document references when every node can read them, so this is a planner bug
             throw new IllegalStateException("can't send document references to a node on [" + out.getTransportVersion() + "]");
         }
+        if (block instanceof DocBlock && out.getTransportVersion().supports(DocBlock.ESQL_DOC_ORIGINS) == false) {
+            // older nodes know the element type but can't read it, and the planner only sends _doc when every node can
+            throw new IllegalStateException("can't send documents to a node on [" + out.getTransportVersion() + "]");
+        }
         if (false == supportsAggregateMetricDoubleBlock(out.getTransportVersion()) && block instanceof AggregateMetricDoubleArrayBlock a) {
             block = a.asCompositeBlock();
         }

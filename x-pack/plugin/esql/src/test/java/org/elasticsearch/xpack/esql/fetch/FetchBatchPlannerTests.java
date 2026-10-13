@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.esql.fetch;
 
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.DocOrigin;
 import org.elasticsearch.compute.data.DocRefBlock;
-import org.elasticsearch.compute.data.DocRefOrigin;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.index.shard.ShardId;
@@ -22,9 +22,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class FetchBatchPlannerTests extends ComputeTestCase {
-    private static final DocRefOrigin N1_S0 = origin("n1", 0);
-    private static final DocRefOrigin N1_S1 = origin("n1", 1);
-    private static final DocRefOrigin N2_S2 = origin("n2", 2);
+    private static final DocOrigin N1_S0 = origin("n1", 0);
+    private static final DocOrigin N1_S1 = origin("n1", 1);
+    private static final DocOrigin N2_S2 = origin("n2", 2);
 
     /**
      * Nodes and their shards come in the order the cut first names them, and the documents of each shard sorted by
@@ -102,7 +102,7 @@ public class FetchBatchPlannerTests extends ComputeTestCase {
      * Every row reads the response row that holds its own document, whatever the order and the duplicates of the cut.
      */
     public void testEveryRowReadsItsOwnDocument() {
-        List<DocRefOrigin> origins = randomList(1, 6, FetchBatchPlannerTests::randomOrigin);
+        List<DocOrigin> origins = randomList(1, 6, FetchBatchPlannerTests::randomOrigin);
         List<Page> pages = new ArrayList<>();
         List<Ref> rows = new ArrayList<>();
         int pageCount = between(1, 4);
@@ -123,7 +123,7 @@ public class FetchBatchPlannerTests extends ComputeTestCase {
             List<Ref> responses = new ArrayList<>();
             for (FetchBatchPlanner.NodeBatch node : batch.nodes()) {
                 for (FetchRequest.ShardDocs shard : node.shards()) {
-                    DocRefOrigin origin = origins.stream().filter(o -> o.contextId().equals(shard.contextId())).findFirst().orElseThrow();
+                    DocOrigin origin = origins.stream().filter(o -> o.contextId().equals(shard.contextId())).findFirst().orElseThrow();
                     assertThat(origin.nodeId(), equalTo(node.nodeId()));
                     for (int d = 0; d < shard.docCount(); d++) {
                         responses.add(new Ref(origin, shard.segments()[d], shard.docs()[d]));
@@ -150,11 +150,11 @@ public class FetchBatchPlannerTests extends ComputeTestCase {
         }
     }
 
-    private record Ref(DocRefOrigin origin, int segment, int doc) {}
+    private record Ref(DocOrigin origin, int segment, int doc) {}
 
     private Page page(Ref... refs) {
         BlockFactory blockFactory = blockFactory();
-        List<DocRefOrigin> origins = new ArrayList<>();
+        List<DocOrigin> origins = new ArrayList<>();
         try (DocRefBlock.Builder builder = DocRefBlock.newBlockBuilder(blockFactory, refs.length)) {
             for (Ref ref : refs) {
                 if (origins.contains(ref.origin()) == false) {
@@ -174,8 +174,8 @@ public class FetchBatchPlannerTests extends ComputeTestCase {
         assertThat(shard.docs(), equalTo(docs));
     }
 
-    private static DocRefOrigin origin(String nodeId, int shard) {
-        return new DocRefOrigin("", nodeId, new ShardId("index", "uuid", shard), new ShardSearchContextId("session", shard));
+    private static DocOrigin origin(String nodeId, int shard) {
+        return new DocOrigin("", nodeId, new ShardId("index", "uuid", shard), new ShardSearchContextId("session", shard));
     }
 
     private static int randomSegment() {
@@ -189,8 +189,8 @@ public class FetchBatchPlannerTests extends ComputeTestCase {
         return randomBoolean() ? between(0, 300) : between(Integer.MAX_VALUE - 300, Integer.MAX_VALUE - 1);
     }
 
-    private static DocRefOrigin randomOrigin() {
-        return new DocRefOrigin(
+    private static DocOrigin randomOrigin() {
+        return new DocOrigin(
             "",
             randomFrom("n1", "n2", "n3"),
             new ShardId("index", "uuid", between(0, 10)),

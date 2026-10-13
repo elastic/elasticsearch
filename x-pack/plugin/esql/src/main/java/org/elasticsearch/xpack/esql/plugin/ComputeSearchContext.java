@@ -15,7 +15,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.xpack.esql.fetch.DocRefOriginResolver;
+import org.elasticsearch.xpack.esql.fetch.DocOriginResolver;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.DefaultShardContext;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 
@@ -35,17 +35,17 @@ class ComputeSearchContext implements Releasable {
     @Nullable
     private final SearchContext searchContext;
     @Nullable
-    private final DocRefOriginResolver originResolver;
+    private final DocOriginResolver originResolver;
     private final SetOnce<ShardContext> shardContext = new SetOnce<>();
 
     ComputeSearchContext(int index, SearchContext searchContext) {
-        this(index, searchContext, DocRefOriginResolver.NONE);
+        this(index, searchContext, DocOriginResolver.NONE);
     }
 
     /**
      * @param originResolver names the reader of this shard for rows that leave the node as document references
      */
-    ComputeSearchContext(int index, SearchContext searchContext, DocRefOriginResolver originResolver) {
+    ComputeSearchContext(int index, SearchContext searchContext, DocOriginResolver originResolver) {
         this.index = index;
         this.searchContext = Objects.requireNonNull(searchContext);
         this.originResolver = Objects.requireNonNull(originResolver);

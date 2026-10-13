@@ -333,7 +333,7 @@ public class VersionStringFieldMapperColumnarCompatibilityTests extends Abstract
             UnsupportedOperationException.class,
             () -> mapColumnarLeaf(mapperService, FIELD, "{\"@timestamp\":" + TS_A + ",\"f\":[\"2.0.0\",\"1.0.0\",\"2.0.0\"]}")
         );
-        assertTrue(ex.getMessage(), ex.getMessage().contains("keeps array source outside a strict-columnar index mode"));
+        assertTrue(ex.getMessage(), ex.getMessage().contains("may keep array source outside a strict-columnar index mode"));
     }
 
     /** Under field-level {@code synthetic_source_keep: all} the row path keeps every value, so an array must fall back. */
@@ -347,7 +347,7 @@ public class VersionStringFieldMapperColumnarCompatibilityTests extends Abstract
             UnsupportedOperationException.class,
             () -> mapColumnarLeaf(mapperService, FIELD, "{\"@timestamp\":" + TS_A + ",\"f\":[\"2.0.0\",\"1.0.0\"]}")
         );
-        assertTrue(ex.getMessage(), ex.getMessage().contains("keeps array source outside a strict-columnar index mode"));
+        assertTrue(ex.getMessage(), ex.getMessage().contains("may keep array source outside a strict-columnar index mode"));
     }
 
     /**

@@ -314,7 +314,7 @@ public class ConstantKeywordFieldMapperColumnarCompatibilityTests extends Abstra
             UnsupportedOperationException.class,
             () -> mapColumnarLeaf(ms, FIELD, "{\"@timestamp\":1705320000000,\"f\":[\"hello\",\"hello\"]}")
         );
-        assertTrue(ex.getMessage(), ex.getMessage().contains("keeps array source outside a strict-columnar index mode"));
+        assertTrue(ex.getMessage(), ex.getMessage().contains("may keep array source outside a strict-columnar index mode"));
     }
 
     public void testGate_copyTo() throws IOException {

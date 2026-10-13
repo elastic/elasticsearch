@@ -357,7 +357,7 @@ public abstract class FieldMapper extends Mapper {
                 FallbackPostMapper.effectiveKeepMode(sourceKeepMode(), ctx.indexSettings())
             )) {
             throw new UnsupportedOperationException(
-                "mapColumnBatch: field [" + fullPath() + "] keeps array source outside a strict-columnar index mode"
+                "mapColumnBatch: field [" + fullPath() + "] may keep array source outside a strict-columnar index mode"
             );
         }
         doMapColumnBatch(ctx, source);

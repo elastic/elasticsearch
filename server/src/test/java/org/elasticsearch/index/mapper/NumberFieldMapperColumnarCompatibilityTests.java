@@ -1095,7 +1095,7 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
             UnsupportedOperationException.class,
             () -> mapColumnarLeaf(mapperService, FIELD, "{\"@timestamp\":" + ST_TS_A + ",\"f\":[3,1,3]}")
         );
-        assertTrue(ex.getMessage(), ex.getMessage().contains("keeps array source outside a strict-columnar index mode"));
+        assertTrue(ex.getMessage(), ex.getMessage().contains("may keep array source outside a strict-columnar index mode"));
     }
 
     /** TSDB settings naming both the keyword {@code dim} and the numeric {@code f} as index dimensions. */

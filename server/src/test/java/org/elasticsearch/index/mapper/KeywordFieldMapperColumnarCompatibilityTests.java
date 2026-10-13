@@ -600,7 +600,7 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
             UnsupportedOperationException.class,
             () -> mapColumnarLeaf(mapperService, FIELD, "{\"@timestamp\":1705320000000,\"f\":" + array + "}")
         );
-        assertTrue(ex.getMessage(), ex.getMessage().contains("keeps array source outside a strict-columnar index mode"));
+        assertTrue(ex.getMessage(), ex.getMessage().contains("may keep array source outside a strict-columnar index mode"));
     }
 
     /** TIME_SERIES settings listing {@code f} under the given dimension-source setting. */

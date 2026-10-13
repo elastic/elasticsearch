@@ -123,7 +123,7 @@ public class SchemaInternerTests extends ESTestCase {
     }
 
     /**
-     * esql-planning#2143: a flattened nested field is named by its whole dotted path, so a column's cost is its name.
+     * A flattened nested field is named by its whole dotted path, so a column's cost is its name.
      * Two schemas of equal column count must not cost the same, and the new name charge alone is what refuses the long one.
      */
     public void testColumnNameLengthIsCharged() {

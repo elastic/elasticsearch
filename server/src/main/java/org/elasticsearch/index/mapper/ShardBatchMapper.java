@@ -139,6 +139,9 @@ public final class ShardBatchMapper {
             }
         }
 
+        // Most mappings have no keep: all object, and then no leaf needs the walk up its parents.
+        final boolean anyKeepAllObject = hasKeepAllObject(lookup, indexSettings);
+
         final int leafCount = schema.leafCount();
         final FieldMapper[] columnMappers = new FieldMapper[leafCount];
         ColumnGroupResolver.Builder groupBuilder = null;
@@ -153,7 +156,7 @@ public final class ShardBatchMapper {
                 return null;
             }
             // Checked for every leaf, whatever it resolves to, before any of the branches below that can accept it.
-            if (isUnderKeepAllObject(fullPath, lookup, indexSettings)) {
+            if (anyKeepAllObject && isUnderKeepAllObject(fullPath, lookup, indexSettings)) {
                 logger.debug("batch indexing disabled: leaf [{}] is under an object with synthetic_source_keep: all", fullPath);
                 return null;
             }
@@ -331,26 +334,43 @@ public final class ShardBatchMapper {
     }
 
     /**
-     * Whether an enclosing object has {@code synthetic_source_keep: all}. The sequential path then copies the whole object into
-     * {@code _ignored_source}, whatever its leaves' own mappers do, and the batch path writes no such entry. Strict-columnar modes
-     * reject the setting, and there the sequential path never writes {@code _ignored_source} either.
+     * Whether any object in the mapping has {@code synthetic_source_keep: all}, which {@link #isUnderKeepAllObject} then has to look
+     * for above each leaf. Strict-columnar modes reject the setting, and there the sequential path never writes
+     * {@code _ignored_source} either, so no object counts.
      */
-    private static boolean isUnderKeepAllObject(String leafPath, MappingLookup lookup, IndexSettings indexSettings) {
+    private static boolean hasKeepAllObject(MappingLookup lookup, IndexSettings indexSettings) {
         if (indexSettings.getMode().isStrictColumnar()) {
             return false;
         }
+        for (ObjectMapper object : lookup.objectMappers().values()) {
+            if (keepsWholeObject(object, indexSettings)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Whether an enclosing object has {@code synthetic_source_keep: all}. The sequential path then copies the whole object into
+     * {@code _ignored_source}, whatever its leaves' own mappers do, and the batch path writes no such entry. Call only when
+     * {@link #hasKeepAllObject} is {@code true}.
+     */
+    private static boolean isUnderKeepAllObject(String leafPath, MappingLookup lookup, IndexSettings indexSettings) {
         String current = leafPath;
         int dot;
         while ((dot = current.lastIndexOf('.')) > 0) {
             current = current.substring(0, dot);
             final ObjectMapper parent = lookup.objectMappers().get(current);
-            if (parent != null
-                && FallbackPostMapper.capturesWholeObject(FallbackPostMapper.effectiveKeepMode(parent.sourceKeepMode(), indexSettings))) {
+            // The root mapping and the index setting both reject synthetic_source_keep: all, so only named objects can carry it.
+            if (parent != null && keepsWholeObject(parent, indexSettings)) {
                 return true;
             }
         }
-        // The root mapping and the index setting both reject synthetic_source_keep: all, so only named objects can carry it.
         return false;
+    }
+
+    private static boolean keepsWholeObject(ObjectMapper object, IndexSettings indexSettings) {
+        return FallbackPostMapper.capturesWholeObject(FallbackPostMapper.effectiveKeepMode(object.sourceKeepMode(), indexSettings));
     }
 
     /**

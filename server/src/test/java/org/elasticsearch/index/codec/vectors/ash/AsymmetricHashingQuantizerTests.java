@@ -9,16 +9,21 @@
 
 package org.elasticsearch.index.codec.vectors.ash;
 
+import org.apache.lucene.search.TaskExecutor;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -33,12 +38,28 @@ import static org.hamcrest.Matchers.oneOf;
  */
 public class AsymmetricHashingQuantizerTests extends ESTestCase {
 
+    private static ExecutorService executor;
+
+    @BeforeClass
+    public static void setup() {
+        executor = Executors.newFixedThreadPool(16);
+    }
+
+    @AfterClass
+    public static void stop() {
+        executor.close();
+    }
+
+    private TaskExecutor executor() {
+        return randomBoolean() ? new TaskExecutor(executor) : null;
+    }
+
     public void testProcrustesOrthogonal() {
         // Procrustes of a random matrix should return orthogonal matrix (R^T R = I)
         int k = 5;
         float[] m = AshUtils.randomGaussians(random(), k * k);
         float[] r = new float[k * k];
-        AshUtils.procrustes(m, k, r);
+        AshUtils.procrustes(m, k, r, executor());
         // Check R^T R ~= I
         for (int i = 0; i < k; i++) {
             for (int j = 0; j < k; j++) {
@@ -79,7 +100,8 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
                 AsymmetricHashingQuantizer.Method.RANDOM,
                 0,
                 1,
-                42L
+                42L,
+                executor()
             );
             var w = train(quantizer, new float[][] { new float[dim] }, i -> new float[dim]);
             int nDims = quantizer.nDims(dim); // == dim since projectedDimsFraction=1.0
@@ -165,7 +187,8 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             AsymmetricHashingQuantizer.Method.LEARNED,
             5,
             10,
-            42L
+            42L,
+            executor()
         );
 
         // Should not throw -- falls back to random
@@ -194,7 +217,8 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             AsymmetricHashingQuantizer.Method.RANDOM,
             5,
             10,
-            42L
+            42L,
+            executor()
         );
         assertFalse(randomQuantizer.train(ord -> vectors[ord], nVectors, dim, centroidGetter).learned());
 
@@ -205,7 +229,8 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             AsymmetricHashingQuantizer.Method.LEARNED,
             5,
             10,
-            42L
+            42L,
+            executor()
         );
         assertTrue(learnedQuantizer.train(ord -> vectors[ord], nVectors, dim, centroidGetter).learned());
 
@@ -245,7 +270,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         a[3 * n + 3] = 1.0f;
 
         // Top-2 right singular vectors returned as columns (n x k)
-        float[] topK = AshUtils.topKRightSingularVectors(a, m, n, k, 42L);
+        float[] topK = AshUtils.topKRightSingularVectors(a, m, n, k, 42L, executor());
         assertEquals(n * k, topK.length);
 
         // First column should be dominated by row 0 (corresponding to singular value 4)
@@ -268,7 +293,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         a[3 * n + 3] = 1.0f;
 
         // Top-2 right singular vectors returned as columns (n x k)
-        float[] topK = AshUtils.topKRightSingularVectors(a, m, n, k, 42L);
+        float[] topK = AshUtils.topKRightSingularVectors(a, m, n, k, 42L, executor());
         assertEquals(n * k, topK.length);
 
         // First column should be dominated by row 0 (corresponding to singular value 4)
@@ -342,7 +367,8 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             AsymmetricHashingQuantizer.Method.LEARNED,
             5,
             10,
-            seed
+            seed,
+            executor()
         );
         var w = train(ash, vectors, centroidGetter);
         int nDims = ash.nDims(dim);
@@ -463,7 +489,8 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             AsymmetricHashingQuantizer.Method.LEARNED,
             5,
             10,
-            42L
+            42L,
+            executor()
         );
         var w = train(quantizer, vectors, centroidGetter);
         AsymmetricHashingQuantizer.VectorAndNorm precomputed = AsymmetricHashingQuantizer.precomputeCentroid(centroid, w.wT());

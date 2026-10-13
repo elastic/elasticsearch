@@ -251,7 +251,7 @@ public final class ExternalSourceSettings {
      * runs one long-lived segmentator that pins a pool thread while it blocks on its chunk/buffer queues and the
      * upstream decompress stream; its per-chunk parser tasks run on the same pool. Without a cap, enough
      * concurrently-open reads pin every pool thread and their parser tasks — queued behind the segmentators — never
-     * get a thread, deadlocking the reads (elastic/esql-planning #1093, item 4). Bounding concurrent segmentators
+     * get a thread, deadlocking the reads. Bounding concurrent segmentators
      * below the pool size guarantees threads remain free for parser tasks.
      * <p>
      * Default {@code 0} means "derive": the effective cap tracks the {@code esql_external_io} pool size
@@ -652,6 +652,20 @@ public final class ExternalSourceSettings {
         }
     }
 
+    /**
+     * When true (default), a byte-budget FIFO head that has waited the rescue window without a
+     * grant is admitted over the cap as a plain hold. The rescue is a logged possible-stall
+     * signal (WARN plus {@code es.esql.datasources.admission.rescues.total}), not a substitute
+     * for one ticket per row group. Disable to observe a hang for diagnosis. Dynamic so a
+     * cluster can toggle it without restart.
+     */
+    public static final Setting<Boolean> ADMISSION_RESCUE_ENABLED = Setting.boolSetting(
+        "esql.external.admission.rescue.enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static List<Setting<?>> settings() {
         return List.of(
             MAX_CONCURRENT_REQUESTS,
@@ -664,6 +678,7 @@ public final class ExternalSourceSettings {
             MAX_DECOMPRESSION_RATIO,
             MAX_DECOMPRESSION_RATIO_ZSTD,
             SCHEMA_MAX_FIELDS,
+            ADMISSION_RESCUE_ENABLED,
             WORKLOAD_IDENTITY_ENABLED,
             WORKLOAD_IDENTITY_ENABLED_OLD,
             MANAGED_IDENTITY_ENABLED,

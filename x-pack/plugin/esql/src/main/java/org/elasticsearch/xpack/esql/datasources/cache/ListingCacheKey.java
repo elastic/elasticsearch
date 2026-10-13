@@ -15,9 +15,10 @@ import java.util.Map;
 
 /**
  * Cache key for file listing results. A listing is what a principal can <i>see</i>, so it is isolated by
- * credential — unlike the schema and file-metadata keys, which describe what a file contains and deliberately
- * share across principals. The storage identity is included because the same bucket on different endpoints
- * contains different objects.
+ * credential. The schema key is isolated too, through {@link DatasetIdentity}, though for a weaker reason: what a
+ * file contains does not depend on who read it, and separating those addresses is a second layer of defence
+ * rather than a statement about the content. The file-metadata key still shares across principals. The storage
+ * identity is included because the same bucket on different endpoints contains different objects.
  *
  * <p>Both identities are supplied by the storage provider that would list the prefix, never derived here. A cache
  * computing a credential hash from its own list of setting names cannot keep that list complete — a provider knows
@@ -78,7 +79,7 @@ public record ListingCacheKey(
             secretIdentity,
             discriminatorHash[0],
             discriminatorHash[1],
-            SchemaCacheKey.definitionVersionOf(config)
+            DatasetIdentity.definitionVersionOf(config)
         );
     }
 

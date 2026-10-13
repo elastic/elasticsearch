@@ -132,6 +132,13 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
         for (Batch scenario : scenarios) {
             assertScenario(mapperService, scenario, encoder);
         }
+        final Settings columnarStored = withColumnarStoredSource(indexSettings);
+        if (columnarStored != null) {
+            final MapperService columnarStoredService = createMapperService(columnarStored, mapping);
+            for (Batch scenario : scenarios) {
+                assertScenario(columnarStoredService, scenario, encoder);
+            }
+        }
     }
 
     /**
@@ -148,6 +155,38 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
         for (Batch scenario : scenarios) {
             assertScenario(mapperService, scenario, SourceEncoder.SIMD);
         }
+        final Settings columnarStored = withColumnarStoredSource(indexSettings);
+        if (columnarStored != null) {
+            final MapperService columnarStoredService = createMapperService(indexVersion, columnarStored, mapping);
+            for (Batch scenario : scenarios) {
+                assertScenario(columnarStoredService, scenario, SourceEncoder.SIMD);
+            }
+        }
+    }
+
+    /**
+     * Whether every scenario also runs on an index that uses {@code columnar_stored} source. That mode builds {@code _source} from the
+     * mapped fields, so it turns each mapper's parity test into a check that its fields round-trip through the whole-document blob as
+     * well. Override to {@code false} only for a mapper that cannot take part, and say why.
+     */
+    protected boolean alsoRunWithColumnarStoredSource() {
+        return true;
+    }
+
+    /**
+     * Returns {@code indexSettings} with {@code columnar_stored} source, or {@code null} when the scenarios should not run that way: the
+     * subclass opted out, the index mode does not support the mode, or the test already picks a source mode of its own.
+     */
+    private Settings withColumnarStoredSource(Settings indexSettings) {
+        if (alsoRunWithColumnarStoredSource() == false
+            || IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.exists(indexSettings)
+            || IndexSettings.MODE.get(indexSettings).supportedSourceModes().contains(SourceFieldMapper.Mode.COLUMNAR_STORED) == false) {
+            return null;
+        }
+        return Settings.builder()
+            .put(indexSettings)
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+            .build();
     }
 
     /**

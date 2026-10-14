@@ -993,7 +993,11 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                     .collect(
                         Collectors.toUnmodifiableMap(
                             DiscoveryNode::getId,
-                            node -> new NodeHeapEstimates(totalHeapUsageBytes, randomLongBetween(0, totalHeapUsageBytes))
+                            node -> new NodeHeapEstimates(
+                                totalHeapUsageBytes,
+                                randomLongBetween(0, totalHeapUsageBytes),
+                                randomLongBetween(0, 1_000)
+                            )
                         )
                     );
                 var perShard = state.getRoutingNodes()

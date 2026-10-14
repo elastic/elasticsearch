@@ -453,23 +453,21 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     }
 
-    // Note: this gate differs from the by_outcome.success gate (PlanTelemetry.externalSource()). A
-    // query that prunes all splits (splitsScanned=0, externalWarmAggregates=0) counts as a success
-    // in by_outcome but does not trigger CPU recording — it consumed no external CPU.
+    // Gated on an external relation having been resolved in the analyzed plan (the same fact PlanExecutor uses for the
+    // by_outcome metrics), not on the scan counters: a query that scans nothing (LIMIT 0, every split pruned) still spent coordinator CPU
+    // on
+    // planning and split discovery, and must be metered.
     private boolean hasExternalSources(Result result) {
-        if (result.executionInfo() == null) {
-            return false;
-        }
-        var qp = result.executionInfo().queryProfile();
-        return qp != null && (qp.splitsScanned() > 0 || qp.externalWarmAggregates() > 0);
+        return result.executionInfo() != null && result.executionInfo().externalSource();
     }
 
     void collectMetrics(Result result) {
         if (hasExternalSources(result) == false) {
             return;
         }
-        // ci and qp are safe to fetch here: hasExternalSources() confirmed executionInfo() != null,
-        // and completionInfo() / queryProfile() are plain getters.
+        // ci and qp are safe to fetch here: hasExternalSources() confirmed executionInfo() != null, and a successful
+        // query always goes through attachAdditionalData (which defaults completionInfo) and
+        // EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning (which stops the planning span).
         var ci = result.completionInfo();
         var qp = result.executionInfo().queryProfile();
         // APM and phone-home CPU recording — independent of the billing listener so that a failure

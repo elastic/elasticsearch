@@ -198,7 +198,7 @@ public record StringColumnOptions(
      */
     public static final boolean DEFAULT_SINGLE_VALUED = false;
 
-    public static final boolean DEFAULT_ENABLE_SKIP_INDEX = true;
+    public static final boolean DEFAULT_ENABLE_SKIP_INDEX = false;
 
     public static final StringColumnOptions DEFAULT = new StringColumnOptions(
         DEFAULT_DICTIONARY,
@@ -268,8 +268,7 @@ public record StringColumnOptions(
         return new StringColumnOptions(dictionary, summary, chunkCodec, sizes, singleValued, enableSkipIndex);
     }
 
-    /** These options for a field whose ordinals should not be indexed. */
-    public StringColumnOptions withoutSkipIndex() {
-        return new StringColumnOptions(dictionary, summary, chunkCodec, sizes, singleValued, false);
+    public StringColumnOptions withSkipIndex(boolean enableSkipIndex) {
+        return new StringColumnOptions(dictionary, summary, chunkCodec, sizes, singleValued, enableSkipIndex);
     }
 }

@@ -67,9 +67,35 @@ public class DictionaryStringColumnSkipperTests extends ColumnarStringTestCase {
         final int count = INTERVAL * between(8, 12);
         withColumn(
             clustered(count, between(2, 3), between(20, 80)),
-            options().withoutSkipIndex(),
+            options().withSkipIndex(false),
             (metadata, reader) -> assertNull(skipperOf(metadata))
         );
+    }
+
+    public void testAColumnGetsNoIndexUnlessItIsEnabled() throws IOException {
+        final int count = INTERVAL * between(8, 12);
+        withColumn(
+            clustered(count, between(2, 3), between(20, 80)),
+            StringColumnOptions.DEFAULT.withPolicies(FORCED, StringColumnOptions.DEFAULT_SUMMARY),
+            (metadata, reader) -> assertNull(skipperOf(metadata))
+        );
+    }
+
+    public void testAColumnInDescendingTermOrderGetsAnIndex() throws IOException {
+        final int count = INTERVAL * between(8, 12);
+        final int terms = between(20, 80);
+        final BytesRef[][] docSlots = new BytesRef[count][];
+        for (int doc = 0; doc < count; doc++) {
+            docSlots[doc] = new BytesRef[] { term(terms - 1 - doc * terms / count) };
+        }
+        withColumn(docSlots, options(), (metadata, reader) -> {
+            assertFalse("not in ascending term order", metadata.valuesSorted());
+            assertNotNull(skipperOf(metadata));
+            final BytesRef lower = term(between(0, terms - 1));
+            final BytesRef upper = term(between(0, terms - 1));
+            final List<Integer> expected = expectedInRange(docSlots, lower, true, upper, true);
+            assertEquals(expected, matched(reader.matchRange(lower, true, upper, true)));
+        });
     }
 
     public void testAColumnReadInOrderGetsNoIndex() throws IOException {
@@ -323,7 +349,7 @@ public class DictionaryStringColumnSkipperTests extends ColumnarStringTestCase {
     }
 
     private static StringColumnOptions options() {
-        return StringColumnOptions.DEFAULT.withPolicies(FORCED, StringColumnOptions.DEFAULT_SUMMARY);
+        return StringColumnOptions.DEFAULT.withPolicies(FORCED, StringColumnOptions.DEFAULT_SUMMARY).withSkipIndex(true);
     }
 
     private static BytesRef term(int ordinal) {

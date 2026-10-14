@@ -49,7 +49,7 @@ public class StringColumnMergeOrdinalSkipTests extends ESTestCase {
     private static final StringColumnOptions OPTIONS = StringColumnOptions.DEFAULT.withPolicies(
         new DictionaryPolicy(512 * 1024, 0.0, Double.MAX_VALUE),
         StringColumnOptions.DEFAULT_SUMMARY
-    );
+    ).withSkipIndex(true);
 
     public void testAMergedColumnBuildsItsIndexAndAnswersRangesAsAScanDoes() throws IOException {
         final int segments = between(2, 4);
@@ -65,8 +65,8 @@ public class StringColumnMergeOrdinalSkipTests extends ESTestCase {
         try (Directory indexed = newDirectory(); Directory unindexed = newDirectory()) {
             writeSegments(indexed, OPTIONS, values, segments);
             withIndex = mergeAndCheck(indexed, OPTIONS, values, deleted);
-            writeSegments(unindexed, OPTIONS.withoutSkipIndex(), values, segments);
-            withoutIndex = mergeAndCheck(unindexed, OPTIONS.withoutSkipIndex(), values, deleted);
+            writeSegments(unindexed, OPTIONS.withSkipIndex(false), values, segments);
+            withoutIndex = mergeAndCheck(unindexed, OPTIONS.withSkipIndex(false), values, deleted);
         }
         if (runs == 1) {
             assertEquals("a column read in order needs no index", withoutIndex, withIndex);
@@ -85,10 +85,10 @@ public class StringColumnMergeOrdinalSkipTests extends ESTestCase {
         final boolean[] deleted = new boolean[values.length];
         try (Directory indexed = newDirectory(); Directory unindexed = newDirectory()) {
             writeSegments(indexed, OPTIONS, values, segments);
-            writeSegments(unindexed, OPTIONS.withoutSkipIndex(), values, segments);
+            writeSegments(unindexed, OPTIONS.withSkipIndex(false), values, segments);
             assertEquals("a flushed segment with escapes has no index", skipFileBytes(unindexed), skipFileBytes(indexed));
             final long withIndex = mergeAndCheck(indexed, OPTIONS, values, deleted);
-            final long withoutIndex = mergeAndCheck(unindexed, OPTIONS.withoutSkipIndex(), values, deleted);
+            final long withoutIndex = mergeAndCheck(unindexed, OPTIONS.withSkipIndex(false), values, deleted);
             assertThat("the merged column has no escapes and carries the index", withIndex, greaterThan(withoutIndex));
         }
     }

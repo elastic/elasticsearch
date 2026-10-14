@@ -66,13 +66,14 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
     }
 
     public void testTheSkipIndexSwitchSurvivesChangingOtherOptions() {
-        final StringColumnOptions off = StringColumnOptions.DEFAULT.withoutSkipIndex();
-        assertTrue(StringColumnOptions.DEFAULT.enableSkipIndex());
-        assertFalse(off.enableSkipIndex());
-        assertFalse(off.withPolicies(DictionaryPolicy.NONE, SummaryPolicy.NONE).enableSkipIndex());
-        assertFalse(off.withSizes(StringColumnOptions.DEFAULT_SIZES).enableSkipIndex());
-        assertFalse(off.withSingleValued(true).enableSkipIndex());
-        assertTrue(StringColumnOptions.DEFAULT.withSingleValued(true).enableSkipIndex());
+        final StringColumnOptions on = StringColumnOptions.DEFAULT.withSkipIndex(true);
+        assertFalse(StringColumnOptions.DEFAULT.enableSkipIndex());
+        assertTrue(on.enableSkipIndex());
+        assertTrue(on.withPolicies(DictionaryPolicy.NONE, SummaryPolicy.NONE).enableSkipIndex());
+        assertTrue(on.withSizes(StringColumnOptions.DEFAULT_SIZES).enableSkipIndex());
+        assertTrue(on.withSingleValued(true).enableSkipIndex());
+        assertFalse(on.withSkipIndex(false).enableSkipIndex());
+        assertFalse(StringColumnOptions.DEFAULT.withSingleValued(true).enableSkipIndex());
     }
 
     /** A field naming its own codec is read back through the codec its chunk index records, not a default. */

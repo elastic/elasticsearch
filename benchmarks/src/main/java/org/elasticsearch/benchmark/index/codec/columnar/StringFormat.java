@@ -51,6 +51,8 @@ import org.elasticsearch.columnar.string.DictionaryStringColumnReader;
 import org.elasticsearch.columnar.string.PageBudget;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.columnar.string.StringBlockSink;
+import org.elasticsearch.columnar.string.StringColumnOptions;
+import org.elasticsearch.columnar.string.StringColumnOptionsSelector;
 import org.elasticsearch.columnar.string.StringColumnReader;
 import org.elasticsearch.columnar.string.StringColumnSource;
 import org.elasticsearch.columnar.string.SummaryPolicy;
@@ -264,6 +266,11 @@ public enum StringFormat {
         };
     }
 
+    /** The skip index is on only where the format is the dictionary one, which the range benchmarks measure. */
+    private StringColumnOptions stringOptions() {
+        return StringColumnOptions.DEFAULT.withPolicies(dictionaryPolicy(), summaryPolicy()).withSkipIndex(this == COLUMNAR_DICTIONARY);
+    }
+
     private Codec codecFor() {
         final DocValuesFormat dv = switch (this) {
             case LUCENE_SORTED -> new Lucene90DocValuesFormat();
@@ -274,8 +281,7 @@ public enum StringFormat {
                 (fieldName, fieldType) -> org.elasticsearch.columnar.numeric.NumericPipeline::defaultPipeline,
                 field -> ColumnarFieldType.STRING,
                 ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
-                dictionaryPolicy(),
-                summaryPolicy()
+                StringColumnOptionsSelector.always(stringOptions())
             );
         };
         return new Elasticsearch96Codec() {
@@ -294,8 +300,7 @@ public enum StringFormat {
             (fieldName, fieldType) -> org.elasticsearch.columnar.numeric.NumericPipeline::defaultPipeline,
             field -> ColumnarFieldType.STRING,
             ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
-            dictionaryPolicy(),
-            summaryPolicy()
+            StringColumnOptionsSelector.always(stringOptions())
         );
         final Codec codec = new Elasticsearch96Codec() {
             @Override

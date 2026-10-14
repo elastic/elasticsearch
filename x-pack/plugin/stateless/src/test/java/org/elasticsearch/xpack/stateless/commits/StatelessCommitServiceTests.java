@@ -3031,6 +3031,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             waitUntilBCCIsUploaded(commitService, shardId, lastUploadedCommit.getGeneration());
             assertThat(notifiedNonUploadGenerations, hasItem(lastUploadedCommit.getGeneration()));
 
+            when(testHarness.indexShard.getActiveOperationsCount()).thenReturn(IndexShard.OPERATIONS_BLOCKED);
             commitService.installUploadBoundListener(shardId, new SubscribableListener<>());
             assertThat(commitService.getMaxGenerationToUpload(shardId), equalTo(Long.MAX_VALUE));
 
@@ -3112,6 +3113,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             waitUntilBCCIsUploaded(commitService, shardId, lastUploadedCommit.getGeneration());
 
             final var uploadBoundListener = new SubscribableListener<Long>();
+            when(testHarness.indexShard.getActiveOperationsCount()).thenReturn(IndexShard.OPERATIONS_BLOCKED);
             commitService.installUploadBoundListener(shardId, uploadBoundListener);
 
             final var windowCommit = testHarness.generateIndexCommits(1, true).getFirst();

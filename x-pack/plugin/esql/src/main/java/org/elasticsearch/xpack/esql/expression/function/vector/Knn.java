@@ -106,9 +106,7 @@ public class Knn extends SingleFieldFullTextFunction
 
     /**
      * Names the {@link VectorSimilarityMetric} to compare the vectors with, e.g. {@code "l2_norm"}. Only accepted
-     * when knn runs over a runtime expression - an indexed field takes its metric from the mapping instead. Not
-     * documented as a function named parameter yet because runtime knn, the only path that accepts it, is snapshot
-     * only; add the {@code @MapParam.MapParamEntry} for it when that path is released.
+     * when knn runs over a runtime expression - an indexed field takes its metric from the mapping instead.
      */
     public static final String SIMILARITY_FUNCTION_OPTION = "similarity_function";
 
@@ -227,6 +225,17 @@ public class Knn extends SingleFieldFullTextFunction
                         + "See [oversampling and rescoring quantized vectors]"
                         + "(docs-content://solutions/search/vector/knn/optimize-performance-accuracy.md"
                         + "#dense-vector-knn-search-rescoring) for details."
+                ),
+                @MapParam.MapParamEntry(
+                    name = "similarity_function",
+                    type = "keyword",
+                    valueHint = { "cosine" },
+                    description = "The similarity metric to use when `KNN` runs on a `dense_vector` expression "
+                        + "(rather than an indexed field). The indexed field's mapping determines the metric; "
+                        + "this option is ignored for indexed fields. "
+                        + "Accepted values: `cosine` (default), `dot_product`, `l2_norm`, `max_inner_product`.",
+                    applies_to = """
+                        {"stack": "preview 9.6.0", "serverless": "preview"}"""
                 ), },
             description = "(Optional) kNN additional options as <<esql-function-named-params,function named parameters>>."
                 + " See [knn query](/reference/query-languages/query-dsl/query-dsl-knn-query.md) for more information.",

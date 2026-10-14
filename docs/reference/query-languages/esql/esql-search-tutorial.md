@@ -752,7 +752,7 @@ To learn more about `TOP_SNIPPETS` refer to this [blog post](https://www.elastic
 This subsection is for advanced users who want explicit control over vector search. For most use cases, the `semantic_text` field type covered in [Step 8](#step-8-semantic-search-and-hybrid-search) is recommended as it handles embeddings automatically.
 :::
 
-The [`KNN` function](/reference/query-languages/esql/functions-operators/dense-vector-functions/knn.md) finds the k nearest vectors to a query vector through approximate search on indexed `dense_vector` fields.
+The [`KNN` function](/reference/query-languages/esql/functions-operators/dense-vector-functions/knn.md) finds the k nearest vectors to a query vector. On indexed `dense_vector` fields it performs approximate search using the vector index. {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview` It also works on `dense_vector` expressions (such as values computed by `EVAL` or the `DENSE_VECTOR` command), where it performs an exact search by comparing the query vector against every row.
 
 #### `KNN` with pre-computed vectors
 

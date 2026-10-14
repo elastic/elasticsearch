@@ -238,7 +238,7 @@ $$$split-probe-window$$$
 `split_probe_window` {applies_to}`stack: experimental 9.6+`
 :   The number of bytes that each record-boundary search can read while files are split.
 
-    - **Formats:** NDJSON, CSV and TSV without quoting or escaping, and CSV split on newlines: `multiline_fields` set to `false`, or not set, with no explicit `mode`, `quote` or `escape` and sampled rows that contain no quote or escape character
+    - **Formats:** NDJSON, CSV and TSV without quoting or escaping, and CSV split on newlines, as described in [`multiline_fields`](#csv-multiline-fields)
     - **Default:** 256 KiB (`256kb`)
     - **Valid values:** A positive byte size. The product of `max_split_probes` and `split_probe_window` can't exceed 4 GiB.
     - **Related:** `max_split_probes`, `target_split_size`
@@ -255,7 +255,7 @@ $$$max-split-probes$$$
 `max_split_probes` {applies_to}`stack: experimental 9.6+`
 :   The maximum number of record-boundary searches that a query can perform, which limits how many splits its files are cut into.
 
-    - **Formats:** NDJSON, CSV and TSV without quoting or escaping, and CSV split on newlines: `multiline_fields` set to `false`, or not set, with no explicit `mode`, `quote` or `escape` and sampled rows that contain no quote or escape character
+    - **Formats:** NDJSON, CSV and TSV without quoting or escaping, and CSV split on newlines, as described in [`multiline_fields`](#csv-multiline-fields)
     - **Default:** `1000`
     - **Valid values:** An integer from `1` through `10000`. The product of `max_split_probes` and `split_probe_window` can't exceed 4 GiB.
     - **Related:** `split_probe_window`, `target_split_size`

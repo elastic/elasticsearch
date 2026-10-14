@@ -2423,8 +2423,13 @@ public class NdJsonPageDecoder implements Closeable {
         }
 
         /**
-         * The {@code date_nanos} twin of {@link #decodeDatetimeValue}, one rail down — mirroring
-         * {@code CsvFormatReader.tryParseDateNanos} exactly:
+         * The {@code date_nanos} twin of {@link #decodeDatetimeValue}, one rail down. It agrees with
+         * {@code CsvFormatReader.tryParseDateNanos} on how a declared format and a numeric token are read —
+         * the part that has to agree for identical bytes to mean the same thing in both formats. It does not
+         * carry CSV's hand-rolled {@code YYYY-MM-DD HH:MM:SS} template: CSV has that template on both of
+         * its temporal rails, this decoder has it on neither, so each format is consistent between its own two
+         * declared types. A space-separated string in an NDJSON document is therefore a coercion failure under
+         * {@code date_nanos} and under {@code datetime} alike. The arms:
          * <ul>
          *   <li>a declared {@code format} is authoritative and OVERRIDES the numeric-epoch shortcut, exactly as
          *       the datetime arm above (declared formatters win over token kind);</li>
@@ -2436,9 +2441,11 @@ public class NdJsonPageDecoder implements Closeable {
          *       rail the datetime arm and CSV use ({@code strict_date_optional_time} by default, which parses
          *       nanosecond fractions) — but through {@code dateNanosToLong} so the instant lands in nanos.</li>
          * </ul>
-         * Every parse arm goes through {@link EsqlDataTypeConverter#dateNanosToLong}, the SAME string -&gt;
+         * Both string arms go through {@link EsqlDataTypeConverter#dateNanosToLong}, the SAME string -&gt;
          * date_nanos conversion the columnar declared coercion and CSV use, so identical bytes with an
-         * identical declared format yield the same instant across every format. A boolean is an unsupported
+         * identical declared format yield the same instant across every format; the whole-number arm does the
+         * millis-to-nanos widening itself, through {@link DateUtils#toNanoSeconds}, which applies the same
+         * range rule. A boolean is an unsupported
          * cross-kind drift, matching the datetime arm; so is a fractional number without a format, which the
          * datetime arm instead rounds to whole millis.
          */

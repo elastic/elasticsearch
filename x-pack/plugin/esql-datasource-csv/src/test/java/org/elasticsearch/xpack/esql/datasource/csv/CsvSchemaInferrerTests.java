@@ -405,6 +405,28 @@ public class CsvSchemaInferrerTests extends ESTestCase {
         assertEquals(DataType.KEYWORD, inferOne("2023-10-23T12:15:03.360103847Z", "not a date"));
     }
 
+    /**
+     * The space-separated form the reader's {@code date_nanos} rail now parses has to be visible to
+     * inference as well, or the two disagree about what that rail can read. A sub-millisecond
+     * space-separated value is nanosecond-precision evidence exactly as its {@code T}-separated twin is,
+     * and the column it appears in reads on the nanos rail without failing a cell.
+     */
+    public void testSpaceSeparatedNanosecondInfersDateNanos() {
+        assertEquals(DataType.DATE_NANOS, inferOne("2023-10-23 12:15:03.360103847"));
+        assertEquals(DataType.DATE_NANOS, inferOne("2023-10-23 12:15:03.360103847Z"));
+    }
+
+    /**
+     * The other half of the same agreement, and the one that was wrong in a way no cell error would
+     * show: a whole-millisecond space-separated value used to report that the nanos rail could not
+     * decode it, which kept its column OFF that rail even when another value demanded nanoseconds.
+     * The rail reads it, so it must not block the promotion.
+     */
+    public void testSpaceSeparatedMillisecondDoesNotBlockTheNanosRail() {
+        assertEquals(DataType.DATE_NANOS, inferOne("2023-10-23 12:15:03.360103847", "2023-10-23 12:15:03.360"));
+        assertEquals(DataType.DATE_NANOS, inferOne("2023-10-23 12:15:03.360", "2023-10-23 12:15:03.360103847"));
+    }
+
     public void testPreEpochNanosecondStaysDatetime() {
         assertEquals(DataType.DATETIME, inferOne("1969-12-31T23:59:59.999999999Z"));
     }
@@ -414,22 +436,71 @@ public class CsvSchemaInferrerTests extends ESTestCase {
     }
 
     /**
-     * Once a value has established the column is nanosecond-precision, an out-of-window timestamp is a
-     * bad cell rather than evidence the column is a string — and it must read that way whichever row
-     * came first, which is why the DATE_NANOS rung accepts any timestamp.
+     * Once a T-form value has established the column is nanosecond-precision, a T-form out-of-window
+     * timestamp is a bad cell rather than evidence the column is a string — and it must read that way
+     * whichever row came first. The T-form rail ({@code NANOS_RAIL_FORMAT}) accepts any T-form timestamp
+     * regardless of range, so the column stays {@code date_nanos}.
+     * <p>
+     * Space-separated out-of-window values are handled differently: the space path checks the range
+     * (via {@link CsvFormatReader#tryParseSpaceSeparatedDatetimeNanos}) and a miss keeps the column
+     * off the rail, in either row order — see {@link #testEveryUndecodableDialectKeepsAColumnOffTheNanosRail}.
      */
     public void testOutOfWindowValueInDateNanosColumnStaysDateNanosBothOrders() {
-        assertEquals(DataType.DATE_NANOS, inferOne("2023-10-23T12:15:03.360103847Z", "2263-01-01T00:00:00.123456789Z"));
-        assertEquals(DataType.DATE_NANOS, inferOne("2263-01-01T00:00:00.123456789Z", "2023-10-23T12:15:03.360103847Z"));
+        String nanos = "2023-10-23T12:15:03.360103847Z";
+        assertEquals(DataType.DATE_NANOS, inferOne(nanos, "2263-01-01T00:00:00.123456789Z"));
+        assertEquals(DataType.DATE_NANOS, inferOne("2263-01-01T00:00:00.123456789Z", nanos));
     }
 
     /**
-     * The whitespace-separated dialect parses here but not on the date_nanos decode rail, so it must
-     * never be the value that flips a column: doing so would turn a cell that reads today into a
-     * per-cell error.
+     * What a lone timestamp infers, by fraction width and by where the instant falls. A table rather than
+     * a rule, because the ladder's answer is the product of three separate things -- whether the dialect
+     * parses at all, whether the value carries sub-millisecond information, and whether the instant is
+     * representable -- and a sentence covering all three has been got wrong twice on this branch.
+     * <p>
+     * Sub-millisecond digits are what force the rail, so seconds and millisecond values stay
+     * {@code datetime}. An all-zero fraction carries no such information and stays there too. Ten
+     * fraction digits is past the template AND past the CSV datetime parser, so the cell is not a
+     * timestamp to anything on the ladder and the column settles on the string rung -- the nanos rail
+     * refusing it is not what decides that one.
      */
-    public void testSpaceSeparatedNanosecondFractionStaysDatetime() {
-        assertEquals(DataType.DATETIME, inferOne("2023-10-23 12:15:03.360103847"));
+    public void testInferredTypePerFractionAndRange() {
+        assertEquals(DataType.DATETIME, inferOne("2023-10-23 12:15:03"));
+        assertEquals(DataType.DATETIME, inferOne("2023-10-23 12:15:03.360"));
+        assertEquals(DataType.DATE_NANOS, inferOne("2023-10-23 12:15:03.360103"));
+        assertEquals(DataType.DATE_NANOS, inferOne("2023-10-23 12:15:03.360103847"));
+        assertEquals("ten fraction digits is not a timestamp at all", DataType.KEYWORD, inferOne("2023-10-23 12:15:03.3601038477"));
+
+        assertEquals("the nanosecond ceiling itself", DataType.DATE_NANOS, inferOne("2262-04-11 23:47:16.854775807"));
+        assertEquals("one nanosecond past the ceiling", DataType.DATETIME, inferOne("2262-04-11 23:47:16.854775808"));
+        assertEquals("an all-zero fraction needs no nanos", DataType.DATETIME, inferOne("1970-01-01 00:00:00.000000000"));
+        assertEquals("one nanosecond above the floor", DataType.DATE_NANOS, inferOne("1970-01-01 00:00:00.000000001"));
+    }
+
+    /**
+     * For an instant the rail can represent, the separator must not change the answer: that is the whole
+     * of what this PR adds, and the pairing is the cheapest way to state it. Each value below is spelled
+     * space-separated and {@code T}-and-{@code Z}, alone and on either side of a value that has already
+     * forced the column onto the rail.
+     * <p>
+     * Deliberately scoped to representable instants, because the two spellings do NOT agree in general
+     * and claiming otherwise would be false. Three classes of value still diverge, all of them
+     * pre-existing dialect gaps rather than anything this change introduces: an out-of-window instant
+     * (the space template range-checks, the T-form formatter does not), a numeric offset such as
+     * {@code +00:00} (the template refuses it, the formatter accepts it), and a calendar-invalid day such
+     * as {@code 2023-02-30} (the template validates the calendar, the formatter's parse is lexical).
+     * {@link #testEveryUndecodableDialectKeepsAColumnOffTheNanosRail} carries the first of those.
+     */
+    public void testBothSpellingsOfARepresentableInstantInferTheSameType() {
+        String nanos = "2023-10-23T12:15:03.360103847Z";
+        for (String dateTime : List.of("2023-10-23 12:15:03", "1970-01-01 00:00:00", "2262-04-11 23:47:16")) {
+            for (String fraction : List.of("", ".360", ".360103", ".360103847")) {
+                String space = dateTime + fraction;
+                String iso = space.replace(' ', 'T') + "Z";
+                assertEquals("alone: [" + space + "] vs [" + iso + "]", inferOne(iso), inferOne(space));
+                assertEquals("with a nanos sibling: [" + space + "]", inferOne(nanos, iso), inferOne(nanos, space));
+                assertEquals("sibling first: [" + space + "]", inferOne(iso, nanos), inferOne(space, nanos));
+            }
+        }
     }
 
     public void testCustomDatetimeFormatNeverInfersDateNanos() {
@@ -546,6 +617,20 @@ public class CsvSchemaInferrerTests extends ESTestCase {
      * some value here starts disagreeing and this fails, whether or not anyone thought to enumerate
      * that dialect.
      * <p>
+     * The oracle is {@link #nanosRailDecode} — the template, then {@code dateNanosToLong} — and not
+     * {@link #railRejects}, deliberately. {@code railRejects} is the negation of the screen production
+     * consults, so asserting it here would be true by construction: inference reaches {@code date_nanos}
+     * only when the screen says yes, and the assertion would restate that rather than check it. Asking
+     * what the rail DECODES keeps the two separable, and buys one class of bug the screen cannot see:
+     * the formatter's parse is lexical, so {@code 2023-02-30T10:00:00.123456789Z} passes the screen,
+     * types the column {@code date_nanos}, and then throws at read. No value in today's corpus is in
+     * that class — the generator's days are 1..28 — so this passes; grow the generator past day 28 and
+     * it is this assertion that reports it.
+     * <p>
+     * The earlier version of this test asked only the formatter, which is why it passed while inference
+     * was screening out the space-separated form the reader reads perfectly well: the oracle was
+     * narrower than the rail, so the disagreement it exists to catch was invisible to it.
+     * <p>
      * The corpus is randomized per run rather than a fixed list, so drift does not have to land on a
      * shape someone anticipated.
      */
@@ -569,16 +654,9 @@ public class CsvSchemaInferrerTests extends ESTestCase {
 
         for (String value : corpus) {
             DataType inferred = inferOne(value);
-            boolean railDecodes;
-            long railNanos = 0L;
-            try {
-                railNanos = EsqlDataTypeConverter.dateNanosToLong(value);
-                railDecodes = true;
-            } catch (Exception e) {
-                railDecodes = false;
-            }
+            Long railNanos = nanosRailDecode(value);
             if (inferred == DataType.DATE_NANOS) {
-                assertTrue("inferred date_nanos for a value the nanos rail cannot decode: [" + value + "]", railDecodes);
+                assertNotNull("inferred date_nanos for a value the reader's rail does not decode: [" + value + "]", railNanos);
             }
             // And the other direction, which catches a screen that drifts too BROAD — suppressing
             // values it should have promoted. Stated over this corpus rather than as a general law:
@@ -586,7 +664,7 @@ public class CsvSchemaInferrerTests extends ESTestCase {
             // read the same way. A corpus that grew, say, lowercase 't'/'z' separators could break it
             // legitimately — the nanos rail would decode what asDateTime rejects — so extend the
             // generator and this assertion together.
-            if (railDecodes && railNanos % 1_000_000L != 0L) {
+            if (railNanos != null && railNanos % 1_000_000L != 0L) {
                 assertEquals(
                     "did not infer date_nanos for a sub-millisecond value the rail decodes: [" + value + "]",
                     DataType.DATE_NANOS,
@@ -623,14 +701,20 @@ public class CsvSchemaInferrerTests extends ESTestCase {
     }
 
     /**
-     * The regression review asked about: a column flipped by a well-formed {@code T}-form nanosecond
-     * value while also holding whitespace-separated cells. Screening the forcing value alone left those
-     * cells to fail per-cell at read, so a file that reads today would stop reading. The column stays
-     * {@code datetime} instead, in either row order.
+     * A column flipped by a well-formed {@code T}-form nanosecond value while also holding
+     * whitespace-separated cells. This asserted {@code datetime} until the reader's {@code date_nanos}
+     * ladder gained the space-separated template: the demotion existed because such a cell read under
+     * {@code date}, was refused under {@code date_nanos}, and would therefore have turned from readable
+     * into a per-cell error. The rail reads it now, so the mixed column keeps its nanosecond digits,
+     * in either row order. That both cells survive the read is pinned end to end by
+     * {@code CsvFormatReaderTests}, not here.
+     * <p>
+     * The demotion itself has not gone away &mdash; it still fires for every dialect the rail genuinely
+     * cannot parse, which {@link #testEveryUndecodableDialectKeepsAColumnOffTheNanosRail} enumerates.
      */
-    public void testColumnHoldingASpaceFormTimestampNeverFlipsToDateNanos() {
-        assertEquals(DataType.DATETIME, inferOne("2023-10-23 12:15:03", "2023-10-23T12:15:03.360103847Z"));
-        assertEquals(DataType.DATETIME, inferOne("2023-10-23T12:15:03.360103847Z", "2023-10-23 12:15:03"));
+    public void testColumnHoldingASpaceFormTimestampFlipsToDateNanos() {
+        assertEquals(DataType.DATE_NANOS, inferOne("2023-10-23 12:15:03", "2023-10-23T12:15:03.360103847Z"));
+        assertEquals(DataType.DATE_NANOS, inferOne("2023-10-23T12:15:03.360103847Z", "2023-10-23 12:15:03"));
     }
 
     /** A column with no space-form cell is unaffected — the demotion is not a blanket retreat. */
@@ -654,14 +738,49 @@ public class CsvSchemaInferrerTests extends ESTestCase {
         assertEquals("a missing cell is absence, not evidence", DataType.INTEGER, schema.get(1).dataType());
     }
 
+    private static final DateFormatter NANOS_RAIL_FORMAT = DateFormatter.forPattern("strict_date_optional_time_nanos");
+
+    /**
+     * Whether the {@code date_nanos} rail refuses this cell, making it a demotion trigger.
+     * <p>
+     * Both halves of the rail are asked: the hand-rolled space-separated template (which also checks
+     * whether the instant is within the representable {@code date_nanos} range) and the strict T-form
+     * formatter. The formatter is spelled out here rather than taken from production so that a change to
+     * production's own constant has to disagree with this file to pass.
+     * <p>
+     * Note: a T-form value outside the representable window passes the formatter ({@code NANOS_RAIL_FORMAT}
+     * has no range check), so it is NOT a demotion trigger — see
+     * {@link #testOutOfWindowValueInDateNanosColumnStaysDateNanosBothOrders}.
+     */
+    private static boolean railRejects(String value) {
+        return NANOS_RAIL_FORMAT.tryParse(value) == null
+            && CsvFormatReader.tryParseSpaceSeparatedDatetimeNanos(value) == CsvFormatReader.FAST_PATH_MISS;
+    }
+
+    /**
+     * The epoch-nanoseconds the reader's rail yields for a cell, or {@code null} when it yields nothing —
+     * the template first, then the strict ISO parse, which is the reader's own ladder order below its
+     * formatter and epoch stages. Used where a test needs the VALUE rather than the verdict, to decide
+     * whether a cell carries sub-millisecond digits at all.
+     */
+    private static Long nanosRailDecode(String value) {
+        long template = CsvFormatReader.tryParseSpaceSeparatedDatetimeNanos(value);
+        if (template != CsvFormatReader.FAST_PATH_MISS) {
+            return template;
+        }
+        try {
+            return EsqlDataTypeConverter.dateNanosToLong(value);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     /**
      * The single-value invariant above misses the case the demotion exists for: a column is only wrong
      * when an undecodable dialect COEXISTS with a value that would flip the column. Every pair from the
      * corpus, both orders — if the column lands on {@code date_nanos}, every one of its values must
      * decode there.
      */
-    private static final DateFormatter NANOS_RAIL_FORMAT = DateFormatter.forPattern("strict_date_optional_time_nanos");
-
     public void testNoColumnLandsOnTheNanosRailHoldingAValueThatRailRejects() {
         List<String> corpus = new ArrayList<>(
             List.of(
@@ -688,15 +807,12 @@ public class CsvSchemaInferrerTests extends ESTestCase {
                     continue;
                 }
                 for (String cell : List.of(a, b)) {
-                    // Two different failures hide behind "the rail rejected it". A DIALECT the rail
-                    // cannot parse must never coexist with date_nanos — that is what the demotion is
-                    // for, and it is decidable from shape whatever order the rows arrive in. A value
-                    // that parses but falls outside the representable window is a different thing: it
-                    // is deliberately kept, because demoting on it would make the column's type depend
-                    // on row order, and it fails per-cell exactly as a declared date_nanos schema makes
-                    // it fail. Only the first is asserted here.
-                    if (NANOS_RAIL_FORMAT.tryParse(cell) == null) {
-                        fail("column [" + a + "] + [" + b + "] inferred date_nanos but [" + cell + "] is a dialect that rail cannot parse");
+                    // A cell that causes demotion (rails reject it) must not coexist with date_nanos.
+                    // T-form out-of-window values are the one exception: the T-form formatter has no
+                    // range check, so they pass the rail and a column stays date_nanos if they appear.
+                    // railRejects returns false for those, so this assertion does not fire.
+                    if (railRejects(cell)) {
+                        fail("column [" + a + "] + [" + b + "] inferred date_nanos but [" + cell + "] cannot be decoded by the nanos rail");
                     }
                 }
             }
@@ -722,13 +838,51 @@ public class CsvSchemaInferrerTests extends ESTestCase {
     /**
      * Every dialect the CSV parser accepts and the {@code date_nanos} rail does not, each of which
      * keeps its column off that rail in either row order. The list grew twice by review — seconds-less,
-     * then signed years — which is why the predicate now asks the rail instead of describing it.
+     * then signed years — which is why the predicate asks the rail instead of describing it. It has
+     * since shrunk once for the same reason: {@code YYYY-MM-DD HH:MM:SS} left it when the rail learned
+     * to read it, and {@link #testSpaceSeparatedDialectsNowKeepTheirColumnOnTheRail} is where it went.
+     * <p>
+     * A signed year is undecodable whatever its separator: the template reads exactly four unsigned
+     * year digits, so the space-separated signed forms below are misses there as well as on the
+     * formatter.
+     * <p>
+     * Space-separated out-of-window instants also belong here: the space path checks the range and
+     * misses pre-epoch and post-max values. T-form out-of-window values behave differently (no range
+     * check); see {@link #testOutOfWindowValueInDateNanosColumnStaysDateNanosBothOrders}.
      */
     public void testEveryUndecodableDialectKeepsAColumnOffTheNanosRail() {
         String nanos = "2023-10-23T12:15:03.360103847Z";
-        for (String undecodable : List.of("2023-10-23 12:15:03", "2023-10-23T12:15Z", "+12023-10-23T12:15:03Z", "-12023-10-23T12:15:03Z")) {
+        for (String undecodable : List.of(
+            "2023-10-23T12:15Z",
+            "+12023-10-23T12:15:03Z",
+            "-12023-10-23T12:15:03Z",
+            "+12023-10-23 12:15:03",
+            // Space-separated, out of the representable date_nanos range:
+            "1969-12-31 23:59:59",
+            "2263-01-01 00:00:00.123456789"
+        )) {
             assertEquals(undecodable + " then nanos", DataType.DATETIME, inferOne(undecodable, nanos));
             assertEquals("nanos then " + undecodable, DataType.DATETIME, inferOne(nanos, undecodable));
+        }
+    }
+
+    /**
+     * The dialects that moved the other way, and the reason this PR exists: the reader's
+     * {@code date_nanos} ladder parses {@code YYYY-MM-DD HH:MM:SS[.f..f]} with an optional trailing
+     * {@code Z}, so none of these keeps its column off the rail any more. Each is paired with a
+     * {@code T}-form nanosecond value in both row orders — the exact shape the demotion used to catch.
+     */
+    public void testSpaceSeparatedDialectsNowKeepTheirColumnOnTheRail() {
+        String nanos = "2023-10-23T12:15:03.360103847Z";
+        for (String decodable : List.of(
+            "2023-10-23 12:15:03",
+            "2023-10-23 12:15:03Z",
+            "2023-10-23 12:15:03.360",
+            "2023-10-23 12:15:03.360103847",
+            "2023-10-23 12:15:03.360103847Z"
+        )) {
+            assertEquals(decodable + " then nanos", DataType.DATE_NANOS, inferOne(decodable, nanos));
+            assertEquals("nanos then " + decodable, DataType.DATE_NANOS, inferOne(nanos, decodable));
         }
     }
 

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 161772
+summary: "ESQL:DS: Read a space-separated CSV timestamp as `date_nanos` too"
+type: bug

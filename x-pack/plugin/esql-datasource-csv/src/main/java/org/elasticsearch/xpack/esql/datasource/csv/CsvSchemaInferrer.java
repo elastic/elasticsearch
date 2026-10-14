@@ -426,9 +426,15 @@ public class CsvSchemaInferrer {
     }
 
     /**
-     * The formatter the {@code date_nanos} decode rail parses with. Asking it directly is the point:
-     * the CSV rail's own parser accepts dialects this one rejects, and a column holding one must never
-     * be typed {@code date_nanos}.
+     * The formatter half of the {@code date_nanos} decode rail. Asking the rail directly is the point:
+     * the CSV {@code datetime} parser accepts dialects the rail rejects, and a column holding one must
+     * never be typed {@code date_nanos}.
+     * <p>
+     * The rail is no longer this formatter alone. {@code CsvFormatReader.tryParseDateNanos} tries the
+     * hand-rolled {@code YYYY-MM-DD HH:MM:SS[.f..f][Z]} template first, so a space-separated cell the
+     * formatter rejects is read anyway; {@link #nanosRailCanDecode} therefore asks both halves. Asking
+     * only this one would restate the rail's grammar by omission, which is the failure the paragraph
+     * below describes, arrived at from the other direction.
      * <p>
      * This replaced two successive attempts to restate that grammar by shape — first "has no space",
      * then "has no space and has seconds" — which between them missed three dialects: seconds-less
@@ -439,15 +445,18 @@ public class CsvSchemaInferrer {
      * Taken from {@code EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER} rather than re-declared
      * from its pattern string, so no copy of it is left to drift.
      * <p>
-     * Note it is the DIALECT being asked about, not the range: a value this parses but that falls
-     * outside the representable window is deliberately kept (demoting on it would make a column's type
-     * depend on row order) and fails per-cell at read, exactly as a declared {@code date_nanos} schema
-     * makes it fail.
+     * Note the two halves treat range differently: a T-form value this parses but that falls outside
+     * the representable nanosecond window is deliberately kept and fails per-cell at read, exactly as
+     * a declared {@code date_nanos} schema makes it fail. The space-separated path uses
+     * {@link CsvFormatReader#tryParseSpaceSeparatedDatetimeNanos}, which returns a miss for
+     * out-of-range instants, so a space-separated out-of-window value keeps the column off the rail,
+     * regardless of the order the two rows arrive.
      */
     private static final DateFormatter NANOS_RAIL_FORMAT = EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER;
 
     private static boolean nanosRailCanDecode(String value) {
-        return NANOS_RAIL_FORMAT.tryParse(value) != null;
+        return NANOS_RAIL_FORMAT.tryParse(value) != null
+            || CsvFormatReader.tryParseSpaceSeparatedDatetimeNanos(value) != CsvFormatReader.FAST_PATH_MISS;
     }
 
     /**

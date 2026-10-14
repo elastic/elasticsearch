@@ -314,7 +314,10 @@ esac
       ["001", "FAIL", "up"],
       ["002", "FAIL", "rate(http_requests_total[5m])"],
     ]);
-    const [, annotation, comment] = r.agent.split(/^== .*$/m);
+    // The start note annotates first; the final pair carries the report.
+    const parts = r.agent.split(/^== .*$/m);
+    const annotation = parts[parts.length - 2];
+    const comment = parts[parts.length - 1];
     expect(r.agent).toContain("== meta-data set pr_comment:validate-prometheus-compliance:body");
     expect(comment.trim()).toBe(annotation.trim());
     expect(comment.trim()).toBe(r.report.trim());

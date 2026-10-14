@@ -230,6 +230,11 @@ render_changes() {
 rm -rf "$WORK_DIR" "$OUTPUT_DIR"
 mkdir -p "$WORK_DIR" "$OUTPUT_DIR"
 
+# Show up on the build as soon as the comparison starts. The final
+# report reuses the same annotation context and comment key, so it
+# replaces this note instead of adding a second one.
+annotate info "$(printf '**Promcheck running**\n\nComparing PromQL coverage between the merge base and this PR with promcheck v%s. The verdict replaces this note when both runs finish.\n\n' "$PROMCHECK_VER" | report)"
+
 echo "--- Downloading promcheck v$PROMCHECK_VER"
 release=$(
   curl -fsSL --retry 3 --retry-delay 2 \

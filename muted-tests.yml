@@ -341,9 +341,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/147170
 - class: org.elasticsearch.xpack.sql.qa.security.CliSecurityIT
   issue: https://github.com/elastic/elasticsearch/issues/158631
-- class: org.elasticsearch.xpack.esql.action.ManyShardsIT
-  method: testCancelUnnecessaryRequests
-  issue: https://github.com/elastic/elasticsearch/issues/158868
 - class: org.elasticsearch.multi_cluster.MultiClusterWithSecurityYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/158911
 - class: org.elasticsearch.xpack.transform.integration.continuous.TransformContinuousIT
@@ -549,15 +546,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/161604
 - class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/161608
-- class: org.elasticsearch.xpack.esql.EsqlSecurityLogsdbColumnarIT
-  method: testGetDataSourceForbiddenOutsideGrantedNamePatterns
-  issue: https://github.com/elastic/elasticsearch/issues/161625
-- class: org.elasticsearch.xpack.esql.EsqlSecurityIT
-  method: testViewRewriteDoesNotDropUnauthorizedTargets
-  issue: https://github.com/elastic/elasticsearch/issues/161626
-- class: org.elasticsearch.xpack.esql.EsqlAsyncSecurityIT
-  method: testViewReferencingAliasAuthorized
-  issue: https://github.com/elastic/elasticsearch/issues/161627
 - class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/161633
@@ -573,24 +561,12 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessCommitNotificationsIT
   method: testVbccRemainsServableUntilSearchTierNotificationCompletes
   issue: https://github.com/elastic/elasticsearch/issues/161667
-- class: org.elasticsearch.xpack.esql.datasource.s3.S3EndpointRedirectTests
-  method: testAsyncReadDoesNotFollowRedirectAwayFromTheEndpoint
-  issue: https://github.com/elastic/elasticsearch/issues/161727
 - class: org.elasticsearch.index.codec.vectors.ash.AsymmetricHashingQuantizerTests
   method: testReconstructedDotProductApproximatesTrueDotProduct
   issue: https://github.com/elastic/elasticsearch/issues/161756
 - class: org.elasticsearch.xpack.stateless.objectstore.AzureBccWriteStallIT
   method: testRetryWhileFirstTryStillReadsUploadsCorrectBcc
   issue: https://github.com/elastic/elasticsearch/issues/161762
-- class: org.elasticsearch.xpack.wildcard.heappressure.WildcardFieldWildcardHeapPressureIT
-  method: testPausedHeavyWildcardsTripBreaker
-  issue: https://github.com/elastic/elasticsearch/issues/161775
-- class: org.elasticsearch.xpack.wildcard.heappressure.WildcardFieldRegexpHeapPressureIT
-  method: testSmallRegexpSucceeds
-  issue: https://github.com/elastic/elasticsearch/issues/161777
-- class: org.elasticsearch.xpack.wildcard.heappressure.WildcardFieldRegexpHeapPressureIT
-  method: testConcurrentHeavyRegexpTripsBreaker
-  issue: https://github.com/elastic/elasticsearch/issues/161779
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/161781
 - class: org.elasticsearch.xpack.stateless.StatelessResizeIT
@@ -619,3 +595,5 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardDisruptionIT
   method: testReshardWithDisruption
   issue: https://github.com/elastic/elasticsearch/issues/161494
+- class: org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinatorTests
+  issue: https://github.com/elastic/elasticsearch/issues/161910

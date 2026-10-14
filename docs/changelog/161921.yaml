@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 161921
+summary: Fix 'STATS ... WHERE' w/ TO_TEXT analyzer
+type: bug

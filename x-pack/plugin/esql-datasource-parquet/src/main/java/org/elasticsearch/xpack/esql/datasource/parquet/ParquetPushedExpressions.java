@@ -741,8 +741,7 @@ final class ParquetPushedExpressions {
 
     /**
      * Resolves a (possibly dotted) {@code name} to the leaf {@link PrimitiveType} in {@code schema}.
-     * Literal top-level field named exactly {@code "a.b.c"} wins over dotted-path traversal: a literal
-     * top-level field named exactly {@code "a.b.c"} wins over the dotted-path traversal
+     * A literal top-level field named exactly {@code "a.b.c"} wins over the dotted-path traversal
      * {@code a -> b -> c}. Returns {@code null} when the path is missing, lands on a group
      * (e.g. an intermediate STRUCT, MAP, or LIST) rather than a primitive, or any type on the
      * resolved path is {@link Type.Repetition#REPEATED}. parquet-mr FilterPredicates cannot

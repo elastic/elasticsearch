@@ -1,0 +1,63 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes, flattened_unmapped_fields ]
+      reason: "columnar index modes and the flattened _unmapped sink are required"
+
+  - do:
+      indices.create:
+        index: test_mapped
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.flattened_unmapped_fields.enabled: true
+          mappings:
+            properties:
+              mapped:
+                type: long
+
+  - do:
+      index:
+        index: test_mapped
+        id: "1"
+        refresh: true
+        body:
+          mapped: 42
+          bare: "bare-value"
+
+---
+"the sink is not a column":
+  # ES|QL resolves columns through field_caps, which never sees the sink.
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test_mapped | LIMIT 10'
+  - length: { columns: 1 }
+  - match: { columns.0.name: mapped }
+  - match: { values.0.0: 42 }
+
+  - do:
+      catch: '/Unknown column \[_unmapped\]/'
+      esql.query:
+        body:
+          query: 'FROM test_mapped | KEEP _unmapped'
+
+---
+"absorbed names are unknown columns":
+  - do:
+      catch: '/Unknown column \[bare\]/'
+      esql.query:
+        body:
+          query: 'FROM test_mapped | KEEP bare'
+
+  # An absorbed key addressed through the sink's name does not resolve either: loading it as an unmapped field finds nothing.
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM test_mapped | KEEP _unmapped.bare | LIMIT 10'
+  - match: { columns.0.name: _unmapped.bare }
+  - match: { values.0.0: null }

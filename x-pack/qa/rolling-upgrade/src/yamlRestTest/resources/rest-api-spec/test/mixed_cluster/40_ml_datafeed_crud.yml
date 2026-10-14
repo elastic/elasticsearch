@@ -55,6 +55,10 @@
   - is_false: datafeeds.0.node
 ---
 "Put job and datafeed without aggs in mixed cluster":
+  - skip:
+      cluster_features: ["rolling_upgrade.first_mixed_cluster"]
+      reason: "Creates durable ML datafeed state — must run exactly once"
+
   - do:
       ml.put_job:
         job_id: mixed-cluster-datafeed-job-without-aggs
@@ -99,6 +103,10 @@
 
 ---
 "Put job and datafeed with aggs in mixed cluster":
+  - skip:
+      cluster_features: ["rolling_upgrade.first_mixed_cluster"]
+      reason: "Creates durable ML datafeed state — must run exactly once"
+
   - do:
       ml.put_job:
         job_id: mixed-cluster-datafeed-job-with-aggs
@@ -163,6 +171,10 @@
   - is_false: datafeeds.0.node
 ---
 "Put job and datafeed with composite aggs in mixed cluster":
+  - skip:
+      cluster_features: ["rolling_upgrade.first_mixed_cluster"]
+      reason: "Creates durable ML datafeed state — must run exactly once"
+
   - do:
       ml.put_job:
         job_id: mixed-cluster-datafeed-job-with-comp-aggs

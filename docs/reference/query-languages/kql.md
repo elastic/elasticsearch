@@ -1,23 +1,14 @@
 ---
+description: Syntax for KQL field, range, wildcard, and boolean filters.
 mapped_pages:
   - https://www.elastic.co/guide/en/kibana/current/kuery-query.html
 ---
 
-# {{kib}} Query Language [kuery-query]
+# KQL syntax reference [kuery-query]
 
 :::{note}
-This section provides detailed **reference information**.
-
-Refer to [KQL overview](docs-content://explore-analyze/query-filter/languages/kql.md) in the **Explore and analyze** section for overview and conceptual information about KQL.
+This page is the syntax reference for KQL. For an introduction to KQL, refer to [{{kib}} Query Language (KQL)](docs-content://explore-analyze/query-filter/languages/kql.md).
 :::
-
-
-The {{kib}} Query Language (KQL) is a text-based query language for filtering data.
-
-* KQL only filters data. It does not aggregate, transform, or sort data.
-* Do not confuse KQL with the [Lucene query language](docs-content://explore-analyze/query-filter/languages/lucene-query-syntax.md). Lucene has a different feature set.
-
-Use KQL to filter documents where a value for a field exists, matches a given value, or is within a given range.
 
 
 ## Filter for documents where a field exists [_filter_for_documents_where_a_field_exists]

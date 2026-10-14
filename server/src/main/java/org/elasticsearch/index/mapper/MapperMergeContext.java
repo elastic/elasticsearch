@@ -75,7 +75,7 @@ public final class MapperMergeContext {
      * @param newFieldsBudget limits how many fields can be added during the merge process
      * @return a new {@link MapperMergeContext}, wrapping the provided {@link MapperBuilderContext}
      */
-    public static MapperMergeContext from(MapperBuilderContext mapperBuilderContext, long newFieldsBudget) {
+    public static MapperMergeContext fromBuilderContext(MapperBuilderContext mapperBuilderContext, long newFieldsBudget) {
         return new MapperMergeContext(
             mapperBuilderContext,
             ParseFieldLimits.withBudget(NewFieldsBudget.dropping(newFieldsBudget)),

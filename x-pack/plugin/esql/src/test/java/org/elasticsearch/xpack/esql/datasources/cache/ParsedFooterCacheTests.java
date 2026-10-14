@@ -511,7 +511,11 @@ public class ParsedFooterCacheTests extends ESTestCase {
     public void testWriteCapSaturatesOnLargeTtl() {
         // 20000 days exceeds Long.MAX_VALUE / WRITE_CAP_MULTIPLIER nanoseconds;
         // without the saturation guard, WRITE_CAP_MULTIPLIER * ttl_nanos wraps negative.
-        ParsedFooterCache<String> large = new ParsedFooterCache<>(8 * ENTRY_WEIGHT, TimeValue.timeValueDays(20000), ignored -> ENTRY_WEIGHT);
+        ParsedFooterCache<String> large = new ParsedFooterCache<>(
+            8 * ENTRY_WEIGHT,
+            TimeValue.timeValueDays(20000),
+            ignored -> ENTRY_WEIGHT
+        );
         assertEquals(Long.MAX_VALUE, large.expireAfterWrite().nanos());
         // Boundary: exactly Long.MAX_VALUE / WRITE_CAP_MULTIPLIER nanos does not saturate.
         long boundaryNanos = Long.MAX_VALUE / FooterByteCache.WRITE_CAP_MULTIPLIER;

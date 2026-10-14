@@ -13,6 +13,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.internal.LegacyReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
@@ -94,6 +95,9 @@ public class AsyncSearchCleanupScrollIT extends AsyncSearchIntegTestCase {
             assertThat(leak.getMessage(), containsString(XPackPlugin.ASYNC_RESULTS_INDEX));
             assertThat(leak.getMessage(), containsString("keepAlive=5m"));
 
+            // Resolve via reflection so a rename of ensureAllSearchContextsReleased fails this test
+            // instead of leaving inDrain always false (silent pass while assertBusy still matches).
+            final String drainMethod = ESTestCase.class.getMethod("ensureAllSearchContextsReleased").getName();
             restartThread = new Thread(() -> {
                 try {
                     restartTaskNode(searchId, indexName);
@@ -110,7 +114,7 @@ public class AsyncSearchCleanupScrollIT extends AsyncSearchIntegTestCase {
                 }
                 StackTraceElement[] stack = thread.getStackTrace();
                 boolean inRestart = stackContainsMethod(stack, "restartTaskNode");
-                boolean inDrain = stackContainsMethod(stack, "ensureAllSearchContextsReleased");
+                boolean inDrain = stackContainsMethod(stack, drainMethod);
                 boolean inAssertBusy = stackContainsMethod(stack, "assertBusy");
                 assertTrue(
                     "restartTaskNode has not reached the delete-by-query wait or the context drain" + renderStack(stack),

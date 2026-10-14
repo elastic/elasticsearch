@@ -190,6 +190,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     private static final Set<String> CREATED_VIEWS = Set.of(
         "employees_view",
         "employees_filtered_view",
+        "employees_eval_view",
+        "employees_stats_view",
         "mapped_dataset_view",
         "fork_dataset_view",
         "fork_dataset_view_a",
@@ -5402,6 +5404,75 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             assertThat(rows.get(0).get(1).toString(), equalTo("Bob"));
             assertThat(rows.get(1).get(0), equalTo(3));
             assertThat(rows.get(1).get(1).toString(), equalTo("Carol"));
+        }
+    }
+
+    /**
+     * A request filter on a field a view computes with {@code EVAL} over a dataset is applied to the view's
+     * <em>output</em>, not pushed into the dataset read. Regression test for elastic/elasticsearch#161957: the
+     * dataset rewriter used to also wrap the dataset leaf inside the view body, where {@code doubled} does not exist,
+     * so the filter bound to NULL there and dropped every row before the EVAL ran.
+     */
+    public void testRequestFilterOnEvalComputedFieldOfViewOverDataset() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees_external", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+        assertAcked(
+            client().execute(
+                PutViewAction.INSTANCE,
+                putViewRequest("employees_eval_view", "FROM employees_external | EVAL doubled = emp_no * 2")
+            )
+        );
+
+        var request = syncEsqlQueryRequest("FROM employees_eval_view | KEEP emp_no, doubled | SORT emp_no");
+        request.filter(QueryBuilders.termQuery("doubled", 2));
+        try (var response = run(request, TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(rows.get(0).get(0), equalTo(1));
+            assertThat(rows.get(0).get(1), equalTo(2));
+        }
+    }
+
+    /**
+     * Same as {@link #testRequestFilterOnEvalComputedFieldOfViewOverDataset} for a field computed by {@code STATS}:
+     * a {@code range} on the count selects the bucket after aggregation rather than filtering the dataset rows first.
+     */
+    public void testRequestFilterOnStatsComputedFieldOfViewOverDataset() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees_external", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+        assertAcked(
+            client().execute(
+                PutViewAction.INSTANCE,
+                putViewRequest("employees_stats_view", "FROM employees_external | EVAL grp = emp_no > 1 | STATS c = COUNT(*) BY grp")
+            )
+        );
+
+        var request = syncEsqlQueryRequest("FROM employees_stats_view | KEEP grp, c");
+        request.filter(QueryBuilders.rangeQuery("c").gte(2));
+        try (var response = run(request, TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(rows.get(0).get(0), equalTo(true));
+            assertThat(rows.get(0).get(1), equalTo(2L));
+        }
+    }
+
+    /**
+     * A filter on a pass-through column of a view over a dataset still filters: the dataset leaf inside the view is
+     * no longer a target of the dataset rewriter, so the view-output filter must carry the whole job.
+     */
+    public void testRequestFilterOnPassthroughFieldOfViewOverDataset() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees_external", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+        assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest("employees_view", "FROM employees_external")));
+
+        var request = syncEsqlQueryRequest("FROM employees_view | SORT emp_no");
+        request.filter(QueryBuilders.termQuery("emp_no", 2));
+        try (var response = run(request, TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(rows.get(0).get(0), equalTo(2));
+            assertThat(rows.get(0).get(1).toString(), equalTo("Bob"));
         }
     }
 

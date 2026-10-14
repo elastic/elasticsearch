@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -45,6 +47,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
@@ -114,6 +117,55 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
         LogicalPlan child = ((ViewUnionAll) plan).namedSubqueries().get(null);
         assertNotNull("expected a bare-index child (null key)", child);
         return child;
+    }
+
+    // --- interaction with the dataset rewriter (elastic/elasticsearch#161957) ---
+
+    /**
+     * A dataset read inside a view's body must not be wrapped by {@link RequestFilterRewriter}: the filter belongs on
+     * the view's output, where this rewriter installs it. Both run in session order here. Were the dataset leaf also
+     * wrapped, a filter on the field the view computes would bind to NULL against the dataset schema and drop every row
+     * before the view's EVAL ran.
+     */
+    public void testDatasetInsideViewIsNotFilteredOnViewComputedField() {
+        ReferenceAttribute empNo = attr("emp_no", DataType.INTEGER);
+        ReferenceAttribute doubled = attr("doubled", DataType.INTEGER);
+        ExternalRelation dataset = viewSubplan("employees", empNo);
+        LogicalPlan viewBody = new Eval(Source.EMPTY, dataset, List.of(new Alias(Source.EMPTY, "doubled", empNo, doubled.id())));
+        LinkedHashMap<String, LogicalPlan> map = new LinkedHashMap<>();
+        map.put("emp_eval_view", viewBody);
+        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, map, Set.of("emp_eval_view"), List.of(empNo, doubled));
+
+        QueryBuilder filter = QueryBuilders.termQuery("doubled", 2);
+        LogicalPlan afterDataset = RequestFilterRewriter.rewrite(vua, filter, CONFIG, CURRENT, true);
+        LogicalPlan result = ViewRequestFilterRewriter.rewrite(afterDataset, filter, CONFIG, CURRENT);
+
+        // The only Filter is the one on the view output; the dataset leaf is still the Eval's direct child.
+        LogicalPlan child = viewChild(result, "emp_eval_view");
+        assertThat(child, instanceOf(Filter.class));
+        assertThat(((Filter) child).child(), instanceOf(Eval.class));
+        assertThat(((Eval) ((Filter) child).child()).child(), sameInstance(dataset));
+        assertThat(result.collect(Filter.class::isInstance), hasSize(1));
+    }
+
+    /** A dataset outside any view branch remains a target of the dataset rewriter, alongside the view-output filter. */
+    public void testDatasetOutsideViewIsStillFilteredByDatasetRewriter() {
+        ReferenceAttribute y = attr("y", DataType.INTEGER);
+        ExternalRelation bareDataset = viewSubplan("bare_ds", y);
+        LinkedHashMap<String, LogicalPlan> map = new LinkedHashMap<>();
+        map.put(null, bareDataset);
+        map.put("myView", viewSubplan("myView", y));
+        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, map, Set.of("myView"), List.of(y));
+
+        QueryBuilder filter = QueryBuilders.termQuery("y", 1);
+        LogicalPlan afterDataset = RequestFilterRewriter.rewrite(vua, filter, CONFIG, CURRENT, true);
+        LogicalPlan result = ViewRequestFilterRewriter.rewrite(afterDataset, filter, CONFIG, CURRENT);
+
+        LogicalPlan bare = bareIndexChild(result);
+        assertThat(bare, instanceOf(Filter.class));
+        assertThat(((Filter) bare).child(), sameInstance(bareDataset));
+        assertThat(viewChild(result, "myView"), instanceOf(Filter.class));
+        assertThat(result.collect(Filter.class::isInstance), hasSize(2));
     }
 
     // --- core behaviour ---

@@ -6,6 +6,9 @@ applies_to:
   stack: ga
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl.html
+products:
+  - id: elasticsearch
+type: reference
 ---
 
 # Query DSL reference [query-dsl]

@@ -4376,9 +4376,8 @@ public class EsqlCapabilities {
 
         /**
          * Every element of a Parquet {@code LIST} of {@code uint32} widens unsigned, as a scalar {@code uint32}
-         * column's values do. Older nodes sign-extended list elements, so an element at or above 2^31 read negative
-         * and a filter on the column's sign dropped exactly the largest values. Gates the csv-spec case asserting the
-         * unsigned elements, which such nodes still fail.
+         * column's values do. Older nodes sign-extended list elements, so an element at or above 2^31 read negative.
+         * Gates the csv-spec case asserting the unsigned elements, which such nodes still fail.
          */
         EXTERNAL_PARQUET_LIST_UINT32_WIDENS_UNSIGNED,
 

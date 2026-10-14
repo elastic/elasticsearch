@@ -327,8 +327,8 @@ id:long | region:keyword
 
 // Every element of a LIST<uint32> widens unsigned, exactly as a scalar uint32 column's values do -- the reason the
 // type renders ESQL long at all is that an unsigned 32-bit value can exceed Integer.MAX_VALUE. No declaration is
-// involved: the element type comes from the file, which is why the two elements above 2^31 have to arrive positive
-// for an ordinary `WHERE ids > 0` to keep the row.
+// involved: the element type comes from the file, which is why elements at or above 2^31 would appear negative
+// if sign-extended to 64 bits.
 listOfUnsignedInt32WidensElements
 required_capability: dataset_in_from_command
 required_capability: external_parquet_list_uint32_widens_unsigned

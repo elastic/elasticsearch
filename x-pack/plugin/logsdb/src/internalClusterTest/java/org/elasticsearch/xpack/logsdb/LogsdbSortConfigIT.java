@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.logsdb;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
@@ -68,6 +71,21 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
 public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
+
+    /**
+     * Every test runs in both modes rather than one picked at random, so each run checks the default sort of {@code logsdb_columnar},
+     * whose keyword sort fields go through binary doc values, as well as {@code logsdb}.
+     */
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() {
+        return List.of(new Object[] { "logsdb" }, new Object[] { "logsdb_columnar" });
+    }
+
+    private final String indexMode;
+
+    public LogsdbSortConfigIT(@Name("indexMode") String indexMode) {
+        this.indexMode = indexMode;
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -443,6 +461,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
      */
     public void testMatchTailWithMultipleSingleValuedColumnarHostnames() throws Exception {
         assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
+        assumeTrue("only meaningful in logsdb_columnar, which this test always uses", "logsdb_columnar".equals(indexMode));
         final String dataStreamName = "test-logsdb-match-tail-with-multiple-single-valued-columnar-hostnames";
 
         final String mapping = """
@@ -500,7 +519,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
     }
 
     private void createDataStream(String dataStreamName, String mapping, UnaryOperator<Settings.Builder> settings) throws IOException {
-        createDataStream(dataStreamName, mapping, settings, randomBoolean() ? "logsdb_columnar" : "logsdb");
+        createDataStream(dataStreamName, mapping, settings, indexMode);
     }
 
     private void createDataStream(String dataStreamName, String mapping, UnaryOperator<Settings.Builder> settings, String indexMode)

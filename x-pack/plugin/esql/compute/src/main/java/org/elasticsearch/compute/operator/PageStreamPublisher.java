@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
@@ -15,11 +17,16 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Flow;
 
 /**
@@ -51,8 +58,17 @@ import java.util.concurrent.Flow;
  * Every other action either returns after terminal cleanup or returns after atomically
  * re-checking {@link #deliveryPending}. New branches must preserve this: {@link Action#SEND_PAGE}
  * must only be chosen when a page is actually ready to deliver.
+ *
+ * An optional consumer deadline bounds how long a subscriber may leave the stream without outstanding
+ * demand. A timer is armed whenever a live, subscribed stream has zero demand (after {@code subscribe} and
+ * after the last unit of demand is consumed) and is cancelled by any positive {@code request(n)} or by a
+ * terminal state. Only a new request resets the clock; progress writing an already delivered page does not.
+ * On expiry the stream is failed with an {@link ElasticsearchTimeoutException} through the normal
+ * {@link Action#SEND_ERROR} path, which releases the buffer and unparks the producers.
  */
 public class PageStreamPublisher implements Flow.Publisher<Page> {
+
+    private static final Logger logger = LogManager.getLogger(PageStreamPublisher.class);
 
     public record StreamFooter(
         int status,
@@ -107,11 +123,90 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
     // Decremented on each Producer.finish(); zero → pagesFinished = true.
     private int outstandingProducers;
 
+    @Nullable
+    private final TimeValue consumerTimeout;
+    @Nullable
+    private final Scheduler scheduler;
+    @Nullable
+    private final Executor timeoutExecutor;
+    private Scheduler.Cancellable consumerTimer;
+    private long demandEpoch;
+
     public PageStreamPublisher(int pageSize) {
+        this(pageSize, null, null, null);
+    }
+
+    /**
+     * @param consumerTimeout how long the stream may sit with no outstanding demand before it is failed;
+     *                        {@code null}, zero or negative disables the deadline
+     * @param scheduler       schedules the deadline; required when the deadline is enabled
+     * @param timeoutExecutor runs the expiry action so it never runs on the scheduler thread; required when the
+     *                        deadline is enabled
+     */
+    public PageStreamPublisher(
+        int pageSize,
+        @Nullable TimeValue consumerTimeout,
+        @Nullable Scheduler scheduler,
+        @Nullable Executor timeoutExecutor
+    ) {
         if (pageSize < 1) {
             throw new IllegalArgumentException("pageSize must be at least 1, got [" + pageSize + "]");
         }
         this.pageSize = pageSize;
+        if (consumerTimeout != null && consumerTimeout.millis() > 0) {
+            if (scheduler == null || timeoutExecutor == null) {
+                throw new IllegalArgumentException("scheduler and timeoutExecutor are required when consumerTimeout is enabled");
+            }
+            this.consumerTimeout = consumerTimeout;
+        } else {
+            this.consumerTimeout = null;
+        }
+        this.scheduler = scheduler;
+        this.timeoutExecutor = timeoutExecutor;
+    }
+
+    private void armConsumerTimerIfIdle() {
+        assert Thread.holdsLock(this);
+        if (consumerTimeout == null || consumerTimer != null || demand > 0 || cancelled || terminated()) {
+            return;
+        }
+        final long epoch = demandEpoch;
+        consumerTimer = scheduler.schedule(() -> onConsumerTimeout(epoch), consumerTimeout, timeoutExecutor);
+    }
+
+    private void cancelConsumerTimer() {
+        assert Thread.holdsLock(this);
+        if (consumerTimer != null) {
+            consumerTimer.cancel();
+            consumerTimer = null;
+        }
+    }
+
+    private void onConsumerTimeout(long epoch) {
+        final Exception timeout = new ElasticsearchTimeoutException(
+            "streaming consumer did not request the next batch within [{}]",
+            consumerTimeout
+        );
+        synchronized (this) {
+            if (epoch != demandEpoch || demand != 0 || cancelled || terminated()) {
+                return;
+            }
+            consumerTimer = null;
+            StreamFooter existing = footer;
+            footer = new StreamFooter(
+                ExceptionsHelper.status(timeout).getStatus(),
+                existing == null ? 0L : existing.tookMillis(),
+                existing != null && existing.isPartial(),
+                existing == null ? List.of() : existing.warnings(),
+                existing == null ? null : existing.completionInfo(),
+                existing == null ? null : existing.clusters(),
+                timeout,
+                existing == null ? null : existing.profile()
+            );
+            failure = timeout;
+        }
+        logger.debug("streaming consumer did not request the next batch within [{}], failing the streaming query", consumerTimeout);
+        deliverPages();
     }
 
     public synchronized IsBlockedResult waitForWriting() {
@@ -200,7 +295,9 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
 
     public void completeWithFooter(StreamFooter footer) {
         synchronized (this) {
-            this.footer = footer;
+            if (this.footer == null || this.footer.error() == null) {
+                this.footer = footer;
+            }
         }
         deliverPages();
     }
@@ -258,6 +355,8 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
                     } else {
                         long updated = demand + n;
                         demand = updated < 0 ? Long.MAX_VALUE : updated;
+                        demandEpoch++;
+                        cancelConsumerTimer();
                     }
                 }
                 deliverPages();
@@ -267,6 +366,7 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
             public void cancel() {
                 synchronized (PageStreamPublisher.this) {
                     cancelled = true;
+                    cancelConsumerTimer();
                     releaseBuffer();
                 }
                 notifyWritable();
@@ -274,6 +374,9 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
             }
         };
         subscriber.onSubscribe(subscription);
+        synchronized (this) {
+            armConsumerTimerIfIdle();
+        }
     }
 
     private void deliverPages() {
@@ -319,18 +422,22 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
                     err = failure;
                     terminalSignalSent = true;
                     demand = 0;
+                    cancelConsumerTimer();
                     releaseBuffer();
                     action = Action.SEND_ERROR;
                 } else if (demand > 0 && bufferedRows >= pageSize) {
                     pending = takeRows(pageSize);
                     demand--;
+                    armConsumerTimerIfIdle();
                     action = Action.SEND_PAGE;
                 } else if (demand > 0 && pagesFinished && bufferedRows > 0) {
                     pending = takeRows(bufferedRows);
                     demand--;
+                    armConsumerTimerIfIdle();
                     action = Action.SEND_PAGE;
                 } else if (demand > 0 && pagesFinished && bufferedRows == 0 && footer != null) {
                     terminalSignalSent = true;
+                    cancelConsumerTimer();
                     action = Action.SEND_COMPLETE;
                 } else if (demand > 0) {
                     // Demand is outstanding but no page is ready yet (producers still active or buffer
@@ -416,6 +523,7 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
                     failure = buildException;
                     terminalSignalSent = true;
                     demand = 0;
+                    cancelConsumerTimer();
                     releaseBuffer();
                     shouldSendError = true;
                 }

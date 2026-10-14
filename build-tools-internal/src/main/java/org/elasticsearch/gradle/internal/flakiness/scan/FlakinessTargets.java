@@ -84,7 +84,8 @@ public final class FlakinessTargets {
     }
 
     /**
-     * Collapse targets that address the same (project, kind, identity).
+     * Collapse targets that address the same (project, kind, identity), preserving the union of runnable task
+     * paths when several refs named the same target with different task scopes.
      */
     private static List<BaseTarget> dedupe(List<BaseTarget> targets) {
         Map<String, BaseTarget> seen = new LinkedHashMap<>();
@@ -93,9 +94,47 @@ public final class FlakinessTargets {
                 : t.fqcn() != null ? t.fqcn()
                 : t.suitePath() != null ? t.suitePath()
                 : "";
-            seen.putIfAbsent(t.gradleProject() + "|" + t.kind() + "|" + identity, t);
+            String key = t.gradleProject() + "|" + t.kind() + "|" + identity;
+            seen.merge(key, t, FlakinessTargets::mergeTargets);
         }
         return new ArrayList<>(seen.values());
+    }
+
+    private static BaseTarget mergeTargets(BaseTarget left, BaseTarget right) {
+        if (left.runnable() == false) {
+            return right.runnable() ? right : targetWith(left, List.of(), Math.max(left.candidateTasks(), right.candidateTasks()), left.skipReason());
+        }
+        if (right.runnable() == false) {
+            return left;
+        }
+        List<String> runnableTasks = unionTasks(left.runnableTasks(), right.runnableTasks());
+        int candidateTasks = Math.max(Math.max(left.candidateTasks(), right.candidateTasks()), runnableTasks.size());
+        return targetWith(left, runnableTasks, candidateTasks, null);
+    }
+
+    private static BaseTarget targetWith(BaseTarget target, List<String> runnableTasks, int candidateTasks, String skipReason) {
+        return new BaseTarget(
+            target.gradleProject(),
+            target.sourceSet(),
+            target.kind(),
+            target.fqcn(),
+            target.suitePath(),
+            target.yamlTest(),
+            runnableTasks,
+            candidateTasks,
+            skipReason
+        );
+    }
+
+    private static List<String> unionTasks(List<String> left, List<String> right) {
+        TreeSet<String> tasks = new TreeSet<>();
+        if (left != null) {
+            tasks.addAll(left);
+        }
+        if (right != null) {
+            tasks.addAll(right);
+        }
+        return new ArrayList<>(tasks);
     }
 
     /**

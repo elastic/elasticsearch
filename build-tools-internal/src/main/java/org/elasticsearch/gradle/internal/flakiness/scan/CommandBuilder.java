@@ -18,12 +18,11 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Turns the concrete, runnable {@link PlanEntry}s of a {@link FlakinessPlan} into the ready batch commands
@@ -127,7 +126,8 @@ public final class CommandBuilder {
                 : t.fqcn() != null ? t.fqcn()
                 : t.suitePath() != null ? t.suitePath()
                 : "";
-            seen.putIfAbsent(t.gradleProject() + "|" + t.kind() + "|" + identity, t);
+            String key = t.gradleProject() + "|" + t.kind() + "|" + identity;
+            seen.merge(key, t, CommandBuilder::mergeEntryTasks);
         }
         return new ArrayList<>(seen.values());
     }
@@ -170,7 +170,7 @@ public final class CommandBuilder {
                             Kinds.DISPOSITION_RUN,
                             null,
                             null,
-                            first.runnableTasks()
+                            unionTasks(dirSuites.stream().flatMap(suite -> suite.runnableTasks().stream()).toList())
                         )
                     );
                 } else {
@@ -193,17 +193,36 @@ public final class CommandBuilder {
      * test cluster and running the same suite.
      */
     private static List<PlanEntry> deduplicateYamlRunners(List<PlanEntry> tests) {
-        Set<String> seen = new LinkedHashSet<>();
+        Map<String, PlanEntry> runnersByProject = new LinkedHashMap<>();
         List<PlanEntry> result = new ArrayList<>();
         for (PlanEntry t : tests) {
-            if (t.kind().equals(Kinds.YAML_REST_TEST_RUNNER)) {
-                if (seen.add(t.gradleProject()) == false) {
-                    continue;
-                }
+            if (t.kind().equals(Kinds.YAML_REST_TEST_RUNNER) == false) {
+                result.add(t);
+                continue;
             }
-            result.add(t);
+            runnersByProject.merge(t.gradleProject(), t, CommandBuilder::mergeEntryTasks);
         }
+        result.addAll(runnersByProject.values());
         return result;
+    }
+
+    private static PlanEntry mergeEntryTasks(PlanEntry left, PlanEntry right) {
+        return new PlanEntry(
+            left.gradleProject(),
+            left.sourceSet(),
+            left.kind(),
+            left.fqcn(),
+            left.suitePath(),
+            left.yamlTest(),
+            left.disposition(),
+            left.reason(),
+            left.expandedFrom(),
+            unionTasks(Stream.concat(left.runnableTasks().stream(), right.runnableTasks().stream()).toList())
+        );
+    }
+
+    private static List<String> unionTasks(List<String> tasks) {
+        return tasks.stream().distinct().toList();
     }
 
     private static String batchCommand(List<RunUnit> batch, Config cfg) {

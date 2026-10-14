@@ -1258,6 +1258,12 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         return emitReadyPage();
     }
 
+    @Override
+    public boolean isExhausted() {
+        throwIfFailed();
+        return closed.get() || exhausted || budgetExhausted();
+    }
+
     private boolean budgetExhausted() {
         return rowBudget != FormatReader.NO_LIMIT && rowBudget <= 0;
     }

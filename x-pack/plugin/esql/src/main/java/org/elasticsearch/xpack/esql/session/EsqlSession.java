@@ -93,6 +93,7 @@ import org.elasticsearch.xpack.esql.datasources.PartitionSpec;
 import org.elasticsearch.xpack.esql.datasources.SchemaDiscoveryPathExtractor;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
+import org.elasticsearch.xpack.esql.datasources.glob.FolderRangePredicate;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.dsltranslate.QueryDslFieldNameExtractor;
 import org.elasticsearch.xpack.esql.dsltranslate.RequestFilterRewriter;
@@ -2198,15 +2199,17 @@ public class EsqlSession {
         // QueryDslTimestampBoundsExtractor parses both ends with roundUp=false, so
         // `lte now/y` is start-of-year. Including that Instant in year IN is safe
         // only while listing is year grain.
-        var filterHints = projectPartitionSpecs(
-            PartitionSpec.addTimestampBounds(
-                PartitionFilterHintExtractor.extract(listingPlan),
-                pathConfigs,
-                listingBounds == null ? null : listingBounds.start(),
-                listingBounds == null ? null : listingBounds.end()
-            ),
-            pathConfigs
+        var withBounds = PartitionSpec.addTimestampBounds(
+            PartitionFilterHintExtractor.extract(listingPlan),
+            pathConfigs,
+            listingBounds == null ? null : listingBounds.start(),
+            listingBounds == null ? null : listingBounds.end()
         );
+        // Folder-range from the TEMPORAL extract before projectListingHints drops @timestamp / NOW().
+        // Strict, union_by_name, and eager-stats listings are unbounded and reused as the scan set;
+        // without this, listForQuery never runs and one-sided filters do not prune before the cap.
+        Map<String, FolderRangePredicate> folderRanges = folderRangePredicates(withBounds, pathConfigs);
+        var filterHints = projectPartitionSpecs(withBounds, pathConfigs);
 
         // Always non-null (empty when no ungrouped aggregate is present). A non-null set switches the
         // resolver to selective eager stats: only the listed paths read every file's footer at
@@ -2226,6 +2229,7 @@ public class EsqlSession {
             declaredMappings.isEmpty() ? null : declaredMappings,
             pathsRequiringStats,
             pathsReadingNoRows,
+            folderRanges.isEmpty() ? null : folderRanges,
             listener.map(result::withExternalSourceResolution)
         );
     }
@@ -2315,6 +2319,27 @@ public class EsqlSession {
             projected.put(path, spec.projectListingHints(hints));
         });
         return projected;
+    }
+
+    /**
+     * Per-path {@link FolderRangePredicate} from the TEMPORAL extract, before
+     * {@link #projectPartitionSpecs} drops source-column bounds.
+     */
+    static Map<String, FolderRangePredicate> folderRangePredicates(
+        Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
+        Map<String, Map<String, Object>> pathConfigs
+    ) {
+        if (filterHints.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, FolderRangePredicate> predicates = new HashMap<>();
+        filterHints.forEach((path, hints) -> {
+            FolderRangePredicate predicate = PartitionSpec.fromConfig(pathConfigs.get(path)).folderRangePredicate(hints);
+            if (predicate != null) {
+                predicates.put(path, predicate);
+            }
+        });
+        return predicates;
     }
 
     private void skipClusterOrError(String clusterAlias, EsqlExecutionInfo executionInfo, String message) {

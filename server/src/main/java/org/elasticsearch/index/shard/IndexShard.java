@@ -4798,49 +4798,99 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * <p>
      * This is achieved by registering a refresh listener and invoking the provided listener from the refresh listener once the shard is
      * active again and all pending refresh translog location has been refreshed. A refresh may be executed to avoid waiting for
-     * {@link #scheduledRefresh(ActionListener)} to be invoked. If there is no pending refresh location registered the provided listener
-     * will be invoked immediately.
+     * {@link #scheduledRefresh(ActionListener)} to be invoked. If there is no pending refresh location and the external reader is current,
+     * the provided listener is invoked immediately.
+     * <p>
+     * A search-idle shard whose external reader is behind the translog still waits for a refresh when
+     * {@link #pendingRefreshLocation} is null. The idle scheduler only records that location, and a refresh can clear it without the
+     * reader containing writes that arrived afterwards. {@link RefreshListeners} can also report the location as already visible when the
+     * refresh did not publish a new reader; the listener must not run until {@link Engine#refreshNeeded()} is false.
      *
      * @param listener the listener to invoke once the pending refresh location is visible. The listener will be called with
      *                 <code>true</code> if the listener was registered to wait for a refresh.
      */
     public final void ensureShardSearchActive(Consumer<Boolean> listener) {
         markSearcherAccessed(); // move the shard into non-search idle
-        final Translog.Location location = pendingRefreshLocation.get();
-        if (location != null) {
-            addRefreshListener(location, (result) -> {
-                pendingRefreshLocation.compareAndSet(location, null);
-                listener.accept(true);
-            });
-            // trigger a refresh to avoid waiting for scheduledRefresh(...) to be invoked from index level refresh scheduler.
-            // (The if statement should avoid doing an additional refresh if scheduled refresh was invoked between getting
-            // the current refresh location and adding a refresh listener.)
-            if (location == pendingRefreshLocation.get()) {
-                // This method may be called from many different threads including transport_worker threads and
-                // a refresh can be a costly operation, so we should fork to a refresh thread to be safe:
-                threadPool.executor(ThreadPool.Names.REFRESH).execute(new AbstractRunnable() {
-                    @Override
-                    public void onFailure(Exception e) {
-                        // the shard can close while this task sits in the refresh queue, leaving nothing to refresh
-                        handleRefreshException(e);
-                    }
-
-                    @Override
-                    public void onRejection(Exception e) {
-                        assert false : "refresh thread pool uses an unbounded queue";
-                        // safe to drop: the registered listener still fires on the next refresh or on shard close
-                    }
-
-                    @Override
-                    protected void doRun() {
-                        if (location == pendingRefreshLocation.get()) {
-                            getEngine().maybeRefresh("ensure-shard-search-active", ActionListener.noop());
-                        }
-                    }
-                });
-            }
-        } else {
+        final Engine engine;
+        try {
+            engine = getEngine();
+        } catch (AlreadyClosedException e) {
             listener.accept(false);
+            return;
+        }
+        final Translog.Location pending = pendingRefreshLocation.get();
+        // Not search-idle: unrefreshed writes are the normal refresh interval, and there is nothing to wait for.
+        if (pending == null && isSearchIdle() == false) {
+            listener.accept(false);
+            return;
+        }
+        if (pending == null && engine.refreshNeeded() == false) {
+            listener.accept(false);
+            return;
+        }
+        final Translog.Location location = pending != null ? pending : engine.getTranslogLastWriteLocation();
+        final AtomicBoolean completed = new AtomicBoolean();
+        final AtomicBoolean refreshScheduled = new AtomicBoolean();
+        addRefreshListener(location, result -> {
+            if (externalReaderStale() && refreshScheduled.compareAndSet(false, true)) {
+                // Inline notification from a refresh that did not publish this location. Refresh before searching.
+                scheduleEnsureActiveRefresh(location, listener, completed);
+                return;
+            }
+            finishEnsureShardSearchActive(location, listener, completed);
+        });
+        // The listener above may have cleared pending. Still refresh when the reader is stale or the location is pending.
+        if (completed.get() == false
+            && refreshScheduled.get() == false
+            && (location.equals(pendingRefreshLocation.get()) || externalReaderStale())
+            && refreshScheduled.compareAndSet(false, true)) {
+            scheduleEnsureActiveRefresh(location, listener, completed);
+        }
+    }
+
+    /** @return true when the external reader does not contain the latest index changes */
+    private boolean externalReaderStale() {
+        try {
+            return getEngine().refreshNeeded();
+        } catch (AlreadyClosedException e) {
+            return false;
+        }
+    }
+
+    private void scheduleEnsureActiveRefresh(Translog.Location location, Consumer<Boolean> listener, AtomicBoolean completed) {
+        // Fork even when already on a refresh thread: this can run from a refresh listener that holds the refresh lock.
+        threadPool.executor(ThreadPool.Names.REFRESH).execute(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                handleRefreshException(e);
+                finishEnsureShardSearchActive(location, listener, completed);
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                assert false : "refresh thread pool uses an unbounded queue";
+                finishEnsureShardSearchActive(location, listener, completed);
+            }
+
+            @Override
+            protected void doRun() throws Exception {
+                try {
+                    final Engine current = getEngine();
+                    if (current.refreshNeeded()) {
+                        current.maybeRefresh("ensure-shard-search-active", ActionListener.noop());
+                    }
+                } catch (Exception e) {
+                    handleRefreshException(e);
+                }
+                finishEnsureShardSearchActive(location, listener, completed);
+            }
+        });
+    }
+
+    private void finishEnsureShardSearchActive(Translog.Location location, Consumer<Boolean> listener, AtomicBoolean completed) {
+        pendingRefreshLocation.compareAndSet(location, null);
+        if (completed.compareAndSet(false, true)) {
+            listener.accept(true);
         }
     }
 

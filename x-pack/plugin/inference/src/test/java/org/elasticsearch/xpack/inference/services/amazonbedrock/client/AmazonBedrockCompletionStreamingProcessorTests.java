@@ -46,6 +46,9 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class AmazonBedrockCompletionStreamingProcessorTests extends ESTestCase {
+
+    private static final String BAD_INPUT = "bad input";
+
     private AmazonBedrockCompletionStreamingProcessor processor;
 
     @Before
@@ -194,7 +197,7 @@ public class AmazonBedrockCompletionStreamingProcessorTests extends ESTestCase {
     }
 
     public void testOnErrorBeforeRequest_PropagatesBedrockStatus() {
-        var bedrockError = BedrockRuntimeException.builder().message("bad input").statusCode(400).build();
+        var bedrockError = BedrockRuntimeException.builder().message(BAD_INPUT).statusCode(400).build();
         processor.onSubscribe(mock(Flow.Subscription.class));
         processor.onError(new CompletionException(bedrockError));
 

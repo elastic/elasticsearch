@@ -1060,7 +1060,28 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         assertAutoCalibrateUpdate(current, false, true);
         assertAutoCalibrateUpdate(current, true, false);
         assertAutoCalibrateUpdate(current, "quality", false);
-        assertAutoCalibrateUpdate(oldVersion, false, true);
+        // auto_calibrate only steers merge-time calibration, so any change is accepted: unset, on, off and between profiles
+        List<Object> values = new ArrayList<>(Arrays.asList(null, true, "true", false, "false"));
+        for (IvfAutoCalibrationProfile profile : IvfAutoCalibrationProfile.values()) {
+            values.add(profile.toString());
+        }
+
+        List<IndexVersion> versions = new ArrayList<>();
+        versions.add(IndexVersion.current());
+        for (int i = 0; i < 20; i++) {
+            versions.add(
+                IndexVersionUtils.randomVersionBetween(
+                    IndexVersions.DISK_BBQ_ES950_AUTO_CALIBRATE,
+                    IndexVersionUtils.getPreviousVersion(IndexVersion.current())
+                )
+            );
+        }
+
+        for (IndexVersion version : versions) {
+            for (int i = 0; i < 20; i++) {
+                assertAutoCalibrateUpdate(version, randomFrom(values), randomFrom(values));
+            }
+        }
     }
 
     private void assertAutoCalibrateUpdate(IndexVersion version, Object from, Object to) throws IOException {

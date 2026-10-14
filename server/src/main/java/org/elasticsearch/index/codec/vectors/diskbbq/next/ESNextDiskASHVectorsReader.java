@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq.next;
 
+import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.SegmentReadState;
@@ -18,6 +19,7 @@ import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.IOFunction;
 import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.packed.DirectReader;
 import org.apache.lucene.util.packed.DirectWriter;
@@ -50,16 +52,12 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
 
     private final int queryBitsPerDim;
 
-    public ESNextDiskASHVectorsReader(SegmentReadState state, GenericFlatVectorReaders.LoadFlatVectorsReader getFormatReader)
-        throws IOException {
+    public ESNextDiskASHVectorsReader(SegmentReadState state, IOFunction<String, FlatVectorsReader> getFormatReader) throws IOException {
         this(state, getFormatReader, IvfSegmentConfig.AshConfig.DEFAULT_QUERY_BITS_PER_DIM);
     }
 
-    public ESNextDiskASHVectorsReader(
-        SegmentReadState state,
-        GenericFlatVectorReaders.LoadFlatVectorsReader getFormatReader,
-        int queryBitsPerDim
-    ) throws IOException {
+    public ESNextDiskASHVectorsReader(SegmentReadState state, IOFunction<String, FlatVectorsReader> getFormatReader, int queryBitsPerDim)
+        throws IOException {
         super(
             state,
             getFormatReader,

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq.es95;
 
+import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
@@ -21,6 +22,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.IOFunction;
 import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.packed.DirectReader;
 import org.apache.lucene.util.packed.DirectWriter;
@@ -62,8 +64,7 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
         VectorPreconditioner,
         CalibrationAwareReader {
 
-    public ES950DiskBBQVectorsReader(SegmentReadState state, GenericFlatVectorReaders.LoadFlatVectorsReader getFormatReader)
-        throws IOException {
+    public ES950DiskBBQVectorsReader(SegmentReadState state, IOFunction<String, FlatVectorsReader> getFormatReader) throws IOException {
         super(
             state,
             getFormatReader,

@@ -22,6 +22,7 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.IOFunction;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
@@ -37,7 +38,7 @@ class ES93GenericFlatVectorsReader extends FlatVectorsReader {
     ES93GenericFlatVectorsReader(
         GenericFormatMetaInformation metaInfo,
         SegmentReadState state,
-        GenericFlatVectorReaders.LoadFlatVectorsReader loadReader
+        IOFunction<String, FlatVectorsReader> loadReader
     ) throws IOException {
         this.fieldInfos = state.fieldInfos;
         this.genericReaders = new GenericFlatVectorReaders();
@@ -79,10 +80,8 @@ class ES93GenericFlatVectorsReader extends FlatVectorsReader {
         int versionMeta,
         FieldInfos fieldInfos,
         GenericFlatVectorReaders fieldHelper,
-        GenericFlatVectorReaders.LoadFlatVectorsReader loadReader
+        IOFunction<String, FlatVectorsReader> loadReader
     ) throws IOException {
-        record FieldEntry(String rawVectorFormatName) implements GenericFlatVectorReaders.Field {}
-
         for (int fieldNumber = meta.readInt(); fieldNumber != -1; fieldNumber = meta.readInt()) {
             final FieldInfo info = fieldInfos.fieldInfo(fieldNumber);
             if (info == null) {
@@ -91,8 +90,7 @@ class ES93GenericFlatVectorsReader extends FlatVectorsReader {
 
             String rawVectorFormatName = meta.readString();
             skipDirectIOFlags(meta, versionMeta);
-            FieldEntry entry = new FieldEntry(rawVectorFormatName);
-            fieldHelper.loadField(fieldNumber, entry, loadReader);
+            fieldHelper.loadField(fieldNumber, rawVectorFormatName, loadReader);
         }
     }
 

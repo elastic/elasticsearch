@@ -254,8 +254,10 @@ public class PerFieldFormatSupplier {
     }
 
     /**
-     * The format that writes {@code field}, saying which field its files hold. Fields sharing the default format share its
-     * files, which hold no single field, so that format is not wrapped.
+     * The format that writes {@code field}'s vectors. It is wrapped in a {@link FieldKnnVectorsFormat}, which names the field
+     * on every file it creates, so the directory can decide how to write each file from that field's mapping. The default
+     * format is returned unwrapped: all the fields without a format of their own write to the same files, so those files do
+     * not belong to any one field.
      */
     public KnnVectorsFormat getKnnVectorsFormatToWrite(String field) {
         KnnVectorsFormat format = getKnnVectorsFormatForField(field);

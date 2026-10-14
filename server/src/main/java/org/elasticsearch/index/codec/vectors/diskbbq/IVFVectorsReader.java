@@ -30,6 +30,7 @@ import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 import org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValues;
@@ -121,7 +122,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     @SuppressWarnings("this-escape")
     protected IVFVectorsReader(
         SegmentReadState state,
-        GenericFlatVectorReaders.LoadFlatVectorsReader loadReader,
+        IOFunction<String, FlatVectorsReader> loadReader,
         String codecName,
         String centroidExtension,
         String clusterExtension,
@@ -249,7 +250,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         ChecksumIndexInput meta,
         int versionMeta,
         GenericFlatVectorReaders genericFields,
-        GenericFlatVectorReaders.LoadFlatVectorsReader loadReader
+        IOFunction<String, FlatVectorsReader> loadReader
     ) throws IOException {
         for (int fieldNumber = meta.readInt(); fieldNumber != -1; fieldNumber = meta.readInt()) {
             final FieldInfo info = fieldInfos.fieldInfo(fieldNumber);
@@ -260,7 +261,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             final String rawVectorFormat = meta.readString();
             skipDirectIOFlags(meta, versionMeta);
             E fieldEntry = readField(meta, info, rawVectorFormat);
-            genericFields.loadField(fieldNumber, fieldEntry, loadReader);
+            genericFields.loadField(fieldNumber, fieldEntry.rawVectorFormatName(), loadReader);
 
             fields.put(info.number, fieldEntry);
         }
@@ -640,7 +641,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         IOUtils.close(closeables);
     }
 
-    protected static class FieldEntry implements GenericFlatVectorReaders.Field {
+    protected static class FieldEntry {
         protected final String rawVectorFormatName;
         protected final VectorSimilarityFunction similarityFunction;
         protected final VectorEncoding vectorEncoding;
@@ -679,7 +680,6 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             this.bulkSize = bulkSize;
         }
 
-        @Override
         public String rawVectorFormatName() {
             return rawVectorFormatName;
         }

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
+import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.SegmentReadState;
@@ -18,6 +19,7 @@ import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.IOFunction;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
@@ -44,7 +46,7 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader<IVFVectorsReader
     // QUERY_BITS value copied from Lucene102BinaryQuantizedVectorsFormat where it became package private
     private static final byte QUERY_BITS = 4;
 
-    ES920DiskBBQVectorsReader(SegmentReadState state, GenericFlatVectorReaders.LoadFlatVectorsReader getFormatReader) throws IOException {
+    ES920DiskBBQVectorsReader(SegmentReadState state, IOFunction<String, FlatVectorsReader> getFormatReader) throws IOException {
         super(
             state,
             getFormatReader,

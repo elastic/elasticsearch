@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
+import org.apache.lucene.util.IOFunction;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -23,23 +24,17 @@ import java.util.Map;
  */
 public class GenericFlatVectorReaders {
 
-    public interface Field {
-        String rawVectorFormatName();
-    }
-
-    @FunctionalInterface
-    public interface LoadFlatVectorsReader {
-        FlatVectorsReader getReader(String formatName) throws IOException;
-    }
-
     private final Map<String, FlatVectorsReader> readers = new HashMap<>();
     private final Map<Integer, FlatVectorsReader> readersForFields = new HashMap<>();
 
-    public void loadField(int fieldNumber, Field field, LoadFlatVectorsReader loadReader) throws IOException {
-        String formatName = field.rawVectorFormatName();
+    /**
+     * Reads the field's raw vectors with the reader of {@code formatName}, loading it with {@code loadReader} the first time a
+     * field names it.
+     */
+    public void loadField(int fieldNumber, String formatName, IOFunction<String, FlatVectorsReader> loadReader) throws IOException {
         FlatVectorsReader reader = readers.get(formatName);
         if (reader == null) {
-            reader = loadReader.getReader(formatName);
+            reader = loadReader.apply(formatName);
             if (reader == null) {
                 throw new IllegalStateException("Cannot find flat vector format: " + formatName);
             }

@@ -15,7 +15,6 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ConstantScoreScorerSupplier;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -26,11 +25,9 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
-import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.columnar.string.StringColumnReader;
 import org.elasticsearch.columnar.string.StringColumnSource;
@@ -50,9 +47,9 @@ import java.util.Objects;
  *
  * <p>Better still is not needing the automaton. A pattern that names a whole value, a start of one, or a run
  * of bytes inside one is one of the shapes {@link ColumnarStringTermQuery} answers, two of which bisect a
- * column in term order rather than looking at its values at all. {@link #forWildcard} decides that where the
- * query is built, so what goes into the cache key is the cheap query rather than a pattern that has to be
- * recognised again on every rewrite.
+ * column in term order rather than looking at its values at all. The caller decides that where the query is
+ * built, so what goes into the cache key is the cheap query rather than a pattern that has to be recognised
+ * again on every rewrite.
  *
  * <p>A caller gates on the format, so a field reaching this has a column. It is not always handed over as
  * one: an updated field is read as an overlay of its layers, which is no column, and then the values are
@@ -63,6 +60,7 @@ public final class ColumnarStringAutomatonQuery extends Query {
     private final String field;
     private final ByteRunAutomaton automaton;
     private final String description;
+    private final boolean singleValued;
     private final ScanBudget budget;
 
     /**
@@ -72,85 +70,26 @@ public final class ColumnarStringAutomatonQuery extends Query {
      * what the automaton was built from, for {@link #toString}; what the query is compared and cached on is the
      * automaton itself, so a caller that spells its parameters differently cannot make two queries collide.
      */
-    public ColumnarStringAutomatonQuery(String field, Automaton automaton, String description, ScanBudget budget) {
-        this(field, new ByteRunAutomaton(Objects.requireNonNull(automaton)), description, budget);
+    public ColumnarStringAutomatonQuery(String field, Automaton automaton, String description, boolean singleValued, ScanBudget budget) {
+        this(field, new ByteRunAutomaton(Objects.requireNonNull(automaton)), description, singleValued, budget);
     }
 
     /**
      * As above, for a caller that already compiled the automaton - a fuzzy query, whose {@link ByteRunAutomaton} is built
      * by the query that defines the edit distance rather than by this one.
      */
-    public ColumnarStringAutomatonQuery(String field, ByteRunAutomaton automaton, String description, ScanBudget budget) {
+    public ColumnarStringAutomatonQuery(
+        String field,
+        ByteRunAutomaton automaton,
+        String description,
+        boolean singleValued,
+        ScanBudget budget
+    ) {
         this.field = Objects.requireNonNull(field);
         this.automaton = Objects.requireNonNull(automaton);
         this.description = Objects.requireNonNull(description);
+        this.singleValued = singleValued;
         this.budget = Objects.requireNonNull(budget);
-    }
-
-    /**
-     * A wildcard pattern, as the cheapest query that answers it.
-     *
-     * <p>{@code foo} is a term, {@code foo*} a prefix and {@code *foo*} a value carrying a run of bytes, and
-     * a column answers each of those without an automaton. Anything else is one.
-     */
-    public static Query forWildcard(String field, String pattern, ScanBudget budget) {
-        final String whole = literal(pattern);
-        if (whole != null) {
-            return ColumnarStringTermQuery.term(field, new BytesRef(whole), budget);
-        }
-        final String start = prefix(pattern);
-        if (start != null) {
-            return ColumnarStringTermQuery.prefix(field, new BytesRef(start), budget);
-        }
-        final String inside = contained(pattern);
-        if (inside != null) {
-            return ColumnarStringTermQuery.contains(field, new BytesRef(inside), budget);
-        }
-        return new ColumnarStringAutomatonQuery(
-            field,
-            Operations.determinize(
-                WildcardQuery.toAutomaton(new Term(field, pattern), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT),
-                Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
-            ),
-            "pattern=" + pattern,
-            budget
-        );
-    }
-
-    /**
-     * The whole value a pattern names, or null where it names more than one.
-     *
-     * <p>The empty pattern is left to the automaton: Lucene reads it as naming no value at all rather than the
-     * value of no bytes, and narrowing is only worth having while it answers exactly what the automaton would.
-     */
-    static String literal(String pattern) {
-        return pattern.isEmpty() == false && plain(pattern) ? pattern : null;
-    }
-
-    /** The start a pattern names, as {@code foo*} does, or null where it names something else. */
-    static String prefix(String pattern) {
-        if (pattern.isEmpty() || pattern.charAt(pattern.length() - 1) != '*') {
-            return null;
-        }
-        final String start = pattern.substring(0, pattern.length() - 1);
-        return plain(start) ? start : null;
-    }
-
-    /** The run of bytes a pattern names, as {@code *foo*} does, or null where it names something else. */
-    static String contained(String pattern) {
-        if (pattern.length() < 3 || pattern.charAt(0) != '*' || pattern.charAt(pattern.length() - 1) != '*') {
-            return null;
-        }
-        final String inside = pattern.substring(1, pattern.length() - 1);
-        return plain(inside) ? inside : null;
-    }
-
-    /**
-     * Whether a run of the pattern is bytes and nothing else. An escape is left to the automaton rather than
-     * unescaped here, so that what the two agree on is what Lucene's own parser says a pattern means.
-     */
-    private static boolean plain(String pattern) {
-        return pattern.indexOf('*') < 0 && pattern.indexOf('?') < 0 && pattern.indexOf('\\') < 0;
     }
 
     @Override
@@ -180,6 +119,7 @@ public final class ColumnarStringAutomatonQuery extends Query {
                             return DocIdSetIterator.empty();
                         }
                         if (values instanceof StringColumnSource columnar) {
+                            assert columnar.singleValued() == singleValued : "framing of [" + field + "] differs between query and column";
                             final StringColumnReader column = columnar.reader();
                             return column.match(value -> automaton.run(value.bytes, value.offset, value.length));
                         }
@@ -187,7 +127,7 @@ public final class ColumnarStringAutomatonQuery extends Query {
                         // An overlay rather than the column, as an updated field is: the values are read one
                         // document at a time and run through the automaton. For a plain (single-valued) field
                         // the blob is the raw value bytes; for a payload field it carries slot count + framed values.
-                        if (ColumNARDocValuesFormat.isSingleValued(info)) {
+                        if (singleValued) {
                             return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(values) {
                                 @Override
                                 public boolean matches() throws IOException {
@@ -253,13 +193,16 @@ public final class ColumnarStringAutomatonQuery extends Query {
             return true;
         }
         if (other instanceof ColumnarStringAutomatonQuery q) {
-            return field.equals(q.field) && automaton.equals(q.automaton) && description.equals(q.description);
+            return singleValued == q.singleValued
+                && field.equals(q.field)
+                && automaton.equals(q.automaton)
+                && description.equals(q.description);
         }
         return false;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, automaton, description);
+        return Objects.hash(field, automaton, description, singleValued);
     }
 }

@@ -28,6 +28,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -112,6 +113,7 @@ public class BatchBulkTSDBIT extends ESIntegTestCase {
                             .put("index.number_of_shards", 1)
                             .put("index.number_of_replicas", 0)
                             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                            .put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), randomBoolean())
                             .build(),
                         CompressedXContent.fromJSON(mapping),
                         null

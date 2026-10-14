@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
@@ -49,6 +50,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
+import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget.UntrackedWait;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
@@ -1159,8 +1161,9 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * Stress test the consumer's EOF predicate against the race between the segmentator's final
      * {@code chunksDispatched.incrementAndGet()} and the dispatched parser task's
      * {@code tasksOutstanding.decrementAndGet()} in its {@code finally} block. The EOF condition
-     * — {@code currentChunk >= chunksDispatched && tasksOutstanding == 0} — must be re-checked
-     * after the apparent-empty branch of {@code takeNextPage}; without the re-read, the consumer
+     * — {@code tasksOutstanding == 0} then {@code currentChunk >= chunksDispatched} — must be re-checked
+     * after the apparent-empty branch of {@code takeNextPage}. {@code isReadyNow} / {@code producersDoneAndDrained}
+     * read {@code tasksOutstanding} first; the reverse order is the race. Without the re-read, the consumer
      * can return false while a parser is mid-page-publish, dropping the last chunk's rows.
      * <p>
      * Tiny chunks plus a small input plus high parallelism maximises the chance the consumer
@@ -1171,7 +1174,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * Lifted from <a href="https://github.com/elastic/elasticsearch/pull/148802">#148802</a>
      * (closed in favour of this PR's broader fix shape); the test is portable because it asserts
      * only the externally-visible contract (row count + ordering across {@code N} iterations),
-     * not the internal counter names.
+     * not the internal counter names. Production async drain uses {@code tryAdvanceOrPark} rather
+     * than {@code hasNext}; see {@link #testAsyncDrainGzipChunksKeepsEveryRow}.
      */
     public void testStressEofDetectionRace() throws Exception {
         int iterations = 1000;
@@ -1208,8 +1212,121 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
+     * Production BWC gzip/S3 STATS failures (#161557, #161664, #161666) lost whole decompressed
+     * chunks on the async drain path. Fill size is the compressed length, so a small gzip file
+     * becomes many chunks; {@code waitForReady} + {@code tryAdvanceOrPark} must still yield every
+     * row. {@link #testStressEofDetectionRace} drains via blocking {@code hasNext} and cannot
+     * catch a premature EOF there.
+     */
+    public void testAsyncDrainGzipChunksKeepsEveryRow() throws Exception {
+        int iterations = 50;
+        int parallelism = 3;
+        byte[] original = repeatingLines(32 * 1024);
+        int lineCount = newlineCount(original);
+        byte[] compressed = gzipBytes(original);
+        assertThat((long) compressed.length, Matchers.lessThan((long) original.length));
+
+        ExecutorService executor = Executors.newFixedThreadPool(parallelism + 1);
+        try {
+            for (int iter = 0; iter < iterations; iter++) {
+                StorageObject raw = new KnownLengthBytesObject(compressed, compressed.length);
+                DecompressingStorageObject decompressing = new DecompressingStorageObject(raw, new GzipDecompressionCodec());
+                LineFormatReader reader = new LineFormatReader(4 * 1024 * 1024);
+                List<String> got;
+                try (
+                    InputStream stream = decompressing.newStream();
+                    CloseableIterator<Page> it = StreamingParallelParsingCoordinator.parallelRead(
+                        reader,
+                        stream,
+                        decompressing,
+                        List.of("line"),
+                        16,
+                        parallelism,
+                        executor,
+                        ErrorPolicy.STRICT,
+                        null,
+                        0L,
+                        SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                        null,
+                        -1L,
+                        StripeColumnScope.PROJECTED,
+                        StreamingParallelParsingCoordinator.WarningSinks.NONE,
+                        StreamingSegmentatorAdmission.unbounded(),
+                        new NoopCircuitBreaker("streaming-parse-test"),
+                        ExternalReadCounters.NOOP,
+                        null
+                    )
+                ) {
+                    got = drainLinesViaTryAdvanceOrPark(it);
+                }
+                assertEquals("iter " + iter, lineCount, got.size());
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * Same gated inter-chunk gap as {@link #testProducerLoopDoesNotDropRowsAcrossDeterministicPoisonGap}
+     * but drained with production {@code tryAdvanceOrPark} (no {@code hasNext} fallback). A lone
+     * POISON must park, not declare EOF.
+     */
+    public void testTryAdvanceOrParkDoesNotDropRowsAcrossDeterministicPoisonGap() throws Exception {
+        int linesPerFile = 2000;
+        int chunkSize = 64;
+        int batchSize = 8;
+        int parsingParallelism = 4;
+
+        CountDownLatch gate = new CountDownLatch(1);
+        CountDownLatch gatedReached = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(6);
+        PlainActionFuture<List<String>> done = new PlainActionFuture<>();
+        CloseableIterator<Page> it = null;
+        try {
+            GatedLineFormatReader reader = new GatedLineFormatReader(chunkSize, 1, gate, gatedReached);
+            InputStream s = new ByteArrayInputStream(buildContent(linesPerFile).getBytes(StandardCharsets.UTF_8));
+            it = StreamingParallelParsingCoordinator.parallelRead(
+                reader,
+                s,
+                List.of("line"),
+                batchSize,
+                parsingParallelism,
+                pool,
+                ErrorPolicy.STRICT
+            );
+            CloseableIterator<Page> iter = it;
+            pool.execute(() -> {
+                try {
+                    done.onResponse(drainLinesViaTryAdvanceOrPark(iter));
+                } catch (Exception e) {
+                    done.onFailure(e);
+                }
+            });
+
+            assertTrue("gated chunk parser never reached", gatedReached.await(30, TimeUnit.SECONDS));
+            Thread.sleep(200);
+            assertFalse("tryAdvanceOrPark drain wrongly concluded EOF at a mid-stream POISON gap", done.isDone());
+
+            gate.countDown();
+            List<String> rows = done.actionGet(TimeValue.timeValueSeconds(30));
+            assertEquals("every row across the gated gap must be delivered", linesPerFile, rows.size());
+            for (int i = 0; i < linesPerFile; i++) {
+                assertEquals("row order preserved across the gap", "line-" + String.format(Locale.ROOT, "%04d", i), rows.get(i));
+            }
+        } finally {
+            gate.countDown();
+            if (it != null) {
+                try {
+                    it.close();
+                } catch (IOException ignored) {}
+            }
+            pool.shutdownNow();
+        }
+    }
+
+    /**
      * Faithful reproduction of the production multi-file text-read deadlock (elastic/elasticsearch#153056),
-     * draining the RAW coordinator iterator. {@code F} real streaming iterators, each multi-chunk (small
+     * draining the RAW coordinator iterator. {@code F} real streaming iterators, each multi-chunk (small)
      * chunkSize, large content), are drained by a producer-loop emulator that mirrors
      * {@code AsyncExternalSourceOperatorFactory#drainHotPath} and runs on the SAME bounded pool as each
      * coordinator's segmentator + one-shot parser tasks — the production wiring collapse. A big machine's
@@ -1435,8 +1552,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
-     * Evidence-first repro for the {@code esql_external_io} segmentator-saturation hazard
-     * (elastic/esql-planning #1093, structural-fix item 4). Faithfully mirrors the post-#153074 two-pool
+     * Evidence-first repro for the {@code esql_external_io} segmentator-saturation hazard.
+     * Faithfully mirrors the post-#153074 two-pool
      * wiring: segmentators <em>and</em> their one-shot parser tasks share a single bounded pool of size
      * {@code K} (the production {@code esql_external_io} pool), while the consumer drains run on a
      * <strong>separate</strong> pool (the production {@code esql_worker} producer-loop drivers).
@@ -1530,7 +1647,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                     + " never drained: their parser tasks starved. The admission gate ("
                     + admission.maxConcurrentSegmentators()
                     + " concurrent segmentators) must keep a pool thread free for parsers "
-                    + "(regression of the esql-planning #1093 item 4 fix).",
+                    + "(regression of the admission-gate fix).",
                 completed
             );
             assertTrue("no drain thread should have failed: " + failures, failures.isEmpty());
@@ -1547,7 +1664,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
-     * T2 (C1): production cap {@code maxConcurrentSegmentators=1} on a 2-thread pool, p=2, with the
+     * Production cap {@code maxConcurrentSegmentators=1} on a 2-thread pool, p=2, with the
      * non-segmentator thread pinned so parser tasks never run. Inline parse on the segmentator must
      * still drain. If this starves later, raise the cap and the pool together; do not drop the cap.
      * Do not use {@link StreamingSegmentatorAdmission#unbounded()}.
@@ -2198,9 +2315,15 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         @Override
-        public SubscribableListener<Hold> admitAsync(long bytes, RowGroupIo lease, BooleanSupplier cancelSignal, Executor executor) {
+        public SubscribableListener<Hold> admitAsync(
+            long bytes,
+            RowGroupIo lease,
+            BooleanSupplier cancelSignal,
+            Executor executor,
+            UntrackedWait untrackedWait
+        ) {
             SubscribableListener<Hold> out = new SubscribableListener<>();
-            inner.admitAsync(bytes, lease, cancelSignal, executor).addListener(ActionListener.wrap(hold -> {
+            inner.admitAsync(bytes, lease, cancelSignal, executor, untrackedWait).addListener(ActionListener.wrap(hold -> {
                 record();
                 out.onResponse(wrap(hold));
             }, e -> {
@@ -2211,15 +2334,15 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         @Override
-        public void add(long bytes) {
+        public void add(long bytes, RowGroupIo lease) {
             addCount.incrementAndGet();
-            inner.add(bytes);
+            inner.add(bytes, lease);
             record();
         }
 
         @Override
-        public void release(long bytes) {
-            inner.release(bytes);
+        public void release(long bytes, RowGroupIo lease) {
+            inner.release(bytes, lease);
             record();
         }
 
@@ -2241,6 +2364,11 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         @Override
         public long limit() {
             return inner.limit();
+        }
+
+        @Override
+        public long untracked() {
+            return inner.untracked();
         }
 
         @Override
@@ -2416,6 +2544,69 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         } finally {
             executor.shutdownNow();
         }
+        assertEquals(0L, breaker.getUsed());
+    }
+
+    /**
+     * Gzip fill clamps to the compressed listing size. A false EOF after an exact-size fill would
+     * drop the decompressed tail of a tiny single-member object. Guards the coordinator fill/EOF
+     * path, not gzip member concat ({@code GzipDecompressionCodecTests}).
+     */
+    public void testTinyGzipClampedFillDoesNotDropTrailingRecords() throws Exception {
+        int requested = 4 * 1024 * 1024;
+        int parallelism = 2;
+        byte[] original = repeatingLines(8 * 1024);
+        int expectedLines = 0;
+        for (byte b : original) {
+            if (b == '\n') {
+                expectedLines++;
+            }
+        }
+        byte[] compressed = gzipBytes(original);
+        assertThat("fixture is the tiny-object clamp case", (long) compressed.length, Matchers.lessThan(64L * 1024));
+        assertThat(
+            "HTTP-like cap must actually short-read the compressed member",
+            (long) compressed.length,
+            Matchers.greaterThan((long) HttpLikeKnownLengthBytesObject.MAX_READ)
+        );
+        StorageObject raw = new HttpLikeKnownLengthBytesObject(compressed, compressed.length);
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(raw, new GzipDecompressionCodec());
+        assertEquals(compressed.length, StreamingParallelParsingCoordinator.streamingFillHint(decompressing));
+        assertThat((long) original.length, Matchers.greaterThan((long) compressed.length));
+        PeakTrackingBreaker breaker = new PeakTrackingBreaker();
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        List<String> lines;
+        try (InputStream stream = decompressing.newStream()) {
+            lines = collectLinesTimed(
+                StreamingParallelParsingCoordinator.parallelRead(
+                    new LineFormatReader(requested),
+                    stream,
+                    decompressing,
+                    List.of("line"),
+                    50,
+                    parallelism,
+                    executor,
+                    ErrorPolicy.STRICT,
+                    null,
+                    0L,
+                    SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                    null,
+                    -1L,
+                    StripeColumnScope.PROJECTED,
+                    StreamingParallelParsingCoordinator.WarningSinks.NONE,
+                    StreamingSegmentatorAdmission.unbounded(),
+                    breaker,
+                    ExternalReadCounters.NOOP,
+                    null
+                ),
+                30,
+                TimeUnit.SECONDS
+            );
+        } finally {
+            executor.shutdownNow();
+        }
+        assertEquals("clamped gzip fill must not drop the decompressed tail", expectedLines, lines.size());
+        assertEquals("line-" + (expectedLines - 1), lines.getLast());
         assertEquals(0L, breaker.getUsed());
     }
 
@@ -2631,6 +2822,62 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             }
         }
         return lines;
+    }
+
+    /**
+     * Production drain: {@code waitForReady} then {@link ExternalSourceDrainUtils#tryAdvanceOrPark}.
+     * Does not call {@code hasNext}. Does not close {@code iterator}.
+     */
+    private static List<String> drainLinesViaTryAdvanceOrPark(CloseableIterator<Page> iterator) throws Exception {
+        List<String> lines = new ArrayList<>();
+        BytesRef scratch = new BytesRef();
+        while (true) {
+            awaitReady(iterator);
+            Holder<SubscribableListener<Void>> blockedOn = new Holder<>();
+            Page page = ExternalSourceDrainUtils.tryAdvanceOrPark(iterator, blockedOn);
+            if (blockedOn.get() != null) {
+                awaitListener(blockedOn.get());
+                continue;
+            }
+            if (page == null) {
+                return lines;
+            }
+            BytesRefBlock block = page.getBlock(0);
+            for (int i = 0; i < block.getPositionCount(); i++) {
+                lines.add(block.getBytesRef(i, scratch).utf8ToString());
+            }
+            page.releaseBlocks();
+        }
+    }
+
+    private static void awaitReady(CloseableIterator<Page> pages) throws Exception {
+        SubscribableListener<Void> ready = pages.waitForReady();
+        if (ready.isDone() == false) {
+            awaitListener(ready);
+        }
+    }
+
+    private static void awaitListener(SubscribableListener<Void> ready) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        ready.addListener(ActionListener.wrap(v -> latch.countDown(), e -> {
+            error.set(e instanceof Exception ex ? ex : new RuntimeException(e));
+            latch.countDown();
+        }));
+        assertTrue("parked drain did not resume", latch.await(30, TimeUnit.SECONDS));
+        if (error.get() != null) {
+            throw error.get();
+        }
+    }
+
+    private static int newlineCount(byte[] bytes) {
+        int n = 0;
+        for (byte b : bytes) {
+            if (b == '\n') {
+                n++;
+            }
+        }
+        return n;
     }
 
     /**
@@ -3130,8 +3377,10 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         ) {
             executor.shutdown();
             assertTrue(executor.awaitTermination(10, TimeUnit.SECONDS));
-            ExternalClientException ex = expectThrows(ExternalClientException.class, iterator::hasNext);
-            assertThat(ExceptionsHelper.stackTrace(ex), Matchers.containsString(CircuitBreakingException.class.getSimpleName()));
+            // A breaker trip during schema inference is a resource failure: it surfaces as the breaker's own 429, not as
+            // a malformed-data ExternalClientException.
+            CircuitBreakingException ex = expectThrows(CircuitBreakingException.class, iterator::hasNext);
+            assertEquals(RestStatus.TOO_MANY_REQUESTS, ex.status());
             assertEquals(HeapFootprint.byteArrayBytes(reader.minimumSegmentSize()), breaker.getUsed());
         } finally {
             executor.shutdownNow();
@@ -4826,6 +5075,34 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             ReadCallCountingStream counting = new ReadCallCountingStream(super.newStream());
             opens.add(counting);
             return counting;
+        }
+    }
+
+    /**
+     * S3/HTTP body: {@code available()} is 0 and bulk {@code read} may short-return. Single-byte
+     * {@code read()} is uncapped so JDK gzip header/trailer byte reads keep leftover math.
+     * {@code MAX_READ = 256} is not a concat lock ({@code n} can exceed 26).
+     */
+    private static final class HttpLikeKnownLengthBytesObject extends KnownLengthBytesObject {
+        static final int MAX_READ = 256;
+
+        HttpLikeKnownLengthBytesObject(byte[] data, long knownLength) {
+            super(data, knownLength);
+        }
+
+        @Override
+        public InputStream newStream() {
+            return new FilterInputStream(super.newStream()) {
+                @Override
+                public int available() {
+                    return 0;
+                }
+
+                @Override
+                public int read(byte[] b, int off, int len) throws IOException {
+                    return super.read(b, off, Math.min(len, MAX_READ));
+                }
+            };
         }
     }
 

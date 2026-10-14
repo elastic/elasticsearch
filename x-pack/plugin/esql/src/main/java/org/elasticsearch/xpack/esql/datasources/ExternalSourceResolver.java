@@ -1990,9 +1990,9 @@ public class ExternalSourceResolver {
      * How far this resolution's listing runs: how many files it returns, and how many paths partition detection
      * folds over. {@link ListingExtents#UNBOUNDED} is the whole glob for both.
      *
-     * <p>Answered here and nowhere else. It no longer decides whether the listing cache is consulted: the extent
-     * joins the key instead, so a bound granted or revoked here changes how far the listing runs and which address
-     * it takes, never whether it may be shared.
+     * <p>Answered here for resolution. The scan answers its own extent in {@link FileSplitProvider#listingExtentsForTheDemand}.
+     * Neither path decides whether the listing cache is consulted: the extent joins the key instead, so a bound
+     * granted or revoked changes how far the listing runs and which address it takes, never whether it may be shared.
      *
      * <p>Three things must hold. The mode's schema must not span every file, so a prefix of the listing
      * can answer it. The query must not want dataset-wide statistics, which are a fold over every

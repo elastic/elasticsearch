@@ -805,8 +805,7 @@ public class FileSplitProvider implements SplitProvider {
                     narrowing,
                     config,
                     scanMemory(context),
-                    context.isCancelled(),
-                    ListingExtents.UNBOUNDED
+                    context.isCancelled()
                 )
                 : listingService.expand(
                     pattern,

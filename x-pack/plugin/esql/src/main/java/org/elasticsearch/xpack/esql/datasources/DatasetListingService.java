@@ -225,10 +225,10 @@ public final class DatasetListingService {
             expandAsync(path, provider, hints, config, storagePath, extents, memory, cancelled, concurrency, executor, innerListener);
         }, ActionListener.wrap(listing -> {
             // Same refusal as the synchronous path, and for the same reason - except that the bound is now part of
-            // the key, so a prefix is addressed as a prefix. What must never be cached is a listing that truncated
-            // when no bound was asked for: that one would be served to a query that wants the dataset.
+            // the key, so a bounded prefix is addressed as a prefix. What must never be served from the cache is a
+            // listing that truncated when no bound was asked for: that one would answer for the full dataset.
             if (listing.isTruncated() && extents.boundsFileSet() == false) {
-                listener.onFailure(new IllegalStateException("a truncated listing must never enter the shared listing cache: " + path));
+                listener.onFailure(new IllegalStateException("a truncated listing must never be served from the shared listing cache: " + path));
                 return;
             }
             try {
@@ -246,10 +246,8 @@ public final class DatasetListingService {
     }
 
     /**
-     * The compacted listing for a cacheable provider, from the cache or computed into it, as far as {@code extents}
-     * asked it to run. A bounded listing is a sample of a dataset rather than the dataset, so it must never become
-     * the answer a query wanting the dataset is served; the extent is part of the key, which is what holds that, and
-     * the refusal below catches the remaining case - a listing that truncated with no bound asked for.
+     * The compacted listing for a cacheable provider, from the cache or computed into it. The scan path always
+     * lists unbounded: every reading query wants the full dataset, not a prefix of it.
      * <p>
      * {@code memory} reserves the entries either way, once each, and the same figure either way: a miss reserves
      * through the walk as it grows, a hit reserves the equivalent here.
@@ -263,8 +261,7 @@ public final class DatasetListingService {
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         Map<String, Object> config,
         PlanningMemory memory,
-        BooleanSupplier cancelled,
-        ListingExtents extents
+        BooleanSupplier cancelled
     ) throws Exception {
         // The two identities are passed in rather than derived here: only the provider that would list this prefix
         // knows which of its settings name the same store twice and which of them are declared secret, and the
@@ -277,24 +274,24 @@ public final class DatasetListingService {
             secretIdentity,
             ExternalSourceResolver.storageConfig(config),
             // intentional raw config: only reads partition-filter keys, not auth/connection params from _datasource
-            GlobExpander.listingCacheDiscriminator(path, hints, config, extents)
+            GlobExpander.listingCacheDiscriminator(path, hints, config, ListingExtents.UNBOUNDED)
         );
         FileList listing;
         boolean[] servedFromCacheHolder = { true };
         try {
             listing = cacheService.getOrComputeListing(listingKey, k -> {
                 servedFromCacheHolder[0] = false;
-                return expand(path, provider, hints, config, storagePath, extents, memory, cancelled);
+                return expand(path, provider, hints, config, storagePath, ListingExtents.UNBOUNDED, memory, cancelled);
             });
         } catch (ExecutionException e) {
             throw asListingFailure(e);
         }
         // A refusal rather than an assertion: assertions are off in production, and a truncated listing reaching
-        // this cache is served to later queries as though it were the dataset - they would answer from a prefix
-        // with nothing to tell them. The bound is part of the key, so a prefix is addressed as a prefix; what is
-        // refused is a listing that truncated when no bound was asked for.
-        if (listing.isTruncated() && extents.boundsFileSet() == false) {
-            throw new IllegalStateException("a truncated listing must never enter the shared listing cache: " + path);
+        // this cache would be served to later queries as though it were the dataset - they would answer from a
+        // prefix with nothing to tell them. The scan path is always unbounded, so a truncated result here means
+        // the configured object-count limit was hit, not a bounded sample.
+        if (listing.isTruncated()) {
+            throw new IllegalStateException("a truncated listing must never be served from the shared listing cache: " + path);
         }
         // Caps are not part of the listing key: a raise must keep hitting. A later drop still has to fail closed, or
         // a cached FileList computed under a looser cap would bypass the setting until TTL. Expand already checked;

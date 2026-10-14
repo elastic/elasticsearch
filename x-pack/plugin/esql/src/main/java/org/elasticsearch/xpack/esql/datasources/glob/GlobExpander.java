@@ -224,9 +224,9 @@ public final class GlobExpander {
      * The bound truncates where {@code maxListedObjects} fails: reaching it is the expected outcome, not an error.
      * The result is a prefix of the matching files in listing order, flagged {@link FileList#isTruncated()}, and it
      * is left uncompacted, because neither compacted encoding carries the truncation flag — see
-     * {@link FileListCompactor#compact}, which refuses a truncated list for that reason. Only a schema discovery
-     * resolution may pass a bound; {@code Integer.MAX_VALUE} is the unbounded path every reading query takes,
-     * byte for byte as before.
+     * {@link FileListCompactor#compact}, which refuses a truncated list for that reason. Schema discovery passes a
+     * bound for its first attempt; the scan also bounds its first attempt. {@code Integer.MAX_VALUE} is the
+     * unbounded path.
      */
     /** As below, for a caller with no query behind the listing: nothing is waiting on it, so nothing cancels it. */
     public static FileList expandAndCompact(
@@ -1048,8 +1048,9 @@ public final class GlobExpander {
             // soon as the current one is exhausted, so asking it after the bound is reached buys a ListObjectsV2
             // whose result is then discarded. Reaching the bound therefore marks the listing truncated without
             // establishing that more keys exist - a dataset of exactly the file-set extent is marked truncated when it
-            // is not. That costs such a dataset its cache entry and an exact file count, and saves every larger one a
-            // request.
+            // is not. For unbounded listings, that costs such a dataset its cache entry and an exact file count; for
+            // bounded listings the truncated result does get cached under its bounded key. Either way, it saves every
+            // larger dataset a request.
             while (listed < extents.maxFiles() && iterator.hasNext()) {
                 StorageEntry entry = iterator.next();
                 listed++;
@@ -2575,7 +2576,7 @@ public final class GlobExpander {
                     // list+desc is reverse(concat) rather than reverse(concat(reverse(g1), reverse(g2))).
                     FileOrderConfig.DEFAULT,
                     // A key budget has no single meaning across the segments of a comma list, so each
-                    // segment lists in full; a comma list resolves unbounded whatever the caller asked for, so every segment lists whole.
+                    // segment lists unbounded whatever the caller asked for.
                     ListingExtents.UNBOUNDED,
                     // Each segment reserves against the same budget, so a comma list is charged for every entry it
                     // retains rather than for none of them. ExternalSourceResolver.chargeListingPlanning subtracts

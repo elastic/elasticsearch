@@ -498,6 +498,67 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
     }
 
+    /**
+     * A declared-mapping (non-comma, {@code dynamic: false}) dataset resolved twice through the same cache
+     * service lists only once: the second resolve gets the same {@link FileList} object by identity.
+     * <p>
+     * Pins that the declared rail's listing-cache key is distinctive enough that a warm second resolve does
+     * not list again, and that the entries are shared by object identity rather than copied — a copy-per-query
+     * holds the listing in memory once per concurrent query, which multiplied a 1 GiB search node into OOM.
+     */
+    public void testDeclaredMappingListingIsSharedBetweenResolves() throws Exception {
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("event_ts", new DatasetFieldMapping("long", null));
+        List<Attribute> fileSchema = List.of(attr("event_ts", DataType.LONG));
+
+        int fileCount = 10;
+        List<StorageEntry> files = new ArrayList<>(fileCount);
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        for (int i = 0; i < fileCount; i++) {
+            String file = String.format(Locale.ROOT, "s3://bucket/data/file%05d.parquet", i);
+            files.add(entry(file, 100));
+            schemasByPath.put(file, fileSchema);
+        }
+        Map<String, List<StorageEntry>> listingsByPrefix = Map.of(
+            StoragePath.of(DECLARED_GLOB).patternPrefix().toString(),
+            files
+        );
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
+
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            CountingStorageProvider provider = new CountingStorageProvider(listingsByPrefix, schemasByPath);
+            ExternalSourceResolver resolver = createResolverWithCache(provider, schemasByPath, cacheService);
+
+            PlainActionFuture<ExternalSourceResolution> future1 = new PlainActionFuture<>();
+            resolver.resolve(
+                List.of(DECLARED_GLOB),
+                Map.of(DECLARED_GLOB, new HashMap<>()),
+                null,
+                Map.of(DECLARED_GLOB, mapping),
+                null,
+                future1
+            );
+            ExternalSourceResolution.ResolvedSource first = future1.actionGet().resolvedSource(DECLARED_GLOB);
+            assertNotNull(first);
+            int listsAfterFirst = provider.listCallCount.get();
+
+            PlainActionFuture<ExternalSourceResolution> future2 = new PlainActionFuture<>();
+            resolver.resolve(
+                List.of(DECLARED_GLOB),
+                Map.of(DECLARED_GLOB, new HashMap<>()),
+                null,
+                Map.of(DECLARED_GLOB, mapping),
+                null,
+                future2
+            );
+            ExternalSourceResolution.ResolvedSource second = future2.actionGet().resolvedSource(DECLARED_GLOB);
+            assertNotNull(second);
+
+            assertEquals("second resolve does not list again", listsAfterFirst, provider.listCallCount.get());
+            assertSame("and holds the same listing, not a copy", first.fileList(), second.fileList());
+        }
+    }
+
     /** Resolves a one-file parquet glob under a declared mapping — the harness for the columnar declaration rejects. */
     private ExternalSourceResolution resolveWithDeclaredMapping(
         List<Attribute> fileSchema,

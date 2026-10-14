@@ -38,25 +38,33 @@ public final class IndexSettingProviders {
      * to the index being created.
      * The primary use case is for tests that want to add specific settings without having to create a full implementation.
      *
+     * @param influencedSettings      The keys of the settings the consumer may add, see {@link IndexSettingProvider#influencedSettings()}
      * @param settingsBuilderConsumer A consumer that adds index settings
      * @return An {@link IndexSettingProviders} instance that uses the provided consumer to add settings
      */
-    public static IndexSettingProviders of(Consumer<Settings.Builder> settingsBuilderConsumer) {
-        return new IndexSettingProviders(
-            Set.of(
-                (
-                    indexName,
-                    dataStreamName,
-                    templateIndexMode,
-                    registryInstalledTemplate,
-                    projectMetadata,
-                    resolvedAt,
-                    indexTemplateAndCreateRequestSettings,
-                    combinedTemplateMappings,
-                    indexVersion,
-                    additionalSettings) -> settingsBuilderConsumer.accept(additionalSettings)
-            )
-        );
+    public static IndexSettingProviders of(Set<String> influencedSettings, Consumer<Settings.Builder> settingsBuilderConsumer) {
+        return new IndexSettingProviders(Set.of(new IndexSettingProvider() {
+            @Override
+            public void provideAdditionalSettings(
+                String indexName,
+                String dataStreamName,
+                IndexMode templateIndexMode,
+                boolean registryInstalledTemplate,
+                ProjectMetadata projectMetadata,
+                Instant resolvedAt,
+                Settings indexTemplateAndCreateRequestSettings,
+                List<CompressedXContent> combinedTemplateMappings,
+                IndexVersion indexVersion,
+                Settings.Builder additionalSettings
+            ) {
+                settingsBuilderConsumer.accept(additionalSettings);
+            }
+
+            @Override
+            public Set<String> influencedSettings() {
+                return influencedSettings;
+            }
+        }));
     }
 
     public IndexSettingProviders(Set<IndexSettingProvider> indexSettingProviders) {

@@ -531,7 +531,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             ClusterSettings.createBuiltInClusterSettings(),
             dataStreamLifecycleSettings,
             emptyDataStreamFailureStoreSettings,
-            IndexSettingProviders.of((additionalSettings) -> additionalSettings.put("index.mode", IndexMode.LOOKUP)),
+            IndexSettingProviders.of(Set.of("index.mode"), (additionalSettings) -> additionalSettings.put("index.mode", IndexMode.LOOKUP)),
             null,
             metadataDataStreamsService
         );

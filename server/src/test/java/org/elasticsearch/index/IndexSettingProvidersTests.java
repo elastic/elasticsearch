@@ -106,27 +106,36 @@ public class IndexSettingProvidersTests extends ESTestCase {
         IndexVersion version = IndexVersionUtils.randomVersion();
 
         var invoked = new AtomicInteger();
-        IndexSettingProvider provider = (
-            index,
-            dataStream,
-            mode,
-            registry,
-            project,
-            resolved,
-            settings,
-            combinedMappings,
-            indexVersion,
-            additional) -> {
-            invoked.incrementAndGet();
-            assertThat(index, equalTo(indexName));
-            assertThat(dataStream, equalTo(dataStreamName));
-            assertThat(mode, equalTo(indexMode));
-            assertThat(registry, equalTo(registryInstalled));
-            assertThat(project, sameInstance(projectMetadata));
-            assertThat(resolved, equalTo(resolvedAt));
-            assertThat(settings, equalTo(templateAndRequest));
-            assertThat(combinedMappings, equalTo(mappings));
-            assertThat(indexVersion, equalTo(version));
+        IndexSettingProvider provider = new IndexSettingProvider() {
+            @Override
+            public void provideAdditionalSettings(
+                String index,
+                String dataStream,
+                IndexMode mode,
+                boolean registry,
+                ProjectMetadata project,
+                Instant resolved,
+                Settings settings,
+                List<CompressedXContent> combinedMappings,
+                IndexVersion indexVersion,
+                Settings.Builder additional
+            ) {
+                invoked.incrementAndGet();
+                assertThat(index, equalTo(indexName));
+                assertThat(dataStream, equalTo(dataStreamName));
+                assertThat(mode, equalTo(indexMode));
+                assertThat(registry, equalTo(registryInstalled));
+                assertThat(project, sameInstance(projectMetadata));
+                assertThat(resolved, equalTo(resolvedAt));
+                assertThat(settings, equalTo(templateAndRequest));
+                assertThat(combinedMappings, equalTo(mappings));
+                assertThat(indexVersion, equalTo(version));
+            }
+
+            @Override
+            public Set<String> influencedSettings() {
+                return Set.of();
+            }
         };
         IndexSettingProviders.collectAdditionalSettings(
             List.of(provider),
@@ -353,6 +362,11 @@ public class IndexSettingProvidersTests extends ESTestCase {
                 Settings.Builder additionalSettings
             ) {
                 additionalSettings.put(settings);
+            }
+
+            @Override
+            public Set<String> influencedSettings() {
+                return settings.keySet();
             }
 
             @Override

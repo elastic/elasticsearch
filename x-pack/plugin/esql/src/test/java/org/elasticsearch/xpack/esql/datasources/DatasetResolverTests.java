@@ -30,10 +30,12 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlResolveDatasetAction;
+import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
+import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -48,6 +50,7 @@ import org.junit.Before;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.containsString;
@@ -222,6 +225,34 @@ public class DatasetResolverTests extends ESTestCase {
         assertEquals("no dispatch on license failure", 0, localCalls.get());
     }
 
+    /**
+     * The dataset response completes on another thread, so the resolver must carry the dispatching query's planning CPU
+     * metering over to it: the rewrite, and the listener it completes inline, run inside that query's measurement.
+     */
+    public void testResponseIsMeteredAsPlanningCpuOfTheDispatchingQuery() {
+        assumeTrue("thread CPU time unsupported", ThreadCpuTimer.currentNanos() >= 0);
+        PlanningCpuTracker tracker = new PlanningCpuTracker();
+        DatasetResolver resolver = new DatasetResolver(
+            localActionClient(new AtomicInteger(), threadPool.generic()),
+            threadPool.executor(ThreadPool.Names.SEARCH),
+            crossProjectEnabled(false),
+            true,
+            new FederationLicense(DatasetResolverTests::enterpriseLicenseState)
+        );
+        PlainActionFuture<Boolean> meteredAtCompletion = new PlainActionFuture<>();
+        tracker.meteredCpu(
+            () -> resolver.replaceDatasets(
+                relationOf(DATASET_NAME),
+                project(),
+                false,
+                QueryPragmas.EMPTY,
+                EsqlFlags.DEFAULTS,
+                meteredAtCompletion.map(rewritten -> tracker.isMeteringCurrentThread())
+            )
+        );
+        assertTrue("the rewrite must run inside the dispatching query's measurement", safeGet(meteredAtCompletion));
+    }
+
     // --- harness ---
 
     /** Resolves with wildcards_match_datasets off — the production default; these cases name their dataset exactly. */
@@ -303,6 +334,15 @@ public class DatasetResolverTests extends ESTestCase {
     }
 
     private Client localActionClient(AtomicInteger localCalls, Set<String> authorizedDatasets) {
+        return localActionClient(localCalls, authorizedDatasets, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+    }
+
+    /** {@link #localActionClient(AtomicInteger)} that completes each response on {@code responder}. */
+    private Client localActionClient(AtomicInteger localCalls, Executor responder) {
+        return localActionClient(localCalls, Set.of(DATASET_NAME), responder);
+    }
+
+    private Client localActionClient(AtomicInteger localCalls, Set<String> authorizedDatasets, Executor responder) {
         return new AbstractClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow()) {
             @Override
             @SuppressWarnings("unchecked")
@@ -315,7 +355,9 @@ public class DatasetResolverTests extends ESTestCase {
                 ) {
                 assertSame(EsqlResolveDatasetAction.TYPE, action);
                 localCalls.incrementAndGet();
-                listener.onResponse((Response) new EsqlResolveDatasetAction.Response(authorizedDatasets, Set.of(), Set.of()));
+                responder.execute(
+                    () -> listener.onResponse((Response) new EsqlResolveDatasetAction.Response(authorizedDatasets, Set.of(), Set.of()))
+                );
             }
         };
     }

@@ -79,7 +79,7 @@ public interface StorageProvider extends Closeable {
      */
     default StorageEntry objectMetadata(StoragePath path) throws IOException {
         StorageObject object = newObject(path);
-        return new StorageEntry(path, object.length(), object.lastModified(), object.version());
+        return new StorageEntry(path, object.length(), object.lastModified(), object.probedVersion());
     }
 
     /** Returns the URI schemes this provider handles (e.g., ["http", "https"]). */

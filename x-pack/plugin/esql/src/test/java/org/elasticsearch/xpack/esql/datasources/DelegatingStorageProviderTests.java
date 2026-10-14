@@ -259,6 +259,26 @@ public class DelegatingStorageProviderTests extends ESTestCase {
         assertThat("the versioned open must be the limiter's object", opened, instanceOf(ConcurrencyLimitedStorageObject.class));
     }
 
+    /**
+     * The limiter's object reports the probed version of the object it wraps. Were it to keep the default, a file found by a
+     * probe through a limited provider would be listed unversioned, and its footer would never be cached.
+     */
+    public void testProbedVersionIsForwardedThroughTheLimiter() {
+        StorageObject probed = mock(StorageObject.class);
+        when(probed.probedVersion()).thenReturn("etag-p");
+        StorageProvider plain = new StubProvider() {
+            @Override
+            public StorageObject newObject(StoragePath path) {
+                return probed;
+            }
+        };
+        StorageProvider limited = new ConcurrencyLimitedStorageProvider(
+            plain,
+            new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(3, false))
+        );
+        assertEquals("etag-p", limited.newObject(StoragePath.of("s3://bucket/file.parquet")).probedVersion());
+    }
+
     private static StorageProvider countingProvider(AtomicInteger calls) {
         return new StubProvider() {
             @Override

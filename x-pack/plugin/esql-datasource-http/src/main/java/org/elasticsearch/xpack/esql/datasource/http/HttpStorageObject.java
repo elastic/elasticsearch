@@ -384,6 +384,13 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
         return headVersion;
     }
 
+    /** The strong ETag of the HEAD that existence was probed with. It is not the pin; see {@link #version()}. */
+    @Override
+    @Nullable
+    public String probedVersion() {
+        return headVersion;
+    }
+
     /** Seeds the pin with a version a listing or probe reported, so the first GET is conditional on it. */
     void seedVersion(String version) {
         if (version != null && version.regionMatches(true, 0, "W/", 0, 2) == false) {

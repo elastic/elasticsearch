@@ -145,6 +145,20 @@ public interface StorageObject {
     }
 
     /**
+     * The version that this object's existence or metadata probe saw, for a caller that found the object by probing
+     * and then records that version in a listing entry. Unlike {@link #version()} it never comes from a pin, and a probe
+     * does not acquire the read pin: the object a later read opens is seeded with this version, so its first read is
+     * conditional on it. {@code null} when the probe saw no version. Defaults to {@link #version()}, which is right for a
+     * store whose probe already establishes the pin.
+     * <p>
+     * Decorators must return {@code delegate.probedVersion()}.
+     */
+    @Nullable
+    default String probedVersion() {
+        return version();
+    }
+
+    /**
      * File length for {@link org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache} and
      * {@link org.elasticsearch.xpack.esql.datasources.cache.ParsedFooterCache} keys. Range views
      * ({@code offset}/{@code length} splits) must return the underlying object's full size, not

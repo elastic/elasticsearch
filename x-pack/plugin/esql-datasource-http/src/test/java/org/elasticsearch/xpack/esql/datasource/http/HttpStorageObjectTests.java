@@ -516,6 +516,26 @@ public class HttpStorageObjectTests extends ESTestCase {
         assertEquals(drained, obj.metrics().bytesRead());
     }
 
+    /**
+     * The HEAD that probes existence reports the ETag it saw, so an entry built from it is versioned, but the probe does not
+     * pin the reads: reads are conditional only on an ETag a GET has returned, or on one a listing seeded.
+     */
+    public void testProbeReportsItsHeadETagWithoutPinning() throws Exception {
+        HttpResponse<Void> head = mock(HttpResponse.class);
+        when(head.statusCode()).thenReturn(HttpStatus.SC_OK);
+        when(head.headers()).thenReturn(HttpHeaders.of(Map.of("Content-Length", List.of("5"), "ETag", List.of("\"abc\"")), (a, b) -> true));
+        HttpClient mockClient = mock(HttpClient.class);
+        doReturn(head).when(mockClient).send(any(), any());
+
+        StoragePath path = StoragePath.of("https://example.com/file.txt");
+        HttpStorageObject object = new HttpStorageObject(mockClient, path, HttpConfiguration.defaults());
+
+        assertTrue(object.exists());
+        assertEquals("\"abc\"", object.probedVersion());
+        assertNull(object.contentGeneration());
+        assertNull(object.version());
+    }
+
     public void testSecondGetSendsIfMatchOfFirstEtag() throws Exception {
         HttpResponse<InputStream> first = mock(HttpResponse.class);
         when(first.statusCode()).thenReturn(HttpStatus.SC_OK);

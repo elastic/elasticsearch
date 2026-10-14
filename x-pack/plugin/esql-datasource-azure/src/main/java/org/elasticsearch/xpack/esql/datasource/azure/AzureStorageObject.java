@@ -67,6 +67,8 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
     private volatile Boolean cachedExists;
     /** First strong ETag returned by a download; sent as If-Match on later ones and reported as {@link #contentGeneration()}. */
     private final AtomicReference<String> pinnedEtag = new AtomicReference<>();
+    /** Quoted ETag the last metadata probe saw, reported by {@link #probedVersion()}. It never becomes the pin by itself. */
+    private volatile String probedEtag;
 
     public AzureStorageObject(BlobClient blobClient, String container, String blobName, StoragePath path) {
         this(blobClient, null, container, blobName, path);
@@ -308,6 +310,12 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
         return pinnedEtag.get();
     }
 
+    /** The ETag the metadata probe saw. Reads are not conditional on it until a pin is seeded from it. */
+    @Override
+    public String probedVersion() {
+        return probedEtag;
+    }
+
     /**
      * Seeds the pin with the ETag a listing reported, so the first download is conditional on it. A weak ETag is not a
      * byte-for-byte identifier, so it is ignored, and so is any ETag when a pin is already set.
@@ -326,7 +334,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
      */
     @Nullable
     static String quotedEtag(@Nullable String etag) {
-        if (etag == null || etag.isBlank() || etag.startsWith("W/")) {
+        if (etag == null || etag.isBlank() || etag.regionMatches(true, 0, "W/", 0, 2)) {
             return null;
         }
         return etag.startsWith("\"") ? etag : "\"" + etag + "\"";
@@ -343,20 +351,23 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
 
     /** Weak ETags ({@code W/"..."}) are not byte-for-byte identifiers, so they are never used as a pin. */
     private void observeEtag(String etag) {
+        // Compared in the quoted form the conditional headers use. List Blobs reports an ETag unquoted, while Get Properties
+        // and downloads quote it, so a seeded version and an observed one can differ in quoting for the same blob.
+        String observed = quotedEtag(etag);
         String current = pinnedEtag.get();
-        if (etag == null || etag.isBlank() || etag.regionMatches(true, 0, "W/", 0, 2)) {
+        if (observed == null) {
             if (current != null) {
                 throw new ExternalObjectChangedException(path);
             }
             return;
         }
         if (current == null) {
-            if (pinnedEtag.compareAndSet(null, etag)) {
+            if (pinnedEtag.compareAndSet(null, observed)) {
                 return;
             }
             current = pinnedEtag.get();
         }
-        if (current.equals(etag) == false) {
+        if (current.equals(observed) == false) {
             throw new ExternalObjectChangedException(path);
         }
     }
@@ -402,6 +413,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             var properties = blobClient.getProperties();
             ExternalPlanningIo.addMetadataGet(0);
             cachedExists = true;
+            probedEtag = quotedEtag(properties.getETag());
             // getProperties() transfers no blob bytes: it reports whatever version is current, which is
             // not necessarily the one reads are pinned to. It must neither establish the pin nor
             // overwrite the pinned version's size (already set by the download that pinned it).
@@ -439,6 +451,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             var headers = response.getDeserializedHeaders();
             ExternalPlanningIo.addMetadataGet(output.size());
             cachedExists = true;
+            probedEtag = quotedEtag(headers.getETag());
             observeEtag(headers.getETag());
             Long total = ContentRangeParser.parseTotalLength(headers.getContentRange());
             if (total == null) {

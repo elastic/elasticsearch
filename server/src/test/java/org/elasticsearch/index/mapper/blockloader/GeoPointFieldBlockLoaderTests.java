@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.BlockLoaderTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
@@ -68,6 +69,15 @@ public class GeoPointFieldBlockLoaderTests extends BlockLoaderTestCase {
             return exactValuesFromSource(values, nullValue, false);
         }
 
+        // LogsDB defaults index.mapping.synthetic_source_keep to "arrays". Objects that are elements of an array are then stored whole in
+        // _ignored_source, so a field below such an object is loaded with its exact original value, in source order.
+        // Multi fields are not affected since they are indexed in their own doc values.
+        if (params.indexMode() == IndexMode.LOGSDB
+            && testContext.isMultifield() == false
+            && hasArrayAncestor(runner.mapDoc(), runner.fieldName())) {
+            return exactValuesFromSource(values, nullValue, false);
+        }
+
         // synthetic source and doc_values are present
         if (hasDocValues(fieldMapping, true)) {
             return bytesRefWkbValues(values, nullValue, false);
@@ -112,6 +122,25 @@ public class GeoPointFieldBlockLoaderTests extends BlockLoaderTestCase {
             .map(p -> toWKB(normalize(p)))
             .toList();
         return maybeFoldList(resultList);
+    }
+
+    /**
+     * Whether any object on the path to the field (excluding the field itself) is an array in the document.
+     */
+    private static boolean hasArrayAncestor(Map<?, ?> doc, String fieldName) {
+        Object node = doc;
+        String[] path = fieldName.split("\\.");
+        for (int i = 0; i < path.length - 1; i++) {
+            if (node instanceof Map<?, ?> map) {
+                node = map.get(path[i]);
+                if (node instanceof List<?>) {
+                    return true;
+                }
+            } else {
+                return false;
+            }
+        }
+        return false;
     }
 
     @SuppressWarnings("unchecked")

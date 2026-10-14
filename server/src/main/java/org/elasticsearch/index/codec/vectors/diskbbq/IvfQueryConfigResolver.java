@@ -21,7 +21,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Resolves a single {@link IvfSegmentConfig} per leaf at query time: persisted calibration when available and valid,
+ * Resolves a single {@link IvfSegmentConfig} per leaf at query time: persisted calibration when enabled and valid,
  * otherwise mapping defaults, with query-time oversample override.
  */
 public class IvfQueryConfigResolver {

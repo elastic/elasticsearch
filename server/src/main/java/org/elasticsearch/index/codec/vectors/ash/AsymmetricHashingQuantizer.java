@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.vectors.ash;
 
+import org.apache.lucene.search.TaskExecutor;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.simdvec.AshSphericalScalarQuantizer;
@@ -59,6 +60,7 @@ public final class AsymmetricHashingQuantizer {
     private final int trainingFactor;
     private final long seed;
     private final AshSphericalScalarQuantizer quantizer;
+    private final TaskExecutor executor;
 
     /**
      * Absolute cap on the number of vectors sampled for training W, independent of dimensionality.
@@ -92,7 +94,8 @@ public final class AsymmetricHashingQuantizer {
         Method method,
         int nTrainingIterations,
         int trainingFactor,
-        long seed
+        long seed,
+        TaskExecutor executor
     ) {
         if (projectedDimsFraction <= 0 || projectedDimsFraction > 1.0f) {
             throw new IllegalArgumentException("projectedDimsFraction must be in (0, 1]");
@@ -104,6 +107,7 @@ public final class AsymmetricHashingQuantizer {
         this.trainingFactor = trainingFactor;
         this.seed = seed;
         this.quantizer = FACTORY.newAshSphericalScalarQuantizer(bitsPerDim);
+        this.executor = executor;
     }
 
     /**
@@ -381,7 +385,7 @@ public final class AsymmetricHashingQuantizer {
             // The multiply doesn't have offsets, so the full matrix is calculated
             // Although this means that partial blocks multiply whatever is left in 'centered' after the tail,
             // only 'count' rows are read back
-            ESVectorUtil.matrixMultiply(centered, w, maxBlockSize, originalDim, nDims, latent);
+            ESVectorUtil.matrixMultiply(centered, w, maxBlockSize, originalDim, nDims, latent, executor);
 
             for (int i = 0; i < size; i++) {
                 float[] code = codes[i];
@@ -420,7 +424,7 @@ public final class AsymmetricHashingQuantizer {
     private float[] learnedTraining(float[] xTraining, int nTraining, int originalDim, int nDims) {
         // PCA initialization: extract top nDims right singular vectors as columns (originalDim x nDims)
         // This is much faster than full SVD when nDims << originalDim
-        float[] p = AshUtils.topKRightSingularVectors(xTraining, nTraining, originalDim, nDims, seed);
+        float[] p = AshUtils.topKRightSingularVectors(xTraining, nTraining, originalDim, nDims, seed, executor);
         return learnedTrainingFromBasis(xTraining, p, nTraining, originalDim, nDims, nTrainingIterations);
     }
 
@@ -434,7 +438,7 @@ public final class AsymmetricHashingQuantizer {
      */
     private float[] learnedTrainingFromBasis(float[] xTraining, float[] p, int nTraining, int originalDim, int nDims, int nIterations) {
         // Project training data: X_ld = xTraining @ P (nTraining x nDims)
-        float[] xLd = ESVectorUtil.matrixMultiply(xTraining, p, nTraining, originalDim, nDims);
+        float[] xLd = ESVectorUtil.matrixMultiply(xTraining, p, nTraining, originalDim, nDims, executor);
 
         // Pre-transpose X_ld so that X_ld^T @ X_enc can use sequential memory access
         float[] xLdT = ESVectorUtil.transposeMatrix(xLd, nTraining, nDims);
@@ -449,11 +453,11 @@ public final class AsymmetricHashingQuantizer {
 
         for (int epoch = 0; epoch <= nIterations; epoch++) {
             // R = procrustes(M)
-            AshUtils.procrustes(m, nDims, r);
+            AshUtils.procrustes(m, nDims, r, executor);
 
             if (epoch < nIterations) {
                 // X_transformed = X_ld @ R (nTraining x nDims)
-                ESVectorUtil.matrixMultiply(xLd, r, nTraining, nDims, nDims, xTransformed);
+                ESVectorUtil.matrixMultiply(xLd, r, nTraining, nDims, nDims, xTransformed, executor);
                 // Quantize
                 quantizer.encode(xTransformed, nTraining, nDims, qr);
                 float[] xEnc = qr.centeredCodes();
@@ -469,12 +473,12 @@ public final class AsymmetricHashingQuantizer {
                     }
                 }
                 // M = X_ld^T @ X_enc (nDims x nDims) — uses pre-transposed X_ld for sequential access
-                ESVectorUtil.matrixMultiply(xLdT, xEnc, nDims, nTraining, nDims, m);
+                ESVectorUtil.matrixMultiply(xLdT, xEnc, nDims, nTraining, nDims, m, executor);
             }
         }
 
         // W = P @ R (originalDim x nDims)
-        return ESVectorUtil.matrixMultiply(p, r, originalDim, nDims, nDims);
+        return ESVectorUtil.matrixMultiply(p, r, originalDim, nDims, nDims, executor);
     }
 
     private float[] randomOrthogonal(int originalDim, int nDims) {

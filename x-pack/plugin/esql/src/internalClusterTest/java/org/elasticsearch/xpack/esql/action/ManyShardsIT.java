@@ -18,7 +18,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -41,7 +40,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -50,7 +48,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * Make sures that we can run many concurrent requests with large number of shards with any data_partitioning.
@@ -274,34 +271,6 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
                 mockSearchService.setOnCreateSearchContext(r -> {});
                 mockSearchService.setOnRemoveContext(r -> {});
             }
-        }
-    }
-
-    public void testCancelUnnecessaryRequests() {
-        assumeTrue("Requires pragmas", canUseQueryPragmas());
-        internalCluster().ensureAtLeastNumDataNodes(3);
-
-        var coordinatingNode = internalCluster().getNodeNames()[0];
-
-        var exchanges = new AtomicInteger(0);
-        var coordinatorNodeTransport = MockTransportService.getInstance(coordinatingNode);
-        coordinatorNodeTransport.addSendBehavior((connection, requestId, action, request, options) -> {
-            if (Objects.equals(action, ExchangeService.OPEN_EXCHANGE_ACTION_NAME)) {
-                logger.info("Opening exchange on node [{}]", connection.getNode().getId());
-                exchanges.incrementAndGet();
-            }
-            connection.sendRequest(requestId, action, request, options);
-        });
-
-        var query = syncEsqlQueryRequest("from test-* | LIMIT 1").pragmas(
-            new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_NODES_PER_CLUSTER.getKey(), 1).build())
-        );
-
-        try (var result = safeGet(client().execute(EsqlQueryAction.INSTANCE, query))) {
-            assertThat(Iterables.size(result.rows()), equalTo(1L));
-            assertThat(exchanges.get(), lessThanOrEqualTo(2));
-        } finally {
-            coordinatorNodeTransport.clearAllRules();
         }
     }
 

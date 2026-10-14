@@ -22,6 +22,7 @@ import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.action.update.UpdateResponseTests;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Tuple;
@@ -39,9 +40,12 @@ import java.io.IOException;
 
 import static org.elasticsearch.ElasticsearchExceptionTests.assertDeepEquals;
 import static org.elasticsearch.ElasticsearchExceptionTests.randomExceptions;
+import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class BulkItemResponseTests extends ESTestCase {
 
@@ -164,6 +168,69 @@ public class BulkItemResponseTests extends ESTestCase {
             assertNull(parser.nextToken());
         }
         assertBulkItemResponse(expectedBulkItemResponse, parsedBulkItemResponse);
+    }
+
+    /**
+     * The failure store cause must render exactly as it did when it was added to the cause with {@link Exception#addSuppressed}, without
+     * mutating the cause, which may be shared by other items.
+     */
+    public void testFailureStoreCauseRendersAsSuppressedException() throws IOException {
+        XContentType xContentType = randomFrom(XContentType.values());
+        boolean humanReadable = randomBoolean();
+        DocWriteRequest.OpType opType = randomFrom(DocWriteRequest.OpType.values());
+        boolean elasticsearchCause = randomBoolean();
+        boolean causeHasOwnSuppressed = randomBoolean();
+        Exception failureStoreCause = new ElasticsearchException("failure store failure");
+
+        Exception sharedCause = newCause(elasticsearchCause, causeHasOwnSuppressed);
+        Failure failure = new Failure("index", "id", sharedCause, IndexDocFailureStoreStatus.FAILED);
+        failure.setFailureStoreCause(failureStoreCause);
+
+        Exception legacyCause = newCause(elasticsearchCause, causeHasOwnSuppressed);
+        legacyCause.addSuppressed(failureStoreCause);
+        Failure legacyFailure = new Failure("index", "id", legacyCause, IndexDocFailureStoreStatus.FAILED);
+
+        assertToXContentEquivalent(
+            toXContent(BulkItemResponse.failure(1, opType, legacyFailure), xContentType, humanReadable),
+            toXContent(BulkItemResponse.failure(1, opType, failure), xContentType, humanReadable),
+            xContentType
+        );
+        assertToXContentEquivalent(
+            toXContent(legacyFailure, xContentType, humanReadable),
+            toXContent(failure, xContentType, humanReadable),
+            xContentType
+        );
+        assertThat(sharedCause.getSuppressed().length, equalTo(causeHasOwnSuppressed ? 1 : 0));
+    }
+
+    /**
+     * Single document index requests turn a failed bulk item into an {@link IndexDocFailureStoreStatus.ExceptionWithFailureStoreStatus},
+     * which must still render the failure store cause as a suppressed exception of the original cause.
+     */
+    public void testExceptionWithFailureStoreStatusRendersFailureStoreCause() throws IOException {
+        Exception sharedCause = new ElasticsearchException("shard failure");
+        Failure failure = new Failure("index", "id", sharedCause, IndexDocFailureStoreStatus.FAILED);
+        failure.setFailureStoreCause(new ElasticsearchException("failure store failure"));
+
+        String rendered = Strings.toString(new IndexDocFailureStoreStatus.ExceptionWithFailureStoreStatus(failure));
+
+        assertThat(
+            rendered,
+            equalTo(
+                "{\"type\":\"exception\",\"reason\":\"shard failure\","
+                    + "\"suppressed\":[{\"type\":\"exception\",\"reason\":\"failure store failure\"}],"
+                    + "\"failure_store\":\"failed\"}"
+            )
+        );
+        assertThat(sharedCause.getSuppressed().length, equalTo(0));
+    }
+
+    private static Exception newCause(boolean elasticsearchCause, boolean withOwnSuppressed) {
+        Exception cause = elasticsearchCause ? new ElasticsearchException("shard failure") : new IllegalStateException("shard failure");
+        if (withOwnSuppressed) {
+            cause.addSuppressed(new IllegalArgumentException("existing suppressed"));
+        }
+        return cause;
     }
 
     public static void assertBulkItemResponse(BulkItemResponse expected, BulkItemResponse actual) {

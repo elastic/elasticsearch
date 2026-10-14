@@ -128,6 +128,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     private static final String TIMED_OUT = "timed_out";
     private static final String CAUSED_BY = "caused_by";
     private static final ParseField SUPPRESSED = new ParseField("suppressed");
+    private static final Throwable[] NO_ADDITIONAL_SUPPRESSED = new Throwable[0];
     public static final String STACK_TRACE = "stack_trace";
     private static final String HEADER = "header";
     private static final String ERROR = "error";
@@ -435,19 +436,23 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
 
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return toXContent(builder, params, 0);
+        return toXContent(builder, params, 0, NO_ADDITIONAL_SUPPRESSED);
     }
 
     /**
      * Equivalent to {@link org.elasticsearch.xcontent.ToXContent#toXContent(XContentBuilder, Params)} except that it limits nesting depth
      * so that it can avoid stackoverflow errors.
+     *
+     * @param additionalSuppressed rendered after this exception's own suppressed exceptions, see
+     *                             {@link #generateThrowableXContent(XContentBuilder, Params, Throwable, Throwable[])}
      */
-    protected XContentBuilder toXContent(XContentBuilder builder, Params params, int nestedLevel) throws IOException {
+    protected XContentBuilder toXContent(XContentBuilder builder, Params params, int nestedLevel, Throwable[] additionalSuppressed)
+        throws IOException {
         Throwable ex = ExceptionsHelper.unwrapCause(this);
         if (ex != this) {
-            generateThrowableXContent(builder, params, this, nestedLevel);
+            generateThrowableXContent(builder, params, this, nestedLevel, additionalSuppressed);
         } else {
-            innerToXContent(builder, params, this, bodyHeaders, metadata, getCause(), nestedLevel);
+            innerToXContent(builder, params, this, bodyHeaders, metadata, getCause(), nestedLevel, additionalSuppressed);
         }
         return builder;
     }
@@ -460,6 +465,19 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         Map<String, List<String>> metadata,
         Throwable cause,
         int nestedLevel
+    ) throws IOException {
+        innerToXContent(builder, params, throwable, headers, metadata, cause, nestedLevel, NO_ADDITIONAL_SUPPRESSED);
+    }
+
+    protected static void innerToXContent(
+        XContentBuilder builder,
+        Params params,
+        Throwable throwable,
+        Map<String, List<String>> headers,
+        Map<String, List<String>> metadata,
+        Throwable cause,
+        int nestedLevel,
+        Throwable[] additionalSuppressed
     ) throws IOException {
 
         if (nestedLevel > MAX_NESTED_EXCEPTION_LEVEL) {
@@ -504,9 +522,14 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         }
 
         Throwable[] allSuppressed = throwable.getSuppressed();
-        if (allSuppressed.length > 0) {
+        if (allSuppressed.length + additionalSuppressed.length > 0) {
             builder.startArray(SUPPRESSED.getPreferredName());
             for (Throwable suppressed : allSuppressed) {
+                builder.startObject();
+                generateThrowableXContent(builder, params, suppressed, nestedLevel + 1);
+                builder.endObject();
+            }
+            for (Throwable suppressed : additionalSuppressed) {
                 builder.startObject();
                 generateThrowableXContent(builder, params, suppressed, nestedLevel + 1);
                 builder.endObject();
@@ -671,17 +694,41 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     }
 
     /**
+     * Like {@link #generateThrowableXContent(XContentBuilder, Params, Throwable)} but renders {@code additionalSuppressed} after the
+     * suppressed exceptions of {@code t}, as if they had been added to it with {@link Throwable#addSuppressed}. Use this instead of
+     * {@link Throwable#addSuppressed} when {@code t} may be shared by many responses, so that each response gets its own extra entries.
+     */
+    public static void generateThrowableXContent(XContentBuilder builder, Params params, Throwable t, Throwable[] additionalSuppressed)
+        throws IOException {
+        generateThrowableXContent(builder, params, t, 0, additionalSuppressed);
+    }
+
+    /**
      * Equivalent to {@link #generateThrowableXContent(XContentBuilder, Params, Throwable)} but limits nesting depth
      * so that it can avoid stackoverflow errors.
      */
     protected static void generateThrowableXContent(XContentBuilder builder, Params params, Throwable t, int nestedLevel)
         throws IOException {
+        generateThrowableXContent(builder, params, t, nestedLevel, NO_ADDITIONAL_SUPPRESSED);
+    }
+
+    /**
+     * Equivalent to {@link #generateThrowableXContent(XContentBuilder, Params, Throwable, Throwable[])} but limits nesting depth
+     * so that it can avoid stackoverflow errors.
+     */
+    protected static void generateThrowableXContent(
+        XContentBuilder builder,
+        Params params,
+        Throwable t,
+        int nestedLevel,
+        Throwable[] additionalSuppressed
+    ) throws IOException {
         t = ExceptionsHelper.unwrapCause(t);
 
         if (t instanceof ElasticsearchException) {
-            ((ElasticsearchException) t).toXContent(builder, params, nestedLevel);
+            ((ElasticsearchException) t).toXContent(builder, params, nestedLevel, additionalSuppressed);
         } else {
-            innerToXContent(builder, params, t, emptyMap(), emptyMap(), t.getCause(), nestedLevel);
+            innerToXContent(builder, params, t, emptyMap(), emptyMap(), t.getCause(), nestedLevel, additionalSuppressed);
         }
     }
 

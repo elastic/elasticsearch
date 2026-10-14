@@ -526,7 +526,8 @@ public final class ObjectMapperMergeTests extends ESTestCase {
             MAPPING_UPDATE,
             ParseFieldLimits.forMerge(nestedFieldsLimit),
             false,
-            false
+            false,
+            f -> true
         );
 
         RootObjectMapper.Builder existing = new RootObjectMapper.Builder("_doc");
@@ -558,7 +559,8 @@ public final class ObjectMapperMergeTests extends ESTestCase {
             MAPPING_UPDATE,
             ParseFieldLimits.forMerge(nestedFieldsLimit),
             false,
-            false
+            false,
+            f -> true
         );
         RootObjectMapper.Builder atLimit = new RootObjectMapper.Builder("_doc");
         atLimit.add(

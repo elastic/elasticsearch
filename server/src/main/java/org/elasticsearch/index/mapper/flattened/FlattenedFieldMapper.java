@@ -472,7 +472,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         protected void mergeFromBuilder(FieldMapper.Builder incoming, Conflicts conflicts, MapperMergeContext mergeContext) {
             Map<String, FieldMapper.Builder> currentProperties = new TreeMap<>(properties.getValue());
             super.mergeFromBuilder(incoming, conflicts, mergeContext);
-            MapperMergeContext childContext = MapperMergeContext.from(mergeContext.getMapperBuilderContext(), Long.MAX_VALUE);
+            MapperMergeContext childContext = mergeContext.withUnlimitedParseFieldLimitsBudget();
             for (Map.Entry<String, FieldMapper.Builder> entry : ((Builder) incoming).properties.getValue().entrySet()) {
                 currentProperties.merge(
                     entry.getKey(),

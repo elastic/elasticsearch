@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 
 import java.util.ArrayList;
@@ -46,6 +47,7 @@ public final class DynamicMappingUpdateMerger {
 
     private final MappingParser mappingParser;
     private final Predicate<String> isMappedField;
+    private final Predicate<NodeFeature> clusterSupportsFeature;
     private final CompressedXContent first;
     // the accepted updates that define something that the previous ones don't
     private final List<CompressedXContent> accepted = new ArrayList<>();
@@ -65,16 +67,19 @@ public final class DynamicMappingUpdateMerger {
      * @param first the update of the first document, always part of the combined update
      * @param remainingFields the number of fields that the mappings of the index can still take
      * @param totalFieldsLimit the total fields limit of the index
+     * @param clusterSupportsFeature whether all nodes in the cluster support a feature
      */
     DynamicMappingUpdateMerger(
         MappingParser mappingParser,
         Predicate<String> isMappedField,
         CompressedXContent first,
         long remainingFields,
-        long totalFieldsLimit
+        long totalFieldsLimit,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         this.mappingParser = mappingParser;
         this.isMappedField = isMappedField;
+        this.clusterSupportsFeature = clusterSupportsFeature;
         this.first = first;
         this.budget = NewFieldsBudget.throwing(remainingFields, totalFieldsLimit);
         this.limits = ParseFieldLimits.withBudget(budget);
@@ -88,7 +93,7 @@ public final class DynamicMappingUpdateMerger {
             MappingBuilder firstBuilder = parse(first);
             // merging into an empty builder counts the fields of the first update against the budget
             builder = firstBuilder.withoutMappers();
-            builder.merge(firstBuilder, REASON, limits);
+            builder.merge(firstBuilder, REASON, limits, clusterSupportsFeature);
         } catch (Exception e) {
             builder = null;
             closed = true;
@@ -126,7 +131,7 @@ public final class DynamicMappingUpdateMerger {
             if (definesNothingNew(definitions, updateDefinitions)) {
                 return true;
             }
-            builder.merge(parse(update), REASON, limits);
+            builder.merge(parse(update), REASON, limits, clusterSupportsFeature);
             addMissing(definitions, updateDefinitions);
             fieldPaths.addAll(updateFieldPaths);
             runtimeFieldNames.addAll(updateRuntimeFieldNames);
@@ -149,7 +154,7 @@ public final class DynamicMappingUpdateMerger {
         if (builder == null) {
             builder = parse(first);
             for (CompressedXContent update : accepted) {
-                builder.merge(parse(update), REASON, ParseFieldLimits.UNLIMITED);
+                builder.merge(parse(update), REASON, ParseFieldLimits.UNLIMITED, clusterSupportsFeature);
             }
         }
         return builder.build(REASON).toCompressedXContent();

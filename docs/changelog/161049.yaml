@@ -11,8 +11,10 @@ breaking:
   impact: |-
     Time series data streams that were previously left unmanaged will now be rolled over and tail merged by data stream
     lifecycle. Users who rely on these data streams never being rolled over automatically, for example because they roll
-    them over by an external process, might see additional backing indices being created.
-    To restore the previous behaviour, set `data_streams.lifecycle.minimum.enabled` to `false`, for example
+    them over by an external process, might see additional backing indices being created. Time series data streams that
+    have an ILM policy and `index.lifecycle.prefer_ilm: false`, but no data stream lifecycle, move from ILM to the minimum
+    lifecycle, so ILM phases such as delete or downsample stop running for them.
+    To restore the previous behavior, set `data_streams.lifecycle.minimum.enabled` to `false`, for example
     `PUT _cluster/settings { "persistent": { "data_streams.lifecycle.minimum.enabled": false } }`.
     The setting is dynamic, so no restart is required.
   notable: false

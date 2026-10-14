@@ -30,7 +30,7 @@ $$$data-streams-lifecycle-poll-interval$$$
 $$$data-streams-lifecycle-minimum-enabled$$$
 
 `data_streams.lifecycle.minimum.enabled` {applies_to}`stack: ga 9.6`
-:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), boolean) When `true`, the minimum data stream lifecycle is enabled on time series data streams that do not have their own lifecycle configured. The minimum lifecycle runs only necessary for the health of the data stream operations such as rollover. Defaults to `true`.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), boolean) When `true`, a minimum data stream lifecycle manages time series data streams that don't have their own data stream lifecycle. The minimum lifecycle runs only the operations a data stream needs to stay healthy, such as rollover and tail merging. It doesn't delete or downsample data, even if cluster-wide retention is configured. Backing indices that have an {{ilm-init}} policy stay managed by {{ilm-init}} unless [`index.lifecycle.prefer_ilm`](#index-lifecycle-prefer-ilm) is `false`. Defaults to `true`.
 
 $$$cluster-lifecycle-default-rollover$$$
 

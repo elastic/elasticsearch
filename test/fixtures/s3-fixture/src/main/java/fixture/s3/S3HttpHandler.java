@@ -143,6 +143,7 @@ public class S3HttpHandler implements HttpHandler {
                 } else {
                     // HEAD response must include Content-Length header for S3 clients (AWS SDK) that read file size
                     exchange.getResponseHeaders().add("Content-Length", String.valueOf(blobEntry.contents().length()));
+                    exchange.getResponseHeaders().add("ETag", getEtagFromContents(blobEntry.contents()));
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                     exchange.getResponseHeaders()
                         .add(

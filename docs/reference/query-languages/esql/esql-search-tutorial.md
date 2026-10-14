@@ -858,7 +858,7 @@ serverless: ga
 You can use these functions on indexed `dense_vector` fields and on `dense_vector` expressions. They calculate similarity over all the query vectors, guaranteeing accurate results at the cost of slower performance.
 
 :::{tip}
-**When to use exact search instead of KNN**
+**When to use exact search instead of approximate KNN**
 
 Use [vector similarity functions](/reference/query-languages/esql/functions-operators/dense-vector-functions.md) when:
 - Accuracy is more important than speed.

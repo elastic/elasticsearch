@@ -1284,8 +1284,8 @@ final class ParquetPushedExpressions {
                         // column pushed through translateLongIn before it became a temporal one, so declining would
                         // lose pruning main performs. TIME(MILLIS) stores the millisecond of day, which IS the
                         // epoch-millis value the literal is in, so each literal narrows unscaled. A literal outside
-                        // int range is dropped rather than declining the whole set — an exact subset, which stays
-                        // correct under NOT, unlike the day arm's floorDiv over-inclusion.
+                        // int range is dropped rather than declining the whole set — an exact subset, like the
+                        // DATE arm above it, so it stays correct under NOT.
                         List<Object> narrowed = new ArrayList<>();
                         for (Object v : rawValues) {
                             Integer n = narrowLongToPhysicalInt32(((Number) v).longValue(), ptype);

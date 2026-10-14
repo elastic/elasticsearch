@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DataSourceUsageAccumulator;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -84,6 +85,17 @@ public class ExternalSourceResolverDiscoveryFailureTelemetryTests extends ESTest
 
         resolver.mapResolveFailure(PATH_STRING, failure);
 
+        assertRecorded("s3", "storage_unavailable", "503");
+    }
+
+    /** A rewrite under a stale version behind the factory wrapper keeps its retryable 503, not a 400. */
+    public void testObjectChangedBehindFactoryWrapperStaysRetryable() {
+        RuntimeException mapped = resolver.mapResolveFailure(
+            PATH_STRING,
+            new IllegalArgumentException("factory failed", new ExternalObjectChangedException(PATH))
+        );
+
+        assertTrue(mapped instanceof ExternalObjectChangedException);
         assertRecorded("s3", "storage_unavailable", "503");
     }
 

@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalPlanningIo;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalServerException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
@@ -1077,6 +1078,16 @@ public class ExternalSourceResolver {
         if (unavailable != null) {
             LOGGER.warn("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
             return unavailable.withoutCause();
+        }
+        // The object was rewritten under a listing or probe that still named its old version. Retryable, so it keeps its 503
+        // rather than the 400 the factory loop's IllegalArgumentException wrapper would give it.
+        ExternalObjectChangedException changed = (ExternalObjectChangedException) ExceptionsHelper.unwrap(
+            e,
+            ExternalObjectChangedException.class
+        );
+        if (changed != null) {
+            LOGGER.warn("External source [{}] changed during resolution: {}", path, changed.getMessage());
+            return changed.withoutCause();
         }
         // Expired session tokens are a typed 400 so prefetch/listing fail-fast can instanceof them.
         // Recover from a cache ExecutionException the same way as the 503 arm.

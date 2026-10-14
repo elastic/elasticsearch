@@ -748,9 +748,6 @@ c:long | last_name:keyword
 // employees_no_gender doesn't have the gender field in its mappings, so its values are null.
 // employees_gender_text has gender mapped as a TEXT field.
 typeConflictPartiallyUnmappedTextFieldNotLoaded
-required_capability: optional_fields_v5
-required_capability: optional_fields_fix_load_partially_mapped
-required_capability: optional_fields_warn_non_loadable_punk
 required_capability: optional_fields_warn_non_loadable_punk_combined
 
 SET unmapped_fields="load"\;
@@ -772,9 +769,6 @@ emp_no:integer | gender:text           | _index:keyword
 
 
 typeConflictPartiallyUnmappedTextFieldNotLoadedWithDrop
-required_capability: optional_fields_v5
-required_capability: optional_fields_fix_load_partially_mapped
-required_capability: optional_fields_warn_non_loadable_punk
 required_capability: optional_fields_warn_non_loadable_punk_combined
 
 SET unmapped_fields="load"\;
@@ -3484,9 +3478,6 @@ addresses_no_continent  | Tokyo             | Milky Way
 // Same as above, but using addresses_text where galaxy is mapped as text (non-keyword).
 // Without a cast, galaxy is a regular text field: values from addresses_text, null from addresses_no_continent.
 deeplyNestedNonKeywordSubfieldUnderPartiallyUnmappedParentNotCast
-required_capability: optional_fields_v5
-required_capability: optional_fields_fix_load_partially_mapped
-required_capability: optional_fields_warn_non_loadable_punk
 required_capability: optional_fields_warn_non_loadable_punk_combined
 
 SET unmapped_fields="load"\;
@@ -3509,9 +3500,6 @@ addresses_text           | Milky Way
 // Without a cast, it's a regular field: values from addresses_text, null from addresses_no_continent.
 // Note: city.name has a type conflict (keyword vs text) across these indices, so we avoid referencing it.
 deeplyNestedNonKeywordSubfieldPartiallyUnmappedNotCast
-required_capability: optional_fields_v5
-required_capability: optional_fields_fix_load_partially_mapped
-required_capability: optional_fields_warn_non_loadable_punk
 required_capability: optional_fields_warn_non_loadable_punk_combined
 
 SET unmapped_fields="load"\;
@@ -3864,9 +3852,6 @@ null               | null
 ;
 
 issue-146074-reproducer
-required_capability: optional_fields_v5
-required_capability: optional_fields_unmapped_load_null_fallback
-required_capability: optional_fields_warn_non_loadable_punk
 required_capability: registered_domain_command
 required_capability: optional_fields_warn_non_loadable_punk_combined
 

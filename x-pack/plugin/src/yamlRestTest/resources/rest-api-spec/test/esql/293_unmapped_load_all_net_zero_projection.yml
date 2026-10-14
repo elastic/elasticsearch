@@ -99,6 +99,7 @@ setup:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
         - "Field \\[.*\\] of type \\[.*\\] is unmapped in some indices and has no implicit conversion from .*, so it will not be loaded from _source; values will be null in those indices"
+        - "Fields? \\[.*\\] (is|are) unmapped in some indices and ha(s|ve) no implicit conversion from KEYWORD; (it is|they are) null in those indices"
       esql.query:
         body:
           query: 'SET unmapped_fields="load_all"; FROM test* | KEEP * | DROP x, id*'

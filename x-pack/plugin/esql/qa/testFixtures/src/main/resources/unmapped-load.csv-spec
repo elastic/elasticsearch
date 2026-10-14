@@ -68,9 +68,6 @@ count:long | integer:integer | short_int:integer
 
 // Reproducer for #152184.
 partiallyUnmappedDenseVectorIsNotAutoCast
-required_capability: optional_fields_v5
-required_capability: optional_fields_fix_partially_unmapped_dense_vector
-required_capability: optional_fields_warn_non_loadable_punk
 required_capability: optional_fields_warn_non_loadable_punk_combined
 
 SET unmapped_fields="load"\;
@@ -498,10 +495,8 @@ book_no:keyword | author:text
 ;
 
 qstrTextMappedUnmappedAndNonExistentUnderLoad
-required_capability: optional_fields_unmapped_load_null_fallback
 required_capability: qstr_function
 required_capability: fix_unmapped_fields_in_esrelation
-required_capability: optional_fields_warn_non_loadable_punk
 required_capability: optional_fields_warn_non_loadable_punk_combined
 
 SET unmapped_fields="load"\;
@@ -519,10 +514,8 @@ text_state_unmapped     | unmapped-1     | null
 ;
 
 kqlTextMappedUnmappedAndNonExistentUnderLoad
-required_capability: optional_fields_unmapped_load_null_fallback
 required_capability: kql_function
 required_capability: fix_unmapped_fields_in_esrelation
-required_capability: optional_fields_warn_non_loadable_punk
 required_capability: optional_fields_warn_non_loadable_punk_combined
 
 SET unmapped_fields="load"\;
@@ -540,10 +533,8 @@ text_state_unmapped     | unmapped-1     | null
 ;
 
 matchTextMappedUnmappedAndNonExistentUnderLoad
-required_capability: optional_fields_unmapped_load_null_fallback
 required_capability: match_function
 required_capability: fix_unmapped_fields_in_esrelation
-required_capability: optional_fields_warn_non_loadable_punk
 required_capability: optional_fields_warn_non_loadable_punk_combined
 
 SET unmapped_fields="load"\;
@@ -561,10 +552,8 @@ text_state_unmapped     | unmapped-1     | null
 ;
 
 matchOperatorTextMappedUnmappedAndNonExistentUnderLoad
-required_capability: optional_fields_unmapped_load_null_fallback
 required_capability: match_operator_colon
 required_capability: fix_unmapped_fields_in_esrelation
-required_capability: optional_fields_warn_non_loadable_punk
 required_capability: optional_fields_warn_non_loadable_punk_combined
 
 SET unmapped_fields="load"\;
@@ -582,8 +571,6 @@ text_state_unmapped     | unmapped-1     | null
 ;
 
 renameTextMappedUnmappedAndNonExistentUnderLoad
-required_capability: optional_fields_unmapped_load_null_fallback
-required_capability: optional_fields_warn_non_loadable_punk
 required_capability: optional_fields_warn_non_loadable_punk_combined
 
 SET unmapped_fields="load"\;
@@ -619,7 +606,6 @@ colors_unmapped      | green      | null
 ;
 
 knnOnDenseVectorPunkUnderLoad
-required_capability: optional_fields_unmapped_load_null_fallback
 required_capability: knn_function_v5
 required_capability: optional_fields_warn_non_loadable_punk_combined
 
@@ -3015,9 +3001,7 @@ null           | null           | null          | null               | null     
 ;
 
 loadPartiallyUnmappedTextFieldAcrossForkBranches
-required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: fork_v9
-required_capability: optional_fields_warn_non_loadable_punk
 required_capability: optional_fields_warn_non_loadable_punk_combined
 
 SET unmapped_fields="load"\;

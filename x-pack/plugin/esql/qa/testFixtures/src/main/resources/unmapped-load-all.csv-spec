@@ -4818,8 +4818,6 @@ foo:integer | id:keyword | bar:keyword | _unmapped_fields:_source
 // Same nulls and warning as the load twin in unmapped-load.csv-spec; the subquery form now matches.
 loadAllCommaFormDenseVectorWarnsAndNulls
 required_capability: optional_fields_load_all_single_source_column
-required_capability: optional_fields_fix_partially_unmapped_dense_vector
-required_capability: optional_fields_warn_non_loadable_punk
 required_capability: optional_fields_warn_non_loadable_punk_combined
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -4842,7 +4840,6 @@ dense_vector_unmapped | 0    | null
 loadAllSubqueryDenseVectorWarnsAndNulls
 required_capability: optional_fields_load_all_single_source_column
 required_capability: optional_fields_load_all_subqueries
-required_capability: optional_fields_fix_partially_unmapped_dense_vector
 required_capability: subquery_in_from_command
 required_capability: optional_fields_warn_non_loadable_punk_combined
 

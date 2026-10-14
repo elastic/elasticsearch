@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
@@ -1638,16 +1639,28 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 "Fields [a], [b] are unmapped in some indices and have no implicit conversion from KEYWORD; they are null in those indices"
             )
         );
+    }
 
-        List<String> names = new ArrayList<>();
-        for (int i = 0; i < MAX_LISTED_NON_LOADABLE_PUNKS + 3; i++) {
-            names.add("f" + i);
+    /**
+     * The warning names at most 20 fields. Any further fields, however long their names, only increment the {@code [M] more} count.
+     */
+    public void testNonLoadablePunksWarningListsAtMost20Fields() {
+        assertThat(MAX_LISTED_NON_LOADABLE_PUNKS, equalTo(20));
+        List<String> listed = new ArrayList<>();
+        for (int i = 0; i < 20; i++) {
+            listed.add("f" + i);
         }
-        String warning = nonLoadablePunksWarning(names);
-        assertThat(warning, containsString("Fields [f0], [f1], "));
-        int lastListed = MAX_LISTED_NON_LOADABLE_PUNKS - 1;
-        assertThat(warning, containsString(", [f" + lastListed + "] and [3] more are unmapped in some indices"));
-        assertThat(warning, not(containsString("[f" + MAX_LISTED_NON_LOADABLE_PUNKS + "]")));
+        String atLimit = nonLoadablePunksWarning(listed);
+        assertThat(atLimit, containsString("[f19] are unmapped"));
+        assertThat(atLimit, not(containsString("more")));
+
+        int extra = randomIntBetween(1, 1000);
+        List<String> names = new ArrayList<>(listed);
+        for (int i = 0; i < extra; i++) {
+            names.add(randomAlphaOfLength(between(1, 100)));
+        }
+        String overLimit = nonLoadablePunksWarning(names);
+        assertThat(overLimit, equalTo(atLimit.replace("[f19] are unmapped", "[f19] and [" + extra + "] more are unmapped")));
     }
 
     /**
@@ -1656,7 +1669,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
      * See https://github.com/elastic/elasticsearch/issues/161968.
      */
     public void testManyNonLoadablePunksEmitOneBoundedWarning() {
-        int count = randomIntBetween(1, 3 * MAX_LISTED_NON_LOADABLE_PUNKS);
+        int count = randomIntBetween(1, 60);
         List<String> names = new ArrayList<>(count);
         Map<String, EsField> mapping = new HashMap<>();
         for (int i = 0; i < count; i++) {
@@ -1666,42 +1679,76 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         }
         Collections.shuffle(names, random());
 
+        // LOAD and LOAD_ALL treat partially unmapped fields the same.
+        String query = "FROM idx* | KEEP " + String.join(", ", names);
+        boolean loadAll = randomBoolean() && EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled();
         var plan = analyzer().addIndex(partialIndex(mapping, mapping.keySet()))
-            .statement(setUnmappedLoad("FROM idx* | KEEP " + String.join(", ", names)));
+            .statement(loadAll ? setUnmappedLoadAll(query) : setUnmappedLoad(query));
         assertThat(Expressions.names(plan.output()), equalTo(names));
 
-        // The fields are listed in KEEP order; only the first MAX_LISTED_NON_LOADABLE_PUNKS are named.
-        String warning = nonLoadablePunksWarning(names);
-        int listed = Math.min(count, MAX_LISTED_NON_LOADABLE_PUNKS);
-        assertThat(warning.split("\\[field_", -1).length - 1, equalTo(listed));
-        assertThat(warning, count > listed ? containsString("and [" + (count - listed) + "] more") : not(containsString("more")));
-        assertWarnings(warning);
+        // The fields are named in KEEP order, up to 20 of them.
+        String listed = String.join(", ", names.subList(0, Math.min(count, 20)).stream().map(n -> "[" + n + "]").toList());
+        String expected = count == 1
+            ? "Field " + listed + " is unmapped in some indices and has no implicit conversion from KEYWORD; it is null in those indices"
+            : "Fields "
+                + listed
+                + (count > 20 ? " and [" + (count - 20) + "] more" : "")
+                + " are unmapped in some indices and have no implicit conversion from KEYWORD; they are null in those indices";
+        assertWarnings(expected);
     }
 
     /**
-     * A partially unmapped field of a regular index pattern and a field that a LOAD_ALL subquery null-fills share a single warning.
+     * Partially unmapped fields of a regular index pattern and fields that a LOAD_ALL subquery null-fills are reported in the same
+     * warning and count towards the same limit of 20 named fields.
      */
-    public void testLoadAllNonLoadablePunkAndSubqueryNullFillShareOneWarning() {
-        var main = partialIndex(Map.of("pt", textField("pt")), Set.of("pt"));
-        var mapped = new EsIndex(
-            "sub1",
-            Map.of("tx", aggregateMetricDoubleField("tx")),
-            Map.of("sub1", new IndexProperties(IndexMode.STANDARD, 0)),
-            Map.of(),
-            Map.of()
-        );
-        var unmapped = new EsIndex(
-            "sub2",
-            Map.of("id", keywordField("id")),
-            Map.of("sub2", new IndexProperties(IndexMode.STANDARD, 0)),
-            Map.of(),
-            Map.of()
-        );
-        analyzer().addIndex(main)
-            .addIndex(mapped)
-            .addIndex(unmapped)
-            .statement(setUnmappedLoadAll("FROM idx*, (FROM sub1), (FROM sub2) | KEEP pt, tx"));
-        assertWarnings(nonLoadablePunksWarning(List.of("pt", "tx")));
+    public void testLoadAllNonLoadablePunksAndSubqueryNullFillsShareOneLimit() {
+        int punkCount = randomIntBetween(1, 20);
+        int nullFillCount = randomIntBetween(21 - punkCount, 20);
+        // The pt_* fields are partially unmapped in idx* but mapped in both subqueries, so they are reported only as PUNKs.
+        Set<String> punks = new HashSet<>();
+        Map<String, EsField> mainMapping = new HashMap<>();
+        Map<String, EsField> sub1Mapping = new HashMap<>();
+        Map<String, EsField> sub2Mapping = new HashMap<>();
+        sub2Mapping.put("id", keywordField("id"));
+        for (int i = 0; i < punkCount; i++) {
+            String name = "pt_" + i;
+            punks.add(name);
+            mainMapping.put(name, textField(name));
+            sub1Mapping.put(name, textField(name));
+            sub2Mapping.put(name, textField(name));
+        }
+        // The tx_* fields only exist in sub1, so they are null-filled in the other branches.
+        Set<String> nullFills = new HashSet<>();
+        for (int i = 0; i < nullFillCount; i++) {
+            String name = "tx_" + i;
+            nullFills.add(name);
+            sub1Mapping.put(name, aggregateMetricDoubleField(name));
+        }
+        var main = partialIndex(mainMapping, punks);
+        var sub1 = new EsIndex("sub1", sub1Mapping, Map.of("sub1", new IndexProperties(IndexMode.STANDARD, 0)), Map.of(), Map.of());
+        var sub2 = new EsIndex("sub2", sub2Mapping, Map.of("sub2", new IndexProperties(IndexMode.STANDARD, 0)), Map.of(), Map.of());
+        analyzer().addIndex(main).addIndex(sub1).addIndex(sub2).statement(setUnmappedLoadAll("FROM idx*, (FROM sub1), (FROM sub2)"));
+
+        List<String> warnings = threadContext.getResponseHeaders()
+            .getOrDefault("Warning", List.of())
+            .stream()
+            .map(w -> HeaderWarning.extractWarningValueFromWarningHeader(w, true))
+            .filter(w -> w.contains("no implicit conversion from KEYWORD"))
+            .toList();
+        assertThat(warnings, hasSize(1));
+        String warning = warnings.getFirst();
+        int total = punkCount + nullFillCount;
+        assertThat(warning, containsString(" and [" + (total - 20) + "] more are unmapped in some indices"));
+        String listedPart = warning.substring("Fields ".length(), warning.indexOf(" and ["));
+        Set<String> listed = new HashSet<>();
+        for (String bracketed : listedPart.split(", ")) {
+            listed.add(bracketed.substring(1, bracketed.length() - 1));
+        }
+        assertThat(listed, hasSize(20));
+        Set<String> all = new HashSet<>(punks);
+        all.addAll(nullFills);
+        assertTrue("listed fields " + listed + " must all be non-loadable", all.containsAll(listed));
+        assertWarnings(warning);
     }
 
     public void testLoadAllModeAllowsSubqueryWithLookupJoin() {

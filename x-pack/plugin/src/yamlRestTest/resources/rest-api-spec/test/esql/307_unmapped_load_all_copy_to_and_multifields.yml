@@ -184,6 +184,7 @@ teardown:
   - do:
       allowed_warnings:
         - "Field [t] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices"
+        - "Field [t] is unmapped in some indices and has no implicit conversion from KEYWORD; it is null in those indices"
       esql.query:
         body:
           query: 'SET unmapped_fields="load"; FROM la_multifield, la_copyto_absent | KEEP id, t, t.kw | SORT id | LIMIT 5'

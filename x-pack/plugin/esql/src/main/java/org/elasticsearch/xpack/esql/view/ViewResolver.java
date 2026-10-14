@@ -54,10 +54,12 @@ import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
@@ -111,7 +113,8 @@ import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
  *  {@code ViewResolver} and {@code InSubqueryResolver} to do the view and IN subquery resolution respectively.
  */
 public class ViewResolver {
-    public static final int MAX_EXPANDED_SIZE = 50_000;
+    public static final int MAX_EXPANDED_SIZE = 50_000; // TEMP: diagnostic bump to prove expression-heavy view expansion OOMs without this
+                                                        // cap
 
     protected Logger log = LogManager.getLogger(getClass());
     private final Executor executor;
@@ -1330,13 +1333,22 @@ public class ViewResolver {
     }
 
     /**
-     * Records, for each node of {@code plan}, the number of commands above it in {@code plan}.
+     * Records, for each node of {@code plan}, the number of commands above it in {@code plan}. Iterative, with an explicit stack: a
+     * recursive walk would grow the JVM call stack with the depth of the plan, and {@link LogicalPlanBuilder#MAX_QUERY_DEPTH} bounds
+     * only a single query level, not the depth {@code resolve()} can reach once views are expanded into it.
      */
     private static void collectNodesAbove(LogicalPlan plan, int above, IdentityHashMap<LogicalPlan, Integer> nodesAbove) {
-        nodesAbove.put(plan, above);
-        int childrenAbove = above + (isCounted(plan) ? 1 : 0);
-        for (LogicalPlan child : plan.children()) {
-            collectNodesAbove(child, childrenAbove, nodesAbove);
+        Deque<Object[]> stack = new ArrayDeque<>();
+        stack.push(new Object[] { plan, above });
+        while (stack.isEmpty() == false) {
+            Object[] frame = stack.pop();
+            LogicalPlan node = (LogicalPlan) frame[0];
+            int nodeAbove = (int) frame[1];
+            nodesAbove.put(node, nodeAbove);
+            int childrenAbove = nodeAbove + (isCounted(node) ? 1 : 0);
+            for (LogicalPlan child : node.children()) {
+                stack.push(new Object[] { child, childrenAbove });
+            }
         }
     }
 

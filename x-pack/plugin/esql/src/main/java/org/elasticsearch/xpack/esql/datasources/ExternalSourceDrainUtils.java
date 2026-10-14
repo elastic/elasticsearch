@@ -35,6 +35,9 @@ import java.util.function.Consumer;
  */
 public final class ExternalSourceDrainUtils {
 
+    /** Bound on the ready-but-not-exhausted retry. Cap then park; never declare EOF from the cap. */
+    static final int TRY_ADVANCE_OR_PARK_MAX_RETRIES = 64;
+
     private ExternalSourceDrainUtils() {}
 
     /**
@@ -64,8 +67,8 @@ public final class ExternalSourceDrainUtils {
      * That park is registered through {@link AsyncExternalSourceBuffer#waitForReadyOrFinished}, so
      * {@code buffer.finish(..)} also ends it: the drain does not wait for the iterator's I/O to
      * settle before it can observe {@code noMoreInputs}.
-     * EOF is {@code tryAdvance() == null} after {@code waitForReady()} is done; the drain never
-     * calls {@code hasNext()}.
+     * EOF is {@code tryAdvance() == null} after {@code waitForReady()} is done and
+     * {@link CloseableIterator#isExhausted()} is true; the drain never calls {@code hasNext()}.
      */
     public static void drainPagesAsync(
         CloseableIterator<Page> pages,
@@ -114,27 +117,27 @@ public final class ExternalSourceDrainUtils {
      * Non-blocking drain probe. Never {@link CloseableIterator#hasNext()}. Returns a page,
      * {@code null} at EOF, or {@code null} with {@code blockedOn} set when the iterator is
      * waiting on I/O. Callers must already have a done {@link CloseableIterator#waitForReady()}.
-     * A second {@code tryAdvance} after a done recheck is required because a page can arrive
-     * in that race, and that second call can start the next GET.
+     * A done {@code waitForReady()} is not EOF: retry {@code tryAdvance} until
+     * {@link CloseableIterator#isExhausted()} or the listener is not done. After
+     * {@value #TRY_ADVANCE_OR_PARK_MAX_RETRIES} retries this parks rather than declaring EOF.
      */
     static Page tryAdvanceOrPark(CloseableIterator<Page> pages, Holder<SubscribableListener<Void>> blockedOn) {
-        Page tryPage = pages.tryAdvance();
-        if (tryPage == null) {
-            SubscribableListener<Void> recheck = pages.waitForReady();
-            if (recheck.isDone() == false) {
-                blockedOn.set(recheck);
+        for (int i = 0; i < TRY_ADVANCE_OR_PARK_MAX_RETRIES; i++) {
+            Page tryPage = pages.tryAdvance();
+            if (tryPage != null) {
+                return tryPage;
+            }
+            SubscribableListener<Void> ready = pages.waitForReady();
+            if (ready.isDone() == false) {
+                blockedOn.set(ready);
                 return null;
             }
-            tryPage = pages.tryAdvance();
-            if (tryPage == null) {
-                SubscribableListener<Void> after = pages.waitForReady();
-                if (after.isDone() == false) {
-                    blockedOn.set(after);
-                    return null;
-                }
+            if (pages.isExhausted()) {
+                return null;
             }
         }
-        return tryPage;
+        blockedOn.set(pages.waitForReady());
+        return null;
     }
 
     private static Consumer<Page> defaultPageSink(AsyncExternalSourceBuffer buffer) {

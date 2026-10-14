@@ -2069,16 +2069,25 @@ public final class StreamingParallelParsingCoordinator {
          * stall after the last chunk in a slot.
          */
         private void putPoisonAndSignal(ArrayBlockingQueue<Page> queue) {
-            boolean poisoned = false;
-            while (poisoned == false) {
-                try {
-                    queue.put(POISON);
-                    poisoned = true;
-                } catch (InterruptedException ie) {
+            boolean interrupted = false;
+            try {
+                while (true) {
+                    try {
+                        queue.put(POISON);
+                        return;
+                    } catch (InterruptedException ie) {
+                        interrupted = true;
+                        if (closed.get()) {
+                            return;
+                        }
+                    }
+                }
+            } finally {
+                if (interrupted) {
                     Thread.currentThread().interrupt();
                 }
+                signalReady();
             }
-            signalReady();
         }
 
         /**
@@ -2167,9 +2176,16 @@ public final class StreamingParallelParsingCoordinator {
                 return null;
             }
             // Same bounded POISON-then-next-slot loop as {@link #takeNextPage}: a lone POISON is not
-            // async EOF. Returning null here with a page already in the next slot made
-            // {@code tryAdvanceOrPark} treat the gap as terminal and drop remaining chunks.
+            // async EOF. Returning null here with a page already in the next slot used to make
+            // {@code tryAdvanceOrPark} treat the gap as terminal; {@link #isExhausted()} keeps the
+            // drain retrying until producers are done.
             return takeNextPage();
+        }
+
+        @Override
+        public boolean isExhausted() {
+            checkError();
+            return closed.get() || producersDoneAndDrained();
         }
 
         /**
@@ -2280,16 +2296,13 @@ public final class StreamingParallelParsingCoordinator {
         /**
          * Single-shot non-blocking page retrieval. Never spins, never holds the calling thread
          * waiting for upstream production — returns {@code null} as soon as no page is available
-         * in the current slot. Callers must use {@link #waitForReady()} to know when to retry;
-         * a {@code null} return value paired with an immediately-done {@link #waitForReady()}
-         * indicates terminal EOF (no further chunks will ever be dispatched), while {@code null}
-         * paired with a non-done {@link #waitForReady()} indicates the iterator is still
-         * producing but no page is in the current slot at this instant. This separation lets the
-         * producer-loop driver yield its executor slot back to the pool during the gap between
-         * draining one chunk's POISON and the segmenter+parser delivering the next chunk's pages —
-         * which is the deadlock-on-multi-file-gzip scenario {@code waitForReady} was built to fix.
-         * The previous spinning implementation held the consumer thread across that gap, blocking
-         * sub-tasks (segmenter, parsers) queued behind it on the same executor.
+         * in the current slot. A {@code null} is not EOF: a page can land in the current slot
+         * after this poll, and {@link #waitForReady()} is also done when that page (or a page in
+         * another slot) is already sitting there. Callers retry while {@link #waitForReady()} is
+         * done and {@link #isExhausted()} is false, and park on a non-done {@link #waitForReady()}
+         * across the gap between draining one chunk's POISON and the next chunk's first page.
+         * That park lets the producer-loop driver yield its executor slot — the
+         * deadlock-on-multi-file-gzip scenario {@code waitForReady} was built to fix.
          */
         private Page takeNextPage() {
             // Bounded loop — at most one POISON-advance plus one peek per call. Each POISON observed
@@ -2300,10 +2313,8 @@ public final class StreamingParallelParsingCoordinator {
                 skipDrainedPoison();
                 checkError();
                 if (currentChunk >= chunksDispatched.get()) {
-                    // No new chunk yet — either EOF (allDone fired) or we're between dispatches.
-                    // {@link #waitForReady} will return immediately-done in the EOF case (covered by
-                    // its EOF branch) and a non-done listener otherwise. Either way the caller knows
-                    // what to do next without us holding the thread.
+                    // No new chunk yet — either EOF or a dispatch is still in flight. A page can
+                    // land after this return; a done {@link #waitForReady()} is not EOF.
                     return null;
                 }
                 int slot = currentChunk % pageQueueRingSize;

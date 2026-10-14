@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 162050
+summary: Return local breaker reserve if close asserts
+type: bug

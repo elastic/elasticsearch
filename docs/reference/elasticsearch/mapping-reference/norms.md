@@ -14,7 +14,7 @@ Although useful for scoring, norms also require quite a lot of disk (typically i
 
 You can't change the `norms` setting of an existing field. The update mapping API rejects the request.
 
-To disable norms, set `norms` to `false` when you create the index:
+To turn off norms, set `norms` to `false` when you create the index:
 
 ```console
 PUT my-index-000001
@@ -30,7 +30,7 @@ PUT my-index-000001
 }
 ```
 
-To disable norms on a field that already has data, use one of these options:
+To turn off norms on a field that already has data, use one of these options:
 
 - Update the index template, then [roll over](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-rollover) the data stream. Only new backing indices get the change; existing data keeps its norms.
 - [Reindex](docs-content://manage-data/data-store/data-streams/modify-data-stream.md#data-streams-use-reindex-to-change-mappings-settings) into a new index or data stream that has `norms` set to `false`.

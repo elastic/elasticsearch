@@ -196,11 +196,11 @@ public final class DataNodeRecoveryThrottlingSettings {
 
     /// Calls `consumer` with the node's current [IncomingRecoveryLimits], then again whenever a cluster settings update
     /// changes any of the incoming throttle settings. The settings are watched as a group, so that an update changing more
-    /// than one of them is applied atomically.
-    /// See [ThrottlingRecoveryService] that enforces those limits.
-    /// Lets every component that needs these limits derive them from the same computation.
+    /// than one of them is applied atomically. Lets every component that needs these limits derive them from the same
+    /// computation. See [ThrottlingRecoveryService] which enforces those limits.
     ///
-    /// If the incoming throttle settings are not registered, `consumer` is called once with [IncomingRecoveryLimits#UNBOUNDED].
+    /// If the incoming throttle settings are not registered (see the class documentation), `consumer` is called once
+    /// with [IncomingRecoveryLimits#UNBOUNDED].
     public static void watchIncomingRecoveryLimits(
         ClusterSettings clusterSettings,
         ByteSizeValue maxHeap,
@@ -234,7 +234,7 @@ public final class DataNodeRecoveryThrottlingSettings {
 
     /// Calls `consumer` with the node's current effective max concurrent outgoing recoveries, then again whenever a cluster
     /// settings update changes any of the outgoing throttle settings. The settings are watched as a group, so that an update
-    /// changing both of them is applied atomically. See  that enforces those limits.
+    /// changing both of them is applied atomically.
     ///
     /// The limit takes the heap-based throttle (see [#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING])
     /// into account, so it only applies to stateless primary relocations (`StatelessPrimaryRelocationSourceService`) for

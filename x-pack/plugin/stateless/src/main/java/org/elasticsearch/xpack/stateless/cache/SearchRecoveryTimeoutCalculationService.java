@@ -191,12 +191,10 @@ public class SearchRecoveryTimeoutCalculationService {
         final int relocationsFromSourceToTarget = Math.max(1, countRelocationsBetween(state, sourceNodeId, targetNodeId));
         final int allRelocationsToTarget = Math.max(1, countRelocationsFromShuttingDownNodesTo(state, targetNodeId));
 
-        final int maxConcurrentRelocations = maxConcurrentRelocationRecoveries;
-
         // Share the target's cap between shutting-down sources, preserving fractional shares below one slot.
         final double concurrentRelocations = Math.min(
             relocationsFromSourceToTarget,
-            (double) maxConcurrentRelocations * relocationsFromSourceToTarget / allRelocationsToTarget
+            (double) maxConcurrentRelocationRecoveries * relocationsFromSourceToTarget / allRelocationsToTarget
         );
 
         final double timeoutMs;

@@ -160,6 +160,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
     protected void doStart() {
         if (throttledPrimaryRelocations != null) {
             clusterService.addListener(throttledPrimaryRelocations);
+            throttledPrimaryRelocations.start();
         }
     }
 
@@ -670,8 +671,9 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         private final ClusterService clusterService;
         private final Executor executor;
         private final RelocationRunner runner;
+        private final ByteSizeValue maxHeap;
 
-        /// Effective max concurrent outgoing relocations
+        /// Effective max concurrent outgoing relocations, see [DataNodeRecoveryThrottlingSettings#watchOutgoingRecoveryLimit].
         private int effectiveMaxConcurrentOutgoingRelocations;
         private int activeRelocationCount = 0;
 
@@ -683,6 +685,10 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
             this.clusterService = clusterService;
             this.executor = executor;
             this.runner = runner;
+            this.maxHeap = maxHeap;
+        }
+
+        void start() {
             DataNodeRecoveryThrottlingSettings.watchOutgoingRecoveryLimit(
                 clusterService.getClusterSettings(),
                 maxHeap,
@@ -778,8 +784,9 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                 maxIncreased = oldMax < newMax;
             }
             if (maxIncreased) {
-                // Move off the cluster applier thread. The generic executor has an unbounded queue and the cluster
-                // applier thread stops before the thread pool shuts down so this should never be rejected.
+                // Move off the calling thread (the cluster applier thread for updates). The generic executor has an
+                // unbounded queue and the cluster applier thread stops before the thread pool shuts down so this should
+                // never be rejected.
                 executor.execute(this::startRelocationsUpToLimit);
             }
         }

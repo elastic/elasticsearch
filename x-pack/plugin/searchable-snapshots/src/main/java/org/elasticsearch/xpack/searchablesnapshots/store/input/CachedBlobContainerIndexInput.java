@@ -101,9 +101,8 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
     }
 
     @Override
-    protected void readWithoutBlobCache(ByteBuffer b) throws Exception {
+    protected void readWithoutBlobCache(ByteBuffer b, long position) throws Exception {
         ensureContext(ctx -> ctx.hints().contains(StandardIOBehaviorHint.INSTANCE) == false);
-        final long position = getAbsolutePosition();
         final int length = b.remaining();
 
         final CacheFile cacheFile = cacheFileReference.get();

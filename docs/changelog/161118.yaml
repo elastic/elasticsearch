@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 161118
+summary: Adds reserved views that users can query and inspect but cannot update or delete.
+type: enhancement

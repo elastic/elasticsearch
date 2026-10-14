@@ -237,13 +237,17 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         iw.close();
 
         // The real trip path (child breaker -> parent real-heap sampling) cannot be triggered deterministically from a unit test, so we
-        // substitute a breaker that always trips to verify the confirmation query consults the request breaker and passes 0 bytes.
+        // substitute a breaker that trips on the confirmation query's doc-values checkpoint to verify it consults the request breaker
+        // and passes 0 bytes. Non-zero calls (e.g. the guarded wildcard automaton build) are let through: they are covered elsewhere and
+        // would otherwise trip before the checkpoint under test ever runs.
         AtomicLong checkpointedBytes = new AtomicLong(-1);
         CircuitBreaker breaker = new NoopCircuitBreaker("test") {
             @Override
             public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
-                checkpointedBytes.set(bytes);
-                throw new CircuitBreakingException("test trip", Durability.TRANSIENT);
+                if ("binary_doc_values_decode".equals(label)) {
+                    checkpointedBytes.set(bytes);
+                    throw new CircuitBreakingException("test trip", Durability.TRANSIENT);
+                }
             }
         };
 
@@ -754,18 +758,46 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     public void testQueryCachingEqualityFromAutomaton() {
         String pattern = "A*b*B?a";
         // Case sensitivity matters when it comes to caching
-        Query csQ = BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", pattern, false, false);
-        Query ciQ = BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", pattern, true, false);
+        Query csQ = BinaryDvConfirmedQuery.fromWildcardQuery(
+            Queries.ALL_DOCS_INSTANCE,
+            "field",
+            pattern,
+            false,
+            false,
+            NoopCircuitBreaker.INSTANCE
+        );
+        Query ciQ = BinaryDvConfirmedQuery.fromWildcardQuery(
+            Queries.ALL_DOCS_INSTANCE,
+            "field",
+            pattern,
+            true,
+            false,
+            NoopCircuitBreaker.INSTANCE
+        );
         assertNotEquals(csQ, ciQ);
         assertNotEquals(csQ.hashCode(), ciQ.hashCode());
 
         // Same query should be equal
-        Query csQ2 = BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", pattern, false, false);
+        Query csQ2 = BinaryDvConfirmedQuery.fromWildcardQuery(
+            Queries.ALL_DOCS_INSTANCE,
+            "field",
+            pattern,
+            false,
+            false,
+            NoopCircuitBreaker.INSTANCE
+        );
         assertEquals(csQ, csQ2);
         assertEquals(csQ.hashCode(), csQ2.hashCode());
 
         // Different arrayOrder should not be equal
-        Query arrayOrderQ = BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", pattern, false, true);
+        Query arrayOrderQ = BinaryDvConfirmedQuery.fromWildcardQuery(
+            Queries.ALL_DOCS_INSTANCE,
+            "field",
+            pattern,
+            false,
+            true,
+            NoopCircuitBreaker.INSTANCE
+        );
         assertNotEquals(csQ, arrayOrderQ);
         assertNotEquals(csQ.hashCode(), arrayOrderQ.hashCode());
     }

@@ -251,7 +251,7 @@ public final class ExternalSourceSettings {
      * runs one long-lived segmentator that pins a pool thread while it blocks on its chunk/buffer queues and the
      * upstream decompress stream; its per-chunk parser tasks run on the same pool. Without a cap, enough
      * concurrently-open reads pin every pool thread and their parser tasks — queued behind the segmentators — never
-     * get a thread, deadlocking the reads (elastic/esql-planning #1093, item 4). Bounding concurrent segmentators
+     * get a thread, deadlocking the reads. Bounding concurrent segmentators
      * below the pool size guarantees threads remain free for parser tasks.
      * <p>
      * Default {@code 0} means "derive": the effective cap tracks the {@code esql_external_io} pool size
@@ -318,8 +318,14 @@ public final class ExternalSourceSettings {
 
     /**
      * How many files split discovery lists on its first attempt when the query's row demand can be covered by a
-     * prefix of the dataset. Default: 1,000 - one page of keys on the object stores this reads, so the attempt costs
-     * one request where listing the dataset costs one per page, and far more files than a small LIMIT needs.
+     * prefix of the dataset. Default: 1,000 - far more files than a small LIMIT needs.
+     * <p>
+     * It counts matching files, not keys the store returns, so the request cost of an attempt is not bounded by it,
+     * and how far apart the two run depends on the provider. Where the pattern offers a literal name prefix and the
+     * provider narrows on it, the store returns only the keys under that prefix; S3 and the local filesystem do
+     * that, and the providers that take the interface default instead return every key under the prefix the glob
+     * sits beneath, one page per thousand keys, and select afterwards. What caps keys is
+     * {@code max_listed_objects}.
      * <p>
      * Not a cap and not a correctness setting: how many rows a file holds is only known from its footer, after the
      * listing, so a prefix that turns out to hold too few rows is discarded and the dataset is listed in full. Lower
@@ -438,8 +444,8 @@ public final class ExternalSourceSettings {
      * Fields a format reader may materialise while resolving a file's schema before it refuses the file, counting
      * every object and leaf field the way {@code index.mapping.total_fields.limit} does. A small file can describe a
      * schema far larger than itself, and schema resolution runs on the coordinating node during planning. This is
-     * the node-wide default for schema inference, read by the NDJSON reader today and meant for every format that
-     * infers a schema; a dataset overrides it with its {@code schema_max_fields} key, as an index overrides its
+     * the node-wide default for schema inference, read by the NDJSON, CSV, TSV and Parquet readers (ORC does not
+     * enforce it yet); a dataset overrides it with its {@code schema_max_fields} key, as an index overrides its
      * mapping limit. Readers capture it from the node settings, so a change needs a restart.
      */
     public static final Setting<Integer> SCHEMA_MAX_FIELDS = Setting.intSetting(
@@ -652,6 +658,20 @@ public final class ExternalSourceSettings {
         }
     }
 
+    /**
+     * When true (default), a byte-budget FIFO head that has waited the rescue window without a
+     * grant is admitted over the cap as a plain hold. The rescue is a logged possible-stall
+     * signal (WARN plus {@code es.esql.datasources.admission.rescues.total}), not a substitute
+     * for one ticket per row group. Disable to observe a hang for diagnosis. Dynamic so a
+     * cluster can toggle it without restart.
+     */
+    public static final Setting<Boolean> ADMISSION_RESCUE_ENABLED = Setting.boolSetting(
+        "esql.external.admission.rescue.enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static List<Setting<?>> settings() {
         return List.of(
             MAX_CONCURRENT_REQUESTS,
@@ -664,6 +684,7 @@ public final class ExternalSourceSettings {
             MAX_DECOMPRESSION_RATIO,
             MAX_DECOMPRESSION_RATIO_ZSTD,
             SCHEMA_MAX_FIELDS,
+            ADMISSION_RESCUE_ENABLED,
             WORKLOAD_IDENTITY_ENABLED,
             WORKLOAD_IDENTITY_ENABLED_OLD,
             MANAGED_IDENTITY_ENABLED,

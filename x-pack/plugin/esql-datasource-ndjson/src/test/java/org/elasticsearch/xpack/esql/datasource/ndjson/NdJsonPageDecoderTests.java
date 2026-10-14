@@ -220,7 +220,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
                 assertEquals(1, page.getPositionCount());
             }
         }
-        assertEquals(List.of(SkipWarnings.absentDeclaredColumnMessage("spin_id")), warnings);
+        assertEquals(List.of(SkipWarnings.absentColumnMessage("spin_id")), warnings);
     }
 
     /**
@@ -2395,7 +2395,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
      * {@code nextToken} that opens a record. A bare oversized scalar on its own line — no enclosing object — trips
      * the second one, which every other test here leaves unexercised.
      * <p>
-     * Asserted differentially against a bare scalar that is perfectly VALID (elastic/esql-planning#1731 fix):
+    * Asserted differentially against a bare scalar that is perfectly VALID ( fix):
      * both must drop only the bad line and keep the record that follows it. This is a paired assertion so that
      * fixing one arm while leaving the other behind fails this test immediately — the two must always agree.
      */
@@ -2423,7 +2423,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     /**
-     * A bare JSON number on its own NDJSON line (elastic/esql-planning#1731) must drop only itself. The record
+    * A bare JSON number on its own NDJSON line must drop only itself. The record
      * that follows it must survive — before the fix, the recovery logic consumed the line terminator while
      * scanning the number, then scanned forward again and swallowed the following record.
      * <p>
@@ -2576,7 +2576,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
 
     /**
      * Bare scalars other than numbers — quoted strings, booleans, null, arrays — already recovered correctly
-     * before elastic/esql-planning#1731, because their tokenizers do not consume the line terminator as a
+    * before , because their tokenizers do not consume the line terminator as a
      * lookahead byte. Verifies the fix did not regress them.
      */
     public void testOtherBareScalarsRecoverCorrectly() throws IOException {
@@ -2675,7 +2675,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
      * An invalid bare token (not a JSON object; one whose tokenizer advances past the line terminator without
      * bumping Jackson's line counter) must drop only itself, not the following record. Exercises the streaming
      * path, which uses {@link NdJsonUtils#moveToNextLine} with the {@link NdJsonUtils.LineTerminatorTrackingStream}
-     * guard added for elastic/esql-planning#1704.
+     * guard for tokenizer line-terminator handling.
      * <p>
      * Tokens covered: every identifier-like token whose rejection path in Jackson consumes the newline as the
      * first non-{@link Character#isJavaIdentifierPart} byte, plus the lone {@code -} case that goes through
@@ -2683,7 +2683,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
      * {@link #testBareNumberDropsSelf}.
      */
     public void testInvalidBareTokenDropsSelf() throws IOException {
-        // https://github.com/elastic/esql-planning/issues/1704
+        //
         for (String badToken : List.of("not_json", "nul", "tru", "falsey", "n", "nan", "Infinityx", "-")) {
             for (ErrorPolicy policy : List.of(ErrorPolicy.PERMISSIVE, ErrorPolicy.LENIENT)) {
                 String ndjson = "{\"v\":1}\n" + badToken + "\n{\"v\":2}\n{\"v\":3}\n";
@@ -2724,7 +2724,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
      * {@link NdJsonUtils#moveToNextLine}.
      */
     public void testInvalidBareTokenDropsSelfByteArray() throws IOException {
-        // https://github.com/elastic/esql-planning/issues/1704
+        //
         for (String badToken : List.of("not_json", "nul", "tru", "falsey", "n", "nan", "Infinityx", "-")) {
             for (ErrorPolicy policy : List.of(ErrorPolicy.PERMISSIVE, ErrorPolicy.LENIENT)) {
                 String ndjson = "{\"v\":1}\n" + badToken + "\n{\"v\":2}\n{\"v\":3}\n";
@@ -2773,7 +2773,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
      * in the spec.
      */
     public void testConsecutiveInvalidBareTokensDropThemselves() throws IOException {
-        // https://github.com/elastic/esql-planning/issues/1704
+        //
         String ndjson = "{\"v\":1}\nnot_json\nnul\n{\"v\":2}\n";
         for (ErrorPolicy policy : List.of(ErrorPolicy.PERMISSIVE, ErrorPolicy.LENIENT)) {
             NdJsonReaderCounters counters = new NdJsonReaderCounters();
@@ -2807,7 +2807,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
      * {@link #testBareNumberWithCrAndCrlfLineEndings}.
      */
     public void testInvalidBareTokenWithCrAndCrlfLineEndings() throws IOException {
-        // https://github.com/elastic/esql-planning/issues/1704
+        //
         for (String eol : List.of("\r", "\r\n")) {
             String tag = eol.equals("\r") ? "CR" : "CRLF";
             for (ErrorPolicy policy : List.of(ErrorPolicy.PERMISSIVE, ErrorPolicy.LENIENT)) {
@@ -2891,7 +2891,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
      * not a terminator), hits EOF, and exits cleanly.
      */
     public void testInvalidBareTokenAtEofDropsSelf() throws IOException {
-        // https://github.com/elastic/esql-planning/issues/1704
+        //
         String ndjson = "{\"v\":1}\nnot_json"; // no trailing \n
         for (ErrorPolicy policy : List.of(ErrorPolicy.PERMISSIVE, ErrorPolicy.LENIENT)) {
             NdJsonReaderCounters counters = new NdJsonReaderCounters();

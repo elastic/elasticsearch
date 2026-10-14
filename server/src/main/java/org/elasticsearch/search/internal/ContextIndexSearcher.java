@@ -57,7 +57,6 @@ import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
@@ -65,7 +64,6 @@ import java.util.stream.Collectors;
  */
 public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private static final MatchNoDocsQuery REWRITE_TIMEOUT = new MatchNoDocsQuery("rewrite timed out");
-    private static final Releasable NOOP_RELEASABLE = () -> {};
 
     /**
      * The interval at which we check for search cancellation when we cannot use
@@ -80,10 +78,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private AggregatedDfs aggregatedDfs;
     private QueryProfiler profiler;
 
-    @Nullable
-    private CircuitBreaker circuitBreaker;
-
-    private final AtomicReference<LeafExecutionAccounting> leafExecutionAccounting = new AtomicReference<>();
+    /** Shared with the searchers derived by {@link #withQueryCache}; only the searcher that created it sets the breaker and closes it. */
+    private final ExecutionAccounting executionAccounting;
+    private final boolean ownsExecutionAccounting;
 
     private final MutableQueryTimeout cancellable;
 
@@ -131,7 +128,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         );
     }
 
-    @SuppressWarnings("this-escape")
     ContextIndexSearcher(
         IndexReader reader,
         Similarity similarity,
@@ -143,6 +139,33 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         int maximumNumberOfSlices,
         int minimumDocsPerSlice
     ) throws IOException {
+        this(
+            reader,
+            similarity,
+            queryCache,
+            queryCachingPolicy,
+            cancellable,
+            wrapWithExitableDirectoryReader,
+            executor,
+            maximumNumberOfSlices,
+            minimumDocsPerSlice,
+            null
+        );
+    }
+
+    @SuppressWarnings("this-escape")
+    private ContextIndexSearcher(
+        IndexReader reader,
+        Similarity similarity,
+        QueryCache queryCache,
+        QueryCachingPolicy queryCachingPolicy,
+        MutableQueryTimeout cancellable,
+        boolean wrapWithExitableDirectoryReader,
+        Executor executor,
+        int maximumNumberOfSlices,
+        int minimumDocsPerSlice,
+        @Nullable ExecutionAccounting sharedExecutionAccounting
+    ) throws IOException {
         super(wrapWithExitableDirectoryReader ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader, executor);
         this.hasExecutor = executor != null;
         setSimilarity(similarity);
@@ -151,6 +174,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         this.cancellable = cancellable;
         this.minimumDocsPerSlice = minimumDocsPerSlice;
         this.maximumNumberOfSlices = maximumNumberOfSlices;
+        this.ownsExecutionAccounting = sharedExecutionAccounting == null;
+        this.executionAccounting = ownsExecutionAccounting ? new ExecutionAccounting(getLeafContexts().size()) : sharedExecutionAccounting;
     }
 
     /**
@@ -175,11 +200,10 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     public void setCircuitBreaker(@Nullable CircuitBreaker circuitBreaker) {
-        LeafExecutionAccounting previous = leafExecutionAccounting.getAndSet(null);
-        if (previous != null) {
-            previous.close();
+        if (ownsExecutionAccounting == false) {
+            throw new IllegalStateException("a searcher derived with withQueryCache uses the circuit breaker of the searcher it came from");
         }
-        this.circuitBreaker = circuitBreaker;
+        executionAccounting.setBreaker(circuitBreaker);
     }
 
     /**
@@ -188,7 +212,26 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      */
     @Nullable
     public static CircuitBreaker circuitBreakerOrNull(IndexSearcher searcher) {
-        return searcher instanceof ContextIndexSearcher cis ? cis.circuitBreaker : null;
+        return searcher instanceof ContextIndexSearcher cis ? cis.executionAccounting.breaker() : null;
+    }
+
+    /**
+     * Returns a searcher over the same reader that uses {@code queryCache} and shares this searcher's request circuit breaker and
+     * execution accounting. The execution memory its weights charge is released when this searcher is closed.
+     */
+    public ContextIndexSearcher withQueryCache(QueryCache queryCache) throws IOException {
+        return new ContextIndexSearcher(
+            getIndexReader(),
+            getSimilarity(),
+            queryCache,
+            getQueryCachingPolicy(),
+            new MutableQueryTimeout(),
+            false,
+            null,
+            -1,
+            -1,
+            executionAccounting
+        );
     }
 
     /**
@@ -248,9 +291,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         // of memory.
         this.cancellable.clear();
 
-        LeafExecutionAccounting accounting = leafExecutionAccounting.getAndSet(null);
-        if (accounting != null) {
-            accounting.close();
+        if (ownsExecutionAccounting) {
+            executionAccounting.close();
         }
     }
 
@@ -321,42 +363,25 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         }
 
         PointRangeQuery pointRangeQuery = pointRangeQueryOrNull(query);
-        if (circuitBreaker != null && pointRangeQuery != null) {
-            getOrCreateLeafExecutionAccounting();
+        if (executionAccounting.breaker() != null && pointRangeQuery != null) {
+            executionAccounting.ensureCreated();
             return new PointRangeBreakerWeight(this, weight, pointRangeQuery, query instanceof IndexOrDocValuesQuery);
         }
         Query multiTermQuery = multiTermQueryOrNull(unwrapBoost(query));
-        if (circuitBreaker != null && multiTermQuery != null) {
-            getOrCreateLeafExecutionAccounting();
+        if (executionAccounting.breaker() != null && multiTermQuery != null) {
+            executionAccounting.ensureCreated();
             return new MultiTermBreakerWeight(this, weight, multiTermQuery, unwrapBoost(query) instanceof IndexOrDocValuesQuery);
         }
         return weight;
     }
 
     void chargeLeaf(LeafReaderContext ctx, long bytes, String label) {
-        LeafExecutionAccounting accounting = getOrCreateLeafExecutionAccounting();
-        if (accounting != null) {
-            accounting.charge(ctx, bytes, label);
-        }
-    }
-
-    @Nullable
-    private LeafExecutionAccounting getOrCreateLeafExecutionAccounting() {
-        LeafExecutionAccounting existing = leafExecutionAccounting.get();
-        if (existing != null) {
-            return existing;
-        }
-        CircuitBreaker breaker = this.circuitBreaker;
-        if (breaker == null) {
-            return null;
-        }
-        LeafExecutionAccounting created = new LeafExecutionAccounting(breaker, getLeafContexts().size());
-        return leafExecutionAccounting.compareAndSet(null, created) ? created : leafExecutionAccounting.get();
+        executionAccounting.charge(ctx, bytes, label);
     }
 
     /** Test-only */
     boolean hasLeafExecutionAccounting() {
-        return leafExecutionAccounting.get() != null;
+        return executionAccounting.hasLeafAccounting();
     }
 
     private static PointRangeQuery pointRangeQueryOrNull(Query query) {
@@ -591,8 +616,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     protected void searchLeaf(LeafReaderContext ctx, int minDocId, int maxDocId, Weight weight, Collector collector) throws IOException {
         cancellable.checkCancelled();
 
-        final LeafExecutionAccounting accounting = this.leafExecutionAccounting.get();
-        try (Releasable ignored = accounting == null ? NOOP_RELEASABLE : accounting.enterLeaf(ctx)) {
+        try (Releasable ignored = executionAccounting.enterLeaf(ctx)) {
             final LeafCollector leafCollector;
             try {
                 leafCollector = collector.getLeafCollector(ctx);

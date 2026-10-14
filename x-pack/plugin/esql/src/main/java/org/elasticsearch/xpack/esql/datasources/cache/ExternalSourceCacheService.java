@@ -21,6 +21,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.ColumnStatTypeSupport;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
@@ -585,13 +586,15 @@ public class ExternalSourceCacheService implements Closeable {
         SubscribableListener<FileList> existing = inFlightListings.putIfAbsent(key, newFuture);
         if (existing != null) {
             // Follower: if the leader was cancelled, retry rather than inheriting its TaskCancelledException.
-            existing.addListener(ActionListener.wrap(listener::onResponse, e -> {
+            // The leader's thread completes this listener, so it is metered for the follower's own query: both the
+            // follower's continuation and the listing its retry computes are planning CPU of the follower.
+            existing.addListener(PlanningCpuTracker.inheritMeteredCpu(listener.delegateResponse((l, e) -> {
                 if (e instanceof TaskCancelledException) {
-                    getOrComputeListingAsync(key, compute, listener);
+                    getOrComputeListingAsync(key, compute, l);
                 } else {
-                    listener.onFailure(e);
+                    l.onFailure(e);
                 }
-            }));
+            })));
             return;
         }
         // Re-check the cache after acquiring leadership: a concurrent leader may have completed and removed

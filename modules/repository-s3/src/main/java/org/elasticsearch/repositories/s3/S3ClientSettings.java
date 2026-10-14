@@ -163,6 +163,19 @@ final class S3ClientSettings {
         key -> Setting.timeSetting(key, Defaults.TRANSLOG_UPLOAD_ATTEMPT_TIMEOUT, Property.NodeScope)
     );
 
+    /**
+     * The maximum time for a whole translog upload call, including all its attempts. See also
+     * <a href="https://docs.aws.amazon.com/sdk-for-java/latest/developer-guide/timeouts.html">AWS SDK docs on call timeouts</a>.
+     * Like {@link #API_CALL_TIMEOUT_SETTING} this bounds the whole call, but it is only applicable only to translog uploads.
+     * It should be set larger than {@code (max_retries + 1)} times {@link #TRANSLOG_UPLOAD_ATTEMPT_TIMEOUT_SETTING}, otherwise it can
+     * overtake the retries.
+     */
+    static final Setting.AffixSetting<TimeValue> TRANSLOG_UPLOAD_CALL_TIMEOUT_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "translog_upload_call_timeout",
+        key -> Setting.timeSetting(key, Defaults.TRANSLOG_UPLOAD_CALL_TIMEOUT, Property.NodeScope)
+    );
+
     /** Formerly whether retries should be throttled (ie use backoff), now unused. V2 AWS SDK always uses throttling. */
     @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // no longer used, should be removed in v10
     static final Setting.AffixSetting<Boolean> UNUSED_USE_THROTTLE_RETRIES_SETTING = Setting.affixKeySetting(
@@ -289,6 +302,11 @@ final class S3ClientSettings {
      */
     final TimeValue translogUploadAttemptTimeout;
 
+    /**
+     * The maximum time for a whole translog upload operation, including all its attempts
+     */
+    final TimeValue translogUploadCallTimeout;
+
     /** Whether the s3 client should use path style access. */
     final boolean pathStyleAccess;
 
@@ -325,6 +343,7 @@ final class S3ClientSettings {
         int maxRetries,
         TimeValue apiCallTimeout,
         TimeValue translogUploadAttemptTimeout,
+        TimeValue translogUploadCallTimeout,
         boolean pathStyleAccess,
         boolean disableChunkedEncoding,
         boolean addPurposeCustomQueryParameter,
@@ -347,6 +366,7 @@ final class S3ClientSettings {
         this.maxRetries = maxRetries;
         this.apiCallTimeout = apiCallTimeout;
         this.translogUploadAttemptTimeout = translogUploadAttemptTimeout;
+        this.translogUploadCallTimeout = translogUploadCallTimeout;
         this.pathStyleAccess = pathStyleAccess;
         this.disableChunkedEncoding = disableChunkedEncoding;
         this.addPurposeCustomQueryParameter = addPurposeCustomQueryParameter;
@@ -381,6 +401,11 @@ final class S3ClientSettings {
             TRANSLOG_UPLOAD_ATTEMPT_TIMEOUT_SETTING,
             normalizedSettings,
             translogUploadAttemptTimeout
+        );
+        final TimeValue newTranslogUploadCallTimeout = getRepoSettingOrDefault(
+            TRANSLOG_UPLOAD_CALL_TIMEOUT_SETTING,
+            normalizedSettings,
+            translogUploadCallTimeout
         );
         final boolean newPathStyleAccess = getRepoSettingOrDefault(USE_PATH_STYLE_ACCESS, normalizedSettings, pathStyleAccess);
         final boolean newDisableChunkedEncoding = getRepoSettingOrDefault(
@@ -432,6 +457,7 @@ final class S3ClientSettings {
             && maxRetries == newMaxRetries
             && apiCallTimeout.equals(newApiCallTimeout)
             && translogUploadAttemptTimeout.equals(newTranslogUploadAttemptTimeout)
+            && translogUploadCallTimeout.equals(newTranslogUploadCallTimeout)
             && Objects.equals(credentials, newCredentials)
             && newPathStyleAccess == pathStyleAccess
             && newDisableChunkedEncoding == disableChunkedEncoding
@@ -457,6 +483,7 @@ final class S3ClientSettings {
             newMaxRetries,
             newApiCallTimeout,
             newTranslogUploadAttemptTimeout,
+            newTranslogUploadCallTimeout,
             newPathStyleAccess,
             newDisableChunkedEncoding,
             newAddPurposeCustomQueryParameter,
@@ -571,6 +598,7 @@ final class S3ClientSettings {
                 getConfigValue(settings, clientName, MAX_RETRIES_SETTING),
                 getConfigValue(settings, clientName, API_CALL_TIMEOUT_SETTING),
                 getConfigValue(settings, clientName, TRANSLOG_UPLOAD_ATTEMPT_TIMEOUT_SETTING),
+                getConfigValue(settings, clientName, TRANSLOG_UPLOAD_CALL_TIMEOUT_SETTING),
                 getConfigValue(settings, clientName, USE_PATH_STYLE_ACCESS),
                 getConfigValue(settings, clientName, DISABLE_CHUNKED_ENCODING),
                 getConfigValue(settings, clientName, ADD_PURPOSE_CUSTOM_QUERY_PARAMETER),
@@ -598,6 +626,7 @@ final class S3ClientSettings {
             && maxRetries == that.maxRetries
             && apiCallTimeout == that.apiCallTimeout
             && Objects.equals(translogUploadAttemptTimeout, that.translogUploadAttemptTimeout)
+            && Objects.equals(translogUploadCallTimeout, that.translogUploadCallTimeout)
             && Objects.equals(credentials, that.credentials)
             && Objects.equals(protocol, that.protocol)
             && Objects.equals(endpoint, that.endpoint)
@@ -629,6 +658,7 @@ final class S3ClientSettings {
             maxRetries,
             apiCallTimeout,
             translogUploadAttemptTimeout,
+            translogUploadCallTimeout,
             maxConnections,
             disableChunkedEncoding,
             addPurposeCustomQueryParameter,
@@ -659,6 +689,7 @@ final class S3ClientSettings {
         static final TimeValue API_CALL_TIMEOUT = TimeValue.MINUS_ONE; // default to no API call timeout
         static final TimeValue TRANSLOG_UPLOAD_ATTEMPT_TIMEOUT = TimeValue.MINUS_ONE; // default to no call-attempt timeout for translog
                                                                                       // uploads
+        static final TimeValue TRANSLOG_UPLOAD_CALL_TIMEOUT = TimeValue.MINUS_ONE; // default to no call timeout for translog uploads
     }
 
 }

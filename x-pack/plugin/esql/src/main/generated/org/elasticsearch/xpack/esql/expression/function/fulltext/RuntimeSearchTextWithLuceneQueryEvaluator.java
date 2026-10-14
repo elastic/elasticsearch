@@ -21,6 +21,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.mapper.CandidateValues;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
@@ -38,6 +39,8 @@ public final class RuntimeSearchTextWithLuceneQueryEvaluator implements Expressi
 
   private final Query query;
 
+  private final CandidateValues candidates;
+
   private final MemoryIndex memoryIndex;
 
   private final BytesRef scratch;
@@ -47,12 +50,13 @@ public final class RuntimeSearchTextWithLuceneQueryEvaluator implements Expressi
   private Warnings warnings;
 
   public RuntimeSearchTextWithLuceneQueryEvaluator(Source source, ExpressionEvaluator fieldBlock,
-      Analyzer analyzer, Query query, MemoryIndex memoryIndex, BytesRef scratch,
-      DriverContext driverContext) {
+      Analyzer analyzer, Query query, CandidateValues candidates, MemoryIndex memoryIndex,
+      BytesRef scratch, DriverContext driverContext) {
     this.source = source;
     this.fieldBlock = fieldBlock;
     this.analyzer = analyzer;
     this.query = query;
+    this.candidates = candidates;
     this.memoryIndex = memoryIndex;
     this.scratch = scratch;
     this.driverContext = driverContext;
@@ -76,7 +80,7 @@ public final class RuntimeSearchTextWithLuceneQueryEvaluator implements Expressi
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendBoolean(RuntimeSearch.processText(p, fieldBlockBlock, this.analyzer, this.query, this.memoryIndex, this.scratch));
+          result.appendBoolean(RuntimeSearch.processText(p, fieldBlockBlock, this.analyzer, this.query, this.candidates, this.memoryIndex, this.scratch));
         } catch (IOException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -88,7 +92,7 @@ public final class RuntimeSearchTextWithLuceneQueryEvaluator implements Expressi
 
   @Override
   public String toString() {
-    return "RuntimeSearchTextWithLuceneQueryEvaluator[" + "fieldBlock=" + fieldBlock + ", analyzer=" + analyzer + ", query=" + query + "]";
+    return "RuntimeSearchTextWithLuceneQueryEvaluator[" + "fieldBlock=" + fieldBlock + ", analyzer=" + analyzer + ", query=" + query + ", candidates=" + candidates + "]";
   }
 
   @Override
@@ -112,29 +116,32 @@ public final class RuntimeSearchTextWithLuceneQueryEvaluator implements Expressi
 
     private final Query query;
 
+    private final CandidateValues candidates;
+
     private final Function<DriverContext, MemoryIndex> memoryIndex;
 
     private final Function<DriverContext, BytesRef> scratch;
 
     public Factory(Source source, ExpressionEvaluator.Factory fieldBlock, Analyzer analyzer,
-        Query query, Function<DriverContext, MemoryIndex> memoryIndex,
+        Query query, CandidateValues candidates, Function<DriverContext, MemoryIndex> memoryIndex,
         Function<DriverContext, BytesRef> scratch) {
       this.source = source;
       this.fieldBlock = fieldBlock;
       this.analyzer = analyzer;
       this.query = query;
+      this.candidates = candidates;
       this.memoryIndex = memoryIndex;
       this.scratch = scratch;
     }
 
     @Override
     public RuntimeSearchTextWithLuceneQueryEvaluator get(DriverContext context) {
-      return new RuntimeSearchTextWithLuceneQueryEvaluator(source, fieldBlock.get(context), analyzer, query, memoryIndex.apply(context), scratch.apply(context), context);
+      return new RuntimeSearchTextWithLuceneQueryEvaluator(source, fieldBlock.get(context), analyzer, query, candidates, memoryIndex.apply(context), scratch.apply(context), context);
     }
 
     @Override
     public String toString() {
-      return "RuntimeSearchTextWithLuceneQueryEvaluator[" + "fieldBlock=" + fieldBlock + ", analyzer=" + analyzer + ", query=" + query + "]";
+      return "RuntimeSearchTextWithLuceneQueryEvaluator[" + "fieldBlock=" + fieldBlock + ", analyzer=" + analyzer + ", query=" + query + ", candidates=" + candidates + "]";
     }
   }
 }

@@ -411,7 +411,6 @@ public class EsqlSession {
     /**
      * Execute an ESQL request.
      */
-    @SuppressForbidden(reason = "TODO: replace with better controls on how much a query expanded with views can grow")
     public void execute(
         EsqlQueryRequest request,
         EsqlExecutionInfo executionInfo,
@@ -428,6 +427,7 @@ public class EsqlSession {
         planningCpu.meteredCpu(() -> doExecute(request, executionInfo, planRunner, cancellation, listener));
     }
 
+    @SuppressForbidden(reason = "TODO: replace with better controls on how much a query expanded with views can grow")
     private void doExecute(
         EsqlQueryRequest request,
         EsqlExecutionInfo executionInfo,

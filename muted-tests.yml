@@ -578,8 +578,6 @@ tests:
 - class: org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLifecycleTests
   method: testLifecycleEnabledByDefaultSerialization
   issue: https://github.com/elastic/elasticsearch/issues/161848
-- class: org.elasticsearch.xpack.esql.action.ExternalProvenanceParityIT
-  issue: https://github.com/elastic/elasticsearch/issues/161850
 - class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
   method: testShardMultiGetFromTranslogRetries
   issue: https://github.com/elastic/elasticsearch/issues/161855

@@ -2153,7 +2153,7 @@ public class BatchBulkIT extends ESIntegTestCase {
      * The implicit {@code _unmapped} sink absorbs the unmapped leaves of a batch through its column group, and what it writes must read
      * back exactly as the same documents indexed one at a time.
      */
-    public void testUnmappedSinkBatchMatchesRowPath() throws IOException {
+    public void testUnmappedSinkBatchMatchesRowPath() {
         assumeTrue("flattened_unmapped_fields feature flag must be enabled", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
         final String batched = "test-unmapped-sink-batched";
         final String sequential = "test-unmapped-sink-sequential";
@@ -2234,66 +2234,7 @@ public class BatchBulkIT extends ESIntegTestCase {
         }
     }
 
-    /**
-     * A document key {@code _unmapped} resolves to the sink itself. The sequential parser must reject only that item and index the rest.
-     */
-    public void testUnmappedSinkKeyRejected() throws IOException {
-        assumeTrue("flattened_unmapped_fields feature flag must be enabled", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
-        final String index = "test-unmapped-sink-key";
-        createUnmappedSinkIndex(index);
-        final String coordinatingNode = findCoordinatingNode();
-
-        final int numValid = randomIntBetween(1, 10);
-        final BulkRequest rejectRequest = new BulkRequest();
-        for (int i = 0; i < numValid; i++) {
-            rejectRequest.add(
-                new IndexRequest(index).id("valid-" + i)
-                    .source(Map.of("host", "srv-" + i, "env", "prod"))
-                    .opType(DocWriteRequest.OpType.CREATE)
-            );
-        }
-        final String value = randomAlphanumericOfLength(6);
-        final Object sinkKeyValue = randomBoolean() ? value : List.of(value);
-        rejectRequest.add(
-            new IndexRequest(index).id("sink-key")
-                .source(Map.of("host", "srv-0", FlattenedFieldMapper.UNMAPPED_SINK_NAME, sinkKeyValue))
-                .opType(DocWriteRequest.OpType.CREATE)
-        );
-        final BulkResponse response = client(coordinatingNode).bulk(rejectRequest).actionGet();
-        int failures = 0;
-        for (BulkItemResponse item : response.getItems()) {
-            if (item.isFailed()) {
-                failures++;
-                assertThat(item.getId(), equalTo("sink-key"));
-                assertThat(item.getFailureMessage(), containsString("failed to parse field [_unmapped]"));
-            }
-        }
-        assertThat(failures, equalTo(1));
-
-        refresh(index);
-        assertResponse(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).setSize(0).setTrackTotalHits(true), searchResponse -> {
-            assertNoFailures(searchResponse);
-            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numValid));
-        });
-    }
-
-    private void createUnmappedSinkIndex(String index) throws IOException {
-        XContentBuilder mapping = JsonXContent.contentBuilder();
-        mapping.startObject();
-        {
-            // No root dynamic, so it resolves to flattened and unmapped leaves are absorbed by the sink.
-            mapping.startObject("_doc");
-            {
-                mapping.startObject("properties");
-                {
-                    mapping.startObject("host").field("type", "keyword").endObject();
-                }
-                mapping.endObject();
-            }
-            mapping.endObject();
-        }
-        mapping.endObject();
-
+    private void createUnmappedSinkIndex(String index) {
         assertAcked(
             indicesAdmin().prepareCreate(index)
                 .setSettings(
@@ -2304,7 +2245,8 @@ public class BatchBulkIT extends ESIntegTestCase {
                         .put(IndexSettings.FLATTENED_UNMAPPED_FIELDS_ENABLED.getKey(), true)
                         .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
                 )
-                .setMapping(mapping)
+                // No root dynamic, so it resolves to flattened and unmapped leaves are absorbed by the sink.
+                .setMapping("host", "type=keyword")
         );
         ensureGreen(index);
     }

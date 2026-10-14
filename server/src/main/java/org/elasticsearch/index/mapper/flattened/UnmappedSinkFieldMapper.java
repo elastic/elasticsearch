@@ -9,28 +9,39 @@
 
 package org.elasticsearch.index.mapper.flattened;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BatchMappingContext;
 import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.IndexType;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
 
 /**
  * The implicit {@code _unmapped} sink that absorbs unmapped fields on strict columnar indices as full dotted keys. It is a metadata field
  * so that its name is reserved like any other {@code _}-prefixed name: a user mapping named {@code _unmapped} fails the duplicate-name
  * check and a document key {@code _unmapped} is rejected by {@link MetadataFieldMapper#parseCreateField}. All flattened behavior comes
  * from a wrapped {@link FlattenedFieldMapper} built with no user parameters; the sink itself is never serialized.
+ * <p>
+ * The wrapped mapper's flattened field type is deliberately not the delegate's field type. A flattened type resolves
+ * {@code _unmapped.<key>} to an absorbed value in every field lookup, which would make absorbed values queryable in {@code _search} and
+ * readable past field-level security, since every {@code _}-prefixed name is granted. The sink exposes {@link UnmappedSinkFieldType}
+ * instead, so {@code _unmapped} resolves like {@code _ignored_source}: listed as a metadata field, neither searchable nor aggregatable,
+ * and nothing resolves under it.
  */
 public final class UnmappedSinkFieldMapper extends MetadataFieldMapper {
 
@@ -41,15 +52,41 @@ public final class UnmappedSinkFieldMapper extends MetadataFieldMapper {
     private final FlattenedFieldMapper delegate;
 
     private UnmappedSinkFieldMapper(FlattenedFieldMapper delegate) {
-        super(delegate.fieldType());
+        super(new UnmappedSinkFieldType());
         this.delegate = delegate;
     }
 
+    /**
+     * The field type of {@code _unmapped} itself: not indexed, without doc values and not a dynamic field type, so queries on it fail
+     * and no {@code _unmapped.<key>} name resolves. Absorbed values are read only through ES|QL under {@code SET unmapped_fields} and
+     * through {@code _source}.
+     */
+    static final class UnmappedSinkFieldType extends MappedFieldType {
+
+        private UnmappedSinkFieldType() {
+            super(FlattenedFieldMapper.UNMAPPED_SINK_NAME, IndexType.NONE, false, Map.of());
+        }
+
+        @Override
+        public String typeName() {
+            return FlattenedFieldMapper.UNMAPPED_SINK_NAME;
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            throw new IllegalArgumentException("Cannot fetch values for internal field [" + name() + "].");
+        }
+
+        @Override
+        public Query termQuery(Object value, SearchExecutionContext context) {
+            throw new IllegalArgumentException("Cannot search on field [" + name() + "] since it is not indexed.");
+        }
+    }
+
     private static FlattenedFieldMapper buildDelegate(MappingParserContext context) {
-        SourceFieldMapper.Mode sourceMode = context.getIndexSettings().getIndexMappingSourceMode();
-        boolean isSourceSynthetic = sourceMode == SourceFieldMapper.Mode.SYNTHETIC || sourceMode == SourceFieldMapper.Mode.COLUMNAR_STORED;
+        // Synthetic: the sink exists only in strict columnar index modes, which allow only synthetic or columnar_stored source.
         return (FlattenedFieldMapper) FlattenedFieldMapper.PARSER.parse(FlattenedFieldMapper.UNMAPPED_SINK_NAME, new HashMap<>(), context)
-            .build(MapperBuilderContext.root(isSourceSynthetic, false));
+            .build(MapperBuilderContext.root(true, false));
     }
 
     @Override

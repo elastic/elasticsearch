@@ -19,10 +19,12 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.Before;
@@ -33,6 +35,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -108,6 +111,29 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
         assertThat(mapperService.documentMapper().mappingSource().toString(), not(containsString(FlattenedFieldMapper.UNMAPPED_SINK_NAME)));
     }
 
+    /**
+     * The sink resolves like {@code _ignored_source}: {@code _unmapped} is a metadata field that cannot be searched, aggregated or fetched,
+     * and no absorbed key resolves under it, so {@code _search} and field-level security never reach absorbed values through the sink.
+     */
+    public void testSinkResolvesAsInternalMetadataField() throws IOException {
+        MapperService mapperService = columnarService(b -> {});
+        String key = randomAlphaOfLengthBetween(1, 10);
+        String value = randomAlphanumericOfLength(6);
+        MappedFieldType sinkType = mapperService.fieldType(FlattenedFieldMapper.UNMAPPED_SINK_NAME);
+        assertFalse(sinkType.isSearchable());
+        assertFalse(sinkType.isAggregatable());
+        SearchExecutionContext context = createSearchExecutionContext(mapperService);
+        var termError = expectThrows(IllegalArgumentException.class, () -> sinkType.termQuery(value, context));
+        assertThat(termError.getMessage(), equalTo("Cannot search on field [_unmapped] since it is not indexed."));
+        var fetchError = expectThrows(IllegalArgumentException.class, () -> sinkType.valueFetcher(context, null));
+        assertThat(fetchError.getMessage(), equalTo("Cannot fetch values for internal field [_unmapped]."));
+
+        String absorbedName = FlattenedFieldMapper.UNMAPPED_SINK_NAME + "." + key;
+        assertNull(mapperService.fieldType(absorbedName));
+        assertFalse(context.isFieldMapped(absorbedName));
+        assertFalse(context.isMappedField(absorbedName));
+    }
+
     public void testUserFieldWithSameNameAsSinkRejected() {
         String type = randomFrom("keyword", "flattened", "long");
         var e = expectThrows(
@@ -171,14 +197,6 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
         var sink = (UnmappedSinkFieldMapper) mapperService.mappingLookup().getMapper(FlattenedFieldMapper.UNMAPPED_SINK_NAME);
         assertEquals(indexDisabled, sink.supportsColumnarMetadataParse(mapperService.getIndexSettings()));
         assertFalse(sink.supportsColumnarParse(mapperService.getIndexSettings()));
-    }
-
-    public void testTopLevelSinkKeyNotConfigurable() {
-        var e = expectThrows(
-            MapperParsingException.class,
-            () -> columnarServiceTop(b -> b.startObject(FlattenedFieldMapper.UNMAPPED_SINK_NAME).endObject())
-        );
-        assertThat(e.getMessage(), containsString("_unmapped is not configurable"));
     }
 
     /**

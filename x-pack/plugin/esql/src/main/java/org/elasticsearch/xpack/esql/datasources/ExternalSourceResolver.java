@@ -1830,6 +1830,11 @@ public class ExternalSourceResolver {
      * happened to need silently dropped this source's statistics, warnings, widened columns and partition columns.
      * That mattered little while three first-file-wins call sites used it and matters generally now that the
      * may-narrow stamp passes every resolve through here.
+     * <p>
+     * The base passed here must carry no statistics: {@code ExternalRelation.toPhysicalExec} re-embeds
+     * {@code metadata.statistics()} over {@code sourceMetadata()} via
+     * {@link SourceStatisticsSerializer#embedStatistics}, so a non-empty {@code base.statistics()} would
+     * overwrite the aggregated row count. All current call sites pass a base with empty statistics.
      */
     private static ExternalSourceMetadata replaceSourceMetadata(ExternalSourceMetadata base, Map<String, Object> replacement) {
         return new ExternalSourceMetadata() {

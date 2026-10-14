@@ -2151,12 +2151,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     .put("index.slice.enabled", true)
             )
             .build();
-        TransportSearchAction.validateAndResolveSearchSliceRouting(
-            request,
-            Map.of(metadata.getIndex(), metadata),
-            request.indices(),
-            false
-        );
+        TransportSearchAction.validateAndResolveSearchSliceRouting(request, Map.of(metadata.getIndex(), metadata), request.indices());
         assertNull("omitting _slice on a slice-enabled index should default to _all (null routing)", request.routing());
     }
 
@@ -2177,18 +2172,16 @@ public class TransportSearchActionTests extends ESTestCase {
             () -> TransportSearchAction.validateAndResolveSearchSliceRouting(
                 request,
                 Map.of(metadata.getIndex(), metadata),
-                request.indices(),
-                false
+                request.indices()
             )
         );
         assertThat(e.getMessage(), containsString("[routing] is not allowed when [index.slice.enabled] is true"));
-        assertThat(e.getMessage(), containsString("use [slice] instead"));
+        assertThat(e.getMessage(), containsString("use [_slice] instead"));
     }
 
-    public void testValidateAndResolveSearchSliceRoutingRejectsSliceWhenDisabled() {
+    public void testValidateAndResolveSearchSliceRoutingAcceptsSliceWhenDisabled() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         SearchRequest request = new SearchRequest("slice-disabled-index");
-        request.routing("s1");
         request.searchSlice("s1");
         IndexMetadata metadata = IndexMetadata.builder("slice-disabled-index")
             .settings(
@@ -2197,16 +2190,14 @@ public class TransportSearchActionTests extends ESTestCase {
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             )
             .build();
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> TransportSearchAction.validateAndResolveSearchSliceRouting(
-                request,
-                Map.of(metadata.getIndex(), metadata),
-                request.indices(),
-                false
-            )
+        String requestedSlice = TransportSearchAction.validateAndResolveSearchSliceRouting(
+            request,
+            Map.of(metadata.getIndex(), metadata),
+            request.indices()
         );
-        assertThat(e.getMessage(), containsString("[slice] is not allowed when [index.slice.enabled] is false"));
+        assertEquals("s1", requestedSlice);
+        assertEquals("s1", request.routing());
+        assertTrue(request.isRoutingFromSlice());
     }
 
     public void testValidateAndResolveSearchSliceRoutingAcceptsMixedTargets() {
@@ -2232,8 +2223,7 @@ public class TransportSearchActionTests extends ESTestCase {
         String requestedSlice = TransportSearchAction.validateAndResolveSearchSliceRouting(
             request,
             Map.of(enabled.getIndex(), enabled, disabled.getIndex(), disabled),
-            request.indices(),
-            false
+            request.indices()
         );
         assertEquals("s1,s2", requestedSlice);
         assertEquals("s1,s2", request.routing());
@@ -2254,8 +2244,7 @@ public class TransportSearchActionTests extends ESTestCase {
         String requestedSlice = TransportSearchAction.validateAndResolveSearchSliceRouting(
             request,
             Map.of(enabled.getIndex(), enabled),
-            request.indices(),
-            false
+            request.indices()
         );
         assertEquals(SliceIndexing.SLICE_ALL, requestedSlice);
         assertNull(request.routing());
@@ -2266,7 +2255,7 @@ public class TransportSearchActionTests extends ESTestCase {
         SearchRequest request = new SearchRequest("remote:idx");
         request.routing("s1");
         request.searchSlice("s1");
-        String requestedSlice = TransportSearchAction.validateAndResolveSearchSliceRouting(request, Map.of(), request.indices(), true);
+        String requestedSlice = TransportSearchAction.validateAndResolveSearchSliceRouting(request, Map.of(), request.indices());
         assertEquals("s1", requestedSlice);
         assertEquals("s1", request.routing());
     }
@@ -2287,8 +2276,7 @@ public class TransportSearchActionTests extends ESTestCase {
         String requestedSlice = TransportSearchAction.validateAndResolveSearchSliceRouting(
             request,
             Map.of(enabled.getIndex(), enabled),
-            request.indices(),
-            false
+            request.indices()
         );
         assertNull(requestedSlice);
         assertNull(request.routing());
@@ -2311,8 +2299,7 @@ public class TransportSearchActionTests extends ESTestCase {
         String requestedSlice = TransportSearchAction.validateAndResolveSearchSliceRouting(
             request,
             Map.of(enabled.getIndex(), enabled),
-            request.indices(),
-            false
+            request.indices()
         );
         assertEquals("tenant-a", requestedSlice);
         assertEquals("tenant-a", request.searchSlice());

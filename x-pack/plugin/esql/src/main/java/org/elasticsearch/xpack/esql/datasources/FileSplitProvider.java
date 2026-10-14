@@ -772,9 +772,15 @@ public class FileSplitProvider implements SplitProvider {
             );
             List<PartitionFilterHintExtractor.PartitionFilterHint> narrowing = hints.isEmpty() ? null : hints;
             if (extents.boundsFileSet()) {
-                // Never the cache: what comes back is a prefix of the dataset, and the cache's entries are answers
-                // other queries are served whole. This query may read a prefix because its own demand is covered by
-                // one; the next query's demand is not this one's.
+                // Not the cache, though the key would hold it correctly now: the extent joins the listing cache
+                // identity (GlobExpander#listingCacheDiscriminator), so a prefix is addressed as a prefix and two
+                // queries asking one bound are asking one question. What stops it is the synchronous rail's
+                // follower handling, not the key. getOrComputeListing goes through Cache#computeIfAbsent, where a
+                // follower blocks on the leader's future and is handed the leader's exception, so a cancelled
+                // leader fails a query nobody cancelled - and a bounded scan is exactly the key many concurrent
+                // LIMIT queries would share. cachedListingAsync retries a follower past a leader's cancellation;
+                // this rail does not, and sharing here is worth nothing until it does. A read path left listing
+                // privately pays its own walk, which is slower and correct.
                 return listingService.expand(
                     pattern,
                     provider,

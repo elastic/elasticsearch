@@ -192,7 +192,9 @@ public class DatasetRegistryTests extends ESTestCase {
      * the former spelling {@code path} must not fire it.
      */
     public void testDeclaresRenamFromAnswersOnTheKeyNotTheText() {
-        assertTrue(DatasetRegistry.declaresRenameFrom("{\"mappings\":{\"properties\":{\"col\":{\"type\":\"keyword\",\"rename_from\":\"raw\"}}}}"));
+        assertTrue(
+            DatasetRegistry.declaresRenameFrom("{\"mappings\":{\"properties\":{\"col\":{\"type\":\"keyword\",\"rename_from\":\"raw\"}}}}")
+        );
         assertTrue(
             "second column spelling",
             DatasetRegistry.declaresRenameFrom(

@@ -116,7 +116,7 @@ public class ResolveDatasetShadowTests extends AnalyzerTestCase {
 
     /**
      * Shadow with no lenient match → falls through {@code ResolveDatasetShadow} unchanged. With the
-     * dataset's external relation as a sibling in a plain {@link UnionAll},
+     * dataset's external relation as a sibling branch of the {@link ViewUnionAll} the rewriter builds,
      * {@code StripDatasetShadowRelations} removes the unresolved shadow and the single-survivor union
      * collapses, leaving exactly the dataset's {@link ExternalRelation}.
      */
@@ -193,7 +193,7 @@ public class ResolveDatasetShadowTests extends AnalyzerTestCase {
     /**
      * Regression for the CPS view-over-dataset failure: a view whose body applies a pipeline stage to a
      * dataset produces, before analysis,
-     * {@code ViewUnionAll(NamedSubquery(Eval(UnionAll(external, datasetShadow))), viewShadow)}. When
+     * {@code ViewUnionAll(NamedSubquery(Eval(ViewUnionAll(external, datasetShadow))), viewShadow)}. When
      * neither shadow matches a linked index (both lenient entries are valid-but-empty), both shadows must
      * be stripped and both unions must collapse, leaving the {@code Eval} directly over the dataset's
      * {@link ExternalRelation} with no {@code UnionAll} anywhere in the plan. Folding either shadow into
@@ -261,9 +261,9 @@ public class ResolveDatasetShadowTests extends AnalyzerTestCase {
      * The mirror of {@link #testPipelineViewOverDatasetWithMatchedViewShadowAndEmptyDatasetShadow}: a
      * linked project holds an index named after the dataset but none named after the view, so the dataset
      * name resolves to both a dataset and a linked index. The matched dataset shadow stays as a second
-     * branch of the plain {@link UnionAll} beneath the view body's pipeline stage, while the empty view
-     * shadow is stripped and the {@link ViewUnionAll} collapses to the body alone. The surviving inner
-     * union is no longer nested inside another union, so it is legal.
+     * branch of the dataset {@link ViewUnionAll} beneath the view body's pipeline stage, while the empty
+     * view shadow is stripped and the view's {@link ViewUnionAll} collapses to the body alone. The
+     * surviving inner union is no longer nested inside another union, so it is legal.
      */
     public void testPipelineViewOverDatasetWithMatchedDatasetShadowAndEmptyViewShadow() {
         DatasetShadowRelation dsShadow = new DatasetShadowRelation(EMPTY, "ds", LinkedIndexPattern.Kind.OPTIONAL, "ds");
@@ -281,9 +281,11 @@ public class ResolveDatasetShadowTests extends AnalyzerTestCase {
 
         LogicalPlan plan = analyzer.analyze(viewUnion);
 
-        assertFalse("the view union should have collapsed, got: " + plan, containsNode(plan, ViewUnionAll.class));
-        assertEquals("expected the dataset union to survive, got: " + plan, 1, plainUnionCount(plan));
-        var survivingUnion = onlyNode(plan, UnionAll.class);
+        // Exactly one union survives: the dataset union. The view union's identity-carrying wrapper is gone —
+        // the survivor has no view branches, which is how the two unions are told apart now that both are
+        // ViewUnionAlls.
+        var survivingUnion = onlyNode(plan, ViewUnionAll.class);
+        assertTrue("the view union should have collapsed, got: " + plan, survivingUnion.viewBranchKeys().isEmpty());
         assertEquals(
             "expected the matched dataset shadow to survive as a second branch, got: " + plan,
             2,
@@ -417,15 +419,14 @@ public class ResolveDatasetShadowTests extends AnalyzerTestCase {
     }
 
     /**
-     * Regression: a plain {@link UnionAll} with both a strict {@link UnresolvedRelation} whose resolution is
-     * {@code EMPTY_SUBQUERY} (e.g. a CCS subquery that matched nothing) <em>and</em> a matched dataset shadow.
-     * After analysis the EMPTY_SUBQUERY branch is pruned by {@code PruneEmptyUnionAllBranch} while the shadow
+     * Regression: a dataset {@link ViewUnionAll} with both a strict {@link UnresolvedRelation} index branch whose
+     * resolution is {@code EMPTY_SUBQUERY} (e.g. a CCS subquery that matched nothing) <em>and</em> a matched dataset
+     * shadow. After analysis the EMPTY_SUBQUERY branch is pruned by {@code PruneEmptyUnionAllBranch} while the shadow
      * resolves to an {@link EsRelation} — the resolved {@code ds} shadow must SURVIVE the prune (the empty branch
      * disappearing must not strip the matched shadow with it). The dataset analog of
-     * {@code ResolveViewShadowTests.testPruneEmptySubqueryBranchPreservesShadowResolutionInViewUnionAll}, but over a
-     * plain {@link UnionAll} (datasets) rather than a {@code ViewUnionAll}. Since
-     * {@link UnionAll#pruneEmptyBranches} preserves single-survivor wrappers, the surviving plan is a single-child
-     * {@link UnionAll} carrying just the resolved {@code ds} branch.
+     * {@code ResolveViewShadowTests.testPruneEmptySubqueryBranchPreservesShadowResolutionInViewUnionAll}. Since
+     * {@link ViewUnionAll#pruneEmptyBranches} preserves single-survivor wrappers, the surviving plan is a single-child
+     * {@link ViewUnionAll} carrying just the resolved {@code ds} branch.
      */
     public void testPruneEmptySubqueryBranchPreservesShadowResolutionInDatasetUnionAll() {
         EsIndex remoteDs = EsIndexGenerator.esIndex(
@@ -435,16 +436,14 @@ public class ResolveDatasetShadowTests extends AnalyzerTestCase {
         );
         var analyzer = analyzer().addIndex("missing_idx", IndexResolution.EMPTY_SUBQUERY).addLenientResolution(remoteDs).buildAnalyzer();
 
-        LogicalPlan plan = analyzer.analyze(
-            new UnionAll(
-                EMPTY,
-                List.of(strictUR("missing_idx"), new DatasetShadowRelation(EMPTY, "ds", LinkedIndexPattern.Kind.OPTIONAL, "ds")),
-                List.of()
-            )
-        );
+        // The index branch takes the rewriter's null key; the shadow branch its dataset name.
+        LinkedHashMap<String, LogicalPlan> branches = new LinkedHashMap<>();
+        branches.put(null, strictUR("missing_idx"));
+        branches.put("ds", new DatasetShadowRelation(EMPTY, "ds", LinkedIndexPattern.Kind.OPTIONAL, "ds"));
+        LogicalPlan plan = analyzer.analyze(new ViewUnionAll(EMPTY, branches, Map.of(), List.of()));
 
         var limit = as(plan, Limit.class);
-        var unionAll = as(limit.child(), UnionAll.class);
+        var unionAll = as(limit.child(), ViewUnionAll.class);
         assertEquals("expected a single surviving child after pruning", 1, unionAll.children().size());
         var esRelation = as(unwrapProject(unionAll.children().getFirst()), EsRelation.class);
         assertEquals("ds", esRelation.indexPattern());
@@ -458,9 +457,17 @@ public class ResolveDatasetShadowTests extends AnalyzerTestCase {
         return new UnresolvedRelation(EMPTY, new IndexPattern(EMPTY, pattern), false, List.of(), IndexMode.STANDARD, null, "FROM");
     }
 
-    /** Build a plain {@link UnionAll} of the dataset's external relation and its shadow, mirroring DatasetRewriter. */
-    private static UnionAll unionOf(UnresolvedExternalRelation external, DatasetShadowRelation shadow) {
-        return new UnionAll(EMPTY, List.of(external, shadow), List.of());
+    /**
+     * Build a {@link ViewUnionAll} of the dataset's external relation and its shadow, mirroring DatasetRewriter:
+     * the dataset branch is keyed by its name with a DATASET identity; the shadow branch's key is uniquified
+     * against it and left with the default INDEX identity.
+     */
+    private static ViewUnionAll unionOf(UnresolvedExternalRelation external, DatasetShadowRelation shadow) {
+        String name = shadow.datasetName();
+        LinkedHashMap<String, LogicalPlan> branches = new LinkedHashMap<>();
+        branches.put(name, external);
+        branches.put(name + "#2", shadow);
+        return new ViewUnionAll(EMPTY, branches, Map.of(name, BranchIdentity.dataset(name)), List.of());
     }
 
     /** The {@link UnresolvedExternalRelation} the DatasetRewriter produces for a single dataset. */
@@ -483,7 +490,7 @@ public class ResolveDatasetShadowTests extends AnalyzerTestCase {
 
     /**
      * The pre-analysis shape produced for a view whose body applies a pipeline stage to a dataset:
-     * {@code ViewUnionAll(NamedSubquery(Eval(UnionAll(external, datasetShadow))), viewShadow)}. The
+     * {@code ViewUnionAll(NamedSubquery(Eval(ViewUnionAll(external, datasetShadow))), viewShadow)}. The
      * {@code Eval} between the two unions is what makes the shape interesting: view compaction only
      * flattens a union that is a direct child, so an inner union that survives here cannot be lifted.
      */

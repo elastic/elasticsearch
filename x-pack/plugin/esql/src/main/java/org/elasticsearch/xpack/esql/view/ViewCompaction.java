@@ -14,13 +14,11 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedMetadataAttributeExpression;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
-import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
-import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
@@ -91,8 +89,7 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
 
     /**
      * Phase 1, runs before {@code PreAnalyzer}. Converts user-written {@link UnionAll}s — view-related or not —
-     * into {@link ViewUnionAll}, recording a {@link BranchIdentity} per branch, and nothing else. The one shape left
-     * plain is a dataset-rewriter union without view branches; see {@link #toViewUnionAll} for why.
+     * into {@link ViewUnionAll}, recording a {@link BranchIdentity} per branch, and nothing else.
      * Every branch value is kept <em>verbatim</em>: no {@link Subquery}/{@link NamedSubquery} wrapper is
      * unwrapped or rewrapped here, because the analyzer's {@code ResolveSubqueryRelationColumns} rule reads
      * those wrappers to freeze {@code _class}/{@code _name}, and it must see them exactly as the parser and
@@ -253,12 +250,9 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
 
     /**
      * Converts a plain {@link UnionAll} into a {@link ViewUnionAll} with a {@link BranchIdentity} per branch. Every
-     * union is converted, whether or not views are involved — a literal subquery union gets SUBQUERY/INDEX identities —
-     * with one exception: a union carrying dataset artifacts ({@link DatasetShadowRelation}/
-     * {@link UnresolvedExternalRelation} children) without any view branches stays plain, because the dataset rules
-     * ({@code ResolveDatasetShadow}, {@code StripDatasetShadowRelations}, {@code PreAnalyzer}'s shadow pairing) own
-     * that shape and dispatch on it. That exception — and with it the plain {@code UnionAll} arm of the analyzer's
-     * metadata freeze — retires when the dataset rewriter adopts identities and emits {@link ViewUnionAll} directly.
+     * union is converted, whether or not views are involved — a literal subquery union gets SUBQUERY/INDEX identities.
+     * (Dataset unions never pass through here: {@code DatasetRewriter} emits identity-carrying {@link ViewUnionAll}s
+     * directly, and it is the only producer of unions with dataset branches.)
      *
      * @param preserveWrappers {@code true} in the pre-freeze phase ({@link #preIndexResolution}): branch values are
      *                         stored verbatim so the analyzer's metadata freeze still sees every wrapper. {@code false}
@@ -266,15 +260,6 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
      */
     private static LogicalPlan toViewUnionAll(UnionAll unionAll, boolean preserveWrappers) {
         if (unionAll instanceof ViewUnionAll) {
-            return unionAll;
-        }
-        boolean hasViewChildren = unionAll.children()
-            .stream()
-            .anyMatch(c -> c instanceof NamedSubquery || c instanceof ViewUnionAll || isSubqueryOfAView(c));
-        boolean hasDatasetChildren = unionAll.children()
-            .stream()
-            .anyMatch(c -> c instanceof DatasetShadowRelation || c instanceof UnresolvedExternalRelation);
-        if (hasDatasetChildren && hasViewChildren == false) {
             return unionAll;
         }
         LinkedHashMap<String, LogicalPlan> subPlans = new LinkedHashMap<>();

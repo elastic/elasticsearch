@@ -452,13 +452,15 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      *               $$x$converted_to$long{r$}#125 AS x#38, $$y$converted_to$long{r$}#126 AS y#41]]
      * \_Limit[1000[INTEGER],false,false]
      *   \_ViewUnionAll[[unnamed_view_1, unnamed_view_2, unnamed_view_3]]
-     *     |_Project[[_meta_field{f}#62, ..., x{r}#5, $$x$converted_to$long{r$}#119, y{r}#128, $$y$converted_to$long{r$}#120, z{r}#11, language_name{r}#86]]
+     *     |_Project[[_meta_field{f}#62, ..., x{r}#5, $$x$converted_to$long{r$}#119, y{r}#128, $$y$converted_to$long{r$}#120, z{r}#11,
+     *     |          language_name{r}#86]]
      *     | \_Filter[ISNOTNULL($$y$converted_to$long{r$}#120) AND z{r}#11 > 0[INTEGER]]
      *     |   \_Eval[[1[INTEGER] AS x#5, emp_no{f}#56 + 1[INTEGER] AS z#11, null[KEYWORD] AS language_name#86,
      *     |           1[LONG] AS $$x$converted_to$long#119, TOLONG(emp_no{f}#56) AS $$y$converted_to$long#120, null[KEYWORD] AS y#128]]
      *     |     \_Filter[salary{f}#61 < 100000[INTEGER]]
      *     |       \_EsRelation[test][_meta_field{f}#62, emp_no{f}#56, first_name{f}#57, ..]
-     *     |_Project[[_meta_field{r}#87, ..., x{r}#22, $$x$converted_to$long{r$}#121, y{r}#129, $$y$converted_to$long{r$}#122, z{r}#17, language_name{r}#98]]
+     *     |_Project[[_meta_field{r}#87, ..., x{r}#22, $$x$converted_to$long{r$}#121, y{r}#129, $$y$converted_to$long{r$}#122, z{r}#17,
+     *     |          language_name{r}#98]]
      *     | \_Filter[ISNOTNULL($$y$converted_to$long{r$}#122)]
      *     |   \_Eval[[1[INTEGER] AS x#22, null[...] AS <null-fills>..., 1[LONG] AS $$x$converted_to$long#121,
      *     |           TOLONG(y{r}#20) AS $$y$converted_to$long#122, null[KEYWORD] AS y#129]]

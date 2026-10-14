@@ -13,10 +13,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * What a {@link ViewUnionAll} branch <em>is</em>: a resolved view (with its name), a user-written subquery, or a bare
- * index pattern. Carried as first-class state on the union node — not inferred from transient {@link Subquery}/
- * {@link NamedSubquery} wrappers, whose survival depends on compaction decisions, and not from the branch map's keys,
- * which are uniquified ({@code "meow#2"}) and so are labels rather than names.
+ * What a {@link ViewUnionAll} branch <em>is</em>: a resolved view (with its name), a user-written subquery, a resolved
+ * dataset (with its name), or a bare index pattern. Carried as first-class state on the union node — not inferred from
+ * transient {@link Subquery}/{@link NamedSubquery} wrappers, whose survival depends on compaction decisions, and not
+ * from the branch map's keys, which are uniquified ({@code "meow#2"}) and so are labels rather than names.
  *
  * <p>An identity describes only its own nesting level, and it is the <em>durable</em> truth about that level: the kind
  * the boundary features consult (the request-filter rewriter targets {@code kind == VIEW} branches, {@code Mapper}
@@ -40,6 +40,15 @@ public record BranchIdentity(@Nullable String name, RelationClass kind, List<Str
 
     public static BranchIdentity view(String name) {
         return new BranchIdentity(name, RelationClass.VIEW, List.of(name));
+    }
+
+    /**
+     * A resolved dataset branch, as built by {@code DatasetRewriter}. Lineage stays empty: it records the chain of
+     * <em>view</em> names a branch passed through, and a dataset is not a view. A dataset piece inside a view body
+     * still promotes to the view's identity when lifted — see {@link #liftedThrough}.
+     */
+    public static BranchIdentity dataset(String name) {
+        return new BranchIdentity(name, RelationClass.DATASET, List.of());
     }
 
     public boolean isView() {

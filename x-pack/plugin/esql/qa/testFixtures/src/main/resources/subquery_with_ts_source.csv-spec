@@ -1182,15 +1182,16 @@ null                     | null         | prod            | three       | 8.375
 ;
 
 // Mirrors without_avg - exercises BY WITHOUT(...) grouping inside a TS
-// subquery. The implicit _timeseries column emitted by WITHOUT is a virtual
-// output column and is not addressable in subsequent EVAL/KEEP/outer query
-// stages, so the union surfaces only avg_cost from the subquery.
+// subquery. The grouping surfaces through the union under its final output
+// name, _timeseries - the same name a lone TS query shows - and the
+// sample_data branch null-fills it.
 subqueryInFromWithTsSubqueryWithoutGrouping
 skip_flattened_rewrite: subquery_bleed
 required_capability: subquery_in_from_command
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
 required_capability: esql_without_grouping
+required_capability: ts_without_grouping_named_at_resolution
 
 FROM sample_data,
      (TS k8s
@@ -1201,7 +1202,7 @@ FROM sample_data,
 | DROP event_duration, message
 ;
 
-@timestamp:datetime      | client_ip:ip | avg_cost:double | WITHOUT(pod, region):keyword
+@timestamp:datetime      | client_ip:ip | avg_cost:double | _timeseries:keyword
 null                     | null         | 5.291667        | "{""cluster"":""staging""}"
 null                     | null         | 6.208333        | "{""cluster"":""prod""}"
 null                     | null         | 8.833333        | "{""cluster"":""qa""}"

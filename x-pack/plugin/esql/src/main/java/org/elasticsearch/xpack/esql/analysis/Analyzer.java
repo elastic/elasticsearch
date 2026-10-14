@@ -118,6 +118,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.inference.CompletionFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -611,10 +612,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
     /**
      * Phase 2 of view compaction. Runs in the Initialize batch after index, view-shadow, and dataset-shadow resolution. Dataset shadows
-     * must be resolved or stripped while they remain in the plain {@code UnionAll} built by the dataset rewriter; view compaction may
-     * otherwise lift them into a {@code ViewUnionAll}. Strips remaining unresolved view shadows, flattens nested {@code ViewUnionAll}
-     * structures when the flat width is within {@link AnalyzerContext#maxBranchCount()}, and unwraps remaining {@code NamedSubquery}
-     * wrappers. See {@link ViewCompaction} for the rationale behind splitting compaction across the analyzer boundary.
+     * must be resolved ({@link ResolveDatasetShadow}) or stripped ({@link StripDatasetShadowRelations}) before this rule runs, so the
+     * nested-union flattening below never lifts an unresolved shadow into an outer level. Strips remaining unresolved view shadows,
+     * flattens nested {@code ViewUnionAll} structures when the flat width is within {@link AnalyzerContext#maxBranchCount()}, and
+     * unwraps remaining {@code NamedSubquery} wrappers. See {@link ViewCompaction} for the rationale behind splitting compaction
+     * across the analyzer boundary.
      */
     private static class ViewCompactionPostIndexResolution extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
 
@@ -656,14 +658,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             LogicalPlan answered;
             if (child instanceof ViewUnionAll vua) {
                 answered = answerFromIdentities(vua, relationColumns, src);
-            } else if (child instanceof UnionAll unionAll) {
-                // Only dataset-rewriter unions still reach here as plain UnionAll (ViewCompaction.toViewUnionAll
-                // converts everything else, and deliberately leaves that shape to the dataset rules). This arm
-                // retires when the dataset rewriter adopts branch identities and emits ViewUnionAll directly.
-                List<LogicalPlan> branches = unionAll.children().stream().map(b -> answer(b, relationColumns, src, false)).toList();
-                answered = branches.equals(unionAll.children()) ? child : unionAll.replaceChildren(branches);
             } else {
-                answered = answer(child, relationColumns, src, true);
+                answered = answerLone(child, relationColumns, src);
             }
             return answered.equals(child) ? unresolvedMetadata : new UnresolvedMetadata(src, answered, metadataFields);
         }
@@ -697,16 +693,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return changed ? vua.replaceChildren(branches) : vua;
         }
 
-        private static LogicalPlan answer(LogicalPlan branch, List<NamedExpression> relationColumns, Source src, boolean lone) {
-            return switch (branch) {
+        /** Answers a lone (non-union) {@code FROM} target. A lone subquery's wrapper is consumed here, not left for compaction. */
+        private static LogicalPlan answerLone(LogicalPlan child, List<NamedExpression> relationColumns, Source src) {
+            return switch (child) {
                 case NamedSubquery view -> withRelationColumns(view, relationColumns, src, RelationClass.VIEW, view.name());
-                case Subquery subquery -> withRelationColumns(
-                    lone ? subquery.child() : subquery,
-                    relationColumns,
-                    src,
-                    RelationClass.SUBQUERY,
-                    null
-                );
+                case Subquery subquery -> withRelationColumns(subquery.child(), relationColumns, src, RelationClass.SUBQUERY, null);
                 case LogicalPlan relation -> relation;
             };
         }
@@ -787,31 +778,25 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     /**
      * Strips any {@link DatasetShadowRelation} that {@link ResolveDatasetShadow} did not fold into a
      * sibling {@code EsRelation}. The dataset analog of {@code ViewCompaction.stripViewShadowRelations},
-     * but over the plain {@link UnionAll} the {@code DatasetRewriter} builds rather than a
-     * {@link org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll}. Runs right after
+     * over the {@link ViewUnionAll} the {@code DatasetRewriter} builds. Runs right after
      * {@link ResolveDatasetShadow} in the Initialize batch.
      * <p>
-     * Delegates to {@link UnionAll#pruneEmptyBranches(java.util.function.Predicate)} so a matched shadow
-     * (now an {@code EsRelation}) survives alongside the dataset's external relation as separate
-     * {@code UnionAll} branches (no merging into a single combined relation). A single-survivor
-     * union collapses to its lone child, so {@code FROM ds} with no remote match returns to exactly the bare
-     * {@code UnresolvedExternalRelation} shape the non-CPS path produces.
+     * Delegates to {@link ViewUnionAll#pruneEmptyBranches(java.util.function.Predicate)} so a matched shadow
+     * (now an {@code EsRelation}) survives alongside the dataset's external relation as a separate branch
+     * (no merging into a single combined relation) and the named-subqueries map stays in sync. A union the
+     * prune reduces to one branch collapses to that lone child, so {@code FROM ds} with no remote match
+     * returns to exactly the bare {@code UnresolvedExternalRelation} shape the non-CPS path produces; a
+     * union the prune did not change is returned as-is — whether a single-branch union may collapse is
+     * otherwise {@code ViewCompaction}'s decision (see {@code preserveViewBoundaries}).
      */
     private static class StripDatasetShadowRelations extends Rule<LogicalPlan, LogicalPlan> {
 
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
-            return plan.transformDown(UnionAll.class, unionAll -> {
-                // Plain UnionAll only — ViewUnionAll shadows are ViewCompaction's, and its single-child
-                // wrappers must not collapse.
-                if (unionAll instanceof ViewUnionAll) {
-                    return unionAll;
-                }
-                LogicalPlan pruned = unionAll.pruneEmptyBranches(child -> child instanceof DatasetShadowRelation);
-                if (pruned instanceof UnionAll prunedUnion
-                    && prunedUnion instanceof ViewUnionAll == false
-                    && prunedUnion.children().size() == 1) {
-                    return prunedUnion.children().getFirst();
+            return plan.transformDown(ViewUnionAll.class, vua -> {
+                LogicalPlan pruned = vua.pruneEmptyBranches(child -> child instanceof DatasetShadowRelation);
+                if (pruned != vua && pruned instanceof ViewUnionAll prunedVua && prunedVua.children().size() == 1) {
+                    return prunedVua.children().getFirst();
                 }
                 return pruned;
             });
@@ -1474,12 +1459,71 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // trying to globally resolve unresolved attributes will lead to some being marked as unresolvable
             List<Expression> newGroupings = maybeResolveGroupings(aggregate, childrenOutput);
             List<? extends NamedExpression> newAggregates = maybeResolveAggregates(aggregate, newGroupings, childrenOutput);
+            if (aggregate instanceof TimeSeriesAggregate) {
+                Map<NameId, Alias> renames = timeSeriesWithoutRenames(newGroupings);
+                if (renames.isEmpty() == false) {
+                    newGroupings = renameTimeSeriesWithoutGroupings(newGroupings, renames);
+                    newAggregates = renameTimeSeriesWithoutAggregates(newAggregates, renames);
+                }
+            }
             boolean changed = newGroupings != aggregate.groupings() || newAggregates != aggregate.aggregates();
             LogicalPlan maybeNewAggregate = changed ? aggregate.with(aggregate.child(), newGroupings, newAggregates) : aggregate;
 
             return maybeNewAggregate instanceof TimeSeriesAggregate ts && ts.timestamp() instanceof UnresolvedAttribute unresolvedTimestamp
                 ? ts.withTimestamp(maybeResolveAttribute(unresolvedTimestamp, childrenOutput))
                 : maybeNewAggregate;
+        }
+
+        /**
+         * Renames an explicit {@code BY WITHOUT(...)} grouping from its parser-given sourceText name to its final output
+         * name, {@code _timeseries}, the moment the aggregate is visited. The Finish-Analysis lowering
+         * ({@code TranslateTimeSeriesWithout}) replaces the grouping with a {@code _timeseries}-named metadata attribute
+         * under the <em>same name id</em>; renaming here means that replacement no longer changes any output name after
+         * resolution. That matters because resolution-time consumers capture output names: {@link #resolveMergePlan}
+         * aligns union branches and mints the union's columns by name, so a branch aligned under the sourceText name
+         * would silently change names once the optimizer's project-combining normalizes attribute instances by id,
+         * failing the post-optimization merge consistency check. It also makes {@code FROM idx, (TS ... BY WITHOUT(...))}
+         * surface the column as {@code _timeseries} — the same name a lone TS query (and the WITHOUT docs) show.
+         */
+        private static Map<NameId, Alias> timeSeriesWithoutRenames(List<Expression> groupings) {
+            Map<NameId, Alias> renames = new HashMap<>();
+            for (Expression grouping : groupings) {
+                if (grouping instanceof Alias a
+                    && a.child() instanceof TimeSeriesWithout
+                    && a.name().equals(MetadataAttribute.TIMESERIES) == false) {
+                    renames.put(a.id(), new Alias(a.source(), MetadataAttribute.TIMESERIES, a.child(), a.id(), a.synthetic()));
+                }
+            }
+            return renames;
+        }
+
+        private static List<Expression> renameTimeSeriesWithoutGroupings(List<Expression> groupings, Map<NameId, Alias> renames) {
+            List<Expression> renamed = new ArrayList<>(groupings.size());
+            for (Expression grouping : groupings) {
+                Alias rename = grouping instanceof Alias a ? renames.get(a.id()) : null;
+                renamed.add(rename != null ? rename : grouping);
+            }
+            return renamed;
+        }
+
+        /** The grouping rides in the aggregates list either as its {@link Alias} or as a plain attribute reference. */
+        private static List<NamedExpression> renameTimeSeriesWithoutAggregates(
+            List<? extends NamedExpression> aggregates,
+            Map<NameId, Alias> renames
+        ) {
+            List<NamedExpression> renamed = new ArrayList<>(aggregates.size());
+            for (NamedExpression agg : aggregates) {
+                Alias rename = agg instanceof Alias a && a.child() instanceof TimeSeriesWithout ? renames.get(a.id()) : null;
+                if (rename != null) {
+                    renamed.add(rename);
+                } else {
+                    renamed.add((NamedExpression) agg.transformUp(Attribute.class, attr -> {
+                        Alias r = renames.get(attr.id());
+                        return r != null ? r.toAttribute() : attr;
+                    }));
+                }
+            }
+            return renamed;
         }
 
         private List<Expression> maybeResolveGroupings(Aggregate aggregate, List<Attribute> childrenOutput) {

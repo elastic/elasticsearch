@@ -12,6 +12,7 @@ package org.elasticsearch.cluster.routing;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.BulkRoutingPolicy;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -50,5 +51,33 @@ public class HashInIdRoutingTests extends ESSingleNodeTestCase {
         indicesAdmin().prepareRefresh("test").get();
         long count = indicesAdmin().prepareStats("test").setDocs(true).get().getTotal().getDocs().getCount();
         assertThat(count, equalTo((long) docs - 1));
+    }
+
+    public void testLocalBulkRoutingPolicySendsAutoIdBulkToOneShard() {
+        updateClusterSettings(Settings.builder().put(BulkRoutingPolicy.SETTING.getKey(), "local").build());
+        try {
+            createIndex(
+                "test",
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
+                    .put(IndexMetadata.INDEX_ROUTING_HASH_IN_ID.getKey(), true)
+                    .build()
+            );
+            int docs = 100;
+            BulkRequestBuilder bulk = client().prepareBulk();
+            for (int i = 0; i < docs; i++) {
+                bulk.add(prepareIndex("test").setSource("field", i));
+            }
+            assertNoFailures(bulk.get());
+
+            indicesAdmin().prepareRefresh("test").get();
+            List<Long> docsPerShard = Arrays.stream(indicesAdmin().prepareStats("test").setDocs(true).get().getShards())
+                .map(shardStats -> shardStats.getStats().getDocs().getCount())
+                .sorted()
+                .toList();
+            assertThat(docsPerShard, equalTo(List.of(0L, 0L, (long) docs)));
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(BulkRoutingPolicy.SETTING.getKey()).build());
+        }
     }
 }

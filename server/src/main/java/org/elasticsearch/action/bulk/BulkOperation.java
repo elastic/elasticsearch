@@ -41,8 +41,13 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -75,6 +80,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.action.bulk.TransportBulkAction.LAZY_ROLLOVER_ORIGIN;
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.EXCLUDED_DATA_STREAMS_KEY;
@@ -111,6 +117,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     private final boolean clusterHasFailureStoreFeature;
     @Nullable
     private final BatchModeRouter router;
+    private final BulkRoutingPolicy bulkRoutingPolicy;
 
     BulkOperation(
         Task task,
@@ -128,7 +135,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         FailureStoreMetrics failureStoreMetrics,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
         boolean clusterHasFailureStoreFeature,
-        BatchIndexingEnabled batchIndexingEnabled
+        BatchIndexingEnabled batchIndexingEnabled,
+        BulkRoutingPolicy bulkRoutingPolicy
     ) {
         this(
             task,
@@ -148,7 +156,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             failureStoreMetrics,
             dataStreamFailureStoreSettings,
             clusterHasFailureStoreFeature,
-            batchIndexingEnabled
+            batchIndexingEnabled,
+            bulkRoutingPolicy
         );
     }
 
@@ -170,7 +179,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         FailureStoreMetrics failureStoreMetrics,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
         boolean clusterHasFailureStoreFeature,
-        BatchIndexingEnabled batchIndexingEnabled
+        BatchIndexingEnabled batchIndexingEnabled,
+        BulkRoutingPolicy bulkRoutingPolicy
     ) {
         super(listener);
         this.task = task;
@@ -193,6 +203,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         this.dataStreamFailureStoreSettings = dataStreamFailureStoreSettings;
         this.clusterHasFailureStoreFeature = clusterHasFailureStoreFeature;
         this.router = BatchModeRouter.create(bulkRequest, ShardBatchIndexer.isBatchIndexingSupported(batchIndexingEnabled, clusterService));
+        this.bulkRoutingPolicy = bulkRoutingPolicy;
     }
 
     @Override
@@ -309,7 +320,13 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         @Nullable BatchModeRouter batchRouter
     ) {
         ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
-        final ConcreteIndices concreteIndices = new ConcreteIndices(project, indexNameExpressionResolver);
+        final ConcreteIndices concreteIndices = new ConcreteIndices(
+            project,
+            indexNameExpressionResolver,
+            bulkRoutingPolicy,
+            clusterState.routingTable(project.id()),
+            clusterService.localNode().getId()
+        );
         // Both modes fill the same map: x-content fills it incrementally in route(); provided-batch
         // fills it in buildGrouping() after the deferred columnar routing pass completes.
         Map<ShardId, List<BulkItemRequest>> requestsByShard = new HashMap<>();
@@ -968,12 +985,24 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     private static class ConcreteIndices {
         private final ProjectMetadata project;
         private final IndexNameExpressionResolver indexNameExpressionResolver;
+        private final BulkRoutingPolicy bulkRoutingPolicy;
+        private final RoutingTable routingTable;
+        private final String localNodeId;
         private final Map<String, IndexAbstraction> indexAbstractions = new HashMap<>();
         private final Map<Index, IndexRouting> routings = new HashMap<>();
 
-        ConcreteIndices(ProjectMetadata project, IndexNameExpressionResolver indexNameExpressionResolver) {
+        ConcreteIndices(
+            ProjectMetadata project,
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            BulkRoutingPolicy bulkRoutingPolicy,
+            RoutingTable routingTable,
+            String localNodeId
+        ) {
             this.project = project;
             this.indexNameExpressionResolver = indexNameExpressionResolver;
+            this.bulkRoutingPolicy = bulkRoutingPolicy;
+            this.routingTable = routingTable;
+            this.localNodeId = localNodeId;
         }
 
         /**
@@ -1009,10 +1038,38 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         IndexRouting routing(Index index) {
             IndexRouting routing = routings.get(index);
             if (routing == null) {
-                routing = IndexRouting.fromIndexMetadata(project.getIndexSafe(index));
+                IndexMetadata metadata = project.getIndexSafe(index);
+                routing = IndexRouting.fromIndexMetadata(metadata);
+                if (bulkRoutingPolicy != BulkRoutingPolicy.PER_DOCUMENT && routing.supportsBulkTargetShard()) {
+                    routing = routing.forBulkTargetShard(bulkTargetShard(index, metadata.getNumberOfShards()));
+                }
                 routings.put(index, routing);
             }
             return routing;
+        }
+
+        private int bulkTargetShard(Index index, int numberOfShards) {
+            IndexRoutingTable indexRoutingTable = routingTable.index(index);
+            int[] localPrimaries = bulkRoutingPolicy == BulkRoutingPolicy.LOCAL
+                ? IntStream.range(0, numberOfShards).filter(shard -> isLocalPrimary(indexRoutingTable, shard)).toArray()
+                : new int[0];
+            int target = localPrimaries.length > 0
+                ? localPrimaries[Randomness.get().nextInt(localPrimaries.length)]
+                : Randomness.get().nextInt(numberOfShards);
+            logger.debug(
+                "bulk routing policy [{}] targets [{}][{}], local primary [{}]",
+                bulkRoutingPolicy,
+                index.getName(),
+                target,
+                isLocalPrimary(indexRoutingTable, target)
+            );
+            return target;
+        }
+
+        private boolean isLocalPrimary(@Nullable IndexRoutingTable indexRoutingTable, int shard) {
+            IndexShardRoutingTable shardRoutingTable = indexRoutingTable == null ? null : indexRoutingTable.shard(shard);
+            ShardRouting primary = shardRoutingTable == null ? null : shardRoutingTable.primaryShard();
+            return primary != null && primary.active() && localNodeId.equals(primary.currentNodeId());
         }
     }
 }

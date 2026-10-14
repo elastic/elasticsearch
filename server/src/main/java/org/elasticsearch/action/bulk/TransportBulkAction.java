@@ -111,6 +111,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
     private final DataStreamLifecycleSettings dataStreamLifecycleSettings;
     private volatile boolean pastTsdbIndexCreationEnabled;
     private final BatchIndexingEnabled batchIndexingEnabled;
+    private volatile BulkRoutingPolicy bulkRoutingPolicy;
 
     @Inject
     public TransportBulkAction(
@@ -194,6 +195,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         clusterSettings.addSettingsUpdateConsumer(PAST_TSDB_INDEX_CREATION_ENABLED_SETTING, this::setPastTsdbIndexCreationEnabled);
         this.batchIndexingEnabled = new BatchIndexingEnabled(clusterSettings);
+        clusterSettings.initializeAndWatch(BulkRoutingPolicy.SETTING, policy -> this.bulkRoutingPolicy = policy);
     }
 
     private void setPastTsdbIndexCreationEnabled(boolean pastTsdbIndexCreationEnabled) {
@@ -876,7 +878,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             failureStoreMetrics,
             dataStreamFailureStoreSettings,
             clusterSupportsFailureStore,
-            batchIndexingEnabled
+            batchIndexingEnabled,
+            bulkRoutingPolicy
         ).run();
     }
 

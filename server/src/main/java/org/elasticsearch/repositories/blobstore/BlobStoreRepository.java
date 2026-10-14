@@ -1345,13 +1345,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
                 final var survivingSnapshots = Sets.<SnapshotId>newHashSetWithExpectedSize(indexSnapshotIds.size());
                 final var survivingMetaBlobIds = Sets.<String>newHashSetWithExpectedSize(indexSnapshotIds.size());
-                final var deletedMetaBlobIds = Sets.<String>newHashSetWithExpectedSize(
+                final var affectedMetaBlobIds = Sets.<String>newHashSetWithExpectedSize(
                     Math.min(indexSnapshotIds.size(), snapshotIds.size())
                 );
                 for (final var indexSnapshotId : indexSnapshotIds) {
                     final var metaBlobId = originalRepositoryData.indexMetaDataGenerations().indexMetaBlobId(indexSnapshotId, indexId);
                     if (snapshotIds.contains(indexSnapshotId)) {
-                        deletedMetaBlobIds.add(metaBlobId);
+                        // This meta blob is not necessarily deleted because of deduplication: it might be in use by surviving snapshots.
+                        affectedMetaBlobIds.add(metaBlobId);
                     } else {
                         survivingSnapshots.add(indexSnapshotId);
                         survivingMetaBlobIds.add(metaBlobId);
@@ -1359,11 +1360,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
 
                 assert survivingMetaBlobIds.isEmpty() == false;
-                assert deletedMetaBlobIds.isEmpty() == false;
+                assert affectedMetaBlobIds.isEmpty() == false;
                 assert survivingSnapshots.isEmpty() == false;
 
-                deleteUnreferencedMetaBlobs(survivingMetaBlobIds, deletedMetaBlobIds);
-                new IndexSnapshotsDeletion(indexId, survivingSnapshots).run(deletedMetaBlobIds, listener);
+                deleteUnreferencedMetaBlobs(affectedMetaBlobIds, survivingMetaBlobIds);
+                new IndexSnapshotsDeletion(indexId, survivingSnapshots).run(affectedMetaBlobIds, listener);
             }
 
             /// An index requires processing (i.e. by [IndexSnapshotsDeletion]) if some of its snapshots are removed but others survive. If
@@ -1383,9 +1384,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 return false;
             }
 
-            private void deleteUnreferencedMetaBlobs(Set<String> survivingMetaBlobIds, Set<String> deletedMetaBlobIds) {
+            private void deleteUnreferencedMetaBlobs(Set<String> affectedMetaBlobIds, Set<String> survivingMetaBlobIds) {
                 // TODO also list existing index metadata blobs here to clean up leaks
-                final var unreferencedMetaBlobIds = new HashSet<>(deletedMetaBlobIds);
+                final var unreferencedMetaBlobIds = new HashSet<>(affectedMetaBlobIds);
                 unreferencedMetaBlobIds.removeAll(survivingMetaBlobIds);
                 if (unreferencedMetaBlobIds.isEmpty() == false) {
                     blobsToDelete.addIndexDeleteResult(indexId, unreferencedMetaBlobIds);
@@ -1411,16 +1412,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 shardCount = Math.max(shardCount, newShardCount);
             }
 
-            void run(Set<String> metaBlobIds, ActionListener<Void> listener) {
-                determineShardCount(metaBlobIds, listener.delegateFailureAndWrap((l, v) -> processShards(l)));
+            void run(Set<String> affectedMetaBlobIds, ActionListener<Void> listener) {
+                determineShardCount(affectedMetaBlobIds, listener.delegateFailureAndWrap((l, v) -> processShards(l)));
             }
 
             // -----------------------------------------------------------------------------------------------------------------------------
             // Determining the shard count by reading all the relevant index metadata
 
-            private void determineShardCount(Set<String> metaBlobIds, ActionListener<Void> listener) {
+            private void determineShardCount(Set<String> affectedMetaBlobIds, ActionListener<Void> listener) {
                 try (var listeners = new RefCountingListener(listener)) {
-                    for (final var metaBlobId : metaBlobIds) {
+                    for (final var metaBlobId : affectedMetaBlobIds) {
                         // NB since 7.9.0 we deduplicate index metadata blobs, and one of the components of the deduplication key is the
                         // index UUID; the shard count is going to be the same for all metadata with the same index UUID, so it is
                         // unnecessary to read multiple metadata blobs corresponding to the same index UUID.

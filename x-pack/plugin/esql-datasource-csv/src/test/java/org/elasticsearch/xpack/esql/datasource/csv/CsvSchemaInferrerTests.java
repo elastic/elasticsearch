@@ -701,7 +701,7 @@ public class CsvSchemaInferrerTests extends ESTestCase {
      */
     private static boolean railRejectsDialect(String value) {
         return NANOS_RAIL_FORMAT.tryParse(value) == null
-            && CsvFormatReader.tryParseSpaceSeparatedDatetimeNanos(value) == CsvFormatReader.FAST_PATH_MISS;
+            && CsvFormatReader.matchesSpaceSeparatedDatetimeNanosTemplate(value) == false;
     }
 
     /**

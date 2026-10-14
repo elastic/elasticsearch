@@ -28,6 +28,24 @@
               "description": "The index name to search."
             }
           }
+        },
+        {
+          "path": "/{index}/{_slice}/_fleet/_fleet_search",
+          "methods": [
+            "GET",
+            "POST"
+          ],
+          "parts": {
+            "index": {
+              "type": "string",
+              "description": "The index name to search."
+            },
+            "_slice": {
+              "type": "string",
+              "description": "Slice identifier(s) for a slice-enabled index (`index.slice.enabled=true`). A single slice, a comma-separated list (for example `tenant-a,tenant-b`), or the reserved token `_all` to search all slices.",
+              "feature_flag": "es.slice_indexing_feature_flag_enabled"
+            }
+          }
         }
       ]
     },

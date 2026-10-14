@@ -41,6 +41,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
@@ -517,18 +518,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             ClusterSettings.createBuiltInClusterSettings(),
             dataStreamGlobalRetentionSettings,
             emptyDataStreamFailureStoreSettings,
-            new IndexSettingProviders(
-                Set.of(
-                    (
-                        indexName,
-                        dataStreamName,
-                        templateIndexMode,
-                        metadata,
-                        resolvedAt,
-                        indexTemplateAndCreateRequestSettings,
-                        combinedTemplateMappings) -> Settings.builder().put("index.mode", IndexMode.LOOKUP).build()
-                )
-            ),
+            IndexSettingProviders.of(Set.of("index.mode"), () -> Settings.builder().put("index.mode", IndexMode.LOOKUP).build()),
             null
         );
         assertThat(response.getDataStreams().get(0).getIndexModeName(), equalTo("lookup"));
@@ -543,6 +533,72 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
                 .orElse("bad"),
             equalTo("standard")
         );
+    }
+
+    /**
+     * Providers that cannot influence any of the settings exposed by the get data streams API are not invoked, since what they would
+     * contribute is not used.
+     */
+    public void testProvidersNotInfluencingExposedSettingsAreSkipped() {
+        ClusterState state = DataStreamTestHelper.getClusterStateWithDataStreams(
+            List.of(Tuple.tuple("data-stream-1", 2)),
+            List.of(),
+            System.currentTimeMillis(),
+            Settings.EMPTY,
+            0,
+            false,
+            false
+        );
+
+        AtomicBoolean invoked = new AtomicBoolean(false);
+        var req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
+        var response = TransportGetDataStreamsAction.innerOperation(
+            state,
+            req,
+            resolver,
+            systemIndices,
+            ClusterSettings.createBuiltInClusterSettings(),
+            dataStreamGlobalRetentionSettings,
+            emptyDataStreamFailureStoreSettings,
+            IndexSettingProviders.of(Set.of(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()), () -> {
+                invoked.set(true);
+                return Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "1s").build();
+            }),
+            null
+        );
+        assertThat(invoked.get(), is(false));
+        assertThat(response.getDataStreams(), hasSize(1));
+        assertThat(response.getDataStreams().get(0).getIndexModeName(), equalTo("standard"));
+    }
+
+    public void testProvidersAffectIlmPolicy() {
+        ClusterState state = DataStreamTestHelper.getClusterStateWithDataStreams(
+            List.of(Tuple.tuple("data-stream-1", 2)),
+            List.of(),
+            System.currentTimeMillis(),
+            Settings.EMPTY,
+            0,
+            false,
+            false
+        );
+
+        var req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
+        var response = TransportGetDataStreamsAction.innerOperation(
+            state,
+            req,
+            resolver,
+            systemIndices,
+            ClusterSettings.createBuiltInClusterSettings(),
+            dataStreamGlobalRetentionSettings,
+            emptyDataStreamFailureStoreSettings,
+            IndexSettingProviders.of(
+                Set.of(IndexMetadata.LIFECYCLE_NAME),
+                () -> Settings.builder().put(IndexMetadata.LIFECYCLE_NAME, "provided-policy").build()
+            ),
+            null
+        );
+        assertThat(response.getDataStreams(), hasSize(1));
+        assertThat(response.getDataStreams().get(0).getIlmPolicy(), equalTo("provided-policy"));
     }
 
     public void testGetEffectiveSettingsTemplateOnlySettings() {

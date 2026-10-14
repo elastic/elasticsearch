@@ -724,6 +724,11 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 }
 
                 @Override
+                public Set<String> affectedSettings() {
+                    return Set.of("request_setting", "other_setting");
+                }
+
+                @Override
                 public boolean overrulesTemplateAndRequestSettings() {
                     return true;
                 }
@@ -764,6 +769,11 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     List<CompressedXContent> combinedTemplateMappings
                 ) {
                     return Settings.builder().put("request_setting", "overrule_value").put("other_setting", "other_value").build();
+                }
+
+                @Override
+                public Set<String> affectedSettings() {
+                    return Set.of("request_setting", "other_setting");
                 }
 
                 @Override
@@ -810,6 +820,11 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 }
 
                 @Override
+                public Set<String> affectedSettings() {
+                    return Set.of("template_setting", "other_setting");
+                }
+
+                @Override
                 public boolean overrulesTemplateAndRequestSettings() {
                     return true;
                 }
@@ -853,6 +868,11 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 }
 
                 @Override
+                public Set<String> affectedSettings() {
+                    return Set.of("template_setting", "other_setting");
+                }
+
+                @Override
                 public boolean overrulesTemplateAndRequestSettings() {
                     return true;
                 }
@@ -886,6 +906,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             randomShardLimitService(),
             IndexSettingProviders.of(
+                Set.of("nullified_setting", "other_provided_setting"),
                 () -> Settings.builder().put("nullified_setting", "provided_value").put("other_provided_setting", "value").build()
             ).getIndexSettingProviders()
         );
@@ -912,6 +933,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             randomShardLimitService(),
             IndexSettingProviders.of(
+                Set.of("nullified_setting", "other_provided_setting"),
                 () -> Settings.builder().put("nullified_setting", "provided_value").put("other_provided_setting", "value").build()
             ).getIndexSettingProviders()
         );

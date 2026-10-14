@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 
 import java.time.Instant;
@@ -36,22 +37,30 @@ public final class IndexSettingProviders {
      * to the index being created.
      * The primary use case is for tests that want to add specific settings without having to create a full implementation.
      *
-     * @param settingsSupplier A supplier of index settings
-     * @return An {@link IndexSettingProviders} instance that uses the provided consumer to add settings
+     * @param influencedSettings The keys of the settings the supplier may add, see {@link IndexSettingProvider#affectedSettings()}
+     * @param settingsSupplier   A supplier of index settings
+     * @return An {@link IndexSettingProviders} instance that uses the provided supplier to add settings
      */
-    public static IndexSettingProviders of(Supplier<Settings> settingsSupplier) {
-        return new IndexSettingProviders(
-            Set.of(
-                (
-                    indexName,
-                    dataStreamName,
-                    templateIndexMode,
-                    projectMetadata,
-                    resolvedAt,
-                    indexTemplateAndCreateRequestSettings,
-                    combinedTemplateMappings) -> settingsSupplier.get()
-            )
-        );
+    public static IndexSettingProviders of(Set<String> influencedSettings, Supplier<Settings> settingsSupplier) {
+        return new IndexSettingProviders(Set.of(new IndexSettingProvider() {
+            @Override
+            public Settings getAdditionalIndexSettings(
+                String indexName,
+                String dataStreamName,
+                IndexMode templateIndexMode,
+                Metadata metadata,
+                Instant resolvedAt,
+                Settings indexTemplateAndCreateRequestSettings,
+                List<CompressedXContent> combinedTemplateMappings
+            ) {
+                return settingsSupplier.get();
+            }
+
+            @Override
+            public Set<String> affectedSettings() {
+                return influencedSettings;
+            }
+        }));
     }
 
     public IndexSettingProviders(Set<IndexSettingProvider> indexSettingProviders) {
@@ -79,9 +88,43 @@ public final class IndexSettingProviders {
         Settings indexTemplateAndCreateRequestSettings,
         List<CompressedXContent> combinedTemplateMappings
     ) {
+        return collectAdditionalSettings(
+            providers,
+            indexName,
+            dataStreamName,
+            templateIndexMode,
+            metadata,
+            resolvedAt,
+            indexTemplateAndCreateRequestSettings,
+            combinedTemplateMappings,
+            null
+        );
+    }
+
+    /**
+     * Runs all the given providers and collects the settings they contribute. Every component that needs to know which settings an
+     * index will end up with should go through this method, so they all agree with what {@link MetadataCreateIndexService} does when
+     * the index is actually created.
+     *
+     * @throws IllegalArgumentException if two providers contribute the same setting, or a provider sets the index created version
+     */
+    public static AdditionalSettings collectAdditionalSettings(
+        Collection<IndexSettingProvider> providers,
+        String indexName,
+        @Nullable String dataStreamName,
+        @Nullable IndexMode templateIndexMode,
+        Metadata metadata,
+        Instant resolvedAt,
+        Settings indexTemplateAndCreateRequestSettings,
+        List<CompressedXContent> combinedTemplateMappings,
+        Set<String> settingSubset
+    ) {
         Settings.Builder additionalSettings = Settings.builder();
         Set<String> overrulingSettings = new HashSet<>();
         for (IndexSettingProvider provider : providers) {
+            if (settingSubset != null && Sets.intersection(settingSubset, provider.affectedSettings()).isEmpty()) {
+                continue;
+            }
             Settings providedSettings = provider.getAdditionalIndexSettings(
                 indexName,
                 dataStreamName,

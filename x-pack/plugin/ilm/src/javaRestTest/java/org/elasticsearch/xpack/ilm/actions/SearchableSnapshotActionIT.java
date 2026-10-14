@@ -155,6 +155,41 @@ public class SearchableSnapshotActionIT extends IlmESRestTestCase {
     }
 
     /**
+     * Verifies that {@link org.elasticsearch.xpack.ilm.IlmForceMergeCloneCleanupService} reclaims a force-merge clone that has
+     * become orphaned because its ILM policy was removed mid-action. We pause ILM on the clone step (by disabling allocation so
+     * the clone cannot go green), remove the policy to orphan the marker-bearing clone, and then assert the periodic cleanup
+     * service deletes it. Without the policy, ILM itself would never run {@code CleanupGeneratedIndexStep} for this clone again.
+     */
+    public void testOrphanedForceMergeCloneIsCleanedUp() throws Exception {
+        final int numberOfPrimaries = randomIntBetween(1, 3);
+        // The test suite runs with 4 nodes, so we can have up to 3 (allocated) replicas.
+        final int numberOfReplicas = randomIntBetween(1, 3);
+        final String phase = randomBoolean() ? "cold" : "frozen";
+        final String backingIndexName = prepareDataStreamWithDocs(phase, numberOfPrimaries, numberOfReplicas);
+
+        // Run the cleanup sweep aggressively so the test does not wait out the default one-day interval.
+        updateClusterSettings(Settings.builder().put("indices.lifecycle.force_merge_clone_cleanup.poll_interval", "1s").build());
+        try {
+            // Pause ILM on the clone step: the clone is created (carrying the marker) but its shards cannot allocate.
+            configureClusterAllocation(false);
+            updateIndexSettings(dataStream, Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy));
+
+            // The clone exists and is stamped with the source index's UUID.
+            assertForceMergeCloneIndexSettings(backingIndexName, numberOfPrimaries);
+
+            // Removing the policy clears the source's execution state, orphaning the clone.
+            assertOK(client().performRequest(new Request("POST", "/" + backingIndexName + "/_ilm/remove")));
+
+            // The periodic cleanup service must delete the orphaned, marker-bearing clone.
+            awaitIndexDoesNotExist(FORCE_MERGE_CLONE_INDEX_PREFIX + "*" + backingIndexName, TimeValue.timeValueSeconds(30));
+        } finally {
+            // Re-enable allocation and restore the default interval so the remaining tests in the suite are not affected.
+            configureClusterAllocation(true);
+            updateClusterSettings(Settings.builder().putNull("indices.lifecycle.force_merge_clone_cleanup.poll_interval").build());
+        }
+    }
+
+    /**
      * Test that when we have a searchable snapshot action with force merge enabled and the source index has _zero_ replicas,
      * we perform the force merge on the _source_ index and snapshot the source index.
      */
@@ -1115,7 +1150,23 @@ public class SearchableSnapshotActionIT extends IlmESRestTestCase {
             final Map<String, Object> forceMergeIndexSettings = (Map<String, Object>) forceMergeIndexResponse.get("settings");
             assertThat(forceMergeIndexSettings.get("index.number_of_shards"), equalTo(String.valueOf(numberOfPrimaries)));
             assertThat(forceMergeIndexSettings.get("index.number_of_replicas"), equalTo("0"));
+            // The clone must be stamped with the source index's UUID so IlmForceMergeCloneCleanupService can prove its provenance.
+            assertThat(
+                forceMergeIndexSettings.get(LifecycleSettings.LIFECYCLE_FORCE_MERGE_CLONE_SOURCE_UUID),
+                equalTo(getIndexUUID(backingIndexName))
+            );
         });
+    }
+
+    private static String getIndexUUID(String indexName) throws Exception {
+        Request request = new Request("GET", "/" + indexName + "/_settings/index.uuid?flat_settings=true");
+        Response response = client().performRequest(request);
+        final Map<String, Object> indicesSettings = entityAsMap(response);
+        @SuppressWarnings("unchecked")
+        final var indexResponse = (Map<String, Object>) indicesSettings.get(indexName);
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> indexSettings = (Map<String, Object>) indexResponse.get("settings");
+        return (String) indexSettings.get("index.uuid");
     }
 
     /**

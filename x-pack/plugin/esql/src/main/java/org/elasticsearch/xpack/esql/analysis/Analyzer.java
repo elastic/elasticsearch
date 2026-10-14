@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.RelationClass;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedMetadataAttributeExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedPattern;
@@ -156,6 +157,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ApplyWindowFilter;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateExpressions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesWithout;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.AddPromqlResultOrder;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslatePromqlToEsqlPlan;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslateTimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
@@ -179,10 +181,12 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
@@ -286,10 +290,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         new ReferenceAttribute(Source.EMPTY, null, NO_FIELDS_NAME, NULL, Nullability.TRUE, null, true)
     );
 
-    /**
-     * Built per {@link Analyzer} instance rather than statically so that {@link DetermineUnmappedFieldsToKeep} can hand the
-     * {@link UnmappedFieldsOrdering} it captures back to this analyzer, for the caller to read once analysis has finished.
-     */
     @Override
     protected List<Batch<LogicalPlan>> batches() {
         return List.of(
@@ -302,6 +302,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 new ResolveDatasetShadow(),
                 new StripDatasetShadowRelations(),
                 new ViewCompactionPostIndexResolution(),
+                new ResolveSubqueryRelationColumns(),
+                new UnwrapNamedSubqueries(),
                 new ResolveExternalRelations(),
                 new PruneEmptyUnionAllBranch(),
                 new ResolveEnrich(),
@@ -316,8 +318,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // Must happen before Translating PromQL plan to ESQL plan
                 new ResolveAndVerifyPromqlRefs(),
                 // Populates the TS_COLLAPSE wrapping a PromqlCommand with dimensions and bounds drawn from the
-                // PromqlCommand. The wrapped PromqlCommand is left in place and translated to ESQL nodes by the next rule.
+                // PromqlCommand. The wrapped PromqlCommand is left in place; AddPromqlResultOrder may wrap the
+                // collapse, then TranslatePromqlToEsqlPlan translates the command to ESQL nodes.
                 new TranslateTimeSeriesCollapse(),
+                // Instant result-ordering functions wrap collapse (or a bare command) with OrderBy before translation.
+                new AddPromqlResultOrder(),
                 // translate PromQL plan to ESQL. It should run before TranslateTimeSeriesAggregate and implicit casting
                 new TranslatePromqlToEsqlPlan()
             ),
@@ -341,7 +346,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new Batch<>(
                 "Finish Analysis",
                 Limiter.ONCE,
-                new DetermineUnmappedFieldsToKeep(ordering -> unmappedFieldsOrdering = ordering),
+                new DetermineUnmappedFieldsToKeep(),
                 new ResolveImplicitTimeSeriesIdentityGrouping(),
                 new ResolvedProjects(),
                 new InferKnnSimilarity(),
@@ -369,20 +374,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
     private final Verifier verifier;
 
-    private UnmappedFieldsOrdering unmappedFieldsOrdering;
-
     public Analyzer(AnalyzerContext context, Verifier verifier) {
         super(context);
         this.verifier = verifier;
     }
 
-    @Nullable
-    public UnmappedFieldsOrdering unmappedFieldsOrdering() {
-        return unmappedFieldsOrdering;
-    }
-
     public LogicalPlan analyze(LogicalPlan plan) {
-        unmappedFieldsOrdering = null;
         BitSet partialMetrics = new BitSet(FeatureMetric.values().length);
         LogicalPlan analyzed = execute(plan);
         LogicalPlan verified = verify(analyzed, gatherPreAnalysisMetrics(plan, partialMetrics));
@@ -623,6 +620,86 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     /**
+     * Answers {@code _class} and {@code _name} for every view and subquery branch of a {@code FROM}. It runs while the branch
+     * wrappers still say which is which, before {@link UnwrapNamedSubqueries} removes the view wrappers.
+     */
+    private static class ResolveSubqueryRelationColumns extends ParameterizedAnalyzerRule<UnresolvedMetadata, AnalyzerContext> {
+
+        @Override
+        protected boolean skipResolved() {
+            return false;
+        }
+
+        @Override
+        protected LogicalPlan rule(UnresolvedMetadata unresolvedMetadata, AnalyzerContext context) {
+            LogicalPlan child = unresolvedMetadata.child();
+            if (child instanceof ExternalRelation) {
+                return unresolvedMetadata;
+            }
+
+            List<NamedExpression> metadataFields = ResolveTable.resolveMetadata(unresolvedMetadata.metadataFields(), context);
+            if (metadataFields.stream().anyMatch(f -> f.resolved() == false)) {
+                return unresolvedMetadata; // unknown name or pattern (e.g. METADATA _bogus): left for the Verifier
+            }
+            List<NamedExpression> relationColumns = metadataFields.stream()
+                .filter(f -> MetadataAttribute.isRelationColumn(f.name()))
+                .toList();
+            Source src = unresolvedMetadata.source();
+
+            LogicalPlan answered;
+            if (child instanceof UnionAll unionAll) {
+                List<LogicalPlan> branches = unionAll.children().stream().map(b -> answer(b, relationColumns, src, false)).toList();
+                answered = branches.equals(unionAll.children()) ? child : unionAll.replaceChildren(branches);
+            } else {
+                answered = answer(child, relationColumns, src, true);
+            }
+            return answered.equals(child) ? unresolvedMetadata : new UnresolvedMetadata(src, answered, metadataFields);
+        }
+
+        private static LogicalPlan answer(LogicalPlan branch, List<NamedExpression> relationColumns, Source src, boolean lone) {
+            return switch (branch) {
+                case NamedSubquery view -> withRelationColumns(view, relationColumns, src, RelationClass.VIEW, view.name());
+                case Subquery subquery -> withRelationColumns(
+                    lone ? subquery.child() : subquery,
+                    relationColumns,
+                    src,
+                    RelationClass.SUBQUERY,
+                    null
+                );
+                case LogicalPlan relation -> relation;
+            };
+        }
+
+        private static LogicalPlan withRelationColumns(
+            LogicalPlan base,
+            List<NamedExpression> relationColumns,
+            Source src,
+            RelationClass relationClass,
+            @Nullable String name
+        ) {
+            if (relationColumns.isEmpty()) {
+                return base;
+            }
+            Expression relationName = MetadataAttribute.keywordOrNull(src, name);
+            List<Alias> values = new ArrayList<>(relationColumns.size());
+            for (NamedExpression column : relationColumns) {
+                values.add(
+                    new Alias(src, column.name(), MetadataAttribute.relationColumnValue(column.name(), src, relationClass, relationName))
+                );
+            }
+            return new Eval(src, base, values);
+        }
+    }
+
+    private static class UnwrapNamedSubqueries extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
+
+        @Override
+        public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
+            return plan.transformDown(NamedSubquery.class, UnaryPlan::child);
+        }
+    }
+
+    /**
      * Resolves {@link DatasetShadowRelation} nodes against {@link AnalyzerContext#linkedResolution()}.
      * The dataset analog of {@link ResolveViewShadow}.
      * <p>
@@ -675,7 +752,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * <p>
      * Delegates to {@link UnionAll#pruneEmptyBranches(java.util.function.Predicate)} so a matched shadow
      * (now an {@code EsRelation}) survives alongside the dataset's external relation as separate
-     * {@code UnionAll} branches (Strategy A — no merging into a single combined relation). A single-survivor
+     * {@code UnionAll} branches (no merging into a single combined relation). A single-survivor
      * union collapses to its lone child, so {@code FROM ds} with no remote match returns to exactly the bare
      * {@code UnresolvedExternalRelation} shape the non-CPS path produces.
      */
@@ -2633,7 +2710,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         /** What a wildcard projection that matches nothing in the child output should do. */
         private enum UnmatchedPatterns {
-            /** Drop the wildcard, letting the {@code _unmapped_fields} expansion apply it later. */
+            /** Drop the wildcard, letting the {@code _unmapped_fields} flattening apply it later. */
             IGNORE,
             /** Keep the unresolved attribute so the {@code Verifier} reports "No matches found". */
             FAIL
@@ -2673,7 +2750,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         List<Attribute> matched = resolveAgainstList(up, childOutput);
                         // A wildcard that matches nothing resolves to a single unresolved UnresolvedAttribute. Under
                         // LOAD_ALL it may match only (not-yet-visible) unmapped source fields, so skip it here and let
-                        // the _unmapped_fields expansion apply it later, instead of failing with "No matches found".
+                        // the _unmapped_fields flattening apply it later, instead of failing with "No matches found".
                         if (unmatchedPatterns == UnmatchedPatterns.IGNORE
                             && matched.size() == 1
                             && matched.getFirst() instanceof UnresolvedAttribute) {

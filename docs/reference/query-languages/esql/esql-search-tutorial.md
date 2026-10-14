@@ -836,7 +836,9 @@ FROM cooking_blog METADATA _score
 | LIMIT 10
 ```
 
-**Example: `KNN` function on runtime vectors filtering rows with cosine similarity < 0.8 (note: `LIMIT` command limits to 100 rows)**
+**Example: Filter rows by cosine similarity**
+
+This example keeps rows with a cosine similarity of at least 0.8 and returns up to 100 rows.
 
 ```esql
 FROM cooking_blog

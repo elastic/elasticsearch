@@ -176,6 +176,16 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Property.IndexScope,
         Property.ServerlessPublic
     );
+    /**
+     * Whether a bulk request that needs several dynamic mapping updates sends the updates of consecutive documents together
+     * instead of one update per document.
+     */
+    public static final Setting<Boolean> INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING = Setting.boolSetting(
+        "index.mapping.combine_dynamic_updates",
+        false,
+        Property.Dynamic,
+        Property.IndexScope
+    );
     public static final Setting<Long> INDEX_MAPPING_DEPTH_LIMIT_SETTING = Setting.longSetting(
         "index.mapping.depth.limit",
         20L,
@@ -607,6 +617,37 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         );
         Mapping mapping = mergeBuilders(mappingParser, indexSettings, updateBuilder, MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT, existing);
         return mapping.toCompressedXContent().equals(existing.mappingSource());
+    }
+
+    /**
+     * Returns the document mapper that applying a dynamic mapping update would give. The mappings are left unchanged.
+     *
+     * @throws RuntimeException if the update can't be applied
+     */
+    public DocumentMapper previewDynamicMappingUpdate(CompressedXContent update) {
+        MergeReason reason = MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT;
+        MappingBuilder updateBuilder = mappingParser.parseToBuilder(SINGLE_MAPPING_NAME, reason, MappingParser.convertToMap(update));
+        Mapping mapping = mergeBuilders(mappingParser, indexSettings, updateBuilder, reason, documentMapper());
+        return newDocumentMapper(mapping, reason, mapping.toCompressedXContent());
+    }
+
+    /**
+     * Creates a merger that combines the dynamic mapping update of a document with the ones of the documents that follow it.
+     */
+    public DynamicMappingUpdateMerger dynamicMappingUpdateMerger(CompressedXContent update) {
+        DocumentMapper existing = documentMapper();
+        long totalFieldsLimit = indexSettings.getMappingTotalFieldsLimit();
+        if (existing == null) {
+            return new DynamicMappingUpdateMerger(mappingParser, path -> false, update, totalFieldsLimit, totalFieldsLimit);
+        }
+        MappingLookup mappers = existing.mappers();
+        return new DynamicMappingUpdateMerger(
+            mappingParser,
+            path -> mappers.getFieldType(path) != null,
+            update,
+            mappers.remainingFieldsUntilLimit(totalFieldsLimit),
+            totalFieldsLimit
+        );
     }
 
     public MappingBuilder parseMappings(CompressedXContent mappingSource) {

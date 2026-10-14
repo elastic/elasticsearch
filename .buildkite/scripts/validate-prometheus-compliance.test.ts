@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
 const SCRIPT = resolve(`${import.meta.dirname}/validate-prometheus-compliance.sh`);
 const CORPUS = "grafanalabs-top100";
-const VERSION = "0.9.3+prometheus-3.13.1";
+const VERSION = "0.9.5+prometheus-3.13.1";
 
 type Status = "OK" | "FAIL" | "ERR" | "SKIP";
 type Case = [id: string, status: Status, expr: string];

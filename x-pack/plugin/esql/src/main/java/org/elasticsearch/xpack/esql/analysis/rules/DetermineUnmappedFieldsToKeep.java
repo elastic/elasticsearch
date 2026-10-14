@@ -57,10 +57,15 @@ import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferen
  * that can never let an unmapped source field through—the rule leaves the plan untouched, so data nodes
  * never load {@code _source} for it.
  *
+ * <p>The rule also leaves the plan untouched when the query has a column named {@code _unmapped_fields} of its own, at any
+ * node: a mapped or demand-loaded field, an {@code EVAL} or {@code RENAME} target, an {@code ENRICH} or {@code LOOKUP JOIN}
+ * field. The query's column wins. Adding the {@link UnmappedFieldsAttribute} next to it would not work anyway, since
+ * {@code EVAL} shadows by name and union and fork branches line their columns up by name.
+ *
  * <p>{@link MergePlan} is n-ary: each branch is stamped with its own pattern. Named unmapped mentions are aligned
  * like {@code LOAD}: a mention in one branch is materialized in every sibling that can surface it, so that
- * name is excluded from {@code $$unmapped_fields}. Extra fields that a branch does not keep (literal
- * {@code KEEP}, {@code STATS}) are not loaded there; a null {@code $$unmapped_fields} is appended so the
+ * name is excluded from {@code _unmapped_fields}. Extra fields that a branch does not keep (literal
+ * {@code KEEP}, {@code STATS}) are not loaded there; a null {@code _unmapped_fields} is appended so the
  * coordinator can still return extras from siblings.
  *
  * <p>Alignment {@link Project}s created during analysis snapshot their projections before this rule runs, so
@@ -83,16 +88,19 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         if (plan.resolved() == false) {
             return plan;
         }
+        if (plan.anyMatch(p -> p.output().stream().anyMatch(a -> a.name().equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME)))) {
+            return plan;
+        }
         UnmappedFieldsPattern pattern = computeUnmappedFieldsToKeep(plan);
         LogicalPlan result;
         if (plan.noneMatch(p -> p instanceof MergePlan || p instanceof AbstractSubqueryJoin)) {
             result = stampAll(plan).transformUp(Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields);
         } else if (pattern.isNone()) {
-            // Exact KEEP/STATS above a merge must not stamp or pass $$unmapped_fields through: alignment
+            // Exact KEEP/STATS above a merge must not stamp or pass _unmapped_fields through: alignment
             // Projects snapshot before this rule, and replaceChild on a ResolvingProject would re-append it.
             return plan;
         } else {
-            // Project pass before merge finish keeps $$unmapped_fields on branch Projects. The pass after
+            // Project pass before merge finish keeps _unmapped_fields on branch Projects. The pass after
             // picks it up on Projects above the merge, whose child output only includes the column after refresh.
             result = annotate(plan, pattern).transformUp(Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields)
                 .transformUp(MergePlan.class, DetermineUnmappedFieldsToKeep::finishMergeUnmappedFields)
@@ -127,7 +135,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
             // (the unmapped fields can be dropped) but not here.
             case InlineStats inlineStats -> computeUnmappedFieldsToKeep(inlineStats.aggregate().child());
             case UnaryPlan unary -> computeUnmappedFieldsToKeep(unary.child());
-            // Only the left side can carry the $$unmapped_fields column: apply() skips IndexMode.LOOKUP
+            // Only the left side can carry the _unmapped_fields column: apply() skips IndexMode.LOOKUP
             // relations, so the right-hand lookup index never contributes unmapped source fields.
             case Join join -> computeUnmappedFieldsToKeep(join.left());
             default -> UnmappedFieldsPattern.ALL;
@@ -152,7 +160,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
      * n-ary: each branch is annotated with its own pattern. {@link AbstractSubqueryJoin} is binary: join
      * output is the left side. The right is an independently executed key subquery, so it is annotated
      * with {@link UnmappedFieldsPattern#NONE} rather than its own KEEP pattern, otherwise
-     * {@code $$unmapped_fields} becomes an extra output column after IN arity was already accepted.
+     * {@code _unmapped_fields} becomes an extra output column after IN arity was already accepted.
      * Every other node is only walked to reach those; recursion stops at a union so a parent
      * pattern cannot stamp through it.
      */
@@ -187,7 +195,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
 
     /**
      * Union alignment {@link Project}s snapshot their projections before this rule adds
-     * {@code $$unmapped_fields}. {@link ResolvingProject} already re-appends it; other Projects
+     * {@code _unmapped_fields}. {@link ResolvingProject} already re-appends it; other Projects
      * would otherwise drop the column before the coordinator can flatten it.
      */
     private static Project passThroughUnmappedFields(Project project) {
@@ -213,7 +221,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
     }
 
     /**
-     * Branches whose pattern is {@link UnmappedFieldsPattern#NONE} never get {@code $$unmapped_fields} on the relation. If a sibling did,
+     * Branches whose pattern is {@link UnmappedFieldsPattern#NONE} never get {@code _unmapped_fields} on the relation. If a sibling did,
      * append a null column so union layouts match, then refresh union output so the coordinator sees the {@link UnmappedFieldsAttribute}
      * subtype. In other words, we only pad if at least one child has the attribute and at least one does not.
      */
@@ -246,7 +254,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
     }
 
     /**
-     * Null-fills {@code $$unmapped_fields} in branches that cannot surface it and rebuilds the
+     * Null-fills {@code _unmapped_fields} in branches that cannot surface it and rebuilds the
      * {@link UnionAll} output, appending the {@link UnmappedFieldsAttribute} after conversion.
      * {@link MergePlan#refreshOutput()} unions through the pre-annotation output snapshot, which
      * does not yet contain the attribute, so it would be dropped.
@@ -277,7 +285,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
             : withChildren.replaceSubPlansAndOutput(withChildren.children(), newOutput);
     }
 
-    /** {@code null} when no branch exposes {@code $$unmapped_fields}. */
+    /** {@code null} when no branch exposes {@code _unmapped_fields}. */
     private static @Nullable UnmappedFieldsAttribute unionFrom(UnionAll unionAll) {
         UnmappedFieldsAttribute first = null;
         UnmappedFieldsPattern union = UnmappedFieldsPattern.NONE;

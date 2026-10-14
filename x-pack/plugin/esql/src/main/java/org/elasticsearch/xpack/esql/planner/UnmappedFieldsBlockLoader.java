@@ -32,7 +32,7 @@ import java.util.Set;
 import java.util.function.Predicate;
 
 /**
- * Block loader for the synthetic {@code _unmapped_fields} column produced by
+ * Block loader for the {@code _unmapped_fields} column produced by
  * {@code SET unmapped_fields="LOAD_ALL"}.
  *
  * <p>For each document it reads {@code _source} and re-serialises the surviving top-level key/value pairs as a JSON object, which the

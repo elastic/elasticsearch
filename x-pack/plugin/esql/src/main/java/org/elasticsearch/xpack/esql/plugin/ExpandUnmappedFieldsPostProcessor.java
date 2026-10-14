@@ -48,9 +48,9 @@ import java.util.function.BooleanSupplier;
 /**
  * Coordinator-side post-processor for {@code SET unmapped_fields="LOAD_ALL"}.
  *
- * <p>After all data-node pages are collected, flattens each row's {@code $$unmapped_fields} JSON object to its leaves and re-serialises
- * them as a single JSON object under a {@code _unmapped_fields} column of type {@link DataType#SOURCE} (like the {@code _source}
- * column of {@code METADATA _source}, but a flattened view of it rather than a structural subset). Field names are flattened:
+ * <p>After all data-node pages are collected, flattens each row's {@code _unmapped_fields} JSON object to its leaves and re-serialises
+ * them as a single JSON object in the same {@link DataType#SOURCE} column (like the {@code _source} column of
+ * {@code METADATA _source}, but a flattened view of it rather than a structural subset). Field names are flattened:
  * {@code {"foo":{"bar":1}}} in {@code _source} becomes {@code {"foo.bar":1}} in {@code _unmapped_fields}. Arrays follow multivalue
  * semantics: a leaf with several values becomes a JSON array at the same (dotted) name, while a one-element array is
  * indistinguishable from a scalar and renders as the bare value ({@code {"a":[1]}} becomes {@code {"a":1}}). A row whose object
@@ -66,10 +66,9 @@ import java.util.function.BooleanSupplier;
  * name. That alone keeps a leaf colliding with a query column out: {@code DetermineUnmappedFieldsToKeep} excludes every name the
  * plan outputs from the pattern, so a discovered field can never shadow a query column.
  *
- * <p>The {@code _unmapped_fields} column takes the slot the synthetic column occupied in the executed schema; it is produced after
- * analysis and is not referable from the query language (the synthetic {@code $$}-prefixed name kept it unreachable during planning).
- * If the query itself already outputs a column named {@code _unmapped_fields}, that column wins, as with any other colliding leaf:
- * the discovered fields are dropped and no second column of that name is produced.
+ * <p>The column keeps its slot in the executed schema. It is added after analysis resolved every reference, so it is not referable
+ * from the query language. A query with a column named {@code _unmapped_fields} of its own never gets this column at all (see
+ * {@code DetermineUnmappedFieldsToKeep}), so the response never holds two columns of that name.
  *
  * <p>Each row's JSON is streamed with a parser and never materialised as a {@code Map}, so a structure-heavy row (an array of many
  * tiny objects) costs only the leaves it flattens to, not an object graph many times its byte size.
@@ -86,7 +85,7 @@ import java.util.function.BooleanSupplier;
  */
 public final class ExpandUnmappedFieldsPostProcessor {
     /** The user-visible name of the single flattened unmapped-fields column this post-processor emits. */
-    public static final String UNMAPPED_FIELDS_COLUMN_NAME = "_unmapped_fields";
+    public static final String UNMAPPED_FIELDS_COLUMN_NAME = UnmappedFieldsAttribute.ATTRIBUTE_NAME;
 
     /**
      * How often the flattening loop polls {@code isCancelled}. The flattening is a coordinator-side, single-threaded scan over every
@@ -101,7 +100,7 @@ public final class ExpandUnmappedFieldsPostProcessor {
     }
 
     /**
-     * Test-only seam invoked once at the start of the flattening phase — after a {@code $$unmapped_fields} column has been confirmed
+     * Test-only seam invoked once at the start of the flattening phase — after a {@code _unmapped_fields} column has been confirmed
      * present but before any page is scanned. Production never installs a hook (the field stays {@code null}), so this adds a single
      * volatile read per {@code LOAD_ALL} response and nothing otherwise. {@code LoadAllCancellationIT} installs a hook that blocks
      * until it has cancelled the task, which lets it deterministically land a cancellation inside an in-progress flattening (rather than
@@ -111,8 +110,8 @@ public final class ExpandUnmappedFieldsPostProcessor {
     static volatile Runnable flatteningStartedForTest = null;
 
     /**
-     * Flattens the {@code $$unmapped_fields} column in {@code result} into a single {@code _unmapped_fields} {@link DataType#SOURCE}
-     * column. Returns {@code result} unchanged if no {@link UnmappedFieldsAttribute} is present in the schema.
+     * Flattens the value of the {@code _unmapped_fields} column in {@code result}, in place. Returns {@code result} unchanged if no
+     * {@link UnmappedFieldsAttribute} is present in the schema.
      *
      * @param isCancelled polled every {@link #ROWS_PER_CANCELLATION_CHECK} rows during the (potentially long) flattening; when it reports
      *                    the task cancelled the flattening throws {@link TaskCancelledException} and releases the input and any partially
@@ -133,14 +132,14 @@ public final class ExpandUnmappedFieldsPostProcessor {
         double reservationFactor = plannerSettings.sourceReservationFactor();
         UnmappedFieldsAttribute unmappedAttribute = (UnmappedFieldsAttribute) schema.get(unmappedIdx);
         UnmappedFieldsPattern pattern = unmappedAttribute.pattern();
-        if (hasQueryColumnNamedLikeTheUnmappedColumn(schema, unmappedIdx)) {
-            return withoutUnmappedColumn(result, schema, unmappedIdx);
-        }
-
-        // The synthetic column is already SOURCE-typed, so it only needs its user-visible name; everything else keeps its slot.
         assert unmappedAttribute.dataType() == DataType.SOURCE : "expected a SOURCE column but was " + unmappedAttribute.dataType();
+        assert schema.stream().filter(a -> a.name().equals(UNMAPPED_FIELDS_COLUMN_NAME)).count() == 1
+            : "DetermineUnmappedFieldsToKeep must not add the column next to a query column of the same name: " + schema;
+
+        // The name and type stay as they are. Swapping in a plain attribute marks the column as flattened, which is what the
+        // response layer asserts.
         List<Attribute> newSchema = new ArrayList<>(schema);
-        newSchema.set(unmappedIdx, new ReferenceAttribute(Source.EMPTY, UNMAPPED_FIELDS_COLUMN_NAME, unmappedAttribute.dataType()));
+        newSchema.set(unmappedIdx, new ReferenceAttribute(Source.EMPTY, unmappedAttribute.name(), unmappedAttribute.dataType()));
 
         // From here on we own the input pages: on success rewritePage drains them one by one, on any failure we release whatever
         // is left below. Page#releaseBlocks is idempotent, so re-releasing pages rewritePage already drained is a no-op.
@@ -172,50 +171,12 @@ public final class ExpandUnmappedFieldsPostProcessor {
         }
     }
 
-    /**
-     * Drops the synthetic column when the query already outputs a column named {@link #UNMAPPED_FIELDS_COLUMN_NAME}: the query's column
-     * wins, and a second column of the same name would make the response ambiguous.
-     */
-    private static Result withoutUnmappedColumn(Result result, List<Attribute> schema, int unmappedIdx) {
-        int[] keep = new int[schema.size() - 1];
-        List<Attribute> newSchema = new ArrayList<>(keep.length);
-        for (int c = 0, k = 0; c < schema.size(); c++) {
-            if (c != unmappedIdx) {
-                keep[k++] = c;
-                newSchema.add(schema.get(c));
-            }
-        }
-        List<Page> newPages = new ArrayList<>(result.pages().size());
-        boolean success = false;
-        try {
-            for (Page page : result.pages()) {
-                newPages.add(page.projectBlocks(keep));
-                page.releaseBlocks();
-            }
-            success = true;
-            return new Result(
-                newSchema,
-                newPages,
-                result.attributeMetadata(),
-                result.configuration(),
-                result.completionInfo(),
-                result.executionInfo(),
-                result.approximationApplied()
-            );
-        } finally {
-            if (success == false) {
-                Releasables.closeExpectNoException(newPages);
-                Releasables.closeExpectNoException(result.pages());
-            }
-        }
-    }
-
-    /** Whether {@link #flatten} would rewrite a result with this schema, i.e. the synthetic {@code $$unmapped_fields} column is present. */
+    /** Whether {@link #flatten} would rewrite a result with this schema, i.e. the {@code _unmapped_fields} column is present. */
     public static boolean hasUnmappedFields(List<Attribute> schema) {
         return unmappedFieldsIndex(schema) != -1;
     }
 
-    /** Index of the synthetic {@code $$unmapped_fields} column in {@code schema}, or {@code -1} if none is present. */
+    /** Index of the {@code _unmapped_fields} column in {@code schema}, or {@code -1} if none is present. */
     private static int unmappedFieldsIndex(List<Attribute> schema) {
         return CollectionUtils.findIndex(schema, e -> e instanceof UnmappedFieldsAttribute);
     }
@@ -241,20 +202,7 @@ public final class ExpandUnmappedFieldsPostProcessor {
         return reservation;
     }
 
-    /**
-     * Whether the query itself outputs a column named {@link #UNMAPPED_FIELDS_COLUMN_NAME}, e.g. {@code EVAL _unmapped_fields = ...}.
-     * The synthetic column is named {@code $$unmapped_fields}, so the two do not clash in the schema; renaming it would make them.
-     */
-    private static boolean hasQueryColumnNamedLikeTheUnmappedColumn(List<Attribute> schema, int unmappedIdx) {
-        for (int i = 0; i < schema.size(); i++) {
-            if (i != unmappedIdx && schema.get(i).name().equals(UNMAPPED_FIELDS_COLUMN_NAME)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /** Rewrite each page, replacing the {@code $$unmapped_fields} block with a flattened {@code _unmapped_fields} SOURCE block. */
+    /** Rewrite each page, replacing the {@code _unmapped_fields} block with a block of its flattened values. */
     private static List<Page> rewritePages(
         Result result,
         int unmappedIdx,
@@ -336,7 +284,7 @@ public final class ExpandUnmappedFieldsPostProcessor {
                 }
             }
             var result = new Page(page.getPositionCount(), allBlocks);
-            // Release the $$unmapped_fields block from the circuit breaker; the surviving blocks were protected by incRef above.
+            // Release the _unmapped_fields block from the circuit breaker; the surviving blocks were protected by incRef above.
             page.releaseBlocks();
             success = true;
             return result;
@@ -373,7 +321,7 @@ public final class ExpandUnmappedFieldsPostProcessor {
     }
 
     /**
-     * Streams one row's {@code $$unmapped_fields} JSON object, invoking {@code sink} once per leaf with its dotted path and value - the
+     * Streams one row's {@code _unmapped_fields} JSON object, invoking {@code sink} once per leaf with its dotted path and value - the
      * same leaves a parsed {@code Map} would yield, but without ever materialising that map. Streaming is what bounds the heap a
      * structure-heavy row can demand: a row whose {@code _source} is, say, an array of a million one-field objects flattens one leaf at
      * a time instead of building a {@code Map}/{@code List} graph many times its own byte size.
@@ -387,7 +335,7 @@ public final class ExpandUnmappedFieldsPostProcessor {
             )
         ) {
             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                throw new IllegalStateException("expected $$unmapped_fields to be a JSON object but was [" + parser.currentToken() + "]");
+                throw new IllegalStateException("expected _unmapped_fields to be a JSON object but was [" + parser.currentToken() + "]");
             }
             for (String field = parser.nextFieldName(); field != null; field = parser.nextFieldName()) {
                 // The block loader prunes whole _source keys, so a bare top-level null is the one null that can reach here; it is
@@ -399,7 +347,7 @@ public final class ExpandUnmappedFieldsPostProcessor {
                 }
             }
         } catch (IOException e) {
-            throw new UncheckedIOException("failed to parse $$unmapped_fields source", e);
+            throw new UncheckedIOException("failed to parse _unmapped_fields source", e);
         }
     }
 
@@ -440,7 +388,7 @@ public final class ExpandUnmappedFieldsPostProcessor {
                 name,
                 AbstractXContentParser.readValue(parser, LinkedHashMap::new)
             );
-            default -> throw new IllegalStateException("unexpected token [" + parser.currentToken() + "] while walking $$unmapped_fields");
+            default -> throw new IllegalStateException("unexpected token [" + parser.currentToken() + "] while walking _unmapped_fields");
         }
     }
 
@@ -479,7 +427,7 @@ public final class ExpandUnmappedFieldsPostProcessor {
         if (unmappedBlock.getValueCount(row) != 1) {
             throw new IllegalStateException(
                 Strings.format(
-                    "Expected exactly one value in $$unmapped_fields block at row %d, but got %d",
+                    "Expected exactly one value in _unmapped_fields block at row %d, but got %d",
                     row,
                     unmappedBlock.getValueCount(row)
                 )

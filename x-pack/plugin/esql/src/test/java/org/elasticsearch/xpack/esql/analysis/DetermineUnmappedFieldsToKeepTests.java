@@ -289,7 +289,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         // KEEP first* leaves only the mapped field "first_name"; DROP first_name* then removes it, so NO mapped
         // column survives. This is still valid under LOAD_ALL — analysis must not fail: the DROP wildcard still
         // leaves unmapped source fields matching "first*" but not "first_name*" (e.g. "first_pet"), so the
-        // synthetic $$unmapped_fields column remains. We cannot know at planning time whether such fields exist
+        // synthetic _unmapped_fields column remains. We cannot know at planning time whether such fields exist
         // in _source, so erroring would be wrong.
         UnmappedFieldsPattern pattern = patternFor("FROM test | KEEP first* | DROP first_name*");
         assertKept(pattern, "first_pet", "first_grade");
@@ -411,10 +411,12 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertNoUnmappedFieldsAttribute("FROM test | KEEP _unmapped_fields");
     }
 
-    public void testDropUnmappedFieldsIsAnOrdinarySourceField() {
-        UnmappedFieldsPattern pattern = patternFor("FROM test | DROP _unmapped_fields");
-        assertKept(pattern, "unmapped_extra");
-        assertNotKept(pattern, excl("_unmapped_fields"));
+    /**
+     * The explicit reference demand-loads a source field named {@code _unmapped_fields}, and a query with such a column of its own
+     * gets no {@link UnmappedFieldsAttribute}. So the DROP leaves no {@code _unmapped_fields} column in the response.
+     */
+    public void testDropUnmappedFieldsOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("FROM test | DROP _unmapped_fields");
     }
 
     public void testSubqueryKeepExactNameOmitsUnmappedFieldsAttribute() {
@@ -528,16 +530,33 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertInSubqueryRightHasNoUnmappedFields(plan);
     }
 
-    public void testRenameUnmappedFieldsIsAnOrdinarySourceField() {
-        UnmappedFieldsPattern pattern = patternFor("FROM test | RENAME _unmapped_fields AS extras");
-        assertKept(pattern, "unmapped_extra");
-        assertNotKept(pattern, excl("_unmapped_fields", "extras"));
+    /**
+     * A query that has a column named {@code _unmapped_fields} of its own, at any node, keeps it and gets no
+     * {@link UnmappedFieldsAttribute}: union and fork branches line their columns up by name and {@code EVAL} shadows by name, so the
+     * two could not live side by side. Here the query's column is a source field of that name, referenced explicitly.
+     */
+    public void testRenameOfSourceFieldNamedUnmappedFieldsOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("FROM test | RENAME _unmapped_fields AS extras");
     }
 
-    public void testScalarFunctionOnUnmappedFieldsIsAnOrdinarySourceField() {
-        UnmappedFieldsPattern pattern = patternFor("FROM test | EVAL len = LENGTH(_unmapped_fields)");
-        assertKept(pattern, "unmapped_extra");
-        assertNotKept(pattern, excl("_unmapped_fields", "len"));
+    public void testScalarFunctionOnSourceFieldNamedUnmappedFieldsOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("FROM test | EVAL len = LENGTH(_unmapped_fields)");
+    }
+
+    public void testEvalNamedUnmappedFieldsOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("FROM test | EVAL _unmapped_fields = \"mine\"");
+    }
+
+    public void testEvalNamedUnmappedFieldsThenDropOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("FROM test | EVAL _unmapped_fields = \"mine\" | DROP _unmapped_fields");
+    }
+
+    public void testRenameToUnmappedFieldsOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("FROM test | RENAME last_name AS _unmapped_fields");
+    }
+
+    public void testForkBranchNamingUnmappedFieldsOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("FROM test | FORK (EVAL _unmapped_fields = \"mine\") (WHERE true)");
     }
 
     public void testForkSurfacesUnmappedFieldsAttribute() {

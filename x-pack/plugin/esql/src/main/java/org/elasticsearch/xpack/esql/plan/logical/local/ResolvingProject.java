@@ -81,8 +81,8 @@ public class ResolvingProject extends Project {
 
     /**
      * Runs the resolver against the child output, keeping any {@link UnmappedFieldsAttribute} instances out of the resolver's scope
-     * (so KEEP/DROP/RENAME patterns cannot match the synthetic column), then re-appending them at the end. Where the synthetic column
-     * sits is irrelevant: the coordinator swaps it for the {@code _unmapped_fields} column.
+     * (so KEEP/DROP/RENAME patterns cannot match the column), then re-appending them at the end. Where the column
+     * sits is irrelevant: the coordinator flattens it in place.
      * <p>
      * At most one ever arrives. Every non-LOOKUP relation is stamped with one, so a multi-input plan starts out holding several, but
      * they all share {@link UnmappedFieldsAttribute#ATTRIBUTE_NAME}: nodes that merge their inputs collapse them by name, while
@@ -164,7 +164,7 @@ public class ResolvingProject extends Project {
     @Override
     public ResolvingProject replaceChild(LogicalPlan newChild) {
         ResolvingProject recomputed = new ResolvingProject(source(), newChild, command);
-        // LOAD_ALL stamps $$unmapped_fields. Convert synthetics must survive re-resolution of that KEEP/DROP.
+        // LOAD_ALL stamps _unmapped_fields. Convert synthetics must survive re-resolution of that KEEP/DROP.
         if (newChild.output().stream().anyMatch(a -> a instanceof UnmappedFieldsAttribute) == false) {
             return recomputed;
         }

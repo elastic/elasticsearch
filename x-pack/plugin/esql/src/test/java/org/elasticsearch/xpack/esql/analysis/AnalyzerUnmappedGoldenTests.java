@@ -1496,7 +1496,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
 
     /**
      * Coordinator-side LOOKUP JOIN under LOAD_ALL mode. The join runs on the coordinator, so the
-     * data-node fragment must include {@code $$unmapped_fields} in the exchange output for the
+     * data-node fragment must include {@code _unmapped_fields} in the exchange output for the
      * coordinator to attach unmapped source fields to each joined row.
      * Captures both analysis and local-physical-optimization stages to verify the exchange boundary.
      */
@@ -1513,7 +1513,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     /**
      * Data-node-side LOOKUP JOIN under LOAD_ALL mode. A {@code SORT} on a lookup-added field
      * ({@code language_name}) forces the join to execute on data nodes rather than on the
-     * coordinator, exercising the alternative plan shape and confirming that {@code $$unmapped_fields}
+     * coordinator, exercising the alternative plan shape and confirming that {@code _unmapped_fields}
      * is still present in the plan after the join.
      * Captures both analysis and local-physical-optimization stages to verify the exchange boundary.
      */
@@ -1528,7 +1528,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
             """).run();
     }
 
-    /** Every branch can surface extras, so none of them needs the null {@code $$unmapped_fields} column that aligns branch layouts. */
+    /** Every branch can surface extras, so none of them needs the null {@code _unmapped_fields} column that aligns branch layouts. */
     public void testLoadAllForkEveryBranchLoadsExtras() {
         loadAll("""
             FROM employees
@@ -1539,7 +1539,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
 
     /**
      * A pattern-less {@code KEEP} can never let an unmapped source field through, so that branch alone is padded
-     * with a null {@code $$unmapped_fields} to match its sibling.
+     * with a null {@code _unmapped_fields} to match its sibling.
      */
     public void testLoadAllForkPatternLessKeepInOneBranch() {
         loadAll("""

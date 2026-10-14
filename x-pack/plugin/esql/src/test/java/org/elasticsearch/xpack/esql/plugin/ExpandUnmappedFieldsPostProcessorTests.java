@@ -62,9 +62,8 @@ import static org.hamcrest.Matchers.sameInstance;
 
 /**
  * Tests the coordinator-side flattening of {@code SET unmapped_fields="LOAD_ALL"} into a single {@code _unmapped_fields}
- * {@link DataType#SOURCE} column (see <a href="https://github.com/elastic/elasticsearch/issues/161717">#161717</a>). The synthetic
- * {@code $$unmapped_fields} column is replaced in place by a {@code _unmapped_fields} column holding one flattened JSON object per row,
- * dotted leaf names and all; a row that contributes no surviving leaf gets a {@code null}. JSON scalar types are preserved (a number
+ * {@link DataType#SOURCE} column (see <a href="https://github.com/elastic/elasticsearch/issues/161717">#161717</a>). The value of
+ * the {@code _unmapped_fields} column is flattened in place, to one flattened JSON object per row, dotted leaf names and all; a row that contributes no surviving leaf gets a {@code null}. JSON scalar types are preserved (a number
  * stays a number), unlike the stringified-to-keyword expansion this replaced.
  */
 public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
@@ -274,28 +273,6 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
             assertThat(
                 rows(flattened),
                 contains(matchesMap().entry(INT_ATTR, 1).entry(UNMAPPED, matchesMap().entry("one", "a").entry("two", List.of("a", "b"))))
-            );
-        } finally {
-            Releasables.close(flattened.pages());
-        }
-    }
-
-    public void testQueryColumnNamedLikeTheUnmappedColumnWinsAndNoSecondColumnIsProduced() {
-        BlockFactory bf = blockFactory();
-        Result result = singlePage(
-            bf,
-            List.of(keywordAttr(UNMAPPED), intAttr(), unmappedAttr()),
-            row("mine", 1, jsonObject("{'a':'x'}")),
-            row("yours", 2, null)
-        );
-
-        Result flattened = flatten(result, bf);
-        try {
-            assertThat(names(flattened), equalTo(List.of(UNMAPPED, INT_ATTR)));
-            assertThat(dataTypes(flattened), equalTo(List.of(DataType.KEYWORD, DataType.INTEGER)));
-            assertThat(
-                rows(flattened),
-                contains(matchesMap().entry(UNMAPPED, "mine").entry(INT_ATTR, 1), matchesMap().entry(UNMAPPED, "yours").entry(INT_ATTR, 2))
             );
         } finally {
             Releasables.close(flattened.pages());

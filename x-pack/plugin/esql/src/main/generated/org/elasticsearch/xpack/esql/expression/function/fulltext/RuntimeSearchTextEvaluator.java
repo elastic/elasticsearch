@@ -19,6 +19,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.mapper.TokenStreamMatching;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
@@ -32,7 +33,7 @@ public final class RuntimeSearchTextEvaluator implements ExpressionEvaluator {
 
   private final ExpressionEvaluator fieldBlock;
 
-  private final RuntimeSearch.TokenStreamMatcher matcher;
+  private final TokenStreamMatching.Matcher matcher;
 
   private final Analyzer analyzer;
 
@@ -43,7 +44,7 @@ public final class RuntimeSearchTextEvaluator implements ExpressionEvaluator {
   private Warnings warnings;
 
   public RuntimeSearchTextEvaluator(Source source, ExpressionEvaluator fieldBlock,
-      RuntimeSearch.TokenStreamMatcher matcher, Analyzer analyzer, BytesRef scratch,
+      TokenStreamMatching.Matcher matcher, Analyzer analyzer, BytesRef scratch,
       DriverContext driverContext) {
     this.source = source;
     this.fieldBlock = fieldBlock;
@@ -103,14 +104,14 @@ public final class RuntimeSearchTextEvaluator implements ExpressionEvaluator {
 
     private final ExpressionEvaluator.Factory fieldBlock;
 
-    private final RuntimeSearch.TokenStreamMatcher matcher;
+    private final TokenStreamMatching.Matcher matcher;
 
     private final Analyzer analyzer;
 
     private final Function<DriverContext, BytesRef> scratch;
 
     public Factory(Source source, ExpressionEvaluator.Factory fieldBlock,
-        RuntimeSearch.TokenStreamMatcher matcher, Analyzer analyzer,
+        TokenStreamMatching.Matcher matcher, Analyzer analyzer,
         Function<DriverContext, BytesRef> scratch) {
       this.source = source;
       this.fieldBlock = fieldBlock;

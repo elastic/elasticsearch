@@ -32,6 +32,7 @@ import org.elasticsearch.index.codec.bloomfilter.SyntheticIdBloomFilterSettings;
 import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
@@ -948,6 +949,30 @@ public final class IndexSettings {
         Property.Final
     );
 
+    /**
+     * Whether a mapping this index has, or had, can keep a field it does not declare: see
+     * {@link RootObjectMapper#canRetainUnmappedFields()}. It is set with the mapping that makes it true and never cleared, as
+     * the documents indexed under that mapping stay. Only set on an index created on or after
+     * {@link IndexVersions#TRACKS_UNMAPPED_FIELD_RETENTION}. It is left out of the settings an API returns, so that they
+     * can be used to create another index.
+     */
+    public static final Setting<Boolean> RETAINS_UNMAPPED_FIELDS_SETTING = Setting.boolSetting(
+        "index.mapping.retains_unmapped_fields",
+        false,
+        Property.IndexScope,
+        Property.PrivateIndex,
+        Property.Final,
+        Property.Filtered
+    );
+
+    /**
+     * Whether an index with these settings has, or had, a mapping that can keep a field it does not declare. Always
+     * {@code true} for an index created before {@link IndexVersions#TRACKS_UNMAPPED_FIELD_RETENTION}, which does not record it.
+     */
+    public static boolean retainsUnmappedFields(IndexVersion indexVersionCreated, Settings settings) {
+        return indexVersionCreated.before(IndexVersions.TRACKS_UNMAPPED_FIELD_RETENTION) || RETAINS_UNMAPPED_FIELDS_SETTING.get(settings);
+    }
+
     public static final Setting<SourceFieldMapper.Mode> INDEX_MAPPER_SOURCE_MODE_SETTING = Setting.enumSetting(
         SourceFieldMapper.Mode.class,
         settings -> {
@@ -1565,6 +1590,13 @@ public final class IndexSettings {
 
     public boolean isSliceEnabled() {
         return sliceEnabled;
+    }
+
+    /**
+     * @see #retainsUnmappedFields(IndexVersion, Settings)
+     */
+    public boolean retainsUnmappedFields() {
+        return retainsUnmappedFields(version, settings);
     }
 
     public boolean isFlattenedUnmappedFieldsEnabled() {

@@ -244,6 +244,26 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertThat(instantSeries(METRIC + " > 1"), containsInAnyOrder(seriesWithValueAbove(1.0)));
     }
 
+    public void testInstantQuerySortOrdersByValueAscending() throws Exception {
+        ingestLabelledSeries(METRIC);
+
+        assertThat(instantSeries("sort(" + METRIC + ")"), contains(LABELLED_SERIES.toArray(PromqlResponseSeries[]::new)));
+    }
+
+    public void testInstantQuerySortDescOrdersByValueAndOmitsSyntheticNanLabel() throws Exception {
+        ingestLabelledSeries(METRIC);
+
+        List<PromqlResponseSeries> series = instantSeries("sort_desc(" + METRIC + ")");
+        List<PromqlResponseSeries> expected = LABELLED_SERIES.reversed();
+        assertThat(series, contains(expected.toArray(PromqlResponseSeries[]::new)));
+        for (PromqlResponseSeries s : series) {
+            for (String label : s.labels().keySet()) {
+                assertFalse("synthetic sort key leaked into metric labels: " + s.labels(), label.contains("promql_sort"));
+                assertFalse("synthetic sort key leaked into metric labels: " + s.labels(), label.startsWith("$$"));
+            }
+        }
+    }
+
     private static PromqlResponseSeries[] seriesWithValueAbove(double threshold) {
         return LABELLED_SERIES.stream().filter(series -> series.value() > threshold).toArray(PromqlResponseSeries[]::new);
     }
@@ -513,6 +533,19 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         wipeDefaultStream();
         ingestTestDataUsingRemoteWriteAndBulk(QUERY_TIME);
         assertBinopInstantGroups("sum by (host, __name__) (tx) / on (host) sum by (host, __name__) (rx)", "host", txRxRatios());
+    }
+
+    /**
+     * {@code vector(s)} in an {@code or} fills what the other side lacks: its steps are its own, so the instant query's range
+     * filter still drops the sample exactly one lookback before the query time, and the range query keeps one step per row.
+     */
+    public void testInstantOrConstantVector() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME.minusSeconds(300));
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantValues("tx or vector(0)", 10, 30, 12, 0);
+        assertBinopInstantValues("vector(0) or tx", 0, 10, 30, 12);
+        assertBinopInstantValues("sum(tx) or vector(0)", 52);
+        assertBinopInstantValues("sum(tx{host=~\"nope\"}) or vector(0)", 0);
     }
 
     /**

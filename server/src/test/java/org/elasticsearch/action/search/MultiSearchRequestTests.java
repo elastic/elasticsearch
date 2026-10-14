@@ -214,7 +214,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         MultiSearchRequest request = parseMultiSearchRequestFromStringAndParams("""
             {}
             {"query":{"match_all":{}}}
-            """, Map.of(SliceIndexing.PARAM_NAME, "s1,s2"));
+            """, Map.of(SliceIndexing.FIELD_NAME, "s1,s2"));
         assertThat(request.requests().size(), equalTo(1));
         SearchRequest searchRequest = request.requests().getFirst();
         assertThat(searchRequest.routing(), equalTo("s1,s2"));
@@ -225,19 +225,19 @@ public class MultiSearchRequestTests extends ESTestCase {
     public void testParseRequestRejectsRoutingAndSliceInSameMetadata() throws IOException {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> parseMultiSearchRequestFromString("""
-            {"routing":"r1","slice":"s1"}
+            {"routing":"r1","_slice":"s1"}
             {"query":{"match_all":{}}}
             """));
-        assertEquals("[routing] and [slice] cannot be combined in the same _msearch request", ex.getMessage());
+        assertEquals("[routing] and [_slice] cannot be combined in the same _msearch request", ex.getMessage());
     }
 
     public void testParseRequestRejectsTopLevelRoutingWithMetadataSlice() throws IOException {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> parseMultiSearchRequestFromStringAndParams("""
-            {"slice":"s1"}
+            {"_slice":"s1"}
             {"query":{"match_all":{}}}
             """, Map.of("routing", "r1")));
-        assertEquals("[routing] and [slice] cannot be combined in the same _msearch request", ex.getMessage());
+        assertEquals("[routing] and [_slice] cannot be combined in the same _msearch request", ex.getMessage());
     }
 
     public void testParseRequestRejectsTopLevelSliceWithMetadataRouting() throws IOException {
@@ -245,17 +245,17 @@ public class MultiSearchRequestTests extends ESTestCase {
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> parseMultiSearchRequestFromStringAndParams("""
             {"routing":"r1"}
             {"query":{"match_all":{}}}
-            """, Map.of(SliceIndexing.PARAM_NAME, "s1")));
-        assertEquals("[routing] and [slice] cannot be combined in the same _msearch request", ex.getMessage());
+            """, Map.of(SliceIndexing.FIELD_NAME, "s1")));
+        assertEquals("[routing] and [_slice] cannot be combined in the same _msearch request", ex.getMessage());
     }
 
     public void testParseRequestRejectsMetadataSliceWhenFeatureDisabled() throws IOException {
         assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> parseMultiSearchRequestFromString("""
-            {"slice":"s1"}
+            {"_slice":"s1"}
             {"query":{"match_all":{}}}
             """));
-        assertEquals("request does not support [slice]", ex.getMessage());
+        assertEquals("request does not support [_slice]", ex.getMessage());
     }
 
     public void testParseRequestAllowsDifferentRoutingModesPerSubRequestWithoutTopLevel() throws IOException {
@@ -263,7 +263,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         MultiSearchRequest request = parseMultiSearchRequestFromString("""
             {"routing":"r1"}
             {"query":{"match_all":{}}}
-            {"slice":"s1"}
+            {"_slice":"s1"}
             {"query":{"match_all":{}}}
             """);
         assertThat(request.requests().size(), equalTo(2));
@@ -315,7 +315,7 @@ public class MultiSearchRequestTests extends ESTestCase {
                 BytesReference.bytes(builder).streamInput(),
                 false
             );
-            assertThat(map.get(SliceIndexing.PARAM_NAME), equalTo("s1"));
+            assertThat(map.get(SliceIndexing.FIELD_NAME), equalTo("s1"));
             assertNull(map.get("routing"));
         }
     }

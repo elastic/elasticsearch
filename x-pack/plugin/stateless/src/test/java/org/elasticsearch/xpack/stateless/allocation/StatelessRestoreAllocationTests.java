@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -223,6 +224,53 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
         state = service.reroute(state, "more capacity", ActionListener.noop());
         assertEquals(0, state.getRoutingNodes().unassigned().size());
         assertEquals(0L, restore.pressure().unmetTotalDiskBytes());
+    }
+
+    public void testUnmetShortfallsAccumulateAcrossConcurrentThrottledRestores() {
+        // Neither 50 GiB restore fits: free 70-1 leaves less than 20 GiB indexing reserve after one shard.
+        // Each shortfall is 1 byte; default indexing shared cache is 50% → 2 disk bytes each → 4 total.
+        var state = restoreState(2);
+        var restore = restoreDecider();
+        var info = new AtomicReference<>(info(70 * GB - 1));
+        var sizes = new AtomicReference<>(sizes(state, 50 * GB));
+        var service = service(restore.decider(), info, sizes);
+
+        state = service.reroute(state, "both tight", ActionListener.noop());
+        assertEquals(2, state.getRoutingNodes().unassigned().size());
+        assertEquals(UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED, primary(state, "index-0").unassignedInfo().lastAllocationStatus());
+        assertEquals(UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED, primary(state, "index-1").unassignedInfo().lastAllocationStatus());
+        assertEquals(4L, restore.pressure().unmetTotalDiskBytes());
+    }
+
+    public void testExplainDoesNotRecordDiskPressure() {
+        var state = restoreState(1);
+        var restore = restoreDecider();
+        var info = new AtomicReference<>(info(70 * GB - 1));
+        var sizes = new AtomicReference<>(sizes(state, 50 * GB));
+        var service = service(restore.decider(), info, sizes);
+
+        assertEquals(0L, restore.pressure().unmetTotalDiskBytes());
+        var decision = service.explainShardAllocation(primary(state, "index-0"), state, RoutingAllocation.DebugMode.ON);
+        assertTrue(decision.getAllocateDecision().isDecisionTaken());
+        assertEquals(0L, restore.pressure().unmetTotalDiskBytes());
+    }
+
+    public void testCancelledRestoreDoesNotLeakDiskPressure() {
+        var state = restoreState(1);
+        var restore = restoreDecider();
+        var info = new AtomicReference<>(info(70 * GB - 1));
+        var sizes = new AtomicReference<>(sizes(state, 50 * GB));
+        var service = service(restore.decider(), info, sizes);
+
+        state = service.reroute(state, "first restore throttled", ActionListener.noop());
+        assertEquals(2L, restore.pressure().unmetTotalDiskBytes());
+
+        // Fresh index UUID → different ShardId. Only the live restore may contribute.
+        state = restoreState(1);
+        sizes.set(sizes(state, 50 * GB));
+        state = service.reroute(state, "replacement restore throttled", ActionListener.noop());
+        assertEquals(1, state.getRoutingNodes().unassigned().size());
+        assertEquals(2L, restore.pressure().unmetTotalDiskBytes());
     }
 
     public void testUnmetShortfallNotRecordedWhileFetchingShardSize() {

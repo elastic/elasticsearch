@@ -12,9 +12,11 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThrottledIterator;
 import org.elasticsearch.compute.operator.SuppressedFailures;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.AutoPartitionDetector;
@@ -51,6 +53,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
+import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
@@ -1860,7 +1863,14 @@ public final class GlobExpander {
         AtomicReference<Exception> failure = new AtomicReference<>();
         AtomicInteger sharedKeptCount = new AtomicInteger();
 
-        ThrottledIterator.run(indexIterator(size), (releasable, i) -> {
+        // This thread's measurement only commits when it closes. Once a drain is dispatched, the last one to finish runs the
+        // completion and can carry planning on to finish() before that, which would drop the slot listing's CPU. Commit it now.
+        PlanningCpuTracker.checkpointCurrentThread();
+        // Planning can only finish on another thread once the thread running the slot loop drops its reference, which it
+        // does when the loop stops: the slots run out, or the permits do right after a folder dispatch. File slots release
+        // their permit inline and cannot end the listing, so committing after the last slot and before each folder dispatch
+        // covers them without a CPU clock read per file.
+        ThrottledIterator.run(indexIterator(size), checkpointAfterLastSlot(size, (releasable, i) -> {
             if (failure.get() != null || isCancelled.getAsBoolean()) {
                 // Record cancellation so the completion callback propagates TaskCancelledException rather
                 // than returning an empty FileList that the caller would misread as "no files matched".
@@ -1920,10 +1930,15 @@ public final class GlobExpander {
                         } catch (Exception e) {
                             failure.compareAndSet(null, e);
                         } finally {
+                            // Releasing the permit can let another drain complete the listing and finish planning
+                            // before this drain's measurement settles, so commit its planning CPU first.
+                            PlanningCpuTracker.checkpointCurrentThread();
                             releasable.close();
                         }
                     };
                     try {
+                        // The permits can run out right after this dispatch, ending the loop on this thread.
+                        PlanningCpuTracker.checkpointCurrentThread();
                         fanOutExecutor.execute(drain);
                     } catch (Exception submitEx) {
                         // Executor rejected the task (e.g. shutting down): record and release the permit
@@ -1936,7 +1951,7 @@ public final class GlobExpander {
                     }
                 }
             }
-        }, Math.max(1, concurrency), () -> {
+        }), Math.max(1, concurrency), () -> {
             Exception e = failure.get();
             if (e != null) {
                 listener.onFailure(e);
@@ -2020,6 +2035,23 @@ public final class GlobExpander {
                 logger.debug("Additional failure during fan-out drain (suppressed by first failure)", e);
             }
         });
+    }
+
+    /**
+     * Wraps a slot loop's item consumer to {@link PlanningCpuTracker#checkpointCurrentThread() checkpoint} after the last
+     * slot. Slots are handed out in order, so the loop that processes the last one stops right after it, on the same
+     * thread, and that stop can let another thread finish planning.
+     */
+    private static BiConsumer<Releasable, Integer> checkpointAfterLastSlot(int size, BiConsumer<Releasable, Integer> consumer) {
+        return (releasable, i) -> {
+            try {
+                consumer.accept(releasable, i);
+            } finally {
+                if (i == size - 1) {
+                    PlanningCpuTracker.checkpointCurrentThread();
+                }
+            }
+        };
     }
 
     /** An {@link Iterator} over the integers {@code [0, count)}. */

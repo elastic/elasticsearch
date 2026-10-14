@@ -26,6 +26,7 @@ import org.elasticsearch.index.store.SelfAccountingIndexInput;
 import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheFileReader;
 
+import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -33,6 +34,7 @@ import java.lang.foreign.MemorySegment;
 import java.nio.ByteBuffer;
 import java.nio.file.NoSuchFileException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.IntFunction;
 
 public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput implements DirectAccessInput, SelfAccountingIndexInput {
 
@@ -182,8 +184,28 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput imple
     }
 
     @Override
-    public boolean withMemorySegmentSlice(long offset, long length, CheckedConsumer<MemorySegment, IOException> action) throws IOException {
-        return cacheFileReader.withMemorySegmentSlice(this.offset + offset, Math.toIntExact(length), action);
+    public boolean withMemorySegmentSlice(
+        long offset,
+        long length,
+        IntFunction<MemorySegment> scratch,
+        CheckedConsumer<MemorySegment, IOException> action
+    ) throws IOException {
+        final int len = Math.toIntExact(length);
+        if (cacheFileReader.withMemorySegmentSlice(this.offset + offset, len, action)) {
+            return true;
+        }
+        if (len < getBufferSize()) {
+            // cheaper through readBytes, which refills the buffer once and serves the following reads from it
+            return false;
+        }
+        if (offset + len > length()) {
+            throw new EOFException("read past EOF: " + this);
+        }
+        final MemorySegment copy = scratch.apply(len);
+        assert copy.byteSize() == len : "scratch segment of " + copy.byteSize() + " bytes, expected " + len;
+        readAt(copy.asByteBuffer(), this.offset + offset);
+        action.accept(copy);
+        return true;
     }
 
     @Override
@@ -214,8 +236,12 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput imple
 
     @Override
     protected void readInternal(ByteBuffer b) throws IOException {
+        readAt(b, getAbsolutePosition());
+    }
+
+    private void readAt(ByteBuffer b, long position) throws IOException {
         try {
-            doReadInternal(b);
+            doReadInternal(b, position);
         } catch (Exception e) {
             if (ExceptionsHelper.unwrap(e, FileNotFoundException.class, NoSuchFileException.class) != null) {
                 // includes the file name of the BlobCacheIndexInput
@@ -231,8 +257,7 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput imple
         }
     }
 
-    private void doReadInternal(ByteBuffer b) throws Exception {
-        final long position = getAbsolutePosition();
+    private void doReadInternal(ByteBuffer b, long position) throws Exception {
         final int length = b.remaining();
         try {
             logger.debug("reading file: {}, position: {}, length: {}", super.toString(), position, length);

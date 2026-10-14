@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_load_all_v2 ]
+          capabilities: [ optional_fields_load_all_single_source_column, optional_fields_load_all_v2 ]
       reason: >
         Whether a mapped type takes part in LOAD_ALL is decided by the FAMILY type field_caps reports, not by
         the mapper's own type name. wildcard and constant_keyword override familyTypeName() to keyword and
@@ -92,24 +92,27 @@ teardown:
         ignore_unavailable: true
 
 ---
-'control: with nothing mapped, every one of these names is discovered from _source as keyword':
+'control: with nothing mapped, every one of these names is discovered from _source':
   # Establishes that the values are all present and discoverable, so the suppression the later tests show is
   # a property of the mapping and not of the data. The object-shaped ones flatten as in 302.
   - do:
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_family_unmapped | LIMIT 5'
-  - length: { columns: 8 }
+  - length: { columns: 2 }
   - match: { columns.0.name: id }
-  - match: { columns.1.name: bin }
-  - match: { columns.1.type: keyword }
-  - match: { columns.2.name: ck }
-  - match: { columns.3.name: mot }
-  - match: { columns.4.name: nst.leaf }
-  - match: { columns.5.name: rng.gte }
-  - match: { columns.6.name: rng.lt }
-  - match: { columns.7.name: wc }
-  - match: { values.0: [ "unmapped", "U29tZSBiaW5hcnk=", "fixed", "some words", "n1", "1", "9", "wild-value" ] }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { columns.1.type: _source }
+  - match:
+      values.0:
+        - "unmapped"
+        - bin: "U29tZSBiaW5hcnk="
+          ck: "fixed"
+          mot: "some words"
+          nst.leaf: "n1"
+          rng.gte: 1
+          rng.lt: 9
+          wc: "wild-value"
 
 ---
 'family-aliased types resolve to their family, not to unsupported':
@@ -169,16 +172,15 @@ teardown:
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_family_mapped, la_family_unmapped | KEEP id, rng.* | SORT id | LIMIT 5'
-  - length: { columns: 3 }
-  - match: { columns.1.name: rng.gte }
-  - match: { columns.1.type: keyword }
-  - match: { columns.2.name: rng.lt }
-  - match: { values.0: [ "mapped", "1", "9" ] }
-  - match: { values.1: [ "unmapped", "1", "9" ] }
+  - length: { columns: 2 }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { columns.1.type: _source }
+  - match: { values.0: [ "mapped", { rng.gte: 1, rng.lt: 9 } ] }
+  - match: { values.1: [ "unmapped", { rng.gte: 1, rng.lt: 9 } ] }
 
 ---
 'a mapped nested leaf stays null under LOAD_ALL':
-  # The column still exists: the unmapped index discovers nst.leaf from _source. The nested index returns null.
+  # The unmapped index discovers nst.leaf from _source. The nested index contributes nothing, so its row is null.
   - requires:
       capabilities:
         - method: POST
@@ -191,7 +193,7 @@ teardown:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_family_mapped, la_family_unmapped | KEEP id, nst.* | SORT id | LIMIT 5'
   - length: { columns: 2 }
-  - match: { columns.1.name: nst.leaf }
-  - match: { columns.1.type: keyword }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { columns.1.type: _source }
   - match: { values.0: [ "mapped", null ] }
-  - match: { values.1: [ "unmapped", "n1" ] }
+  - match: { values.1: [ "unmapped", { nst.leaf: n1 } ] }

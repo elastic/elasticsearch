@@ -82,7 +82,7 @@ public class ResolvingProject extends Project {
     /**
      * Runs the resolver against the child output, keeping any {@link UnmappedFieldsAttribute} instances out of the resolver's scope
      * (so KEEP/DROP/RENAME patterns cannot match the synthetic column), then re-appending them at the end. Where the synthetic column
-     * sits is irrelevant: the response order comes from the replay in {@code UnmappedFieldsOrdering}, which strips it before resolving.
+     * sits is irrelevant: the coordinator swaps it for the {@code _unmapped_fields} column.
      * <p>
      * At most one ever arrives. Every non-LOOKUP relation is stamped with one, so a multi-input plan starts out holding several, but
      * they all share {@link UnmappedFieldsAttribute#ATTRIBUTE_NAME}: nodes that merge their inputs collapse them by name, while

@@ -8,8 +8,8 @@
 #
 
 class org.elasticsearch.xpack.versionfield.VersionScriptDocValues {
-    String get(int)
-    String getValue()
+    String get(int) @allocates[class="org.elasticsearch.xpack.versionfield.VersionAllocationEstimators", method="versionReadBytes"]
+    String getValue() @allocates[class="org.elasticsearch.xpack.versionfield.VersionAllocationEstimators", method="versionReadBytes"]
 }
 
 class org.elasticsearch.xpack.versionfield.Version {
@@ -17,9 +17,9 @@ class org.elasticsearch.xpack.versionfield.Version {
 }
 
 class org.elasticsearch.xpack.versionfield.VersionStringDocValuesField @dynamic_type {
-    String asString(String)
-    String asString(int, String)
-    List asStrings()
-    Version get(Version)
-    Version get(int, Version)
+    String asString(String) @allocates[class="org.elasticsearch.xpack.versionfield.VersionAllocationEstimators", method="versionStringBytes"]
+    String asString(int, String) @allocates[class="org.elasticsearch.xpack.versionfield.VersionAllocationEstimators", method="versionStringBytes"]
+    List asStrings() @allocates[class="org.elasticsearch.xpack.versionfield.VersionAllocationEstimators", method="versionStringsBytes"]
+    Version get(Version) @allocates[class="org.elasticsearch.xpack.versionfield.VersionAllocationEstimators", method="versionObjectBytes"]
+    Version get(int, Version) @allocates[class="org.elasticsearch.xpack.versionfield.VersionAllocationEstimators", method="versionObjectBytes"]
 }

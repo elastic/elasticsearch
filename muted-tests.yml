@@ -577,9 +577,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodecTests
   method: testTruncatedMemberThrows
   issue: https://github.com/elastic/elasticsearch/issues/162000
-- class: org.elasticsearch.xpack.esql.datasource.parquet.PrefetchCircuitBreakerTests
-  method: testFallbackWaitsForSkippedInFlightPrefetchRelease
-  issue: https://github.com/elastic/elasticsearch/issues/162013
 - class: org.elasticsearch.index.mapper.DynamicMappingIT
   method: testCombineDynamicMappingUpdatesSettingIsDynamic
   issue: https://github.com/elastic/elasticsearch/issues/162026

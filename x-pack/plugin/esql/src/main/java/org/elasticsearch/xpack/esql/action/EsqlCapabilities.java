@@ -1405,7 +1405,7 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code exemplars} query setting.
          */
-        EXEMPLARS_SETTING_DEVELOPMENT_V1(Build.current().isSnapshot()),
+        EXEMPLARS_SETTING_DEVELOPMENT_V3(Build.current().isSnapshot()),
 
         /**
          * Are the {@code documents_found} and {@code values_loaded} fields available
@@ -1520,7 +1520,6 @@ public class EsqlCapabilities {
          * identifiers through an aggregation, so the name-and-id match used to collect push-down candidates falsely matched
          * conversions that read aggregate output rather than union branch columns. The synthetic pushed-down reference was then
          * unreachable from the consumer, causing {@code PlanConsistencyChecker} to throw {@code IllegalStateException}.
-         * esql-planning#1987
          */
         SUBQUERY_IN_FROM_COMMAND_FIX_CONVERT_GROUP_KEY,
 
@@ -3080,9 +3079,6 @@ public class EsqlCapabilities {
          * Support for projecting nested STRUCT subfields (e.g. {@code event.action}) from
          * Parquet (Java) and ORC external sources. Gated so format readers that do not yet
          * implement nested support (csv, ndjson, etc.) skip the csv-spec tests until they catch up.
-         *
-         * <p>Tracks: elastic/esql-planning#435 (this PR) and elastic/esql-planning#320
-         * (correctness gap for Parquet-Java MAP/STRUCT/nested LIST).
          */
         EXTERNAL_SOURCE_NESTED_STRUCT_PROJECTION,
 
@@ -3093,8 +3089,6 @@ public class EsqlCapabilities {
          * (Java) reader; this capability gates the csv-spec tests that assert the multivalues now
          * round-trip. Separate from {@link #EXTERNAL_SOURCE_NESTED_STRUCT_PROJECTION} so nodes that
          * predate the fix (and other format readers) skip the tests instead of failing them.
-         *
-         * <p>Tracks: elastic/esql-planning#1055 (correctness gap for Parquet-Java list-under-struct).
          */
         EXTERNAL_SOURCE_LIST_UNDER_STRUCT,
 
@@ -3103,7 +3097,6 @@ public class EsqlCapabilities {
          * instead of throwing at planning time. The reconciler emits a warning header per
          * affected column, the per-file ColumnMapping carries a stringification cast, and the
          * reader's output is adapted via SchemaAdaptingIterator. STRICT mode still throws.
-         * See esql-planning#794.
          */
         EXTERNAL_UNION_BY_NAME_KEYWORD_FALLBACK,
 
@@ -3672,18 +3665,27 @@ public class EsqlCapabilities {
 
         /**
          * Under {@code unmapped_fields="LOAD_ALL"}, at most 1000 fields discovered in {@code _source} become columns: the
-         * alphabetically first ones, with a warning if there were more.
+         * alphabetically first ones, with a warning if there were more. Superseded by
+         * {@link #OPTIONAL_FIELDS_LOAD_ALL_SINGLE_SOURCE_COLUMN}, under which no per-field columns are produced and nothing is capped.
          * See https://github.com/elastic/elasticsearch/issues/159972.
          */
         OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
-         * Under {@code unmapped_fields="LOAD_ALL"}, the cap on the number of fields discovered in {@code _source} is the cluster
-         * setting {@code esql.query.unmapped_fields.load_all_max_fields}. Needed by tests that set it, which older nodes would reject
-         * as an unknown setting.
+         * The cluster setting {@code esql.query.unmapped_fields.load_all_max_fields} exists. Under the single-column layout its only
+         * effect is that {@code 0} downgrades {@code unmapped_fields="LOAD_ALL"} to {@code LOAD}. Needed by tests that set it, which
+         * older nodes would reject as an unknown setting.
          * See https://github.com/elastic/elasticsearch/issues/161340.
          */
         OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS_SETTING(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, the unmapped fields discovered in {@code _source} are returned as a single
+         * {@code _unmapped_fields} column of type {@code source} holding a flattened JSON object per row, instead of one column
+         * per field. Supersedes the per-field column layout and the cap on the number of expanded fields.
+         * See https://github.com/elastic/elasticsearch/issues/161717.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_SINGLE_SOURCE_COLUMN(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
@@ -4040,6 +4042,11 @@ public class EsqlCapabilities {
         PROMQL_LABEL_FUNCTIONS(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * Support for the PromQL {@code sort} and {@code sort_desc} functions, which order an instant vector by sample value.
+         */
+        PROMQL_SORT(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Fix mixing of millisecond roundings with nanosecond timestamps in time-series aggregations over
          * {@code date_nanos} indices. This covers window bucket expansion, the window merge in the final
          * aggregation, the window row filter for windows smaller than the time bucket, and the neighbor-bucket
@@ -4145,12 +4152,6 @@ public class EsqlCapabilities {
          * {@code CombineProjections} drops it.
          */
         TS_STATS_LITERAL_AGG_FIX,
-
-        /**
-         * Coordinator-driven remote fetch phase for deferred TopN fields after node-level reduction.
-         * Runtime enablement is gated by {@code esql.query.remote_fetch_topn.enabled}.
-         */
-        REMOTE_FETCH_TOPN_FETCH_PHASE,
 
         /**
          * KNN function support for runtime expressions, not just ES mapped fields.
@@ -4273,7 +4274,6 @@ public class EsqlCapabilities {
          * null-fills it above the reader; no pattern matches null, so zero rows must survive. Also fixes a
          * second route: {@code readerForMapping} no longer discards YES conjuncts when the per-file filter
          * adaptation empties the list (e.g. when a co-conjunct references a column widened via a one-way cast).
-         * See elastic/esql-planning#2052.
          */
         EXTERNAL_PARQUET_LIKE_MISSING_COLUMN_REJECTS_ROWS,
 
@@ -4329,6 +4329,25 @@ public class EsqlCapabilities {
          * {@code datasources.config.<kind>.changes.by_type.*})?
          */
         USAGE_CONTAINS_DATASOURCES_FAILURE_REASONS,
+
+        /**
+         * Does the usage information for ESQL contain the datasource per-client query counters
+         * ({@code datasources.queries.by_client.<client>})?
+         */
+        USAGE_CONTAINS_DATASOURCES_CLIENT,
+
+        /**
+         * Does the usage information for ESQL contain the datasource per-storage-type and per-format query counters
+         * ({@code datasources.queries.by_type.<type>.by_outcome.<outcome>} and
+         * {@code datasources.queries.by_format.<format>.by_outcome.<outcome>})?
+         */
+        USAGE_CONTAINS_DATASOURCES_QUERY_BY_TYPE_FORMAT,
+
+        /**
+         * Does the usage information for ESQL contain the per-error-type terminal storage give-up counters
+         * ({@code datasources.storage.errors.by_error_type.<error_type>})?
+         */
+        USAGE_CONTAINS_DATASOURCES_STORAGE_ERROR_TYPES,
 
         /**
          * Fix for {@code DocumentParser#parseArrayDynamic}: with {@code subobjects:false} and {@code dynamic:false},

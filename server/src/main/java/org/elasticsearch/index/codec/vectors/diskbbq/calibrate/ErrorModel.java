@@ -84,13 +84,7 @@ public final class ErrorModel {
      * parent clusters the reader uses the global centroid, which {@link #queriesUseGlobalCentroid} already mirrors
      * in the sample, so the query residual needs no projection.
      */
-    public static double projectErrorStdToSegment(
-        double sampleStd,
-        int sampleDocs,
-        int numVectors,
-        int nDocsPerCluster,
-        double invDim
-    ) {
+    public static double projectErrorStdToSegment(double sampleStd, int sampleDocs, int numVectors, int nDocsPerCluster, double invDim) {
         if (numVectors <= sampleDocs || invDim <= 0 || Double.isFinite(invDim) == false) {
             return sampleStd;
         }

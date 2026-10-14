@@ -153,9 +153,7 @@ public class FooterByteCache {
         this.maxEntryBytes = maxEntryBytes;
         this.expireAfterAccess = expireAfterAccess;
         long accessNanos = expireAfterAccess.nanos();
-        long capNanos = accessNanos <= Long.MAX_VALUE / WRITE_CAP_MULTIPLIER
-            ? accessNanos * WRITE_CAP_MULTIPLIER
-            : Long.MAX_VALUE;
+        long capNanos = accessNanos <= Long.MAX_VALUE / WRITE_CAP_MULTIPLIER ? accessNanos * WRITE_CAP_MULTIPLIER : Long.MAX_VALUE;
         this.expireAfterWrite = TimeValue.timeValueNanos(capNanos);
         this.cache = CacheBuilder.<Key, byte[]>builder()
             .setMaximumWeight(maxBytes)

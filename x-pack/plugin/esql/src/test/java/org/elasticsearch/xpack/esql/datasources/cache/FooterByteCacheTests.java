@@ -265,10 +265,7 @@ public class FooterByteCacheTests extends ESTestCase {
             shortLived.get(key);
             safeSleep(50);
         }
-        assertNull(
-            "write cap must force-expire the entry at 3s even though it was continuously read through 3.5s",
-            shortLived.get(key)
-        );
+        assertNull("write cap must force-expire the entry at 3s even though it was continuously read through 3.5s", shortLived.get(key));
     }
 
     public void testFromSettingsUsesConfiguredTtl() {

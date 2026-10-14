@@ -167,10 +167,7 @@ public class ParsedFooterCacheTests extends ESTestCase {
             shortLived.get(k);
             safeSleep(50);
         }
-        assertNull(
-            "write cap must force-expire the entry at 3s even though it was continuously read through 3.5s",
-            shortLived.get(k)
-        );
+        assertNull("write cap must force-expire the entry at 3s even though it was continuously read through 3.5s", shortLived.get(k));
     }
 
     public void testPutThenGetReturnsSameInstance() {

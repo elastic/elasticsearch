@@ -243,6 +243,40 @@ public final class DatasetListingService {
         ListingExtents extents,
         ActionListener<FileList> listener
     ) {
+        cachedListingAsync(
+            path,
+            storagePath,
+            provider,
+            storageIdentity,
+            secretIdentity,
+            hints,
+            config,
+            memory,
+            cancelled,
+            concurrency,
+            executor,
+            extents,
+            listener,
+            null
+        );
+    }
+
+    public void cachedListingAsync(
+        String path,
+        StoragePath storagePath,
+        StorageProvider provider,
+        String storageIdentity,
+        String secretIdentity,
+        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        Map<String, Object> config,
+        PlanningMemory memory,
+        BooleanSupplier cancelled,
+        int concurrency,
+        Executor executor,
+        ListingExtents extents,
+        ActionListener<FileList> listener,
+        @Nullable FolderRangePredicate folderRange
+    ) {
         ListingCacheKey listingKey = ListingCacheKey.build(
             storagePath.scheme(),
             storagePath.host(),
@@ -251,13 +285,26 @@ public final class DatasetListingService {
             secretIdentity,
             ExternalSourceResolver.storageConfig(config),
             // intentional raw config: only reads partition-filter keys, not auth/connection params from _datasource
-            GlobExpander.listingCacheDiscriminator(path, hints, config, extents)
+            GlobExpander.listingCacheDiscriminator(path, hints, config, extents, folderRange)
         );
         // Set by whichever thread runs the compute and read by whichever completes the listing.
         AtomicBoolean computedHere = new AtomicBoolean();
         cacheService.getOrComputeListingAsync(listingKey, innerListener -> {
             computedHere.set(true);
-            expandAsync(path, provider, hints, config, storagePath, extents, memory, cancelled, concurrency, executor, innerListener);
+            expandAsync(
+                path,
+                provider,
+                hints,
+                config,
+                storagePath,
+                extents,
+                memory,
+                cancelled,
+                concurrency,
+                executor,
+                innerListener,
+                folderRange
+            );
         }, ActionListener.wrap(listing -> {
             // Same refusal as the synchronous path, and for the same reason - except that the bound is now part of
             // the key, so a bounded prefix is addressed as a prefix. What must never be served from the cache is a

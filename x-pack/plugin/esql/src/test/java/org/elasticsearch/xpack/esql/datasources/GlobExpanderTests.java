@@ -1366,6 +1366,21 @@ public class GlobExpanderTests extends ESTestCase {
         assertNotEquals("one-sided must not share the unfiltered listing", unhinted, a);
         assertEquals("same UTC day shares identity", a, b);
         assertNotEquals("next UTC day differs", a, c);
+
+        Instant jan1 = Instant.parse("2024-01-01T00:00:00Z");
+        Instant jun15 = Instant.parse("2024-06-15T00:00:00Z");
+        Instant dec31 = Instant.parse("2024-12-31T00:00:00Z");
+        FolderRangePredicate ends = spec.folderRangePredicate(
+            List.of(hint("@timestamp", PartitionFilterHintExtractor.Operator.IN, jan1, dec31))
+        );
+        FolderRangePredicate withMid = spec.folderRangePredicate(
+            List.of(hint("@timestamp", PartitionFilterHintExtractor.Operator.IN, jan1, jun15, dec31))
+        );
+        assertNotEquals(
+            "IN lists that share a hull must not share a listing cache entry",
+            GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_ON, ends),
+            GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_ON, withMid)
+        );
     }
 
     /**

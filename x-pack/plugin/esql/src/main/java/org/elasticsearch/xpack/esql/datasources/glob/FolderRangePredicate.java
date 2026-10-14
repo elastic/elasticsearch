@@ -27,9 +27,11 @@ public interface FolderRangePredicate {
     boolean mayContain(Map<String, String> boundKeyValues);
 
     /**
-     * Stable cache-key fragment: spec + bind keys + quantized bounds. Finest grain among usable binds;
-     * widened lower rounds down to that grain, upper rounds up. {@code NOW() - 1 day} shares one entry
-     * per UTC day.
+     * Stable cache-key fragment: spec + bind keys + the bound that {@link #mayContain} uses. A range
+     * quantizes to the finest usable grain (lower down, exclusive upper up) so {@code NOW() - 1 day}
+     * shares one entry per UTC day. {@code EQUALS}/{@code IN} points encode as the sorted unique
+     * grain-truncated instants: a min-max hull of those points would collide two different IN lists
+     * onto one listing once month/day INs are omitted as complete.
      */
     String identity();
 

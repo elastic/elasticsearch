@@ -589,6 +589,21 @@ public class PartitionSpecProjectorTests extends ESTestCase {
         assertFalse(a.mayContain(Map.of("year", "2026", "month", "10", "day", "13")));
     }
 
+    public void testFolderRangeIdentityDistinguishesInListsThatShareAHull() {
+        PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts), day(ts)");
+        Instant jan1 = Instant.parse("2024-01-01T00:00:00Z");
+        Instant jun15 = Instant.parse("2024-06-15T00:00:00Z");
+        Instant dec31 = Instant.parse("2024-12-31T00:00:00Z");
+        var ends = spec.folderRangePredicate(List.of(hint("ts", Operator.IN, jan1, dec31)));
+        var mid = spec.folderRangePredicate(List.of(hint("ts", Operator.IN, jan1, jun15, dec31)));
+        assertNotNull(ends);
+        assertNotNull(mid);
+        assertNotEquals("IN lists with the same min-max must not share a listing cache entry", ends.identity(), mid.identity());
+        assertTrue(ends.mayContain(Map.of("year", "2024", "month", "1", "day", "1")));
+        assertFalse(ends.mayContain(Map.of("year", "2024", "month", "6", "day", "15")));
+        assertTrue(mid.mayContain(Map.of("year", "2024", "month", "6", "day", "15")));
+    }
+
     public void testQuantizeRangeAgreesWithRawOnGrainFoldersIncludingLagLead() {
         Instant min = Instant.parse("2000-01-01T00:00:00Z");
         Instant max = Instant.parse("2030-12-31T23:00:00Z");

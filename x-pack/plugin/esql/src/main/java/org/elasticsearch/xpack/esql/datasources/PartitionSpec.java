@@ -39,6 +39,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -1323,10 +1324,8 @@ public final class PartitionSpec {
                     }
                 }
             }
-            InstantRange quantized = quantizeRange(covering, finestBind.transform());
             appendLengthPrefixed(id, group.getKey());
-            appendLengthPrefixed(id, quantized.startInclusiveMillis() == null ? "" : Long.toString(quantized.startInclusiveMillis()));
-            appendLengthPrefixed(id, quantized.endExclusiveMillis() == null ? "" : Long.toString(quantized.endExclusiveMillis()));
+            appendBoundIdentity(id, bounds, covering, finestBind.transform());
         }
         if (usable == false) {
             return null;
@@ -1338,6 +1337,31 @@ public final class PartitionSpec {
             appendLengthPrefixed(id, key);
         }
         return new SpecFolderRangePredicate(this, List.copyOf(temporalHints), List.copyOf(keys), id.toString());
+    }
+
+    /**
+     * Cache-key fragment for one temporal group. A range stores the quantized hull (same folder set as
+     * {@link InstantRange#overlapsFolder} on grain-aligned folders). Points store each grain-truncated
+     * instant: {@link SourceBounds#overlaps} tests membership, so a hull would let two IN lists that
+     * share a year IN and the same min-max collide after complete month/day INs are omitted.
+     */
+    private static void appendBoundIdentity(StringBuilder id, SourceBounds bounds, InstantRange covering, Transform grain) {
+        if (bounds.points() != null) {
+            TreeSet<Long> truncated = new TreeSet<>();
+            for (Long point : bounds.points()) {
+                truncated.add(grainFloor(point, grain));
+            }
+            appendLengthPrefixed(id, "p");
+            id.append(truncated.size()).append(':');
+            for (Long point : truncated) {
+                appendLengthPrefixed(id, Long.toString(point));
+            }
+            return;
+        }
+        InstantRange quantized = quantizeRange(covering, grain);
+        appendLengthPrefixed(id, "r");
+        appendLengthPrefixed(id, quantized.startInclusiveMillis() == null ? "" : Long.toString(quantized.startInclusiveMillis()));
+        appendLengthPrefixed(id, quantized.endExclusiveMillis() == null ? "" : Long.toString(quantized.endExclusiveMillis()));
     }
 
     /**

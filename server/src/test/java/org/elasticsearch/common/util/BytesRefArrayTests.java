@@ -11,10 +11,14 @@ package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.PagedBytesCursor;
+import org.elasticsearch.common.bytes.ZeroBytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -25,6 +29,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.IntStream;
 
@@ -214,6 +219,74 @@ public class BytesRefArrayTests extends ESTestCase {
                 expectedMax = Math.max(expectedMax, value.length);
             }
             assertThat(array.valueMaxByteSize(), equalTo(expectedMax));
+        }
+    }
+
+    public void testAppendBytesReferenceChunksAndSlices() throws IOException {
+        try (BytesRefArray array = new BytesRefArray(0, mockBigArrays())) {
+            List<BytesRef> expected = new ArrayList<>();
+            for (int i = 0; i < 20; i++) {
+                byte[] data = randomByteArrayOfLength(between(4, 2 * PageCacheRecycler.BYTE_PAGE_SIZE));
+                int split = between(2, data.length - 2);
+                var reference = CompositeBytesReference.of(
+                    new BytesArray(data, 0, split),
+                    BytesArray.EMPTY,
+                    new BytesArray(data, split, data.length - split)
+                ).slice(1, data.length - 2);
+                expected.add(BytesRef.deepCopyOf(new BytesRef(data, 1, data.length - 2)));
+                array.append(reference);
+                Arrays.fill(data, (byte) 0); // The array owns the appended bytes, not the reference's backing pages.
+                array.append(BytesArray.EMPTY);
+                expected.add(new BytesRef());
+            }
+            assertEquals(expected.size(), array.size());
+            for (int i = 0; i < expected.size(); i++) {
+                assertEquals(expected.get(i), array.get(i, new BytesRef()));
+            }
+        }
+    }
+
+    public void testAppendBytesReferenceDoesNotMaterialize() throws IOException {
+        int length = between(2 * PageCacheRecycler.BYTE_PAGE_SIZE, 3 * PageCacheRecycler.BYTE_PAGE_SIZE);
+        var reference = new ZeroBytesReference(length) {
+            @Override
+            public BytesRef toBytesRef() {
+                throw new AssertionError("append must consume the chunks without materializing a contiguous copy");
+            }
+        };
+        try (BytesRefArray array = new BytesRefArray(0, mockBigArrays())) {
+            array.append(reference);
+            assertEquals(1L, array.size());
+            assertEquals(new BytesRef(new byte[length]), array.get(0, new BytesRef()));
+        }
+    }
+
+    public void testAppendBytesReferenceDiscardsPartialRead() throws IOException {
+        var reference = new ZeroBytesReference(2) {
+            @Override
+            public BytesRefIterator iterator() {
+                return new BytesRefIterator() {
+                    private boolean first = true;
+
+                    @Override
+                    public BytesRef next() throws IOException {
+                        if (first) {
+                            first = false;
+                            return new BytesRef("x");
+                        }
+                        throw new IOException("failed after the first chunk");
+                    }
+                };
+            }
+        };
+        try (BytesRefArray array = new BytesRefArray(0, mockBigArrays())) {
+            array.append(new BytesRef("before"));
+            expectThrows(IOException.class, () -> array.append(reference));
+            assertEquals(1L, array.size());
+            array.append(new BytesArray("after"));
+            assertEquals(2L, array.size());
+            assertEquals(new BytesRef("before"), array.get(0, new BytesRef()));
+            assertEquals(new BytesRef("after"), array.get(1, new BytesRef()));
         }
     }
 
@@ -489,9 +562,16 @@ public class BytesRefArrayTests extends ESTestCase {
         assertThat(breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
     }
 
-    public void testAppendCursorDiscardsEntryRefusedByCircuitBreaker() {
-        // As above but through the cursor overload, which reserves its offset the same way but copies the bytes
-        // chunk by chunk out of the cursor rather than from a single array.
+    public void testAppendCursorDiscardsEntryRefusedByCircuitBreaker() throws IOException {
+        assertChunkedAppendDiscardsEntryRefusedByCircuitBreaker(false);
+    }
+
+    public void testAppendBytesReferenceDiscardsEntryRefusedByCircuitBreaker() throws IOException {
+        assertChunkedAppendDiscardsEntryRefusedByCircuitBreaker(true);
+    }
+
+    private void assertChunkedAppendDiscardsEntryRefusedByCircuitBreaker(boolean bytesReference) throws IOException {
+        // Chunked overloads must discard the entire entry even when copying a later chunk trips the breaker.
         CrankyCircuitBreakerService breakerService = new CrankyCircuitBreakerService();
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService, true);
         PagedBytesCursor cursor = new PagedBytesCursor();
@@ -508,11 +588,17 @@ public class BytesRefArrayTests extends ESTestCase {
                     byte[] data = randomByteArrayOfLength(between(1, 500));
                     cursor.init(data, 0, data.length);
                     try {
-                        array.append(cursor);
+                        if (bytesReference) {
+                            int split = data.length / 2;
+                            array.append(
+                                CompositeBytesReference.of(new BytesArray(data, 0, split), new BytesArray(data, split, data.length - split))
+                            );
+                        } else {
+                            array.append(cursor);
+                        }
                         expected.add(new BytesRef(data));
                     } catch (CircuitBreakingException e) {
-                        // the entry must be discarded whole; the cursor itself is left partially consumed, so the
-                        // refused entry cannot simply be re-offered
+                        // The entry must be discarded whole, including chunks already copied before the refusal.
                         assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
                         refusals++;
                     }

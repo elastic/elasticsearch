@@ -31,20 +31,23 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
 import org.elasticsearch.xpack.esql.parser.LogicalPlanBuilder;
-import org.elasticsearch.xpack.esql.plan.EsqlStatement;
-import org.elasticsearch.xpack.esql.plan.EsqlStatement.PipeDepths;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
@@ -95,9 +98,8 @@ import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
  * </ul>
  * <p>
  * View resolution may introduce new nodes that need further processing, so explicit recursive calls are made on newly resolved view
- * plans. The traversal tracks circular references and enforces the maximum view depth ({@link #MAX_VIEW_DEPTH_SETTING}). It also adds
- * up the pipes of each query and of the views expanded into it, using the depths the parser recorded
- * ({@link EsqlStatement#pipeDepths()}), and fails when the longest path of the expanded query has more than
+ * plans. The traversal tracks circular references and enforces the maximum view depth ({@link #MAX_VIEW_DEPTH_SETTING}). It also counts
+ * the commands on each path of the plan, including those of the views expanded into it, and fails when a path has more than
  * {@link LogicalPlanBuilder#MAX_QUERY_DEPTH} of them, as the parser does for a query written out in full.
  * <p>
  * TODO: {@code ViewResolver} needs rename or refactor, as it does two tasks - view resolution and IN subquery resolution. Keep the core
@@ -192,9 +194,7 @@ public class ViewResolver {
      * @param plan the logical plan to process
      * @param wildcardsMatchViews when {@code false}, wildcard patterns in {@code FROM} do not match views; a view is reachable only by
      *                            its exact name
-     * @param topDepths the pipe depths recorded by the parser for the statement that {@code plan} was taken from; see
-     *                  {@link EsqlStatement#pipeDepths()}
-     * @param parser function to parse view query strings into statements
+     * @param parser function to parse view query strings into logical plans
      * @param preserveViewBoundaries when {@code true}, non-pass-through view subplans (views whose
      *                               body is not a bare {@link UnresolvedRelation}) are wrapped in a
      *                               {@link org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll}
@@ -216,8 +216,7 @@ public class ViewResolver {
         LogicalPlan plan,
         String projectRouting,
         boolean wildcardsMatchViews,
-        PipeDepths topDepths,
-        BiFunction<String, String, EsqlStatement> parser,
+        BiFunction<String, String, LogicalPlan> parser,
         boolean preserveViewBoundaries,
         ActionListener<ViewResolutionResult> listener
     ) {
@@ -246,7 +245,7 @@ public class ViewResolver {
             new LinkedHashSet<>(),
             viewQueries,
             hasInSubquery,
-            new PipePosition(0, topDepths),
+            0,
             0,
             preserveViewBoundaries,
             listener.delegateFailureAndWrap(
@@ -259,12 +258,12 @@ public class ViewResolver {
         LogicalPlan plan,
         String projectRouting,
         boolean wildcardsMatchViews,
-        BiFunction<String, String, EsqlStatement> parser,
+        BiFunction<String, String, LogicalPlan> parser,
         LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
         Holder<Boolean> hasInSubquery,
-        PipePosition pipes,
         int depth,
+        int pipesAbove,
         boolean preserveViewBoundaries,
         ActionListener<LogicalPlan> listener
     ) {
@@ -277,12 +276,17 @@ public class ViewResolver {
         // reference errors and deeply nested duplicate resolution.
         Set<LogicalPlan> resolvedPlans = Collections.newSetFromMap(new IdentityHashMap<>());
 
+        IdentityHashMap<LogicalPlan, Integer> nodesAbove = new IdentityHashMap<>();
+        collectNodesAbove(plan, 0, nodesAbove);
+
         plan.transformDown((p, planListener) -> {
             if (resolvedPlans.contains(p)) {
                 // This plan was already resolved by a handler — skip it to prevent double-processing.
                 planListener.onResponse(p);
                 return;
             }
+            // Commands above this node in the plan, and in the queries that views were expanded into
+            int above = pipesAbove + nodesAbove.getOrDefault(p, 0);
             switch (p) {
                 case ViewUnionAll viewUnion ->
                     // ViewUnionAll is the result of view resolution, so we skip it.
@@ -297,8 +301,8 @@ public class ViewResolver {
                     seenInner,
                     viewQueries,
                     hasInSubquery,
-                    pipes,
                     depth,
+                    above,
                     preserveViewBoundaries,
                     planListener.delegateFailureAndWrap((l, result) -> {
                         plan.forEachDown(resolvedPlans::add);
@@ -323,8 +327,8 @@ public class ViewResolver {
                             seenInner,
                             viewQueries,
                             hasInSubquery,
-                            pipes,
                             depth,
+                            above,
                             preserveViewBoundaries,
                             planListener.delegateFailureAndWrap((l, result) -> {
                                 result.forEachDown(resolvedPlans::add);
@@ -350,8 +354,8 @@ public class ViewResolver {
                             seenInner,
                             viewQueries,
                             hasInSubquery,
-                            pipes,
                             depth,
+                            above,
                             preserveViewBoundaries,
                             planListener.delegateFailureAndWrap((l, result) -> {
                                 result.forEachDown(resolvedPlans::add);
@@ -377,8 +381,8 @@ public class ViewResolver {
                             seenInner,
                             viewQueries,
                             hasInSubquery,
-                            pipes,
                             depth,
+                            above,
                             preserveViewBoundaries,
                             planListener.delegateFailureAndWrap((l, result) -> {
                                 result.forEachDown(resolvedPlans::add);
@@ -395,8 +399,8 @@ public class ViewResolver {
                     seenInner,
                     viewQueries,
                     hasInSubquery,
-                    pipes,
                     depth,
+                    above,
                     preserveViewBoundaries,
                     planListener.delegateFailureAndWrap((l, result) -> {
                         result.forEachDown(resolvedPlans::add);
@@ -412,8 +416,8 @@ public class ViewResolver {
                     seenWildcards,
                     viewQueries,
                     hasInSubquery,
-                    pipes,
                     depth,
+                    above,
                     preserveViewBoundaries,
                     planListener.delegateFailureAndWrap((l, result) -> {
                         plan.forEachDown(resolvedPlans::add);
@@ -432,12 +436,12 @@ public class ViewResolver {
         MergePlan mergePlan,
         String projectRouting,
         boolean wildcardsMatchViews,
-        BiFunction<String, String, EsqlStatement> parser,
+        BiFunction<String, String, LogicalPlan> parser,
         LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
         Holder<Boolean> hasInSubquery,
-        PipePosition pipes,
         int depth,
+        int pipesAbove,
         boolean preserveViewBoundaries,
         ActionListener<LogicalPlan> listener
     ) {
@@ -455,8 +459,8 @@ public class ViewResolver {
                     seenViews,
                     viewQueries,
                     hasInSubquery,
-                    pipes,
                     depth + 1,
+                    pipesAbove + (isCounted(mergePlan) ? 1 : 0),
                     preserveViewBoundaries,
                     l.delegateFailureAndWrap((subListener, newPlan) -> {
                         if (newPlan.equals(subplan) == false) {
@@ -485,12 +489,12 @@ public class ViewResolver {
         AbstractSubqueryJoin subqueryJoin,
         String projectRouting,
         boolean wildcardsMatchViews,
-        BiFunction<String, String, EsqlStatement> parser,
+        BiFunction<String, String, LogicalPlan> parser,
         LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
         Holder<Boolean> hasInSubquery,
-        PipePosition pipes,
         int depth,
+        int pipesAbove,
         boolean preserveViewBoundaries,
         ActionListener<LogicalPlan> listener
     ) {
@@ -505,8 +509,8 @@ public class ViewResolver {
                 seenViews,
                 viewQueries,
                 hasInSubquery,
-                pipes,
                 depth + 1,
+                pipesAbove + 1,
                 preserveViewBoundaries,
                 l.delegateFailureAndWrap((sl, newLeft) -> {
                     if (newLeft instanceof Subquery sq && sq.child() instanceof NamedSubquery named) {
@@ -525,8 +529,8 @@ public class ViewResolver {
                 seenViews,
                 viewQueries,
                 hasInSubquery,
-                pipes,
                 depth + 1,
+                pipesAbove + 1,
                 preserveViewBoundaries,
                 l.delegateFailureAndWrap((sl, newRight) -> {
                     if (newRight instanceof Subquery sq && sq.child() instanceof NamedSubquery named) {
@@ -546,13 +550,13 @@ public class ViewResolver {
         UnresolvedRelation unresolvedRelation,
         String projectRouting,
         boolean wildcardsMatchViews,
-        BiFunction<String, String, EsqlStatement> parser,
+        BiFunction<String, String, LogicalPlan> parser,
         LinkedHashSet<String> seenViews,
         HashSet<String> seenWildcards,
         Map<String, String> viewQueries,
         Holder<Boolean> hasInSubquery,
-        PipePosition pipes,
         int depth,
+        int pipesAbove,
         boolean preserveViewBoundaries,
         ActionListener<LogicalPlan> listener
     ) {
@@ -680,25 +684,23 @@ public class ViewResolver {
                             }
                         }
                     }
-                    ResolvedView resolvedView = resolve(
-                        view,
-                        parser,
-                        viewQueries,
-                        MetadataAttribute.requestsRelationColumn(unresolvedRelation.metadataFields()),
-                        pipes,
-                        unresolvedRelation,
-                        branchSeenViews
-                    );
                     replaceViews(
-                        resolvedView.plan(),
+                        resolve(
+                            view,
+                            parser,
+                            viewQueries,
+                            MetadataAttribute.requestsRelationColumn(unresolvedRelation.metadataFields()),
+                            pipesAbove,
+                            branchSeenViews
+                        ),
                         projectRouting,
                         wildcardsMatchViews,
                         parser,
                         branchSeenViews,
                         viewQueries,
                         hasInSubquery,
-                        resolvedView.pipes(),
                         depth + 1,
+                        pipesAbove,
                         // Resolving a view's *body*: never preserve boundaries in here. The request filter applies to
                         // this view's output, not to the outputs of views nested inside its definition — those are an
                         // implementation detail of this view. Keeping their wrappers would block compaction for no
@@ -1189,27 +1191,16 @@ public class ViewResolver {
     }
 
     /**
-     * Pipes above the plan being resolved: those of the queries that views were expanded from, on the path to the plan.
-     *
-     * @param base the number of pipes above the statement that the plan was parsed from
-     * @param depths the pipe depths recorded when parsing that statement
+     * Parses the body of a view, and checks that expanding it where {@code pipesAbove} commands already lie above it keeps the longest
+     * path of the query within {@link LogicalPlanBuilder#MAX_QUERY_DEPTH}. The parser limits the commands of a single query, so the
+     * commands of the view and of the queries it is expanded into have to be added up here.
      */
-    private record PipePosition(int base, PipeDepths depths) {}
-
-    private record ResolvedView(LogicalPlan plan, PipePosition pipes) {}
-
-    /**
-     * Parses the body of a view and checks that expanding it where {@code unresolvedRelation} stands keeps the longest path of the
-     * query within {@link LogicalPlanBuilder#MAX_QUERY_DEPTH} pipes. The parser limits the pipes of a single query, so the pipes
-     * of the view and of the queries it is expanded into have to be added up here.
-     */
-    private ResolvedView resolve(
+    private LogicalPlan resolve(
         View view,
-        BiFunction<String, String, EsqlStatement> parser,
+        BiFunction<String, String, LogicalPlan> parser,
         Map<String, String> viewQueries,
         boolean keepViewIdentity,
-        PipePosition pipes,
-        UnresolvedRelation unresolvedRelation,
+        int pipesAbove,
         LinkedHashSet<String> viewPath
     ) {
         log.debug("Resolving view '{}'", view.name());
@@ -1218,20 +1209,16 @@ public class ViewResolver {
 
         // Parse the view query with the view name, which causes all Source objects
         // to be tagged with the view name during parsing
-        EsqlStatement statement = parser.apply(view.query(), view.name());
-        // Falling back to the deepest leaf can only over-count, if the relation is not one the parser has recorded.
-        int pipesAboveView = pipes.base() + pipes.depths().relations().getOrDefault(unresolvedRelation.source(), pipes.depths().max());
-        int pipesOnLongestPath = pipesAboveView + statement.pipeDepths().max();
-        if (pipesOnLongestPath > LogicalPlanBuilder.MAX_QUERY_DEPTH) {
+        LogicalPlan parsed = parser.apply(view.query(), view.name());
+        int commandsOnLongestPath = pipesAbove + commandsOnLongestPath(parsed);
+        if (commandsOnLongestPath > LogicalPlanBuilder.MAX_QUERY_DEPTH) {
             throw new VerificationException(
-                "ES|QL query exceeded the maximum query depth allowed ({}) after expanding views [{}]: [{}] pipes",
+                "ES|QL query exceeded the maximum query depth allowed ({}) after expanding views [{}]: [{}] commands",
                 LogicalPlanBuilder.MAX_QUERY_DEPTH,
                 String.join(" -> ", viewPath),
-                pipesOnLongestPath
+                commandsOnLongestPath
             );
         }
-        PipePosition viewPipes = new PipePosition(pipesAboveView, statement.pipeDepths());
-        LogicalPlan parsed = statement.plan();
         LogicalPlan subquery = parsed instanceof UnresolvedMetadata fs ? fs.child() : parsed;
         if (keepViewIdentity == false && subquery instanceof UnresolvedRelation ur && containsExclusion(ur) == false) {
             // Simple UnresolvedRelation subqueries are not kept as views, so we can compact them
@@ -1240,12 +1227,61 @@ public class ViewResolver {
             // or outer UnresolvedRelations would have its exclusion's scope widened across the
             // merged pattern list (see #146XXX), so those are wrapped in a NamedSubquery via the
             // else branch to prevent merging.
-            return new ResolvedView(parsed, viewPipes);
+            return parsed;
         } else {
             // More complex subqueries (or simple UnresolvedRelations containing exclusions) are
             // maintained with the view name for branch identification.
-            return new ResolvedView(new NamedSubquery(parsed.source(), parsed, view.name()), viewPipes);
+            return new NamedSubquery(parsed.source(), parsed, view.name());
         }
+    }
+
+    /**
+     * Whether a node is one command of the query. Leaves are the source command, which is not a pipe, and the wrappers that views and
+     * subqueries are expanded into are not commands either.
+     * <p>
+     * Counting nodes is not exact for the few commands that are planned as more than one node, such as {@code INLINE STATS}, the
+     * implicit {@code EVAL} of each {@code FORK} branch, and {@code IN} subqueries combined with other conditions. Those count more
+     * than once, so the limit can only be hit early, never missed.
+     */
+    private static boolean isCounted(LogicalPlan plan) {
+        return plan instanceof LeafPlan == false
+            && plan instanceof Subquery == false
+            && plan instanceof UnionAll == false
+            && plan instanceof UnresolvedMetadata == false;
+    }
+
+    /**
+     * Records, for each node of {@code plan}, the number of commands above it in {@code plan}.
+     */
+    private static void collectNodesAbove(LogicalPlan plan, int above, IdentityHashMap<LogicalPlan, Integer> nodesAbove) {
+        nodesAbove.put(plan, above);
+        int childrenAbove = above + (isCounted(plan) ? 1 : 0);
+        for (LogicalPlan child : plan.children()) {
+            collectNodesAbove(child, childrenAbove, nodesAbove);
+        }
+    }
+
+    /**
+     * The largest number of commands on a path from the root of {@code plan} down to one of its leaves. This includes the paths into
+     * the plans of {@code IN} subqueries, which are only turned into joins when views are resolved.
+     */
+    private static int commandsOnLongestPath(LogicalPlan plan) {
+        int below = 0;
+        for (LogicalPlan child : plan.children()) {
+            below = Math.max(below, commandsOnLongestPath(child));
+        }
+        for (Expression expression : plan.expressions()) {
+            int[] inSubqueryBelow = new int[1];
+            expression.forEachDown(e -> {
+                if (e instanceof InSubquery inSubquery) {
+                    inSubqueryBelow[0] = Math.max(inSubqueryBelow[0], commandsOnLongestPath(inSubquery.subquery()));
+                } else if (e instanceof MultiColumnInSubquery inSubquery) {
+                    inSubqueryBelow[0] = Math.max(inSubqueryBelow[0], commandsOnLongestPath(inSubquery.subquery()));
+                }
+            });
+            below = Math.max(below, inSubqueryBelow[0]);
+        }
+        return below + (isCounted(plan) ? 1 : 0);
     }
 
     private static boolean containsExclusion(UnresolvedRelation ur) {

@@ -228,7 +228,9 @@ public final class DatasetListingService {
             // the key, so a bounded prefix is addressed as a prefix. What must never be served from the cache is a
             // listing that truncated when no bound was asked for: that one would answer for the full dataset.
             if (listing.isTruncated() && extents.boundsFileSet() == false) {
-                listener.onFailure(new IllegalStateException("a truncated listing must never be served from the shared listing cache: " + path));
+                listener.onFailure(
+                    new IllegalStateException("a truncated listing must never be served from the shared listing cache: " + path)
+                );
                 return;
             }
             try {

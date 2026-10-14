@@ -519,10 +519,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             files.add(entry(file, 100));
             schemasByPath.put(file, fileSchema);
         }
-        Map<String, List<StorageEntry>> listingsByPrefix = Map.of(
-            StoragePath.of(DECLARED_GLOB).patternPrefix().toString(),
-            files
-        );
+        Map<String, List<StorageEntry>> listingsByPrefix = Map.of(StoragePath.of(DECLARED_GLOB).patternPrefix().toString(), files);
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
 
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {

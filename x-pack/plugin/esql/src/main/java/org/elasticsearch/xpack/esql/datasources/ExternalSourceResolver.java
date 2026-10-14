@@ -1777,6 +1777,11 @@ public class ExternalSourceResolver {
             // Nothing was examined, so nothing rules out a value that fails to convert.
             return true;
         }
+        if (source.fileList().isTruncated() || source.fileList().isInferenceAnchor()) {
+            // The schema map covers only a prefix of the dataset. Files outside the sample may narrow
+            // a column the map records as lossless, so the stamp must be conservative.
+            return true;
+        }
         DeclaredReadSpec spec = source.declaredReadSpec() == null ? DeclaredReadSpec.NONE : source.declaredReadSpec();
         Map<String, String> renames = spec.renames();
         // The types the query reads the columns AT, which is the only target a conversion can narrow toward. It has

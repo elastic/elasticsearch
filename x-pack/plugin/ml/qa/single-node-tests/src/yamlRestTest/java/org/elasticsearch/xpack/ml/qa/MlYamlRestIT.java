@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.qa;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.http.HttpStatus;
@@ -69,7 +70,7 @@ public class MlYamlRestIT extends ESClientYamlSuiteTestCase {
         .user("x_pack_rest_user", "x-pack-test-password")
         .build();
 
-    public MlYamlRestIT(ClientYamlTestCandidate testCandidate) {
+    public MlYamlRestIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

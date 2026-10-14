@@ -540,7 +540,13 @@ public class HeapAttackIT extends ESRestTestCase {
     public void testHugeMvConcat() throws IOException {
         // One doc whose f00 holds 300k values; joined with a ~1kb delimiter that is one huge string.
         initMvLongsIndex(1, 1, 300000, false);
-        assertCircuitBreaks(attempt -> mvConcat(attempt * 999));
+        // Lower the request breaker so the join trips it well before the node runs out of memory.
+        try {
+            setRequestBreakerLimit("20%");
+            assertCircuitBreaks(attempt -> mvConcat(attempt * 999));
+        } finally {
+            setRequestBreakerLimit(null);
+        }
     }
 
     private Map<String, Object> mvConcat(int delimiterLength) throws IOException {
@@ -549,6 +555,14 @@ public class HeapAttackIT extends ESRestTestCase {
             .append(delimiterLength)
             .append(")) | EVAL len = LENGTH(str) | KEEP len\"}");
         return responseAsMap(query(query.toString(), null));
+    }
+
+    private void setRequestBreakerLimit(String limit) throws IOException {
+        Request request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity(
+            "{\"persistent\": {\"indices.breaker.request.limit\": " + (limit == null ? "null" : "\"" + limit + "\"") + "}}"
+        );
+        adminClient().performRequest(request);
     }
 
     /**

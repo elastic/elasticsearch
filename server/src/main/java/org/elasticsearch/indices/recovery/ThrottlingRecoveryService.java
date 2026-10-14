@@ -346,12 +346,6 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         return pendingRecoveries.stream().map(PendingRecovery::allocationId).collect(Collectors.toUnmodifiableSet());
     }
 
-    /// Returns the current max number of incoming relocation recoveries this node may run concurrently, i.e. an upper bound
-    /// on how many of the relocations assigned to this node in the cluster state actually make progress at the same time.
-    public int maxConcurrentRelocationRecoveries() {
-        return recoveriesThrottle.effectiveMaxConcurrentRelocationRecoveries;
-    }
-
     /// Returns the current blocked state, or `null` if recovery dispatch is not blocked.
     public @Nullable BlockedState blockedState() {
         return blockedState.get();
@@ -645,9 +639,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
 
         /// Effective max concurrent relocation recoveries, derived from [#effectiveMaxConcurrentRecoveries] and
         /// [DataNodeRecoveryThrottlingSettings#INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING].
-        /// Volatile so that [ThrottlingRecoveryService#maxConcurrentRelocationRecoveries] can read it without locking,
-        /// writes still happen under the enclosing instance lock.
-        private volatile int effectiveMaxConcurrentRelocationRecoveries;
+        private int effectiveMaxConcurrentRelocationRecoveries;
 
         /// The number of concurrent recoveries currently running, including recoveries from unassigned + relocations. Must
         /// not exceed [#effectiveMaxConcurrentRecoveries].

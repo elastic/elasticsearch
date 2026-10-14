@@ -101,6 +101,9 @@ public final class FlakinessTargets {
     }
 
     private static BaseTarget mergeTargets(BaseTarget left, BaseTarget right) {
+        if (left.equals(right)) {
+            return left;
+        }
         if (left.runnable() == false) {
             return right.runnable() ? right : targetWith(left, List.of(), Math.max(left.candidateTasks(), right.candidateTasks()), left.skipReason());
         }
@@ -108,7 +111,9 @@ public final class FlakinessTargets {
             return left;
         }
         List<String> runnableTasks = unionTasks(left.runnableTasks(), right.runnableTasks());
-        int candidateTasks = Math.max(Math.max(left.candidateTasks(), right.candidateTasks()), runnableTasks.size());
+        int candidateTasks = left.runnableTasks().equals(right.runnableTasks())
+            ? Math.max(left.candidateTasks(), right.candidateTasks())
+            : left.candidateTasks() + right.candidateTasks();
         return targetWith(left, runnableTasks, candidateTasks, null);
     }
 

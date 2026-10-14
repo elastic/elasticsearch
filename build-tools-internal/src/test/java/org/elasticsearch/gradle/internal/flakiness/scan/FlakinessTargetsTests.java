@@ -211,7 +211,26 @@ public class FlakinessTargetsTests {
             )
         );
 
-        assertThat(merged.targets(), contains(target(":a", "test", "org.foo.ATests", List.of(":a:testA", ":a:testB"), null)));
+        assertThat(merged.targets(), contains(target(":a", "test", "org.foo.ATests", List.of(":a:testA", ":a:testB"), null, 2)));
+    }
+
+    @Test
+    public void testMergePreservesConservativeCandidateCountForTaskScopedTargets() {
+        BaseTarget first = target(":a", "test", "org.foo.ATests", List.of(":a:testA", ":a:testB"), null, 3);
+        BaseTarget second = target(":a", "test", "org.foo.ATests", List.of(":a:testC", ":a:testD"), null, 3);
+
+        FlakinessJson.BaseTargetsFile merged = FlakinessTargets.merge(
+            List.of(changedFile("a/src/test/java/org/foo/ATests.java")),
+            List.of(
+                new FlakinessJson.ProjectTargetsFile(":a", List.of(new FlakinessJson.RefTarget(0, first)), List.of(), List.of()),
+                new FlakinessJson.ProjectTargetsFile(":a", List.of(new FlakinessJson.RefTarget(0, second)), List.of(), List.of())
+            )
+        );
+
+        assertThat(
+            merged.targets(),
+            contains(target(":a", "test", "org.foo.ATests", List.of(":a:testA", ":a:testB", ":a:testC", ":a:testD"), null, 6))
+        );
     }
 
     private static FlakinessRef changedFile(String path) {
@@ -219,10 +238,21 @@ public class FlakinessTargetsTests {
     }
 
     private static BaseTarget runnable(String project, String sourceSet, String fqcn) {
-        return target(project, sourceSet, fqcn, List.of(project + ":" + sourceSet), null);
+        return target(project, sourceSet, fqcn, List.of(project + ":" + sourceSet), null, 1);
     }
 
     private static BaseTarget target(String project, String sourceSet, String fqcn, List<String> runnableTasks, String skipReason) {
-        return new BaseTarget(project, sourceSet, sourceSet, fqcn, null, null, runnableTasks, runnableTasks.size(), skipReason);
+        return target(project, sourceSet, fqcn, runnableTasks, skipReason, runnableTasks.size());
+    }
+
+    private static BaseTarget target(
+        String project,
+        String sourceSet,
+        String fqcn,
+        List<String> runnableTasks,
+        String skipReason,
+        int candidateTasks
+    ) {
+        return new BaseTarget(project, sourceSet, sourceSet, fqcn, null, null, runnableTasks, candidateTasks, skipReason);
     }
 }

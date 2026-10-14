@@ -448,6 +448,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * (month 1..12, day-of-month per month, leap years), and trapping its exception here keeps the fast path
      * side-effect-free: the caller falls through to the general-purpose parser, which preserves the existing
      * {@code DateUtils.asDateTime} semantics, including the user-facing "Failed to parse" message.
+     * <p>
+     * Callers must ensure {@code value.length() >= 19} before calling; both current callers satisfy this through
+     * {@link #spaceSeparatedNanoOfSecond}, which returns {@link #FAST_PATH_MISS} on shorter input.
      */
     private static long spaceSeparatedEpochSecond(String value) {
         int year = parseFixedDigits(value, 0, 4);

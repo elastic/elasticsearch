@@ -565,7 +565,7 @@ public class CsvSchemaInferrerTests extends ESTestCase {
      * some value here starts disagreeing and this fails, whether or not anyone thought to enumerate
      * that dialect.
      * <p>
-     * The rail has two halves — {@link #railRejectsDialect} states both — and asking only the formatter
+     * The rail has two halves — {@link #railRejects} states both — and asking only the formatter
      * is what this test used to do. That is why it passed while inference was screening out the
      * space-separated form the reader reads perfectly well: the oracle was narrower than the rail, so
      * the disagreement it exists to catch was invisible to it. The test-side composition of the two
@@ -598,7 +598,7 @@ public class CsvSchemaInferrerTests extends ESTestCase {
             DataType inferred = inferOne(value);
             Long railNanos = nanosRailDecode(value);
             if (inferred == DataType.DATE_NANOS) {
-                assertFalse("inferred date_nanos for a value the nanos rail cannot decode: [" + value + "]", railRejectsDialect(value));
+                assertFalse("inferred date_nanos for a value the nanos rail cannot decode: [" + value + "]", railRejects(value));
             }
             // And the other direction, which catches a screen that drifts too BROAD — suppressing
             // values it should have promoted. Stated over this corpus rather than as a general law:
@@ -680,12 +680,6 @@ public class CsvSchemaInferrerTests extends ESTestCase {
         assertEquals("a missing cell is absence, not evidence", DataType.INTEGER, schema.get(1).dataType());
     }
 
-    /**
-     * The single-value invariant above misses the case the demotion exists for: a column is only wrong
-     * when an undecodable dialect COEXISTS with a value that would flip the column. Every pair from the
-     * corpus, both orders — if the column lands on {@code date_nanos}, every one of its values must
-     * decode there.
-     */
     private static final DateFormatter NANOS_RAIL_FORMAT = DateFormatter.forPattern("strict_date_optional_time_nanos");
 
     /**
@@ -700,7 +694,7 @@ public class CsvSchemaInferrerTests extends ESTestCase {
      * has no range check), so it is NOT a demotion trigger — see
      * {@link #testOutOfWindowValueInDateNanosColumnStaysDateNanosBothOrders}.
      */
-    private static boolean railRejectsDialect(String value) {
+    private static boolean railRejects(String value) {
         return NANOS_RAIL_FORMAT.tryParse(value) == null
             && CsvFormatReader.tryParseSpaceSeparatedDatetimeNanos(value) == CsvFormatReader.FAST_PATH_MISS;
     }
@@ -723,6 +717,12 @@ public class CsvSchemaInferrerTests extends ESTestCase {
         }
     }
 
+    /**
+     * The single-value invariant above misses the case the demotion exists for: a column is only wrong
+     * when an undecodable dialect COEXISTS with a value that would flip the column. Every pair from the
+     * corpus, both orders — if the column lands on {@code date_nanos}, every one of its values must
+     * decode there.
+     */
     public void testNoColumnLandsOnTheNanosRailHoldingAValueThatRailRejects() {
         List<String> corpus = new ArrayList<>(
             List.of(
@@ -752,9 +752,9 @@ public class CsvSchemaInferrerTests extends ESTestCase {
                     // A cell that causes demotion (rails reject it) must not coexist with date_nanos.
                     // T-form out-of-window values are the one exception: the T-form formatter has no
                     // range check, so they pass the rail and a column stays date_nanos if they appear.
-                    // railRejectsDialect returns false for those, so this assertion does not fire.
-                    if (railRejectsDialect(cell)) {
-                        fail("column [" + a + "] + [" + b + "] inferred date_nanos but [" + cell + "] is a dialect that rail cannot parse");
+                    // railRejects returns false for those, so this assertion does not fire.
+                    if (railRejects(cell)) {
+                        fail("column [" + a + "] + [" + b + "] inferred date_nanos but [" + cell + "] cannot be decoded by the nanos rail");
                     }
                 }
             }

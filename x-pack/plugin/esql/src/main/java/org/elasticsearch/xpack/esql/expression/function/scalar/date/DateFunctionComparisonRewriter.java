@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -30,17 +32,20 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Not
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.ZoneId;
+import java.util.List;
 
 /**
  * Listing-time fold of all-literal date function calls, and post-analysis inversion of
  * {@code DATE_TRUNC} / monotonic {@code DATE_EXTRACT} comparisons into timestamp ranges.
  * <p>
- * Fold resolves the name through the session {@link EsqlFunctionRegistry} and dispatches to a
- * static method on the registered class — never
+ * Fold resolves the name through the session {@link EsqlFunctionRegistry} and dispatches on the
+ * registered class — never
  * {@link org.elasticsearch.xpack.esql.expression.function.FunctionDefinition#build}, which would
- * instantiate the function and run arity validation that throws. Unary {@code YEAR}/{@code MONTH}/
- * {@code DAY}/{@code HOUR} fold by injecting their chrono and delegating to
- * {@link DateExtract}. Invert dispatches on the resolved {@link DateTrunc} /
+ * instantiate the function and run arity validation that throws. Most arms call a static fold on
+ * the function class itself; {@code TO_DATETIME} is folded here instead, because it lives in the
+ * {@code convert} package and the literal helpers this fold needs are package-private to this one.
+ * Unary {@code YEAR}/{@code MONTH}/{@code DAY}/{@code HOUR} fold by injecting their chrono and
+ * delegating to {@link DateExtract}. Invert dispatches on the resolved {@link DateTrunc} /
  * {@link DateExtract} node after surrogate substitution.
  */
 public final class DateFunctionComparisonRewriter {
@@ -66,6 +71,8 @@ public final class DateFunctionComparisonRewriter {
                 folded = DateExtract.tryFoldLiterals(call.source(), call.children(), config);
             } else if (clazz == DateTrunc.class) {
                 folded = DateTrunc.tryFoldLiterals(call.source(), call.children(), config);
+            } else if (clazz == ToDatetime.class) {
+                folded = tryFoldToDatetime(call.source(), call.children(), config);
             } else {
                 String chrono = DatePartFunction.chronoFor(clazz);
                 if (chrono != null) {
@@ -82,6 +89,28 @@ public final class DateFunctionComparisonRewriter {
             logger.debug("listing-time fold failed for [{}]", call.name(), e);
             return call;
         }
+    }
+
+    /**
+     * Fold {@code TO_DATETIME(<literal>)} to a {@code DATETIME} literal of epoch millis.
+     * <p>
+     * Needed because a date function is usually written over a converted string rather than over a bare one -
+     * {@code DATE_EXTRACT("YEAR", TO_DATETIME("2026-07-13T00:00:00.000Z"))} is the shape a dashboard sends - and
+     * {@link DateFunctionLiterals#literalArgs} refuses any argument that is not already a {@link Literal}, so the
+     * outer call cannot fold while the inner one stands. The filter condition is walked bottom-up, so folding this
+     * call hands the outer one two literals and its existing fold then applies.
+     */
+    private static Literal tryFoldToDatetime(Source source, List<Expression> args, Configuration config) {
+        Literal[] literals = DateFunctionLiterals.literalArgs(args, 1);
+        if (literals == null || literals[0].value() == null) {
+            return null;
+        }
+        DateFunctionLiterals.ParsedDate parsed = DateFunctionLiterals.parseDateLiteral(literals[0], DateFunctionLiterals.zoneId(config));
+        if (parsed == null) {
+            return null;
+        }
+        long millis = parsed.nanos() ? DateUtils.toMilliSeconds(parsed.epoch()) : parsed.epoch();
+        return new Literal(source, millis, DataType.DATETIME);
     }
 
     /**

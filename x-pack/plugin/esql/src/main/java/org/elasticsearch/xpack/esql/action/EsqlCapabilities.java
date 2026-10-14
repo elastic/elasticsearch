@@ -3033,6 +3033,14 @@ public class EsqlCapabilities {
         EXTERNAL_SOURCE_FILE_ORDER_OPTIONS,
 
         /**
+         * A dataset may set {@code partition_sample_size}, and how far a listing was asked to run is part of the
+         * listing cache's identity. A query that asks to list the whole glob is therefore never served the prefix
+         * a sampling query left behind, whatever order the two arrive in. Gates the spec cases that set a sample
+         * small enough to truncate and then read every row of the same dataset.
+         */
+        EXTERNAL_SOURCE_PARTITION_SAMPLE_SIZE,
+
+        /**
          * A UNION_BY_NAME query keeps files that contribute rows containing only nulls for the
          * projected columns. This matters when a projected, filtered, or grouped column is absent
          * from a file: the file's rows must not disappear merely because its physical projection is empty.

@@ -211,7 +211,10 @@ public final class ExternalSourceCacheSettings {
      */
     public static final Setting<ByteSizeValue> FOOTER_CACHE_SIZE = new Setting<>(
         "esql.external.cache.footer.size",
-        "0.5%",
+        // PROBE: 0.5% upstream. Raised so every tier of the sizing ladder clears the parsed budget
+        // the 29 GB tier carries today (148 MiB), which is the smallest budget observed to keep a
+        // Parquet cell fast at low concurrency.
+        "4%",
         s -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, "esql.external.cache.footer.size"),
         FOOTER_CACHE_BUDGET_VALIDATOR,
         Setting.Property.NodeScope
@@ -243,7 +246,8 @@ public final class ExternalSourceCacheSettings {
      */
     public static final Setting<ByteSizeValue> FOOTER_PARSED_CACHE_SIZE = new Setting<>(
         "esql.external.cache.footer.parsed.size",
-        "1%",
+        // PROBE: 1% upstream. See the note on footer.size.
+        "8%",
         s -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, "esql.external.cache.footer.parsed.size"),
         FOOTER_CACHE_BUDGET_VALIDATOR,
         Setting.Property.NodeScope

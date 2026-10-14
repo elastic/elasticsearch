@@ -26,8 +26,13 @@ import java.util.concurrent.ExecutionException;
  *   <li>Thundering-herd protection via {@link Cache#computeIfAbsent} — concurrent callers for the
  *       same key coalesce into a single load; exactly one thread performs I/O while others wait
  *       for the result</li>
- *   <li>Time-based expiration via {@link CacheBuilder#setExpireAfterWrite} — an entry expires the
- *       configured TTL ({@link ExternalSourceCacheSettings#FOOTER_CACHE_TTL}) after it was stored,
+ *   <li>PROBE BRANCH — NOT FOR MERGE. Reverted to {@link CacheBuilder#setExpireAfterAccess} to measure
+ *       what the dashboard-concurrency ladder does without synchronised cohort expiry: an entry expires
+ *       after the configured TTL of INACTIVITY, so a dashboard that keeps reading a footer keeps it alive
+ *       and no cohort ever forms. This reintroduces the unbounded same-length-overwrite staleness that
+ *       elasticsearch#161211 fixed for elastic/esql-planning#2094; it exists only to produce a curve.
+ *       Originally: an entry expired the configured TTL
+ *       ({@link ExternalSourceCacheSettings#FOOTER_CACHE_TTL}) after it was stored,
  *       whatever happens in between, and the key carries no modification time, so a same-length overwrite
  *       is served until then. Every store here follows a storage read in the same call, so an entry lives at
  *       most one TTL past that read; {@link ParsedFooterCache} does not share that property.</li>
@@ -136,7 +141,7 @@ public class FooterByteCache {
         this.expireAfterWrite = expireAfterWrite;
         this.cache = CacheBuilder.<Key, byte[]>builder()
             .setMaximumWeight(maxBytes)
-            .setExpireAfterWrite(expireAfterWrite)
+            .setExpireAfterAccess(expireAfterWrite)
             .weigher((key, value) -> value.length)
             .build();
     }

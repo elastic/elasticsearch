@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_load_all_v2 ]
+          capabilities: [ optional_fields_load_all_single_source_column, optional_fields_load_all_v2 ]
       reason: >
         LOAD_ALL reads _source, so under synthetic source it can only see a field the mapping does not
         declare if the document parser stashed that field in _ignored_source. FallbackPostMapper.Reason
@@ -176,22 +176,17 @@ teardown:
 ---
 'OBJECT_DISABLED: leaves of an enabled:false object are discovered from _ignored_source':
   # The mapped object "payload" is not a column of its own (only its leaves are), and the nested b.c leaf
-  # flattens to a dotted name exactly as a stored-source index would produce. Discovered columns arrive
-  # after the mapped ones, in lexicographic order.
+  # flattens to a dotted name exactly as a stored-source index would produce. Scalar types survive.
   - do:
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_obj_disabled | LIMIT 5'
-  - length: { columns: 4 }
+  - length: { columns: 2 }
   - match: { columns.0.name: id }
   - match: { columns.0.type: keyword }
-  - match: { columns.1.name: payload.a }
-  - match: { columns.1.type: keyword }
-  - match: { columns.2.name: payload.b.c }
-  - match: { columns.2.type: keyword }
-  - match: { columns.3.name: payload.n }
-  - match: { columns.3.type: keyword }
-  - match: { values.0: [ "1", "x", "y", "5" ] }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { columns.1.type: _source }
+  - match: { values.0: [ "1", { payload.a: x, payload.b.c: y, payload.n: 5 } ] }
 
 ---
 'OBJECT_DISABLED: naming the disabled object itself reads as null, its leaves still load':
@@ -209,38 +204,37 @@ teardown:
 ---
 'DYNAMIC_RUNTIME: runtime fields keep their own type and are not shadowed by LOAD_ALL':
   # dynamic:runtime makes s and n runtime fields. They are in the plan output, so LOAD_ALL excludes both
-  # names; n must therefore still be a long, not a keyword fabricated from _source.
+  # names from _unmapped_fields; n must therefore still be a long column, and nothing is left to discover.
   - do:
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_dyn_runtime | LIMIT 5'
-  - length: { columns: 3 }
+  - length: { columns: 4 }
   - match: { columns.0.name: id }
   - match: { columns.0.type: keyword }
   - match: { columns.1.name: n }
   - match: { columns.1.type: long }
   - match: { columns.2.name: s }
   - match: { columns.2.type: keyword }
-  - match: { values.0: [ "1", 42, "str" ] }
+  - match: { columns.3.name: _unmapped_fields }
+  - match: { columns.3.type: _source }
+  - match: { values.0: [ "1", 42, "str", null ] }
 
 ---
 'FIELD_LIMIT_EXCEEDED: dynamic fields past the budget are discovered from _ignored_source':
   # The budget is one field wide once id is accounted for, so f1 is mapped as a long and f2/f3 are stashed.
-  # The two stashed fields come back as keyword (LOAD_ALL creates keywords)
   - do:
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_field_limit | LIMIT 5'
-  - length: { columns: 4 }
+  - length: { columns: 3 }
   - match: { columns.0.name: f1 }
   - match: { columns.0.type: long }
   - match: { columns.1.name: id }
   - match: { columns.1.type: keyword }
-  - match: { columns.2.name: f2 }
-  - match: { columns.2.type: keyword }
-  - match: { columns.3.name: f3 }
-  - match: { columns.3.type: keyword }
-  - match: { values.0: [ 1, "1", "2", "3" ] }
+  - match: { columns.2.name: _unmapped_fields }
+  - match: { columns.2.type: _source }
+  - match: { values.0: [ 1, "1", { f2: 2, f3: 3 } ] }
 
 ---
 'FIELD_NAME_TOO_LONG: a dynamic field with an over-long leaf name is discovered from _ignored_source':
@@ -253,9 +247,9 @@ teardown:
   - match: { columns.0.type: keyword }
   - match: { columns.1.name: ok }
   - match: { columns.1.type: long }
-  - match: { columns.2.name: toolongname }
-  - match: { columns.2.type: keyword }
-  - match: { values.0: [ "1", 1, "b" ] }
+  - match: { columns.2.name: _unmapped_fields }
+  - match: { columns.2.type: _source }
+  - match: { values.0: [ "1", 1, { toolongname: b } ] }
 
 ---
 'sub-object dynamic:false: a dynamically mapped sibling, a static leaf and a discovered leaf coexist':
@@ -270,25 +264,22 @@ teardown:
   - match: { columns.1.type: keyword }
   - match: { columns.2.name: top }
   - match: { columns.2.type: long }
-  - match: { columns.3.name: inner.unknown }
-  - match: { columns.3.type: keyword }
-  - match: { values.0: [ "1", "k", 7, "u" ] }
+  - match: { columns.3.name: _unmapped_fields }
+  - match: { columns.3.type: _source }
+  - match: { values.0: [ "1", "k", 7, { inner.unknown: u } ] }
 
 ---
 'LOAD_ALL across two different _ignored_source reasons in one query':
   # One query spanning an enabled:false object and a dynamic:false sub-object. Each leaf exists in exactly
-  # one of the two indices, so the other leg contributes null. The KEEP terms are wildcards, not bare names:
+  # one of the two indices, so the other leg contributes only its own leaves. The KEEP terms are wildcards, not bare names:
   # an all-literal KEEP would make the pattern NONE, so no $$unmapped_fields column would be planned.
   - do:
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_obj_disabled, la_inner_dyn_false METADATA _index | KEEP _index, payload*, inner.unknown* | SORT _index | LIMIT 5'
-  - length: { columns: 5 }
+  - length: { columns: 2 }
   - match: { columns.0.name: _index }
-  - match: { columns.1.name: payload.a }
-  - match: { columns.1.type: keyword }
-  - match: { columns.2.name: payload.b.c }
-  - match: { columns.3.name: payload.n }
-  - match: { columns.4.name: inner.unknown }
-  - match: { values.0: [ "la_inner_dyn_false", null, null, null, "u" ] }
-  - match: { values.1: [ "la_obj_disabled", "x", "y", "5", null ] }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { columns.1.type: _source }
+  - match: { values.0: [ "la_inner_dyn_false", { inner.unknown: u } ] }
+  - match: { values.1: [ "la_obj_disabled", { payload.a: x, payload.b.c: y, payload.n: 5 } ] }

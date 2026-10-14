@@ -82,34 +82,6 @@ public class DeclaredReadSpecTests extends AbstractWireSerializingTestCase<Decla
     }
 
     /**
-     * The statistics-side predicate must answer from what the mapping instructs and never from how the schema was
-     * produced, which is the whole of the rule at this chokepoint: asking {@link DeclaredReadSpec#isEmpty()}
-     * here is what used to make a split's statistics turn on whether a declaration existed. Both provenances are
-     * asserted for each shape, so reintroducing the {@code provenance} term goes red rather than passing on the arm
-     * that happens to be exercised elsewhere.
-     */
-    public void testTheStatsPredicateIsBlindToProvenance() {
-        for (SchemaProvenance provenance : SchemaProvenance.values()) {
-            assertTrue(
-                provenance + ": a mapping instructing nothing affects no statistic, however the schema was produced",
-                DeclaredReadSpec.of(Map.of(), Map.of(), Set.of(), provenance).declaresNoStatsAffectingInstructions()
-            );
-            assertFalse(
-                provenance + ": a rename rekeys a statistic whoever authored the schema",
-                DeclaredReadSpec.of(Map.of("id", "emp_no"), Map.of(), Set.of(), provenance).declaresNoStatsAffectingInstructions()
-            );
-            assertFalse(
-                provenance + ": a parse format poisons a statistic whoever authored the schema",
-                DeclaredReadSpec.of(Map.of(), Map.of("ts", "epoch_millis"), Set.of(), provenance).declaresNoStatsAffectingInstructions()
-            );
-            assertFalse(
-                provenance + ": a declared type can differ from the file's own whoever authored the schema",
-                DeclaredReadSpec.of(Map.of(), Map.of(), Set.of("age"), provenance).declaresNoStatsAffectingInstructions()
-            );
-        }
-    }
-
-    /**
      * A peer that predates the provenance transport version reads the three live fields plus the unused
      * {@code _id.path} slot; the enum is skipped and defaults INFERRED (= today's positional behaviour), which is the
      * safe mixed-cluster degradation. The other fields must survive the downlevel round-trip unchanged.

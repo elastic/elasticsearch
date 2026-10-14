@@ -26,9 +26,9 @@ import java.util.function.Consumer;
  * {@code bufferPool.take}, and the upstream decompress {@code InputStream.read} when no queued chunk
  * can be inlined. A full chunk queue no longer parks the segmentator: it parses the FIFO head on
  * its own thread. Parser tasks still share the same pool, so a full set of pinned segmentators can
- * starve those tasks — inline parse on the segmentator is the liveness path (T2). The gate still
- * keeps at least one pool thread free so parser tasks remain a second progress path
- * (elastic/esql-planning #1093, structural-fix item 4), independent of the drain-side fix in #153074.
+ * starve those tasks — inline parse on the segmentator is the liveness path. The gate still
+ * keeps at least one pool thread free so parser tasks remain a second progress path,
+ * independent of the drain-side fix in #153074.
  * <p>
  * <strong>Why the gate must precede submission.</strong> A semaphore acquired <em>inside</em> the segmentator
  * task would not help: a segmentator blocked on {@code acquire()} still holds its pool thread. This controller

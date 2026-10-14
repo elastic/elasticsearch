@@ -40,6 +40,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.FielddataOperation;
@@ -52,6 +53,7 @@ import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -794,6 +796,29 @@ public class SearchExecutionContext extends QueryRewriteContext {
             }
         }
         return fieldsInIndex.contains(fieldname);
+    }
+
+    /**
+     * Whether a document of this shard may hold, in its {@code _source}, a field that the mapping does not declare. It
+     * returns {@code false} when the index mode is strict columnar and unmapped fields are not routed to the flattened
+     * {@code _unmapped} field, when {@code _source} is synthetic and no segment has an {@code _ignored_source} field, and
+     * when {@code _source} is stored, no mapping the index has or had can keep an unmapped field (see
+     * {@link IndexSettings#retainsUnmappedFields()} and {@link RootObjectMapper#canRetainUnmappedFields()}) and no segment
+     * has an {@code _ignored} field. Without a searcher it returns {@code true} unless the index mode decides.
+     */
+    public boolean mayHoldUnmappedFields() {
+        if (indexSettings.getMode().isStrictColumnar() && indexSettings.isFlattenedUnmappedFieldsEnabled() == false) {
+            return false;
+        }
+        if (searcher == null) {
+            return true;
+        }
+        if (mappingLookup.isSourceSynthetic()) {
+            return fieldExistsInIndex(IgnoredSourceFieldMapper.NAME);
+        }
+        return indexSettings.retainsUnmappedFields()
+            || mappingLookup.getMapping().getRoot().canRetainUnmappedFields()
+            || fieldExistsInIndex(IgnoredFieldMapper.NAME);
     }
 
     /**

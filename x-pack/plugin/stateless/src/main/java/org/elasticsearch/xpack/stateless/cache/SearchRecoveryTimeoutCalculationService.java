@@ -147,20 +147,12 @@ public class SearchRecoveryTimeoutCalculationService {
     /// node's warming cache budget consumed by this shard's data multiplied by the remaining time,
     /// i.e. `(totalBytesToWarm / (cacheSize * cacheRatio)) * remaining * concurrentRelocations`.
     ///
-    /// with `deadline = start + min(metadata grace, cap)`.
-    /// `concurrentRelocations` is the source's proportional share of the target's concurrent relocation slots:
-    /// `min(sourceToTarget, relocationCap * sourceToTarget / allToTarget)`, with `sourceToTarget` and `allToTarget`
-    /// counting the relocations to the target (from this and all source(s) respectively) in the cluster state.
-    /// `relocationCap` is [org.elasticsearch.indices.recovery.ThrottlingRecoveryService#maxConcurrentRelocationRecoveries]
-    /// on this target node. The share may be below one slot when several sources compete for a small cap.
+    /// with `deadline = start + min(metadata grace, cap)`. The timeout is capped at the remaining grace period.
     ///
-    /// The resulting timeout is capped at the remaining grace period. It may round down to zero (skipping warming) when the
-    /// source's slot-time budget is too small to warm its remaining shards before the deadline, e.g. close to the deadline or
-    /// with many shards competing for a small cap.
-    ///
-    /// This is a rough estimate: it ignores other recoveries that compete for the target's slots (which would reduce
-    /// `concurrentRelocations`). This should be good enough for now: relocations off shutting-down nodes are prioritized
-    /// over balancing relocations, and part of the target's recovery slots is reserved for unassigned shards.
+    /// `concurrentRelocations` is this source's share of the target's
+    /// [org.elasticsearch.indices.recovery.ThrottlingRecoveryService#maxConcurrentRelocationRecoveries], split between
+    /// all relocations to the target any shutting-down source. It may be below one slot, so the timeout may round down to
+    /// zero (skipping warming). This is a rough estimate that ignores other recoveries competing for the target's slots.
     private SearchRecoveryTimeout computeRelocationSourceShutdownWarmingTimeout(
         ClusterState state,
         String sourceNodeId,
@@ -196,7 +188,6 @@ public class SearchRecoveryTimeoutCalculationService {
 
         // The current shard is itself one such relocation, floor at 1 in case it is not yet visible on the source's RoutingNode.
         final int relocationsFromSourceToTarget = Math.max(1, countOngoingRelocationsBetween(state, sourceNodeId, targetNodeId));
-        // Relocations from this source are a subset of those from all shutting-down nodes, so the share below is at most one.
         final int allRelocationsToTarget = Math.max(1, countRelocationsFromShuttingDownNodesTo(state, targetNodeId));
 
         final int maxConcurrentRelocations = maxConcurrentRelocationRecoveriesSupplier.getAsInt();
@@ -225,8 +216,8 @@ public class SearchRecoveryTimeoutCalculationService {
         return new SearchRecoveryTimeout(TimeValue.timeValueMillis(Math.round(timeoutMs)), context);
     }
 
-    /// Counts search relocations in the provided cluster state whose source is `sourceNodeId` and whose target is `targetNodeId`
-    /// (i.e. shards relocating from `sourceNodeId` to `targetNodeId`, as seen from the source's `RoutingNode`).
+    /// Counts ongoing relocations whose source is `sourceNodeId` and whose target is `targetNodeId` (i.e. shards relocating
+    /// from `sourceNodeId` to `targetNodeId`, as seen from the source's `RoutingNode`).
     private static int countOngoingRelocationsBetween(ClusterState state, String sourceNodeId, String targetNodeId) {
         final var sourceNode = state.getRoutingNodes().node(sourceNodeId);
         if (sourceNode == null) {
@@ -245,7 +236,7 @@ public class SearchRecoveryTimeoutCalculationService {
     private static int countRelocationsFromShuttingDownNodesTo(ClusterState state, String targetNodeId) {
         final var nodeShutdowns = state.metadata().nodeShutdowns();
         int count = 0;
-        for (String nodeId : nodeShutdowns.getAll().keySet()) {
+        for (String nodeId : nodeShutdowns.getAllNodeIds()) {
             if (nodeShutdowns.isNodeMarkedForRemoval(nodeId)) {
                 count += countOngoingRelocationsBetween(state, nodeId, targetNodeId);
             }

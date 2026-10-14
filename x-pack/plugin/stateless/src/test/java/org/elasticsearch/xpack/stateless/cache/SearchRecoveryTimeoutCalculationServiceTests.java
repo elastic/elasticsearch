@@ -738,9 +738,6 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
             )
         ) {
-            // grace cap=10s and factor=0.5, which means equal-share per shard = 8000 / 4 x 0.5 = 1000ms
-            // so equalShare * concurrentRelocations (4 * 1000 max). The resulting timeout will get capped by
-            // equalShare * concurrentRelocations and not `remaining`.
             final var settings = Settings.builder()
                 .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
                 .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING.getKey(), 0.5)
@@ -773,8 +770,13 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 .getTargetRelocatingShard();
 
             final var plan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L);
+            // grace cap=10s and factor=0.5, so equalShare = 8000 / 4 × 0.5 = 1000ms per shard, which keeps the timeout below `remaining`
+            final long expectedEqualShareMs = 1000L;
             assertTrue(plan.awaitWarming());
-            assertThat(plan.timeout().millis(), equalTo(1000L * Math.min(relocationsToTarget, maxConcurrentRelocationRecoveries)));
+            assertThat(
+                plan.timeout().millis(),
+                equalTo(expectedEqualShareMs * Math.min(relocationsToTarget, maxConcurrentRelocationRecoveries))
+            );
         }
     }
 
@@ -813,8 +815,6 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             // advance 2000ms into the 10s grace, remaining = 8000ms
             threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 2000);
 
-            // totalBytesToWarm=100, so dataVolume = (100 / 500.0) × 8000 = 1600ms per shard
-            // the computed timeout will be capped by dataVolume and not `remaining`
             final Map<BlobFile, WarmTarget> endTargetsToWarm = Map.of(
                 new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)),
                 WarmTarget.withUnknownTimestamp(100L, randomLongBetween(100L, 1_000L))
@@ -827,8 +827,10 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
 
             final var plan = service.searchRecoveryTimeout(state, mockIndexShard(self), totalBytesToWarm(endTargetsToWarm));
             final int expectedConcurrentRelocations = Math.min(relocationsToTarget, maxConcurrentRelocationRecoveries);
+            // totalBytesToWarm=100, so dataVolume = (100 / 500.0) × 8000 = 1600ms per shard, which keeps the timeout below `remaining`
+            final long expectedDataVolumeMs = 1600L;
             assertTrue(plan.awaitWarming());
-            assertThat(plan.timeout().millis(), equalTo(1600L * expectedConcurrentRelocations));
+            assertThat(plan.timeout().millis(), equalTo(expectedDataVolumeMs * expectedConcurrentRelocations));
         }
     }
 

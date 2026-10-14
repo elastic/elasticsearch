@@ -21,14 +21,13 @@ public class MlAnomaliesView {
         viewService.ensureReservedViewExists(
             Metadata.DEFAULT_PROJECT_ID,
             new View(".ml-anomalies", """
-                FROM .ml-anomalies-*, *:.ml-anomalies-* METADATA _index
+                FROM .ml-anomalies-*
                 | WHERE result_type IN ("bucket", "record", "influencer")
                 | EVAL score = COALESCE(anomaly_score, record_score, influencer_score),
                        initial_score = COALESCE(initial_anomaly_score, initial_record_score, initial_influencer_score)
                 | KEEP timestamp,
                        event.ingested,
                        job_id,
-                       _index,
                        result_type,
                        is_interim,
                        score,

@@ -111,7 +111,7 @@ public final class EscfBatchScatterer implements Releasable {
             if (destCounts[p] > 0) {
                 EscfColumnData[] partCols = columns[p];
                 columns[p] = null;
-                results[p] = new EscfBatch(source.schema(), destCounts[p], partCols, Releasables.wrap(partCols));
+                results[p] = new EscfBatch(source.schema(), destCounts[p], partCols, recycler, Releasables.wrap(partCols));
             }
         }
         return results;

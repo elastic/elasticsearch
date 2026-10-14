@@ -77,6 +77,43 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         recycler.close();
     }
 
+    public void testBulkLittleEndianWritesMatchPerValueWrites() throws IOException {
+        try (
+            RecyclerBytesStreamOutput bulk = new RecyclerBytesStreamOutput(recycler);
+            BytesStreamOutput perValue = new BytesStreamOutput()
+        ) {
+            for (int round = between(1, 20); round > 0; round--) {
+                byte[] prefix = randomByteArrayOfLength(between(0, 7));
+                bulk.writeBytes(prefix);
+                perValue.writeBytes(prefix);
+                if (randomBoolean()) {
+                    int[] values = new int[between(0, 5000)];
+                    for (int i = 0; i < values.length; i++) {
+                        values[i] = randomInt();
+                    }
+                    int offset = between(0, values.length);
+                    int length = between(0, values.length - offset);
+                    bulk.writeIntsLE(values, offset, length);
+                    for (int i = offset; i < offset + length; i++) {
+                        perValue.writeIntLE(values[i]);
+                    }
+                } else {
+                    long[] values = new long[between(0, 5000)];
+                    for (int i = 0; i < values.length; i++) {
+                        values[i] = randomLong();
+                    }
+                    int offset = between(0, values.length);
+                    int length = between(0, values.length - offset);
+                    bulk.writeLongsLE(values, offset, length);
+                    for (int i = offset; i < offset + length; i++) {
+                        perValue.writeLongLE(values[i]);
+                    }
+                }
+            }
+            assertEquals(perValue.bytes(), bulk.bytes());
+        }
+    }
+
     public void testEmpty() throws Exception {
         RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
 

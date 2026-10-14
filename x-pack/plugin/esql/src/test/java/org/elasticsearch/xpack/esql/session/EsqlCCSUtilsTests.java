@@ -331,7 +331,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
                 executionInfo,
                 Set.of(indexResolution),
                 Set.of(),
-                new IndexViewOrigins(),
+                IndexViewOrigins.EMPTY,
                 false
             );
 
@@ -391,7 +391,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
                 executionInfo,
                 Set.of(indexResolution),
                 Set.of(),
-                new IndexViewOrigins(),
+                IndexViewOrigins.EMPTY,
                 false
             );
 
@@ -450,7 +450,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
                 executionInfo,
                 Set.of(indexResolution),
                 Set.of(),
-                new IndexViewOrigins(),
+                IndexViewOrigins.EMPTY,
                 false
             );
 
@@ -505,7 +505,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
                 executionInfo,
                 Set.of(indexResolution),
                 Set.of(),
-                new IndexViewOrigins(),
+                IndexViewOrigins.EMPTY,
                 false
             );
 
@@ -566,7 +566,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
                 executionInfo,
                 Set.of(indexResolution),
                 Set.of(),
-                new IndexViewOrigins(),
+                IndexViewOrigins.EMPTY,
                 false
             );
 

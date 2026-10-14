@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.ChangePointGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.DedupGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.ForkGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.InlineStatsGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.LimitByGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.LimitGenerator;
@@ -64,6 +65,12 @@ public final class FullTextFunctionGenerator {
         }
         for (CommandGenerator.CommandDescription cmd : previousCommands) {
             if (FULL_TEXT_FORBIDDEN_AFTER_COMMANDS.contains(cmd.commandName())) {
+                return false;
+            }
+            if (ForkGenerator.FORK.equals(cmd.commandName())
+                && ForkGenerator.keptBranchCommands(cmd)
+                    .stream()
+                    .anyMatch(branchCmd -> FULL_TEXT_FORBIDDEN_AFTER_COMMANDS.contains(branchCmd.commandName()))) {
                 return false;
             }
         }
@@ -300,7 +307,7 @@ public final class FullTextFunctionGenerator {
      * <p>
      * Respects two sets of constraints:
      * <ul>
-     *   <li><b>Placement</b>: full-text functions are forbidden after LIMIT/STATS;
+     *   <li><b>Placement</b>: full-text functions are forbidden after LIMIT/STATS, including in the branch a FORK keeps;
      *       QSTR and KQL additionally require all preceding commands to be FROM/WHERE/SORT.</li>
      *   <li><b>Field origin</b>: MATCH / MATCH_PHRASE / {@code :} may target index-mapped fields of the
      *       allowed types, or runtime keyword/text expressions. Options are emitted only when the chosen

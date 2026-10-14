@@ -12,7 +12,7 @@ import java.util.regex.Pattern;
 
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 /**
  * How should we assert the warnings returned by ESQL.
@@ -63,10 +63,9 @@ public interface AssertWarnings {
         @Override
         public void assertWarnings(List<String> warnings, Object context) {
             for (String warning : warnings) {
-                assertTrue(
-                    contextMessage(context) + "Unexpected warning: " + warning,
-                    expected.stream().anyMatch(x -> x.matcher(warning).matches())
-                );
+                if (expected.stream().noneMatch(x -> x.matcher(warning).matches())) {
+                    fail(contextMessage(context) + "Unexpected warning: " + warning);
+                }
             }
         }
     }

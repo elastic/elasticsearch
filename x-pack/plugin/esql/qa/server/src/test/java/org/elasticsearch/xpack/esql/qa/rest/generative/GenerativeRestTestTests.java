@@ -11,6 +11,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.generator.Column;
 
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Tests the predicates that classify known generative-test failures as allowed failures.
@@ -219,5 +220,13 @@ public class GenerativeRestTestTests extends ESTestCase {
         String query = "FROM books, (FROM books | RENAME title AS title2) | WHERE match(title2, \"world\")";
         String error = "verification_exception: line 1:64: [MATCH] function cannot be used after RENAME";
         assertFalse(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
+    }
+
+    public void testClientTimeoutIsAllowedInEveryLocale() {
+        // The REST client formats this message with String.format("%,d ...") in the default locale.
+        for (Locale locale : Locale.getAvailableLocales()) {
+            String error = String.format(locale, "%,d milliseconds timeout on connection http-outgoing-0 [ACTIVE]", 60_000);
+            assertTrue(locale + ": " + error, GenerativeRestTest.isAllowedError(error));
+        }
     }
 }

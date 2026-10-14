@@ -27,6 +27,22 @@ public class ForkGenerator implements CommandGenerator {
     public static final String FORK = "fork";
     public static final CommandGenerator INSTANCE = new ForkGenerator();
 
+    /**
+     * Context key for the {@code List<CommandDescription>} of the branch that the generated {@code WHERE _fork == "forkN"}
+     * keeps. FORK is pruned down to that branch, so its commands precede everything after FORK just as if they were in
+     * the outer pipeline, and placement rules that inspect the previous commands have to see them.
+     */
+    public static final String KEPT_BRANCH_COMMANDS = "keptBranchCommands";
+
+    /**
+     * The commands of the kept branch of a FORK command, or an empty list when none were recorded.
+     */
+    @SuppressWarnings("unchecked")
+    public static List<CommandDescription> keptBranchCommands(CommandDescription fork) {
+        Object commands = fork.context().get(KEPT_BRANCH_COMMANDS);
+        return commands == null ? List.of() : (List<CommandDescription>) commands;
+    }
+
     @Override
     public CommandDescription generate(
         List<CommandDescription> previousCommands,
@@ -60,6 +76,7 @@ public class ForkGenerator implements CommandGenerator {
         final int branchToRetain = randomIntBetween(1, branchCount);
 
         StringBuilder forkCmd = new StringBuilder(" | FORK ");
+        List<CommandDescription> keptBranchCommands = List.of();
         for (int i = 0; i < branchCount; i++) {
             var expr = WhereGenerator.randomExpression(randomIntBetween(1, 2), previousOutput, previousCommands);
             if (expr == null) {
@@ -133,19 +150,16 @@ public class ForkGenerator implements CommandGenerator {
             };
 
             EsqlQueryGenerator.generatePipeline(3, gen, schema, exec, false, executor, context);
-            if (exec.previousCommands().size() > 1) {
-                String previousCmd = exec.previousCommands()
-                    .stream()
-                    .skip(1)
-                    .map(CommandDescription::commandString)
-                    .collect(Collectors.joining(" "));
-                forkCmd.append(previousCmd);
+            List<CommandDescription> branchCommands = exec.previousCommands().stream().skip(1).toList();
+            forkCmd.append(branchCommands.stream().map(CommandDescription::commandString).collect(Collectors.joining(" ")));
+            if (i + 1 == branchToRetain) {
+                keptBranchCommands = branchCommands;
             }
 
             forkCmd.append(")");
         }
         forkCmd.append(" | WHERE _fork == \"fork").append(branchToRetain).append("\" | DROP _fork");
-        return new CommandDescription(FORK, this, forkCmd.toString(), Map.of());
+        return new CommandDescription(FORK, this, forkCmd.toString(), Map.of(KEPT_BRANCH_COMMANDS, keptBranchCommands));
     }
 
     @Override

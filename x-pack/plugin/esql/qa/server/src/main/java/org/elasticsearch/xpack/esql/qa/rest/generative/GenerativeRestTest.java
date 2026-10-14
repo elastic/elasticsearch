@@ -269,8 +269,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         // Queries can time out in the test cluster (e.g. ip_location on non-IP values, wide
         // inline-stats schemas, CHANGE_POINT + LOOKUP JOIN). The timeout itself is a test
         // infrastructure limit; the query was valid ES|QL.
+        // The client formats the timeout with the default locale, so its digits and grouping separators vary.
         // https://github.com/elastic/elasticsearch/issues/158881
-        "\\d[\\d ,]*milliseconds timeout on connection.*"
+        "milliseconds timeout on connection"
     );
 
     /**

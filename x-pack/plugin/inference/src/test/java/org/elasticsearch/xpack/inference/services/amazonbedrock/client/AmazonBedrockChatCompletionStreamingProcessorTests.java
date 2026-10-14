@@ -42,6 +42,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.assertArg;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -333,6 +334,34 @@ public class AmazonBedrockChatCompletionStreamingProcessorTests extends ESTestCa
             assertThat(e, isA(ElasticsearchException.class));
             assertThat(e.getCause(), is(expectedError));
         }));
+    }
+
+    /**
+     * A stored error is replayed once the downstream has been handed its subscription, without waiting for it to request data, and
+     * never before {@link Flow.Subscriber#onSubscribe}.
+     */
+    public void testStoredErrorIsReplayedAfterOnSubscribeWithoutDemand() {
+        var expectedError = BedrockRuntimeException.builder().message("ahhhhhh").build();
+        processor.onError(expectedError);
+
+        Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results> downstream = mock();
+        processor.subscribe(downstream);
+
+        var inOrder = inOrder(downstream);
+        inOrder.verify(downstream).onSubscribe(any());
+        inOrder.verify(downstream).onError(assertArg(e -> assertThat(e.getCause(), is(expectedError))));
+    }
+
+    public void testOnErrorAfterCancelIsNotDelivered() {
+        Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results> downstream = mock();
+        var sub = ArgumentCaptor.forClass(Flow.Subscription.class);
+        processor.subscribe(downstream);
+        verify(downstream).onSubscribe(sub.capture());
+
+        sub.getValue().cancel();
+        processor.onError(BedrockRuntimeException.builder().message("ahhhhhh").build());
+
+        verify(downstream, never()).onError(any());
     }
 
     public void verifyCompleteBeforeRequest() {

@@ -40,6 +40,11 @@ abstract class AmazonBedrockStreamingProcessor<T> implements Flow.Processor<Conv
     final AtomicLong demand = new AtomicLong(0);
     final AtomicBoolean isDone = new AtomicBoolean(false);
     final AtomicBoolean onCompleteCalled = new AtomicBoolean(false);
+    /**
+     * Set once {@link Flow.Subscriber#onSubscribe} has returned for the downstream, so that terminal signals are never sent before it.
+     */
+    private final AtomicBoolean downstreamReady = new AtomicBoolean(false);
+    private final AtomicBoolean downstreamCancelled = new AtomicBoolean(false);
 
     volatile Flow.Subscription upstream;
 
@@ -63,6 +68,9 @@ abstract class AmazonBedrockStreamingProcessor<T> implements Flow.Processor<Conv
         if (downstream == null) {
             downstream = subscriber;
             downstream.onSubscribe(new StreamSubscription());
+            downstreamReady.set(true);
+            // the upstream may have failed before the downstream was ready, and errors do not require demand
+            deliverErrorIfPending();
         } else {
             subscriber.onError(new IllegalStateException("Subscriber already set."));
         }
@@ -77,9 +85,18 @@ abstract class AmazonBedrockStreamingProcessor<T> implements Flow.Processor<Conv
                 amazonBedrockRuntimeException
             )
         );
-        // Errors are not subject to backpressure, so deliver as soon as a downstream exists regardless of the demand counter, which is
-        // zeroed when pending requests are forwarded upstream. If there is no downstream yet, StreamSubscription#request delivers it.
-        if (isDone.compareAndSet(false, true) && downstream != null && onErrorCalled.compareAndSet(false, true)) {
+        // Errors are not subject to backpressure, so they are delivered without regard to the demand counter, which is zeroed when
+        // pending requests are forwarded upstream. If the downstream is not ready yet, subscribe() replays the stored error.
+        if (isDone.compareAndSet(false, true)) {
+            deliverErrorIfPending();
+        }
+    }
+
+    private void deliverErrorIfPending() {
+        if (downstreamReady.get()
+            && downstreamCancelled.get() == false
+            && error.get() != null
+            && onErrorCalled.compareAndSet(false, true)) {
             runOnUtilityThreadPool(() -> downstream.onError(error.get()));
         }
     }
@@ -116,11 +133,7 @@ abstract class AmazonBedrockStreamingProcessor<T> implements Flow.Processor<Conv
                     return sum >= 0 ? sum : Long.MAX_VALUE;
                 });
                 if (upstream == null) {
-                    // the request may have failed before the upstream ever subscribed, in which case nothing else will signal the error
-                    if (error.get() != null && onErrorCalled.compareAndSet(false, true)) {
-                        downstream.onError(error.get());
-                    }
-                    // otherwise wait for upstream to subscribe before forwarding request
+                    // wait for upstream to subscribe before forwarding request
                     return;
                 }
                 if (upstreamIsRunning()) {
@@ -151,6 +164,7 @@ abstract class AmazonBedrockStreamingProcessor<T> implements Flow.Processor<Conv
 
         @Override
         public void cancel() {
+            downstreamCancelled.set(true);
             if (upstream != null && upstreamIsRunning()) {
                 upstream.cancel();
             }

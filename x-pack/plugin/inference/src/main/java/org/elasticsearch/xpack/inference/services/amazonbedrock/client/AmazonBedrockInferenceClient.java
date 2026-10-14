@@ -99,7 +99,7 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
     ) throws ElasticsearchException {
         return getAmazonBedrockStreamingProcessor(
             request,
-            new AmazonBedrockChatCompletionStreamingProcessor(threadPool, bedrockModel.model())
+            new AmazonBedrockChatCompletionStreamingProcessor(threadPool, bedrockModel.model(), bedrockModel.provider())
         );
     }
 

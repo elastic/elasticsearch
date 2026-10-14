@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.snapshots.SnapshotEncryptedData;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
@@ -130,8 +131,12 @@ public class EncryptingSnapshotGlobalStateTransformerTests extends ESTestCase {
         return new AesGcmEncryptionService(kp, () -> EncryptionServiceState.READY, () -> true);
     }
 
-    private static SecureString password() {
-        return new SecureString(Arrays.copyOf(GOOD_PASSWORD, GOOD_PASSWORD.length));
+    private static SnapshotEncryptedData password() {
+        return new SnapshotEncryptedData(
+            SnapshotEncryptedData.TYPE_PASSWORD,
+            new SecureString(Arrays.copyOf(GOOD_PASSWORD, GOOD_PASSWORD.length)),
+            null
+        );
     }
 
     /** Sets up registry + service + metadata with one SNAPSHOT-context custom. */
@@ -173,6 +178,14 @@ public class EncryptingSnapshotGlobalStateTransformerTests extends ESTestCase {
 
         assertThat(result, not(sameInstance(s.metadata())));
         assertNull(result.getProject(PROJECT_ID).custom(TestBlob.TYPE));
+    }
+
+    public void testUnsupportedTypeRejected() {
+        Setup s = buildSetup();
+        EncryptingSnapshotGlobalStateTransformer t = new EncryptingSnapshotGlobalStateTransformer();
+        SnapshotEncryptedData secureSetting = new SnapshotEncryptedData(SnapshotEncryptedData.TYPE_SECURE_SETTING, null, "id");
+
+        expectThrows(IllegalStateException.class, () -> t.transformForSnapshot(PROJECT_ID, s.metadata(), secureSetting));
     }
 
     public void testCustomNotIncludedInSnapshotsIsLeftAlone() {

@@ -89,6 +89,21 @@ public class SnapshotEncryptedDataTests extends ESTestCase {
         }
     }
 
+    public void testValidateRejectsUnsupportedTypes() {
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new SnapshotEncryptedData(SnapshotEncryptedData.TYPE_SECURE_SETTING, null, null).validate()
+        );
+        assertThat(e.getMessage(), containsString("not supported yet"));
+        for (String type : List.of(SnapshotEncryptedData.TYPE_NONE, "hardware_token")) {
+            e = expectThrows(
+                IllegalArgumentException.class,
+                () -> new SnapshotEncryptedData(type, new SecureString("correcthorsebatterystaple".toCharArray()), null).validate()
+            );
+            assertThat(e.getMessage(), containsString("unknown encrypted_data.type [" + type + "]"));
+        }
+    }
+
     public void testFromMapNotAnObjectThrows() {
         var e = expectThrows(IllegalArgumentException.class, () -> SnapshotEncryptedData.fromMap("string_value"));
         assertThat(e.getMessage(), containsString("should be an object"));

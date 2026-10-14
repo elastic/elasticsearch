@@ -211,7 +211,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
     /**
      * When {@code true}, any create-snapshot request that omits {@code encrypted_data} is rejected if the cluster
-     * contains encrypted project data. Protects against accidentally leaking plaintext data in snapshots.
+     * contains encrypted project data, instead of silently excluding that data from the snapshot.
      */
     public static final Setting<Boolean> ENCRYPTED_DATA_REQUIRED_SETTING = Setting.boolSetting(
         "snapshot.encrypted_data.required",
@@ -1105,7 +1105,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         final Metadata transformed = snapshotGlobalStateTransformer.transformForSnapshot(
                             projectId,
                             metaForSnapshot,
-                            encryptedData == null ? null : encryptedData.password()
+                            encryptedData
                         );
                         if (transformed != metaForSnapshot) {
                             recordedEncryptedData = encryptedData != null

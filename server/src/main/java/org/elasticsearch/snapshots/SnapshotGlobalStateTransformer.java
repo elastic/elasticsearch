@@ -11,7 +11,6 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 
 /**
@@ -25,11 +24,11 @@ public interface SnapshotGlobalStateTransformer {
     /**
      * Called on the SNAPSHOT thread pool during finalization, before the global-metadata blob is written.
      *
-     * @param password the {@code encrypted_data} password for this snapshot, or {@code null} if none was requested, in which case
-     *                 encrypted data must be excluded
+     * @param encryptedData the validated {@code encrypted_data} of this snapshot, or {@code null} if none was requested, in which case
+     *                      encrypted data must be excluded
      * @return the metadata to write, or the same instance if unchanged
      */
-    default Metadata transformForSnapshot(ProjectId projectId, Metadata metadata, @Nullable SecureString password) {
+    default Metadata transformForSnapshot(ProjectId projectId, Metadata metadata, @Nullable SnapshotEncryptedData encryptedData) {
         return metadata;
     }
 

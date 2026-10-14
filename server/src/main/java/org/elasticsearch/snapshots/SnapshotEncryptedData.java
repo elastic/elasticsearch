@@ -70,7 +70,7 @@ public final class SnapshotEncryptedData implements Writeable {
     private final String passwordId;
 
     public SnapshotEncryptedData(String type, @Nullable SecureString password, @Nullable String passwordId) {
-        this.type = type;
+        this.type = Objects.requireNonNull(type);
         this.password = password;
         this.passwordId = passwordId;
     }
@@ -170,11 +170,15 @@ public final class SnapshotEncryptedData implements Writeable {
         if (passwordId != null && PASSWORD_ID_PATTERN.matcher(passwordId).matches() == false) {
             throw new IllegalArgumentException("encrypted_data.password_id must be 1 to 128 characters from [A-Za-z0-9_-]");
         }
-        if (TYPE_PASSWORD.equals(type)) {
-            if (password == null) {
-                throw new IllegalArgumentException("encrypted_data.password is required for type [password]");
+        switch (type) {
+            case TYPE_PASSWORD -> {
+                if (password == null) {
+                    throw new IllegalArgumentException("encrypted_data.password is required for type [password]");
+                }
+                validatePassword(password);
             }
-            validatePassword(password);
+            case TYPE_SECURE_SETTING -> throw new IllegalArgumentException("encrypted_data type [secure_setting] is not supported yet");
+            default -> throw new IllegalArgumentException("unknown encrypted_data.type [" + type + "]");
         }
     }
 
@@ -182,11 +186,10 @@ public final class SnapshotEncryptedData implements Writeable {
         if (password.length() < MIN_PASSWORD_LENGTH) {
             throw new IllegalArgumentException("encrypted_data.password must be at least " + MIN_PASSWORD_LENGTH + " characters");
         }
-        String p = password.toString();
-        if (p.equals(REDACTED_SENTINEL)) {
+        if (REDACTED_SENTINEL.contentEquals(password)) {
             throw new IllegalArgumentException("encrypted_data.password must not be the redaction sentinel");
         }
-        if (TEMPLATE_PATTERNS.keySet().stream().anyMatch(pattern -> pattern.matcher(p).matches())) {
+        if (TEMPLATE_PATTERNS.keySet().stream().anyMatch(pattern -> pattern.matcher(password).matches())) {
             throw new IllegalArgumentException(
                 "encrypted_data.password must not be a bare template variable (e.g. " + TEMPLATE_EXAMPLES + ")"
             );

@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.snapshots.SnapshotEncryptedData;
 import org.elasticsearch.snapshots.SnapshotGlobalStateTransformer;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandler;
@@ -45,15 +46,15 @@ public final class EncryptingSnapshotGlobalStateTransformer implements SnapshotG
     static final String SNAPSHOT_PASSWORD_KEY_ID = "snapshot_password";
 
     @Override
-    public Metadata transformForSnapshot(ProjectId projectId, Metadata metadata, @Nullable SecureString password) {
+    public Metadata transformForSnapshot(ProjectId projectId, Metadata metadata, @Nullable SnapshotEncryptedData encryptedData) {
         if (containsEncryptedData(projectId, metadata) == false) {
             return metadata;
         }
         final EncryptedDataHandlerRegistry registry = EncryptedDataHandlerRegistry.getInstance();
         final ProjectMetadata project = metadata.getProject(projectId);
 
-        if (password == null) {
-            logger.debug(
+        if (encryptedData == null) {
+            logger.warn(
                 "Snapshot will not include encrypted project data for project [{}]: "
                     + "no snapshot password was supplied. Re-configure the data manually after restore.",
                 projectId.id()
@@ -61,7 +62,10 @@ public final class EncryptingSnapshotGlobalStateTransformer implements SnapshotG
             return dropEncryptedData(metadata, project, registry);
         }
 
-        return rewrapEncryptedData(metadata, project, registry, password);
+        if (SnapshotEncryptedData.TYPE_PASSWORD.equals(encryptedData.type()) == false || encryptedData.password() == null) {
+            throw new IllegalStateException("unsupported encrypted_data type [" + encryptedData.type() + "]");
+        }
+        return rewrapEncryptedData(metadata, project, registry, encryptedData.password());
     }
 
     @Override

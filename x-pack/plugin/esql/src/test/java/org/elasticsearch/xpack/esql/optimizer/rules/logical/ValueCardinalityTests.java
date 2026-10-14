@@ -10,6 +10,9 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.ValueCardinality.MAYBE_MULTI;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.ValueCardinality.SINGLE;
@@ -132,8 +135,39 @@ public class ValueCardinalityTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(cardinalityOfKey(query.toString(), "a" + (DEEP_ALIASES - 1)), equalTo(MAYBE_MULTI));
     }
 
+    public void testFieldFlaggedByTheMappingIsSingle() {
+        String query = "FROM test | STATS c = COUNT(*) BY languages";
+        assertThat(cardinalityOfKey(query, "languages", Set.of("languages")), equalTo(SINGLE));
+    }
+
+    public void testFieldNotFlaggedByTheMappingIsUnknown() {
+        String query = "FROM test | STATS c = COUNT(*) BY salary";
+        assertThat(cardinalityOfKey(query, "salary", Set.of("languages")), equalTo(MAYBE_MULTI));
+    }
+
+    public void testRenamedFlaggedFieldIsSingle() {
+        String query = "FROM test | RENAME languages AS k | STATS c = COUNT(*) BY k";
+        assertThat(cardinalityOfKey(query, "k", Set.of("languages")), equalTo(SINGLE));
+    }
+
+    public void testFlaggedFieldKeptThroughKeepAndFilterIsSingle() {
+        String query = "FROM test | WHERE languages > 1 | KEEP languages, salary | SORT languages | STATS c = COUNT(*) BY languages";
+        assertThat(cardinalityOfKey(query, "languages", Set.of("languages")), equalTo(SINGLE));
+    }
+
+    public void testArithmeticOnFlaggedFieldIsStillUnknown() {
+        // Only the field is proven; a function of it is not, as with a function of a reducer.
+        String query = "FROM test | EVAL k = languages + 1 | STATS c = COUNT(*) BY k";
+        assertThat(cardinalityOfKey(query, "k", Set.of("languages")), equalTo(MAYBE_MULTI));
+    }
+
     private ValueCardinality cardinalityOfKey(String query, String keyName) {
-        var aggregates = defaultAnalyzer().query(query).collect(Aggregate.class);
+        return cardinalityOfKey(query, keyName, Set.of());
+    }
+
+    private ValueCardinality cardinalityOfKey(String query, String keyName, Set<String> singleValuedFields) {
+        var plan = defaultAnalyzer().query(query).transformUp(EsRelation.class, r -> r.withSingleValuedFields(singleValuedFields));
+        var aggregates = plan.collect(Aggregate.class);
         assertThat(aggregates, hasSize(greaterThanOrEqualTo(1)));
         // The last STATS is the one whose key the query asks about; collect lists the outermost first.
         Aggregate aggregate = aggregates.get(0);

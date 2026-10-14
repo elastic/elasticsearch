@@ -37,6 +37,7 @@ public class EsRelation extends LeafPlan implements ClassifiedAs.Index {
 
     private static final TransportVersion SPLIT_INDICES = TransportVersion.fromName("esql_es_relation_add_split_indices");
     public static final TransportVersion SLICES = TransportVersion.fromName("esql_es_relation_slices");
+    public static final TransportVersion SINGLE_VALUED_FIELDS = TransportVersion.fromName("field_caps_single_valued");
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
@@ -61,6 +62,11 @@ public class EsRelation extends LeafPlan implements ClassifiedAs.Index {
      * The slices this relation reads, recorded by {@code SelectSlicesFromFilter} from a filter that stays in the plan.
      */
     private final SliceSelection slices;
+    /**
+     * Full names of the fields whose mapping guarantees at most one value per document in every resolved index. A name that is absent
+     * means "not guaranteed", never "multi-valued", which is also how a node that cannot read this set sees it.
+     */
+    private final Set<String> singleValuedFields;
 
     public EsRelation(
         Source source,
@@ -84,7 +90,22 @@ public class EsRelation extends LeafPlan implements ClassifiedAs.Index {
         List<Attribute> attributes,
         SliceSelection slices
     ) {
+        this(source, indexPattern, indexMode, originalIndices, concreteIndices, indexProperties, attributes, slices, Set.of());
+    }
+
+    public EsRelation(
+        Source source,
+        String indexPattern,
+        IndexMode indexMode,
+        Map<String, List<String>> originalIndices,
+        Map<String, List<String>> concreteIndices,
+        Map<String, IndexProperties> indexProperties,
+        List<Attribute> attributes,
+        SliceSelection slices,
+        Set<String> singleValuedFields
+    ) {
         super(source);
+        this.singleValuedFields = Objects.requireNonNull(singleValuedFields);
         this.slices = Objects.requireNonNull(slices);
         this.indexPattern = indexPattern;
         this.indexMode = indexMode;
@@ -112,7 +133,20 @@ public class EsRelation extends LeafPlan implements ClassifiedAs.Index {
         SliceSelection slices = in.getTransportVersion().supports(SLICES)
             ? SliceSelection.fromSearchSlice(in.readOptionalString())
             : SliceSelection.UNSPECIFIED;
-        return new EsRelation(source, indexPattern, indexMode, originalIndices, concreteIndices, indexProperties, attributes, slices);
+        Set<String> singleValuedFields = in.getTransportVersion().supports(SINGLE_VALUED_FIELDS)
+            ? in.readCollectionAsImmutableSet(StreamInput::readString)
+            : Set.of();
+        return new EsRelation(
+            source,
+            indexPattern,
+            indexMode,
+            originalIndices,
+            concreteIndices,
+            indexProperties,
+            attributes,
+            slices,
+            singleValuedFields
+        );
     }
 
     @Override
@@ -129,6 +163,9 @@ public class EsRelation extends LeafPlan implements ClassifiedAs.Index {
         if (out.getTransportVersion().supports(SLICES)) {
             // A node that cannot read the slices reads every slice, which is safe: the filter they come from is in the plan.
             out.writeOptionalString(slices.toSearchSlice());
+        }
+        if (out.getTransportVersion().supports(SINGLE_VALUED_FIELDS)) {
+            out.writeStringCollection(singleValuedFields);
         }
     }
 
@@ -148,7 +185,8 @@ public class EsRelation extends LeafPlan implements ClassifiedAs.Index {
             concreteIndices,
             indexProperties,
             attrs,
-            slices
+            slices,
+            singleValuedFields
         );
     }
 
@@ -194,7 +232,7 @@ public class EsRelation extends LeafPlan implements ClassifiedAs.Index {
 
     @Override
     public int hashCode() {
-        return Objects.hash(indexPattern, indexMode, originalIndices, concreteIndices, indexProperties, attrs, slices);
+        return Objects.hash(indexPattern, indexMode, originalIndices, concreteIndices, indexProperties, attrs, slices, singleValuedFields);
     }
 
     @Override
@@ -214,7 +252,8 @@ public class EsRelation extends LeafPlan implements ClassifiedAs.Index {
             && Objects.equals(concreteIndices, other.concreteIndices)
             && Objects.equals(indexProperties, other.indexProperties)
             && Objects.equals(attrs, other.attrs)
-            && Objects.equals(slices, other.slices);
+            && Objects.equals(slices, other.slices)
+            && Objects.equals(singleValuedFields, other.singleValuedFields);
     }
 
     @Override
@@ -265,8 +304,39 @@ public class EsRelation extends LeafPlan implements ClassifiedAs.Index {
         return patternParts.equals(indexProperties.keySet()) == false;
     }
 
+    /**
+     * Full names of the fields whose mapping guarantees at most one value per document. Absent means "not guaranteed".
+     */
+    public Set<String> singleValuedFields() {
+        return singleValuedFields;
+    }
+
+    public EsRelation withSingleValuedFields(Set<String> newSingleValuedFields) {
+        return new EsRelation(
+            source(),
+            indexPattern,
+            indexMode,
+            originalIndices,
+            concreteIndices,
+            indexProperties,
+            attrs,
+            slices,
+            newSingleValuedFields
+        );
+    }
+
     public EsRelation withAttributes(List<Attribute> newAttributes) {
-        return new EsRelation(source(), indexPattern, indexMode, originalIndices, concreteIndices, indexProperties, newAttributes, slices);
+        return new EsRelation(
+            source(),
+            indexPattern,
+            indexMode,
+            originalIndices,
+            concreteIndices,
+            indexProperties,
+            newAttributes,
+            slices,
+            singleValuedFields
+        );
     }
 
     public EsRelation withAdditionalAttributes(List<? extends Attribute> additionalAttributes) {
@@ -284,10 +354,30 @@ public class EsRelation extends LeafPlan implements ClassifiedAs.Index {
     }
 
     public EsRelation withSlices(SliceSelection newSlices) {
-        return new EsRelation(source(), indexPattern, indexMode, originalIndices, concreteIndices, indexProperties, attrs, newSlices);
+        return new EsRelation(
+            source(),
+            indexPattern,
+            indexMode,
+            originalIndices,
+            concreteIndices,
+            indexProperties,
+            attrs,
+            newSlices,
+            singleValuedFields
+        );
     }
 
     public EsRelation withIndexMode(IndexMode indexMode) {
-        return new EsRelation(source(), indexPattern, indexMode, originalIndices, concreteIndices, indexProperties, attrs, slices);
+        return new EsRelation(
+            source(),
+            indexPattern,
+            indexMode,
+            originalIndices,
+            concreteIndices,
+            indexProperties,
+            attrs,
+            slices,
+            singleValuedFields
+        );
     }
 }

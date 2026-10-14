@@ -450,6 +450,7 @@ public class IndexResolver {
         String[] names = fieldsCaps.keySet().toArray(new String[0]);
         Arrays.sort(names);
         Map<String, EsField> rootFields = new HashMap<>();
+        Set<String> singleValuedFields = new HashSet<>();
         Map<Set<String>, Set<String>> indexDedupCache = useCompactInvalidMappedField(fieldsInfo.minTransportVersion())
             ? new HashMap<>()
             : null;
@@ -493,6 +494,9 @@ public class IndexResolver {
                 field = wrapIfPartiallyUnmapped(field, name, fullName, mappedIndices, numberOfIndices, indexDedupCache);
             }
             fields.put(name, field);
+            if (isSingleValuedInEveryIndex(field, fcs)) {
+                singleValuedFields.add(fullName);
+            }
         }
 
         boolean allEmpty = true;
@@ -520,7 +524,8 @@ public class IndexResolver {
             // FieldCapabilitiesResponse#resolvedLocally and FieldCapabilitiesResponse#resolvedRemotely
             // once all remotes support it (v9.3+)
             originalIndexExtractor.apply(indexPattern, fieldsInfo.caps),
-            concreteIndices
+            concreteIndices,
+            singleValuedFields
         );
         var failures = EsqlCCSUtils.groupFailuresPerCluster(fieldsInfo.caps.getFailures());
         return IndexResolution.valid(index, indexProperties.keySet(), failures);
@@ -593,6 +598,19 @@ public class IndexResolver {
             case DENSE_VECTOR -> fieldsInfo.useDenseVectorWhenNotSupported();
             default -> false;
         };
+    }
+
+    /**
+     * Whether the mapping of every index that has the field guarantees at most one value per document. Only plain fields qualify: a
+     * field that ended up as a type conflict, an unsupported or a partially unmapped field is not what the flags describe, because
+     * it may be read from {@code _source} or converted. A field missing from an index has no value there, so it does not count.
+     */
+    private static boolean isSingleValuedInEveryIndex(EsField field, List<IndexFieldCapabilities> fcs) {
+        Class<?> type = field.getClass();
+        if (type != EsField.class && type != KeywordEsField.class && type != DateEsField.class) {
+            return false;
+        }
+        return fcs.stream().allMatch(IndexFieldCapabilities::isSingleValued);
     }
 
     private static EsField createField(

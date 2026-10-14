@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.parser.ExpressionBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -49,8 +51,9 @@ import java.util.List;
  *   <li>a grouping key or a {@code COUNT} of an earlier {@link Aggregate}; and</li>
  *   <li>an {@link Eval}, {@link Project} or {@code ROW} alias of an attribute proven by these rules.</li>
  * </ul>
- * Source relations ({@code FROM index}, external sources) answer {@code MAYBE_MULTI}. Hooks for them can be added later,
- * where a mapping or statistics guarantee exists.
+ * A field of {@code FROM index} is {@code SINGLE} only if the mapping of every resolved index guarantees it
+ * ({@code doc_values.multi_value=false}), as recorded in {@link EsRelation#singleValuedFields()}. External sources answer
+ * {@code MAYBE_MULTI}; a hook can be added where a statistics guarantee exists.
  */
 enum ValueCardinality {
     SINGLE,
@@ -99,6 +102,13 @@ enum ValueCardinality {
         }
         if (plan instanceof Aggregate aggregate) {
             return ofAggregateOutput(attribute, aggregate);
+        }
+        if (plan instanceof EsRelation relation) {
+            // A field is single-valued only if the mapping of every resolved index says so. A field that may be read from _source or
+            // converted is not a plain mapped field, so it is never in the set.
+            return attribute instanceof FieldAttribute field
+                && field.isPotentiallyUnmapped() == false
+                && relation.singleValuedFields().contains(field.fieldName().string()) ? SINGLE : MAYBE_MULTI;
         }
         if (plan instanceof Filter || plan instanceof Limit || plan instanceof OrderBy) {
             return ofAttribute(attribute, plan.children().get(0), depth + 1);

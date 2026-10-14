@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.index.IndexProperties;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.index.EsIndexGenerator.randomIndexProperties;
 import static org.elasticsearch.xpack.esql.index.EsIndexGenerator.randomRemotesWithIndices;
@@ -34,8 +35,13 @@ public class EsRelationSerializationTests extends AbstractLogicalPlanSerializati
             randomRemotesWithIndices(),
             randomIndexProperties(),
             randomFieldAttributes(0, 10, false),
-            randomSlices()
+            randomSlices(),
+            randomSingleValuedFields()
         );
+    }
+
+    private static Set<String> randomSingleValuedFields() {
+        return Set.copyOf(randomList(0, 4, ESTestCase::randomIdentifier));
     }
 
     private static SliceSelection randomSlices() {
@@ -60,7 +66,8 @@ public class EsRelationSerializationTests extends AbstractLogicalPlanSerializati
         Map<String, IndexProperties> indexProperties = instance.indexProperties();
         List<Attribute> attributes = instance.output();
         SliceSelection slices = instance.slices();
-        switch (between(0, 6)) {
+        Set<String> singleValuedFields = instance.singleValuedFields();
+        switch (between(0, 7)) {
             case 0 -> indexPattern = randomValueOtherThan(indexPattern, ESTestCase::randomIdentifier);
             case 1 -> indexMode = randomValueOtherThan(indexMode, () -> randomFrom(IndexMode.availableModes()));
             case 2 -> indexProperties = randomValueOtherThan(indexProperties, EsIndexGenerator::randomIndexProperties);
@@ -68,6 +75,7 @@ public class EsRelationSerializationTests extends AbstractLogicalPlanSerializati
             case 4 -> concreteIndices = randomValueOtherThan(concreteIndices, EsIndexGenerator::randomRemotesWithIndices);
             case 5 -> attributes = randomValueOtherThan(attributes, () -> randomFieldAttributes(0, 10, false));
             case 6 -> slices = randomValueOtherThan(slices, EsRelationSerializationTests::randomSlices);
+            case 7 -> singleValuedFields = randomValueOtherThan(singleValuedFields, EsRelationSerializationTests::randomSingleValuedFields);
             default -> throw new IllegalArgumentException();
         }
         return new EsRelation(
@@ -78,7 +86,8 @@ public class EsRelationSerializationTests extends AbstractLogicalPlanSerializati
             concreteIndices,
             indexProperties,
             attributes,
-            slices
+            slices,
+            singleValuedFields
         );
     }
 
@@ -88,8 +97,16 @@ public class EsRelationSerializationTests extends AbstractLogicalPlanSerializati
      */
     public void testSliceSelectionIsDroppedForNodesThatCannotReadIt() throws IOException {
         TransportVersion before = TransportVersionUtils.getPreviousVersion(EsRelation.SLICES);
-        EsRelation relation = withSlices(randomEsRelation(), SliceSelection.of(List.of("s1")));
+        // The set did not exist before the slices either, so it is dropped here too.
+        EsRelation relation = withSlices(randomEsRelation().withSingleValuedFields(Set.of()), SliceSelection.of(List.of("s1")));
         assertThat(copyInstance(relation, before), equalTo(withSlices(relation, SliceSelection.UNSPECIFIED)));
+    }
+
+    /** A node that cannot read the set sees no guarantees, which is safe: absent means "not guaranteed". */
+    public void testSingleValuedFieldsAreDroppedForNodesThatCannotReadThem() throws IOException {
+        TransportVersion before = TransportVersionUtils.getPreviousVersion(EsRelation.SINGLE_VALUED_FIELDS);
+        EsRelation relation = randomEsRelation().withSingleValuedFields(Set.of("a", "b"));
+        assertThat(copyInstance(relation, before), equalTo(relation.withSingleValuedFields(Set.of())));
     }
 
     private static EsRelation withSlices(EsRelation relation, SliceSelection slices) {
@@ -101,7 +118,8 @@ public class EsRelationSerializationTests extends AbstractLogicalPlanSerializati
             relation.concreteIndices(),
             relation.indexProperties(),
             relation.output(),
-            slices
+            slices,
+            relation.singleValuedFields()
         );
     }
 

@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.SliceSelection;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -466,7 +467,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 esIndex.originalIndices(),
                 esIndex.concreteIndices(),
                 esIndex.indexProperties(),
-                attributes.isEmpty() ? NO_FIELDS : attributes
+                attributes.isEmpty() ? NO_FIELDS : attributes,
+                SliceSelection.UNSPECIFIED,
+                esIndex.singleValuedFields()
             );
         }
 

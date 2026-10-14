@@ -64,7 +64,7 @@ The following table compares the available strategies:
 
 ### How `first_file_wins` handles type mismatches [first-file-wins-type-mismatches]
 
-{applies_to}`stack: experimental 9.6+` When a column in a later file has a type that can be converted to the query's type (for example, a 32-bit integer in a file where the first file's column is 64-bit), the column is converted per value. [`error_mode`](esql-data-federation-dataset-settings.md#error-mode) decides what happens when a value cannot be converted, and only when a query reads the column:
+{applies_to}`stack: experimental 9.6+` When a column in a later file has a type that can be converted to the query's type (for example, a 64-bit integer in a file where the first file's column is 32-bit), the column is converted per value. [`error_mode`](esql-data-federation-dataset-settings.md#error-mode) decides what happens when a value cannot be converted, and only when a query reads the column:
 
 - `fail_fast` (default): The query fails, naming the column and the offending value.
 - `null_field`: That value is null, and the response includes a warning.

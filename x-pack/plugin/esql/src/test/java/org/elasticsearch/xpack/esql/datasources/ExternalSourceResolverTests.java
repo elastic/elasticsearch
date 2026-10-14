@@ -1578,41 +1578,39 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * A truncated listing means the schema map covers only a sample of the dataset; files outside
      * the sample may hold a narrowing type. The guard in {@code conversionMayNarrow} must return
      * {@code true} unconditionally when {@link FileList#isTruncated()} is set. This test fails if
-     * that guard is deleted: all seen files have lossless types, so without the guard the stamp
-     * would be {@code false}.
+     * that guard is deleted: with {@code first_file_wins}, every file in the schema map has its
+     * types recorded, so the {@code nativeTypes == null} short-circuit cannot make the stamp true
+     * on its own — only the guard can.
      */
     public void testConversionMayNarrowIsTrueForTruncatedListing() throws Exception {
-        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("event_ts", new DatasetFieldMapping("long", null));
-        List<Attribute> fileSchema = List.of(attr("event_ts", DataType.LONG));
-
-        int fileCount = 1500;
+        int fileCount = 500;
         List<StorageEntry> files = new ArrayList<>(fileCount);
-        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        Map<String, List<Attribute>> schemas = new HashMap<>();
+        Map<String, Long> rowCounts = new HashMap<>();
         for (int i = 0; i < fileCount; i++) {
-            String file = String.format(Locale.ROOT, "s3://bucket/data/file%05d.parquet", i);
-            files.add(entry(file, 100));
-            schemasByPath.put(file, fileSchema);
+            String path = String.format(Locale.ROOT, "s3://bucket/data/part-%06d.parquet", i);
+            files.add(entry(path, 100));
+            schemas.put(path, List.of(attr("x", DataType.INTEGER)));
+            rowCounts.put(path, 1L);
         }
-        Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
-        listingsByPrefix.put(StoragePath.of(DECLARED_GLOB).patternPrefix().toString(), files);
+        ThreeFileStats stats = new ThreeFileStats(schemas, rowCounts);
+        Map<String, Object> config = new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS));
+        config.put(PartitionConfig.CONFIG_PARTITION_SAMPLE_SIZE, 1);
 
-        ExternalSourceResolver resolver = createResolver(schemasByPath, listingsByPrefix);
-        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
+        ExternalSourceResolver resolver = buildStatsResolver(new StubStorageProvider(Map.of(PREFIX, files), schemas), stats, null, null);
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(
-            List.of(DECLARED_GLOB),
-            Map.of(DECLARED_GLOB, new HashMap<>()),
-            null,
-            Map.of(DECLARED_GLOB, mapping),
-            Set.of(),
-            Set.of(DECLARED_GLOB),
-            future
-        );
-        ExternalSourceResolution.ResolvedSource resolved = future.actionGet().resolvedSource(DECLARED_GLOB);
+        resolver.resolve(List.of(GLOB), Map.of(GLOB, new HashMap<>(config)), null, null, Set.of(), Set.of(), future);
+        ExternalSourceResolution.ResolvedSource resolved = future.actionGet().resolvedSource(GLOB);
 
         assertNotNull(resolved);
         assertTrue("pre-condition: listing must be truncated for this test to be meaningful", resolved.fileList().isTruncated());
+        assertEquals("pre-condition: one file sampled", 1, resolved.fileList().fileCount());
+        for (var info : resolved.schemaMap().values()) {
+            assertNotNull(
+                "pre-condition: first_file_wins records types so only the isTruncated guard can make the stamp true",
+                info.inferredTypes()
+            );
+        }
         assertTrue(
             "a truncated listing means unseen files may narrow, so the stamp must be conservative",
             SourceStatisticsSerializer.conversionMayNarrow(resolved.metadata().sourceMetadata())

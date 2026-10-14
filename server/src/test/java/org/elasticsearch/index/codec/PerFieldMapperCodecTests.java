@@ -157,6 +157,9 @@ public class PerFieldMapperCodecTests extends ESTestCase {
                 },
                 "body": {
                     "type": "text"
+                },
+                "payload": {
+                    "type": "binary"
                 }
             }
         }
@@ -752,6 +755,8 @@ public class PerFieldMapperCodecTests extends ESTestCase {
             StringColumnOptions.DEFAULT_DICTIONARY,
             supplier.resolveStringColumnOptions("category", ColumnarFieldType.STRING).dictionary()
         );
+        final StringColumnOptions.Sizes payload = supplier.resolveStringColumnOptions("payload", ColumnarFieldType.STRING).sizes();
+        assertThat("a payload column keeps its smaller chunks", payload.plainChunks(), equalTo(new ChunkBounds(32 * 1024, 128)));
     }
 
     public void testStringColumnOptionsKeepEachFieldsFramingInEveryColumnarMode() throws IOException {

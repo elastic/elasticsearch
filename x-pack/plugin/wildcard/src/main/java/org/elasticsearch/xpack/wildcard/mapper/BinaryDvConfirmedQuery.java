@@ -348,7 +348,7 @@ abstract class BinaryDvConfirmedQuery extends Query implements BinaryDocValuesSc
 
         @Override
         public long ramBytesUsed() {
-            return byteRunAutomaton.ramBytesUsed() + RamUsageEstimator.shallowSizeOf(this.getClass());
+            return byteRunAutomaton.ramBytesUsed() + RamUsageEstimator.shallowSizeOf(this);
         }
 
         @Override

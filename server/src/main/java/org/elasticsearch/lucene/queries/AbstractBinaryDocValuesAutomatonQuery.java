@@ -45,7 +45,7 @@ abstract class AbstractBinaryDocValuesAutomatonQuery extends AbstractBinaryDocVa
 
     @Override
     public long ramBytesUsed() {
-        return RamUsageEstimator.shallowSizeOf(this.getClass()) + automaton.ramBytesUsed();
+        return RamUsageEstimator.shallowSizeOf(this) + automaton.ramBytesUsed() + ownMemoryUsage();
     }
 
     @Override

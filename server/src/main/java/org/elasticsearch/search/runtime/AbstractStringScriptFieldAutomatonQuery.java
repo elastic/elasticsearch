@@ -43,7 +43,7 @@ public abstract class AbstractStringScriptFieldAutomatonQuery extends AbstractSt
 
     @Override
     public long ramBytesUsed() {
-        return automaton.ramBytesUsed() + RamUsageEstimator.shallowSizeOf(this.getClass()) + ownMemoryUsage();
+        return automaton.ramBytesUsed() + RamUsageEstimator.shallowSizeOf(this) + ownMemoryUsage();
     }
 
     @Override

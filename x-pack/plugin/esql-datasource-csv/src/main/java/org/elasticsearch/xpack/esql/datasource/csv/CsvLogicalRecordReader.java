@@ -173,9 +173,8 @@ final class CsvLogicalRecordReader {
     }
 
     private static final String QUOTE_FREE_ASSUMPTION_FAILED = "A quoted field or an escaped line break spans several lines, "
-        + "but the file was split on plain newlines, because the rows sampled to infer its schema hold no quote or escape "
-        + "character or because [multiline_fields] is [false]. Set [multiline_fields] to [true] to read it with quote- "
-        + "and escape-aware splitting";
+        + "but the file was split on plain newlines because [multiline_fields] is not [true]. Set [multiline_fields] to "
+        + "[true] to read it with quote- and escape-aware splitting";
 
     private void failIfLineBreak(int ch) {
         if (failOnLineSpan && (ch == '\n' || ch == '\r')) {

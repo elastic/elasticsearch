@@ -104,14 +104,6 @@ public class FileSourceFactoryValidationTests extends ESTestCase {
         );
     }
 
-    /** The quote-free evidence is derived data, not a storage setting: left in the config it would fragment the client pool. */
-    public void testFrameworkKeysStripTheQuoteFreeEvidence() {
-        assertTrue(
-            "the quote-free evidence must not reach a storage provider configuration",
-            StorageProviderRegistry.FRAMEWORK_KEYS.contains(SourceMetadata.INFERRED_QUOTE_FREE_CONFIG_KEY)
-        );
-    }
-
     public void testCoordinatorKeysIncludesAllErrorPolicyKeys() {
         for (String key : ErrorPolicy.CONFIG_KEYS) {
             assertTrue("ErrorPolicy key " + key + " must be a coordinator key", FileSourceFactory.COORDINATOR_KEYS.contains(key));

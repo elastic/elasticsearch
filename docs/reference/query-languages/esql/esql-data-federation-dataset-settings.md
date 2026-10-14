@@ -326,7 +326,7 @@ $$$csv-mode$$$
 
     An explicit `quote` or `escape` value overrides the preset.
 
-    {applies_to}`stack: experimental 9.6+` When `mode`, `quote` and `escape` aren't set and the rows sampled to infer a CSV file's schema contain no quote or escape character, the file is split on newlines for faster parallel reading. If a later row has a quoted field or an escaped line break that spans several lines, the query fails, whatever the `error_mode`. To read such files, set [`multiline_fields`](#csv-multiline-fields) to `true`, or set `mode` explicitly, for example to `quoted`.
+    {applies_to}`stack: experimental 9.6+` `mode` doesn't change how files are split. Unless [`multiline_fields`](#csv-multiline-fields) is `true`, files are split on newlines, and a quoted field or an escaped line break that spans several lines fails the query, whatever the `error_mode`. To read such files, set `multiline_fields` to `true`.
 
     :::{dropdown} Why `escaped` with `quote` is rejected
     Setting `quote` turns quoting on, and the quoting parser doesn't decode escape sequences. The combination therefore reads neither as escaped nor as quoted data, so it's rejected when you create or update the dataset. A dataset stored with this combination before the check took effect continues to read.
@@ -468,14 +468,16 @@ $$$csv-multiline-fields$$$
 `multiline_fields` {applies_to}`stack: experimental 9.6+`
 :   Whether a quoted field or a backslash-escaped line break can span several lines.
 
-    - **Default:** Not set. {{esql}} infers it from the rows it samples to infer the schema: if they hold no quote or escape character, the file is split on plain newlines.
+    - **Default:** `false`
     - **Valid values:** `true`, `false`
     - **Conflicts with:** `multi_value_syntax` set to `brackets` when `false`, which is rejected when you create or update the dataset
-    - **Related:** `mode`, `schema_sample_size`, `target_split_size`
+    - **Related:** `mode`, `target_split_size`
 
-    Set `false` to promise that no value spans lines. Files are then split on plain newlines without relying on the sample, which avoids the sequential search for record boundaries that quote-aware files need. Set `true` to turn the sample-based inference off and always search for record boundaries with quote awareness.
+    By default, {{esql}} assumes that no value spans lines. Files are split on plain newlines, with no look at the data, which avoids the sequential search for record boundaries that quote-aware files need. This applies to every file, including each file of a glob. Set `true` to read quoted fields and escaped line breaks that span several lines: files are then split with quote awareness.
 
-    If a file split on plain newlines holds a value that spans lines, the read fails and suggests setting `multiline_fields` to `true`. A read that scans the whole file in one piece isn't affected, and neither is a file read without splitting.
+    With `multi_value_syntax` set to `brackets`, files are always split with quote awareness, because bracketed cells can span lines.
+
+    If a file split on plain newlines holds a value that spans lines, the read fails, whatever the `error_mode`, and suggests setting `multiline_fields` to `true`. A read that scans the whole file in one piece isn't affected, and neither is a file read without splitting.
 
 $$$csv-multi-value-syntax$$$
 

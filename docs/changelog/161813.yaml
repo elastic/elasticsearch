@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 161813
-summary: Split quote-free CSV files on newlines for faster parallel reads
+summary: Split CSV files on newlines by default, unless `multiline_fields` is set
 type: bug

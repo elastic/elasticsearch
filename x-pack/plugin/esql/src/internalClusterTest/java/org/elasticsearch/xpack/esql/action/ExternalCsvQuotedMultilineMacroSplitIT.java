@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
- * End-to-end regression coverage for CSV with quoted multi-line fields, where a quoted value's embedded
+ * End-to-end regression coverage for CSV with quoted multi-line fields ({@code multiline_fields: true}), where a quoted value's embedded
  * newlines belong to one logical row. A quote-blind stride probe assumes {@code inQuotes=false} at its
  * offset, so probing a quoted file at an arbitrary stride can land <em>inside</em> a quoted value and
  * misread an interior newline as a record terminator. That produces two symptoms depending on
@@ -84,7 +84,8 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
         try {
             String query = "EXTERNAL \""
                 + StoragePath.fileUri(csvFile)
-                + "\" WITH {\"header_row\":false,\"error_mode\":\"null_field\",\"target_split_size\":\"1kb\"} | STATS c = COUNT(*)";
+                + "\" WITH {\"header_row\":false,\"multiline_fields\":true,\"error_mode\":\"null_field\","
+                + "\"target_split_size\":\"1kb\"} | STATS c = COUNT(*)";
 
             var request = syncEsqlQueryRequest(query);
             request.profile(true);
@@ -124,7 +125,7 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
         try {
             String query = "EXTERNAL \""
                 + StoragePath.fileUri(csvFile)
-                + "\" WITH {\"header_row\":false,\"target_split_size\":\"1kb\"} | STATS c = COUNT(*)";
+                + "\" WITH {\"header_row\":false,\"multiline_fields\":true,\"target_split_size\":\"1kb\"} | STATS c = COUNT(*)";
 
             var request = syncEsqlQueryRequest(query);
 
@@ -164,7 +165,7 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
         try {
             String query = "EXTERNAL \""
                 + StoragePath.fileUri(csvFile)
-                + "\" WITH {\"header_row\":false,\"target_split_size\":\"1kb\"} | STATS c = COUNT(*)";
+                + "\" WITH {\"header_row\":false,\"multiline_fields\":true,\"target_split_size\":\"1kb\"} | STATS c = COUNT(*)";
 
             var request = syncEsqlQueryRequest(query);
             // Explicit pragma: run(request, ...) does not apply getPragmas(), and the default parallelism is
@@ -232,7 +233,7 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
             String errorModeOption = errorMode == null ? "" : ",\"error_mode\":\"" + errorMode + "\"";
             String query = "EXTERNAL \""
                 + StoragePath.fileUri(csvFile)
-                + "\" WITH {\"target_split_size\":\""
+                + "\" WITH {\"multiline_fields\":true,\"target_split_size\":\""
                 + targetSplitSize
                 + "\""
                 + errorModeOption
@@ -254,12 +255,11 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
     }
 
     /**
-     * A default-dialect {@code .csv} whose schema sample (limited to the first rows by {@code schema_sample_size}) is
-     * quote-free is split at plain newlines, so quoted multi-line
-     * fields that only appear after the sample are a contradiction of that evidence. The read must fail and say how to fix
-     * it, rather than return rows cut inside quoted fields.
+     * Unless {@code multiline_fields} is {@code true}, a {@code .csv} is split at plain newlines with no look at the data,
+     * so quoted multi-line fields, even ones that appear only after a long run of plain rows, are a contradiction of that
+     * contract. The read must fail and say how to fix it, rather than return rows cut inside quoted fields.
      */
-    public void testQuoteFreeSampleContradictedByLaterQuotedMultilineRowsFails() throws Exception {
+    public void testUnsetMultilineFieldsFailsOnQuotedMultilineRows() throws Exception {
         assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
 
         Path csvFile = writeQuoteFreePrefixThenQuotedMultilineCsv();
@@ -268,14 +268,14 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
                 + StoragePath.fileUri(csvFile)
                 + "\" WITH {\"schema_sample_size\":100,\"target_split_size\":\"1mb\"} | STATS c = COUNT(*)";
             Exception e = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest(query), TimeValue.timeValueMinutes(5)).close());
-            assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), containsString("spans several lines"));
+            assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), containsString("multiline_fields"));
         } finally {
             Files.deleteIfExists(csvFile);
         }
     }
 
     /** The remedy the error message gives: with {@code multiline_fields: true} the same file counts exactly. */
-    public void testExplicitQuotedModeReadsQuoteFreePrefixThenQuotedMultilineCsv() throws Exception {
+    public void testMultilineFieldsTrueReadsQuoteFreePrefixThenQuotedMultilineCsv() throws Exception {
         assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
 
         Path csvFile = writeQuoteFreePrefixThenQuotedMultilineCsv();
@@ -295,10 +295,10 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
     }
 
     /**
-     * A control: a file that really is quote-free reads exactly under the default dialect, on newline-cut splits. It must
+     * A control: a file that really is quote-free reads exactly by default, on newline-cut splits. It must
      * be larger than twice the 1 MiB minimum segment size, or it is read as one whole-file split and nothing is cut.
      */
-    public void testQuoteFreeCsvCountsExactlyUnderDefaultDialect() throws Exception {
+    public void testQuoteFreeCsvCountsExactlyByDefault() throws Exception {
         assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
 
         Path csvFile = createTempDir().resolve("quote-free.csv");
@@ -323,11 +323,11 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
     }
 
     /**
-     * {@code multiline_fields: false} cuts on plain newlines without any sample evidence: here every row holds a quoted
-     * (single-line) value, so the sample is not quote-free and the file would otherwise be read by the proven walk. The file
-     * is larger than twice the minimum segment size, so it really is split.
+     * Unset or {@code false} {@code multiline_fields} cuts on plain newlines without looking at the data: here every row
+     * holds a quoted (single-line) value, which still splits exactly. The file is larger than twice the minimum segment
+     * size, so it really is split.
      */
-    public void testMultilineFieldsFalseSplitsQuotedSingleLineCsvExactly() throws Exception {
+    public void testMultilineFieldsNotTrueSplitsQuotedSingleLineCsvExactly() throws Exception {
         assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
 
         Path csvFile = createTempDir().resolve("quoted-single-line.csv");
@@ -338,9 +338,12 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
         }
         Files.writeString(csvFile, sb);
         try {
+            String withOption = randomBoolean() ? "\"multiline_fields\":false," : "";
             String query = "EXTERNAL \""
                 + StoragePath.fileUri(csvFile)
-                + "\" WITH {\"multiline_fields\":false,\"target_split_size\":\"1mb\"} | STATS c = COUNT(*), mx = MAX(a)";
+                + "\" WITH {"
+                + withOption
+                + "\"target_split_size\":\"1mb\"} | STATS c = COUNT(*), mx = MAX(a)";
             try (var response = run(syncEsqlQueryRequest(query), TimeValue.timeValueMinutes(5))) {
                 List<List<Object>> values = getValuesList(response);
                 assertThat(((Number) values.get(0).get(0)).longValue(), equalTo((long) rows));
@@ -348,29 +351,6 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
             }
         } finally {
             Files.deleteIfExists(csvFile);
-        }
-    }
-
-    /**
-     * The quote-free evidence is one file's schema sample, so it must not carry over to the other files of a glob: a
-     * quote-free anchor next to a file holding a quoted multi-line value reads exactly.
-     */
-    public void testQuoteFreeAnchorDoesNotAffectOtherFilesOfAGlob() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
-
-        Path dir = createTempDir();
-        Files.writeString(dir.resolve("a.csv"), "id,note\n1,alpha\n2,beta\n");
-        Files.writeString(dir.resolve("b.csv"), "id,note\n3,\"gam\nma\"\n4,delta\n");
-        try {
-            String query = "EXTERNAL \"" + StoragePath.fileUri(dir) + "/*.csv\" | STATS c = COUNT(note), mx = MAX(id)";
-            try (var response = run(syncEsqlQueryRequest(query), TimeValue.timeValueMinutes(5))) {
-                List<List<Object>> values = getValuesList(response);
-                assertThat(((Number) values.get(0).get(0)).longValue(), equalTo(4L));
-                assertThat(((Number) values.get(0).get(1)).longValue(), equalTo(4L));
-            }
-        } finally {
-            Files.deleteIfExists(dir.resolve("a.csv"));
-            Files.deleteIfExists(dir.resolve("b.csv"));
         }
     }
 

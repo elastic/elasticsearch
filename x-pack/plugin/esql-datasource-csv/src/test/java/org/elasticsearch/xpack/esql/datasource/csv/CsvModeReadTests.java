@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
-import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -263,45 +262,22 @@ public class CsvModeReadTests extends ESTestCase {
     }
 
     /**
-     * Splitter dispatch is decided once, from the (quoting, escaping) pair and the quote-free evidence: plain (no
-     * quoting, no escaping) and a default-dialect dataset with quote-free evidence take the strided terminator scan.
+     * Splitter dispatch is decided once, from the (quoting, escaping) pair and {@code multiline_fields}: plain (no
+     * quoting, no escaping) and a quoting dataset not declared {@code multiline_fields: true} take the strided terminator scan.
      * Escaped keeps quoting off but escaping on, and a
      * backslash-escaped raw newline is in-field content, so it needs the escape-aware quote-state splitter.
      */
     public void testSplitterDispatchByQuoting() throws IOException {
         assertThat(tsvReader(Map.of("mode", "plain")).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
-        assertThat(tsvReader(Map.of("mode", "escaped")).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
-        // The .tsv baseline is plain, so an unconfigured TSV reader takes the terminator scan; quoting is opt-in.
-        assertThat(tsvReader(Map.of()).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
-        assertThat(tsvReader(Map.of("mode", "quoted")).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
-        assertThat(csvReader(Map.of()).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
-    }
-
-    /** A sample without quote or escape bytes is recorded as evidence in the source metadata. */
-    public void testQuoteFreeSampleIsRecorded() throws IOException {
-        StorageObject quoteFree = new InMemoryStorageObject("a,b\n1,x\n2,y\n".getBytes(StandardCharsets.UTF_8));
-        assertTrue(isQuoteFreeSample(csvReader(Map.of()).metadata(quoteFree).sourceMetadata()));
-        StorageObject quoted = new InMemoryStorageObject("a,b\n1,\"x\"\n2,y\n".getBytes(StandardCharsets.UTF_8));
-        assertFalse(isQuoteFreeSample(csvReader(Map.of()).metadata(quoted).sourceMetadata()));
-        StorageObject escaped = new InMemoryStorageObject("a,b\n1,x\\,y\n2,y\n".getBytes(StandardCharsets.UTF_8));
-        assertFalse(isQuoteFreeSample(csvReader(Map.of()).metadata(escaped).sourceMetadata()));
-    }
-
-    private static boolean isQuoteFreeSample(Map<String, Object> sourceMetadata) {
-        return Boolean.TRUE.equals(sourceMetadata.get(SourceMetadata.QUOTE_FREE_SAMPLE_KEY));
-    }
-
-    /** Only the default quoting dialect may be split on the sample's evidence; an explicit dialect keeps the proven walk. */
-    public void testQuoteFreeEvidenceSelectsNewlineSplitterOnlyForDefaultDialect() throws IOException {
-        String key = SourceMetadata.INFERRED_QUOTE_FREE_CONFIG_KEY;
-        assertThat(csvReader(Map.of(key, "true")).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
-        assertThat(csvReader(Map.of()).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
-        assertThat(csvReader(Map.of(key, "true", "mode", "quoted")).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
-        assertThat(csvReader(Map.of(key, "true", "quote", "\"")).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
         assertThat(
-            csvReader(Map.of(key, "true", "multi_value_syntax", "brackets")).recordSplitter(1024),
+            tsvReader(Map.of("mode", "escaped", "multiline_fields", true)).recordSplitter(1024),
             instanceOf(CsvRecordSplitter.class)
         );
+        // The .tsv baseline is plain, so an unconfigured TSV reader takes the terminator scan; quoting is opt-in.
+        assertThat(tsvReader(Map.of()).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
+        assertThat(tsvReader(Map.of("mode", "quoted", "multiline_fields", true)).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
+        assertThat(csvReader(Map.of()).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
+        assertThat(csvReader(Map.of("multiline_fields", true)).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
     }
 
     private static final List<Attribute> TWO_KEYWORDS = List.of(
@@ -325,18 +301,18 @@ public class CsvModeReadTests extends ESTestCase {
     }
 
     /**
-     * A quoted field holding a line break proves the quote-free evidence wrong when the file was cut on plain newlines: fail
+     * A quoted field holding a line break proves the newline-splitting assumption wrong when the file was cut on plain newlines: fail
      * rather than return misaligned rows. A read that owns the whole file was never cut, so it reads the field exactly.
      */
-    public void testQuoteFreeEvidenceContradictedByMultiLineFieldInASplit() throws IOException {
+    public void testNewlineSplittingContradictedByMultiLineFieldInASplit() throws IOException {
         String csv = "x,y\n\"multi\nline\",z\n";
-        CsvFormatReader reader = csvReader(Map.of(SourceMetadata.INFERRED_QUOTE_FREE_CONFIG_KEY, "true")).withSchema(TWO_KEYWORDS);
+        CsvFormatReader reader = csvReader(Map.of()).withSchema(TWO_KEYWORDS);
         // The first of several splits: its record runs into the newline the file was cut at.
         Exception e = expectThrows(Exception.class, () -> drain(reader, bytes(csv), splitContext(true, false, true)));
         assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), containsString("spans several lines"));
         // Whole-file read (the first line is the header): nothing was cut, so the multi-line field is parsed exactly.
         assertEquals(1, drain(reader, bytes(csv), splitContext(true, true, false)));
-        // Quote-free data is unaffected by the evidence.
+        // Data without multi-line fields is unaffected.
         assertEquals(1, drain(reader, bytes("x,y\nu,v\n"), splitContext(true, false, true)));
     }
 
@@ -346,7 +322,7 @@ public class CsvModeReadTests extends ESTestCase {
      */
     public void testQuoteFreeContradictionIsNotSkippedByErrorMode() throws IOException {
         for (String errorMode : List.of("fail_fast", "skip_row", "null_field")) {
-            Map<String, Object> config = Map.of(SourceMetadata.INFERRED_QUOTE_FREE_CONFIG_KEY, "true", "error_mode", errorMode);
+            Map<String, Object> config = Map.of("error_mode", errorMode);
             for (boolean directBlock : List.of(true, false)) {
                 CsvFormatReader reader = csvReader(config).withDirectBlockEnabled(directBlock).withSchema(TWO_KEYWORDS);
                 Exception e = expectThrows(
@@ -364,7 +340,7 @@ public class CsvModeReadTests extends ESTestCase {
      * data, so it must not fail a split's first record.
      */
     public void testQuoteInUnquotedFieldAtSplitStartReadsNormally() throws IOException {
-        CsvFormatReader reader = csvReader(Map.of(SourceMetadata.INFERRED_QUOTE_FREE_CONFIG_KEY, "true")).withSchema(TWO_KEYWORDS);
+        CsvFormatReader reader = csvReader(Map.of()).withSchema(TWO_KEYWORDS);
         FormatReadContext split = splitContext(false, true, true);
         assertEquals(2, drain(reader, bytes("5000,12\" ruler\nu,v\n"), split));
         assertEquals(2, drain(reader, bytes("u,v\n\"w\",x\n"), split));
@@ -374,27 +350,20 @@ public class CsvModeReadTests extends ESTestCase {
     }
 
     /**
-     * {@code multiline_fields} decides without a guess: {@code false} cuts on plain newlines even where the sample gave no
-     * evidence, {@code true} keeps the proven walk even where it did, and left unset the evidence decides.
+     * {@code multiline_fields} is a contract with no sample involved: only an explicit {@code true} keeps the quote-aware
+     * walk, so unset behaves like {@code false}, whatever the dialect.
      */
-    public void testMultilineFieldsOverridesTheSampleEvidence() {
-        String evidence = SourceMetadata.INFERRED_QUOTE_FREE_CONFIG_KEY;
+    public void testUnsetMultilineFieldsBehavesLikeFalse() {
+        assertThat(csvReader(Map.of()).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
         assertThat(csvReader(Map.of("multiline_fields", false)).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
         assertThat(csvReader(Map.of("multiline_fields", "false")).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
-        assertThat(csvReader(Map.of("multiline_fields", true, evidence, "true")).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
-        assertThat(
-            csvReader(Map.of("multiline_fields", false, evidence, "true")).recordSplitter(1024),
-            instanceOf(NewlineRecordSplitter.class)
-        );
-        // An explicit dialect keeps the proven walk under the evidence, but not under an explicit multiline_fields.
-        assertThat(csvReader(Map.of("mode", "quoted", evidence, "true")).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
-        assertThat(
-            csvReader(Map.of("mode", "quoted", "multiline_fields", false)).recordSplitter(1024),
-            instanceOf(NewlineRecordSplitter.class)
-        );
-        // Unset: the evidence decides, as before.
-        assertThat(csvReader(Map.of(evidence, "true")).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
-        assertThat(csvReader(Map.of()).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
+        assertThat(csvReader(Map.of("multiline_fields", true)).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
+        assertThat(csvReader(Map.of("multiline_fields", "true")).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
+        // An explicit dialect does not change the contract.
+        assertThat(csvReader(Map.of("mode", "quoted")).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
+        assertThat(csvReader(Map.of("mode", "quoted", "multiline_fields", true)).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
+        // Bracketed cells can span lines, so unset keeps the quote-aware walk there.
+        assertThat(csvReader(Map.of("multi_value_syntax", "brackets")).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
     }
 
     public void testMultilineFieldsRejectsBadValuesAndBracketsAtStoreTime() {
@@ -411,21 +380,25 @@ public class CsvModeReadTests extends ESTestCase {
         assertThat(csvReader(bracketed).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
     }
 
-    /** With {@code multiline_fields: false} a record spanning lines fails a split read even though no sample vouched for it. */
-    public void testMultilineFieldsFalseGuardsSplitsWithoutEvidence() throws IOException {
+    /** Unless {@code multiline_fields} is {@code true}, a record spanning lines fails a split read. */
+    public void testMultilineFieldsNotTrueGuardsSplits() throws IOException {
         CsvFormatReader reader = csvReader(Map.of("multiline_fields", false)).withSchema(TWO_KEYWORDS);
         String csv = "x,y\n\"multi\nline\",z\n";
         Exception e = expectThrows(Exception.class, () -> drain(reader, bytes(csv), splitContext(true, false, true)));
         assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), containsString("multiline_fields"));
-        // multiline_fields: true reads the same bytes as one multi-line field, evidence or not.
-        CsvFormatReader multiline = csvReader(Map.of("multiline_fields", true, SourceMetadata.INFERRED_QUOTE_FREE_CONFIG_KEY, "true"))
-            .withSchema(TWO_KEYWORDS);
+        Exception unset = expectThrows(
+            Exception.class,
+            () -> drain(csvReader(Map.of()).withSchema(TWO_KEYWORDS), bytes(csv), splitContext(true, false, true))
+        );
+        assertThat(ExceptionsHelper.unwrapCause(unset).getMessage(), containsString("multiline_fields"));
+        // multiline_fields: true reads the same bytes as one multi-line field.
+        CsvFormatReader multiline = csvReader(Map.of("multiline_fields", true)).withSchema(TWO_KEYWORDS);
         assertEquals(1, drain(multiline, bytes(csv), splitContext(true, false, true)));
     }
 
-    /** Withers keep the quote-free evidence: the splitter and the guard must not depend on the order they are applied in. */
-    public void testWithDirectBlockEnabledKeepsQuoteFreeEvidence() throws IOException {
-        CsvFormatReader reader = csvReader(Map.of(SourceMetadata.INFERRED_QUOTE_FREE_CONFIG_KEY, "true"));
+    /** Withers keep newline splitting: the splitter and the guard must not depend on the order they are applied in. */
+    public void testWithDirectBlockEnabledKeepsNewlineSplitting() throws IOException {
+        CsvFormatReader reader = csvReader(Map.of());
         assertThat(reader.withDirectBlockEnabled(false).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
     }
 
@@ -450,12 +423,7 @@ public class CsvModeReadTests extends ESTestCase {
             .build();
         // The tail "b,x" is not a valid long in its first column, so parsing it as a row would fail.
         byte[] tail = "b,x\n3,cc\n4,dd\n".getBytes(StandardCharsets.UTF_8);
-        for (Map<String, Object> config : List.of(
-            Map.<String, Object>of(),
-            Map.<String, Object>of(SourceMetadata.INFERRED_QUOTE_FREE_CONFIG_KEY, "true")
-        )) {
-            assertEquals(2, drain(csvReader(config).withSchema(schema), new InMemoryStorageObject(tail), split));
-        }
+        assertEquals(2, drain(csvReader(Map.of()).withSchema(schema), new InMemoryStorageObject(tail), split));
     }
 
     /**
@@ -475,7 +443,7 @@ public class CsvModeReadTests extends ESTestCase {
             .readSchema(schema)
             .fileHeaderColumns(List.of("id", "name"))
             .build();
-        CsvFormatReader reader = csvReader(Map.of(SourceMetadata.INFERRED_QUOTE_FREE_CONFIG_KEY, "true")).withSchema(schema);
+        CsvFormatReader reader = csvReader(Map.of()).withSchema(schema);
         byte[] tail = "12\" ruler,x\n3,cc\n4,dd\n".getBytes(StandardCharsets.UTF_8);
         assertEquals(2, drain(reader, new InMemoryStorageObject(tail), split));
     }
@@ -502,7 +470,10 @@ public class CsvModeReadTests extends ESTestCase {
      * may carry the tab delimiter as data and the reader switches to the quote-state splitter.
      */
     public void testPlainQuoteOverrideEnablesQuoting() throws IOException {
-        assertThat(tsvReader(Map.of("mode", "plain", "quote", "\"")).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
+        assertThat(
+            tsvReader(Map.of("mode", "plain", "quote", "\"", "multiline_fields", true)).recordSplitter(1024),
+            instanceOf(CsvRecordSplitter.class)
+        );
         String tsv = "a:keyword\tb:keyword\n\"x\ty\"\tz\n";
         List<List<String>> values = readAll(tsvReader(Map.of("mode", "plain", "quote", "\"")), tsv);
         assertEquals(1, values.size());
@@ -529,7 +500,10 @@ public class CsvModeReadTests extends ESTestCase {
      * this is plain RFC-4180-with-escape parsing, not C-style escaped decoding.)
      */
     public void testEscapedQuoteOverrideEnablesQuoting() throws IOException {
-        assertThat(tsvReader(Map.of("mode", "escaped", "quote", "\"")).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
+        assertThat(
+            tsvReader(Map.of("mode", "escaped", "quote", "\"", "multiline_fields", true)).recordSplitter(1024),
+            instanceOf(CsvRecordSplitter.class)
+        );
         String tsv = "a:keyword\tb:keyword\n\"x\ty\"\tz\n";
         List<List<String>> values = readAll(tsvReader(Map.of("mode", "escaped", "quote", "\"")), tsv);
         assertEquals(1, values.size());

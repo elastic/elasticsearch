@@ -3150,7 +3150,8 @@ public class FileSplitProvider implements SplitProvider {
 
     /**
      * Whether the file's config-resolved record splitter forces one sequential whole-file stream instead of any
-     * start-anywhere split. A strided splitter (plain CSV/TSV, NDJSON, quote-free-sampled CSV) is always splittable. A non-strided
+     * start-anywhere split. A strided splitter (plain CSV/TSV, NDJSON, CSV not declared
+     * {@code multiline_fields: true}) is always splittable. A non-strided
      * splitter (other quoted or escaped CSV/TSV, whose records may span a raw newline) is splittable only when it can
      * <em>prove</em> a record start at an arbitrary offset ({@link RecordSplitter#supportsProvenProbing()}) and it
      * is not a compression-delegating reader (a quoted {@code .csv.bz2} stays whole-file: the probe would run

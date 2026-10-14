@@ -446,8 +446,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * The epoch second of a space-separated timestamp's date and time fields, or {@link #FAST_PATH_MISS} when a
      * field is not digits or the calendar rejects the date. {@code LocalDateTime.of} validates the calendar bounds
      * (month 1..12, day-of-month per month, leap years), and trapping its exception here keeps the fast path
-     * side-effect-free: the caller falls through to the general-purpose parser, which preserves the existing
-     * {@code DateUtils.asDateTime} semantics, including the user-facing "Failed to parse" message.
+     * side-effect-free: the millis caller falls through to {@code DateUtils.asDateTime}; the nanos caller
+     * falls through to {@code EsqlDataTypeConverter.dateNanosToLong}, which deliberately does not mirror
+     * the {@code asDateTime} lenient tail.
      * <p>
      * Callers must ensure {@code value.length() >= 19} before calling; both current callers satisfy this through
      * {@link #spaceSeparatedNanoOfSecond}, which returns {@link #FAST_PATH_MISS} on shorter input.

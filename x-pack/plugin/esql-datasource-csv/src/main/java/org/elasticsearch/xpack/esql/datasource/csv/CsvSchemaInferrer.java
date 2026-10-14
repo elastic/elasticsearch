@@ -449,7 +449,8 @@ public class CsvSchemaInferrer {
      * the representable nanosecond window is deliberately kept and fails per-cell at read, exactly as
      * a declared {@code date_nanos} schema makes it fail. The space-separated path uses
      * {@link CsvFormatReader#tryParseSpaceSeparatedDatetimeNanos}, which returns a miss for
-     * out-of-range instants, so space-separated out-of-window values do not force the column.
+     * out-of-range instants, so a space-separated out-of-window value keeps the column off the rail,
+     * regardless of the order the two rows arrive.
      */
     private static final DateFormatter NANOS_RAIL_FORMAT = EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER;
 

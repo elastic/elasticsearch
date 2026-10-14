@@ -568,9 +568,10 @@ public class CsvSchemaInferrerTests extends ESTestCase {
      * The rail has two halves — {@link #railRejects} states both — and asking only the formatter
      * is what this test used to do. That is why it passed while inference was screening out the
      * space-separated form the reader reads perfectly well: the oracle was narrower than the rail, so
-     * the disagreement it exists to catch was invisible to it. The test-side composition of the two
-     * halves is deliberately in the reader's ladder order rather than production's screen order, and
-     * what makes the agreement independently checkable is not here at all: it is
+     * the disagreement it exists to catch was invisible to it. The test-side composition asks the two
+     * halves in the same order as production: formatter first ({@code NANOS_RAIL_FORMAT}), template second
+     * ({@link CsvFormatReader#tryParseSpaceSeparatedDatetimeNanos}). What makes the agreement
+     * independently checkable is not here at all: it is
      * {@code CsvFormatReaderTests}, which infers a column and then actually reads it.
      * <p>
      * The corpus is randomized per run rather than a fixed list, so drift does not have to land on a

@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext;
 
 import java.time.Duration;
 import java.util.HashMap;
@@ -551,6 +552,120 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         assertThat(keyedLabels(join.left()), containsInAnyOrder("cluster"));
     }
 
+    public void testGroupLeftWithBareBuildOperandMaterializesCopiedLabels() {
+        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
+        // The build ("one") side is a bare selector: the on (cluster) key and the copied (region) label are
+        // named explicitly, so both are materialized from the selector's dimensions instead of requiring the
+        // operand to be pre-aggregated into concrete labels.
+        var plan = planPromql(
+            "PROMQL index=k8s step=5m result=(sum by (cluster, pod) (network.eth0.tx) "
+                + "/ on (cluster) group_left (region) network.eth0.rx)"
+        );
+        var joins = plan.collect(InnerJoin.class);
+        assertThat(joins, hasSize(1));
+        assertThat(joins.getFirst().unique(), equalTo(false));
+        assertThat(plan.output().stream().map(Attribute::name).toList(), org.hamcrest.Matchers.hasItem("region"));
+    }
+
+    public void testGroupRightWithBareBuildOperandMaterializesCopiedLabels() {
+        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
+        // group_right swaps the sides: the bare selector is now the build ("one", left) operand and the
+        // pre-aggregated right operand is the probe whose labels the result carries.
+        var plan = planPromql(
+            "PROMQL index=k8s step=5m result=(network.eth0.tx "
+                + "/ on (cluster) group_right (region) sum by (cluster, pod) (network.eth0.rx))"
+        );
+        var joins = plan.collect(InnerJoin.class);
+        assertThat(joins, hasSize(1));
+        assertThat(joins.getFirst().unique(), equalTo(false));
+        assertThat(plan.output().stream().map(Attribute::name).toList(), org.hamcrest.Matchers.hasItem("region"));
+    }
+
+    public void testGroupLeftWithAggregatedBuildExposesCopiedLabel() {
+        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
+        var plan = planPromql(
+            "PROMQL index=k8s step=5m result=(sum by (cluster, pod) (network.eth0.tx) "
+                + "/ on (cluster) group_left (region) sum by (cluster, region) (network.eth0.rx))"
+        );
+        assertThat(plan.collect(InnerJoin.class), hasSize(1));
+        assertThat(plan.output().stream().map(Attribute::name).toList(), org.hamcrest.Matchers.hasItem("region"));
+    }
+
+    public void testGroupLeftWithBareProbePreservesIdentity() {
+        assumeTrue(
+            "requires multiple metadata projections",
+            minimumVersion.supports(TranslationContext.PROMQL_MULTIPLE_TIMESERIES_METADATA)
+        );
+        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
+        var plan = planPromql(
+            "PROMQL index=k8s step=5m result=(network.eth0.tx / on (cluster) group_left sum by (cluster) (network.eth0.rx))"
+        );
+        assertThat(plan.collect(InnerJoin.class), hasSize(1));
+        assertThat(plan.output().stream().map(Attribute::name).toList(), containsInAnyOrder("result", "step", "_timeseries"));
+    }
+
+    public void testCopiedLabelsIntoBareProbeRemainUnsupported() {
+        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
+        for (String expression : List.of(
+            "network.eth0.tx / on (cluster) group_left (region) sum by (cluster, region) (network.eth0.rx)",
+            "sum by (cluster, region) (network.eth0.tx) / on (cluster) group_right (region) network.eth0.rx"
+        )) {
+            var exception = expectThrows(
+                VerificationException.class,
+                () -> planPromql("PROMQL index=k8s step=5m result=(" + expression + ")")
+            );
+            assertThat(exception.getMessage(), containsString("vector matching requires operands with concrete label sets"));
+        }
+    }
+
+    public void testGroupRightWithBareProbePreservesIdentity() {
+        assumeTrue(
+            "requires multiple metadata projections",
+            minimumVersion.supports(TranslationContext.PROMQL_MULTIPLE_TIMESERIES_METADATA)
+        );
+        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
+        var plan = planPromql(
+            "PROMQL index=k8s step=5m result=(sum by (cluster) (network.eth0.tx) / on (cluster) group_right network.eth0.rx)"
+        );
+        assertThat(plan.collect(InnerJoin.class), hasSize(1));
+        assertThat(plan.output().stream().map(Attribute::name).toList(), containsInAnyOrder("result", "step", "_timeseries"));
+    }
+
+    public void testDefaultMatchingWithBareOperandUsesConcreteOutput() {
+        assumeTrue(
+            "requires multiple metadata projections",
+            minimumVersion.supports(TranslationContext.PROMQL_MULTIPLE_TIMESERIES_METADATA)
+        );
+        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
+        for (String expression : List.of(
+            "network.eth0.tx / sum by (cluster, pod, region) (network.eth0.rx)",
+            "sum by (cluster, pod, region) (network.eth0.tx) / network.eth0.rx"
+        )) {
+            var plan = planPromql("PROMQL index=k8s step=5m result=(" + expression + ")");
+            var joins = plan.collect(InnerJoin.class);
+            assertThat(joins, hasSize(1));
+            assertTrue(joins.getFirst().unique());
+            assertThat(
+                plan.output().stream().map(Attribute::name).toList(),
+                containsInAnyOrder("result", "step", "cluster", "pod", "region")
+            );
+            assertThat(keyedLabels(joins.getFirst().left()), containsInAnyOrder("cluster", "pod", "region"));
+        }
+    }
+
+    public void testGroupLeftBareProbeUnderAggregation() {
+        assumeTrue(
+            "requires multiple metadata projections",
+            minimumVersion.supports(TranslationContext.PROMQL_MULTIPLE_TIMESERIES_METADATA)
+        );
+        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
+        var plan = planPromql(
+            "PROMQL index=k8s step=5m result=(sum by (pod) (network.eth0.tx / on (cluster) group_left sum by (cluster) (network.eth0.rx)))"
+        );
+        assertThat(plan.collect(InnerJoin.class), hasSize(1));
+        assertThat(plan.output().stream().map(Attribute::name).toList(), containsInAnyOrder("result", "step", "pod"));
+    }
+
     public void testVectorMatchComparisonBoolProducesInnerJoin() {
         assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
         // `> bool on (cluster)` compares two vectors and yields 1.0/0.0 for each matched pair (no rows dropped).
@@ -560,6 +675,25 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         var joins = plan.collect(InnerJoin.class);
         assertThat(joins, hasSize(1));
         assertThat(keyedLabels(joins.getFirst().left()), containsInAnyOrder("cluster"));
+    }
+
+    public void testGroupedComparisonMetricName() {
+        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
+        for (String group : List.of("group_left", "group_right")) {
+            for (boolean bool : List.of(false, true)) {
+                var plan = planMetricNameIndex(
+                    "sum by (cluster, __name__) (requests) > "
+                        + (bool ? "bool " : "")
+                        + "on (cluster) "
+                        + group
+                        + " sum by (cluster, __name__) (errors)"
+                );
+                assertThat(
+                    plan.output().stream().map(Attribute::name).toList(),
+                    bool ? containsInAnyOrder("result", "step", "cluster") : containsInAnyOrder("result", "step", "cluster", "__name__")
+                );
+            }
+        }
     }
 
     public void testVectorMatchComparisonFilterProducesInnerJoinAndFilter() {
@@ -601,39 +735,29 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         );
     }
 
-    public void testVectorMatchRejectsOpaqueWithoutOperand() {
+    public void testVectorMatchWithOpaqueOperandsMaterializesKeys() {
         assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
-        VerificationException e = assertThrows(
-            VerificationException.class,
-            () -> planPromql(
-                "PROMQL index=k8s step=5m result=(sum without (pod) (network.eth0.tx) "
-                    + "/ on (cluster) sum by (cluster) (network.eth0.rx))"
-            )
-        );
-        assertThat(e.getMessage(), containsString("vector matching requires operands with concrete label sets"));
+        for (String expression : List.of(
+            "sum without (pod) (network.eth0.tx) / on (cluster) sum by (cluster) (network.eth0.rx)",
+            "sum by (cluster) (network.eth0.tx) / on (cluster) network.eth0.rx",
+            "network.eth0.tx / on (cluster, pod) network.eth0.rx"
+        )) {
+            assertThat(planPromql("PROMQL index=k8s step=5m result=(" + expression + ")").collect(InnerJoin.class), hasSize(1));
+        }
     }
 
-    public void testVectorMatchRejectsOpaqueSelectorOperand() {
-        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
-        VerificationException e = assertThrows(
-            VerificationException.class,
-            () -> planPromql("PROMQL index=k8s step=5m result=(sum by (cluster) (network.eth0.tx) / on (cluster) network.eth0.rx)")
+    public void testVectorMatchComposedWithOpaqueOperand() {
+        assumeTrue(
+            "requires multiple metadata projections",
+            minimumVersion.supports(TranslationContext.PROMQL_MULTIPLE_TIMESERIES_METADATA)
         );
-        assertThat(e.getMessage(), containsString("vector matching requires operands with concrete label sets"));
-    }
-
-    public void testVectorMatchComposedWithOpaqueOperandRejected() {
         assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
-        // The unmatched + composes over a vector match and therefore translates as another join: it inherits the
-        // concrete-label requirement, which the bare selector operand does not satisfy.
-        VerificationException e = assertThrows(
-            VerificationException.class,
-            () -> planPromql(
-                "PROMQL index=k8s step=5m result=((sum by (cluster) (network.eth0.tx) "
-                    + "/ on (cluster) sum by (cluster) (network.eth0.rx)) + network.eth0.rx)"
-            )
+        var plan = planPromql(
+            "PROMQL index=k8s step=5m result=((sum by (cluster) (network.eth0.tx) "
+                + "/ on (cluster) sum by (cluster) (network.eth0.rx)) + network.eth0.rx)"
         );
-        assertThat(e.getMessage(), containsString("vector matching requires operands with concrete label sets"));
+        assertThat(plan.collect(InnerJoin.class), hasSize(2));
+        assertThat(plan.output().stream().map(Attribute::name).toList(), containsInAnyOrder("result", "step", "cluster"));
     }
 
     public void testGroupLabelMissingFromBuildDoesNotLeakFromProbe() {

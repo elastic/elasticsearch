@@ -67,6 +67,21 @@ tasks.named("check").configure {
   dependsOn currentToCurrent
 }
 
+// Exercise the success branch alongside the existing BWC newToOld/oldToNew runs of this suite.
+def promqlMetadataTest = tasks.register("promqlMetadataTest", StandaloneRestIntegTestTask) {
+  systemProperty("tests.version.remote_cluster", currentVersion)
+  systemProperty("tests.version.local_cluster", currentVersion)
+  maxParallelForks = 1
+  testClassesDirs = sourceSets.javaRestTest.output.classesDirs
+  classpath = sourceSets.javaRestTest.runtimeClasspath
+  filter {
+    includeTestsMatching "org.elasticsearch.xpack.esql.ccq.MultiClusterTimeSeriesIT.testPromqlMetadata*"
+  }
+}
+tasks.named("check").configure {
+  dependsOn promqlMetadataTest
+}
+
 def supportedVersion = bwcVersion -> {
   // CCS in ES|QL available in 8.13
   return bwcVersion.onOrAfter(Version.fromString("8.13.0")) && bwcVersion != currentVersion

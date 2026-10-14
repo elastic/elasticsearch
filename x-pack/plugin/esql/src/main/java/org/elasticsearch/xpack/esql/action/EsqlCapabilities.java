@@ -2642,6 +2642,9 @@ public class EsqlCapabilities {
          */
         PROMQL_VECTOR_MATCHING_V0(Build.current().isSnapshot()),
 
+        /** Vector matching between opaque metadata and explicit labels, including simultaneous metadata projections. */
+        PROMQL_VECTOR_MATCHING_METADATA(PROMQL_VECTOR_MATCHING_V0.isEnabled()),
+
         /**
          * Support for PromQL time() function.
          */

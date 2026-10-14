@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.physical.BinaryExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -60,10 +62,15 @@ public class PlanConsistencyChecker {
         }
 
         List<Attribute> output = p.output();
-        var outputAttributeNames = Sets.<String>newHashSetWithExpectedSize(output.size());
+        var outputAttributeNames = new HashMap<String, Attribute>();
         var outputAttributeIds = Sets.<NameId>newHashSetWithExpectedSize(output.size());
         for (Attribute outputAttr : output) {
-            if (outputAttributeNames.add(outputAttr.name()) == false || outputAttributeIds.add(outputAttr.id()) == false) {
+            // Metadata source fields share the canonical wire name but have distinct extraction configurations.
+            // Their aliases name the result columns; source references are identified by NameId.
+            Attribute previous = outputAttributeNames.putIfAbsent(outputAttr.name(), outputAttr);
+            boolean duplicateName = previous != null
+                && (previous instanceof TimeSeriesMetadataAttribute == false || outputAttr instanceof TimeSeriesMetadataAttribute == false);
+            if (duplicateName || outputAttributeIds.add(outputAttr.id()) == false) {
                 failures.add(
                     fail(p, "Plan [{}] optimized incorrectly due to duplicate output attribute {}", p.nodeString(), outputAttr.toString())
                 );

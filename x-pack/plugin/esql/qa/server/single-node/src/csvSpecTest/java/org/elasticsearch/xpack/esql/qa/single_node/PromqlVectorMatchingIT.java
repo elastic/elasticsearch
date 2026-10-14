@@ -130,6 +130,21 @@ public class PromqlVectorMatchingIT extends RestEsqlTestCase {
         );
     }
 
+    public void testOpaqueBuildDuplicatesFail() throws IOException {
+        // Distinct pods must not collapse into one build row merely because on(cluster) ignores them.
+        assertPromqlError(
+            "PROMQL index=k8s step=10m result=(sum by (cluster) (network.eth0.tx) / on (cluster) group_left network.eth0.rx)",
+            "found a duplicate row"
+        );
+    }
+
+    public void testOpaqueProbeDuplicatesFailForOneToOne() throws IOException {
+        assertPromqlError(
+            "PROMQL index=k8s step=10m result=(network.eth0.tx / on (cluster) sum by (cluster) (network.eth0.rx))",
+            "input must not have duplicates"
+        );
+    }
+
     public void testOrWithOnIsRejected() throws IOException {
         requirePromqlUnion();
         assertPromqlError(

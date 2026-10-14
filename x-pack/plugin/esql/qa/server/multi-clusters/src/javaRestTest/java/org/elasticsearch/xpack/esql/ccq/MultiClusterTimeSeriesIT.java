@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
@@ -46,6 +47,7 @@ import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_F
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.any;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -244,6 +246,76 @@ public class MultiClusterTimeSeriesIT extends ESRestTestCase {
         List<Map<String, String>> columns = (List<Map<String, String>>) result.get("columns");
         List<String> columnNames = columns.stream().map(c -> c.get("name")).toList();
         assertThat(columnNames, equalTo(List.of("metric_name", "data_stream", "unit", "metric_type", "field_type", "dimension_fields")));
+    }
+
+    /** Existing single-projection shapes keep working when a remote cluster predates multiple projections. */
+    public void testPromqlMetadataSingleProjection() throws Exception {
+        requirePromqlMetadataCoordinator();
+        for (String expression : List.of("cpu", "sum without (host) (cpu)")) {
+            var result = run(promqlMetadataQuery("hosts-local,*:hosts-remote", expression, "_timeseries"), false);
+            var expected = run(promqlMetadataQuery("all-data", expression, "_timeseries"), false);
+            assertFalse(((List<?>) expected.get("values")).isEmpty());
+            assertResultMap(false, result, expected);
+        }
+    }
+
+    /** Check the actual remote version: reject before execution on older nodes, compare results on current nodes. */
+    public void testPromqlMetadataMultipleProjections() throws Exception {
+        requirePromqlMetadataCoordinator();
+        boolean remoteSupports;
+        try (RestClient remoteClient = remoteClusterClient()) {
+            remoteSupports = clusterHasCapability(
+                remoteClient,
+                "POST",
+                "/_query",
+                List.of(),
+                List.of(EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_METADATA.capabilityName())
+            ).orElse(false);
+        }
+        for (String expression : List.of(
+            "cpu / sum by (host, cluster) (memory)",
+            "sum by (host, cluster) (cpu) / memory",
+            "cpu / on (cluster) group_left sum by (cluster) (memory)"
+        )) {
+            String labels = expression.contains("group_left") ? "_timeseries" : "host, cluster";
+            // An older connected remote must not prevent a local-only query from working.
+            var expected = run(promqlMetadataQuery("all-data", expression, labels), false);
+            assertFalse(((List<?>) expected.get("values")).isEmpty());
+            String query = promqlMetadataQuery("hosts-local,*:hosts-remote", expression, labels);
+            if (remoteSupports) {
+                assertResultMap(false, run(query, false), expected);
+            } else {
+                var error = expectThrows(ResponseException.class, () -> run(query, false));
+                assertEquals(400, error.getResponse().getStatusLine().getStatusCode());
+                assertThat(error.getMessage(), containsString("verification_exception"));
+                assertThat(error.getMessage(), containsString("Multiple time-series metadata projections require a newer version"));
+            }
+        }
+    }
+
+    private void requirePromqlMetadataCoordinator() throws IOException {
+        assumeTrue(
+            "requires the new coordinator",
+            clusterHasCapability(
+                "POST",
+                "/_query",
+                List.of(),
+                List.of(EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_METADATA.capabilityName())
+            ).orElse(false)
+        );
+        assumeTrue(
+            "requires PromQL WITHOUT on the remote",
+            capabilitiesSupportedNewAndOld(List.of(EsqlCapabilities.Cap.PROMQL_WITHOUT_GROUPING.capabilityName()))
+        );
+    }
+
+    private static String promqlMetadataQuery(String indices, String expression, String labels) {
+        return "PROMQL index="
+            + indices
+            + " start=\"2024-04-15T00:00:00Z\" end=\"2024-04-15T01:00:00Z\" step=1m result=("
+            + expression
+            + ") | SORT step, "
+            + labels;
     }
 
     private void createTimeSeriesIndex(RestClient client, String indexName) throws IOException {

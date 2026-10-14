@@ -222,21 +222,78 @@ public class GenerativeRestTestTests extends ESTestCase {
         assertFalse(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
     }
 
-    public void testFullTextAfterForkBranchMatchesMvExpandInsidePrunedBranch() {
-        String query = "FROM airports | FORK (WHERE true) (WHERE scalerank >= 52 | MV_EXPAND client_ip) | WHERE _fork == \"fork2\" "
-            + "| DROP _fork | WHERE match_phrase(type, \"hello ring\")";
+    private static final String FORK_BRANCHES_QUERY = "from airports,mv_decades,cloned_sample_data "
+        + "| FORK  (where  NOT ends_with(city, \"tLX\") | where  NOT event_duration >= 96 AND  NOT event_duration > 20  "
+        + "| sort city ASC NULLS LAST, name NULLS LAST, message NULLS LAST, type  | limit 1866) "
+        + "(where cidr_match(client_ip, \"10.0.0.0/8\")) "
+        + "(where scalerank >= 52 AND  NOT qstr(\"hello\") | mv_expand `client_ip`) ";
+
+    private static final String AFTER_FORK_BRANCHES = "| keep country, @timestamp, `type`, *, client_ip, `decade`, `abbrev`, "
+        + "`event_dates`, co* | HIGHLIGHT \"data~\" ON description "
+        + "| where true AND  NOT scalerank != 98 OR match_phrase(type, \"hello ring\") AND  NOT cidr_match(client_ip, \"192.168.0.0/16\")";
+
+    public void testFullTextAfterCommandInsideForkBranchIsTolerated() {
+        String query = FORK_BRANCHES_QUERY + "| WHERE _fork == \"fork3\" | DROP _fork " + AFTER_FORK_BRANCHES;
         String error = "verification_exception: line 1:354: [MATCH_PHRASE] function cannot be used after MV_EXPAND "
             + "when it targets an indexed field";
 
-        assertTrue(GenerativeRestTest.isFullTextAfterForkBranchBug(error, query));
+        assertTrue(GenerativeRestTest.isFullTextAfterForkBranchCommand(error, query));
     }
 
-    public void testFullTextAfterForkBranchRequiresFork() {
-        String query = "FROM airports | MV_EXPAND client_ip | WHERE match_phrase(type, \"hello ring\")";
-        String error = "verification_exception: line 1:61: [MATCH_PHRASE] function cannot be used after MV_EXPAND "
+    public void testFullTextAfterTopNInsideForkBranchIsTolerated() {
+        String query = FORK_BRANCHES_QUERY + AFTER_FORK_BRANCHES;
+        String error = "verification_exception: line 1:478: [MATCH_PHRASE] function cannot be used after SORT and LIMIT "
             + "when it targets an indexed field";
 
-        assertFalse(GenerativeRestTest.isFullTextAfterForkBranchBug(error, query));
+        assertTrue(GenerativeRestTest.isFullTextAfterForkBranchCommand(error, query));
+    }
+
+    public void testFullTextAfterForkBranchCommandIgnoresParenthesesInStrings() {
+        String query = "FROM airports | FORK (WHERE name == \")\") (WHERE name == \"(\" | STATS c = count(*) BY type) "
+            + "| WHERE match(type, \"large\")";
+        String error = "verification_exception: line 1:99: [MATCH] function cannot be used after STATS when it targets an indexed field";
+
+        assertTrue(GenerativeRestTest.isFullTextAfterForkBranchCommand(error, query));
+    }
+
+    public void testFullTextAfterForkBranchCommandRequiresFork() {
+        String query = "FROM airports | MV_EXPAND client_ip | WHERE match_phrase(type, \"hello ring\")";
+        String error = "verification_exception: line 1:45: [MATCH_PHRASE] function cannot be used after MV_EXPAND "
+            + "when it targets an indexed field";
+
+        assertFalse(GenerativeRestTest.isFullTextAfterForkBranchCommand(error, query));
+    }
+
+    public void testFullTextAfterCommandFollowingForkIsNotTolerated() {
+        String query = "FROM airports | FORK (WHERE true) (WHERE scalerank >= 52) | STATS c = count(*) BY type | WHERE match(type, \"x\")";
+        String error = "verification_exception: line 1:96: [MATCH] function cannot be used after STATS when it targets an indexed field";
+
+        assertFalse(GenerativeRestTest.isFullTextAfterForkBranchCommand(error, query));
+    }
+
+    public void testFullTextAfterCommandInForkBranchAndOuterPipelineIsNotTolerated() {
+        String query = "FROM airports | FORK (WHERE true | LIMIT 5) (WHERE scalerank >= 52) | LIMIT 10 | WHERE match(type, \"x\")";
+        String error = "verification_exception: line 1:88: [MATCH] function cannot be used after LIMIT when it targets an indexed field";
+
+        assertFalse(GenerativeRestTest.isFullTextAfterForkBranchCommand(error, query));
+    }
+
+    public void testFullTextAfterForkBranchCommandRequiresEveryNamedCommandInBranch() {
+        String query = "FROM airports | FORK (WHERE true) (WHERE scalerank >= 52 | STATS c = count(*) BY type) | LIMIT 10 "
+            + "| WHERE match(type, \"x\")";
+        String error = """
+            verification_exception: Found 2 problems
+            line 1:107: [MATCH] function cannot be used after LIMIT when it targets an indexed field
+            line 1:107: [MATCH] function cannot be used after STATS when it targets an indexed field""";
+
+        assertFalse(GenerativeRestTest.isFullTextAfterForkBranchCommand(error, query));
+    }
+
+    public void testKqlAfterSourceCommandWithForkIsNotTolerated() {
+        String query = "FROM airports | FORK (WHERE true) (WHERE scalerank >= 52) | WHERE kql(\"type: large\")";
+        String error = "verification_exception: line 1:67: [KQL] function cannot be used after FROM";
+
+        assertFalse(GenerativeRestTest.isFullTextAfterForkBranchCommand(error, query));
     }
 
     public void testClientTimeoutIsAllowedInEveryLocale() {

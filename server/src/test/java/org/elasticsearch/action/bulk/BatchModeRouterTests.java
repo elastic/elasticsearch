@@ -404,14 +404,12 @@ public class BatchModeRouterTests extends ESTestCase {
     }
 
     /**
-     * Same re-entry as {@link #testSecondShardBatchesCallIsANoOp} but for the inline-encoder mode,
-     * where rows are encoded during routing and the partitions are built by the first
-     * {@code shardBatches()} call. When every shard request completes synchronously (e.g. a write
-     * blocked backing index), the failure-store redirect pass calls {@code shardBatches()} again
-     * before the encoders are closed. Rebuilding an already-built partition throws, which would
-     * otherwise surface as a fatal error on the node.
+     * In inline-encoder mode the first {@code shardBatches()} call builds each partition and hands its
+     * buffers to the returned batch, so a second call cannot succeed. It must fail loudly rather than
+     * return nothing: the failure-store redirect pass is not supposed to ask for batches at all (see
+     * {@code BulkOperationTests}), and a silent empty result would hide a caller that does.
      */
-    public void testSecondShardBatchesCallIsANoOpForInlineEncoders() {
+    public void testSecondShardBatchesCallFailsForInlineEncoders() {
         int numDocs = randomIntBetween(3, 20);
         BulkRequest bulkRequest = new BulkRequest();
         for (int i = 0; i < numDocs; i++) {
@@ -430,11 +428,8 @@ public class BatchModeRouterTests extends ESTestCase {
         }
         assertShardsAligned(requestsByShard, first);
 
-        // Redirected items carry inline source and were never encoded, so there is nothing to build.
-        assertThat(router.shardBatches(), equalTo(Map.of()));
-        for (DocWriteRequest<?> request : bulkRequest.requests) {
-            assertTrue(((IndexRequest) request).indexSource().hasSourceRow());
-        }
+        var e = expectThrows(IllegalStateException.class, router::shardBatches);
+        assertThat(e.getMessage(), containsString("already finalized"));
         router.close();
     }
 

@@ -179,16 +179,20 @@ final class BulkBatchEncoders implements Releasable {
      * on each item routed there (replacing inline source bytes with a row reference), and return
      * the resulting batches keyed by ShardId. Returns an empty map when {@link #disabled()} is true.
      *
-     * <p>Only the first call builds batches; later calls return an empty map. The failure-store
-     * redirect pass invokes this again, and it can do so before {@link #close} when every shard
-     * request completes synchronously. The redirected items are new requests that were never
-     * batch-encoded, and the partitions have already been built (and handed off) by the first call.
+     * <p>Building a partition hands its buffers to the returned batch, so this may be called at most
+     * once per bulk. The failure-store redirect pass must not call it: redirected items are new
+     * requests that were never batch-encoded.
+     *
+     * @throws IllegalStateException if called more than once
      */
     Map<ShardId, SourceBatch> finalizeBatches() {
-        if (disabled || finalized) {
-            return Collections.emptyMap();
+        if (finalized) {
+            throw new IllegalStateException("batches were already finalized for this bulk");
         }
         finalized = true;
+        if (disabled) {
+            return Collections.emptyMap();
+        }
         Map<ShardId, SourceBatch> batchesByShard = new HashMap<>();
         for (IndexState state : indexStates.values()) {
             for (Map.Entry<ShardId, List<PendingAttachment>> entry : state.pendingByShard.entrySet()) {

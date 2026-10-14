@@ -9,57 +9,90 @@ package org.elasticsearch.xpack.esql.view;
 
 import org.elasticsearch.common.Strings;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static java.util.stream.Collectors.joining;
+import static java.util.stream.Collectors.toUnmodifiableMap;
 
 /**
  * Tracks which views lead to each index pattern.
  */
-public final class IndexViewOrigins {
+public record IndexViewOrigins(Map<String, Set<List<String>>> chainsByPattern) {
 
-    private final Map<String, Set<List<String>>> chainsByPattern = new HashMap<>();
+    public static final IndexViewOrigins EMPTY = new IndexViewOrigins(Map.of());
 
-    /**
-     * Records that {@code indexPattern} is read through {@code viewChain}, outermost view first.
-     */
-    void record(String indexPattern, Collection<String> viewChain) {
-        if (viewChain.isEmpty()) {
-            return;
-        }
-        List<String> chain = List.copyOf(viewChain);
-        for (String pattern : Strings.splitStringByCommaToArray(indexPattern)) {
-            chainsByPattern.computeIfAbsent(pattern, k -> new LinkedHashSet<>()).add(chain);
-        }
+    public IndexViewOrigins {
+        chainsByPattern = chainsByPattern.entrySet().stream().collect(toUnmodifiableMap(Map.Entry::getKey, e -> Set.copyOf(e.getValue())));
     }
 
     /**
-     * Error message suffix naming the views that lead to {@code indexExpression}, or an empty string if there are none.
+     * Error message suffix naming the views that lead to {@code indexExpression}, if there are any.
      */
-    public String describe(String indexExpression) {
-        String[] patterns = Strings.splitStringByCommaToArray(indexExpression);
-        List<String> descriptions = new ArrayList<>();
-        for (String pattern : patterns) {
-            Set<List<String>> chains = chainsByPattern.get(pattern);
+    public Optional<String> describe(String indexExpression) {
+        Set<String> indices = new LinkedHashSet<>();
+        for (String pattern : Strings.splitStringByCommaToArray(indexExpression)) {
+            if (isExclusion(pattern) == false) {
+                indices.add(pattern);
+            }
+        }
+        Map<String, String> descriptions = new LinkedHashMap<>();
+        for (String index : indices) {
+            Set<List<String>> chains = chainsByPattern.get(index);
             if (chains != null) {
-                descriptions.add(patterns.length == 1 ? describeChains(chains) : "[" + pattern + "] " + describeChains(chains));
+                descriptions.put(index, describeChains(chains));
             }
         }
         if (descriptions.isEmpty()) {
-            return "";
+            return Optional.empty();
         }
-        return patterns.length == 1 ? " " + descriptions.getFirst() : " (" + String.join(", ", descriptions) + ")";
+        Set<String> distinct = new HashSet<>(descriptions.values());
+        if (descriptions.size() == indices.size() && distinct.size() == 1) {
+            return Optional.of(distinct.iterator().next());
+        }
+        return Optional.of(
+            descriptions.entrySet().stream().map(e -> "[" + e.getKey() + "] " + e.getValue()).collect(joining("; ", "(", ")"))
+        );
+    }
+
+    private static boolean isExclusion(String pattern) {
+        return pattern.startsWith("-") || pattern.contains(":-");
     }
 
     private static String describeChains(Set<List<String>> chains) {
-        return (chains.size() == 1 ? "referenced by view " : "referenced by views ") + chains.stream()
-            .map(chain -> "[" + String.join(" -> ", chain) + "]")
-            .collect(joining(", "));
+        List<String> rendered = chains.stream().map(chain -> "[" + String.join(" -> ", chain) + "]").sorted().toList();
+        return (rendered.size() == 1 ? "referenced by view " : "referenced by views ") + String.join(", ", rendered);
+    }
+
+    /**
+     * Collects view chains while views are resolved.
+     */
+    static final class Builder {
+
+        private final Map<String, Set<List<String>>> chainsByPattern = new HashMap<>();
+
+        /**
+         * Records that {@code indexPattern} is read through {@code viewChain}, outermost view first.
+         */
+        void record(String indexPattern, Collection<String> viewChain) {
+            if (viewChain.isEmpty()) {
+                return;
+            }
+            List<String> chain = List.copyOf(viewChain);
+            for (String pattern : Strings.splitStringByCommaToArray(indexPattern)) {
+                chainsByPattern.computeIfAbsent(pattern, k -> new HashSet<>()).add(chain);
+            }
+        }
+
+        IndexViewOrigins build() {
+            return new IndexViewOrigins(chainsByPattern);
+        }
     }
 }

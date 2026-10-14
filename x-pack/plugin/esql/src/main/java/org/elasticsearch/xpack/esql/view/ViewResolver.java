@@ -219,7 +219,7 @@ public class ViewResolver {
         ActionListener<ViewResolutionResult> listener
     ) {
         Map<String, String> viewQueries = new HashMap<>();
-        IndexViewOrigins indexViewOrigins = new IndexViewOrigins();
+        IndexViewOrigins.Builder indexViewOrigins = new IndexViewOrigins.Builder();
         // Set when the traversal below rewrites an InSubquery (in the query or in a view body) into a Semi/Anti/MarkJoin; reported in
         // the result so the session can count IN_SUBQUERY telemetry even for IN subqueries that only exist inside a view definition.
         // A Holder (not a plain boolean) because it is written from inside the async resolution callbacks; cross-thread visibility is
@@ -227,7 +227,7 @@ public class ViewResolver {
         Holder<Boolean> hasInSubquery = new Holder<>(false);
         boolean noViews = viewsFeatureEnabled() == false || getMetadata().views().isEmpty();
         if (noViews && InSubqueryResolver.hasInSubquery(plan) == false) {
-            listener.onResponse(new ViewResolutionResult(plan, viewQueries, false, indexViewOrigins));
+            listener.onResponse(new ViewResolutionResult(plan, viewQueries, false, IndexViewOrigins.EMPTY));
             return;
         }
         // Note: this returns the uncompacted nested plan. Compaction (UnionAll/ViewUnionAll
@@ -248,7 +248,9 @@ public class ViewResolver {
             0,
             preserveViewBoundaries,
             listener.delegateFailureAndWrap(
-                (l, rewritten) -> l.onResponse(new ViewResolutionResult(rewritten, viewQueries, hasInSubquery.get(), indexViewOrigins))
+                (l, rewritten) -> l.onResponse(
+                    new ViewResolutionResult(rewritten, viewQueries, hasInSubquery.get(), indexViewOrigins.build())
+                )
             )
         );
     }
@@ -260,7 +262,7 @@ public class ViewResolver {
         BiFunction<String, String, LogicalPlan> parser,
         LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
-        IndexViewOrigins indexViewOrigins,
+        IndexViewOrigins.Builder indexViewOrigins,
         Holder<Boolean> hasInSubquery,
         int depth,
         boolean preserveViewBoundaries,
@@ -433,7 +435,7 @@ public class ViewResolver {
         BiFunction<String, String, LogicalPlan> parser,
         LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
-        IndexViewOrigins indexViewOrigins,
+        IndexViewOrigins.Builder indexViewOrigins,
         Holder<Boolean> hasInSubquery,
         int depth,
         boolean preserveViewBoundaries,
@@ -486,7 +488,7 @@ public class ViewResolver {
         BiFunction<String, String, LogicalPlan> parser,
         LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
-        IndexViewOrigins indexViewOrigins,
+        IndexViewOrigins.Builder indexViewOrigins,
         Holder<Boolean> hasInSubquery,
         int depth,
         boolean preserveViewBoundaries,
@@ -548,7 +550,7 @@ public class ViewResolver {
         LinkedHashSet<String> seenViews,
         HashSet<String> seenWildcards,
         Map<String, String> viewQueries,
-        IndexViewOrigins indexViewOrigins,
+        IndexViewOrigins.Builder indexViewOrigins,
         Holder<Boolean> hasInSubquery,
         int depth,
         boolean preserveViewBoundaries,

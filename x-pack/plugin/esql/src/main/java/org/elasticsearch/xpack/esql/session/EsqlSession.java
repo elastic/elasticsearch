@@ -2649,6 +2649,7 @@ public class EsqlSession {
             preAnalysis.needsAnalyzerGroups(),
             trackUnmappedFieldIndices,
             null,
+            result.indexViewOrigins(),
             listener.delegateFailureAndWrap((l, indexResolution) -> {
                 EsqlCCSUtils.initCrossClusterState(indexResolution.inner(), executionInfo);
                 EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
@@ -2687,6 +2688,7 @@ public class EsqlSession {
             preAnalysis.needsAnalyzerGroups(),
             trackUnmappedFieldIndices,
             routingInfoCapture,
+            result.indexViewOrigins(),
             ActionListener.wrap(indexResolution -> {
                 EsqlCCSUtils.initCrossClusterState(indexResolution.inner(), executionInfo);
                 EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
@@ -2708,6 +2710,7 @@ public class EsqlSession {
                         preAnalysis.needsAnalyzerGroups(),
                         trackUnmappedFieldIndices,
                         null,
+                        result.indexViewOrigins(),
                         retryListener
                     );
                 });
@@ -3011,7 +3014,7 @@ public class EsqlSession {
                 InferenceResolution.EMPTY,
                 ExternalSourceResolution.EMPTY,
                 TransportVersion.current(),
-                new IndexViewOrigins()
+                IndexViewOrigins.EMPTY
             );
         }
 

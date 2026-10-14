@@ -143,9 +143,9 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
                 assertOk(response);
                 assertResultConcreteIndices(response, "reserved-index");
             }
-            // Exclude the plugin's reserved .ml-anomalies views: they have no backing indices in this test cluster and
-            // .ml-anomalies-ccs also targets remote clusters (*:), which fails on nodes without the remote_cluster_client role
-            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM *,-.ml-anomalies*"))) {
+            // Exclude the plugin's reserved .ml-anomalies view: its query targets remote clusters (*:), which fails on nodes
+            // without the remote_cluster_client role, and it has no backing indices in this test cluster
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM *,-.ml-anomalies"))) {
                 assertOk(response);
                 // system-index & regular-index are matched both directly and via views
                 assertResultConcreteIndices(response, "reserved-index", "reserved-index", "regular-index", "regular-index");
@@ -170,7 +170,7 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
                 assertOk(response);
                 assertResultConcreteIndices(response, "regular-index-1");
             }
-            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM *,-.ml-anomalies*"))) {
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM *,-.ml-anomalies"))) {
                 assertOk(response);
                 assertResultConcreteIndices(response, "regular-index-1", "regular-index-1");// matched index and view
             }

@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.http.HttpTransportSettings;
@@ -39,8 +38,6 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class PrometheusPlugin extends Plugin implements ActionPlugin {
-
-    public static final FeatureFlag METRIC_EXEMPLARS_FEATURE_FLAG = new FeatureFlag("metric_exemplars");
 
     // Controls enabling the index template registry.
     // This setting will be ignored if the plugin is disabled.

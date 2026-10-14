@@ -22,9 +22,14 @@ public interface QueryMetricsListener {
     QueryMetricsListener NOOP = metrics -> {};
 
     /**
-     * Time spent on planning, from queryProfile.planning()
+     * Wall-clock time spent on planning, from queryProfile.planning(). Includes I/O and transport waits: object-store
+     * listings and metadata reads, field caps, enrich and inference round trips.
      */
     String PLANNING_NANOS = "planning_nanos";
+    /**
+     * CPU time spent on planning (no I/O wait), from queryProfile.planningCpuNanos()
+     */
+    String PLANNING_CPU_NANOS = "planning_cpu_nanos";
     /**
      * Time spent by drivers on compute, from result.completionInfo().cpuNanos()
      */

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 161935
+summary: Wake parquet iterator after dominated skip
+type: bug

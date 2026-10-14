@@ -827,7 +827,8 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 services.repositoriesService(),
                 threadPool,
                 clusterService,
-                projectResolver
+                projectResolver,
+                MeterRegistry.NOOP
             );
             this.cacheService = new StatelessSharedBlobCacheService(
                 services.nodeEnvironment(),
@@ -849,7 +850,8 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             this.searchRecoveryTimeoutCalculationService = new SearchRecoveryTimeoutCalculationService(
                 cacheService,
                 threadPool,
-                clusterService.getClusterSettings()
+                clusterService.getClusterSettings(),
+                () -> Integer.MAX_VALUE
             );
             this.cacheWarmingService = new SharedBlobCacheWarmingService(
                 cacheService,
@@ -1213,7 +1215,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         clusterService.getClusterSettings(),
                         mock(SearchCommitPrefetcher.PrefetchExecutor.class), // prefetch is disabled
                         new SearchCommitPrefetcherDynamicSettings(clusterService.getClusterSettings()),
-                        new NoopCircuitBreaker("stateless_reader_heap"),
+                        NoopCircuitBreaker.INSTANCE,
                         StatelessReaderHeapMetrics.NOOP,
                         new ReshardSearchFilters(Settings.EMPTY)
                     );

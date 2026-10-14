@@ -224,6 +224,11 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
                 ) {
                     additionalSettings.put("index.mapping.total_fields.limit", 42);
                 }
+
+                @Override
+                public Set<String> affectedSettings() {
+                    return Set.of("index.mapping.total_fields.limit");
+                }
             }))
         );
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);

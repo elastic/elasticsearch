@@ -84,7 +84,29 @@ public final class LocalStorageProvider implements StorageProvider {
             throw new IOException("Path is not a directory: " + prefix.objectName());
         }
 
-        return new LocalStorageIterator(dirPath, recursive);
+        return new LocalStorageIterator(dirPath, recursive, "");
+    }
+
+    /**
+     * A filesystem has no key prefix to push, so the walk is the same and the name prefix selects from what it
+     * yields. The selection is on each file's path <em>relative to the directory being listed</em>, never on the
+     * two URI strings: one directory has several legitimate spellings - {@code file://localhost/x},
+     * {@code file:///x//y} - and comparing a caller's spelling against the canonical one the walk produces drops
+     * every file rather than none, which nothing downstream can tell apart from an empty dataset.
+     */
+    @Override
+    public StorageIterator listObjects(StoragePath prefix, String namePrefix, boolean recursive) throws IOException {
+        validateFileScheme(prefix);
+        Path dirPath = toListablePath(prefix);
+
+        if (Files.exists(dirPath) == false) {
+            throw new IOException("Directory does not exist: " + prefix.objectName());
+        }
+        if (Files.isDirectory(dirPath) == false) {
+            throw new IOException("Path is not a directory: " + prefix.objectName());
+        }
+
+        return new LocalStorageIterator(dirPath, recursive, namePrefix);
     }
 
     @Override
@@ -203,14 +225,23 @@ public final class LocalStorageProvider implements StorageProvider {
         private final List<StorageEntry> entries;
         private final Iterator<StorageEntry> iterator;
 
-        LocalStorageIterator(Path directory, boolean recursive) throws IOException {
+        /**
+         * Whether {@code file}'s path under {@code directory} begins with {@code namePrefix}. The relative path
+         * carries the platform separator while the prefix comes from a URI, which is safe because
+         * {@code StoragePath#literalNamePrefix} never spans a separator: the comparison stays inside one segment.
+         */
+        private static boolean selects(Path directory, Path file, String namePrefix) {
+            return namePrefix.isEmpty() || directory.relativize(file).toString().startsWith(namePrefix);
+        }
+
+        LocalStorageIterator(Path directory, boolean recursive, String namePrefix) throws IOException {
             this.entries = new ArrayList<>();
 
             if (recursive) {
                 Files.walkFileTree(directory, new SimpleFileVisitor<>() {
                     @Override
                     public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
-                        if (attrs.isRegularFile()) {
+                        if (attrs.isRegularFile() && selects(directory, file, namePrefix)) {
                             StoragePath storagePath = toStoragePath(file);
                             entries.add(new StorageEntry(storagePath, attrs.size(), attrs.lastModifiedTime().toInstant()));
                         }
@@ -228,7 +259,7 @@ public final class LocalStorageProvider implements StorageProvider {
                     for (Path entry : stream) {
                         try {
                             BasicFileAttributes attrs = Files.readAttributes(entry, BasicFileAttributes.class);
-                            if (attrs.isRegularFile()) {
+                            if (attrs.isRegularFile() && selects(directory, entry, namePrefix)) {
                                 StoragePath storagePath = toStoragePath(entry);
                                 entries.add(new StorageEntry(storagePath, attrs.size(), attrs.lastModifiedTime().toInstant()));
                             }

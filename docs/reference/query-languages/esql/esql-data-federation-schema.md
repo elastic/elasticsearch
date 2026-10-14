@@ -186,7 +186,7 @@ PUT /_query/dataset/access_logs
 The `mappings` block supports the following properties:
 
 - `properties`: Columns keyed by their logical name. Each column requires a `type`.
-  - `rename_from`: Optional name of the file column to read from, when it differs from the declared column name. The file column is renamed, so its own name is no longer part of the schema — a common use is renaming a timestamp column to `@timestamp`.
+  - `rename_from`: Optional name of the file column to read from, when it differs from the declared column name. The file column is renamed, so its own name is no longer part of the schema. A common use is renaming a timestamp column to `@timestamp`.
     - {applies_to}`stack: experimental =9.5` This key is named `path`. A request that uses `path` is still accepted in 9.6 and later, and means the same thing.
     - {applies_to}`stack: experimental 9.6` To keep a file column whose name matches a metadata name, rename it here before requesting that name through `METADATA`.
   - `format`: Optional date parsing pattern for a column with type `date` or `date_nanos`. Without a `format`, a plain number in a `date` column is read as epoch milliseconds. Set `format` to `epoch_second` for epoch seconds.

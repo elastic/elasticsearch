@@ -349,19 +349,19 @@ public class CsvTestsDataLoader {
             "otel-exemplar-source-metrics-mappings.json",
             "exemplar-source-metrics.csv",
             "otel-metrics-settings.json"
-        ).asDataStream().withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V2),
+        ).asDataStream().withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V3),
         new TestDataset("exemplars-cpu", "otel-exemplars-mappings.json", "exemplars.csv", "otel-metrics-settings.json").asDataStream()
-            .withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V2),
+            .withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V3),
         new TestDataset(
             "metrics-noexemplars",
             "otel-exemplar-source-metrics-mappings.json",
             "exemplar-source-metrics.csv",
             "otel-metrics-settings.json"
-        ).asDataStream().withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V2),
+        ).asDataStream().withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V3),
         // Metrics with different fields than metrics-cpu and without an exemplar data stream (no exemplars-k8s data stream)
         new TestDataset("metrics-k8s", "k8s-mappings.json", "k8s.csv").asDataStream()
             .withSetting("k8s-settings.json")
-            .withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V2),
+            .withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V3),
         new TestDataset(
             "prom-metrics-name",
             "prom-metrics-name-mappings.json",
@@ -559,7 +559,8 @@ public class CsvTestsDataLoader {
             List.of(WHERE_IN_SUBQUERY_WITH_VIEW, EsqlCapabilities.Cap.STATS_WHERE_IN_SUBQUERY)
         ),
         new ViewConfig("view_with_fork", List.of(EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND_WITH_VIEW_FORK_DATASET)),
-        new ViewConfig("view_with_unionall", List.of(EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND_WITH_VIEW_FORK_DATASET))
+        new ViewConfig("view_with_unionall", List.of(EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND_WITH_VIEW_FORK_DATASET)),
+        new ViewConfig("fork_over_union_view", List.of(EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_FORK_NULL_FILL_DATE_NANOS))
     ).collect(toMap(ViewConfig::name, Function.identity()));
 
     /**
@@ -1383,7 +1384,7 @@ public class CsvTestsDataLoader {
                             + indexName
                             + "\""
                             + (document.id() != null ? ", \"_id\": \"" + document.id() + "\"" : "")
-                            + (document.slice() != null ? ", \"" + SliceIndexing.PARAM_NAME + "\": \"" + document.slice() + "\"" : "")
+                            + (document.slice() != null ? ", \"" + SliceIndexing.FIELD_NAME + "\": \"" + document.slice() + "\"" : "")
                             + "}}\n"
                     );
                     builder.append(document.json());

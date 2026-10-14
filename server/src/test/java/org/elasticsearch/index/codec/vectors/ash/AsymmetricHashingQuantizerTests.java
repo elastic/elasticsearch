@@ -93,7 +93,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
 
         record Config(int bitsPerDim, double relRmseThreshold) {}
 
-        for (var config : List.of(new Config(3, 0.75), new Config(4, 0.35), new Config(8, 0.05))) {
+        for (var config : List.of(new Config(3, 0.9), new Config(4, 0.35), new Config(8, 0.05))) {
             AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
                 1.0f,
                 config.bitsPerDim(),

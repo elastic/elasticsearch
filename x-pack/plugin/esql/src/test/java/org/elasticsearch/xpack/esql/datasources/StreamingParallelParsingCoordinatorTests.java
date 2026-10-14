@@ -1161,8 +1161,9 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * Stress test the consumer's EOF predicate against the race between the segmentator's final
      * {@code chunksDispatched.incrementAndGet()} and the dispatched parser task's
      * {@code tasksOutstanding.decrementAndGet()} in its {@code finally} block. The EOF condition
-     * — {@code currentChunk >= chunksDispatched && tasksOutstanding == 0} — must be re-checked
-     * after the apparent-empty branch of {@code takeNextPage}; without the re-read, the consumer
+     * — {@code tasksOutstanding == 0} then {@code currentChunk >= chunksDispatched} — must be re-checked
+     * after the apparent-empty branch of {@code takeNextPage}. {@code isReadyNow} / {@code producersDoneAndDrained}
+     * read {@code tasksOutstanding} first; the reverse order is the race. Without the re-read, the consumer
      * can return false while a parser is mid-page-publish, dropping the last chunk's rows.
      * <p>
      * Tiny chunks plus a small input plus high parallelism maximises the chance the consumer

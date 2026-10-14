@@ -1,6 +1,6 @@
 area: Inference
 issues: []
-pr: 160100
+pr: 162016
 summary: Fix Amazon Bedrock streaming requests hanging when the request fails
   before or just after the stream is subscribed
 type: bug

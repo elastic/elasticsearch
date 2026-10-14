@@ -68,7 +68,7 @@ public class Count extends UnaryAggregateFunction
         .capabilities("flattened", "histogram_bucket")
         .name("count");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
-        .acrossSeries(Count::new)
+        .acrossSeries((source, field) -> new Count(source, CountOverTime.promqlSample(field)))
         .description("Counts the number of elements in the input vector.")
         .example("count(http_requests_total)")
         .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)

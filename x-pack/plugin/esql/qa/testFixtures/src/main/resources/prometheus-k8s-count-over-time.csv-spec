@@ -140,7 +140,7 @@ events:double | step:datetime            | pod:keyword
 1.5           | 2024-05-10T00:06:00.000Z | three
 ;
 
-// In the remote-write layout a missing sample is no document at all, so windows without samples yield no row, as in Prometheus; the k8s original has documents with a null field and reports 0.
+// In the remote-write layout a missing sample is no document at all; the k8s original has documents with a null field. Either way a window without samples yields no row, as in Prometheus.
 count_over_time_null_values_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2

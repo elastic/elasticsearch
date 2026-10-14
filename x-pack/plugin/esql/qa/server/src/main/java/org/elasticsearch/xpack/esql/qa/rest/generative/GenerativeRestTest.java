@@ -634,7 +634,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isFieldFullTextError(ctx.normalizedErrorMessage, ctx.currentSchema),
         ctx -> isFullTextAfterWhereBugs(ctx.normalizedErrorMessage),
         ctx -> isFullTextAfterSubqueryInFromBug(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isFullTextAfterForkBranchCommand(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isLenientFalseFailedToCreateFullTextQueryError(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isFullTextNullQueryBuilderUnmappedLoadBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isUnsupportedTypeAfterForkError(ctx.normalizedErrorMessage, ctx.query),
@@ -1186,72 +1185,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             return false;
         }
         return SUBQUERY_IN_FROM_PATTERN.matcher(query).find() && FULL_TEXT_AFTER_SUBQUERY_IN_FROM_PATTERN.matcher(errorMessage).matches();
-    }
-
-    private static final Pattern FULL_TEXT_AFTER_COMMAND_PATTERN = Pattern.compile(
-        "(?:\\[(?:KQL|QSTR|MATCH|MATCH_PHRASE)] function|\\[:] operator) cannot be used after (\\w+)"
-    );
-
-    /**
-     * Full-text rejected after a command that lives inside a {@code FORK} branch. The verifier checks every command
-     * below the filter, including those inside the branches, and names the one it rejects (e.g. {@code STATS}) rather
-     * than {@code FORK}. Like {@link #isFullTextAfterSubqueryInFromBug}, the generator only inspects the outer command
-     * list, so it cannot avoid these. Tolerated only when every command the error names appears in a branch and nowhere
-     * in the outer pipeline, where the generator would have seen it.
-     */
-    static boolean isFullTextAfterForkBranchCommand(String errorMessage, String query) {
-        if (errorMessage == null || query == null) {
-            return false;
-        }
-        Matcher fork = FORK_COMMAND_PATTERN.matcher(query);
-        if (fork.find() == false) {
-            return false;
-        }
-        int branchesEnd = forkBranchesEnd(query, fork.end());
-        String branches = query.substring(fork.end(), branchesEnd);
-        String outer = query.substring(0, fork.end()) + query.substring(branchesEnd);
-        Matcher error = FULL_TEXT_AFTER_COMMAND_PATTERN.matcher(errorMessage);
-        boolean namesCommand = false;
-        while (error.find()) {
-            namesCommand = true;
-            Pattern command = Pattern.compile("(?i)(?:^|[|(])\\s*" + Pattern.quote(error.group(1)) + "\\b");
-            if (command.matcher(branches).find() == false || command.matcher(outer).find()) {
-                return false;
-            }
-        }
-        return namesCommand;
-    }
-
-    /**
-     * Returns the index just past the last parenthesised branch that follows {@code FORK} at {@code from}. Parentheses
-     * inside quoted strings and backquoted identifiers do not count.
-     */
-    private static int forkBranchesEnd(String query, int from) {
-        int end = from;
-        int depth = 0;
-        char quote = 0;
-        for (int i = from; i < query.length(); i++) {
-            char c = query.charAt(i);
-            if (quote != 0) {
-                if (c == '\\' && quote == '"') {
-                    i++;
-                } else if (c == quote) {
-                    quote = 0;
-                }
-            } else if (c == '"' || c == '`') {
-                quote = c;
-            } else if (c == '(') {
-                depth++;
-            } else if (c == ')' && depth > 0) {
-                depth--;
-                if (depth == 0) {
-                    end = i + 1;
-                }
-            } else if (depth == 0 && Character.isWhitespace(c) == false) {
-                break;
-            }
-        }
-        return end;
     }
 
     private static final Pattern MATCH_LENIENT_FALSE_PATTERN = Pattern.compile(

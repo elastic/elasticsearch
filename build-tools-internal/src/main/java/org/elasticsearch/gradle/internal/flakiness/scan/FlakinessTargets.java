@@ -105,7 +105,9 @@ public final class FlakinessTargets {
             return left;
         }
         if (left.runnable() == false) {
-            return right.runnable() ? right : targetWith(left, List.of(), Math.max(left.candidateTasks(), right.candidateTasks()), left.skipReason());
+            return right.runnable()
+                ? right
+                : targetWith(left, List.of(), Math.max(left.candidateTasks(), right.candidateTasks()), left.skipReason());
         }
         if (right.runnable() == false) {
             return left;

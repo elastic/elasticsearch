@@ -67,9 +67,9 @@ import java.util.concurrent.ExecutionException;
  * <p>
  * A version component was once rejected on cost: range splits come from
  * {@code StorageProvider.newObject(path, length)} with no modification time in hand, and calling
- * {@code lastModified()} would mean a HEAD request per split. That objection is answered by taking the
- * version from the listing, or from the probe that already resolves a single file, rather than asking the
- * store again.
+ * {@code lastModified()} would mean a HEAD request per split. That objection would be answered by taking
+ * the version from the listing, or from the probe that already resolves a single file, rather than asking
+ * the store again — that is the design tracked in #2094, not yet implemented here.
  *
  * <p>Cached {@code byte[]} entries must be treated as immutable by all callers.
  */

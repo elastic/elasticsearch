@@ -47,7 +47,7 @@ public class TranslateTimeSeriesWithoutTests extends AbstractLogicalPlanOptimize
         assertLowering(TimeSeriesAggregate.Origin.PROMQL_COMMAND, true);
     }
 
-    public void testLoweringPreservesNativeTimeSeriesColumnName() {
+    public void testLoweringPreservesNativeGroupingAlias() {
         assertLowering(TimeSeriesAggregate.Origin.TS_COMMAND, false);
     }
 
@@ -65,7 +65,6 @@ public class TranslateTimeSeriesWithoutTests extends AbstractLogicalPlanOptimize
         var fn = new TimeSeriesWithout(Source.EMPTY, new ArrayList<>(List.<Expression>of(cluster)));
         boolean promql = origin == TimeSeriesAggregate.Origin.PROMQL_COMMAND;
         String groupingName = promql ? MetadataAttribute.TIMESERIES + "$1" : "WITHOUT(cluster)";
-        String outputName = promql ? groupingName : MetadataAttribute.TIMESERIES;
         var timeSeriesGrouping = (NamedExpression) new Alias(fn.source(), groupingName, fn, null, randomBoolean());
         TimeSeriesAggregate aggregate = new TimeSeriesAggregate(
             Source.EMPTY,
@@ -83,16 +82,14 @@ public class TranslateTimeSeriesWithoutTests extends AbstractLogicalPlanOptimize
         );
 
         Alias loweredAlias = as(lowered.groupings().getFirst(), Alias.class);
-        assertThat(loweredAlias.name(), equalTo(outputName));
+        assertThat(loweredAlias.name(), equalTo(groupingName));
         assertThat(loweredAlias.id(), equalTo(timeSeriesGrouping.id()));
         assertEquals(timeSeriesGrouping.synthetic(), loweredAlias.synthetic());
         TimeSeriesMetadataAttribute loweredGrouping = as(loweredAlias.child(), TimeSeriesMetadataAttribute.class);
         assertNotEquals(loweredGrouping.id(), loweredAlias.id());
-        assertThat(lowered.aggregates().getFirst().name(), equalTo(outputName));
+        assertThat(lowered.aggregates().getFirst().name(), equalTo(groupingName));
         assertThat(lowered.aggregates().getFirst().id(), equalTo(timeSeriesGrouping.id()));
-        if (promql) {
-            assertThat(lowered.aggregates().getFirst(), sameInstance(aggregate.aggregates().getFirst()));
-        }
+        assertThat(lowered.aggregates().getFirst(), sameInstance(aggregate.aggregates().getFirst()));
         assertThat(loweredGrouping.name(), equalTo(MetadataAttribute.TIMESERIES));
         assertThat(loweredGrouping.excludedFields(), equalTo(Set.of("cluster")));
 

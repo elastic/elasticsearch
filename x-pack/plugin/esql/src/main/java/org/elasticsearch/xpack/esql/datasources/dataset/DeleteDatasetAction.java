@@ -18,10 +18,15 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.esql.EsqlDatasetActionNames;
+import org.elasticsearch.xpack.core.security.audit.SecurityConfigChange;
+import org.elasticsearch.xpack.core.security.audit.SecurityConfigChangeData;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -39,7 +44,7 @@ public class DeleteDatasetAction extends ActionType<AcknowledgedResponse> {
         super(NAME);
     }
 
-    public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest.Replaceable {
+    public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest.Replaceable, SecurityConfigChange {
         private String[] names;
         private ResolvedIndexExpressions resolvedIndexExpressions;
 
@@ -102,6 +107,16 @@ public class DeleteDatasetAction extends ActionType<AcknowledgedResponse> {
         @Override
         public ResolvedIndexExpressions getResolvedIndexExpressions() {
             return this.resolvedIndexExpressions;
+        }
+
+        @Override
+        public SecurityConfigChangeData securityConfigChangeData() {
+            return new SecurityConfigChangeData(
+                SecurityConfigChangeData.Operation.DELETE,
+                "dataset",
+                null,
+                Map.of("names", List.of(names))
+            );
         }
 
         @Override

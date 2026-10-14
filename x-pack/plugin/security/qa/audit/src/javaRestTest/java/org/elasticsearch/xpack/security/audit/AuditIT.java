@@ -149,41 +149,22 @@ public class AuditIT extends ESRestTestCase {
             assertThat(toJson(event), not(containsString(secretKey)));
         });
         // ensure `security_config_change` event is recorded as well
-        assertBusy(() -> {
-            try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
-                final List<String> lines = Streams.readAllLines(auditLog);
-                final List<Map<String, Object>> events = findSecurityConfigChangeEvents(lines, "put_data_source", start).stream()
-                    .filter(
-                        e -> dataSourceName.equals(
-                            asMap(asMap(e.get(LoggingAuditTrail.PUT_CONFIG_FIELD_NAME)).get("data_source")).get("name")
-                        )
-                    )
-                    .toList();
-                if (events.isEmpty()) {
-                    fail("Could not find a [put_data_source] security_config_change event for [" + dataSourceName + "]");
-                }
-                assertThat(events, hasSize(1));
-                final Map<String, Object> event = events.get(0);
-                final Map<String, Object> dataSource = asMap(asMap(event.get(LoggingAuditTrail.PUT_CONFIG_FIELD_NAME)).get("data_source"));
-                assertThat(
-                    dataSource,
-                    equalTo(
-                        Map.of(
-                            "name",
-                            dataSourceName,
-                            "settings.secret_key",
-                            "::es_redacted::",
-                            "settings.access_key",
-                            "::es_redacted::",
-                            "type",
-                            "s3",
-                            "settings.endpoint",
-                            FIXTURE_ENDPOINT
-                        )
-                    )
-                );
-            }
-        }, 5, TimeUnit.SECONDS);
+        assertPutDatasource(
+            dataSourceName,
+            Map.of(
+                "name",
+                dataSourceName,
+                "settings.secret_key",
+                "::es_redacted::",
+                "settings.access_key",
+                "::es_redacted::",
+                "type",
+                "s3",
+                "settings.endpoint",
+                FIXTURE_ENDPOINT
+            ),
+            start
+        );
     }
 
     public void testPutDatasetAuditsSecurityConfigChange() throws Exception {
@@ -220,35 +201,59 @@ public class AuditIT extends ESRestTestCase {
         });
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         // ensure `security_config_change` event is recorded as well
+        assertPutDataset(
+            datasetName,
+            Map.of(
+                "name",
+                datasetName,
+                "resource",
+                "s3://example-bucket/cloudtrail/*.parquet",
+                "dataSource",
+                dataSourceName,
+                "settings.region",
+                "us-east-1"
+            ),
+            start
+        );
+
+        var deleteStart = Instant.now();
+        var deleteDatasetRequest = new Request("DELETE", "/_query/dataset/" + datasetName);
+        var deleteDatasetResponse = executeAndVerifyAudit(deleteDatasetRequest, AuditLevel.AUTHENTICATION_SUCCESS, event -> {});
+        assertThat(deleteDatasetResponse.getStatusLine().getStatusCode(), equalTo(200));
+
         assertBusy(() -> {
             try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
                 final List<String> lines = Streams.readAllLines(auditLog);
-                final List<Map<String, Object>> events = findSecurityConfigChangeEvents(lines, "put_dataset", start).stream()
-                    .filter(
-                        e -> datasetName.equals(asMap(asMap(e.get(LoggingAuditTrail.PUT_CONFIG_FIELD_NAME)).get("dataset")).get("name"))
-                    )
+                final List<Map<String, Object>> events = findSecurityConfigChangeEvents(lines, "delete_dataset", deleteStart).stream()
+                    .filter(e -> e.get(LoggingAuditTrail.DELETE_CONFIG_FIELD_NAME) != null)
                     .toList();
                 if (events.isEmpty()) {
-                    fail("Could not find a [put_dataset] security_config_change event for [" + datasetName + "]");
+                    fail("Could not find a [delete_dataset] security_config_change event for [" + datasetName + "]");
                 }
                 assertThat(events, hasSize(1));
                 final Map<String, Object> event = events.get(0);
-                final Map<String, Object> dataSource = asMap(asMap(event.get(LoggingAuditTrail.PUT_CONFIG_FIELD_NAME)).get("dataset"));
-                assertThat(
-                    dataSource,
-                    equalTo(
-                        Map.of(
-                            "name",
-                            datasetName,
-                            "resource",
-                            "s3://example-bucket/cloudtrail/*.parquet",
-                            "dataSource",
-                            dataSourceName,
-                            "settings.region",
-                            "us-east-1"
-                        )
-                    )
-                );
+                final Map<String, Object> dataSource = asMap(asMap(event.get(LoggingAuditTrail.DELETE_CONFIG_FIELD_NAME)).get("dataset"));
+                assertThat(dataSource, equalTo(Map.of("names", List.of(datasetName))));
+            }
+        }, 5, TimeUnit.SECONDS);
+
+        var deleteDatasourceRequest = new Request("DELETE", "/_query/data_source/" + dataSourceName);
+        var deleteDatasourceResponse = executeAndVerifyAudit(deleteDatasourceRequest, AuditLevel.AUTHENTICATION_SUCCESS, event -> {});
+        assertThat(deleteDatasourceResponse.getStatusLine().getStatusCode(), equalTo(200));
+
+        assertBusy(() -> {
+            try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
+                final List<String> lines = Streams.readAllLines(auditLog);
+                final List<Map<String, Object>> events = findSecurityConfigChangeEvents(lines, "delete_data_source", deleteStart).stream()
+                    .filter(e -> e.get(LoggingAuditTrail.DELETE_CONFIG_FIELD_NAME) != null)
+                    .toList();
+                if (events.isEmpty()) {
+                    fail("Could not find a [delete_data_source] security_config_change event for [" + datasetName + "]");
+                }
+                assertThat(events, hasSize(1));
+                final Map<String, Object> event = events.get(0);
+                final Map<String, Object> dataSource = asMap(asMap(event.get(LoggingAuditTrail.DELETE_CONFIG_FIELD_NAME)).get("data_source"));
+                assertThat(dataSource, equalTo(Map.of("names", List.of(dataSourceName))));
             }
         }, 5, TimeUnit.SECONDS);
     }
@@ -384,37 +389,20 @@ public class AuditIT extends ESRestTestCase {
             assertThat(toJson(event), not(containsString(shadowedSecretKey)));
         });
         assertThat(response.getStatusLine().getStatusCode(), equalTo(400));
-        assertBusy(() -> {
-            try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
-                final List<String> lines = Streams.readAllLines(auditLog);
-                final List<Map<String, Object>> events = findSecurityConfigChangeEvents(lines, "put_dataset", start).stream()
-                    .filter(
-                        e -> datasetName.equals(asMap(asMap(e.get(LoggingAuditTrail.PUT_CONFIG_FIELD_NAME)).get("dataset")).get("name"))
-                    )
-                    .toList();
-                if (events.isEmpty()) {
-                    fail("Could not find a [put_dataset] security_config_change event for [" + datasetName + "]");
-                }
-                assertThat(events, hasSize(1));
-                final Map<String, Object> event = events.get(0);
-                final Map<String, Object> dataSource = asMap(asMap(event.get(LoggingAuditTrail.PUT_CONFIG_FIELD_NAME)).get("dataset"));
-                assertThat(
-                    dataSource,
-                    equalTo(
-                        Map.of(
-                            "name",
-                            datasetName,
-                            "resource",
-                            "s3://example-bucket/cloudtrail/*.parquet",
-                            "dataSource",
-                            dataSourceName,
-                            "settings.secret_key",
-                            "::es_redacted::"
-                        )
-                    )
-                );
-            }
-        }, 5, TimeUnit.SECONDS);
+        assertPutDataset(
+            datasetName,
+            Map.of(
+                "name",
+                datasetName,
+                "resource",
+                "s3://example-bucket/cloudtrail/*.parquet",
+                "dataSource",
+                dataSourceName,
+                "settings.secret_key",
+                "::es_redacted::"
+            ),
+            start
+        );
     }
 
     /**
@@ -447,35 +435,11 @@ public class AuditIT extends ESRestTestCase {
             assertThat(toJson(event), not(containsString(signature)));
         });
         assertThat(response.getStatusLine().getStatusCode(), equalTo(400));
-        assertBusy(() -> {
-            try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
-                final List<String> lines = Streams.readAllLines(auditLog);
-                final List<Map<String, Object>> events = findSecurityConfigChangeEvents(lines, "put_dataset", start).stream()
-                    .filter(
-                        e -> datasetName.equals(asMap(asMap(e.get(LoggingAuditTrail.PUT_CONFIG_FIELD_NAME)).get("dataset")).get("name"))
-                    )
-                    .toList();
-                if (events.isEmpty()) {
-                    fail("Could not find a [put_dataset] security_config_change event for [" + datasetName + "]");
-                }
-                assertThat(events, hasSize(1));
-                final Map<String, Object> event = events.get(0);
-                final Map<String, Object> dataSource = asMap(asMap(event.get(LoggingAuditTrail.PUT_CONFIG_FIELD_NAME)).get("dataset"));
-                assertThat(
-                    dataSource,
-                    equalTo(
-                        Map.of(
-                            "name",
-                            datasetName,
-                            "resource",
-                            "https://" + hostAndPath,
-                            "dataSource",
-                            dataSourceName
-                        )
-                    )
-                );
-            }
-        }, 5, TimeUnit.SECONDS);
+        assertPutDataset(
+            datasetName,
+            Map.of("name", datasetName, "resource", "https://" + hostAndPath, "dataSource", dataSourceName),
+            start
+        );
     }
 
     public void testDatasetPutWithoutDatasourceReadEmitsAccessDenied() throws Exception {
@@ -863,4 +827,45 @@ public class AuditIT extends ESRestTestCase {
         return bytes.utf8ToString();
     }
 
+    private void assertPutDatasource(String dataSourceName, Map<String, String> details, Instant start) throws Exception {
+        assertBusy(() -> {
+            try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
+                final List<String> lines = Streams.readAllLines(auditLog);
+                final List<Map<String, Object>> events = findSecurityConfigChangeEvents(lines, "put_data_source", start).stream()
+                    .filter(
+                        e -> dataSourceName.equals(
+                            asMap(asMap(e.get(LoggingAuditTrail.PUT_CONFIG_FIELD_NAME)).get("data_source")).get("name")
+                        )
+                    )
+                    .toList();
+                if (events.isEmpty()) {
+                    fail("Could not find a [put_data_source] security_config_change event for [" + dataSourceName + "]");
+                }
+                assertThat(events, hasSize(1));
+                final Map<String, Object> event = events.get(0);
+                final Map<String, Object> dataSource = asMap(asMap(event.get(LoggingAuditTrail.PUT_CONFIG_FIELD_NAME)).get("data_source"));
+                assertThat(dataSource, equalTo(details));
+            }
+        }, 5, TimeUnit.SECONDS);
+    }
+
+    private void assertPutDataset(String datasetName, Map<String, String> details, Instant start) throws Exception {
+        assertBusy(() -> {
+            try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
+                final List<String> lines = Streams.readAllLines(auditLog);
+                final List<Map<String, Object>> events = findSecurityConfigChangeEvents(lines, "put_dataset", start).stream()
+                    .filter(
+                        e -> datasetName.equals(asMap(asMap(e.get(LoggingAuditTrail.PUT_CONFIG_FIELD_NAME)).get("dataset")).get("name"))
+                    )
+                    .toList();
+                if (events.isEmpty()) {
+                    fail("Could not find a [put_dataset] security_config_change event for [" + datasetName + "]");
+                }
+                assertThat(events, hasSize(1));
+                final Map<String, Object> event = events.get(0);
+                final Map<String, Object> dataSource = asMap(asMap(event.get(LoggingAuditTrail.PUT_CONFIG_FIELD_NAME)).get("dataset"));
+                assertThat(dataSource, equalTo(details));
+            }
+        }, 5, TimeUnit.SECONDS);
+    }
 }

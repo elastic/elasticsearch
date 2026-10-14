@@ -373,7 +373,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         CreateCrossClusterApiKeyAction.NAME,
         UpdateCrossClusterApiKeyAction.NAME,
         EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME,
-        EsqlDataSourceActionNames.ESQL_PUT_DATA_SOURCE_ACTION_NAME
+        EsqlDatasetActionNames.ESQL_DELETE_DATASET_ACTION_NAME,
+        EsqlDataSourceActionNames.ESQL_PUT_DATA_SOURCE_ACTION_NAME,
+        EsqlDataSourceActionNames.ESQL_DELETE_DATA_SOURCE_ACTION_NAME
     );
     private static final String FILTER_POLICY_PREFIX = setting("audit.logfile.events.ignore_filters.");
     // because of the default wildcard value (*) for the field filter, a policy with
@@ -1461,7 +1463,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             );
 
             var builder = JsonXContent.contentBuilder().humanReadable(true);
-            builder.startObject().startObject(changeData.objectType()).field("name", changeData.name());
+            builder.startObject().startObject(changeData.objectType());
+            if (changeData.name() != null) {
+                builder.field("name", changeData.name());
+            }
             for (var entry : changeData.safeFields().entrySet()) {
                 builder.field(entry.getKey(), entry.getValue());
             }

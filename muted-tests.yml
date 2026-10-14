@@ -339,8 +339,6 @@ tests:
 - class: org.elasticsearch.xpack.prometheus.PrometheusMetadataRestIT
   method: testMultipleEntriesForSameMetricAcrossStreams
   issue: https://github.com/elastic/elasticsearch/issues/147170
-- class: org.elasticsearch.xpack.sql.qa.security.CliSecurityIT
-  issue: https://github.com/elastic/elasticsearch/issues/158631
 - class: org.elasticsearch.multi_cluster.MultiClusterWithSecurityYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/158911
 - class: org.elasticsearch.xpack.transform.integration.continuous.TransformContinuousIT
@@ -587,3 +585,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.csv.CsvCompressedFormatSpecIT
   method: test {csv-spec:csv-multifile-resolution.ffwSalaryStats [csv.gz/S3]}
   issue: https://github.com/elastic/elasticsearch/issues/162041
+- class: org.elasticsearch.xpack.esql.action.EsqlDisruptionIT
+  method: testMaxFillNullFieldsSetting
+  issue: https://github.com/elastic/elasticsearch/issues/162061

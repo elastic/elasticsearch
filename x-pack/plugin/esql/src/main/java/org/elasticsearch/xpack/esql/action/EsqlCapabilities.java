@@ -1555,6 +1555,12 @@ public class EsqlCapabilities {
         NESTED_SUBQUERY_IN_FROM_COMMAND_WITH_VIEW_FORK_DATASET,
 
         /**
+         * Fix for FORK alignment null-fillers that kept {@code datetime} after {@code ResolveUnionTypesInUnionAll} widened a sibling
+         * subquery column to {@code date_nanos}. FORK-only queries are unchanged.
+         */
+        SUBQUERY_IN_FROM_COMMAND_FORK_NULL_FILL_DATE_NANOS,
+
+        /**
          * Support IN non-correlated subqueries in WHERE command.
          */
         WHERE_IN_SUBQUERY,
@@ -1781,8 +1787,6 @@ public class EsqlCapabilities {
          * Does the usage information for ESQL contain per-component CPU counters for successful
          * external-source queries ({@code datasources.queries.cpu_nanos.execution},
          * {@code .read}, {@code .planning}, {@code .split_discovery}, {@code .total})?
-         * Note: the {@code planning} component is currently wall time pending a real planning-CPU
-         * measurement in {@code EsqlQueryProfile}.
          */
         USAGE_CONTAINS_DATASOURCES_QUERY_CPU,
 
@@ -4184,6 +4188,11 @@ public class EsqlCapabilities {
          * Support partitioning in aggregations
          */
         PARTITIONING_AGGREGATIONS(),
+
+        /**
+         * Support for the FILLNULL command that replaces null values with defaults or with user-specified value.
+         */
+        FILLNULL(Build.current().isSnapshot()),
 
         /**
          * {@link org.elasticsearch.xpack.esql.session.IndexResolver} applies {@code -nested} on the

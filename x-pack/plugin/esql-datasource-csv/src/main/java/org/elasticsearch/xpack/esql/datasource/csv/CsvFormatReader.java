@@ -390,8 +390,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
         try {
             long nanos = Math.addExact(Math.multiplyExact(seconds, 1_000_000_000L), nanoOfSecond);
-            // The date_nanos domain, which this stage has to enforce itself because it returns before Stage 3's
-            // DateUtils.asNanos would. Only the floor needs a test: Long.MAX_VALUE nanoseconds IS
+            // The date_nanos domain, which this stage has to enforce itself before the general DateUtils.toLong
+            // path. Only the floor needs a test: Long.MAX_VALUE nanoseconds IS
             // 2262-04-11T23:47:16.854775807, the top of the domain, so the exact arithmetic above already rejects
             // anything past it. A pre-1970 instant has no nanosecond representation, so it falls through and the
             // general parser reports the cell rather than this stage emitting a negative nanos long.

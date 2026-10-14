@@ -3079,6 +3079,32 @@ public class GlobExpanderTests extends ESTestCase {
         return config;
     }
 
+    /**
+     * The extent is part of the listing's address. Sharing a bounded listing is only safe because of this: a query
+     * that wants the whole pattern cannot be served a prefix of it, and two different bounds are two different
+     * answers. Before the extent joined the key, a bound had to bypass the cache entirely for want of a way to say
+     * which of the two values a holder had.
+     */
+    public void testTheListingCacheKeyDistinguishesTheExtentAsked() {
+        String pattern = "s3://bucket/data/year=*/month=*/*.parquet";
+        String unbounded = GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_ON, ListingExtents.UNBOUNDED);
+        String thousand = GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_ON, new ListingExtents(1000));
+        String ten = GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_ON, new ListingExtents(10));
+
+        assertNotEquals("a prefix of the pattern is not the pattern", unbounded, thousand);
+        assertNotEquals("and two different prefixes are two different answers", thousand, ten);
+        assertEquals(
+            "while the same bound on the same pattern is the same question",
+            thousand,
+            GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_ON, new ListingExtents(1000))
+        );
+        assertEquals(
+            "and the no-extent overload means the unbounded ask",
+            unbounded,
+            GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_ON)
+        );
+    }
+
     private static StorageEntry entry(String path, long length) {
         return new StorageEntry(StoragePath.of(path), length, Instant.EPOCH);
     }

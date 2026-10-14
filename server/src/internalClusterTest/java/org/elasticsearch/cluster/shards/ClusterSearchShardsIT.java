@@ -32,7 +32,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_WR
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 2)
@@ -181,18 +180,13 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
         assertThat(response.getGroups().length, equalTo(1));
     }
 
-    public void testSliceRejectedWhenSliceDisabledIndex() {
+    public void testSliceAcceptedWhenSliceDisabledIndex() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         createIndex("slice-disabled");
         ensureGreen("slice-disabled");
 
-        ClusterSearchShardsRequest request = new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, "slice-disabled").searchSlice("s1");
-        IllegalArgumentException e = safeAwaitAndUnwrapFailure(
-            IllegalArgumentException.class,
-            ClusterSearchShardsResponse.class,
-            listener -> client().execute(TransportClusterSearchShardsAction.TYPE, request, listener)
-        );
-        assertThat(e.getMessage(), containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
+        ClusterSearchShardsResponse response = safeExecute(sliceRequest("slice-disabled", "s1"));
+        assertThat(response.getGroups().length, equalTo(1));
     }
 
     public void testSliceRoutingReturnsExpectedShardGroupsWhenSliceEnabled() {

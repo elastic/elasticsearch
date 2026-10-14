@@ -114,8 +114,15 @@ public final class ManifoldModel {
     /** Number of representative calibration queries kept in {@link QueryCurves}. */
     static final int REPRESENTATIVE_QUERIES = 16;
 
-    /** Minimum number of (rank, sample size) points a per-query curve is fitted on. */
-    static final int MIN_QUERY_FIT_POINTS = 12;
+    /**
+     * Minimum number of (rank, sample size) points a per-query curve is fitted on. For very large segments no sweep
+     * point lies inside the target range and the nearest points are the lowest ranks (1-2) of the largest prefixes.
+     * Along nested prefixes a query's rank-1 distance is a step function (it only changes when a closer document
+     * arrives), so a fit on those few points alone gives near-zero slopes for most queries and grossly pessimistic
+     * recall (DBpedia, 4.6M vectors: -20 pts). 180 points (about the lowest decile of the 25 x 60 grid) also span
+     * ranks up to about 10, which keeps the fit local yet stable.
+     */
+    static final int MIN_QUERY_FIT_POINTS = 180;
 
     /**
      * Estimate manifold parameters (alpha, invDim) using default sample sizes.
@@ -358,7 +365,7 @@ public final class ManifoldModel {
                 inside++;
             }
         }
-        int nSelected = Math.min(total, Math.max(MIN_QUERY_FIT_POINTS, inside));
+        int nSelected = Math.clamp(inside, MIN_QUERY_FIT_POINTS, total);
         Integer[] byDistance = new Integer[total];
         for (int i = 0; i < total; i++) {
             byDistance[i] = i;

@@ -14,6 +14,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -478,7 +479,7 @@ public class ManifoldModelTests extends ESTestCase {
     public void testFitQueryCurvesUsesPointsClosestToTheSegmentScale() {
         int steps = ManifoldModel.SAMPLE_SIZES.length;
         int ranks = 60;
-        double knee = -8.0;
+        double knee = -7.0; // the MIN_QUERY_FIT_POINTS lowest x of the grid are all below -7.19
         double fineSlope = 0.15;
         double coarseSlope = 0.05;
         float[][][] sorted = new float[1][steps][ranks];
@@ -502,6 +503,40 @@ public class ManifoldModelTests extends ESTestCase {
         );
         assertEquals(1, curves.size());
         assertEquals(fineSlope, curves.slope()[0], 1e-3);
+    }
+
+    /**
+     * Regression test for very large segments (e.g., DBpedia, 4.6M vectors): no sweep point lies inside the target range,
+     * and along nested prefixes a query's rank-1 and rank-2 distances are step functions (flat here). Fitting on the
+     * dozen lowest-rank points alone collapses the slope (to about 0.04 for a true 0.08) and the recall prediction
+     * with it; the fit must use enough points to reach the ranks that still follow the power law.
+     */
+    public void testFitQueryCurvesIsStableForVeryLargeSegments() {
+        int steps = ManifoldModel.SAMPLE_SIZES.length;
+        int ranks = 60;
+        double slope = 0.08;
+        int largest = ManifoldModel.SAMPLE_SIZES[steps - 1];
+        float[][][] sorted = new float[1][steps][ranks];
+        for (int s = 0; s < steps; s++) {
+            for (int r = 1; r <= ranks; r++) {
+                int size = r <= 2 ? largest : ManifoldModel.SAMPLE_SIZES[s];
+                sorted[0][s][r - 1] = (float) Math.exp(slope * (Math.log(r) - Math.log(size)));
+            }
+        }
+        ManifoldModel.QueryCurves curves = ManifoldModel.fitQueryCurves(
+            sorted,
+            ManifoldModel.SAMPLE_SIZES,
+            filled(steps, ranks),
+            steps,
+            4_635_922,
+            10,
+            30,
+            0,
+            0.05
+        );
+        Assert.assertNotNull(curves);
+        assertThat(curves.slope()[0], greaterThan(0.06));
+        assertThat(curves.slope()[0], lessThan(0.12));
     }
 
     public void testFitQueryCurvesFallsBackForDegenerateQueries() {

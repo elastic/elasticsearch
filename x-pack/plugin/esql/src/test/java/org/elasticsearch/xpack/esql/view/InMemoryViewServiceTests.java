@@ -63,6 +63,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -888,6 +889,8 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     private static final String maxDepthViewsError = "ES|QL query exceeded the maximum query depth allowed (500) after expanding views";
+    private static final String maxPlanNodesViewsError =
+        "ES|QL query exceeded the maximum plan size allowed (10000 nodes) after expanding views";
 
     public void testMaxQueryDepthAcrossViews() {
         addView("long_view", "FROM emp" + pipes(300));
@@ -1073,20 +1076,70 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
     /**
      * The k-th of {@code n} successive {@code WHERE x IN (FROM view_k)} has the joins of the {@code n - k} later ones and its own above
-     * it, and {@code view_k} has {@code k} pipes, so every path has {@code n + 1} commands: the limit holds for any {@code k}. Views
-     * of 1, 2, 3... pipes make the resolved plan as large as the sum of them, here about 125,000 nodes, which no limit prevents.
+     * it, and {@code view_k} has {@code k} pipes, so every path has {@code n + 1} commands: the limit on the commands of a path holds
+     * for any {@code k}. Views of 1, 2, 3... pipes make the resolved plan as large as the sum of them, here about 500,000 nodes, and
+     * only the limit on the nodes of the plan rejects that.
      */
-    public void testMaxQueryDepthOfManyInSubqueriesOfGrowingViews() {
+    public void testMaxPlanNodesOfManyInSubqueriesOfGrowingViews() {
         int maxDepth = LogicalPlanBuilder.MAX_QUERY_DEPTH;
         for (int k = 1; k <= maxDepth; k++) {
             addView("growing_view_" + k, "FROM emp" + pipes(k));
         }
-        replaceViews(query(inSubqueriesOfGrowingViews(maxDepth - 1)));
+        // about 5,000 nodes, four for each pipe: the command, the comparison, and its two operands
+        replaceViews(query(inSubqueriesOfGrowingViews(50)));
         expectThrows(
             VerificationException.class,
-            startsWith(maxDepthViewsError),
-            () -> replaceViews(query(inSubqueriesOfGrowingViews(maxDepth)))
+            startsWith(maxPlanNodesViewsError),
+            () -> replaceViews(query(inSubqueriesOfGrowingViews(maxDepth - 1)))
         );
+    }
+
+    /**
+     * Each reference to a view expands the body of the view again, so views that reference the view below them ten times each expand
+     * to ten times as many nodes at each level. The text of each view stays a hundred characters long.
+     */
+    public void testMaxPlanNodesOfViewsThatReferenceViewsManyTimes() {
+        addView("fan_out_view_1", "FROM emp | WHERE a > 0");
+        for (int level = 2; level <= 5; level++) {
+            String reference = "(FROM fan_out_view_" + (level - 1) + ")";
+            addView("fan_out_view_" + level, "FROM " + String.join(", ", Collections.nCopies(10, reference)) + " | WHERE a > 0");
+        }
+        // about 7,800 nodes. Compaction would reject the repeated views, which is not what is under test here.
+        replaceViewsWithoutCompactionNonCps(query("FROM fan_out_view_4"));
+        // about 80,000 nodes, which fails as soon as the plan has more than the limit and does not expand the rest
+        Exception e = expectThrows(VerificationException.class, () -> replaceViews(query("FROM fan_out_view_5")));
+        assertThat(e.getMessage(), startsWith(maxPlanNodesViewsError));
+        assertThat(e.getMessage(), containsString("after expanding views [fan_out_view_5 -> fan_out_view_4"));
+    }
+
+    /**
+     * Subqueries bring nodes without views, since each of them may have as many commands as the limit on a path allows. A command such
+     * as {@code WHERE a > 0} is four nodes: the command, the comparison, and its two operands.
+     */
+    public void testMaxPlanNodesOfQueryWithoutViews() {
+        String subquery = "(FROM emp2" + pipes(499) + ")";
+        // about 6,000 nodes
+        replaceViews(query("FROM " + String.join(", ", Collections.nCopies(3, subquery))));
+        // about 12,000 nodes
+        Exception e = expectThrows(
+            VerificationException.class,
+            () -> replaceViews(query("FROM " + String.join(", ", Collections.nCopies(6, subquery))))
+        );
+        assertThat(e.getMessage(), startsWith("ES|QL query exceeded the maximum plan size allowed (10000 nodes): ["));
+    }
+
+    /**
+     * The nodes of expressions count too, and a single command holds as many as the length of the query allows.
+     */
+    public void testMaxPlanNodesOfWideExpression() {
+        // about 5,000 nodes
+        replaceViews(query("FROM emp | EVAL y = COALESCE(" + String.join(", ", Collections.nCopies(5_000, "a")) + ")"));
+        // about 10,000 nodes
+        Exception e = expectThrows(
+            VerificationException.class,
+            () -> replaceViews(query("FROM emp | EVAL y = COALESCE(" + String.join(", ", Collections.nCopies(10_000, "a")) + ")"))
+        );
+        assertThat(e.getMessage(), startsWith("ES|QL query exceeded the maximum plan size allowed (10000 nodes): ["));
     }
 
     private static String inSubqueriesOfGrowingViews(int count) {

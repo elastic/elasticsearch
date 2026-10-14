@@ -134,6 +134,34 @@ public class SliceKnnSearchIT extends ESIntegTestCase {
     }
 
     /**
+     * An index without slices holds no document of the named slices, so its vectors, however near, take no place among the
+     * nearest neighbours of a search that also targets a slice-enabled index.
+     */
+    public void testNamedSlicesOnIndexWithoutSlices() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        final String index = createSliceIndex();
+        assertAcked(prepareCreate("plain").setSettings(Settings.builder().put("index.number_of_shards", 1)).setMapping("""
+            { "properties": { "vector": { "type": "dense_vector", "dims": 8, "index": true, "similarity": "l2_norm" } } }"""));
+        final BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int i = 0; i < NEAR_DOCS; i++) {
+            bulk.add(new IndexRequest("plain").id("plain-" + i).source("vector", vector(1f, i * 0.001f)).routing("far"));
+        }
+        assertNoFailures(bulk.get());
+
+        final SearchRequestBuilder search = prepareSearch(index, "plain").setKnnSearch(
+            List.of(new KnnSearchBuilder("vector", queryVector(), FAR_DOCS, 10, null, null, null))
+        ).setSize(10);
+        search.request().searchSlice("far");
+        assertResponse(search, response -> {
+            assertNoFailures(response);
+            assertThat(response.getHits().getHits().length, equalTo(FAR_DOCS));
+            for (SearchHit hit : response.getHits().getHits()) {
+                assertThat(hit.getId(), startsWith("far-"));
+            }
+        });
+    }
+
+    /**
      * A request that names no slice reads every slice when none of its queries needs them by name.
      */
     public void testOtherQueriesNeedNoSlices() {

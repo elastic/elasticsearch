@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -24,7 +23,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 
@@ -68,7 +66,6 @@ public final class TranslateTimeSeriesWithout extends AnalyzerRules.Parameterize
     @Override
     protected LogicalPlan rule(TimeSeriesAggregate aggregate, AnalyzerContext context) {
         // Keep metadata source fields canonical and preserve each grouping's identity through an alias.
-        var renamedGroupings = new LinkedHashMap<NameId, Attribute>();
         var loweredAttributes = new ArrayList<TimeSeriesMetadataAttribute>();
         var newGroupings = new ArrayList<Expression>(aggregate.groupings().size());
 
@@ -99,15 +96,9 @@ public final class TranslateTimeSeriesWithout extends AnalyzerRules.Parameterize
                     excludedFields
                 );
                 loweredAttributes.add(lowered);
-                // Native WITHOUT exposes _timeseries; PromQL assigns a distinct name to each metadata projection.
-                String name = aggregate.origin() == TimeSeriesAggregate.Origin.PROMQL_COMMAND
-                    ? groupingAttribute.name()
-                    : MetadataAttribute.TIMESERIES;
-                var alias = new Alias(grouping.source(), name, lowered, groupingAttribute.id(), groupingAttribute.synthetic());
-                newGroupings.add(alias);
-                if (name.equals(groupingAttribute.name()) == false) {
-                    renamedGroupings.put(groupingAttribute.id(), alias.toAttribute());
-                }
+                newGroupings.add(
+                    new Alias(grouping.source(), groupingAttribute.name(), lowered, groupingAttribute.id(), groupingAttribute.synthetic())
+                );
             } else {
                 newGroupings.add(grouping);
             }
@@ -117,14 +108,7 @@ public final class TranslateTimeSeriesWithout extends AnalyzerRules.Parameterize
             return aggregate;
         }
 
-        // Preserve the native WITHOUT output column name in references to the grouping.
-        List<NamedExpression> newAggregates = new ArrayList<>(aggregate.aggregates().size());
-        for (NamedExpression agg : aggregate.aggregates()) {
-            newAggregates.add(
-                (NamedExpression) agg.transformDown(Attribute.class, attribute -> renamedGroupings.getOrDefault(attribute.id(), attribute))
-            );
-        }
         LogicalPlan newChild = addLoweredAttributesToTimeSeriesSource(aggregate.child(), loweredAttributes);
-        return aggregate.with(newChild, newGroupings, newAggregates);
+        return aggregate.with(newChild, newGroupings, aggregate.aggregates());
     }
 }

@@ -241,7 +241,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
     }
 
     private static Eval padNullUnmappedFields(LogicalPlan child) {
-        Alias alias = new Alias(Source.EMPTY, UnmappedFieldsAttribute.ATTRIBUTE_NAME, new Literal(Source.EMPTY, null, DataType.KEYWORD));
+        Alias alias = new Alias(Source.EMPTY, UnmappedFieldsAttribute.ATTRIBUTE_NAME, new Literal(Source.EMPTY, null, DataType.SOURCE));
         return new Eval(Source.EMPTY, child, List.of(alias));
     }
 

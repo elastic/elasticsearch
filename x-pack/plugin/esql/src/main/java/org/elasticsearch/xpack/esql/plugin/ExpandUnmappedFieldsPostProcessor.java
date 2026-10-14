@@ -39,11 +39,9 @@ import org.elasticsearch.xpack.esql.session.Result;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 
@@ -65,7 +63,8 @@ import java.util.function.BooleanSupplier;
  *
  * <p>The data node ships whole objects (it can only filter by top-level source key, pruning a subtree solely when a wildcard
  * {@code DROP} covers it), so this post-processor is where the {@link UnmappedFieldsPattern} is applied per flattened <em>leaf</em>
- * name, and where a leaf colliding with a real output column is dropped so a discovered field can never shadow a query column.
+ * name. That alone keeps a leaf colliding with a query column out: {@code DetermineUnmappedFieldsToKeep} excludes every name the
+ * plan outputs from the pattern, so a discovered field can never shadow a query column.
  *
  * <p>The {@code _unmapped_fields} column takes the slot the synthetic column occupied in the executed schema; it is produced after
  * analysis and is not referable from the query language (the synthetic {@code $$}-prefixed name kept it unreachable during planning).
@@ -134,14 +133,14 @@ public final class ExpandUnmappedFieldsPostProcessor {
         double reservationFactor = plannerSettings.sourceReservationFactor();
         UnmappedFieldsAttribute unmappedAttribute = (UnmappedFieldsAttribute) schema.get(unmappedIdx);
         UnmappedFieldsPattern pattern = unmappedAttribute.pattern();
-        Set<String> existingNames = existingColumnNames(schema, unmappedIdx);
-        if (existingNames.contains(UNMAPPED_FIELDS_COLUMN_NAME)) {
+        if (hasQueryColumnNamedLikeTheUnmappedColumn(schema, unmappedIdx)) {
             return withoutUnmappedColumn(result, schema, unmappedIdx);
         }
 
-        // Replace the synthetic column in place with the user-visible SOURCE column; everything else keeps its slot.
+        // The synthetic column is already SOURCE-typed, so it only needs its user-visible name; everything else keeps its slot.
+        assert unmappedAttribute.dataType() == DataType.SOURCE : "expected a SOURCE column but was " + unmappedAttribute.dataType();
         List<Attribute> newSchema = new ArrayList<>(schema);
-        newSchema.set(unmappedIdx, new ReferenceAttribute(Source.EMPTY, UNMAPPED_FIELDS_COLUMN_NAME, DataType.SOURCE));
+        newSchema.set(unmappedIdx, new ReferenceAttribute(Source.EMPTY, UNMAPPED_FIELDS_COLUMN_NAME, unmappedAttribute.dataType()));
 
         // From here on we own the input pages: on success rewritePage drains them one by one, on any failure we release whatever
         // is left below. Page#releaseBlocks is idempotent, so re-releasing pages rewritePage already drained is a no-op.
@@ -153,7 +152,7 @@ public final class ExpandUnmappedFieldsPostProcessor {
             if (flatteningStarted != null) {
                 flatteningStarted.run();
             }
-            List<Page> newPages = rewritePages(result, unmappedIdx, pattern, existingNames, blockFactory, reservationFactor, isCancelled);
+            List<Page> newPages = rewritePages(result, unmappedIdx, pattern, blockFactory, reservationFactor, isCancelled);
 
             Result flattened = new Result(
                 newSchema,
@@ -243,17 +242,16 @@ public final class ExpandUnmappedFieldsPostProcessor {
     }
 
     /**
-     * The names of every column except {@code $$unmapped_fields}. A discovered leaf colliding with one of them is dropped rather
-     * than kept, so a discovered field can never shadow a query column.
+     * Whether the query itself outputs a column named {@link #UNMAPPED_FIELDS_COLUMN_NAME}, e.g. {@code EVAL _unmapped_fields = ...}.
+     * The synthetic column is named {@code $$unmapped_fields}, so the two do not clash in the schema; renaming it would make them.
      */
-    private static Set<String> existingColumnNames(List<Attribute> schema, int unmappedIdx) {
-        Set<String> existingNames = new HashSet<>();
+    private static boolean hasQueryColumnNamedLikeTheUnmappedColumn(List<Attribute> schema, int unmappedIdx) {
         for (int i = 0; i < schema.size(); i++) {
-            if (i != unmappedIdx) {
-                existingNames.add(schema.get(i).name());
+            if (i != unmappedIdx && schema.get(i).name().equals(UNMAPPED_FIELDS_COLUMN_NAME)) {
+                return true;
             }
         }
-        return existingNames;
+        return false;
     }
 
     /** Rewrite each page, replacing the {@code $$unmapped_fields} block with a flattened {@code _unmapped_fields} SOURCE block. */
@@ -261,7 +259,6 @@ public final class ExpandUnmappedFieldsPostProcessor {
         Result result,
         int unmappedIdx,
         UnmappedFieldsPattern pattern,
-        Set<String> existingNames,
         BlockFactory factory,
         double reservationFactor,
         BooleanSupplier isCancelled
@@ -270,7 +267,7 @@ public final class ExpandUnmappedFieldsPostProcessor {
         var success = false;
         try {
             for (Page p : result.pages()) {
-                newPages.add(rewritePage(unmappedIdx, pattern, existingNames, factory, p, reservationFactor, isCancelled));
+                newPages.add(rewritePage(unmappedIdx, pattern, factory, p, reservationFactor, isCancelled));
             }
             success = true;
             return newPages;
@@ -284,7 +281,6 @@ public final class ExpandUnmappedFieldsPostProcessor {
     private static Page rewritePage(
         int unmappedIdx,
         UnmappedFieldsPattern pattern,
-        Set<String> existingNames,
         BlockFactory blockFactory,
         Page page,
         double reservationFactor,
@@ -304,8 +300,8 @@ public final class ExpandUnmappedFieldsPostProcessor {
             Map<String, Object> leaves = new LinkedHashMap<>();
             BiConsumer<String, Object> leafSink = (name, value) -> {
                 // The data node ships whole objects (filtering only by top-level source key), so the pattern is applied here per
-                // flattened leaf, and a leaf colliding with a real output column is dropped so it can never shadow a query column.
-                if (value != null && existingNames.contains(name) == false && pattern.matches(name)) {
+                // flattened leaf. It excludes every output column name, so a leaf can never shadow a query column.
+                if (value != null && pattern.matches(name)) {
                     collectLeaf(leaves, name, value);
                 }
             };

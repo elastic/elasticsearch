@@ -31,7 +31,9 @@ import java.util.Objects;
  *
  * <p>Added to {@link EsRelation#output()} by {@code DetermineUnmappedFieldsToKeep} in the
  * Finish Analysis batch. The carried {@link UnmappedFieldsPattern} describes which additional
- * (currently unmapped) source fields are loaded into the JSON object value of the column.
+ * (currently unmapped) source fields are loaded into the JSON object value of the column. That value is
+ * {@code _source}-shaped, so the column is typed {@link DataType#SOURCE} from the start, the same type as
+ * the {@code _unmapped_fields} column the coordinator turns it into.
  *
  * <p>Note that {@link #synthetic()} stays {@code false} despite the synthetic name:
  * {@code Analyzer.planWithoutSyntheticAttributes} projects away every attribute for which it returns
@@ -64,7 +66,7 @@ public final class UnmappedFieldsAttribute extends TypedAttribute {
     private final UnmappedFieldsPattern pattern;
 
     public UnmappedFieldsAttribute(Source source, UnmappedFieldsPattern pattern) {
-        super(source, ATTRIBUTE_NAME, DataType.KEYWORD, Nullability.TRUE, null, false);
+        super(source, ATTRIBUTE_NAME, DataType.SOURCE, Nullability.TRUE, null, false);
         this.pattern = pattern;
     }
 

@@ -78,7 +78,7 @@ public class SkipUnmappedFieldsExtractionTests extends ESTestCase {
         assertThat(alias.name(), equalTo(unmappedFields.name()));
         Literal literal = as(alias.child(), Literal.class);
         assertNull(literal.value());
-        assertThat(literal.dataType(), equalTo(DataType.KEYWORD));
+        assertThat(literal.dataType(), equalTo(DataType.SOURCE));
     }
 
     private static PhysicalPlan apply(PhysicalPlan plan, boolean mayHoldUnmappedFields) {

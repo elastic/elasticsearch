@@ -204,15 +204,17 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
     public void testFlattenedLeafCollidingWithQueryColumnIsDropped() {
         BlockFactory bf = blockFactory();
+        // DetermineUnmappedFieldsToKeep excludes every output column name from the pattern; that exclusion is what drops the leaf.
+        UnmappedFieldsPattern pattern = UnmappedFieldsPattern.ALL.withAdditionalExcludes(List.of("network.eth0.rx"));
         Result result = singlePage(
             bf,
-            List.of(keywordAttr("network.eth0.rx"), unmappedAttr()),
+            List.of(keywordAttr("network.eth0.rx"), unmappedAttr(pattern)),
             row("7", jsonObject("{'network':{'bytes_in':10,'eth0':{'tx':5,'rx':7}}}"))
         );
 
         Result flattened = flatten(result, bf);
         try {
-            // network.eth0.rx collides with the query column, so it is dropped from the blob; the other leaves survive.
+            // network.eth0.rx collides with the query column, so the pattern drops it from the blob; the other leaves survive.
             assertThat(
                 rows(flattened),
                 contains(

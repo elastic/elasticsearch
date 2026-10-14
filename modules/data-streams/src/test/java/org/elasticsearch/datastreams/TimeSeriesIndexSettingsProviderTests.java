@@ -37,6 +37,7 @@ import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createFirstBackingIndex;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
+import static org.elasticsearch.common.settings.Settings.EMPTY;
 import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.datastreams.DataStreamsPlugin.LOOK_AHEAD_TIME_DEFAULT;
 import static org.elasticsearch.datastreams.TimeSeriesIndexSettingsProvider.FORMATTER;
@@ -542,7 +543,8 @@ public class TimeSeriesIndexSettingsProviderTests extends ESTestCase {
         }
     }
 
-    public void testGetAdditionalIndexSettingsInvalidMigrationToTsdb() {
+    // We do not break the index settings provider here, we rely on the rollover to reject this.
+    public void testGetAdditionalIndexSettingsDuringInvalidMigrationToTsdb() {
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         String dataStreamName = "logs-app1";
         IndexMetadata idx = createFirstBackingIndex(dataStreamName).build();
@@ -557,23 +559,20 @@ public class TimeSeriesIndexSettingsProviderTests extends ESTestCase {
             .dataStreams(Map.of(dataStreamName, existingDataStream), Map.of())
             .build();
 
-        Settings settings = Settings.EMPTY;
         Settings.Builder additionalSettings = builder();
-        expectThrows(
-            AssertionError.class,
-            () -> provider.provideAdditionalSettings(
-                DataStream.getDefaultBackingIndexName(dataStreamName, 2),
-                dataStreamName,
-                IndexMode.TIME_SERIES,
-                false,
-                projectMetadata,
-                now,
-                settings,
-                List.of(),
-                indexVersion,
-                additionalSettings
-            )
+        provider.provideAdditionalSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 2),
+            dataStreamName,
+            IndexMode.TIME_SERIES,
+            false,
+            projectMetadata,
+            now,
+            Settings.EMPTY,
+            List.of(),
+            indexVersion,
+            additionalSettings
         );
+        assertThat(additionalSettings.build(), equalTo(EMPTY));
     }
 
     public void testGetAdditionalIndexSettingsDowngradeFromTsdb() {

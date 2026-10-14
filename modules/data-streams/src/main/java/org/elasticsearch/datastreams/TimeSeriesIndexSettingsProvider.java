@@ -119,7 +119,7 @@ public class TimeSeriesIndexSettingsProvider implements IndexSettingProvider {
         final Instant start;
         final Instant end;
         if (validFirstTimeSeriesIndex == false && dataStreamIndexMode.isTsdb() == false) {
-            assert false : "A time series data stream needs to be either created from scratch or migrated from a standard data stream";
+            // This is an invalid migration to TSDB, we do not fail here, but we rely on the rollover to reject this.
             return;
         }
         // Determine the start and end time either based on resolvedAt or the previous time series backing index.

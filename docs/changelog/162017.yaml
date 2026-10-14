@@ -1,0 +1,6 @@
+area: Data streams
+issues:
+ - 157859
+pr: 162017
+summary: "Failure-store failures yield O(N²) message sizes [#157859]"
+type: bug

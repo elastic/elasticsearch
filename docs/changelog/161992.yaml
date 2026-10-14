@@ -1,0 +1,5 @@
+area: TSDB
+issues: []
+pr: 161992
+summary: Reject migration to TSDB from non-standard data streams
+type: bug

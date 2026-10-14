@@ -181,7 +181,7 @@ public class ParquetTestingIT extends ESRestTestCase {
     private static final List<UnsupportedFile> UNSUPPORTED_DATA_FILES = List.of(
         // Legacy 2-level nested list: LIST<LIST<int>>.
         new UnsupportedFile("data/old_list_structure.parquet", "a"),
-        // Parquet VARIANT (esql-planning#1970): the group must surface as one unsupported column rather
+        // Parquet VARIANT : the group must surface as one unsupported column rather
         // than being flattened into the Variant encoding's binary internals. Both shredding forms.
         new UnsupportedFile("shredded_variant/case-082.parquet", "var"),
         new UnsupportedFile("shredded_variant/case-046.parquet", "var")

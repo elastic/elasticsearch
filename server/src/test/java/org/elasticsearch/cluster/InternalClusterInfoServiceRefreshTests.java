@@ -112,8 +112,10 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
             doAnswer(invocation -> {
                 final ActionListener<EstimatedHeapUsageStats> listener = invocation.getArgument(0);
                 listener.onResponse(
-                    // Non shard heap usage is never used so setting to 0
-                    new EstimatedHeapUsageStats(Map.of("node-id", new NodeHeapEstimates(100L, 20L, 0L)), ShardHeapUsageEstimates.empty())
+                    new EstimatedHeapUsageStats(
+                        Map.of("node-id", new NodeHeapEstimates(100L, 20L, randomNonNegativeLong())),
+                        ShardHeapUsageEstimates.empty()
+                    )
                 );
                 return null;
             }).when(estimatedHeapUsageCollector).collectEstimatedHeapUsage(any());

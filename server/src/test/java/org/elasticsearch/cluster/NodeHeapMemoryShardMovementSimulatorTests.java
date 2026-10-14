@@ -152,6 +152,8 @@ public class NodeHeapMemoryShardMovementSimulatorTests extends ESAllocationTestC
         long indexingInitialTotal = randomLongBetween(200, 500);
         long indexingInitialHosted = randomLongBetween(50, 150);
         long searchInitialHosted = randomLongBetween(50, 150);
+        long searchNonShard = randomLongBetween(1, 500);
+        long indexingNonShard = randomLongBetween(1, 500);
         long shardHeap = randomLongBetween(10, 50);
         long indexHeap = randomLongBetween(10, 40);
         long postingsHeap = randomLongBetween(0, shardHeap);
@@ -160,9 +162,9 @@ public class NodeHeapMemoryShardMovementSimulatorTests extends ESAllocationTestC
         var shardId0 = new ShardId(index, 0);
         var initialMetrics = Map.of(
             searchNodeId,
-            nodeHeapMetrics(searchNodeId, 0, searchInitialHosted),
+            nodeHeapMetrics(searchNodeId, 0, searchInitialHosted, searchNonShard),
             indexingNodeId,
-            nodeHeapMetrics(indexingNodeId, indexingInitialTotal, indexingInitialHosted)
+            nodeHeapMetrics(indexingNodeId, indexingInitialTotal, indexingInitialHosted, indexingNonShard)
         );
         var shardHeapUsages = Map.of(shardId0, new ShardAndIndexHeapUsage(shardHeap, indexHeap, postingsHeap));
 
@@ -217,10 +219,10 @@ public class NodeHeapMemoryShardMovementSimulatorTests extends ESAllocationTestC
         var result = simulator.getSimulatedHeapMetrics();
         assertThat(result.get(searchNodeId).nodeHeapEstimates().totalHeapUsage(), equalTo(0L));
         assertThat(result.get(searchNodeId).nodeHeapEstimates().hostedShardsHeapUsage(), equalTo(searchInitialHosted + expectedDelta));
-        assertThat(result.get(searchNodeId).nodeHeapEstimates().nonShardHeapUsage(), equalTo(0L));
+        assertThat(result.get(searchNodeId).nodeHeapEstimates().nonShardHeapUsage(), equalTo(searchNonShard));
         assertThat(result.get(indexingNodeId).nodeHeapEstimates().totalHeapUsage(), equalTo(indexingInitialTotal + expectedDelta));
         assertThat(result.get(indexingNodeId).nodeHeapEstimates().hostedShardsHeapUsage(), equalTo(indexingInitialHosted + expectedDelta));
-        assertThat(result.get(indexingNodeId).nodeHeapEstimates().nonShardHeapUsage(), equalTo(0L));
+        assertThat(result.get(indexingNodeId).nodeHeapEstimates().nonShardHeapUsage(), equalTo(indexingNonShard));
     }
 
     /** Nodes not present in the initial metrics map are silently skipped; results for known nodes are unaffected. */

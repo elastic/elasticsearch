@@ -17,8 +17,8 @@ public class MlAnomaliesView {
 
     private static final Logger logger = LogManager.getLogger(MlAnomaliesView.class);
 
-    static final String VIEW_NAME_LOCAL = ".ml-anomalies";
-    static final String VIEW_NAME_CCS = ".ml-anomalies-ccs";
+    private static final String VIEW_NAME_LOCAL = ".ml-anomalies";
+    private static final String VIEW_NAME_CCS = ".ml-anomalies-ccs";
 
     private static final String SOURCE_COMMAND_LOCAL = "FROM .ml-anomalies-* METADATA _index";
     private static final String SOURCE_COMMAND_CCS = "FROM .ml-anomalies-*, *:.ml-anomalies-* METADATA _index";
@@ -30,7 +30,6 @@ public class MlAnomaliesView {
         | KEEP timestamp,
                event.ingested,
                job_id,
-               _index,
                result_type,
                is_interim,
                score,
@@ -51,7 +50,8 @@ public class MlAnomaliesView {
                actual,
                typical,
                event_count,
-               processing_time_ms
+               processing_time_ms,
+               _index
         """;
 
     public MlAnomaliesView(ViewService viewService) {

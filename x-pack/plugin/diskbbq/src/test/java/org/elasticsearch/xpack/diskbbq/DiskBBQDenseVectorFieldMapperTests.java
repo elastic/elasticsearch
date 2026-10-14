@@ -20,7 +20,6 @@ import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -150,7 +149,7 @@ public class DiskBBQDenseVectorFieldMapperTests extends MapperServiceTestCase {
         try (var tp = new TestThreadPool(getTestName())) {
             assertThat(
                 knnVectorsFormatForField(enabledMapperService, tp).toString(),
-                containsString("sliceField=" + RoutingFieldMapper.NAME)
+                containsString("sliceField=" + SliceIndexing.SLICE_KEY_FIELD_NAME)
             );
             assertThat(knnVectorsFormatForField(disabledMapperService, tp).toString(), containsString("sliceField=null"));
         }

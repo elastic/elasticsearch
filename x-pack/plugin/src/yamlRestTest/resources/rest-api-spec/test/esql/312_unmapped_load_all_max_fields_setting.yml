@@ -6,10 +6,11 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_load_all_max_fields_setting ]
+          capabilities: [ optional_fields_load_all_max_fields_setting, optional_fields_load_all_single_source_column ]
       reason: >
-        The number of fields LOAD_ALL expands _source into is capped by the cluster setting esql.query.unmapped_fields.load_all_max_fields. Older nodes
-        reject the setting as unknown, so this file cannot run against them.
+        The cluster setting esql.query.unmapped_fields.load_all_max_fields downgrades LOAD_ALL to LOAD when it is 0. Older nodes
+        reject the setting as unknown, so this file cannot run against them. The _unmapped_fields column is only produced on nodes
+        with the single-column layout.
 
   - do:
       indices.create:
@@ -42,17 +43,20 @@ teardown:
         ignore_unavailable: true
 
 ---
-'by default every discovered field is a column':
+'by default every discovered field is in the single _unmapped_fields column':
   - do:
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_cfg | LIMIT 10'
-  - length: { columns: 6 }
+  - length: { columns: 2 }
   - match: { columns.0.name: id }
-  - match: { columns.5.name: f5 }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { columns.1.type: _source }
+  - match: { values.0.0: "1" }
+  - match: { values.0.1: { f1: a, f2: b, f3: c, f4: d, f5: e } }
 
 ---
-'a lowered limit cuts the fields off with a warning, and a raised one brings them back':
+'a lowered limit does not truncate the single column, and a raised one changes nothing':
   - do:
       cluster.put_settings:
         body:
@@ -60,15 +64,11 @@ teardown:
             esql.query.unmapped_fields.load_all_max_fields: 3
 
   - do:
-      warnings:
-        - 'unmapped_fields="LOAD_ALL" found more than [3] fields in _source; only the first [3] in alphabetical order are returned. Use KEEP or DROP to select the others.'
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_cfg | LIMIT 10'
-  - length: { columns: 4 }
-  - match: { columns.0.name: id }
-  - match: { columns.1.name: f1 }
-  - match: { columns.3.name: f3 }
+  - length: { columns: 2 }
+  - match: { values.0.1: { f1: a, f2: b, f3: c, f4: d, f5: e } }
 
   - do:
       cluster.put_settings:
@@ -80,8 +80,8 @@ teardown:
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_cfg | LIMIT 10'
-  - length: { columns: 6 }
-  - match: { columns.5.name: f5 }
+  - length: { columns: 2 }
+  - match: { values.0.1: { f1: a, f2: b, f3: c, f4: d, f5: e } }
 
 ---
 'a limit of 0 makes LOAD_ALL behave like LOAD':
@@ -130,3 +130,15 @@ teardown:
         body:
           persistent:
             esql.query.unmapped_fields.load_all_max_fields: 100001
+
+---
+'a query column named _unmapped_fields wins over the discovered fields':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_cfg | EVAL _unmapped_fields = "mine" | LIMIT 10'
+  - length: { columns: 2 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { columns.1.type: keyword }
+  - match: { values.0: [ "1", "mine" ] }

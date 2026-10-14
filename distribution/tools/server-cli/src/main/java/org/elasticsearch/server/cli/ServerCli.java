@@ -52,13 +52,6 @@ import java.util.Map;
  */
 class ServerCli extends EnvironmentAwareCommand {
 
-    /**
-     * Set by {@code bin/elasticsearch-env} when {@code ES_FIPS_MODE=true}. The Bouncy Castle FIPS provider ships in {@code lib/fips}
-     * rather than {@code lib} so that a node that is not in FIPS mode never resolves or instantiates it; the server module path is
-     * extended with that directory only when this property is set.
-     */
-    static final String FIPS_ENABLED_SYSPROP = "es.fips.enabled";
-
     private final OptionSpecBuilder versionOption;
     private final OptionSpecBuilder daemonizeOption;
     private final OptionSpec<Path> pidfileOption;
@@ -244,10 +237,15 @@ class ServerCli extends EnvironmentAwareCommand {
     // protected to allow tests to override
     protected void prepareLaunch(Terminal terminal, ProcessInfo processInfo, ServerArgs args, boolean daemonize) throws Exception {
         var tempDir = ServerProcessUtils.setupTempDir(processInfo);
-        var jvmOptions = JvmOptionsParser.determineJvmOptions(args, processInfo, tempDir, new MachineDependentHeap());
+        // FIPS 140 mode: the provider ships dormant in lib/fips and joins the server JVM only when the node setting asks for it
+        var fipsProperties = FipsOptions.systemProperties(args.nodeSettings(), processInfo.workingDir());
+        var jvmOptions = FipsOptions.withSystemProperties(
+            JvmOptionsParser.determineJvmOptions(args, processInfo, tempDir, new MachineDependentHeap()),
+            fipsProperties
+        );
 
         String command = getJavaCommand(processInfo);
-        List<String> jvmArgs = getJvmArgs(processInfo);
+        List<String> jvmArgs = getJvmArgs(processInfo, fipsProperties.isEmpty() == false);
         Map<String, String> environment = getEnvironment(processInfo, tempDir);
         byte[] serverArgsBytes = serializeServerArgs(args);
 
@@ -277,11 +275,15 @@ class ServerCli extends EnvironmentAwareCommand {
         return javaHome.resolve("bin").resolve("java" + (isWindows ? ".exe" : "")).toString();
     }
 
-    protected static List<String> getJvmArgs(ProcessInfo processInfo) {
+    /**
+     * @param fipsLib whether to put the shipped FIPS provider on the module path; a subdirectory of {@code lib} is not scanned by the
+     *                module finder, so without this the provider in {@code lib/fips} is never resolved
+     */
+    protected static List<String> getJvmArgs(ProcessInfo processInfo, boolean fipsLib) {
         Path esHome = processInfo.workingDir();
         String modulePath = esHome.resolve("lib").toString();
-        if (Boolean.parseBoolean(processInfo.sysprops().get(FIPS_ENABLED_SYSPROP))) {
-            modulePath += System.getProperty("path.separator") + esHome.resolve("lib").resolve("fips");
+        if (fipsLib) {
+            modulePath += System.getProperty("path.separator") + FipsOptions.fipsLib(esHome);
         }
         return List.of(
             "--module-path",

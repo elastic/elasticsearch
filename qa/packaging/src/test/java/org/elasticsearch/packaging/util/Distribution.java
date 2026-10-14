@@ -49,8 +49,9 @@ public class Distribution {
     }
 
     /**
-     * @return whether the tests activate FIPS mode in place: {@code ES_FIPS_MODE=true} in the environment of every command and the
-     * FIPS settings appended to {@code elasticsearch.yml} at install time. Security auto-configuration then writes BCFKS keystores.
+     * @return whether the tests activate FIPS mode in place: the FIPS settings are appended to {@code elasticsearch.yml} at install
+     * time, which puts the server and every CLI tool on the provider shipped in {@code lib/fips}. Security auto-configuration then
+     * writes BCFKS keystores.
      * Driven by the {@code tests.fips.activation} system property, set for the Linux archives by {@code DistroTestPlugin}.
      */
     public boolean isFipsActivated() {

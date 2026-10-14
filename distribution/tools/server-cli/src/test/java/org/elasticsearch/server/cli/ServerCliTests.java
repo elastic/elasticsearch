@@ -324,12 +324,11 @@ public class ServerCliTests extends CommandTestCase {
 
     public void testJvmArgsModulePath() {
         Path lib = esHomeDir.resolve("lib");
-        assertThat(ServerCli.getJvmArgs(new ProcessInfo(sysprops, envVars, esHomeDir)), hasItem(lib.toString()));
+        assertThat(ServerCli.getJvmArgs(new ProcessInfo(sysprops, envVars, esHomeDir), false), hasItem(lib.toString()));
 
-        // with FIPS mode activated the dormant provider directory joins the module path
-        sysprops.put(ServerCli.FIPS_ENABLED_SYSPROP, "true");
+        // in FIPS mode the dormant provider directory joins the module path
         assertThat(
-            ServerCli.getJvmArgs(new ProcessInfo(sysprops, envVars, esHomeDir)),
+            ServerCli.getJvmArgs(new ProcessInfo(sysprops, envVars, esHomeDir), true),
             hasItem(lib + System.getProperty("path.separator") + lib.resolve("fips"))
         );
     }

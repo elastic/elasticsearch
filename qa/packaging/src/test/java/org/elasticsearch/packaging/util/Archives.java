@@ -120,7 +120,7 @@ public class Archives {
         Platforms.onLinux(() -> setupArchiveUsersLinux(fullInstallPath));
 
         if (distribution.isFipsActivated()) {
-            // the environment half of the activation (ES_FIPS_MODE) is set on the shell; this is the settings half
+            // the setting is the whole switch: the server and the CLI tools read it and load the provider from lib/fips
             Files.write(fullInstallPath.resolve("config").resolve("elasticsearch.yml"), FIPS_SETTINGS, StandardOpenOption.APPEND);
         }
 

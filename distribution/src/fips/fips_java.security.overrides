@@ -1,0 +1,26 @@
+# FIPS 140 overrides applied by the Elasticsearch build to the bundled JDK's
+# java.security to produce lib/fips/fips_java.security (see the
+# buildFipsJavaSecurity tasks in distribution/build.gradle). Every key listed
+# here replaces the JDK's value; the JDK's own provider list is dropped
+# entirely. The result is loaded with -Djava.security.properties== by the
+# server and the command line tools when xpack.security.fips_mode.enabled is
+# true.
+#
+# The FIPS test suites keep using build-tools-internal's fips_java.security.
+# Those suites run on older JDKs than the one bundled in these distributions.
+
+# Bouncy Castle FIPS replaces the JDK's providers; SUN stays for the file-backed
+# SecureRandom sources and certificate factories, SunJGSS for Kerberos.
+security.provider.1=org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider C:HYBRID;ENABLE{All};
+security.provider.2=org.bouncycastle.jsse.provider.BouncyCastleJsseProvider fips:BCFIPS
+security.provider.3=SUN
+security.provider.4=SunJGSS
+
+# BCFKS is the only keystore type the provider opens in approved-only mode
+keystore.type=BCFKS
+
+# the JDK's default, SunX509, is served by SunJSSE, which is no longer registered
+ssl.KeyManagerFactory.algorithm=PKIX
+
+# the provider's DRBG seeds from here; /dev/random would block on entropy-starved hosts
+securerandom.source=file:/dev/urandom

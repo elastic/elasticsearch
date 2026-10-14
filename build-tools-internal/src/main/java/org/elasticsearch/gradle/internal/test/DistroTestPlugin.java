@@ -89,7 +89,7 @@ public class DistroTestPlugin implements Plugin<Project> {
         Map<ElasticsearchDistributionType, TaskProvider<?>> lifecycleTasks = lifecycleTasks(project, "destructiveDistroTest");
         Map<String, TaskProvider<?>> versionTasks = versionTasks(project, "destructiveDistroUpgradeTest", buildParams.getBwcVersions());
         TaskProvider<Task> destructiveDistroTest = project.getTasks().register("destructiveDistroTest");
-        // The Linux archives run a second time with FIPS mode activated in place (ES_FIPS_MODE=true, see bin/elasticsearch-env).
+        // The Linux archives run a second time with FIPS mode activated in place (xpack.security.fips_mode.enabled in the yml).
         // Those runs are part of .archives, so every archive packaging job covers FIPS mode on the same tar; this aggregator
         // runs only the FIPS-activated tasks.
         TaskProvider<Task> fipsArchivesTest = project.getTasks().register("destructiveDistroTest.fips-archives");

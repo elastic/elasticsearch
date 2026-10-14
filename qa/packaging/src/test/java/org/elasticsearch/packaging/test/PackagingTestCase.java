@@ -192,10 +192,6 @@ public abstract class PackagingTestCase extends Assert {
         assumeFalse(failed); // skip rest of tests once one fails
 
         sh.reset();
-        if (distribution().isFipsActivated()) {
-            // the server and every CLI tool read the switch from the environment, see bin/elasticsearch-env
-            sh.getEnv().put("ES_FIPS_MODE", "true");
-        }
         if (distribution().hasJdk == false) {
             Platforms.onLinux(() -> sh.getEnv().put("ES_JAVA_HOME", systemJavaHome));
             Platforms.onWindows(() -> sh.getEnv().put("ES_JAVA_HOME", systemJavaHome));

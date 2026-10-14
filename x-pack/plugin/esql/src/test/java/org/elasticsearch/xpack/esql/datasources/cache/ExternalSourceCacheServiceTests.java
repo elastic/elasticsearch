@@ -91,6 +91,41 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
      * Reuse is bounded by the store's write clock, so an entry goes whether or not anything reads it and
      * reading cannot postpone that.
      */
+    /**
+     * A rewritten object fails its query, and the listing and file metadata that named its old version are dropped, so
+     * the retry lists again rather than reusing the stale version for the rest of the listing clock.
+     */
+    public void testInvalidateListingsAndFileMetadataDropsBothStores() throws Exception {
+        Settings settings = Settings.builder().put("esql.external.cache.listing.ttl", "1h").build();
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
+            AtomicInteger listingLoads = new AtomicInteger();
+            AtomicInteger metadataLoads = new AtomicInteger();
+            ListingCacheKey listingKey = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "");
+            FileMetadataCacheKey metadataKey = new FileMetadataCacheKey("s3://bucket/data/file.parquet", "");
+            service.getOrComputeListing(listingKey, k -> {
+                listingLoads.incrementAndGet();
+                return testCompactFileList();
+            });
+            service.getOrComputeFileMetadata(metadataKey, k -> {
+                metadataLoads.incrementAndGet();
+                return new FileMetadata(1L, 1L, "e1");
+            });
+
+            service.invalidateListingsAndFileMetadata();
+
+            service.getOrComputeListing(listingKey, k -> {
+                listingLoads.incrementAndGet();
+                return testCompactFileList();
+            });
+            service.getOrComputeFileMetadata(metadataKey, k -> {
+                metadataLoads.incrementAndGet();
+                return new FileMetadata(1L, 1L, "e2");
+            });
+            assertEquals("the listing is read again", 2, listingLoads.get());
+            assertEquals("the file metadata is read again", 2, metadataLoads.get());
+        }
+    }
+
     public void testSchemaIsNotServedPastTheWindow() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(withSchemaTtl("1ms"))) {
             SchemaCacheKey key = SchemaCacheKey.build(

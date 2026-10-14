@@ -104,6 +104,11 @@ class QueryBudgetedStorageObject implements StorageObject, ResumeBypassingStorag
     }
 
     @Override
+    public String version() {
+        return delegate.version();
+    }
+
+    @Override
     public Instant lastModified() throws IOException {
         return delegate.lastModified();
     }

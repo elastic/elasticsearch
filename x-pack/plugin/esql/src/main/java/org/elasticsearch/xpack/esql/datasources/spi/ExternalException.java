@@ -10,9 +10,12 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.xpack.esql.core.QlException;
 
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.OptionalInt;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -317,6 +320,20 @@ public abstract class ExternalException extends QlException {
             }
         }
         return null;
+    }
+
+    /**
+     * Whether {@code failure} or any throwable in its cause chain has the given {@link Condition}, as {@link #conditionOf}
+     * reports it. Unlike a class match, this still holds after the failure crossed a node boundary.
+     */
+    public static boolean hasCondition(Throwable failure, Condition condition) {
+        Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (Throwable t = failure; t != null && seen.add(t); t = t.getCause()) {
+            if (conditionOf(t) == condition) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String baseMessage() {

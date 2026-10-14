@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
@@ -27,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -236,6 +238,25 @@ public class DelegatingStorageProviderTests extends ESTestCase {
             assertEquals(name + " did not forward objectMetadata", 7L, decorated.objectMetadata(path).length());
             assertEquals(name + " forwarded a different number of times", 1, calls.get());
         }
+    }
+
+    /**
+     * A versioned open is limited like every other open. Were the limiter to inherit the versioned overload from its
+     * base, the object would reach the delegate unwrapped and bypass the per-scheme permits.
+     */
+    public void testVersionedOpenIsWrappedByTheLimiter() {
+        StorageProvider plain = new StubProvider() {
+            @Override
+            public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
+                return TestStorageObjects.metricsOnly(StorageObjectMetrics.ZERO);
+            }
+        };
+        StorageProvider limited = new ConcurrencyLimitedStorageProvider(
+            plain,
+            new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(3, false))
+        );
+        StorageObject opened = limited.newObject(StoragePath.of("s3://bucket/file.parquet"), 1L, Instant.EPOCH, "v1");
+        assertThat("the versioned open must be the limiter's object", opened, instanceOf(ConcurrencyLimitedStorageObject.class));
     }
 
     private static StorageProvider countingProvider(AtomicInteger calls) {

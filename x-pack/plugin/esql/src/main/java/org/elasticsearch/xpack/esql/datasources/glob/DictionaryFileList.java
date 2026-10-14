@@ -31,6 +31,8 @@ final class DictionaryFileList implements FileList {
     private final long[] sizes; // per-file size
     private final long[] mtimesMillis; // per-file mtime
     @Nullable
+    private final String[] versions; // per-file object version, null when no file has one
+    @Nullable
     private final String sharedExtension; // common extension (e.g. ".parquet")
     @Nullable
     private final String originalPattern;
@@ -54,6 +56,7 @@ final class DictionaryFileList implements FileList {
         int[] pathStarts,
         long[] sizes,
         long[] mtimesMillis,
+        @Nullable String[] versions,
         @Nullable String sharedExtension,
         @Nullable String originalPattern,
         @Nullable PartitionMetadata partitionMetadata,
@@ -69,6 +72,7 @@ final class DictionaryFileList implements FileList {
         this.pathStarts = pathStarts;
         this.sizes = sizes;
         this.mtimesMillis = mtimesMillis;
+        this.versions = versions;
         this.sharedExtension = sharedExtension;
         this.originalPattern = originalPattern;
         this.partitionMetadata = partitionMetadata;
@@ -118,6 +122,12 @@ final class DictionaryFileList implements FileList {
 
     @Override
     @Nullable
+    public String version(int i) {
+        return versions == null ? null : versions[i];
+    }
+
+    @Override
+    @Nullable
     public String originalPattern() {
         return originalPattern;
     }
@@ -157,6 +167,11 @@ final class DictionaryFileList implements FileList {
         for (String token : tokens) {
             // per-String: ~40B object overhead + char data
             bytes += 40 + token.length() * (long) Character.BYTES;
+        }
+        if (versions != null) {
+            for (String version : versions) {
+                bytes += version == null ? 0 : 40 + version.length() * (long) Character.BYTES;
+            }
         }
         bytes += pathTokens.length * (long) Short.BYTES;
         bytes += (long) pathStarts.length * Integer.BYTES;

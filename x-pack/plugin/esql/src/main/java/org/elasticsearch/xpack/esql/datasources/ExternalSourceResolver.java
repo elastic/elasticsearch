@@ -1290,6 +1290,7 @@ public class ExternalSourceResolver {
                 SchemaCacheKey schemaKey = SchemaCacheKey.build(
                     storagePath.toString(),
                     meta.mtimeMillis(),
+                    meta.version(),
                     datasetIdentity(
                         storagePath.objectName(),
                         storageIdentity,
@@ -1318,7 +1319,7 @@ public class ExternalSourceResolver {
                     cachedStatistics(schemaKey, schemaEntry, readConfigStampOf(schemaEntry)),
                     harvestedStatistics
                 );
-                storageEntry = new StorageEntry(storagePath, meta.length(), Instant.ofEpochMilli(meta.mtimeMillis()));
+                storageEntry = new StorageEntry(storagePath, meta.length(), Instant.ofEpochMilli(meta.mtimeMillis()), meta.version());
             } else {
                 SourceMetadata metadata = resolveSingleSource(path, fileConfig);
                 pendingMetadataWarnings.addAll(metadata.warnings());
@@ -1493,7 +1494,7 @@ public class ExternalSourceResolver {
                     // across the anchor footer read. Unlike the single-file {@code getOrComputeSchema} path this does not
                     // coalesce concurrent misses for the same anchor key; that matches the fan-out's peek/put trade-off and is
                     // safe because footer resolution is idempotent (see cachedResolveSingleSourceAsync).
-                    ListingHint anchorHint = new ListingHint(listing.size(0), anchorMtime);
+                    ListingHint anchorHint = new ListingHint(listing.size(0), anchorMtime, 1, listing.version(0));
                     ActionListener<ExternalSourceMetadata> anchorListener = ActionListener.wrap(
                         anchorMetadata -> completeFirstFileWins(
                             anchorMetadata,
@@ -1833,7 +1834,14 @@ public class ExternalSourceResolver {
                 // cache harvest (the single-unit footer skip needs those column stats). A one-file
                 // listing keeps the anchor harvest.
                 StoragePath path = listing.path(i);
-                CachedFile cached = schemaCacheEntry(path, listing.lastModifiedMillis(i), storageIdentity, secretIdentity, config);
+                CachedFile cached = schemaCacheEntry(
+                    path,
+                    listing.lastModifiedMillis(i),
+                    listing.version(i),
+                    storageIdentity,
+                    secretIdentity,
+                    config
+                );
                 Map<String, DataType> inferred = inferredTypesByPath.get(path);
                 if (inferred == null) {
                     inferred = inferredTypesFromCache(cached);
@@ -1942,6 +1950,7 @@ public class ExternalSourceResolver {
     private CachedFile schemaCacheEntry(
         StoragePath path,
         long mtimeMillis,
+        @Nullable String version,
         String storageIdentity,
         String secretIdentity,
         @Nullable Map<String, Object> config
@@ -1952,6 +1961,7 @@ public class ExternalSourceResolver {
         SchemaCacheKey key = SchemaCacheKey.build(
             path.toString(),
             mtimeMillis,
+            version,
             datasetIdentity(path.objectName(), storageIdentity, secretIdentity, storageConfig(config)),
             false
         );
@@ -2242,7 +2252,7 @@ public class ExternalSourceResolver {
      */
     private static FileMetadata readFileMetadata(StoragePath storagePath, StorageProvider provider) throws Exception {
         StorageEntry probed = provider.objectMetadata(storagePath);
-        return new FileMetadata(probed.length(), probed.lastModified().toEpochMilli());
+        return new FileMetadata(probed.length(), probed.lastModified().toEpochMilli(), probed.version());
     }
 
     /**
@@ -3177,7 +3187,12 @@ public class ExternalSourceResolver {
                 // Length + mtime come from the directory listing: thread them through so the factory can build the
                 // storage object without a synchronous existence/HEAD probe on the executor thread before the async
                 // footer read.
-                ListingHint hint = new ListingHint(fileList.size(i), fileList.lastModifiedMillis(i), schemaSampleShare);
+                ListingHint hint = new ListingHint(
+                    fileList.size(i),
+                    fileList.lastModifiedMillis(i),
+                    schemaSampleShare,
+                    fileList.version(i)
+                );
                 if (cacheable) {
                     cachedResolveSingleSourceAsync(
                         filePath,
@@ -3329,13 +3344,13 @@ public class ExternalSourceResolver {
                 ? sharedSchemaSampleSize(filePath, config, files)
                 : sharedSampleSizeByFormat.computeIfAbsent(formatName, f -> sharedSchemaSampleSize(filePath, config, files));
             if (sharedSampleSize == 0) {
-                readHint = new ListingHint(hint.length(), hint.lastModifiedMillis());
+                readHint = new ListingHint(hint.length(), hint.lastModifiedMillis(), 1, hint.version());
             }
         }
         DatasetIdentity dataset = datasetIdentity(filePath.objectName(), storageIdentity, secretIdentity, storageConfig(config));
         SchemaCacheKey schemaKey = sharedSampleSize > 0
-            ? SchemaCacheKey.buildShared(filePath.toString(), hint.lastModifiedMillis(), dataset, sharedSampleSize)
-            : SchemaCacheKey.build(filePath.toString(), hint.lastModifiedMillis(), dataset, false);
+            ? SchemaCacheKey.buildShared(filePath.toString(), hint.lastModifiedMillis(), hint.version(), dataset, sharedSampleSize)
+            : SchemaCacheKey.build(filePath.toString(), hint.lastModifiedMillis(), hint.version(), dataset, false);
         // The schema record first, and the statistics address only if it cannot answer. The schema record
         // describes the file and is the same answer whoever asks, so when it already carries THIS read's
         // measurements there is nothing a read-addressed record could add.
@@ -4853,7 +4868,7 @@ public class ExternalSourceResolver {
         // Length and mtime from the file-metadata cache, or a probe past its window, as on the inferred rail.
         // Strict resolution reads no file body, so they are the only per-query object metadata it needs.
         FileMetadata meta = fileMetadataOf(storagePath, provider, storageIdentity);
-        StorageEntry storageEntry = new StorageEntry(storagePath, meta.length(), Instant.ofEpochMilli(meta.mtimeMillis()));
+        StorageEntry storageEntry = new StorageEntry(storagePath, meta.length(), Instant.ofEpochMilli(meta.mtimeMillis()), meta.version());
         FileList singletonList = GlobExpander.detectedFileListOf(List.of(storageEntry), path, PartitionConfig.fromConfig(config));
         pendingListingWarnings.addAll(singletonList.listingWarnings());
         // Declared mapping is the whole schema, in LOGICAL names; a `path` rename is applied at the reader, so the
@@ -4865,6 +4880,7 @@ public class ExternalSourceResolver {
         // this file's footer (cached when the provider is).
         rejectDeclaredMappingViolations(singletonList.partitionMetadata(), declaredMapping);
         long mtimeMillis = meta.mtimeMillis();
+        String version = meta.version();
         rejectStrictColumnarUncoercibleTypes(
             sourceType,
             provider,
@@ -4872,6 +4888,7 @@ public class ExternalSourceResolver {
             secretIdentity,
             storagePath,
             mtimeMillis,
+            version,
             config,
             declaredMapping
         );
@@ -4885,7 +4902,8 @@ public class ExternalSourceResolver {
             declaredMapping,
             logicalSchema,
             sourceType,
-            mtimeMillis
+            mtimeMillis,
+            version
         );
         PartitionMetadata partitionMetadata = singletonList.partitionMetadata();
         if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
@@ -4967,12 +4985,14 @@ public class ExternalSourceResolver {
         DatasetMapping declaredMapping,
         List<Attribute> logicalSchema,
         String sourceType,
-        long mtimeMillis
+        long mtimeMillis,
+        @Nullable String version
     ) throws Exception {
         if (isCacheable(provider) && FILE_TYPED_FORMATS.contains(sourceType) == false && warmsRowCountSafely(sourceType, config)) {
             SchemaCacheKey schemaKey = SchemaCacheKey.build(
                 storagePath.toString(),
                 mtimeMillis,
+                version,
                 datasetIdentity(storagePath.objectName(), storageIdentity, secretIdentity, storageConfig(config)),
                 true
             );
@@ -5236,7 +5256,7 @@ public class ExternalSourceResolver {
                     storageIdentity,
                     secretIdentity,
                     listing.path(0),
-                    new ListingHint(listing.size(0), listing.lastModifiedMillis(0)),
+                    new ListingHint(listing.size(0), listing.lastModifiedMillis(0), 1, listing.version(0)),
                     config,
                     declaredMapping,
                     footerChecked
@@ -5446,6 +5466,7 @@ public class ExternalSourceResolver {
         String secretIdentity,
         StoragePath anchor,
         long anchorMtime,
+        @Nullable String anchorVersion,
         Map<String, Object> config,
         DatasetMapping declaredMapping
     ) throws Exception {
@@ -5457,7 +5478,7 @@ public class ExternalSourceResolver {
         }
         Map<String, Object> probeConfig = declaredProbeConfig(sourceType, config);
         List<Attribute> physicalSchema = (isCacheable(provider)
-            ? cachedResolveSingleSource(anchor, anchorMtime, storageIdentity, secretIdentity, probeConfig)
+            ? cachedResolveSingleSource(anchor, anchorMtime, anchorVersion, storageIdentity, secretIdentity, probeConfig)
             : resolveSingleSource(anchor.toString(), probeConfig)).schema();
         rejectUncoercibleFileTypedRetypes(physicalSchema, sourceType, declaredMapping);
     }
@@ -5874,6 +5895,7 @@ public class ExternalSourceResolver {
     private SourceMetadata cachedResolveSingleSource(
         StoragePath filePath,
         long mtime,
+        @Nullable String version,
         String storageIdentity,
         String secretIdentity,
         Map<String, Object> config
@@ -5881,6 +5903,7 @@ public class ExternalSourceResolver {
         SchemaCacheKey schemaKey = SchemaCacheKey.build(
             filePath.toString(),
             mtime,
+            version,
             datasetIdentity(filePath.objectName(), storageIdentity, secretIdentity, storageConfig(config)),
             false
         );

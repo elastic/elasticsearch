@@ -4950,6 +4950,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
 
             @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return inner.storageIdentity();
             }
@@ -5181,6 +5186,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         return new StorageObject() {
             @Override
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
 
             @Override
             public StorageIdentity storageIdentity() {
@@ -7415,6 +7425,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         MeteredPayloadStorageObject(StoragePath path, byte[] payload) {
             this.path = path;
             this.payload = payload;
+        }
+
+        @Override
+        public String version() {
+            return "v1";
         }
 
         @Override

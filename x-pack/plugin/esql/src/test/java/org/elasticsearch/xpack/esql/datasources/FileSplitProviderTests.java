@@ -4808,6 +4808,11 @@ public class FileSplitProviderTests extends ESTestCase {
                     public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
 
                     @Override
+                    public String version() {
+                        return "v1";
+                    }
+
+                    @Override
                     public StorageIdentity storageIdentity() {
                         return AbstractTestStorageObject.NOOP;
                     }
@@ -5487,6 +5492,11 @@ public class FileSplitProviderTests extends ESTestCase {
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
 
             @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -5647,6 +5657,11 @@ public class FileSplitProviderTests extends ESTestCase {
         StorageObject counting = new StorageObject() {
             @Override
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
 
             @Override
             public StorageIdentity storageIdentity() {
@@ -5839,6 +5854,11 @@ public class FileSplitProviderTests extends ESTestCase {
         return new StorageObject() {
             @Override
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
 
             @Override
             public StorageIdentity storageIdentity() {
@@ -8665,6 +8685,11 @@ public class FileSplitProviderTests extends ESTestCase {
                     public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
 
                     @Override
+                    public String version() {
+                        return "v1";
+                    }
+
+                    @Override
                     public StorageIdentity storageIdentity() {
                         return AbstractTestStorageObject.NOOP;
                     }
@@ -8773,6 +8798,11 @@ public class FileSplitProviderTests extends ESTestCase {
                 return new StorageObject() {
                     @Override
                     public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+                    @Override
+                    public String version() {
+                        return "v1";
+                    }
 
                     @Override
                     public StorageIdentity storageIdentity() {
@@ -10528,5 +10558,24 @@ public class FileSplitProviderTests extends ESTestCase {
 
     private static Attribute metadataAttr(String name) {
         return new ExternalMetadataAttribute(SRC, name, MetadataAttribute.dataType(name));
+    }
+
+    /**
+     * The file's version rides in each split's config, as the file length does, so a split on a data node addresses the
+     * footer of the version the coordinator listed. A file with no version keeps the query's config as it is.
+     */
+    /** A file's version alone is not a query option, so a query with no options still has no inline config. */
+    public void testFileVersionAloneIsNotQueryConfig() {
+        assertFalse(FileSplitProvider.carriesQueryConfig(FileSplitProvider.withFileVersion(Map.of(), "etag-7")));
+        assertTrue(FileSplitProvider.carriesQueryConfig(FileSplitProvider.withFileVersion(Map.of("format", "parquet"), "etag-7")));
+    }
+
+    public void testFileVersionIsCarriedInTheSplitConfig() {
+        Map<String, Object> query = Map.of("format", "parquet");
+        assertSame("no version: the query's config, unchanged", query, FileSplitProvider.withFileVersion(query, null));
+        Map<String, Object> versioned = FileSplitProvider.withFileVersion(query, "etag-7");
+        assertEquals("etag-7", versioned.get(FileSplitProvider.FILE_VERSION_KEY));
+        assertEquals("the query's own keys are kept", "parquet", versioned.get("format"));
+        assertNull("the query's config is not modified", query.get(FileSplitProvider.FILE_VERSION_KEY));
     }
 }

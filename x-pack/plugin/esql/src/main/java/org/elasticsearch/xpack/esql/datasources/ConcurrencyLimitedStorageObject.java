@@ -114,6 +114,11 @@ class ConcurrencyLimitedStorageObject implements StorageObject, ResumeBypassingS
     }
 
     @Override
+    public String version() {
+        return delegate.version();
+    }
+
+    @Override
     public Instant lastModified() throws IOException {
         return delegate.lastModified();
     }

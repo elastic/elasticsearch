@@ -899,6 +899,9 @@ final class CoalescedRangeReader {
             logger.debug("footer cache lookup skipped", e);
             return null;
         }
+        if (key == null) {
+            return null;
+        }
         byte[] cached = footerBytes.get(key);
         if (cached == null || cached.length == 0) {
             return null;

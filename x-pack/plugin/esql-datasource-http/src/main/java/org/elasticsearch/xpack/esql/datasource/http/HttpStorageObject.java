@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
@@ -86,6 +87,8 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
     private Long cachedLength;
     private Instant cachedLastModified;
     private Boolean cachedExists;
+    /** The strong ETag of the last HEAD, which is a version but never a pin; see {@link #version()}. */
+    private volatile String headVersion;
     /** First strong ETag returned by a GET; sent as If-Match on later GETs and reported as {@link #contentGeneration()}. */
     private final AtomicReference<String> pinnedEtag = new AtomicReference<>();
 
@@ -362,6 +365,30 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
     @Override
     public String contentGeneration() {
         return pinnedEtag.get();
+    }
+
+    /**
+     * The pin. The ETag of a HEAD is not used here: reads are not conditional on it, so an overwrite before the first GET
+     * would pair an old footer with the new bytes. {@link #headVersion()} is what a metadata call reports, and it seeds
+     * the pin when used.
+     */
+    @Override
+    @Nullable
+    public String version() {
+        return pinnedEtag.get();
+    }
+
+    /** The strong ETag of the last HEAD, which is the version a metadata call reports; see {@link #version()}. */
+    @Nullable
+    String headVersion() {
+        return headVersion;
+    }
+
+    /** Seeds the pin with a version a listing or probe reported, so the first GET is conditional on it. */
+    void seedVersion(String version) {
+        if (version != null && version.regionMatches(true, 0, "W/", 0, 2) == false) {
+            pinnedEtag.compareAndSet(null, version);
+        }
     }
 
     // === ASYNC API (native implementation using HttpClient.sendAsync) ===
@@ -824,6 +851,8 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                     if (etag == null || etag.equals(observedEtag)) {
                         cachedLength = contentLength.getAsLong();
                     }
+                    // The HEAD's representation is the version a listing or probe would report. It is never a pin.
+                    headVersion = observedEtag != null && observedEtag.regionMatches(true, 0, "W/", 0, 2) == false ? observedEtag : null;
 
                     // Extract Last-Modified (optional)
                     java.util.Optional<String> lastModified = response.headers().firstValue(HttpHeaders.LAST_MODIFIED);

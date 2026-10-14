@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 
 import java.io.IOException;
@@ -120,9 +121,27 @@ public interface StorageObject {
      * request that transfers object bytes (or, for GCS, the metadata GET issued specifically to
      * acquire the pin), never from a metadata-only request, and must not move it once set. Pin
      * acquisition must be atomic: concurrent first reads from different generations cannot both succeed.
+     * <p>
+     * The one exception is a pin seeded from a listing version (see {@link #version()}), set before the first request
+     * so that the first read is already conditional on the version the listing reported. Such a pin has not been
+     * observed on a response from this object.
      */
     default String contentGeneration() {
         return null;
+    }
+
+    /**
+     * Version of this object for addressing the footer caches: the ETag, generation or modification time that the
+     * listing or a probe reported when this instance was created, or else the pin its own reads acquired. Unlike
+     * {@link #contentGeneration()} it is available before any read, because the listing supplies it. {@code null}
+     * when no version is known, and such an object is not footer-cached, so an overwrite can never be answered from
+     * a footer that was read for an earlier version.
+     * <p>
+     * Decorators must return {@code delegate.version()}, as they do for {@link #contentGeneration()}.
+     */
+    @Nullable
+    default String version() {
+        return contentGeneration();
     }
 
     /**

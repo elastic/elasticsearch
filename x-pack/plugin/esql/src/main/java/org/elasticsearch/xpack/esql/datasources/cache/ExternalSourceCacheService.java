@@ -1890,6 +1890,17 @@ public class ExternalSourceCacheService implements Closeable {
         return enabled;
     }
 
+    /**
+     * Drops the cached listings and file metadata, so the next query lists the datasets again. A read that fails with
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException} has found an object that was
+     * rewritten after its listing was cached; the listed version is then stale, and reusing it would fail every query
+     * until the listing clock ticks. Schema and statistics records are keyed by version and are left alone.
+     */
+    public void invalidateListingsAndFileMetadata() {
+        listingStore.invalidateAll();
+        fileMetadataCache.invalidateAll();
+    }
+
     public void clearAll() {
         schemaStore.invalidateAll();
         statisticsStore.invalidateAll();

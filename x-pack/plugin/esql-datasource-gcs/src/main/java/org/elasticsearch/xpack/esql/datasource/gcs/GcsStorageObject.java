@@ -567,6 +567,21 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
     }
 
     /**
+     * Seeds the generation pin with the generation a listing reported, so the reader opens with {@code generationMatch}
+     * from its first request. A version that is not a generation number leaves the object unpinned.
+     */
+    void seedVersion(String version) {
+        if (version == null) {
+            return;
+        }
+        try {
+            cachedGeneration.compareAndSet(null, Long.parseLong(version));
+        } catch (NumberFormatException e) {
+            // Not a generation number: the object stays unpinned, and so unversioned for the footer cache.
+        }
+    }
+
+    /**
      * Adopts the generation of a metadata GET issued on the read path as the pin, and refreshes the
      * cached size from it. Never overwrites an existing pin, and refreshes the size only from the
      * pinned generation — a newer generation's size is not what the pinned readers will deliver.

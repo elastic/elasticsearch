@@ -562,6 +562,28 @@ public final class AzureStorageProvider implements StorageProvider {
     }
 
     @Override
+    public StorageObject newObject(StoragePath path, long length, Instant lastModified, String version) {
+        validateAzureScheme(path);
+        ParsedPath parsed = parsePath(path);
+        String account = extractAccountFromHost(parsed.host);
+        Clients c = clients(account);
+        BlobClient blobClient = c.sync().getBlobContainerClient(parsed.container).getBlobClient(parsed.blobName);
+        BlobAsyncClient blobAsyncClient = resolveAsyncClient(c, parsed);
+        AzureStorageObject object = new AzureStorageObject(
+            storageIdentity,
+            blobClient,
+            blobAsyncClient,
+            parsed.container,
+            parsed.blobName,
+            path,
+            length,
+            lastModified
+        );
+        object.seedVersion(version);
+        return object;
+    }
+
+    @Override
     public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
         validateAzureScheme(path);
         ParsedPath parsed = parsePath(path);
@@ -668,7 +690,8 @@ public final class AzureStorageProvider implements StorageProvider {
         var props = item.getProperties();
         Instant lastModified = props != null && props.getLastModified() != null ? props.getLastModified().toInstant() : null;
         long size = props != null && props.getContentLength() != null ? props.getContentLength() : 0L;
-        return new StorageEntry(StoragePath.of(pathPrefix + item.getName()), size, lastModified);
+        String etag = AzureStorageObject.quotedEtag(props != null ? props.getETag() : null);
+        return new StorageEntry(StoragePath.of(pathPrefix + item.getName()), size, lastModified, etag);
     }
 
     @Override

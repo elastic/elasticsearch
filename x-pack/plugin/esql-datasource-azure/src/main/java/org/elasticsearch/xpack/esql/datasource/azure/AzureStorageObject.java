@@ -20,6 +20,7 @@ import com.azure.storage.blob.specialized.BlobInputStream;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -305,6 +306,30 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
     @Override
     public String contentGeneration() {
         return pinnedEtag.get();
+    }
+
+    /**
+     * Seeds the pin with the ETag a listing reported, so the first download is conditional on it. A weak ETag is not a
+     * byte-for-byte identifier, so it is ignored, and so is any ETag when a pin is already set.
+     */
+    void seedVersion(String version) {
+        String quoted = quotedEtag(version);
+        if (quoted != null) {
+            pinnedEtag.compareAndSet(null, quoted);
+        }
+    }
+
+    /**
+     * The ETag as the conditional headers spell it, in quotes. List Blobs returns it without the quotes that Get Blob and
+     * Get Properties use, so a listed ETag is quoted here before it is compared with a download's. Weak and absent ETags
+     * are not versions, so they give {@code null}.
+     */
+    @Nullable
+    static String quotedEtag(@Nullable String etag) {
+        if (etag == null || etag.isBlank() || etag.startsWith("W/")) {
+            return null;
+        }
+        return etag.startsWith("\"") ? etag : "\"" + etag + "\"";
     }
 
     private BlobRequestConditions requestConditions() {

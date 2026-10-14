@@ -93,6 +93,11 @@ class RetryableStorageProvider extends DelegatingStorageProvider {
     }
 
     @Override
+    public StorageObject newObject(StoragePath path, long length, Instant lastModified, String version) {
+        return new RetryableStorageObject(delegate.newObject(path, length, lastModified, version), policyFor(path), retryScheduler);
+    }
+
+    @Override
     public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
         RetryPolicy policy = policyFor(prefix);
         StorageIterator iterator = policy.execute(() -> delegate.listObjects(prefix, recursive), "listObjects", prefix);

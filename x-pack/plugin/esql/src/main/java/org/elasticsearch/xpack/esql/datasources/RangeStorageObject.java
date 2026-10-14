@@ -108,6 +108,11 @@ class RangeStorageObject implements StorageObject, ResumeBypassingStorageObject 
     }
 
     @Override
+    public String version() {
+        return delegate.version();
+    }
+
+    @Override
     public long lengthForFooterCacheKey() throws IOException {
         return delegate.lengthForFooterCacheKey();
     }

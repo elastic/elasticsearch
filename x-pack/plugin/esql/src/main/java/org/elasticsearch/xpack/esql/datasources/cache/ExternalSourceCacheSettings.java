@@ -250,19 +250,11 @@ public final class ExternalSourceCacheSettings {
     );
 
     /**
-     * Expire-after-write TTL shared by both footer caches. If the bytes are stale, the parse
-     * derived from them is stale too. Counting from the write rather than the last access means this does
-     * NOT keep a footer alive for the duration of one query: a query whose phases span more than this
-     * interval re-fetches and re-parses the footer between resolution, split discovery and execution, and
-     * for a file overwritten in place at the same length those phases can see different footers. Size it
-     * above the span of your longest query if that matters, and above dashboard refresh intervals. The
-     * trade-off: footer cache keys are {@code (path, fileLength)} without mtime (adding it would
-     * cost a HEAD request per range split; see {@link FooterByteCache}), so a file overwritten
-     * in place with identical length can be served stale for up to two of these intervals, because a reparse
-     * from still-cached bytes dates the parsed entry later than the read behind it (see
-     * {@link ParsedFooterCache}). Object-store
-     * analytics layouts treat data files as immutable, and this setting is the operator escape
-     * hatch where they do not.
+     * Expire-after-write TTL shared by both footer caches. It bounds how long an entry is held, not how stale it may
+     * be: the key carries the object's version (see {@link FooterByteCache}), so a rewritten object is read through its
+     * new version, and its footer parsed afresh, whatever the TTL. Counting from the write rather than the last access
+     * means a footer is not kept alive by reads alone. Object-store analytics layouts treat data files as immutable,
+     * and this setting is the operator escape hatch where they do not.
      */
     public static final Setting<TimeValue> FOOTER_CACHE_TTL = Setting.positiveTimeSetting(
         "esql.external.cache.footer.ttl",

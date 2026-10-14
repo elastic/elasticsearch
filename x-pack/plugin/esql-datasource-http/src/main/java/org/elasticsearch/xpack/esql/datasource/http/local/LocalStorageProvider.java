@@ -72,6 +72,14 @@ public final class LocalStorageProvider implements StorageProvider {
     }
 
     @Override
+    public StorageObject newObject(StoragePath path, long length, Instant lastModified, String version) {
+        validateFileScheme(path);
+        LocalStorageObject object = new LocalStorageObject(toFilePath(path), length, lastModified);
+        object.seedVersion(version);
+        return object;
+    }
+
+    @Override
     public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
         validateFileScheme(prefix);
         Path dirPath = toListablePath(prefix);
@@ -111,7 +119,14 @@ public final class LocalStorageProvider implements StorageProvider {
                     // dataset yields the same files whether or not a partition filter routed it through here.
                     BasicFileAttributes attrs = Files.readAttributes(entry, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
                     if (attrs.isRegularFile()) {
-                        files.add(new StorageEntry(toStoragePath(entry), attrs.size(), attrs.lastModifiedTime().toInstant()));
+                        files.add(
+                            new StorageEntry(
+                                toStoragePath(entry),
+                                attrs.size(),
+                                attrs.lastModifiedTime().toInstant(),
+                                LocalStorageObject.versionOf(attrs)
+                            )
+                        );
                     } else if (attrs.isDirectory()) {
                         directories.add(toStoragePath(entry));
                     }
@@ -212,7 +227,14 @@ public final class LocalStorageProvider implements StorageProvider {
                     public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
                         if (attrs.isRegularFile()) {
                             StoragePath storagePath = toStoragePath(file);
-                            entries.add(new StorageEntry(storagePath, attrs.size(), attrs.lastModifiedTime().toInstant()));
+                            entries.add(
+                                new StorageEntry(
+                                    storagePath,
+                                    attrs.size(),
+                                    attrs.lastModifiedTime().toInstant(),
+                                    LocalStorageObject.versionOf(attrs)
+                                )
+                            );
                         }
                         return FileVisitResult.CONTINUE;
                     }
@@ -230,7 +252,14 @@ public final class LocalStorageProvider implements StorageProvider {
                             BasicFileAttributes attrs = Files.readAttributes(entry, BasicFileAttributes.class);
                             if (attrs.isRegularFile()) {
                                 StoragePath storagePath = toStoragePath(entry);
-                                entries.add(new StorageEntry(storagePath, attrs.size(), attrs.lastModifiedTime().toInstant()));
+                                entries.add(
+                                    new StorageEntry(
+                                        storagePath,
+                                        attrs.size(),
+                                        attrs.lastModifiedTime().toInstant(),
+                                        LocalStorageObject.versionOf(attrs)
+                                    )
+                                );
                             }
                         } catch (IOException e) {
                             // Skip entries that can't be read

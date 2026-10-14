@@ -284,6 +284,16 @@ public class GcsStorageProvider implements StorageProvider {
     }
 
     @Override
+    public StorageObject newObject(StoragePath path, long length, Instant lastModified, String version) {
+        validateGcsScheme(path);
+        String bucket = path.host();
+        String objectName = extractObjectName(path);
+        GcsStorageObject object = new GcsStorageObject(storageIdentity, storage(), bucket, objectName, path, length, lastModified);
+        object.seedVersion(version);
+        return object;
+    }
+
+    @Override
     public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
         validateGcsScheme(path);
         String bucket = path.host();
@@ -348,7 +358,8 @@ public class GcsStorageProvider implements StorageProvider {
     /** One conversion from an SDK blob to a {@link StorageEntry}, shared by both listing shapes. */
     private static StorageEntry toStorageEntry(Blob blob, String pathPrefix) {
         Instant lastModified = blob.getUpdateTimeOffsetDateTime() != null ? blob.getUpdateTimeOffsetDateTime().toInstant() : null;
-        return new StorageEntry(StoragePath.of(pathPrefix + blob.getName()), blob.getSize(), lastModified);
+        String generation = blob.getGeneration() != null ? Long.toString(blob.getGeneration()) : null;
+        return new StorageEntry(StoragePath.of(pathPrefix + blob.getName()), blob.getSize(), lastModified, generation);
     }
 
     @Override

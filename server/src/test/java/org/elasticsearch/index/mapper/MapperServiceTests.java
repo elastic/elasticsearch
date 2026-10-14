@@ -128,6 +128,52 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assertNull(lookup.isPassthrough("unknown"));
     }
 
+    /**
+     * Only a field that rejects a second value at parse time is reported as single-valued, so a reader can rely on it. The
+     * guarantee comes from the field's own {@code doc_values.multi_value=false} or from the index-level default, but not from
+     * {@code on_failure=ignore}, which keeps the extra value out of doc values and is therefore not a rejection.
+     */
+    public void testIsSingleValueGuaranteed() throws IOException {
+        Settings columnar = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService mapperService = createMapperService(columnar, mapping(b -> {
+            for (String type : List.of("keyword", "long", "double", "ip", "date", "boolean")) {
+                b.startObject(type + "_single").field("type", type).startObject("doc_values").field("multi_value", false).endObject();
+                b.endObject();
+                b.startObject(type + "_multi").field("type", type).endObject();
+            }
+            b.startObject("keyword_ignore")
+                .field("type", "keyword")
+                .startObject("doc_values")
+                .field("multi_value", false)
+                .field("on_failure", "ignore")
+                .endObject()
+                .endObject();
+        }));
+        MappingLookup lookup = mapperService.mappingLookup();
+        for (String type : List.of("keyword", "long", "double", "ip", "date", "boolean")) {
+            assertTrue(type, lookup.isSingleValueGuaranteed(type + "_single"));
+            assertFalse(type, lookup.isSingleValueGuaranteed(type + "_multi"));
+        }
+        assertFalse(lookup.isSingleValueGuaranteed("keyword_ignore"));
+        assertFalse(lookup.isSingleValueGuaranteed("unknown"));
+
+        MapperService standard = createMapperService(mapping(b -> b.startObject("field").field("type", "keyword").endObject()));
+        assertFalse(standard.mappingLookup().isSingleValueGuaranteed("field"));
+    }
+
+    public void testIsSingleValueGuaranteedFromIndexSetting() throws IOException {
+        Settings columnarSingleValue = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.getKey(), false)
+            .build();
+        MapperService mapperService = createMapperService(columnarSingleValue, mapping(b -> {
+            b.startObject("plain").field("type", "keyword").endObject();
+            b.startObject("override").field("type", "keyword").startObject("doc_values").field("multi_value", true).endObject().endObject();
+        }));
+        assertTrue(mapperService.mappingLookup().isSingleValueGuaranteed("plain"));
+        assertFalse(mapperService.mappingLookup().isSingleValueGuaranteed("override"));
+    }
+
     public void testMappingLookupAutoFlattenedPassthroughStatus() throws IOException {
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();

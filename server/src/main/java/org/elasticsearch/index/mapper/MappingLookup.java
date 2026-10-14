@@ -790,6 +790,14 @@ public final class MappingLookup {
     }
 
     /**
+     * Whether the mapping guarantees that no document holds more than one value for {@code field}. {@code false} means "not
+     * guaranteed", including for unknown fields, aliases and fields whose mapper cannot enforce it.
+     */
+    public boolean isSingleValueGuaranteed(String field) {
+        return fieldMappers.get(field) instanceof FieldMapper fieldMapper && fieldMapper.guaranteesSingleValue();
+    }
+
+    /**
      * Check if the provided {@link MappedFieldType} shadows a dimension
      * or metric field.
      */

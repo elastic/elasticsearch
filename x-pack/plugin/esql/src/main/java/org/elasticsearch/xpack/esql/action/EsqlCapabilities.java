@@ -370,6 +370,13 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK,
 
         /**
+         * Emit a single, shorter warning for all partially unmapped fields from {@link #OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK},
+         * listing a bounded number of field names, instead of one warning per field.
+         * See https://github.com/elastic/elasticsearch/issues/161968.
+         */
+        OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK_COMBINED,
+
+        /**
          * With {@code unmapped_fields="nullify"} or {@code "load"}, a {@code DROP} wildcard that matches no field is a no-op
          * instead of failing with "No matches found for pattern".
          * See https://github.com/elastic/elasticsearch/issues/143226
@@ -1405,7 +1412,7 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code exemplars} query setting.
          */
-        EXEMPLARS_SETTING_DEVELOPMENT_V1(Build.current().isSnapshot()),
+        EXEMPLARS_SETTING_DEVELOPMENT_V3(Build.current().isSnapshot()),
 
         /**
          * Are the {@code documents_found} and {@code values_loaded} fields available
@@ -1774,8 +1781,6 @@ public class EsqlCapabilities {
          * Does the usage information for ESQL contain per-component CPU counters for successful
          * external-source queries ({@code datasources.queries.cpu_nanos.execution},
          * {@code .read}, {@code .planning}, {@code .split_discovery}, {@code .total})?
-         * Note: the {@code planning} component is currently wall time pending a real planning-CPU
-         * measurement in {@code EsqlQueryProfile}.
          */
         USAGE_CONTAINS_DATASOURCES_QUERY_CPU,
 
@@ -3033,6 +3038,14 @@ public class EsqlCapabilities {
         EXTERNAL_SOURCE_FILE_ORDER_OPTIONS,
 
         /**
+         * A dataset may set {@code partition_sample_size}, and how far a listing was asked to run is part of the
+         * listing cache's identity. A query that asks to list the whole glob is therefore never served the prefix
+         * a sampling query left behind, whatever order the two arrive in. Gates the spec cases that set a sample
+         * small enough to truncate and then read every row of the same dataset.
+         */
+        EXTERNAL_SOURCE_PARTITION_SAMPLE_SIZE,
+
+        /**
          * A UNION_BY_NAME query keeps files that contribute rows containing only nulls for the
          * projected columns. This matters when a projected, filtered, or grouped column is absent
          * from a file: the file's rows must not disappear merely because its physical projection is empty.
@@ -3665,18 +3678,27 @@ public class EsqlCapabilities {
 
         /**
          * Under {@code unmapped_fields="LOAD_ALL"}, at most 1000 fields discovered in {@code _source} become columns: the
-         * alphabetically first ones, with a warning if there were more.
+         * alphabetically first ones, with a warning if there were more. Superseded by
+         * {@link #OPTIONAL_FIELDS_LOAD_ALL_SINGLE_SOURCE_COLUMN}, under which no per-field columns are produced and nothing is capped.
          * See https://github.com/elastic/elasticsearch/issues/159972.
          */
         OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
-         * Under {@code unmapped_fields="LOAD_ALL"}, the cap on the number of fields discovered in {@code _source} is the cluster
-         * setting {@code esql.query.unmapped_fields.load_all_max_fields}. Needed by tests that set it, which older nodes would reject
-         * as an unknown setting.
+         * The cluster setting {@code esql.query.unmapped_fields.load_all_max_fields} exists. Under the single-column layout its only
+         * effect is that {@code 0} downgrades {@code unmapped_fields="LOAD_ALL"} to {@code LOAD}. Needed by tests that set it, which
+         * older nodes would reject as an unknown setting.
          * See https://github.com/elastic/elasticsearch/issues/161340.
          */
         OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS_SETTING(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, the unmapped fields discovered in {@code _source} are returned as a single
+         * {@code _unmapped_fields} column of type {@code source} holding a flattened JSON object per row, instead of one column
+         * per field. Supersedes the per-field column layout and the cap on the number of expanded fields.
+         * See https://github.com/elastic/elasticsearch/issues/161717.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_SINGLE_SOURCE_COLUMN(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
@@ -4033,6 +4055,11 @@ public class EsqlCapabilities {
         PROMQL_LABEL_FUNCTIONS(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * Support for the PromQL {@code sort} and {@code sort_desc} functions, which order an instant vector by sample value.
+         */
+        PROMQL_SORT(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Fix mixing of millisecond roundings with nanosecond timestamps in time-series aggregations over
          * {@code date_nanos} indices. This covers window bucket expansion, the window merge in the final
          * aggregation, the window row filter for windows smaller than the time bucket, and the neighbor-bucket
@@ -4138,12 +4165,6 @@ public class EsqlCapabilities {
          * {@code CombineProjections} drops it.
          */
         TS_STATS_LITERAL_AGG_FIX,
-
-        /**
-         * Coordinator-driven remote fetch phase for deferred TopN fields after node-level reduction.
-         * Runtime enablement is gated by {@code esql.query.remote_fetch_topn.enabled}.
-         */
-        REMOTE_FETCH_TOPN_FETCH_PHASE,
 
         /**
          * KNN function support for runtime expressions, not just ES mapped fields.
@@ -4365,6 +4386,12 @@ public class EsqlCapabilities {
          * gate the external csv-spec tests asserting the {@code null}, which such nodes still fail.
          */
         FIX_DERIVED_EXTERNAL_GROUPING_MULTIVALUE,
+
+        /**
+         * A {@code TS} aggregation grouping on a non-dimension {@code text} field keeps the {@code text} type in the
+         * output. Older nodes returned {@code keyword} (see {@link #TS_PERMIT_TEXT_BECOMING_KEYWORD_WHEN_GROUPED_ON}).
+         */
+        TS_KEEP_TEXT_TYPE_WHEN_GROUPED_ON,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

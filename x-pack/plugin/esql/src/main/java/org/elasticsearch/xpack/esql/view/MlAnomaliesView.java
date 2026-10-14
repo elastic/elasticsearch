@@ -29,7 +29,7 @@ public class MlAnomaliesView {
         viewService.ensureReservedViewExists(
             Metadata.DEFAULT_PROJECT_ID,
             new View(".ml-anomalies", """
-                FROM .ml-anomalies-*
+                FROM .ml-anomalies-* METADATA _index
                 | WHERE result_type IN ("bucket", "record", "influencer")
                 | EVAL score = COALESCE(anomaly_score, record_score, influencer_score),
                        initial_score = COALESCE(initial_anomaly_score, initial_record_score, initial_influencer_score)
@@ -56,7 +56,8 @@ public class MlAnomaliesView {
                        actual,
                        typical,
                        event_count,
-                       processing_time_ms
+                       processing_time_ms,
+                       _index
                 """, "View that contains the results of machine learning anomaly detection jobs.", true),
             MlAnomaliesView::hasResultsIndex,
             ActionListener.wrap(

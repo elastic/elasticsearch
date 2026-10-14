@@ -391,7 +391,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
                 )
             );
             // The hosted-shards-only estimate excludes the node-base/merge/indexing-ops overheads,
-            // see EstimatedHeapUsageBuilder#getHeapEstimate.
+            // see NodeHeapUsageCalculator.
             assertThat(
                 "Hosted shards heap usage for node "
                     + nodeMetrics.getKey()

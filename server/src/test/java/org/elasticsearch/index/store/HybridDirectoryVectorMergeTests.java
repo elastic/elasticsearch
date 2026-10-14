@@ -42,6 +42,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
+import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomFloatVector;
 import static org.hamcrest.Matchers.lessThan;
 
 /**
@@ -145,10 +146,7 @@ public class HybridDirectoryVectorMergeTests extends ESTestCase {
         List<float[]> vectors = new ArrayList<>();
         int docs = randomIntBetween(30, 120);
         for (int i = 0; i < docs; i++) {
-            float[] vector = new float[dims];
-            for (int d = 0; d < dims; d++) {
-                vector[d] = randomFloat();
-            }
+            float[] vector = randomFloatVector(dims);
             vectors.add(vector);
             Document doc = new Document();
             doc.add(new KnnFloatVectorField(FIELD, vector, VectorSimilarityFunction.EUCLIDEAN));

@@ -12,18 +12,20 @@ package org.elasticsearch.index.store;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
-import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.KnnFloatVectorField;
-import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesSkipIndexType;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
+import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
@@ -34,98 +36,63 @@ import org.elasticsearch.index.codec.vectors.es94.ES94HnswScalarQuantizedVectors
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
+import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomFloatVector;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 
 public class VectorFieldHintTests extends ESTestCase {
 
+    private static final String FORMAT = "Lucene99HnswVectorsFormat";
+
     /** Two fields written by distinct format instances take separate suffixes, so each resolves. */
-    public void testResolvesTheFieldOfEachSuffix() throws Exception {
-        try (Directory dir = newDirectory()) {
-            IndexWriterConfig iwc = new IndexWriterConfig();
-            iwc.setCodec(new PerFieldPerInstanceCodec());
-            try (IndexWriter w = new IndexWriter(dir, iwc)) {
-                Document doc = new Document();
-                doc.add(new KnnFloatVectorField("first", new float[] { 1, 0 }, VectorSimilarityFunction.DOT_PRODUCT));
-                doc.add(new KnnFloatVectorField("second", new float[] { 0, 1 }, VectorSimilarityFunction.DOT_PRODUCT));
-                w.addDocument(doc);
-                w.commit();
-            }
-            try (DirectoryReader reader = DirectoryReader.open(dir)) {
-                LeafReaderContext leaf = reader.leaves().get(0);
-                FieldInfos fieldInfos = leaf.reader().getFieldInfos();
-                for (String field : List.of("first", "second")) {
-                    String suffix = suffixOf(fieldInfos, field);
-                    assertEquals(new VectorFieldHint(field), VectorFieldHint.forSuffix(fieldInfos, suffix));
-                }
-            }
-        }
+    public void testResolvesTheFieldOfEachSuffix() {
+        FieldInfos fieldInfos = new FieldInfos(new FieldInfo[] { vectorField("first", 0, "0"), vectorField("second", 1, "1") });
+        assertEquals(new VectorFieldHint("first"), VectorFieldHint.forSuffix(fieldInfos, FORMAT + "_0"));
+        assertEquals(new VectorFieldHint("second"), VectorFieldHint.forSuffix(fieldInfos, FORMAT + "_1"));
     }
 
     /** A suffix covering several fields describes none of them, so it resolves to nothing. */
-    public void testSharedSuffixResolvesToNothing() throws Exception {
-        try (Directory dir = newDirectory()) {
-            // the default codec shares one format instance, so both fields land on one suffix
-            try (IndexWriter w = new IndexWriter(dir, new IndexWriterConfig())) {
-                Document doc = new Document();
-                doc.add(new KnnFloatVectorField("first", new float[] { 1, 0 }, VectorSimilarityFunction.DOT_PRODUCT));
-                doc.add(new KnnFloatVectorField("second", new float[] { 0, 1 }, VectorSimilarityFunction.DOT_PRODUCT));
-                w.addDocument(doc);
-                w.commit();
-            }
-            try (DirectoryReader reader = DirectoryReader.open(dir)) {
-                FieldInfos fieldInfos = reader.leaves().get(0).reader().getFieldInfos();
-                String shared = suffixOf(fieldInfos, "first");
-                assertEquals(shared, suffixOf(fieldInfos, "second"));
-                assertNull(VectorFieldHint.forSuffix(fieldInfos, shared));
-            }
-        }
+    public void testSharedSuffixResolvesToNothing() {
+        FieldInfos fieldInfos = new FieldInfos(new FieldInfo[] { vectorField("first", 0, "0"), vectorField("second", 1, "0") });
+        assertNull(VectorFieldHint.forSuffix(fieldInfos, FORMAT + "_0"));
     }
 
-    public void testUnknownSuffixResolvesToNothing() throws Exception {
-        try (Directory dir = newDirectory()) {
-            try (IndexWriter w = new IndexWriter(dir, new IndexWriterConfig())) {
-                Document doc = new Document();
-                doc.add(new KnnFloatVectorField("first", new float[] { 1, 0 }, VectorSimilarityFunction.DOT_PRODUCT));
-                w.addDocument(doc);
-                w.commit();
-            }
-            try (DirectoryReader reader = DirectoryReader.open(dir)) {
-                FieldInfos fieldInfos = reader.leaves().get(0).reader().getFieldInfos();
-                assertNull(VectorFieldHint.forSuffix(fieldInfos, "NoSuchFormat_7"));
-            }
-        }
+    public void testUnknownSuffixResolvesToNothing() {
+        FieldInfos fieldInfos = new FieldInfos(new FieldInfo[] { vectorField("first", 0, "0") });
+        assertNull(VectorFieldHint.forSuffix(fieldInfos, "NoSuchFormat_7"));
     }
 
-    private static String suffixOf(FieldInfos fieldInfos, String field) {
-        var fi = fieldInfos.fieldInfo(field);
-        return fi.getAttribute(PerFieldKnnVectorsFormat.PER_FIELD_FORMAT_KEY)
-            + "_"
-            + fi.getAttribute(PerFieldKnnVectorsFormat.PER_FIELD_SUFFIX_KEY);
-    }
-
-    /**
-     * Hands every field its own format instance, the way Elasticsearch does for dense vectors. It
-     * keeps the default codec's name so the segment still resolves to a registered codec on read;
-     * the per-field suffixes it wrote are recorded in the field attributes either way.
-     */
-    private static class PerFieldPerInstanceCodec extends FilterCodec {
-        PerFieldPerInstanceCodec() {
-            super(Codec.getDefault().getName(), Codec.getDefault());
-        }
-
-        @Override
-        public KnnVectorsFormat knnVectorsFormat() {
-            return new PerFieldKnnVectorsFormat() {
-                @Override
-                public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
-                    // a new instance per field, which is what gives each its own files
-                    return new Lucene99HnswVectorsFormat();
-                }
-            };
-        }
+    /** A vector field as {@link PerFieldKnnVectorsFormat} records it: the format it was written with and its suffix. */
+    private static FieldInfo vectorField(String name, int number, String suffix) {
+        Map<String, String> attributes = new HashMap<>();
+        attributes.put(PerFieldKnnVectorsFormat.PER_FIELD_FORMAT_KEY, FORMAT);
+        attributes.put(PerFieldKnnVectorsFormat.PER_FIELD_SUFFIX_KEY, suffix);
+        return new FieldInfo(
+            name,
+            number,
+            false,
+            false,
+            false,
+            IndexOptions.NONE,
+            DocValuesType.NONE,
+            DocValuesSkipIndexType.NONE,
+            -1,
+            attributes,
+            0,
+            0,
+            0,
+            2,
+            VectorEncoding.FLOAT32,
+            VectorSimilarityFunction.DOT_PRODUCT,
+            false,
+            false
+        );
     }
 
     /**
@@ -133,8 +100,7 @@ public class VectorFieldHintTests extends ESTestCase {
      * again: each merged raw vectors file still says the field it holds.
      */
     public void testAMergeSaysTheFieldOfEachMergedFile() throws Exception {
-        List<IOContext> rawCreates = new CopyOnWriteArrayList<>();
-        List<String> rawNames = new CopyOnWriteArrayList<>();
+        Map<String, IOContext> rawCreates = new ConcurrentHashMap<>();
         Codec codec = new FilterCodec(Codec.getDefault().getName(), Codec.getDefault()) {
             @Override
             public KnnVectorsFormat knnVectorsFormat() {
@@ -150,8 +116,7 @@ public class VectorFieldHintTests extends ESTestCase {
             @Override
             public IndexOutput createOutput(String name, IOContext context) throws IOException {
                 if (name.endsWith(".vec") && context.context() == IOContext.Context.MERGE) {
-                    rawNames.add(name);
-                    rawCreates.add(context);
+                    rawCreates.put(name, context);
                 }
                 return super.createOutput(name, context);
             }
@@ -163,9 +128,9 @@ public class VectorFieldHintTests extends ESTestCase {
                     String second = first.equals("a") ? "b" : "a";
                     for (int i = 0; i < 32; i++) {
                         Document doc = new Document();
-                        doc.add(new KnnFloatVectorField(first, vector(), VectorSimilarityFunction.EUCLIDEAN));
+                        doc.add(new KnnFloatVectorField(first, randomFloatVector(16), VectorSimilarityFunction.EUCLIDEAN));
                         if (i > 0) {
-                            doc.add(new KnnFloatVectorField(second, vector(), VectorSimilarityFunction.EUCLIDEAN));
+                            doc.add(new KnnFloatVectorField(second, randomFloatVector(16), VectorSimilarityFunction.EUCLIDEAN));
                         }
                         writer.addDocument(doc);
                     }
@@ -175,33 +140,16 @@ public class VectorFieldHintTests extends ESTestCase {
             }
             SegmentCommitInfo merged = SegmentInfos.readLatestCommit(dir).info(0);
             FieldInfos fieldInfos = codec.fieldInfosFormat().read(dir, merged.info, "", IOContext.READONCE);
-            assertThat(rawNames.size(), equalTo(2));
+            assertThat(rawCreates, aMapWithSize(2));
             for (String field : List.of("a", "b")) {
                 FieldInfo info = fieldInfos.fieldInfo(field);
                 String suffix = info.getAttribute(PerFieldKnnVectorsFormat.PER_FIELD_FORMAT_KEY)
                     + "_"
                     + info.getAttribute(PerFieldKnnVectorsFormat.PER_FIELD_SUFFIX_KEY);
-                int created = -1;
-                for (int i = 0; i < rawNames.size(); i++) {
-                    if (rawNames.get(i).endsWith("_" + suffix + ".vec")) {
-                        created = i;
-                    }
-                }
-                assertTrue(field + " has no merged raw vectors among " + rawNames, created >= 0);
-                assertThat(
-                    field,
-                    rawCreates.get(created).hints(VectorFieldHint.class).toList(),
-                    equalTo(List.of(new VectorFieldHint(field)))
-                );
+                String raw = IndexFileNames.segmentFileName(merged.info.name, suffix, "vec");
+                assertThat(rawCreates, hasKey(raw));
+                assertThat(field, rawCreates.get(raw).hints(VectorFieldHint.class).toList(), equalTo(List.of(new VectorFieldHint(field))));
             }
         }
-    }
-
-    private static float[] vector() {
-        float[] v = new float[16];
-        for (int i = 0; i < v.length; i++) {
-            v[i] = randomFloat();
-        }
-        return v;
     }
 }

@@ -115,8 +115,20 @@ public final class FlakinessTargets {
         List<String> runnableTasks = unionTasks(left.runnableTasks(), right.runnableTasks());
         int candidateTasks = left.runnableTasks().equals(right.runnableTasks())
             ? Math.max(left.candidateTasks(), right.candidateTasks())
-            : left.candidateTasks() + right.candidateTasks();
+            : left.candidateTasks() + right.candidateTasks() - overlapCount(left.runnableTasks(), right.runnableTasks());
         return targetWith(left, runnableTasks, candidateTasks, null);
+    }
+
+    private static int overlapCount(List<String> left, List<String> right) {
+        TreeSet<String> overlap = new TreeSet<>();
+        if (left != null) {
+            overlap.addAll(left);
+        }
+        if (right == null) {
+            return 0;
+        }
+        overlap.retainAll(right);
+        return overlap.size();
     }
 
     private static BaseTarget targetWith(BaseTarget target, List<String> runnableTasks, int candidateTasks, String skipReason) {

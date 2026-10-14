@@ -233,6 +233,22 @@ public class FlakinessTargetsTests {
         );
     }
 
+    @Test
+    public void testMergeCandidateCountDoesNotDoubleCountKnownOverlappingTasks() {
+        BaseTarget first = target(":a", "test", "org.foo.ATests", List.of(":a:testA", ":a:testB"), null, 2);
+        BaseTarget second = target(":a", "test", "org.foo.ATests", List.of(":a:testB"), null, 1);
+
+        FlakinessJson.BaseTargetsFile merged = FlakinessTargets.merge(
+            List.of(changedFile("a/src/test/java/org/foo/ATests.java")),
+            List.of(
+                new FlakinessJson.ProjectTargetsFile(":a", List.of(new FlakinessJson.RefTarget(0, first)), List.of(), List.of()),
+                new FlakinessJson.ProjectTargetsFile(":a", List.of(new FlakinessJson.RefTarget(0, second)), List.of(), List.of())
+            )
+        );
+
+        assertThat(merged.targets(), contains(target(":a", "test", "org.foo.ATests", List.of(":a:testA", ":a:testB"), null, 2)));
+    }
+
     private static FlakinessRef changedFile(String path) {
         return new FlakinessRef(FlakinessRef.SOURCE_CHANGED_FILE, path, null, null, null, null, null);
     }

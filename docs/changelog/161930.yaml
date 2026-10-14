@@ -21,17 +21,18 @@ breaking:
     columns, and is bounded by the widest schema the setting accepts rather than by its value. So a
     file with more columns than the cap allows is now read through a narrower settled schema, where
     a file reached under `first_file_wins` behind a narrower first file was refused. Where the
-    schema was declared, a CSV or TSV file like that was read before as well, but with no bound at
-    all on the header it read.
+    schema was declared, a CSV, TSV or NDJSON file like that was read before as well, but with no
+    bound at all on the header or the sample it read.
   impact: >-
     Queries over external datasets whose files disagree with the query's column types, or whose
     files drift from the first file under first-file-wins schema resolution, may now fail where
     they returned nulls and a warning. Setting the dataset's error mode to `null_field` keeps the
     previous null-filling behaviour. A CSV, TSV or NDJSON file with more columns than
     `esql.external.schema_max_fields` allows, reached under `first_file_wins` behind a narrower
-    first file, is now read rather than refused; a Parquet file is still held to the limit unless
-    the query materialises no column from it. In the other direction, a dataset that declares its
-    columns over a CSV or TSV file with more columns than `esql.external.schema_max_fields` can be
-    set to — 100,000 — is now refused, where the header it read was previously unbounded. Affects
+    first file, is now read rather than refused. A Parquet file in that position was already read
+    by a query that projects columns; a query that materialises no column from it is no longer
+    refused either. In the other direction, a dataset that declares its columns over a CSV, TSV or
+    NDJSON file with more columns than `esql.external.schema_max_fields` can be set to — 100,000 —
+    is now refused, where the header or sample it read was previously unbounded. Affects
     deployments where ES|QL federation is enabled.
   notable: false

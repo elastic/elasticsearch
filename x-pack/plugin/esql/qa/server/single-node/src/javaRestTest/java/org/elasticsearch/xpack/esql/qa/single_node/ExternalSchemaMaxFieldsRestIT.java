@@ -56,7 +56,7 @@ import static org.hamcrest.Matchers.not;
  *
  * <p>Every format has a file one column over the default cap. The text formats are written here; {@code wide.parquet} is
  * {@code wide_schema.parquet}, which the build converts from {@code wide_schema.csv}. Parquet globs reuse
- * {@code employees.parquet} (more than one column) with a dataset cap of {@code 1}.
+ * {@code employees.parquet}, whose 23 columns are over a dataset cap of {@code 1} and under the default.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class ExternalSchemaMaxFieldsRestIT extends ESRestTestCase {
@@ -238,6 +238,25 @@ public class ExternalSchemaMaxFieldsRestIT extends ESRestTestCase {
             putGlobDataset(dataset, "parquet_multi", "parquet", resolution, Map.of("schema_max_fields", 1));
             assertRefused(dataset);
         }
+    }
+
+    /**
+     * The Parquet half of {@link #testMultiFileFirstFileWinsWithWideLaterFile}: a narrow anchor and a later file one
+     * column over the default cap. The anchor settles the schema, so the cap is met there and nowhere else, and every
+     * later read of that glob is pinned to the anchor's columns rather than resolving the file's own schema.
+     * <p>
+     * {@code COUNT(*)} runs first, cold, with every column pruned; the {@code KEEP} then reads a column out of the same
+     * two files; the second {@code COUNT(*)} repeats the first against a warm per-file cache, where the file's footer
+     * has already been read once.
+     */
+    public void testMultiFileParquetFirstFileWinsWithWideLaterFile() throws IOException {
+        String dataset = datasetName("multi_later_ffw", "parquet");
+        putGlobDataset(dataset, "wide_last_parquet", "parquet", "first_file_wins", Map.of());
+        // 100 rows in the narrow anchor and one in the wide file.
+        assertThat(values(esql("FROM " + dataset + " | STATS c = COUNT(*)")), equalTo(List.of(List.of(101))));
+        assertThat(values(esql("FROM " + dataset + " | KEEP emp_no | LIMIT 200")), hasSize(101));
+        assertThat(values(esql("FROM " + dataset + " | STATS c = COUNT(*)")), equalTo(List.of(List.of(101))));
+        assertNodeStillServes();
     }
 
     private void putGlobDataset(String dataset, String dir, String ext, String resolution, Map<String, Object> extra) throws IOException {
@@ -462,6 +481,9 @@ public class ExternalSchemaMaxFieldsRestIT extends ESRestTestCase {
             Path parquetMulti = Files.createDirectory(dir.resolve("parquet_multi"));
             Files.copy(dir.resolve("employees.parquet"), parquetMulti.resolve("a.parquet"));
             Files.copy(dir.resolve("employees.parquet"), parquetMulti.resolve("b.parquet"));
+            Path wideLastParquet = Files.createDirectory(dir.resolve("wide_last_parquet"));
+            Files.copy(dir.resolve("employees.parquet"), wideLastParquet.resolve("a_employees.parquet"));
+            Files.copy(dir.resolve("wide.parquet"), wideLastParquet.resolve("z_wide.parquet"));
             return dir;
         } catch (IOException e) {
             throw new RuntimeException("Failed to create schema cap fixture directory", e);

@@ -357,7 +357,8 @@ public final class SliceIndexing {
     /**
      * Validates request-level slice/routing requirements and resolves effective routing for search-style APIs.
      * When {@code anySliceEnabled} is true and no {@code _slice} parameter was provided, the request is treated
-     * as {@code _slice=_all} (routing is left unrestricted, covering all slices).
+     * as {@code _slice=_all} (routing is left unrestricted, covering all slices). A {@code _slice} is accepted even when no
+     * targeted index is slice-enabled: indices without slices hold no document of any slice, so they match nothing.
      */
     public static String validateAndResolveSliceRoutingRequirement(
         boolean anySliceEnabled,
@@ -365,8 +366,7 @@ public final class SliceIndexing {
         String routing,
         String requestedSlice,
         String requestDescription,
-        String target,
-        boolean allowSliceWhenNoLocalSliceEnabled
+        String target
     ) {
         if (anySliceEnabled && routingFromSlice == false && routing != null) {
             throw new IllegalArgumentException(
@@ -377,17 +377,6 @@ public final class SliceIndexing {
                     + "], use ["
                     + FIELD_NAME
                     + "] instead"
-            );
-        }
-        if (routingFromSlice && anySliceEnabled == false && allowSliceWhenNoLocalSliceEnabled == false) {
-            throw new IllegalArgumentException(
-                "["
-                    + FIELD_NAME
-                    + "] is not allowed when [index.slice.enabled] is false for "
-                    + requestDescription
-                    + " targeting ["
-                    + target
-                    + "]"
             );
         }
         if (routingFromSlice) {

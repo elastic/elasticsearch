@@ -126,7 +126,7 @@ public class Knn extends SingleFieldFullTextFunction
         returnType = "boolean",
         briefSummary = "Finds the k nearest vectors to a query vector as measured by a similarity metric.",
         description = "Finds the k nearest vectors to a query vector, as measured by a similarity metric. "
-            + "knn function finds nearest vectors through approximate search on indexed dense_vectors or semantic_text fields. On dense_vector expressions that are not backed by an index, it performs exact, brute-force search over every row.",
+            + "knn function finds nearest vectors through approximate search on indexed dense_vectors or semantic_text fields.",
         detailedDescription = """
             The `KNN` function performs [approximate kNN search](docs-content://solutions/search/vector/knn/approximate-knn.md)
             on indexed `dense_vector` and `semantic_text` fields. It delegates search to the underlying vector search index,

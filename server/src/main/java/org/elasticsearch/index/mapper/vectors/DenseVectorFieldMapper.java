@@ -46,7 +46,6 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -80,8 +79,6 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
-import org.elasticsearch.index.mapper.MapperFeatures;
-import org.elasticsearch.index.mapper.MapperMergeContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MappingParser;
 import org.elasticsearch.index.mapper.MappingParserContext;
@@ -143,7 +140,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
@@ -318,14 +314,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final boolean indexDisabledByDefault;
         private final float postFilterSelectivityThreshold;
 
-        /**
-         * Answers whether every node in the cluster supports a feature. Only the builder parsed from an incoming mapping has a parser
-         * context to ask, and a merge consults that incoming builder. It is deliberately not evaluated while parsing: parsing also
-         * happens on the cluster applier thread, which must not read the cluster state. Builders without a context, such as the one
-         * derived from an existing mapper, assume support.
-         */
-        private Predicate<NodeFeature> clusterSupportsFeature = f -> true;
-
         public Builder(
             String name,
             IndexVersion indexVersionCreated,
@@ -493,34 +481,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             });
 
             this.indexDisabledByDefault = indexDisabledByDefault;
-        }
-
-        Builder clusterSupportsFeature(Predicate<NodeFeature> clusterSupportsFeature) {
-            this.clusterSupportsFeature = clusterSupportsFeature;
-            return this;
-        }
-
-        /**
-         * {@code auto_calibrate} can only be changed on an existing field once every node knows how to apply the change: a node
-         * that predates {@link MapperFeatures#BBQ_DISK_UPDATABLE_AUTO_CALIBRATE} treats it as an immutable parameter and would
-         * reject the mapping when it received it.
-         */
-        @Override
-        protected void mergeFromBuilder(FieldMapper.Builder incoming, Conflicts conflicts, MapperMergeContext mergeContext) {
-            Builder that = (Builder) incoming;
-            if (autoCalibrationProfile(indexOptions.getValue()) != autoCalibrationProfile(that.indexOptions.getValue())
-                && that.clusterSupportsFeature.test(MapperFeatures.BBQ_DISK_UPDATABLE_AUTO_CALIBRATE) == false) {
-                throw new IllegalArgumentException(
-                    "cannot update [auto_calibrate] on [index_options] of field ["
-                        + leafName()
-                        + "] until all nodes in the cluster support updating it"
-                );
-            }
-            super.mergeFromBuilder(incoming, conflicts, mergeContext);
-        }
-
-        private static IvfAutoCalibrationProfile autoCalibrationProfile(DenseVectorIndexOptions options) {
-            return options instanceof BBQIVFIndexOptions bbqIvf ? bbqIvf.autoCalibrationProfile() : IvfAutoCalibrationProfile.DISABLED;
         }
 
         private boolean isVectorIndexTypeAllowedByProviders(VectorIndexType indexType) {
@@ -3430,7 +3390,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             c.getVectorsFormatProviders(),
             c.getIndexSettings().isIndexDisabledByDefault(),
             c.getIndexSettings().getPostFilterSelectivityThreshold()
-        ).clusterSupportsFeature(c::clusterHasFeature),
+        ),
         notInMultiFields(CONTENT_TYPE)
     );
 

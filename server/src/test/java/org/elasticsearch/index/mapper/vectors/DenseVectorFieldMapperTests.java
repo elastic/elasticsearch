@@ -1077,27 +1077,6 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         assertThat(message, mapperService.documentMapper().mappingSource().toString(), containsString(expectedSource));
     }
 
-    /**
-     * A node that already understands profile names but predates updatable {@code auto_calibrate} would reject a switch from
-     * one enabled profile to another just as it rejects enabling or disabling, so that switch needs the cluster feature too.
-     */
-    public void testAutoCalibrateProfileSwitchRequiresUpdatableFeature() throws IOException {
-        MapperService mapperService = new TestMapperServiceBuilder().settings(EXPERIMENTAL_FEATURES_ENABLED)
-            .clusterSupportsFeature(f -> f == DenseVectorAutoCalibrate.AUTO_CALIBRATE_PROFILES)
-            .build();
-        merge(mapperService, autoCalibrateMapping("quality"));
-
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> merge(mapperService, autoCalibrateMapping("iso_sizing"))
-        );
-        assertThat(e.getMessage(), containsString("cannot update [auto_calibrate]"));
-        assertEquals(
-            IvfAutoCalibrationProfile.QUALITY,
-            getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class).autoCalibrationProfile()
-        );
-    }
-
     public void testAutoCalibrateProfilesRequireClusterFeature() throws IOException {
         final Supplier<MapperService> createMapperService = () -> new TestMapperServiceBuilder().settings(EXPERIMENTAL_FEATURES_ENABLED)
             .clusterSupportsFeature(f -> false)
@@ -1269,62 +1248,15 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     /**
-     * In a mixed cluster a node that predates updatable {@code auto_calibrate} would reject the mapping, so changing
-     * the value on an existing field is refused in both directions until every node supports it. Only the change itself
-     * is gated: setting the value when the field is created, and updating other parameters, are not.
+     * Only the master merges an updated mapping into the existing one; every other node just re-parses the result. So whether an
+     * {@code auto_calibrate} update is accepted never depends on what the rest of the cluster supports, and it must not ask.
      */
-    public void testBbqDiskAutoCalibrateUpdateRequiresClusterFeature() throws IOException {
+    public void testBbqDiskAutoCalibrateUpdateDoesNotDependOnClusterFeatures() throws IOException {
         for (boolean from : new boolean[] { false, true }) {
             boolean to = from == false;
-            // the cluster does not (yet) support any node feature
-            MapperService mapperService = new TestMapperServiceBuilder().clusterSupportsFeature(f -> false).build();
-            // creating the field with either value is always allowed
-            merge(mapperService, fieldMapping(bbqDiskMapping(from, false, 2)));
-
-            IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> merge(mapperService, fieldMapping(bbqDiskMapping(to, false, 2)))
-            );
-            assertThat(e.getMessage(), containsString("cannot update [auto_calibrate]"));
-            assertThat(e.getMessage(), containsString("until all nodes in the cluster support updating it"));
-            assertEquals(
-                from,
-                ((DenseVectorFieldMapper.BBQIVFIndexOptions) denseVectorFieldType(mapperService).getIndexOptions()).autoCalibrate()
-            );
-
-            // re-sending the current value is not a change
-            merge(mapperService, fieldMapping(bbqDiskMapping(from, false, 2)));
-            // nor is updating another parameter while leaving auto_calibrate alone
-            merge(mapperService, fieldMapping(bbqDiskMapping(from, false, 4)));
-        }
-    }
-
-    /**
-     * Mappings are parsed on the cluster applier thread, where reading the cluster state to answer a feature check is forbidden, so
-     * the check must only happen when an {@code auto_calibrate} change is actually being merged. Here asking at all fails the test.
-     */
-    public void testBbqDiskAutoCalibrateFeatureCheckOnlyWhenValueChanges() throws IOException {
-        for (boolean autoCalibrate : new boolean[] { false, true }) {
             MapperService mapperService = new TestMapperServiceBuilder().clusterSupportsFeature(f -> {
-                throw new AssertionError("cluster feature [" + f.id() + "] must not be checked unless auto_calibrate changes");
+                throw new AssertionError("cluster feature [" + f.id() + "] must not be checked when updating auto_calibrate");
             }).build();
-            // creating, re-sending the same value and updating another parameter never ask
-            merge(mapperService, fieldMapping(bbqDiskMapping(autoCalibrate, false, 2)));
-            merge(mapperService, fieldMapping(bbqDiskMapping(autoCalibrate, false, 2)));
-            merge(mapperService, fieldMapping(bbqDiskMapping(autoCalibrate, false, 4)));
-        }
-        // nor does a dense_vector field that is not bbq_disk
-        MapperService mapperService = new TestMapperServiceBuilder().clusterSupportsFeature(f -> {
-            throw new AssertionError("cluster feature [" + f.id() + "] must not be checked for a non-bbq_disk field");
-        }).build();
-        merge(mapperService, fieldMapping(b -> b.field("type", "dense_vector").field("dims", 128)));
-    }
-
-    /** Once every node supports the feature the same update goes through, in both directions. */
-    public void testBbqDiskAutoCalibrateUpdateAllowedWhenClusterSupportsFeature() throws IOException {
-        for (boolean from : new boolean[] { false, true }) {
-            boolean to = from == false;
-            MapperService mapperService = new TestMapperServiceBuilder().clusterSupportsFeature(f -> true).build();
             merge(mapperService, fieldMapping(bbqDiskMapping(from, false, 2)));
             merge(mapperService, fieldMapping(bbqDiskMapping(to, false, 2)));
             assertEquals(

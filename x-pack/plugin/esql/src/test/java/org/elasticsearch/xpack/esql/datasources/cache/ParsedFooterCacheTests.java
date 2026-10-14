@@ -137,6 +137,26 @@ public class ParsedFooterCacheTests extends ESTestCase {
         assertNull("an entry unread for a TTL is released", shortLived.get(k));
     }
 
+    /**
+     * The write cap expires a parsed entry even when it is being continuously read, bounding how long a stale
+     * footer (from a same-length overwrite) may be served. TTL=200ms → write cap=1.2s; reads for 1.8s.
+     */
+    public void testWriteCapExpiresAnEntryDespiteContinuousReads() {
+        TimeValue ttl = TimeValue.timeValueMillis(200);
+        ParsedFooterCache<String> shortLived = new ParsedFooterCache<>(8 * ENTRY_WEIGHT, ttl, ignored -> ENTRY_WEIGHT);
+        FooterByteCache.Key k = key("file.parquet", 1000);
+
+        shortLived.put(k, "footer");
+        assertNotNull("the entry must be stored to begin with", shortLived.get(k));
+        long deadline = System.nanoTime() + TimeValue.timeValueMillis(1800).nanos();
+        while (System.nanoTime() < deadline) {
+            shortLived.get(k);
+            safeSleep(20);
+        }
+
+        assertNull("write cap must force-expire the entry even though it was continuously read", shortLived.get(k));
+    }
+
     public void testPutThenGetReturnsSameInstance() {
         FooterByteCache.Key k = key("file.parquet", 1000);
         String footer = "seeded";
@@ -460,6 +480,19 @@ public class ParsedFooterCacheTests extends ESTestCase {
         FooterByteCache.Key k = key("file.parquet", 1000);
         assertSame("v", fromSettings.getOrLoad(k, ignore -> "v"));
         assertSame("v", fromSettings.get(k));
+    }
+
+    public void testFromSettingsDefaults() {
+        ParsedFooterCache<String> defaults = ParsedFooterCache.fromSettings(Settings.EMPTY, ignored -> ENTRY_WEIGHT);
+        assertEquals(TimeValue.timeValueMinutes(5), defaults.expireAfterAccess());
+        assertEquals(TimeValue.timeValueMinutes(30), defaults.expireAfterWrite());
+    }
+
+    public void testWriteCapIsSixTimesAccessTtl() {
+        Settings settings = Settings.builder().put("esql.external.cache.footer.ttl", "3m").build();
+        ParsedFooterCache<String> configured = ParsedFooterCache.fromSettings(settings, ignored -> ENTRY_WEIGHT);
+        assertEquals(TimeValue.timeValueMinutes(3), configured.expireAfterAccess());
+        assertEquals(TimeValue.timeValueMinutes(18), configured.expireAfterWrite());
     }
 
     public void testFromSettingsReadsCoalesceSetting() {

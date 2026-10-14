@@ -109,6 +109,8 @@ public final class ParsedFooterCache<T> {
     private record Weighted<T>(T value, long weight) {}
 
     private final Cache<FooterByteCache.Key, Weighted<T>> cache;
+    private final TimeValue expireAfterAccess;
+    private final TimeValue expireAfterWrite;
     private final ConcurrentMap<FooterByteCache.Key, CompletableFuture<Weighted<T>>> inFlightLoads = new ConcurrentHashMap<>();
     /**
      * Pending async loads. An entry exists only while that key's GET/parse is in flight; success and
@@ -165,12 +167,24 @@ public final class ParsedFooterCache<T> {
         this.weigher = weigher;
         this.maxWeightBytes = maxWeightBytes;
         this.coalesceAsyncLoads = coalesceAsyncLoads;
+        this.expireAfterAccess = expireAfterAccess;
+        this.expireAfterWrite = TimeValue.timeValueNanos(expireAfterAccess.nanos() * 6L);
         this.cache = CacheBuilder.<FooterByteCache.Key, Weighted<T>>builder()
             .setMaximumWeight(maxWeightBytes)
             .setExpireAfterAccess(expireAfterAccess)
-            .setExpireAfterWrite(TimeValue.timeValueNanos(expireAfterAccess.nanos() * 6L))
+            .setExpireAfterWrite(expireAfterWrite)
             .weigher((key, value) -> value.weight())
             .build();
+    }
+
+    /** The expire-after-access TTL this cache was built with. */
+    public TimeValue expireAfterAccess() {
+        return expireAfterAccess;
+    }
+
+    /** The write cap this cache was built with: six times the access TTL. */
+    public TimeValue expireAfterWrite() {
+        return expireAfterWrite;
     }
 
     /**

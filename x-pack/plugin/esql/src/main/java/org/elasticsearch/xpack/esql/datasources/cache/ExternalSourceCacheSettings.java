@@ -260,10 +260,14 @@ public final class ExternalSourceCacheSettings {
      * <p>
      * It does not precisely bound how stale a footer may be — footer keys are {@code (storageIdentity,
      * path, fileLength)} and name the object rather than the version of it — but both caches carry a
-     * write cap of six times this TTL, so an entry is force-expired at most {@code 6 × TTL} after it was
-     * written regardless of how often it is read. Lowering this setting therefore shortens the staleness
-     * window proportionally. The precise fix belongs in the key rather than the clock (see
-     * {@link FooterByteCache} and elastic/esql-planning#2094).
+     * write cap of six times this TTL, so a raw footer entry is force-expired at most {@code 6 × TTL}
+     * after it was written regardless of how often it is read, and lowering this setting shortens that
+     * window proportionally. For parsed footer entries the ceiling is higher: a parsed-cache miss after
+     * the write cap fires may reparse from byte-cache bytes that were written near their own write cap,
+     * producing a new parsed entry whose clock starts then and can be served for a further {@code 6 × TTL}.
+     * The worst-case staleness for parsed footers is therefore approximately {@code 12 × TTL}. The
+     * precise fix belongs in the key rather than the clock (see {@link FooterByteCache} and
+     * elastic/esql-planning#2094).
      * <p>
      * One case the access clock narrows without closing: a query whose phases span more than this interval
      * on one key, or whose entry is evicted against the byte budget between phases, re-reads the footer

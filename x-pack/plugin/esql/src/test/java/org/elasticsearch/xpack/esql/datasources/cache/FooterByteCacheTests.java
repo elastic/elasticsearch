@@ -232,6 +232,27 @@ public class FooterByteCacheTests extends ESTestCase {
         assertNull("an entry unread for a TTL is released", shortLived.get(key));
     }
 
+    /**
+     * The write cap expires an entry even when it is being continuously read, so a same-length-overwrite
+     * staleness window is bounded. TTL=200ms → write cap=1.2s; reads for 1.8s → cap fires.
+     */
+    public void testWriteCapExpiresAnEntryDespiteContinuousReads() {
+        TimeValue ttl = TimeValue.timeValueMillis(200);
+        FooterByteCache shortLived = new FooterByteCache(1024 * 1024, 512 * 1024, ttl);
+        FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000);
+        byte[] data = randomByteArrayOfLength(64);
+
+        shortLived.put(key, data);
+        assertNotNull("the entry must be stored to begin with", shortLived.get(key));
+        long deadline = System.nanoTime() + TimeValue.timeValueMillis(1800).nanos();
+        while (System.nanoTime() < deadline) {
+            shortLived.get(key);
+            safeSleep(20);
+        }
+
+        assertNull("write cap must force-expire the entry even though it was continuously read", shortLived.get(key));
+    }
+
     public void testFromSettingsUsesConfiguredTtl() {
         Settings settings = Settings.builder().put("esql.external.cache.footer.ttl", "42s").build();
         FooterByteCache configured = FooterByteCache.fromSettings(settings);
@@ -241,7 +262,15 @@ public class FooterByteCacheTests extends ESTestCase {
     public void testFromSettingsDefaults() {
         FooterByteCache defaults = FooterByteCache.fromSettings(Settings.EMPTY);
         assertEquals(TimeValue.timeValueMinutes(5), defaults.expireAfterAccess());
+        assertEquals(TimeValue.timeValueMinutes(30), defaults.expireAfterWrite());
         assertThat(defaults.maxEntryBytes(), lessThanOrEqualTo(FooterByteCache.DEFAULT_MAX_ENTRY_BYTES));
+    }
+
+    public void testWriteCapIsSixTimesAccessTtl() {
+        Settings settings = Settings.builder().put("esql.external.cache.footer.ttl", "3m").build();
+        FooterByteCache configured = FooterByteCache.fromSettings(settings);
+        assertEquals(TimeValue.timeValueMinutes(3), configured.expireAfterAccess());
+        assertEquals(TimeValue.timeValueMinutes(18), configured.expireAfterWrite());
     }
 
     public void testFromSettingsClampsMaxEntryToBudgetFraction() {

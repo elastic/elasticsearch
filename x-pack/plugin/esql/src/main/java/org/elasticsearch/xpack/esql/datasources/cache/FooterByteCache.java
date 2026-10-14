@@ -127,6 +127,7 @@ public class FooterByteCache {
     private final Cache<Key, byte[]> cache;
     private final long maxEntryBytes;
     private final TimeValue expireAfterAccess;
+    private final TimeValue expireAfterWrite;
 
     /**
      * Creates a cache sized from node settings ({@link ExternalSourceCacheSettings#FOOTER_CACHE_SIZE},
@@ -145,10 +146,11 @@ public class FooterByteCache {
     FooterByteCache(long maxBytes, long maxEntryBytes, TimeValue expireAfterAccess) {
         this.maxEntryBytes = maxEntryBytes;
         this.expireAfterAccess = expireAfterAccess;
+        this.expireAfterWrite = TimeValue.timeValueNanos(expireAfterAccess.nanos() * 6L);
         this.cache = CacheBuilder.<Key, byte[]>builder()
             .setMaximumWeight(maxBytes)
             .setExpireAfterAccess(expireAfterAccess)
-            .setExpireAfterWrite(TimeValue.timeValueNanos(expireAfterAccess.nanos() * 6L))
+            .setExpireAfterWrite(expireAfterWrite)
             .weigher((key, value) -> value.length)
             .build();
     }
@@ -160,6 +162,11 @@ public class FooterByteCache {
      */
     public TimeValue expireAfterAccess() {
         return expireAfterAccess;
+    }
+
+    /** The write cap this cache was built with: six times the access TTL. */
+    public TimeValue expireAfterWrite() {
+        return expireAfterWrite;
     }
 
     /** Maximum byte size for a single cache entry. */

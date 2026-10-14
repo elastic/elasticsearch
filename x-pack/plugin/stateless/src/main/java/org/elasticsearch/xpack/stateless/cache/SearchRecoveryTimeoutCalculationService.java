@@ -149,10 +149,9 @@ public class SearchRecoveryTimeoutCalculationService {
     ///
     /// with `deadline = start + min(metadata grace, cap)`. The timeout is capped at the remaining grace period.
     ///
-    /// `concurrentRelocations` is this source's share of the target's
-    /// [org.elasticsearch.indices.recovery.ThrottlingRecoveryService#maxConcurrentRelocationRecoveries], split between
-    /// all relocations to the target any shutting-down source. It may be below one slot, so the timeout may round down to
-    /// zero (skipping warming). This is a rough estimate that ignores other recoveries competing for the target's slots.
+    /// `concurrentRelocations` is this source's share of the target's, split between all relocations to the target from
+    /// any shutting-down source. It may be below one slot, so the timeout may round down to zero (skipping warming). This
+    /// is a rough estimate that ignores other recoveries competing for the target's slots.
     private SearchRecoveryTimeout computeRelocationSourceShutdownWarmingTimeout(
         ClusterState state,
         String sourceNodeId,

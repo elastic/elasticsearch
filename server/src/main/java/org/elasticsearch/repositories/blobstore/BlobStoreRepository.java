@@ -1338,9 +1338,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
             @Override
             public void accept(ActionListener<Void> listener) {
-                // An untouched index needs no work and an index that loses every snapshot is removed with its blob container. So first
-                // check whether this index has both deleted and surviving snapshots and bail out early if not:
-                if (requiresDeletion() == false) {
+                if (requiresProcessing() == false) {
                     listener.onResponse(null);
                     return;
                 }
@@ -1368,7 +1366,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 new IndexSnapshotsDeletion(indexId, survivingSnapshots).run(deletedMetaBlobIds, listener);
             }
 
-            private boolean requiresDeletion() {
+            /// An index requires processing (i.e. by [IndexSnapshotsDeletion]) if some of its snapshots are removed but others survive. If
+            /// all its snapshots survive then no further processing is needed. If all its snapshots are removed then the whole
+            /// `indices/${UUID}` tree is dropped by [SnapshotsDeletion#cleanupUnlinkedRootAndIndicesBlobs] without having to read anything.
+            private boolean requiresProcessing() {
                 assert snapshotIds.isEmpty() == false; // we could further optimize this case if needed, but it never happens
                 final var indexSnapshotIdIterator = indexSnapshotIds.iterator();
                 if (indexSnapshotIdIterator.hasNext()) {

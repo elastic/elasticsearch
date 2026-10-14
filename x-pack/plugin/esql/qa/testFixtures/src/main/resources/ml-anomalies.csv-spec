@@ -22,7 +22,7 @@ max_score:double | timestamp:datetime
 Get influencers
 required_capability: ml_anomalies
 
-FROM .ml-anomalies
+FROM .ml-anomalies-ccs
 | WHERE is_interim == false
 | STATS
         max_score = MAX(score)

@@ -56,6 +56,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VER
 import static org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING;
 import static org.elasticsearch.index.engine.EngineConfig.INDEX_CODEC_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING;
+import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING;
@@ -1484,6 +1485,7 @@ public final class IndexSettings {
     private volatile long mappingTotalFieldsLimit;
     private volatile boolean ignoreDynamicFieldsBeyondLimit;
     private volatile boolean ignoreDynamicFieldNamesBeyondLimit;
+    private volatile boolean combineDynamicMappingUpdates;
     private volatile long mappingDepthLimit;
     private volatile long mappingFieldNameLengthLimit;
     private volatile long mappingDimensionFieldsLimit;
@@ -1709,6 +1711,7 @@ public final class IndexSettings {
         mappingTotalFieldsLimit = scopedSettings.get(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING);
         ignoreDynamicFieldsBeyondLimit = scopedSettings.get(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING);
         ignoreDynamicFieldNamesBeyondLimit = scopedSettings.get(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LENGTH_SETTING);
+        combineDynamicMappingUpdates = scopedSettings.get(INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING);
         mappingDepthLimit = scopedSettings.get(INDEX_MAPPING_DEPTH_LIMIT_SETTING);
         mappingFieldNameLengthLimit = scopedSettings.get(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING);
         mappingDimensionFieldsLimit = scopedSettings.get(INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING);
@@ -1864,6 +1867,7 @@ public final class IndexSettings {
             INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING,
             this::setIgnoreDynamicFieldsBeyondLimit
         );
+        scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING, this::setCombineDynamicMappingUpdates);
         scopedSettings.addSettingsUpdateConsumer(
             INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LENGTH_SETTING,
             this::setIgnoreDynamicFieldNamesBeyondLimit
@@ -2470,6 +2474,14 @@ public final class IndexSettings {
 
     public boolean isIgnoreDynamicFieldsBeyondLimit() {
         return ignoreDynamicFieldsBeyondLimit;
+    }
+
+    private void setCombineDynamicMappingUpdates(boolean combineDynamicMappingUpdates) {
+        this.combineDynamicMappingUpdates = combineDynamicMappingUpdates;
+    }
+
+    public boolean isCombineDynamicMappingUpdates() {
+        return combineDynamicMappingUpdates;
     }
 
     public boolean isIgnoreDynamicFieldNamesBeyondLimit() {

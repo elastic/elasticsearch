@@ -151,6 +151,13 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                         additionalSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), supportSyntheticId);
                     }
 
+                    if (indexVersion.onOrAfter(IndexVersions.TIME_SERIES_COMBINE_DYNAMIC_UPDATES_DEFAULT)
+                        && indexTemplateAndCreateRequestSettings.hasValue(
+                            MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey()
+                        ) == false) {
+                        additionalSettings.put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), true);
+                    }
+
                     if (indexTemplateAndCreateRequestSettings.hasValue(IndexMetadata.INDEX_ROUTING_PATH.getKey()) == false
                         && combinedTemplateMappings.isEmpty() == false) {
                         List<String> dimensions = new ArrayList<>();

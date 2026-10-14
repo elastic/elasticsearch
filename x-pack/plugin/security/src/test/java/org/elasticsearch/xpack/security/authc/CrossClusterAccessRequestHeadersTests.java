@@ -27,62 +27,99 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomUniquelyNamedRoleDescriptors;
 import static org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class CrossClusterAccessHeadersTests extends ESTestCase {
+/** Covers incoming header parsing and round trips from the outbound header writer. */
+public class CrossClusterAccessRequestHeadersTests extends ESTestCase {
 
     public void testWriteReadContextRoundtrip() throws IOException {
         final ThreadContext ctx = new ThreadContext(Settings.EMPTY);
-        final var expected = new CrossClusterAccessHeaders(
-            randomEncodedApiKeyHeader(),
-            AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(randomRoleDescriptorsIntersection())
-        );
+        final String encodedApiKeyHeader = randomEncodedApiKeyHeader();
+        final var subjectInfo = AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(randomRoleDescriptorsIntersection());
+        final var toWrite = new CrossClusterAccessHeaders(encodedApiKeyHeader, subjectInfo);
 
-        expected.writeToContext(ctx, null);
-        final CrossClusterAccessHeaders actual = CrossClusterAccessHeaders.readFromContext(ctx);
+        toWrite.writeToContext(ctx, null);
+        final CrossClusterAccessRequestHeaders actual = CrossClusterAccessRequestHeaders.readFromContext(ctx);
 
-        assertThat(actual.getSubjectInfo(), equalTo(expected.getSubjectInfo()));
-        assertThat(actual.getCleanAndValidatedSubjectInfo(), equalTo(expected.getCleanAndValidatedSubjectInfo()));
-        assertThat(actual.credentials().getId(), equalTo(expected.credentials().getId()));
-        assertThat(actual.credentials().getKey().toString(), equalTo(expected.credentials().getKey().toString()));
+        assertThat(actual.decodeSubjectInfo(), equalTo(subjectInfo));
+        assertThat(actual.decodeSubjectInfo().cleanAndValidate(), equalTo(subjectInfo.cleanAndValidate()));
+        assertCredentialsMatch(actual.credentials(), encodedApiKeyHeader);
+        assertThat(actual.credentials().getCertificateIdentity(), nullValue());
+        assertThat(actual.signature(), nullValue());
+        assertThat(actual.signablePayload(), equalTo(new String[] { subjectInfo.encode(), encodedApiKeyHeader }));
     }
 
     public void testWriteReadContextRoundtripWithSignature() throws IOException, CertificateException {
         final ThreadContext ctx = new ThreadContext(Settings.EMPTY);
-        var encodedApiKeyHeader = randomEncodedApiKeyHeader();
-        var subjectInfo = AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(randomRoleDescriptorsIntersection());
+        final String encodedApiKeyHeader = randomEncodedApiKeyHeader();
+        final var subjectInfo = AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(randomRoleDescriptorsIntersection());
         final var toWrite = new CrossClusterAccessHeaders(encodedApiKeyHeader, subjectInfo);
-        var testSignature = new X509CertificateSignature(getTestCertificates(), "MOCK", new BytesArray(new byte[] { 1, 2, 3 }));
-        var signer = mock(CrossClusterApiKeySignatureManager.Signer.class);
+        final X509Certificate[] certificates = getTestCertificates();
+        final var testSignature = new X509CertificateSignature(certificates, "MOCK", new BytesArray(new byte[] { 1, 2, 3 }));
+        final var signer = mock(CrossClusterApiKeySignatureManager.Signer.class);
         when(signer.sign(subjectInfo.encode(), encodedApiKeyHeader)).thenReturn(testSignature);
 
         toWrite.writeToContext(ctx, signer);
-        final CrossClusterAccessHeaders actual = CrossClusterAccessHeaders.readFromContext(ctx);
+        final CrossClusterAccessRequestHeaders actual = CrossClusterAccessRequestHeaders.readFromContext(ctx);
 
-        assertThat(actual.getSubjectInfo(), equalTo(toWrite.getSubjectInfo()));
-        assertThat(actual.getCleanAndValidatedSubjectInfo(), equalTo(toWrite.getCleanAndValidatedSubjectInfo()));
-        assertThat(actual.credentials().getId(), equalTo(toWrite.credentials().getId()));
-        assertThat(actual.credentials().getKey().toString(), equalTo(toWrite.credentials().getKey().toString()));
+        assertThat(actual.decodeSubjectInfo(), equalTo(subjectInfo));
+        assertThat(actual.decodeSubjectInfo().cleanAndValidate(), equalTo(subjectInfo.cleanAndValidate()));
+        assertCredentialsMatch(actual.credentials(), encodedApiKeyHeader);
+        // The leaf certificate's subject is bound to the credentials so it can be checked against the API key during authentication.
+        assertThat(
+            actual.credentials().getCertificateIdentity(),
+            equalTo(CrossClusterAccessRequestHeaders.getCertificateIdentity(testSignature))
+        );
         assertThat(actual.signature(), equalTo(testSignature));
         assertThat(actual.signablePayload(), equalTo(new String[] { subjectInfo.encode(), encodedApiKeyHeader }));
     }
 
-    public void testThrowsOnMissingEntry() {
-        var actual = expectThrows(
-            IllegalArgumentException.class,
-            () -> CrossClusterAccessHeaders.readFromContext(new ThreadContext(Settings.EMPTY))
-        );
+    /** Reading incoming headers must preserve the signed payload without decoding subject info. */
+    public void testRequestHeadersDoNotDecodeSubjectInfo() throws IOException {
+        final ThreadContext ctx = new ThreadContext(Settings.EMPTY);
+        final String credentialsHeader = randomEncodedApiKeyHeader();
+        ctx.putHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, credentialsHeader);
+        ctx.putHeader(CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY, "%%%%");
+
+        final CrossClusterAccessRequestHeaders headers = CrossClusterAccessRequestHeaders.readFromContext(ctx);
+
+        assertThat(headers.signablePayload(), equalTo(new String[] { "%%%%", credentialsHeader }));
+        expectThrows(IllegalArgumentException.class, headers::decodeSubjectInfo);
+    }
+
+    public void testThrowsOnMissingCredentialsHeader() throws IOException {
+        final ThreadContext ctx = new ThreadContext(Settings.EMPTY);
+        if (randomBoolean()) {
+            AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(randomRoleDescriptorsIntersection()).writeToContext(ctx);
+        }
+
+        var actual = expectThrows(IllegalArgumentException.class, () -> CrossClusterAccessRequestHeaders.readFromContext(ctx));
+
         assertThat(
             actual.getMessage(),
             equalTo("cross cluster access header [" + CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY + "] is required")
         );
     }
 
-    public void testClusterCredentialsReturnsValidApiKey() {
+    public void testThrowsOnMissingSubjectInfoHeader() {
+        final ThreadContext ctx = new ThreadContext(Settings.EMPTY);
+        ctx.putHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, randomEncodedApiKeyHeader());
+
+        var actual = expectThrows(IllegalArgumentException.class, () -> CrossClusterAccessRequestHeaders.readFromContext(ctx));
+
+        assertThat(
+            actual.getMessage(),
+            equalTo("cross cluster access header [" + CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY + "] is required")
+        );
+    }
+
+    public void testClusterCredentialsReturnsValidApiKey() throws IOException {
         final String id = UUIDs.randomBase64UUID();
         final String key = UUIDs.randomBase64UUID();
         final String encodedApiKey = encodedApiKeyWithPrefix(id, key);
@@ -91,10 +128,12 @@ public class CrossClusterAccessHeadersTests extends ESTestCase {
             AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(randomRoleDescriptorsIntersection())
         );
 
-        final ApiKeyCredentials actual = headers.credentials();
-
-        assertThat(actual.getId(), equalTo(id));
-        assertThat(actual.getKey().toString(), equalTo(key));
+        final ThreadContext ctx = new ThreadContext(Settings.EMPTY);
+        headers.writeToContext(ctx, null);
+        try (ApiKeyCredentials actual = CrossClusterAccessRequestHeaders.readFromContext(ctx).credentials()) {
+            assertThat(actual.getId(), equalTo(id));
+            assertThat(actual.getKey().toString(), equalTo(key));
+        }
     }
 
     public void testReadOnInvalidApiKeyValueThrows() throws IOException {
@@ -105,7 +144,7 @@ public class CrossClusterAccessHeadersTests extends ESTestCase {
         );
 
         expected.writeToContext(ctx, null);
-        var actual = expectThrows(IllegalArgumentException.class, () -> CrossClusterAccessHeaders.readFromContext(ctx));
+        var actual = expectThrows(IllegalArgumentException.class, () -> CrossClusterAccessRequestHeaders.readFromContext(ctx));
 
         assertThat(
             actual.getMessage(),
@@ -131,7 +170,7 @@ public class CrossClusterAccessHeadersTests extends ESTestCase {
             )
         );
 
-        var actual = expectThrows(IllegalArgumentException.class, () -> CrossClusterAccessHeaders.readFromContext(ctx));
+        var actual = expectThrows(IllegalArgumentException.class, () -> CrossClusterAccessRequestHeaders.readFromContext(ctx));
 
         assertThat(
             actual.getMessage(),
@@ -139,6 +178,13 @@ public class CrossClusterAccessHeadersTests extends ESTestCase {
                 "cross cluster access header [" + CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY + "] value must be a valid API key credential"
             )
         );
+    }
+
+    private static void assertCredentialsMatch(ApiKeyCredentials actual, String encodedApiKeyHeader) {
+        try (ApiKeyCredentials expected = CrossClusterAccessRequestHeaders.parseCredentials(encodedApiKeyHeader, null)) {
+            assertThat(actual.getId(), equalTo(expected.getId()));
+            assertThat(actual.getKey().toString(), equalTo(expected.getKey().toString()));
+        }
     }
 
     private X509Certificate[] getTestCertificates() throws CertificateException, IOException {

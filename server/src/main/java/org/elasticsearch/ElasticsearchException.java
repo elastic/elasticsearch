@@ -518,7 +518,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         }
 
         if (params.paramAsBoolean(REST_EXCEPTION_SKIP_STACK_TRACE, REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT) == false) {
-            builder.field(STACK_TRACE, ExceptionsHelper.stackTrace(throwable));
+            builder.field(STACK_TRACE, ExceptionsHelper.stackTrace(throwable, additionalSuppressed));
         }
 
         Throwable[] allSuppressed = throwable.getSuppressed();

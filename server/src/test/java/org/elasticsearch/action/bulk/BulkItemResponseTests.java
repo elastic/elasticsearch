@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -37,6 +38,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.elasticsearch.ElasticsearchExceptionTests.assertDeepEquals;
 import static org.elasticsearch.ElasticsearchExceptionTests.randomExceptions;
@@ -177,27 +179,33 @@ public class BulkItemResponseTests extends ESTestCase {
     public void testFailureStoreCauseRendersAsSuppressedException() throws IOException {
         XContentType xContentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
+        ToXContent.Params params = randomBoolean()
+            ? ToXContent.EMPTY_PARAMS
+            : new ToXContent.MapParams(Map.of(ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE, "false"));
         DocWriteRequest.OpType opType = randomFrom(DocWriteRequest.OpType.values());
+        Exception failureStoreCause = new ElasticsearchException("failure store failure");
         boolean elasticsearchCause = randomBoolean();
         boolean causeHasOwnSuppressed = randomBoolean();
-        Exception failureStoreCause = new ElasticsearchException("failure store failure");
+        Exception existingSuppressed = causeHasOwnSuppressed ? new IllegalArgumentException("existing suppressed") : null;
 
-        Exception sharedCause = newCause(elasticsearchCause, causeHasOwnSuppressed);
+        Exception sharedCause = newCause(elasticsearchCause, existingSuppressed);
         Failure failure = new Failure("index", "id", sharedCause, IndexDocFailureStoreStatus.FAILED);
         failure.setFailureStoreCause(failureStoreCause);
 
-        Exception legacyCause = newCause(elasticsearchCause, causeHasOwnSuppressed);
+        // the stack trace is rendered when it is not skipped, so both causes need the same one
+        Exception legacyCause = newCause(elasticsearchCause, existingSuppressed);
+        legacyCause.setStackTrace(sharedCause.getStackTrace());
         legacyCause.addSuppressed(failureStoreCause);
         Failure legacyFailure = new Failure("index", "id", legacyCause, IndexDocFailureStoreStatus.FAILED);
 
         assertToXContentEquivalent(
-            toXContent(BulkItemResponse.failure(1, opType, legacyFailure), xContentType, humanReadable),
-            toXContent(BulkItemResponse.failure(1, opType, failure), xContentType, humanReadable),
+            toXContent(BulkItemResponse.failure(1, opType, legacyFailure), xContentType, params, humanReadable),
+            toXContent(BulkItemResponse.failure(1, opType, failure), xContentType, params, humanReadable),
             xContentType
         );
         assertToXContentEquivalent(
-            toXContent(legacyFailure, xContentType, humanReadable),
-            toXContent(failure, xContentType, humanReadable),
+            toXContent(legacyFailure, xContentType, params, humanReadable),
+            toXContent(failure, xContentType, params, humanReadable),
             xContentType
         );
         assertThat(sharedCause.getSuppressed().length, equalTo(causeHasOwnSuppressed ? 1 : 0));
@@ -225,10 +233,10 @@ public class BulkItemResponseTests extends ESTestCase {
         assertThat(sharedCause.getSuppressed().length, equalTo(0));
     }
 
-    private static Exception newCause(boolean elasticsearchCause, boolean withOwnSuppressed) {
+    private static Exception newCause(boolean elasticsearchCause, @Nullable Exception suppressed) {
         Exception cause = elasticsearchCause ? new ElasticsearchException("shard failure") : new IllegalStateException("shard failure");
-        if (withOwnSuppressed) {
-            cause.addSuppressed(new IllegalArgumentException("existing suppressed"));
+        if (suppressed != null) {
+            cause.addSuppressed(suppressed);
         }
         return cause;
     }

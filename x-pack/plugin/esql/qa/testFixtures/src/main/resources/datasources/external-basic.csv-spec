@@ -1184,6 +1184,56 @@ emp_no:integer | salary:integer
 10001          | 57305
 ;
 
+matchOnFileMetadataKeyword
+required_capability: external_source_file_metadata_columns
+required_capability: match_function
+required_capability: fn_match_runtime_filter
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+// _file.name is a keyword, so match compares the whole name: a word of it matches nothing.
+FROM employees_no_mv METADATA _file.name
+| WHERE match(`_file.name`, "employees")
+| STATS count = COUNT(*);
+
+count:long
+0
+;
+
+matchOnFileMetadataAsText
+required_capability: external_source_file_metadata_columns
+required_capability: match_function
+required_capability: fn_match_runtime_filter
+required_capability: fn_match_runtime_analyzer
+required_capability: fn_to_text_analyzer
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+// The simple analyzer splits the name on non-letters, whatever the format's extension.
+FROM employees_no_mv METADATA _file.name
+| EVAL name = to_text(`_file.name`, {"analyzer": "simple"})
+| WHERE match(name, "employees")
+| STATS count = COUNT(*);
+
+count:long
+100
+;
+
+matchPhraseOnFileMetadataAsText
+required_capability: external_source_file_metadata_columns
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_runtime_filter
+required_capability: fn_match_phrase_runtime_analyzer
+required_capability: fn_to_text_analyzer
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+FROM employees_no_mv METADATA _file.name
+| EVAL name = to_text(`_file.name`, {"analyzer": "simple"})
+| WHERE match_phrase(name, "employees no mv")
+| STATS count = COUNT(*);
+
+count:long
+100
+;
+
 
 query approximation
 required_capability: approximation_v7

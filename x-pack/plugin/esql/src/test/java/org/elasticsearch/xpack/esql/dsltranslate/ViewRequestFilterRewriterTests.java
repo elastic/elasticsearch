@@ -168,6 +168,38 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
         assertThat(result.collect(Filter.class::isInstance), hasSize(2));
     }
 
+    /**
+     * The exclusion is by node identity, not by dataset name. The same dataset read both inside a view body and in a
+     * bare branch of the same query yields two distinct relation nodes that are {@code equals()} to each other; only
+     * the one inside the view must be left to the view-output filter, while the bare one is still filtered at the leaf.
+     */
+    public void testSameDatasetInsideAndOutsideViewIsFilteredOnlyOutside() {
+        ReferenceAttribute empNo = attr("emp_no", DataType.INTEGER);
+        ReferenceAttribute doubled = attr("doubled", DataType.INTEGER);
+        ExternalRelation insideView = viewSubplan("employees", empNo);
+        ExternalRelation outsideView = viewSubplan("employees", empNo);
+        assertThat(insideView, equalTo(outsideView));
+        assertThat(insideView, not(sameInstance(outsideView)));
+        LogicalPlan viewBody = new Eval(Source.EMPTY, insideView, List.of(new Alias(Source.EMPTY, "doubled", empNo, doubled.id())));
+        LinkedHashMap<String, LogicalPlan> map = new LinkedHashMap<>();
+        map.put(null, outsideView);
+        map.put("emp_eval_view", viewBody);
+        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, map, Set.of("emp_eval_view"), List.of(empNo, doubled));
+
+        QueryBuilder filter = QueryBuilders.termQuery("emp_no", 1);
+        LogicalPlan afterDataset = RequestFilterRewriter.rewrite(vua, filter, CONFIG, CURRENT, true);
+        LogicalPlan result = ViewRequestFilterRewriter.rewrite(afterDataset, filter, CONFIG, CURRENT);
+
+        LogicalPlan bare = bareIndexChild(result);
+        assertThat(bare, instanceOf(Filter.class));
+        assertThat(((Filter) bare).child(), sameInstance(outsideView));
+        LogicalPlan view = viewChild(result, "emp_eval_view");
+        assertThat(view, instanceOf(Filter.class));
+        assertThat(((Filter) view).child(), instanceOf(Eval.class));
+        assertThat(((Eval) ((Filter) view).child()).child(), sameInstance(insideView));
+        assertThat(result.collect(Filter.class::isInstance), hasSize(2));
+    }
+
     // --- core behaviour ---
 
     /** A null request filter is a no-op: the plan is returned unchanged. */

@@ -80,11 +80,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityMetric.DOT_PRODUCT;
 
-public class Knn extends SingleFieldFullTextFunction
-    implements
-        OptionalArgument,
-        VectorFunction,
-        PostOptimizationVerificationAware {
+public class Knn extends SingleFieldFullTextFunction implements OptionalArgument, VectorFunction, PostOptimizationVerificationAware {
 
     /**
      * Marks nodes that support KNN over a non-index-mapped field or expression.

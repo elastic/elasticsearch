@@ -94,14 +94,6 @@ public class KnnTests extends SingleFieldFullTextFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Knn(
-            source,
-            args.get(0),
-            args.get(1),
-            args.size() > 2 ? args.get(2) : null,
-            null,
-            null,
-            List.of()
-        );
+        return new Knn(source, args.get(0), args.get(1), args.size() > 2 ? args.get(2) : null, null, null, List.of());
     }
 }

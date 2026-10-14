@@ -317,10 +317,8 @@ public interface FormatReader extends Closeable {
      * <p>
      * Only the text readers need it to bind. Parquet/ORC bind by footer name and NDJSON by object key under either
      * provenance, so they keep the no-op default. It does not touch the file-width cap
-     * ({@code schema_max_fields}): NDJSON, Parquet and the text readers used to lift the cap on a declared read, which
-     * refused a wide file when its types were inferred and read the same file when they were declared. No reader lifts
-     * it now. The strict rail's coercibility probe still raises it at resolution time, which is a
-     * separate decision about what the cap is for.
+     * ({@code schema_max_fields}): no reader lifts that cap for a declared read. The strict rail's coercibility probe
+     * still raises it at resolution time, which is a separate decision about what the cap is for.
      *
      * @param declaredProvenanceBinding true when the pinned schema is a DECLARED claim (provenance DECLARED)
      * @return a new reader honoring the binding mode, or {@code this} when it does not apply

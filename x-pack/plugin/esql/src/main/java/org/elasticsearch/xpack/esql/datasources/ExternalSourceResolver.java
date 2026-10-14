@@ -3766,8 +3766,9 @@ public class ExternalSourceResolver {
      * planner has its extrema encoded. Unsigned extrema under a non-unsigned planner are poisoned
      * without changing counts. A column the scan converts per value has its extrema and its counts
      * dropped here, because this harvest describes neither the all-null read nor the converted one.
-     * Text ({@code implicitNulls} false) is left for
-     * {@link SourceStatisticsSerializer#alignHarvestWithFold}. Returns {@code harvest} when nothing
+     * The all-null rewrite and the unsigned encode are footer-only ({@code implicitNulls} true) and text is left
+     * for {@link SourceStatisticsSerializer#alignHarvestWithFold} for those two; dropping a converted column's
+     * counts and poisoning unsigned extrema apply to a text harvest as well. Returns {@code harvest} when nothing
      * changes.
      */
     @Nullable
@@ -3863,8 +3864,7 @@ public class ExternalSourceResolver {
     /**
      * Whether the scan converts this column's values rather than discarding the column. True when the
      * file type can be converted to the planner's type, which is a property of the two types and of
-     * nothing else - asking in addition whether the column was declared gave two reads of the same
-     * file different statistics.
+     * nothing else.
      */
     private static boolean scanCoercesPerValue(DataType fileType, DataType plannerType) {
         return DeclaredTypeCoercions.supports(fileType, plannerType);

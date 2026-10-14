@@ -2362,18 +2362,10 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * The width cap bounds a declared read too. It used to be lifted for one, so the same wide file was refused when
-     * its types were inferred and read when they were declared - one file, two outcomes, decided by how the dataset
-     * was written down rather than by anything about the file. Raising the cap is the way to
-     * read a wide file, and it works the same either way.
-     */
-    /**
      * A read that materialises no column is not held to the column cap. The cap bounds the schema a read resolves,
      * and this read resolves none: a bare {@code COUNT(*)} over the source projects zero data columns and answers
-     * from row-group metadata, so the footer is never flattened into attributes. It used to be flattened anyway,
-     * before the count-only path was reached, which held the file to the cap for a read that touches no column -
-     * and the strict rail checks a declared mapping's types against the anchor's footer with the cap raised to its
-     * ceiling, so a {@code dynamic: false} dataset over a wide file resolved and then failed to scan.
+     * from row-group metadata, so the footer is never flattened into attributes. The second arm pins the other side:
+     * a read that does project a column out of a footer it has to flatten is still held to the cap.
      */
     public void testACountOnlyReadIsNotHeldToTheColumnCap() throws Exception {
         byte[] data = wideOptionalLongFile(6);
@@ -2402,6 +2394,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
         });
     }
 
+    /**
+     * The width cap bounds a read whose types the dataset declared exactly as it bounds an inferred one: one file, one
+     * outcome, decided by the file's width rather than by how the dataset was written down. Raising the cap is the way
+     * to read a wide file, and it works the same either way.
+     */
     public void testTheWidthCapBoundsADeclaredReadToo() throws Exception {
         byte[] data = wideOptionalLongFile(6);
         FormatReader declared = new ParquetFormatReader(blockFactory).withSchemaMaxFields(5).withDeclaredProvenanceBinding(true);
@@ -2838,7 +2835,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * Empty projection (e.g. EXTERNAL parquet | STATS COUNT(*) — or a query that only references
+     * Empty projection (e.g. FROM a_parquet_dataset | STATS COUNT(*) — or a query that only references
      * {@code _file.*} virtual columns) must not allocate any column reader. The reader emits
      * row-count-only pages directly from the row group metadata, and the request circuit breaker
      * stays at zero because no buffer is ever charged. Regression test for the ~44KB-per-query

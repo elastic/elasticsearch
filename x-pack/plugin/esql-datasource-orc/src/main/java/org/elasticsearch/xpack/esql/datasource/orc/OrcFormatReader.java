@@ -1551,8 +1551,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
          * already fail-fasted against the anchor footer, but a multi-file glob can drift from the anchor.
          * <p>
          * Whether the pair can be converted is {@code DeclaredTypeCoercions#supports} and nothing else. The escape it
-         * admits, which includes narrowing, used to be reserved for columns the user had declared, so an inferred
-         * column whose file type could not be read was filled with nulls under every error mode.
+         * admits includes narrowing, and it reaches every column: whether a value can be read as the query's type
+         * turns on the two types alone.
          * <p>
          * A pair nothing can convert follows the read's error policy
          * ({@link DeclaredTypeCoercions#onUncoercibleColumn}): {@code fail_fast} fails the read, {@code null_field} nulls

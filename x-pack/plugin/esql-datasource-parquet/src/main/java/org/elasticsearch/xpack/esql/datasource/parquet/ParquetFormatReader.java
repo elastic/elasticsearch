@@ -3713,9 +3713,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * <p>
      * The {@code DeclaredTypeCoercions#supports} escape — which admits lossy narrowing (e.g. {@code int64}&rarr;
      * {@code integer}, null on overflow) — applies to every column, because whether a value can be read as the
-     * query's type turns on the two types and nothing else. It used to be reserved for columns the user had
-     * declared, so an inferred column whose file type could not be read as the query's was filled with nulls under
-     * every error mode, {@code fail_fast} included.
+     * query's type turns on the two types and nothing else.
      * <p>
      * A pair nothing can convert is a read failure of that column in this file, so the read's
      * {@code errorPolicy} decides it ({@link DeclaredTypeCoercions#onUncoercibleColumn}): {@code fail_fast} fails the
@@ -3754,9 +3752,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             }
             DataType actualInFile = convertParquetTypeToEsql(resolved);
             // Whether a value of the file's type can be read as the query's type at all, which turns on the two
-            // types and nothing else. The per-value conversion escape used to be reserved for columns the user
-            // had declared, so an inferred column whose type could not be read was filled with nulls under every
-            // error mode, including fail_fast.
+            // types and nothing else.
             if (DeclaredTypeCoercions.supports(actualInFile, attr.dataType()) == false) {
                 String outcome = "returning null";
                 if (errorPolicy.isStrict()) {

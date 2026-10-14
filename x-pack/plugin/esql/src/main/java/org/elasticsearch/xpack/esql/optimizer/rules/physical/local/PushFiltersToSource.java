@@ -269,8 +269,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         // (rows would leak unfiltered) nor undo the late-mat decision it implies.
         //
         // The question is whether reading a value can fail, which is a fact about this source's files and is
-        // stamped at resolution; it was previously answered by asking whether the user had declared any column
-        // types, so the identical read pushed or withheld by declaration alone.
+        // stamped at resolution rather than asked of the mapping.
         ErrorPolicy errorPolicy = ErrorPolicy.forReader(externalExec.config(), formatReader);
         if (formatReader.dropsRowsUnderPushedFilter() == false && externalExec.dropsRowsOnConversionFailure(errorPolicy)) {
             return filterExec;

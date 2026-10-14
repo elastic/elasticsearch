@@ -6876,13 +6876,7 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     private static void assertUnknownColumnStats(Map<String, Object> stats, String column, long rowCount) {
-        assertNull(stats.get(SourceStatisticsSerializer.columnValueCountKey(column)));
-        assertNull(stats.get(SourceStatisticsSerializer.columnNullCountKey(column)));
-        assertNull(stats.get(SourceStatisticsSerializer.columnMinKey(column)));
-        assertNull(stats.get(SourceStatisticsSerializer.columnMaxKey(column)));
-        assertEquals(Boolean.TRUE, stats.get(SourceStatisticsSerializer.columnMinUnservableKey(column)));
-        assertEquals(Boolean.TRUE, stats.get(SourceStatisticsSerializer.columnMaxUnservableKey(column)));
-        assertEquals(rowCount, ((Number) stats.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+        assertUnknownColumnStats(null, stats, column, rowCount);
     }
 
     private static SplitDiscoveryContext singleFileStatsContext(

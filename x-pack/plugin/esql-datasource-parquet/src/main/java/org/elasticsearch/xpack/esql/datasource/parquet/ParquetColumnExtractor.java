@@ -904,8 +904,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
      * ({@link #castBlockWarnings}) as the eager decode paths, so a deferred column reads exactly
      * like an eagerly scanned one. Whether the pair can be converted at all is
      * {@link DeclaredTypeCoercions#supports}, the same question {@code validatePlannerTypesAgainstFile}
-     * asks; it used to be narrowed here to columns the user had declared, so a deferred inferred column
-     * that narrows was filled with nulls instead of converted. A column the query
+     * asks, and over every column rather than a subset of them. A column the query
      * carries no type for ({@code NULL} or {@code UNSUPPORTED}) is skipped before that question, as both
      * eager validations skip it. Always consumes {@code physical} and returns a fresh caller-owned block.
      */
@@ -1015,8 +1014,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
      * policy-aware {@code coercionWarnings()}. Its being {@code null} also fails a column the file cannot
      * supply at all ({@link #coerceToTarget}) under {@code fail_fast}, exactly as the eager per-file
      * validation does; otherwise that column reports on {@link #uncoercibleColumnWarnings()}. Which
-     * columns reach that fallback is decided by the type pair, not by who typed the column: an
-     * undeclared column used to null-fill under every error mode.
+     * columns reach that fallback is decided by the type pair, not by who typed the column.
      */
     @Nullable
     private SkipWarnings castBlockWarnings() {

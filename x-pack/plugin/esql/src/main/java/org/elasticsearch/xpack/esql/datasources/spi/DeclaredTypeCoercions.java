@@ -234,8 +234,12 @@ public final class DeclaredTypeCoercions {
     /**
      * Whether every value of {@code from} reads as {@code to} without the read being able to fail, so no
      * per-value conversion can produce a null or an error. One predicate for the readers and for the
-     * planner: a read's filter pushdown, its deferred extraction and its column decode must agree about
-     * whether a value can fail, and they agreed only by coincidence while each asked its own question.
+     * planner: a read's filter pushdown, its deferred extraction and its column decode have to agree
+     * about whether a value can fail.
+     * <p>
+     * "Lossless" here is about failure and not about precision: a {@code long} read as a {@code double}
+     * cannot fail and so answers yes, though a value above 2^53 does not survive the conversion exactly.
+     * Every caller asks this to decide whether a read can fail, which is the question it answers.
      * <p>
      * {@link EsqlDataTypeConverter#commonType} naming {@code to} as the supertype is necessary but not
      * sufficient, and {@code unsigned_long} is why: it is the common type of itself and any signed whole
@@ -531,8 +535,7 @@ public final class DeclaredTypeCoercions {
      * detail is recorded once and the caller nulls the column for the file (or, under {@code skip_row}, drops the
      * file's rows).
      * <p>
-     * Reached for a column whose type was inferred as readily as for a declared one. It used to be declared-only,
-     * which is why an inferred column was null-filled under every mode including {@code fail_fast}.
+     * Reached for a column whose type was inferred as readily as for a declared one.
      */
     public static void onUncoercibleColumn(
         String columnName,

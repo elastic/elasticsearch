@@ -370,6 +370,13 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK,
 
         /**
+         * Emit a single, shorter warning for all partially unmapped fields from {@link #OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK},
+         * listing a bounded number of field names, instead of one warning per field.
+         * See https://github.com/elastic/elasticsearch/issues/161968.
+         */
+        OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK_COMBINED,
+
+        /**
          * With {@code unmapped_fields="nullify"} or {@code "load"}, a {@code DROP} wildcard that matches no field is a no-op
          * instead of failing with "No matches found for pattern".
          * See https://github.com/elastic/elasticsearch/issues/143226

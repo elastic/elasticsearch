@@ -178,6 +178,7 @@ setup:
                 type: date
               keyword:
                 type: keyword
+                index: false
                 doc_values:
                   cardinality: high
 
@@ -224,6 +225,7 @@ setup:
                 type: date
               keyword:
                 type: keyword
+                index: false
                 doc_values:
                   cardinality: high
 

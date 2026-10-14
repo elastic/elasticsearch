@@ -2,8 +2,8 @@ area: TSDB
 breaking:
   area: TSDB
   details: >-
-    New backing indices of time series (TSDB) data streams that use the pre-installed `metrics` index lifecycle policy
-    are now prefer by the data stream lifecycle (DLM) over index lifecycle management (ILM) when both configured. This
+    New backing indices of time series data streams (TSDS) that use the pre-installed `metrics` index lifecycle policy
+    now prefer the data stream lifecycle over index lifecycle management (ILM). This
     applies only when the `metrics` policy is unmodified, meaning it is still on its first version and consists solely
     of a hot phase with a rollover action. It is achieved by defaulting `index.lifecycle.prefer_ilm` to `false` on these
     indices at creation time. An explicit `index.lifecycle.prefer_ilm` value in the index template or create index request

@@ -9,13 +9,13 @@ breaking:
     indices at creation time. An explicit `index.lifecycle.prefer_ilm` value in the index template or create index request
     always takes precedence. Existing backing indices are not affected.
   impact: >-
-    Data streams that relied on the default `metrics` ILM policy will have their new backing indices rolled over and
+    Time series data streams that use the default `metrics` ILM policy have their new backing indices rolled over and
     managed according to the data stream lifecycle, not the ILM policy. To keep ILM management, set `index.lifecycle.prefer_ilm`
     to `true` in the respective component template, or set the dynamic cluster setting `data_streams.lifecycle.prefer_by_default.metrics_enabled`
     to `false`. Backing indices already created with `prefer_ilm: false` after upgrading stay under DLM until you change this index setting
     via `PUT /_data_stream/my-time-series/_settings { "index.lifecycle.prefer_ilm": true}`.
   notable: false
-  title: Migrate metrics data streams' default lifecycle management to DLM
+  title: Time series data streams on the default `metrics` policy now prefer the data stream lifecycle
 issues: []
 pr: 161501
 summary: Migrate metrics data streams' default lifecycle management to DLM

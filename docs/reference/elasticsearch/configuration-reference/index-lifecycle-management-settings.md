@@ -33,10 +33,8 @@ $$$indices-lifecycle-rollover-only-if-has-documents$$$
 `indices.lifecycle.rollover.only_if_has_documents`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), Boolean) Whether ILM will only roll over non-empty indices. If enabled, ILM will only roll over indices as long as they contain at least one document. Defaults to `true`.
 
-$$$data-streams-lifecycle-prefer-by-default-metrics-enabled$$$
-
 `data_streams.lifecycle.prefer_by_default.metrics_enabled` {applies_to}`stack: ga 9.6`
-:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), Boolean) Whether new backing indices of time series data streams that use the unmodified, pre-installed `metrics` policy default `index.lifecycle.prefer_ilm` to `false`, so that they are managed by the data stream lifecycle instead of {{ilm}}. An explicit `index.lifecycle.prefer_ilm` value in the index template or create index request always takes precedence. Changing this setting does not affect existing indices. Defaults to `true`.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), Boolean) Controls whether time series data streams that use the unmodified, pre-installed `metrics` policy prefer the data stream lifecycle over {{ilm-init}}. Defaults to `true`. For details, refer to [Data stream lifecycle settings](/reference/elasticsearch/configuration-reference/data-stream-lifecycle-settings.md#data-streams-lifecycle-prefer-by-default-metrics-enabled).
 
 
 ## Index level settings [_index_level_settings_2]

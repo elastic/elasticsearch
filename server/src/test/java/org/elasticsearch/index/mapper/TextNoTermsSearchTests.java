@@ -367,6 +367,42 @@ public class TextNoTermsSearchTests extends MapperServiceTestCase {
      * Asserts what every clause answered from the values makes of their bytes. A compound query wraps each of its
      * clauses, so a query string naming two of them is two reads rather than one.
      */
+    /**
+     * Which queries a document's tokens are walked for rather than indexed one document at a time. A query of terms
+     * is walked however its clauses are put together, and one naming a range of terms is indexed as it was.
+     */
+    public void testWhichQueriesTheTokensAreWalkedFor() throws IOException {
+        final MapperService mapperService = mapper(false);
+        final SearchExecutionContext context = createSearchExecutionContext(mapperService);
+        assertWalked("a term", QueryBuilders.termQuery("body", "quick"), context, true);
+        assertWalked("one word of a match", QueryBuilders.matchQuery("body", "quick"), context, true);
+        assertWalked("several words of a match", QueryBuilders.matchQuery("body", "quick brown"), context, true);
+        assertWalked("a match of every word", QueryBuilders.matchQuery("body", "quick brown").operator(Operator.AND), context, true);
+        assertWalked(
+            "a minimum of them to match",
+            QueryBuilders.matchQuery("body", "quick brown fox").minimumShouldMatch("2"),
+            context,
+            true
+        );
+        assertWalked("a phrase", QueryBuilders.matchPhraseQuery("body", "quick brown"), context, true);
+        assertWalked("terms", QueryBuilders.termsQuery("body", "quick", "brown"), context, true);
+        assertWalked("a phrase with slop", QueryBuilders.matchPhraseQuery("body", "quick fox").slop(1), context, false);
+        assertWalked("a fuzziness", QueryBuilders.matchQuery("body", "quick").fuzziness(Fuzziness.ONE), context, false);
+        assertWalked("a match holding a prefix", QueryBuilders.matchBoolPrefixQuery("body", "quick bro"), context, false);
+    }
+
+    private void assertWalked(String what, QueryBuilder builder, SearchExecutionContext context, boolean walked) throws IOException {
+        final List<ReanalyzingTextQuery> answeredFromValues = new ArrayList<>();
+        collectValueQueries(builder.toQuery(context), answeredFromValues);
+        assertFalse(what + " is answered from the values", answeredFromValues.isEmpty());
+        for (ReanalyzingTextQuery answered : answeredFromValues) {
+            final Query in = answered.getQuery();
+            final boolean byWalk = ReanalyzingTextQuery.walkablePhrase(in) != null
+                || ReanalyzingTextQuery.walkableClauses(in, "body") != null;
+            assertEquals(what + (walked ? " is walked" : " is indexed a document at a time") + ": " + in, walked, byWalk);
+        }
+    }
+
     private void assertRead(String what, QueryBuilder builder, SearchExecutionContext context, boolean read) throws IOException {
         final List<ReanalyzingTextQuery> answeredFromValues = new ArrayList<>();
         collectValueQueries(builder.toQuery(context), answeredFromValues);

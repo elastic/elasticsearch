@@ -36,6 +36,8 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.SynonymQuery;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TwoPhaseIterator;
@@ -43,21 +45,25 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.similarities.Similarity.SimScorer;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.IOFunction;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Supplier;
 
 /**
@@ -170,6 +176,140 @@ public final class ReanalyzingTextQuery extends Query {
             approximation.add(approximationClause.build(), Occur.FILTER);
         }
         return approximation.build();
+    }
+
+    /**
+     * The clauses of a query, each answered by any of the terms it names, as a walk of a document's values looks for
+     * them: which clauses a term answers, how many clauses must be answered, and how many of the optional ones. Null
+     * where the query is not of that shape, which leaves it to be indexed a document at a time: a clause naming a
+     * range of terms rather than the terms themselves, a phrase, a nested boolean, a clause a document must not
+     * answer, whose absence no walk settles before the last token, one that filters, which answers without scoring,
+     * and two clauses alike, which the query is rewritten to answer once.
+     */
+    record WalkableClauses(Map<BytesRef, int[]> clausesOfTerm, int required, int clauses, int leastOptional) {}
+
+    static WalkableClauses walkableClauses(Query query, String field) {
+        final List<List<BytesRef>> required = new ArrayList<>();
+        final List<List<BytesRef>> optional = new ArrayList<>();
+        final int leastOptional;
+        if (query instanceof BooleanQuery bool) {
+            final Set<List<BytesRef>> seen = new HashSet<>();
+            for (BooleanClause clause : bool) {
+                final List<BytesRef> terms = clauseTerms(clause.query(), field);
+                if (terms == null) {
+                    return null;
+                }
+                // Two clauses naming the same terms are answered once where the query is rewritten before it is
+                // answered, whichever way each asks for them, so a walk counting both would score above it. Such a
+                // query is left to be indexed instead.
+                if (seen.add(new ArrayList<>(new TreeSet<>(terms))) == false) {
+                    return null;
+                }
+                switch (clause.occur()) {
+                    case MUST -> required.add(terms);
+                    case SHOULD -> optional.add(terms);
+                    default -> {
+                        return null;
+                    }
+                }
+            }
+            if (required.isEmpty() && optional.isEmpty()) {
+                return null;
+            }
+            // A query of none but optional clauses is answered by one of them, as a boolean query answers it.
+            leastOptional = Math.max(bool.getMinimumNumberShouldMatch(), required.isEmpty() ? 1 : 0);
+            if (leastOptional > optional.size()) {
+                return null;
+            }
+        } else {
+            final List<BytesRef> terms = clauseTerms(query, field);
+            if (terms == null) {
+                return null;
+            }
+            required.add(terms);
+            leastOptional = 0;
+        }
+        final List<List<BytesRef>> clauses = new ArrayList<>(required.size() + optional.size());
+        clauses.addAll(required);
+        clauses.addAll(optional);
+        return new WalkableClauses(
+            TokenStreamMatching.ClauseWalker.clausesOfTerms(clauses),
+            required.size(),
+            clauses.size(),
+            leastOptional
+        );
+    }
+
+    /**
+     * The terms that answer one clause, any one of them being enough, or null where the clause does not name a set of
+     * them at all. A query naming terms of another field answers without these values, so it names none here.
+     */
+    private static List<BytesRef> clauseTerms(Query query, String field) {
+        if (query instanceof TermQuery term) {
+            return term.getTerm().field().equals(field) ? List.of(term.getTerm().bytes()) : null;
+        }
+        if (query instanceof SynonymQuery synonyms) {
+            if (synonyms.getField().equals(field) == false) {
+                return null;
+            }
+            final List<BytesRef> terms = new ArrayList<>(synonyms.getTerms().size());
+            for (Term term : synonyms.getTerms()) {
+                terms.add(term.bytes());
+            }
+            return terms.isEmpty() ? null : terms;
+        }
+        if (query instanceof TermInSetQuery set) {
+            if (set.getField().equals(field) == false || set.getTermsCount() == 0) {
+                return null;
+            }
+            final List<BytesRef> terms = new ArrayList<>((int) set.getTermsCount());
+            try {
+                final BytesRefIterator spellings = set.getBytesRefIterator();
+                for (BytesRef term = spellings.next(); term != null; term = spellings.next()) {
+                    terms.add(BytesRef.deepCopyOf(term));
+                }
+            } catch (IOException e) {
+                // The terms are held in memory, so reading them cannot fail.
+                throw new UncheckedIOException(e);
+            }
+            return terms;
+        }
+        return null;
+    }
+
+    /**
+     * The clauses of {@code clauses} a document's values answer, which is what its score counts where the field
+     * indexes no terms, or zero where the document does not answer the query at all.
+     */
+    static int walkClauseFreq(WalkableClauses clauses, String field, Analyzer analyzer, List<Object> values) throws IOException {
+        final TokenStreamMatching.ClauseWalker walker = new TokenStreamMatching.ClauseWalker(clauses.clausesOfTerm(), clauses.clauses());
+        for (Object value : values) {
+            if (value == null) {
+                continue;
+            }
+            try (TokenStream stream = analyzer.tokenStream(field, TokenStreamMatching.textOf(value))) {
+                stream.reset();
+                walker.accept(stream);
+                // The walk stops where it has what it was asked for, so the stream is ended here rather than
+                // where it ran out.
+                stream.end();
+            }
+            if (walker.answeredEvery()) {
+                break;
+            }
+        }
+        for (int clause = 0; clause < clauses.required(); clause++) {
+            if (walker.answered(clause) == false) {
+                return 0;  // A clause every document must answer, which this one does not.
+            }
+        }
+        int answeredOptional = 0;
+        for (int clause = clauses.required(); clause < clauses.clauses(); clause++) {
+            if (walker.answered(clause)) {
+                answeredOptional++;
+            }
+        }
+        return answeredOptional < clauses.leastOptional() ? 0 : clauses.required() + answeredOptional;
     }
 
     /**
@@ -627,6 +767,9 @@ public final class ReanalyzingTextQuery extends Query {
         private final float maxFreq;
         private final MemoryIndexEntry cacheEntry = new MemoryIndexEntry();
         private final Term[] walkablePhrase;
+        /** The clauses a walk answers, where the query is of clauses and the field indexes no terms to answer them. */
+        @Nullable
+        private final WalkableClauses walkableClauses;
         /** What the values must spell for this query, read from their bytes before any of them is analyzed. */
         private final CandidateValues candidates;
         private int valuesDocID = -1;
@@ -651,6 +794,8 @@ public final class ReanalyzingTextQuery extends Query {
             this.query = query;
             this.maxFreq = maxFreq;
             this.walkablePhrase = walkablePhrase(query);
+            // Only where nothing weighs a term does the count of answered clauses stand for the score.
+            this.walkableClauses = scansEveryDocument ? walkableClauses(query, field) : null;
             // Only where nothing narrows the documents read is there anything to rule out: elsewhere the postings
             // of the field's own terms have done it already.
             this.candidates = scansEveryDocument && valuesSpellTheirTokens ? CandidateValues.of(query, field) : CandidateValues.ANY;
@@ -665,7 +810,7 @@ public final class ReanalyzingTextQuery extends Query {
                 public float matchCost() {
                     // Reading the values and analyzing them dominates either way, so both stay high enough to run
                     // last among cheaper checks. The walk compares terms as they come rather than indexing them all.
-                    return walkablePhrase != null ? 1_000f : 10_000f;
+                    return walkablePhrase != null || walkableClauses != null ? 1_000f : 10_000f;
                 }
             };
         }
@@ -746,6 +891,11 @@ public final class ReanalyzingTextQuery extends Query {
             }
             if (walkablePhrase != null) {
                 return walkPhraseFreq(walkablePhrase, field, indexAnalyzer, values());
+            }
+            if (walkableClauses != null) {
+                // Each clause the document answers counts once, which is the score a small index of its values
+                // would report, and the walk stops once every clause has been answered.
+                return walkClauseFreq(walkableClauses, field, indexAnalyzer, values());
             }
             return getOrCreateMemoryIndex().search(query);
         }

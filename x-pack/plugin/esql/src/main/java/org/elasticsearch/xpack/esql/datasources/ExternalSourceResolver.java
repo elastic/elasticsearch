@@ -3503,7 +3503,10 @@ public class ExternalSourceResolver {
         // Applied HERE so this method's own return is already restricted. It is not the only application - the
         // declared-overlay seam below restricts inferred.sourceMetadata() against its expected read as well - but
         // relying on that one would make what this returns depend on which downstream path happens to run.
-        // Second ask only when the first missed, so a warm read still books one lookup.
+        // Second ask only when the first missed, so a warm read still books one lookup. A COLD overlaid read
+        // books two misses for one file, which inflates statistics_cache.misses - the ratio this store's
+        // own javadoc tells an operator to size by. Counted rather than suppressed: the second ask is a
+        // real lookup, and hiding it would understate the work the overlaid rail does.
         String ownAddress = readConfigStampOf(entry);
         if (Objects.equals(ownAddress, readConfig)) {
             return null; // the record's address IS this read's; there is no second place to look

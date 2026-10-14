@@ -101,8 +101,10 @@ public class ExternalSourceCacheService implements Closeable {
 
     /**
      * The retained size of one {@link DatasetAggregate} plus its key: an object header and a {@code long} for
-     * the value, and a header with two references and a fingerprint for the key. A constant because neither
-     * side holds a variable-length field - the pattern string is shared with the listing that resolved it.
+     * the value, and for the key a header, the pattern reference, the file-set fingerprint and the definition
+     * version. A constant although the version is a {@code String}, because that instance is shared with the
+     * memoised version and with the query's config map, as the pattern is shared with the listing that resolved
+     * it. So this undercounts only if a caller ever hands in a version string nothing else holds.
      */
     static final long DATASET_AGGREGATE_BYTES = 128L;
 

@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.esql.expression.promql.function.PromqlBuiltinFunc
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
+import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -575,6 +576,10 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         } else if (argClass == Stat.class) {
             // record field
             return new EsStatsQueryExec.BasicStat(randomRealisticUnicodeOfLength(10), randomFrom(StatsType.values()), null);
+        } else if (argClass == BranchIdentity.class) {
+            // BranchIdentity is a record (final), so the mock fallback cannot proxy it; build a real one. ViewUnionAll's
+            // constructor normalizes the identity map against the branch map, so random keys are fine.
+            return randomFrom(BranchIdentity.INDEX, BranchIdentity.SUBQUERY, BranchIdentity.view(randomIdentifier()));
         } else if (argClass == Integer.class) {
             return randomInt();
         } else if (argClass == Double.class) {

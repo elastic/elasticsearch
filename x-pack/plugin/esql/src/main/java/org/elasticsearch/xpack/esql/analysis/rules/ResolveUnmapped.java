@@ -256,9 +256,16 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         MergePlan transformed = (MergePlan) mergePlan.transformDownSkipBranch((plan, skip) -> {
             if (plan instanceof Project project) {
                 skip.set(true); // process top Project only (merge-injected)
-                plan = patchMergeProject(project);
-                if (plan != project) {
-                    changed.set(Boolean.TRUE);
+                // Only a merge-injected alignment Project (exact class; resolveMergePlan emits plain Projects) may
+                // surface newly loaded attributes. The branch's top projection can also be a user-written one
+                // (KEEP/DROP/RENAME Project subclasses) now that branches are no longer wrapped in Subquery nodes:
+                // such an explicit column list must keep hiding what it hides, otherwise a broadcast load would
+                // e.g. resurrect a DROPped unmapped field inside that branch.
+                if (plan.getClass() == Project.class) {
+                    plan = patchMergeProject(project);
+                    if (plan != project) {
+                        changed.set(Boolean.TRUE);
+                    }
                 }
             }
             return plan;

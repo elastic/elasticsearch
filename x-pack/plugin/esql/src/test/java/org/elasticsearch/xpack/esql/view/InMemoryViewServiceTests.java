@@ -328,9 +328,11 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         LogicalPlan plan = query("FROM my_view, inner-b");
         // The -*b in the inner subquery must only exclude -*b from matches of inner-*, not from the
         // outer inner-b pattern. Each scope-carrying UnresolvedRelation stays in its own branch.
-        // The lifted view-body pattern outer-* is the merge accumulator (view content precedes
-        // sibling outer patterns), so the merged relation reads outer-*,inner-b.
-        assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM outer-*,inner-b),(FROM inner-*,-*b)")));
+        // The lifted view-body pattern outer-* is a bare relation piece, so it keeps its bare-index
+        // identity through the lift (see the bare-piece exception in ViewCompaction's inner-union
+        // lift); the sibling inner-b is the merge accumulator and the merged relation reads
+        // inner-b,outer-*.
+        assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM inner-b,outer-*),(FROM inner-*,-*b)")));
     }
 
     public void testExclusionMultipleViews() {

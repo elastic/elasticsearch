@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
-import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
@@ -116,8 +115,7 @@ public class PruneEmptyMergeBranchesTests extends AbstractLogicalPlanOptimizerTe
         assertEquals(1, unionAll.children().size());
 
         var project = as(unionAll.children().get(0), Project.class);
-        var subquery = as(project.child(), Subquery.class);
-        var eval = as(subquery.child(), Eval.class);
+        var eval = as(project.child(), Eval.class);
         assertThat(eval.child(), instanceOf(EsRelation.class));
     }
 

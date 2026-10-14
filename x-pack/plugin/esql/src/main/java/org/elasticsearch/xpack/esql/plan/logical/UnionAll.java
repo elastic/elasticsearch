@@ -72,7 +72,9 @@ public class UnionAll extends MergePlan {
 
     @Override
     public int hashCode() {
-        return hasUnmappedFieldsAttribute() ? Objects.hash(UnionAll.class, output(), children()) : Objects.hash(UnionAll.class, children());
+        return hasUnmappedFieldsAttribute()
+            ? Objects.hash(UnionAll.class, output(), children())
+            : Objects.hash(UnionAll.class, children(), output().size());
     }
 
     @Override
@@ -85,6 +87,13 @@ public class UnionAll extends MergePlan {
         }
         UnionAll other = (UnionAll) o;
         if (Objects.equals(children(), other.children()) == false) {
+            return false;
+        }
+        // Output arity is resolution state: view compaction builds unions with an empty output that resolveMergePlan fills
+        // in later, possibly without rewriting any branch (every branch may already end in a user projection of exactly the
+        // merge columns). If the filled-in node compared equal to the stale one, transformUp would discard the rewrite and
+        // the union could never resolve. Same-arity attribute churn (ids/types) keeps the children-only identity below.
+        if (output().size() != other.output().size()) {
             return false;
         }
         // LOAD_ALL alignment can rewrite output without changing children. Default UnionAll identity is children-only.

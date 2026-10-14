@@ -195,7 +195,7 @@ public final class ViewRequestFilterRewriter {
      * <p>Bare-index and literal-subquery branches are left alone — they are not view branches and the existing
      * Lucene-scan path handles them. {@link ViewUnionAll#isViewBranch(String)} is the test to use: {@code key != null}
      * is not sufficient, because bare-index branches carry {@code "main"} and literal subqueries carry
-     * {@code "unnamed_view_<hash>"}. Unsupported constructs are recorded in {@code skipped} as {@code [construct] on view [name]}
+     * {@code "unnamed_view_<n>"}. Unsupported constructs are recorded in {@code skipped} as {@code [construct] on view [name]}
      * and the translatable remainder is installed; the caller warns once for the whole plan.
      */
     private static LogicalPlan applyRequestFilterToViewBranches(

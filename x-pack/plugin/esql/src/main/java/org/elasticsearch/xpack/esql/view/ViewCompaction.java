@@ -14,11 +14,13 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedMetadataAttributeExpression;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
+import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
@@ -88,8 +90,9 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
     }
 
     /**
-     * Phase 1, runs before {@code PreAnalyzer}. Converts user-written {@link UnionAll}s with view-related
-     * children into {@link ViewUnionAll}, recording a {@link BranchIdentity} per branch — and nothing else.
+     * Phase 1, runs before {@code PreAnalyzer}. Converts user-written {@link UnionAll}s — view-related or not —
+     * into {@link ViewUnionAll}, recording a {@link BranchIdentity} per branch, and nothing else. The one shape left
+     * plain is a dataset-rewriter union without view branches; see {@link #toViewUnionAll} for why.
      * Every branch value is kept <em>verbatim</em>: no {@link Subquery}/{@link NamedSubquery} wrapper is
      * unwrapped or rewrapped here, because the analyzer's {@code ResolveSubqueryRelationColumns} rule reads
      * those wrappers to freeze {@code _class}/{@code _name}, and it must see them exactly as the parser and
@@ -249,6 +252,14 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
     }
 
     /**
+     * Converts a plain {@link UnionAll} into a {@link ViewUnionAll} with a {@link BranchIdentity} per branch. Every
+     * union is converted, whether or not views are involved — a literal subquery union gets SUBQUERY/INDEX identities —
+     * with one exception: a union carrying dataset artifacts ({@link DatasetShadowRelation}/
+     * {@link UnresolvedExternalRelation} children) without any view branches stays plain, because the dataset rules
+     * ({@code ResolveDatasetShadow}, {@code StripDatasetShadowRelations}, {@code PreAnalyzer}'s shadow pairing) own
+     * that shape and dispatch on it. That exception — and with it the plain {@code UnionAll} arm of the analyzer's
+     * metadata freeze — retires when the dataset rewriter adopts identities and emits {@link ViewUnionAll} directly.
+     *
      * @param preserveWrappers {@code true} in the pre-freeze phase ({@link #preIndexResolution}): branch values are
      *                         stored verbatim so the analyzer's metadata freeze still sees every wrapper. {@code false}
      *                         post-freeze: wrappers are compacted away as the branches are recorded.
@@ -259,8 +270,11 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
         }
         boolean hasViewChildren = unionAll.children()
             .stream()
-            .anyMatch(c -> c instanceof NamedSubquery || c instanceof ViewUnionAll || isSubqueryOfAView(c) || isSubqueryOfAViewUnion(c));
-        if (hasViewChildren == false) {
+            .anyMatch(c -> c instanceof NamedSubquery || c instanceof ViewUnionAll || isSubqueryOfAView(c));
+        boolean hasDatasetChildren = unionAll.children()
+            .stream()
+            .anyMatch(c -> c instanceof DatasetShadowRelation || c instanceof UnresolvedExternalRelation);
+        if (hasDatasetChildren && hasViewChildren == false) {
             return unionAll;
         }
         LinkedHashMap<String, LogicalPlan> subPlans = new LinkedHashMap<>();
@@ -268,6 +282,7 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
         // whether a boundary must survive compaction is decided separately, from
         // preserveViewBoundaries, at the points that would collapse it.
         LinkedHashMap<String, BranchIdentity> identities = new LinkedHashMap<>();
+        int unnamedCount = 0;
         for (LogicalPlan child : unionAll.children()) {
             if (child instanceof NamedSubquery named) {
                 assertSubqueryDoesNotExist(subPlans, named.name());
@@ -296,34 +311,32 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
                 // ((FROM my_view) under CPS, or (FROM v1, v2)) — one identity per nesting level. The views inside keep
                 // their own identities on the inner ViewUnionAll, a level deeper; post-freeze compaction lifts them
                 // (liftedThrough is a no-op through a non-view branch, so they stay view branches for the filter).
-                String name = "unnamed_view_" + Integer.toHexString(unnamed.toString().hashCode());
-                assertSubqueryDoesNotExist(subPlans, name);
+                // Positional rather than content-derived: a toString() hash embeds NameIds, which depend on global
+                // counter state and would make golden/EXPLAIN output nondeterministic across runs. Uniquified rather
+                // than asserted: compaction lifts can merge unions whose branches used the same ordinals.
+                String name = makeUniqueKey(subPlans, "unnamed_view_" + ++unnamedCount);
                 subPlans.put(name, preserveWrappers ? unnamed : unnamed.child());
                 identities.put(name, BranchIdentity.SUBQUERY);
             } else {
-                assertSubqueryDoesNotExist(subPlans, null);
-                subPlans.put(null, child);
-                // Bare plan: NOT a view branch.
-                identities.put(null, BranchIdentity.INDEX);
+                // Bare plan: NOT a view branch. The first bare branch keeps the null key ("always a bare-plan branch"
+                // to readers like the request-filter rewriter); further bare branches get uniquified "main" labels.
+                String key = subPlans.containsKey(null) ? makeUniqueKey(subPlans, null) : null;
+                subPlans.put(key, child);
+                identities.put(key, BranchIdentity.INDEX);
             }
         }
         return new ViewUnionAll(unionAll.source(), subPlans, identities, unionAll.output());
     }
 
+    /**
+     * A literal subquery directly wrapping a resolved view's {@link NamedSubquery}: the only shape where a single
+     * branch level carries both the subquery wrapper (the request point, consumed by the metadata freeze) and the
+     * view (the boundary, recorded as the branch identity) without an intervening {@link ViewUnionAll} level to hold
+     * the view's identity. Retires when {@code ViewResolver} stops emitting {@link NamedSubquery} wrappers in favor
+     * of identity-carrying single-branch unions.
+     */
     private static boolean isSubqueryOfAView(LogicalPlan plan) {
         return plan instanceof Subquery sq && sq instanceof NamedSubquery == false && sq.child() instanceof NamedSubquery;
-    }
-
-    /**
-     * A literal subquery whose body resolved to a {@link ViewUnionAll} (e.g. {@code (FROM my_view)} under CPS, where the
-     * view's strict/lenient pair forms a per-level union). Only consulted by the conversion guard: pre-freeze the
-     * wrapper is preserved verbatim, so the parent union must recognise this shape as view-related to convert at all —
-     * the branch itself is then recorded as a plain literal-subquery branch, its views keeping their identities on the
-     * inner union. Post-freeze the Subquery unwrap above exposes the {@link ViewUnionAll} directly and this shape no
-     * longer occurs.
-     */
-    private static boolean isSubqueryOfAViewUnion(LogicalPlan plan) {
-        return plan instanceof Subquery sq && sq instanceof NamedSubquery == false && sq.child() instanceof ViewUnionAll;
     }
 
     /**
@@ -412,14 +425,25 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
                 for (Map.Entry<String, LogicalPlan> innerEntry : innerVua.namedSubqueries().entrySet()) {
                     String innerKey = innerEntry.getKey();
                     LogicalPlan innerValue = innerEntry.getValue();
-                    if (innerValue instanceof UnresolvedRelation innerUr && containsExclusion(innerUr)) {
-                        innerValue = new NamedSubquery(innerUr.source(), innerUr, innerKey);
+                    boolean bareRelationPiece = innerValue instanceof UnresolvedRelation;
+                    if (bareRelationPiece && containsExclusion((UnresolvedRelation) innerValue)) {
+                        innerValue = new NamedSubquery(innerValue.source(), (UnresolvedRelation) innerValue, innerKey);
                     }
                     String assignedKey = makeUniqueKey(flat, innerKey);
                     flat.put(assignedKey, innerValue);
-                    // Lift the inner identity through the outer branch: inside a view branch, the outer view's
-                    // name wins (METADATA _name answers the outermost view), and the lineage chain is extended.
-                    flatIdentities.put(assignedKey, innerVua.branchIdentity(innerKey).liftedThrough(vua.branchIdentity(parentKey)));
+                    // Lift the inner identity through the outer branch: inside a view branch, the outer view's name
+                    // wins (METADATA _name answers the outermost view) and the lineage chain is extended, so that the
+                    // request filter still binds at the lifted piece's output — a piece that computes a column (e.g.
+                    // Eval-topped) cannot take the raw Lucene filter path. The one exception is a bare non-view
+                    // relation piece: with no computation above its source the Lucene path is equivalent, and keeping
+                    // its own identity lets it merge with sibling bare patterns into the plain "main" branch.
+                    BranchIdentity innerIdentity = innerVua.branchIdentity(innerKey);
+                    flatIdentities.put(
+                        assignedKey,
+                        bareRelationPiece && innerIdentity.isView() == false
+                            ? innerIdentity
+                            : innerIdentity.liftedThrough(vua.branchIdentity(parentKey))
+                    );
                 }
             } else {
                 // Plain MergePlan from user-written subqueries: lift children with suffixed
@@ -509,7 +533,12 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
     private static void mergeUnresolvedRelationEntries(LinkedHashMap<String, LogicalPlan> flat, Map<String, BranchIdentity> identities) {
         List<String> urKeys = new ArrayList<>();
         for (Map.Entry<String, LogicalPlan> entry : flat.entrySet()) {
-            if (entry.getValue() instanceof UnresolvedRelation) {
+            // An exclusion's scope is its branch's own pattern list: "inner-*,-*b" excludes only from inner-*.
+            // Concatenating a sibling into it (or it into a sibling) widens that scope, so exclusion-bearing
+            // branches never participate in this cross-branch merge. ViewResolver's own per-level merge is
+            // different: there the resolver concatenates patterns it split from one user-written list, where
+            // the exclusion legitimately spans the merged result.
+            if (entry.getValue() instanceof UnresolvedRelation ur && containsExclusion(ur) == false) {
                 urKeys.add(entry.getKey());
             }
         }

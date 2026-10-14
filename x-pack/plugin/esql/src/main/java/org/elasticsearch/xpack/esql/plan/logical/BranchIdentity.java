@@ -47,18 +47,20 @@ public record BranchIdentity(@Nullable String name, RelationClass kind, List<Str
     }
 
     /**
-     * The identity a view branch has after being lifted out of {@code outer}'s subtree into {@code outer}'s own level:
-     * the outer view's name wins (lifting happens only after the metadata freeze, so this name serves warnings and
-     * {@code _lineage}, not {@code _name}), with the outer lineage prepended so the nesting chain survives. Lifting
-     * through a non-view branch, or lifting a non-view piece, changes nothing.
+     * The identity a branch has after being lifted out of {@code outer}'s subtree into {@code outer}'s own level.
+     * Lifting through a view promotes every piece to the view's identity — the outer view's name wins (lifting happens
+     * only after the metadata freeze, so this name serves warnings and {@code _lineage}, not {@code _name}), with the
+     * outer lineage prepended so the nesting chain survives. Lifting through a non-view branch changes nothing.
      *
-     * <p>Deliberately narrow: a bare index or subquery piece inside a view body keeps its own identity when lifted, so
-     * that lifting stays behaviour-preserving — bare pieces remain mergeable with sibling patterns and keep the Lucene
-     * filter path. Promoting them to the enclosing view's identity ("everything inside a view belongs to the view") is
-     * a semantic change tracked under esql-planning#2264.
+     * <p>Everything inside a view body belongs to the view: boundary features must treat a lifted piece exactly like
+     * the un-lifted view. Concretely, the request-filter rewriter targets {@code kind == VIEW} branches with the
+     * DSL-translated filter applied to the branch <em>output</em>; a piece that computes a column, left un-promoted,
+     * would take the raw Lucene pushdown instead, which cannot express a filter on that column. This mirrors the
+     * identity propagation the plain-{@code MergePlan} lift has always done for view bodies. (The lift site exempts
+     * bare non-view relation pieces, for which the Lucene path is equivalent — see {@code ViewCompaction}.)
      */
     public BranchIdentity liftedThrough(BranchIdentity outer) {
-        if (outer.isView() == false || isView() == false) {
+        if (outer.isView() == false) {
             return this;
         }
         List<String> chain = new ArrayList<>(outer.lineage);

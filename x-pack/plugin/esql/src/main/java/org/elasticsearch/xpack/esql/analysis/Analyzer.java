@@ -657,6 +657,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (child instanceof ViewUnionAll vua) {
                 answered = answerFromIdentities(vua, relationColumns, src);
             } else if (child instanceof UnionAll unionAll) {
+                // Only dataset-rewriter unions still reach here as plain UnionAll (ViewCompaction.toViewUnionAll
+                // converts everything else, and deliberately leaves that shape to the dataset rules). This arm
+                // retires when the dataset rewriter adopts branch identities and emits ViewUnionAll directly.
                 List<LogicalPlan> branches = unionAll.children().stream().map(b -> answer(b, relationColumns, src, false)).toList();
                 answered = branches.equals(unionAll.children()) ? child : unionAll.replaceChildren(branches);
             } else {
@@ -5130,13 +5133,37 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // If the pattern doesn't match, something unexpected happened, just return the child as is
             if ((aliases.isEmpty() == false || resolvedUnionFields.isEmpty() == false) && child instanceof Project project) {
                 LogicalPlan childOfProject = project.child();
+                // The conversion Evals are inserted below the Project, so their inputs must be produced below it too. The top
+                // Project is not always the purely structural alignment projection added by resolveMergePlan: when a branch
+                // already ends in a Project with the merge's column names (e.g. a trailing RENAME, now that subquery branches
+                // are no longer wrapped in a Subquery node), that Project is the merge child itself and can mint the converted
+                // column via one of its own aliases. Referencing such a column from below would dangle, so leave the branch
+                // unchanged and let rebuildUnionAll fall back to keeping the conversion above the union.
+                AttributeSet availableBelowProject = childOfProject.outputSet();
+                for (Alias alias : aliases) {
+                    if (alias.child().references().subsetOf(availableBelowProject) == false) {
+                        return child;
+                    }
+                }
                 if (aliases.isEmpty() == false) {
                     childOfProject = new Eval(childOfProject.source(), childOfProject, aliases);
                 }
                 if (resolvedUnionFields.isEmpty() == false) {
                     childOfProject = ResolveUnionTypes.addGeneratedFieldsToEsRelations(childOfProject, resolvedUnionFields);
                 }
-                return new Project(project.source(), childOfProject, output);
+                // Rebuild the Project from the original projections rather than from plain output attributes: a user alias in
+                // the top Project (e.g. `renamed AS label` from a trailing RENAME) names an output column that exists nowhere
+                // else, so projecting its bare attribute would leave a reference without a producer, which the
+                // post-optimization verifier rejects once column pruning removes the orphaned rename chain below.
+                Map<NameId, NamedExpression> originalProjections = new HashMap<>(project.projections().size());
+                for (NamedExpression projection : project.projections()) {
+                    originalProjections.put(projection.id(), projection);
+                }
+                List<NamedExpression> newProjections = new ArrayList<>(output.size());
+                for (Attribute attr : output) {
+                    newProjections.add(originalProjections.getOrDefault(attr.id(), attr));
+                }
+                return new Project(project.source(), childOfProject, newProjections);
             }
             return child;
         }

@@ -30,7 +30,7 @@ import java.util.stream.Collectors;
  * <p>Not every entry in {@link #namedSubqueries()} is an actual resolved view. The map also
  * carries bare-index branches (assigned keys like {@code "main"} by {@link
  * org.elasticsearch.xpack.esql.view.ViewResolver}) and user-written literal subquery branches
- * (assigned synthetic {@code "unnamed_view_<hash>"} keys by {@link
+ * (assigned synthetic {@code "unnamed_view_<n>"} keys by {@link
  * org.elasticsearch.xpack.esql.view.ViewCompaction}). Only the keys in {@link #viewBranchKeys()}
  * are actual resolved views; callers that need to apply view-specific logic (e.g. the request
  * filter rewriter) must check {@link #isViewBranch(String)} rather than {@code key != null}.
@@ -112,7 +112,7 @@ public class ViewUnionAll extends UnionAll {
     /**
      * Returns the set of keys in {@link #namedSubqueries()} that correspond to actual resolved view subplans.
      * Keys for bare-index branches (e.g. {@code "main"}) and literal user-written subquery branches
-     * (e.g. {@code "unnamed_view_<hash>"}) are excluded. Note these are branch <em>labels</em>; the view's real
+     * (e.g. {@code "unnamed_view_<n>"}) are excluded. Note these are branch <em>labels</em>; the view's real
      * name is {@link #branchIdentity(String)}'s {@link BranchIdentity#name()}, which uniquification never mangles.
      */
     public Set<String> viewBranchKeys() {
@@ -195,20 +195,25 @@ public class ViewUnionAll extends UnionAll {
             int v = Objects.hashCode(entry.getValue());
             h += k * (v + 1);
         }
-        return Objects.hash(ViewUnionAll.class, h, branchIdentities);
+        return Objects.hash(ViewUnionAll.class, h, branchIdentities, output().size());
     }
 
     @Override
     public boolean equals(Object o) {
-        // Map equality is order independent, but does require the same keys map to the same sub-plans
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
+        // Delegate the children/output part to UnionAll: output arity is resolution state (compaction builds this node
+        // with an empty output for resolveMergePlan to fill in) and LOAD_ALL alignment rewrites the output without
+        // changing children; ignoring the output here would make transformUp discard both rewrites. super.equals also
+        // rejects nulls and other classes via getClass().
+        if (super.equals(o) == false) {
             return false;
         }
         ViewUnionAll other = (ViewUnionAll) o;
 
+        // The map comparison requires the same keys to map to the same sub-plans; branch order is already pinned
+        // by the positional children comparison in super.equals.
         return Objects.equals(namedSubqueries, other.namedSubqueries()) && Objects.equals(branchIdentities, other.branchIdentities);
     }
 }

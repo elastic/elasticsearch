@@ -661,6 +661,9 @@ public class Verifier {
             || plan instanceof LookupJoin
             || plan instanceof Enrich
             || plan instanceof Fork
+            // Every subquery union is a ViewUnionAll now; what LOAD_ALL does not support yet is views, and that is a
+            // property of the branches (BranchIdentity), not of the node type. Admit unions without view branches.
+            || (plan instanceof ViewUnionAll vua && vua.viewBranchKeys().isEmpty())
             || (plan instanceof UnionAll && plan instanceof ViewUnionAll == false)
             || (plan instanceof Subquery && plan instanceof NamedSubquery == false)
             || plan instanceof AbstractSubqueryJoin;

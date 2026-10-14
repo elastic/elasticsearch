@@ -145,7 +145,10 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
 
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("invalid parameter \\\"timeout\\\""));
+        ObjectPath errorPath = ObjectPath.createFromResponse(e.getResponse());
+        assertThat(errorPath.evaluate("status"), equalTo("error"));
+        assertThat(errorPath.evaluate("errorType"), equalTo("bad_data"));
+        assertThat(errorPath.evaluate("error"), equalTo("invalid parameter \"timeout\": cannot parse \"soon\" to a valid duration"));
     }
 
     public void testInstantQueryReturnsLatestSampleWithinDefaultLookback() throws Exception {

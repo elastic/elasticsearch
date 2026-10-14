@@ -16,11 +16,22 @@ import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
@@ -29,10 +40,13 @@ import org.elasticsearch.columnar.ColumnarFieldType;
 import org.elasticsearch.columnar.string.PageBudget;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.index.fielddata.ColumnarPayloadSortableBinaryDocValues;
+import org.elasticsearch.index.fielddata.ValueDeduplicator;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -52,6 +66,7 @@ public class ColumnarPageTermsCollectorTests extends ESTestCase {
 
     /** The collector the last {@link #collect} built, so a test can ask which shapes of page it was given. */
     private ColumnarPageTermsCollector lastCollector;
+    private PerDocumentCollector lastPerDocument;
 
     /**
      * Counts into a map. The real target is the aggregator, which cannot be built without a whole search context,
@@ -59,8 +74,7 @@ public class ColumnarPageTermsCollectorTests extends ESTestCase {
      */
     private static final class CountingTarget implements ColumnarPageTermsCollector.Target {
         final Map<String, Long> counts = new TreeMap<>();
-        int pageDocs;
-        int fallbackDocs;
+        private final int[] scratch = new int[ColumnarPageTermsCollector.PAGE_DOCS];
 
         @Override
         public void count(BytesRef term, long docCount) {
@@ -73,11 +87,40 @@ public class ColumnarPageTermsCollectorTests extends ESTestCase {
         }
 
         @Override
-        public void flushed(int docs, boolean asPages) {
-            if (asPages) {
-                pageDocs += docs;
-            } else {
-                fallbackDocs += docs;
+        public int[] scratchDocs() {
+            return scratch;
+        }
+    }
+
+    /**
+     * What the aggregator's ordinary collector does for a document, which a page cannot: advance, take the values,
+     * leave out a repeat, count each. Here rather than the real one for the same reason as the target.
+     */
+    private static final class PerDocumentCollector extends LeafBucketCollector {
+        private final ColumnarPayloadSortableBinaryDocValues values;
+        private final ValueDeduplicator duplicates;
+        private final ColumnarPageTermsCollector.Target target;
+        int docs;
+
+        PerDocumentCollector(ColumnarPayloadSortableBinaryDocValues values, ColumnarPageTermsCollector.Target target) {
+            this.values = values;
+            this.duplicates = new ValueDeduplicator(values);
+            this.target = target;
+        }
+
+        @Override
+        public void collect(int doc, long owningBucketOrd) throws IOException {
+            docs++;
+            if (values.advanceExact(doc) == false) {
+                return;
+            }
+            final int valueCount = values.docValueCount();
+            duplicates.reset(valueCount);
+            for (int i = 0; i < valueCount; i++) {
+                final BytesRef value = values.nextValue();
+                if (duplicates.seen(value) == false) {
+                    target.count(value, 1);
+                }
             }
         }
     }
@@ -92,8 +135,7 @@ public class ColumnarPageTermsCollectorTests extends ESTestCase {
         }
         final CountingTarget target = collectAll(docs);
         assertThat(target.counts, equalTo(expected(docs, null)));
-        assertThat("a column this repetitive is read as pages", target.pageDocs, equalTo(numDocs));
-        assertThat(target.fallbackDocs, equalTo(0));
+        assertThat("no document went the ordinary way", lastPerDocument.docs, equalTo(0));
         assertThat("every page is a dictionary and ordinals", lastCollector.ordinalPages, equalTo(3));
         assertThat(lastCollector.flatPages, equalTo(0));
     }
@@ -141,8 +183,8 @@ public class ColumnarPageTermsCollectorTests extends ESTestCase {
         assertThat("the page is flat, so a repeat within a document is found by its bytes", lastCollector.flatPages, equalTo(1));
     }
 
-    /** What a filtered search does: only some documents are collected, in order. */
-    public void testOnlyTheCollectedDocumentsCount() throws IOException {
+    /** Documents that arrive one at a time, as a sparse match does, go the ordinary way and count the same. */
+    public void testDocumentsOneAtATimeAreNotCountedAsPages() throws IOException {
         final String[][] docs = randomDocs(5000, 6, 3);
         final Set<Integer> chosen = new HashSet<>();
         for (int i = 0; i < docs.length; i++) {
@@ -150,23 +192,111 @@ public class ColumnarPageTermsCollectorTests extends ESTestCase {
                 chosen.add(i);
             }
         }
-        final CountingTarget target = collect(docs, chosen);
+        final CountingTarget target = collect(docs, chosen, false);
+        assertThat(target.counts, equalTo(expected(docs, chosen)));
+        assertThat("every document went the ordinary way", lastPerDocument.docs, equalTo(chosen.size()));
+        assertThat(lastCollector.ordinalPages + lastCollector.flatPages, equalTo(0));
+    }
+
+    /** Runs of consecutive documents are pages, the documents between them are not, and the order is kept. */
+    public void testRangesAndSingleDocumentsMixed() throws IOException {
+        final String[][] docs = randomDocs(9000, 8, 2);
+        final Set<Integer> chosen = new HashSet<>();
+        final List<int[]> runs = new ArrayList<>();
+        for (int doc = 0; doc < docs.length;) {
+            final int length = randomIntBetween(1, 3000);
+            final int end = Math.min(docs.length, doc + length);
+            if (randomBoolean()) {
+                runs.add(new int[] { doc, end });
+                for (int d = doc; d < end; d++) {
+                    chosen.add(d);
+                }
+            }
+            doc = end + randomIntBetween(0, 5);
+        }
+        final CountingTarget target = new CountingTarget();
+        withValues(docs, values -> {
+            final PerDocumentCollector perDocument = new PerDocumentCollector(values, target);
+            final ColumnarPageTermsCollector collector = new ColumnarPageTermsCollector(
+                values.columnSource().reader(),
+                target,
+                perDocument
+            );
+            for (int[] run : runs) {
+                if (run[1] - run[0] == 1 || randomBoolean()) {
+                    collector.collectRange(run[0], run[1]);
+                } else {
+                    for (int doc = run[0]; doc < run[1]; doc++) {
+                        collector.collect(doc, 0);
+                    }
+                }
+            }
+        });
         assertThat(target.counts, equalTo(expected(docs, chosen)));
     }
 
-    /** Nothing is counted until the buffer fills or the owner flushes, and flushing twice counts nothing twice. */
-    public void testNothingIsCountedUntilFlushed() throws IOException {
+    /**
+     * What a search does with a dense match: Lucene gives the collector the documents as a range, so they are all
+     * counted as pages. The collector sees what a real bulk scorer sends it, not what these tests send.
+     */
+    public void testALuceneSearchOverADenseMatchCountsPages() throws IOException {
+        final String[][] docs = randomDocs(5000, 6, 2);
+        final CountingTarget target = new CountingTarget();
+        final PerDocumentCollector[] perDocument = new PerDocumentCollector[1];
+        searchAll(docs, Set.of(), target, perDocument);
+        assertThat(target.counts, equalTo(expected(docs, null)));
+        assertThat("every document arrived in a range, so none went the ordinary way", perDocument[0].docs, equalTo(0));
+    }
+
+    /**
+     * With documents deleted Lucene sends the collector windows of matches found in a bit set, not a range. They arrive
+     * as a stream of doc IDs too, so they are counted as pages as well.
+     */
+    public void testALuceneSearchWithDeletionsCountsTheSame() throws IOException {
+        final String[][] docs = randomDocs(5000, 6, 2);
+        final Set<Integer> deleted = new HashSet<>();
+        for (int doc = 0; doc < docs.length; doc += randomIntBetween(1, 30)) {
+            deleted.add(doc);
+        }
+        final Set<Integer> live = new HashSet<>();
+        for (int doc = 0; doc < docs.length; doc++) {
+            if (deleted.contains(doc) == false) {
+                live.add(doc);
+            }
+        }
+        final CountingTarget target = new CountingTarget();
+        final PerDocumentCollector[] perDocument = new PerDocumentCollector[1];
+        searchAll(docs, deleted, target, perDocument);
+        assertThat(target.counts, equalTo(expected(docs, live)));
+        assertThat("the live documents arrived as streams, so none went the ordinary way", perDocument[0].docs, equalTo(0));
+    }
+
+    /** A filter matching some of the documents, however Lucene chooses to deliver them, counts what it matches. */
+    public void testALuceneSearchOverASubsetCountsTheSame() throws IOException {
+        final String[][] docs = randomDocs(6000, 6, 3);
+        final double share = randomFrom(0.02, 0.3, 0.9);
+        final Set<Integer> tagged = new HashSet<>();
+        for (int doc = 0; doc < docs.length; doc++) {
+            if (random().nextDouble() < share) {
+                tagged.add(doc);
+            }
+        }
+        final CountingTarget target = new CountingTarget();
+        search(docs, Set.of(), tagged, new TermQuery(new Term("tag", "yes")), target, new PerDocumentCollector[1]);
+        assertThat("share " + share, target.counts, equalTo(expected(docs, tagged)));
+    }
+
+    /** A range is counted before the call returns, so there is nothing left to flush when the leaf is done. */
+    public void testARangeIsCountedImmediately() throws IOException {
         final String[][] docs = { { "a" }, { "b" }, { "a" } };
         withValues(docs, values -> {
             final CountingTarget target = new CountingTarget();
-            final ColumnarPageTermsCollector collector = new ColumnarPageTermsCollector(values, target);
-            for (int doc = 0; doc < docs.length; doc++) {
-                collector.collect(doc, 0);
-            }
-            assertThat(target.counts.size(), equalTo(0));
-            collector.flush();
-            assertThat(target.counts, equalTo(expected(docs, null)));
-            collector.flush();
+            final ColumnarPageTermsCollector collector = new ColumnarPageTermsCollector(
+                values.columnSource().reader(),
+                target,
+                new PerDocumentCollector(values, target)
+            );
+            collector.collectRange(0, docs.length);
             assertThat(target.counts, equalTo(expected(docs, null)));
         });
     }
@@ -223,22 +353,111 @@ public class ColumnarPageTermsCollectorTests extends ESTestCase {
     }
 
     private CountingTarget collectAll(String[][] docs) throws IOException {
-        return collect(docs, null);
+        return collect(docs, null, true);
     }
 
-    private CountingTarget collect(String[][] docs, Set<Integer> only) throws IOException {
+    /**
+     * Collects the documents. As a range when {@code asRange} and every document is wanted, the way a dense match
+     * arrives; otherwise each one on its own.
+     */
+    private CountingTarget collect(String[][] docs, Set<Integer> only, boolean asRange) throws IOException {
         final CountingTarget target = new CountingTarget();
         withValues(docs, values -> {
-            final ColumnarPageTermsCollector collector = new ColumnarPageTermsCollector(values, target);
+            final PerDocumentCollector perDocument = new PerDocumentCollector(values, target);
+            final ColumnarPageTermsCollector collector = new ColumnarPageTermsCollector(
+                values.columnSource().reader(),
+                target,
+                perDocument
+            );
             lastCollector = collector;
-            for (int doc = 0; doc < docs.length; doc++) {
-                if (only == null || only.contains(doc)) {
-                    collector.collect(doc, 0);
+            lastPerDocument = perDocument;
+            if (asRange && only == null) {
+                collector.collectRange(0, docs.length);
+            } else {
+                for (int doc = 0; doc < docs.length; doc++) {
+                    if (only == null || only.contains(doc)) {
+                        collector.collect(doc, 0);
+                    }
                 }
             }
-            collector.flush();
         });
         return target;
+    }
+
+    /**
+     * Writes the documents, deletes some, and counts what a match-all search collects, through the collector
+     * under test. {@code perDocument[0]} is left holding the ordinary collector it wrapped.
+     */
+    private void searchAll(String[][] docs, Set<Integer> deleted, CountingTarget target, PerDocumentCollector[] perDocument)
+        throws IOException {
+        search(docs, deleted, null, new MatchAllDocsQuery(), target, perDocument);
+    }
+
+    /**
+     * As {@link #searchAll}, for any query. {@code tagged} marks documents with a field a query can match, or is null
+     * for none.
+     */
+    private void search(
+        String[][] docs,
+        Set<Integer> deleted,
+        Set<Integer> tagged,
+        Query query,
+        CountingTarget target,
+        PerDocumentCollector[] perDocument
+    ) throws IOException {
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig().setCodec(columnarCodec()))) {
+                for (int i = 0; i < docs.length; i++) {
+                    final Document doc = new Document();
+                    doc.add(new StringField("id", Integer.toString(i), Field.Store.NO));
+                    if (tagged != null) {
+                        doc.add(new StringField("tag", tagged.contains(i) ? "yes" : "no", Field.Store.NO));
+                    }
+                    if (docs[i] != null) {
+                        doc.add(new Field(FIELD, encode(docs[i]), binaryDocValuesType()));
+                    }
+                    writer.addDocument(doc);
+                }
+                writer.commit();
+                for (int doc : deleted) {
+                    writer.deleteDocuments(new Term("id", Integer.toString(doc)));
+                }
+                if (deleted.isEmpty()) {
+                    writer.forceMerge(1);
+                }
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                assertThat("one segment", reader.leaves().size(), equalTo(1));
+                assertThat(reader.numDeletedDocs(), equalTo(deleted.size()));
+                final IndexSearcher searcher = new IndexSearcher(reader);
+                searcher.search(query, new CollectorManager<Collector, Void>() {
+                    @Override
+                    public Collector newCollector() {
+                        return new Collector() {
+                            @Override
+                            public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
+                                final ColumnarPayloadSortableBinaryDocValues values = ColumnarPayloadSortableBinaryDocValues.from(
+                                    context.reader(),
+                                    FIELD
+                                );
+                                perDocument[0] = new PerDocumentCollector(values, target);
+                                return new ColumnarPageTermsCollector(values.columnSource().reader(), target, perDocument[0]);
+                            }
+
+                            @Override
+                            public ScoreMode scoreMode() {
+                                return ScoreMode.COMPLETE_NO_SCORES;
+                            }
+                        };
+                    }
+
+                    @Override
+                    public Void reduce(Collection<Collector> collectors) {
+                        return null;
+                    }
+                });
+            }
+        }
     }
 
     private interface Check {

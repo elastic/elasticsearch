@@ -68,10 +68,6 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
     /** Whether every collected document belongs to the one owning bucket, which counting a page of values as a whole needs. */
     private final boolean singleOwningBucket;
     private final ColumnarPageTarget columnarPages = new ColumnarPageTarget();
-    /** The leaf collector whose buffered documents have not been counted yet; see {@link ColumnarPageTermsCollector}. */
-    private ColumnarPageTermsCollector pendingColumnarPages;
-    private long columnarPageDocs;
-    private long columnarFallbackDocs;
 
     public MapStringTermsAggregator(
         String name,
@@ -110,34 +106,30 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
 
     @Override
     public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
-        // The previous leaf is finished by now, and nothing else will tell its collector so.
-        flushColumnarPages();
-        final LeafBucketCollector primary = collectorSource.getLeafCollector(
-            includeExclude,
-            aggCtx.getLeafReaderContext(),
-            sub,
-            this::addRequestCircuitBreakerBytes,
-            (s, doc, owningBucketOrd, bytes) -> {
-                long bucketOrdinal = bucketOrds.add(owningBucketOrd, bytes);
-                if (bucketOrdinal < 0) { // already seen
-                    bucketOrdinal = -1 - bucketOrdinal;
-                    collectExistingBucket(s, doc, bucketOrdinal);
-                } else {
-                    collectBucket(s, doc, bucketOrdinal);
-                }
-            },
-            canCountPages(sub) ? columnarPages : null
+        return resultStrategy.wrapCollector(
+            collectorSource.getLeafCollector(
+                includeExclude,
+                aggCtx.getLeafReaderContext(),
+                sub,
+                this::addRequestCircuitBreakerBytes,
+                (s, doc, owningBucketOrd, bytes) -> {
+                    long bucketOrdinal = bucketOrds.add(owningBucketOrd, bytes);
+                    if (bucketOrdinal < 0) { // already seen
+                        bucketOrdinal = -1 - bucketOrdinal;
+                        collectExistingBucket(s, doc, bucketOrdinal);
+                    } else {
+                        collectBucket(s, doc, bucketOrdinal);
+                    }
+                },
+                canCountPages(sub) ? columnarPages : null
+            )
         );
-        if (primary instanceof ColumnarPageTermsCollector pages) {
-            pendingColumnarPages = pages;
-        }
-        return resultStrategy.wrapCollector(primary);
     }
 
     /**
-     * Whether a leaf may be counted a page at a time. Counting a page as a whole leaves out what happens for each
-     * document: a sub-aggregation collecting it, a document count other than one, a significance count of the subset
-     * the document is in, a filter on the value, or a bucket it belongs to that is not the only one.
+     * Whether a run of documents may be counted a page at a time. Counting a page as a whole leaves out what happens
+     * for each document: a sub-aggregation collecting it, a document count other than one, a significance count of
+     * the subset the document is in, a filter on the value, or a bucket it belongs to that is not the only one.
      */
     private boolean canCountPages(LeafBucketCollector sub) {
         return singleOwningBucket
@@ -147,23 +139,10 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
             && resultStrategy instanceof StandardTermsResults;
     }
 
-    private void flushColumnarPages() throws IOException {
-        if (pendingColumnarPages != null) {
-            final ColumnarPageTermsCollector pending = pendingColumnarPages;
-            pendingColumnarPages = null;
-            pending.flush();
-        }
-    }
-
-    /** Called when collection ends, because the last leaf's collector is never told. */
-    @Override
-    protected void doPostCollection() throws IOException {
-        flushColumnarPages();
-    }
-
     /** Where a page's counted terms are added to the buckets. */
     private final class ColumnarPageTarget implements ColumnarPageTermsCollector.Target {
         private final PageBudget budget = MapStringTermsAggregator.this::addRequestCircuitBreakerBytes;
+        private int[] scratchDocs;
 
         @Override
         public void count(BytesRef term, long docCount) {
@@ -182,12 +161,13 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
         }
 
         @Override
-        public void flushed(int docs, boolean asPages) {
-            if (asPages) {
-                columnarPageDocs += docs;
-            } else {
-                columnarFallbackDocs += docs;
+        public int[] scratchDocs() {
+            if (scratchDocs == null) {
+                // Held until the aggregation closes, and charged for it, though it is the same size for every leaf.
+                addRequestCircuitBreakerBytes((long) ColumnarPageTermsCollector.PAGE_DOCS * Integer.BYTES);
+                scratchDocs = new int[ColumnarPageTermsCollector.PAGE_DOCS];
             }
+            return scratchDocs;
         }
     }
 
@@ -206,10 +186,6 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
         super.collectDebugInfo(add);
         add.accept("total_buckets", bucketOrds.size());
         add.accept("collection_strategy", collectorSource.describe());
-        if (columnarPageDocs > 0 || columnarFallbackDocs > 0) {
-            add.accept("columnar_page_docs", columnarPageDocs);
-            add.accept("columnar_fallback_docs", columnarFallbackDocs);
-        }
         collectorSource.collectDebugInfo(add);
         add.accept("result_strategy", resultStrategy.describe());
     }
@@ -253,9 +229,8 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
         ) throws IOException;
 
         /**
-         * As above, and when {@code pages} is not null the collector may count a columnar field's values a page at a
-         * time into it instead of calling {@code consumer} for each document. The caller has to flush the collector
-         * when its leaf is done. A source that has no pages to read ignores it.
+         * As above, and when {@code pages} is not null the collector may count a run of documents of a columnar field a
+         * page at a time into it, where the documents arrive as a range. A source that has no pages to read ignores it.
          */
         default LeafBucketCollector getLeafCollector(
             IncludeExclude.StringFilter includeExclude,
@@ -318,13 +293,14 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
             @Nullable ColumnarPageTermsCollector.Target pages
         ) throws IOException {
             final SortableBinaryDocValues values = valuesSourceConfig.getValuesSource().bytesValues(ctx);
-            if (pages != null && values instanceof ColumnarPayloadSortableBinaryDocValues columnar && columnar.columnSource() != null) {
-                return new ColumnarPageTermsCollector(columnar, pages);
-            }
             final BinaryDocValues singleton = FieldData.unwrapSingleton(values);
-            return singleton != null
+            final LeafBucketCollector perDocument = singleton != null
                 ? getLeafCollector(includeExclude, singleton, sub, consumer)
                 : getLeafCollector(includeExclude, values, sub, consumer);
+            if (pages != null && values instanceof ColumnarPayloadSortableBinaryDocValues columnar && columnar.columnSource() != null) {
+                return new ColumnarPageTermsCollector(columnar.columnSource().reader(), pages, perDocument);
+            }
+            return perDocument;
         }
 
         private LeafBucketCollector getLeafCollector(

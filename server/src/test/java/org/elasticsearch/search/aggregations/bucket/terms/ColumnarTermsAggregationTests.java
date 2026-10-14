@@ -10,6 +10,7 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -17,12 +18,9 @@ import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.metrics.Sum;
-import org.elasticsearch.search.profile.ProfileResult;
-import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Before;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -30,19 +28,22 @@ import java.util.TreeMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.not;
 
 /**
- * A {@code terms} aggregation over a columnar keyword field reads the field a page at a time when it can, and has to
- * give what it gives over an ordinary keyword field holding the same documents. The same documents go into both
+ * A {@code terms} aggregation over a columnar keyword field has to give what it gives over an ordinary keyword field
+ * holding the same documents, however the query phase hands the documents to it. The same documents go into both
  * indices, so the ordinary index is the answer the columnar one is held to.
+ *
+ * <p>The query phase gives the aggregation streams of documents only when nothing else is collecting them, which is
+ * when hits are not tracked. A search that tracks hits has a collector counting them until it reaches its limit, which
+ * is wrapped around the aggregation until then and hands it one document at a time, and these indices are smaller than
+ * the limit. So most tests do not track hits, and one does. Profiling cannot be used to see which way the documents
+ * came, because it replaces the bulk scorers that produce streams.
  */
 public class ColumnarTermsAggregationTests extends ESSingleNodeTestCase {
 
     private static final String COLUMNAR = "columnar-index";
     private static final String PLAIN = "plain-index";
-    private static final String PAGES_DEBUG_KEY = "columnar_page_docs";
 
     private static final String[] VERSIONS = { "7.17.0", "8.4.1", "8.11.0", "8.12.2", "9.0.0" };
 
@@ -63,8 +64,7 @@ public class ColumnarTermsAggregationTests extends ESSingleNodeTestCase {
             "type=long"
         );
         createIndex(PLAIN, Settings.EMPTY, "@timestamp", "type=date", "kw", "type=keyword", "n", "type=long");
-        // Several refreshes, so the field is read from more than one segment and the pages of one are counted
-        // before the next begins.
+        // Several refreshes, so the field is read from more than one segment.
         final int batches = randomIntBetween(2, 4);
         int doc = 0;
         for (int batch = 0; batch < batches; batch++) {
@@ -73,8 +73,8 @@ public class ColumnarTermsAggregationTests extends ESSingleNodeTestCase {
             final BulkRequestBuilder plain = client().prepareBulk();
             for (int i = 0; i < size; i++, doc++) {
                 final Map<String, Object> source = source(doc);
-                columnar.add(prepareIndex(COLUMNAR).setSource(source));
-                plain.add(prepareIndex(PLAIN).setSource(source));
+                columnar.add(prepareIndex(COLUMNAR).setId(Integer.toString(doc)).setSource(source));
+                plain.add(prepareIndex(PLAIN).setId(Integer.toString(doc)).setSource(source));
             }
             assertFalse(columnar.get().hasFailures());
             assertFalse(plain.get().hasFailures());
@@ -106,39 +106,60 @@ public class ColumnarTermsAggregationTests extends ESSingleNodeTestCase {
 
     public void testTermsMatchesAnOrdinaryKeywordField() {
         final AggregationBuilder terms = AggregationBuilders.terms("t").field("kw").size(10_000);
-        final Map<String, Long> expected = buckets(PLAIN, terms, false);
+        final Map<String, Long> expected = buckets(PLAIN, terms, false, false);
         assertThat(expected.size(), greaterThan(VERSIONS.length));
-        assertThat(buckets(COLUMNAR, terms, false), equalTo(expected));
-    }
-
-    public void testTheColumnIsReadAsPages() {
-        final AggregationBuilder terms = AggregationBuilders.terms("t").field("kw").size(10_000);
-        final List<Map<String, Object>> debug = debugInfo(COLUMNAR, terms);
-        assertThat(debug.size(), equalTo(1));
-        assertThat(debug.get(0), hasKey(PAGES_DEBUG_KEY));
-        assertThat((Long) debug.get(0).get(PAGES_DEBUG_KEY), greaterThan(0L));
+        assertThat(buckets(COLUMNAR, terms, false, false), equalTo(expected));
     }
 
     public void testTopTermsWithASmallSize() {
         final AggregationBuilder terms = AggregationBuilders.terms("t").field("kw").size(3);
-        assertThat(buckets(COLUMNAR, terms, false), equalTo(buckets(PLAIN, terms, false)));
+        assertThat(buckets(COLUMNAR, terms, false, false), equalTo(buckets(PLAIN, terms, false, false)));
     }
 
-    /** A sub-aggregation needs each document, so the field is read a document at a time and says so. */
-    public void testASubAggregationIsNotCountedAsPages() {
+    /** A sub-aggregation needs each document, so the field is read a document at a time and still adds up. */
+    public void testASubAggregationStillAddsUp() {
         final AggregationBuilder terms = AggregationBuilders.terms("t")
             .field("kw")
             .size(10_000)
             .subAggregation(AggregationBuilders.sum("s").field("n"));
-        assertThat(buckets(COLUMNAR, terms, true), equalTo(buckets(PLAIN, terms, true)));
-        final List<Map<String, Object>> debug = debugInfo(COLUMNAR, terms);
-        assertThat(debug.get(0), not(hasKey(PAGES_DEBUG_KEY)));
+        assertThat(buckets(COLUMNAR, terms, true, false), equalTo(buckets(PLAIN, terms, true, false)));
     }
 
-    /** Key to doc count, and with {@code withSum} the sub-aggregation's sum too, so a lost document shows. */
-    private Map<String, Long> buckets(String index, AggregationBuilder terms, boolean withSum) {
+    /** With hits tracked the aggregation is handed documents one at a time, and has to count the same. */
+    public void testWithHitsTrackedCountsTheSame() {
+        final AggregationBuilder terms = AggregationBuilders.terms("t").field("kw").size(10_000);
+        assertThat(buckets(COLUMNAR, terms, false, true), equalTo(buckets(PLAIN, terms, false, true)));
+    }
+
+    /**
+     * With documents deleted, Lucene hands the aggregation windows of matches found in a bit set rather than a range of
+     * documents. The counts have to leave the deleted documents out.
+     */
+    public void testDeletedDocumentsAreNotCounted() {
+        final BulkRequestBuilder deletes = client().prepareBulk();
+        final BulkRequestBuilder plainDeletes = client().prepareBulk();
+        for (int doc = 0; doc < 2000; doc += randomIntBetween(1, 40)) {
+            deletes.add(client().prepareDelete(COLUMNAR, Integer.toString(doc)));
+            plainDeletes.add(client().prepareDelete(PLAIN, Integer.toString(doc)));
+        }
+        assertFalse(deletes.get().hasFailures());
+        assertFalse(plainDeletes.get().hasFailures());
+        indicesAdmin().prepareRefresh(COLUMNAR, PLAIN).get();
+        final AggregationBuilder terms = AggregationBuilders.terms("t").field("kw").size(10_000);
+        assertThat(buckets(COLUMNAR, terms, false, false), equalTo(buckets(PLAIN, terms, false, false)));
+    }
+
+    /**
+     * Key to doc count, and with {@code withSum} the sub-aggregation's sum too, so a lost document shows. Hits are
+     * tracked only when asked.
+     */
+    private Map<String, Long> buckets(String index, AggregationBuilder terms, boolean withSum, boolean trackHits) {
         final Map<String, Long> buckets = new TreeMap<>();
-        assertNoFailuresAndResponse(client().prepareSearch(index).setSize(0).addAggregation(terms), response -> {
+        final SearchRequestBuilder request = client().prepareSearch(index).setSize(0).addAggregation(terms);
+        if (trackHits == false) {
+            request.setTrackTotalHits(false);
+        }
+        assertNoFailuresAndResponse(request, response -> {
             final StringTerms result = response.getAggregations().get("t");
             for (StringTerms.Bucket bucket : result.getBuckets()) {
                 buckets.put(bucket.getKeyAsString(), bucket.getDocCount());
@@ -149,18 +170,5 @@ public class ColumnarTermsAggregationTests extends ESSingleNodeTestCase {
             }
         });
         return buckets;
-    }
-
-    /** What each aggregation reported about how it collected, from a profiled search. */
-    private List<Map<String, Object>> debugInfo(String index, AggregationBuilder terms) {
-        final List<Map<String, Object>> debug = new ArrayList<>();
-        assertNoFailuresAndResponse(client().prepareSearch(index).setSize(0).setProfile(true).addAggregation(terms), response -> {
-            for (SearchProfileShardResult shard : response.getSearchProfileShardResults().values()) {
-                for (ProfileResult result : shard.getAggregationProfileResults().getProfileResults()) {
-                    debug.add(result.getDebugInfo());
-                }
-            }
-        });
-        return debug;
     }
 }

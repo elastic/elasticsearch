@@ -11,11 +11,9 @@ import org.elasticsearch.core.Nullable;
 
 import java.util.Map;
 
-public record SecurityConfigChangeData(
-    Operation operation,
-    String objectType,
-    @Nullable String name,
-    Map<String, Object> safeFields
-) {
-    public enum Operation { PUT, DELETE }
+public record SecurityConfigChangeData(Operation operation, String objectType, @Nullable String name, Map<String, Object> safeFields) {
+    public enum Operation {
+        PUT,
+        DELETE
+    }
 }

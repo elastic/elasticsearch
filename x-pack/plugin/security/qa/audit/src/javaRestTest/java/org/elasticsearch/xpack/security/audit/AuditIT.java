@@ -250,7 +250,9 @@ public class AuditIT extends ESRestTestCase {
                 }
                 assertThat(events, hasSize(1));
                 final Map<String, Object> event = events.get(0);
-                final Map<String, Object> dataSource = asMap(asMap(event.get(LoggingAuditTrail.DELETE_CONFIG_FIELD_NAME)).get("data_source"));
+                final Map<String, Object> dataSource = asMap(
+                    asMap(event.get(LoggingAuditTrail.DELETE_CONFIG_FIELD_NAME)).get("data_source")
+                );
                 assertThat(dataSource, equalTo(Map.of("names", List.of(dataSourceName))));
             }
         }, 5, TimeUnit.SECONDS);

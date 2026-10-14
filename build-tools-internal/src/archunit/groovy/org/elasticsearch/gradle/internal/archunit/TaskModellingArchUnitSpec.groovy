@@ -64,6 +64,37 @@ class TaskModellingArchUnitSpec extends AbstractArchUnitSpec {
     ] as Set
 
     /**
+     * Superclasses that task implementations are permitted to extend directly.
+     * {@link DefaultTask} is the base; {@code PrecommitTask} is also allowed because it is a thin,
+     * stable wrapper that provides precommit-specific infrastructure and is itself a direct
+     * {@link DefaultTask} subtype.
+     */
+    private static final Set<String> ALLOWED_TASK_SUPERCLASSES = [
+        DefaultTask.name,
+        "org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTask",
+    ] as Set
+
+    /**
+     * Task implementations that still directly extend a Task subtype not in
+     * {@link #ALLOWED_TASK_SUPERCLASSES}. New entries must not be added — new task types must
+     * extend an allowed base directly. Existing entries should be removed as they are migrated
+     * (the staleness test enforces this).
+     */
+    private static final Set<String> KNOWN_NON_DEFAULT_TASK_SUPERCLASS = [
+        "org.elasticsearch.gradle.internal.DependenciesInfoTask",
+        "org.elasticsearch.gradle.internal.doc.RestTestsFromDocSnippetTask",
+        "org.elasticsearch.gradle.internal.precommit.DependencyLicensesTask",
+        "org.elasticsearch.gradle.internal.precommit.ValidateYamlAgainstSchemaTask",
+        "org.elasticsearch.gradle.internal.release.ExtractCurrentVersionsTask",
+        "org.elasticsearch.gradle.internal.release.TagVersionsTask",
+        "org.elasticsearch.gradle.internal.release.UpdateVersionsTask",
+        "org.elasticsearch.gradle.internal.SymbolicLinkPreservingTar",
+        "org.elasticsearch.gradle.internal.test.RestIntegTestTask",
+        "org.elasticsearch.gradle.internal.transport.GenerateTransportVersionDefinitionTask",
+        "org.elasticsearch.gradle.internal.transport.ResolveTransportVersionConflictTask",
+    ] as Set
+
+    /**
      * Classes that still create tasks eagerly via {@code TaskContainer.create(...)} (any overload)
      * or {@code Project.task(...)}. New entries must not be added — use the lazy
      * {@code register(...)} API instead. Existing entries should be removed as they are migrated
@@ -127,6 +158,31 @@ class TaskModellingArchUnitSpec extends AbstractArchUnitSpec {
             registersUntypedTask(c) && definesInlineAction(c)
         }
         assert stale.isEmpty(), "Stale KNOWN_UNTYPED_REGISTER_WITH_ACTION entries (migrated or removed) — delete them:\n  " + stale.join("\n  ")
+    }
+
+    def "task implementations only extend DefaultTask"() {
+        given:
+        ArchRule rule = classes()
+            .that().areAssignableTo(Task)
+            .and().areTopLevelClasses()
+            .and().areNotInterfaces()
+            .and(notInBaseline(KNOWN_NON_DEFAULT_TASK_SUPERCLASS))
+            .should(onlyExtendAllowedTaskBase())
+            .because("Task implementations must extend DefaultTask or PrecommitTask directly, " +
+                "not other Task subtypes, so Gradle can manage their properties without an intermediate class hierarchy")
+
+        expect:
+        rule.check(productionClasses)
+    }
+
+    def "the non-default-task-superclass baseline contains no stale entries"() {
+        expect:
+        List<String> stale = staleBaselineEntries(KNOWN_NON_DEFAULT_TASK_SUPERCLASS, productionClasses) { JavaClass c ->
+            c.isAssignableTo(Task) &&
+                c.rawSuperclass.present &&
+                ALLOWED_TASK_SUPERCLASSES.contains(c.rawSuperclass.get().fullName) == false
+        }
+        assert stale.isEmpty(), "Stale KNOWN_NON_DEFAULT_TASK_SUPERCLASS entries (flattened or removed) \u2014 delete them:\n  " + stale.join("\n  ")
     }
 
     def "task types are abstract"() {
@@ -208,5 +264,20 @@ class TaskModellingArchUnitSpec extends AbstractArchUnitSpec {
 
     private static boolean isTaskContainer(JavaClass owner) {
         return owner.isAssignableTo(TaskContainer) || owner.fullName == TaskContainer.name
+    }
+
+    private static ArchCondition<JavaClass> onlyExtendAllowedTaskBase() {
+        return new ArchCondition<JavaClass>("only directly extend DefaultTask or PrecommitTask") {
+            @Override
+            void check(JavaClass item, ConditionEvents events) {
+                Optional<JavaClass> superclass = item.rawSuperclass
+                if (superclass.isEmpty()) return
+                JavaClass parent = superclass.get()
+                if (ALLOWED_TASK_SUPERCLASSES.contains(parent.fullName) == false) {
+                    events.add(SimpleConditionEvent.violated(item,
+                        "${item.fullName} extends ${parent.fullName} which is not an allowed task base class"))
+                }
+            }
+        }
     }
 }

@@ -43,6 +43,7 @@ import static org.elasticsearch.datastreams.DataStreamsPlugin.LOOK_AHEAD_TIME_DE
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class DataStreamIndexSettingsProviderTests extends ESTestCase {
 
@@ -55,6 +56,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
     private IndexVersion indexVersion;
     private boolean expectedDisabledSequenceNumbers;
     private boolean expectedSyntheticId;
+    private boolean expectedCombineDynamicUpdates;
 
     @Before
     public void setup() {
@@ -70,6 +72,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         }
         expectedDisabledSequenceNumbers = indexVersion.onOrAfter(IndexVersions.TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT);
         expectedSyntheticId = indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD);
+        expectedCombineDynamicUpdates = indexVersion.onOrAfter(IndexVersions.TIME_SERIES_COMBINE_DYNAMIC_UPDATES_DEFAULT);
         indexDimensionsTsidStrategyEnabledSetting = usually();
         expectedIndexDimensionsTsidOptimizationEnabled = indexDimensionsTsidStrategyEnabledSetting
             && indexVersion.onOrAfter(IndexVersions.TSID_CREATED_DURING_ROUTING);
@@ -83,6 +86,9 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             count++;
         }
         if (expectedSyntheticId) {
+            count++;
+        }
+        if (expectedCombineDynamicUpdates) {
             count++;
         }
         return count;
@@ -1242,6 +1248,55 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             additionalSettings
         );
         assertFalse(additionalSettings.build().hasValue(IndexSettings.SYNTHETIC_ID.getKey()));
+    }
+
+    public void testCombineDynamicUpdatesDefault() throws Exception {
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        String dataStreamName = "metrics-app1";
+        String key = MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey();
+
+        // enabled on the time series indices of clusters whose nodes all support it
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.TIME_SERIES_COMBINE_DYNAMIC_UPDATES_DEFAULT,
+            IndexVersion.current()
+        );
+        assertThat(combineDynamicUpdates(dataStreamName, IndexMode.TIME_SERIES, now, Settings.EMPTY, version), equalTo("true"));
+
+        // a value of the template or of the request is kept
+        Settings explicit = Settings.builder().put(key, randomBoolean()).build();
+        assertThat(combineDynamicUpdates(dataStreamName, IndexMode.TIME_SERIES, now, explicit, version), nullValue());
+
+        // not enabled on other indices
+        assertThat(combineDynamicUpdates(dataStreamName, null, now, Settings.EMPTY, version), nullValue());
+
+        // not enabled while the cluster has nodes that don't support it
+        IndexVersion previous = IndexVersionUtils.randomPreviousCompatibleVersion(
+            IndexVersions.TIME_SERIES_COMBINE_DYNAMIC_UPDATES_DEFAULT
+        );
+        assertThat(combineDynamicUpdates(dataStreamName, IndexMode.TIME_SERIES, now, Settings.EMPTY, previous), nullValue());
+    }
+
+    private String combineDynamicUpdates(
+        String dataStreamName,
+        IndexMode templateIndexMode,
+        Instant now,
+        Settings settings,
+        IndexVersion version
+    ) {
+        Settings.Builder additionalSettings = builder();
+        provider.provideAdditionalSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
+            dataStreamName,
+            templateIndexMode,
+            false,
+            emptyProject(),
+            now,
+            settings,
+            List.of(),
+            version,
+            additionalSettings
+        );
+        return additionalSettings.build().get(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey());
     }
 
 }

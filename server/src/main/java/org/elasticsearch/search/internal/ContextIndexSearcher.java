@@ -342,7 +342,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public Weight createWeight(Query query, ScoreMode scoreMode, float boost) throws IOException {
-        final Weight weight;
         if (profiler != null) {
             // createWeight() is called for each query in the tree, so we tell the queryProfiler
             // each invocation so that it can build an internal representation of the query
@@ -357,18 +356,29 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 timer.stop();
                 profiler.pollLastElement();
             }
-            weight = new ProfileWeight(query, innerWeight, profile);
-        } else {
-            weight = super.createWeight(query, scoreMode, boost);
+            return chargingExecutionMemory(query, new ProfileWeight(query, innerWeight, profile));
         }
+        // The charging weight sits below the query cache, so a leaf served from the cache is not charged.
+        final Weight weight = chargingExecutionMemory(query, query.createWeight(this, scoreMode, boost));
+        final QueryCache queryCache = getQueryCache();
+        if (scoreMode.needsScores() == false && queryCache != null) {
+            return queryCache.doCache(weight, getQueryCachingPolicy());
+        }
+        return weight;
+    }
 
+    /** Wraps {@code weight} so that the memory {@code query} allocates to score a leaf is charged to the request circuit breaker. */
+    private Weight chargingExecutionMemory(Query query, Weight weight) {
+        if (executionAccounting.breaker() == null) {
+            return weight;
+        }
         PointRangeQuery pointRangeQuery = pointRangeQueryOrNull(query);
-        if (executionAccounting.breaker() != null && pointRangeQuery != null) {
+        if (pointRangeQuery != null) {
             executionAccounting.ensureCreated();
             return new PointRangeBreakerWeight(this, weight, pointRangeQuery, query instanceof IndexOrDocValuesQuery);
         }
         Query multiTermQuery = multiTermQueryOrNull(unwrapBoost(query));
-        if (executionAccounting.breaker() != null && multiTermQuery != null) {
+        if (multiTermQuery != null) {
             executionAccounting.ensureCreated();
             return new MultiTermBreakerWeight(this, weight, multiTermQuery, unwrapBoost(query) instanceof IndexOrDocValuesQuery);
         }

@@ -19,7 +19,7 @@ public enum BulkRoutingPolicy {
     public static final Setting<BulkRoutingPolicy> SETTING = Setting.enumSetting(
         BulkRoutingPolicy.class,
         "indices.bulk_routing.policy",
-        PER_DOCUMENT,
+        LOCAL,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

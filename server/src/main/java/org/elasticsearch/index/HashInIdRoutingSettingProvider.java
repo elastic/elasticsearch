@@ -26,7 +26,7 @@ public final class HashInIdRoutingSettingProvider implements IndexSettingProvide
 
     public static final Setting<Boolean> HASH_IN_ID_ROUTING_ENABLED_SETTING = Setting.boolSetting(
         "cluster.routing.hash_in_id.enabled",
-        false,
+        true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

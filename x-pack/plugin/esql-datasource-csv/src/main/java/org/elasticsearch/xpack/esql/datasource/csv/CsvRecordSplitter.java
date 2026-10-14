@@ -73,7 +73,7 @@ final class CsvRecordSplitter implements RecordSplitter {
      * offset can land mid-construct and misread an embedded newline as a record terminator. This splitter
      * therefore handles every non-plain combination (quoting on, escaping on, or both) and must be driven
      * sequentially from a known record start. Only the plain no-quote/no-escape case, and a
-     * default-dialect dataset whose schema sample held no quote or escape byte (both routed by
+     * quoting dataset not declared {@code multiline_fields: true} (both routed by
      * {@code CsvFormatReader.recordSplitter} to {@code NewlineRecordSplitter}), keep the strided default.
      */
     @Override

@@ -480,10 +480,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
     private final CsvMapper sharedCsvMapper;
     private final CsvFormatOptions options;
     /**
-     * True when the coordinator found no quote or escape byte in the schema sample of a dataset whose quoting comes from
-     * the default dialect. Range splits are then cut at plain newlines, which avoids proving record boundaries by walking
-     * the file; parsing itself stays quote-aware, and a quoted field that spans lines fails the read, see
-     * {@code CsvLogicalRecordReader#failOnLineSpan}.
+     * True when {@code multiline_fields} is not {@code true} and the dialect quotes or escapes. Range splits are then cut at
+     * plain newlines, which avoids proving record boundaries by walking the file; parsing itself stays quote-aware, and a
+     * quoted field that spans lines fails the read, see {@code CsvLogicalRecordReader#failOnLineSpan}.
      */
     private final boolean quoteFreeSplitting;
     private final String format;
@@ -1433,7 +1432,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // multi-values can span lines by design and keep the proven walk (parseOptionsFromConfig rejects an explicit
         // false in that case).
         Boolean multilineFields = parseMultilineFields(config);
-        boolean quoteFree = multilineFields != Boolean.TRUE && defaultNewlineSplitting(result.options);
+        boolean quoteFree = Boolean.TRUE.equals(multilineFields) == false && defaultNewlineSplitting(result.options);
         result = new CsvFormatReader(
             result.blockFactory,
             result.options,

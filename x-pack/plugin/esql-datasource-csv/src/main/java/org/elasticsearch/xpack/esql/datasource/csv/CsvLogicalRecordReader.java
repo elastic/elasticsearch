@@ -162,7 +162,7 @@ final class CsvLogicalRecordReader {
     }
 
     /**
-     * Marks the failure as a broken quote-free assumption. It is the cause of the client error so that the row-error
+     * Marks the failure as a broken newline-splitting assumption. It is the cause of the client error so that the row-error
      * handling of the record-iterator path, which would otherwise count the error as a skipped row and carry on with the
      * tail of the value, can recognise it and rethrow whatever the {@code error_mode}.
      */

@@ -2379,8 +2379,6 @@ public class ExternalSourceResolver {
             composed.putAll(readStatistics);
         }
         final Map<String, Object> finalMetadata = stripStripeBookkeeping(composed);
-        // The schema sample's quote evidence is derived data: hand it to the format reader (planning and data nodes
-        // alike) through the config, which is what they build their reader from.
         final Map<String, Object> readerConfig = mergedConfig;
 
         return new CacheBackedMetadata() {
@@ -5902,7 +5900,6 @@ public class ExternalSourceResolver {
         } else {
             mergedConfig = queryConfig != null ? queryConfig : Map.of();
         }
-        // Hand the schema sample's quote evidence to the format reader, see buildMetadataFromCache.
         final Map<String, Object> readerConfig = mergedConfig;
 
         Map<String, Object> enrichedSourceMetadata = metadata.statistics()

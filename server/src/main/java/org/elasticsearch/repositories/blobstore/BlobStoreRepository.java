@@ -1421,6 +1421,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
             private void determineShardCount(Set<String> affectedMetaBlobIds, ActionListener<Void> listener) {
                 try (var listeners = new RefCountingListener(listener)) {
+                    // Only need to check the affected meta blobs to determine the number of shards to be processed: if there are snapshots
+                    // of an index with the same name and a higher shard count, and none of those snapshots are being deleted, then those
+                    // higher-numbered shards need no processing.
                     for (final var metaBlobId : affectedMetaBlobIds) {
                         // NB since 7.9.0 we deduplicate index metadata blobs, and one of the components of the deduplication key is the
                         // index UUID; the shard count is going to be the same for all metadata with the same index UUID, so it is

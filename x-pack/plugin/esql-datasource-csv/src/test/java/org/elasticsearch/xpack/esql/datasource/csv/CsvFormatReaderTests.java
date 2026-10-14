@@ -6034,8 +6034,9 @@ public class CsvFormatReaderTests extends ESTestCase {
 
     /**
      * A pre-1970 space-separated cell has no {@code date_nanos} representation, so the template stage must decline
-     * it rather than return a negative nanos long — the stage returns before Stage 3's range rule would apply, so
-     * it carries the floor itself. The same cell under {@code date} is an ordinary instant and still reads.
+     * it rather than return a negative nanos long — the stage returns before {@code DateUtils.toLong} would apply
+     * the floor, so it carries the floor itself. The same cell under {@code date} is an ordinary instant and
+     * still reads.
      */
     public void testNanosFastPathDeclinesPreEpoch() {
         assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeNanos("1965-03-04 12:00:00"));

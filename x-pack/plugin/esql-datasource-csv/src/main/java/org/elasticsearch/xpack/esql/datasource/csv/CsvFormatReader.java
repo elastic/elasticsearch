@@ -378,11 +378,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * representation, in which case the caller falls through to the general parser and reports the failure.
      */
     static long tryParseSpaceSeparatedDatetimeNanos(String raw) {
-        // A trailing `Z` is accepted here and nowhere else: the template already reads the fields as UTC, so the
-        // suffix adds no information, and taking it here is what lets the date_nanos ladder stop before the lenient
-        // JDK resolver. The millisecond entry point keeps refusing it, which its own suite pins.
-        //
-        // The separator is tested before the suffix is stripped, which is the opposite of the obvious order and is
+        // The separator is tested before the trailing `Z` is stripped, which is the opposite of the obvious order and is
         // the point: this stage sits above the ISO stage on the date_nanos ladder, so EVERY `...Z` cell in an
         // ordinary ISO file reaches it. Stripping first allocated a String per such cell only to miss one line
         // below at the separator check. A cell too short to hold a separator cannot match the template either.
@@ -7398,10 +7394,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 }
                 // Overflowed a long; fall through to the ISO fallback, which will report the failure.
             }
-            // Stage 2, the datetime ladder's counterpart: `YYYY-MM-DD HH:MM:SS[.f..f]`, optionally with a trailing
-            // `Z`, which the ISO parser does not accept. pandas and every SQL dump write that form, and a declared
+            // The space-separated template: `YYYY-MM-DD HH:MM:SS[.f..f]`, optionally with a trailing `Z`, which
+            // the ISO parser does not accept. pandas and every SQL dump write that form, and a declared
             // date_nanos used to refuse the very cell a declared date reads. At nanosecond precision, since that is
             // what the type is for. A pre-1970 cell is a miss here and is reported below: the type cannot hold it.
+            // It is the datetime ladder's Stage 2 by content, but it sits here BEFORE the ISO parse rather than
+            // after it, so this ladder's stage numbers are its own — the method comment above lists them in order.
             long spaceNanos = tryParseSpaceSeparatedDatetimeNanos(value);
             if (spaceNanos != FAST_PATH_MISS) {
                 return spaceNanos;

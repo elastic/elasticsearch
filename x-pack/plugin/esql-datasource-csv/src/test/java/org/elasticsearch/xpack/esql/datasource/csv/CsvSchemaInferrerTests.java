@@ -617,14 +617,19 @@ public class CsvSchemaInferrerTests extends ESTestCase {
      * some value here starts disagreeing and this fails, whether or not anyone thought to enumerate
      * that dialect.
      * <p>
-     * The rail has two halves — {@link #railRejects} states both — and asking only the formatter
-     * is what this test used to do. That is why it passed while inference was screening out the
-     * space-separated form the reader reads perfectly well: the oracle was narrower than the rail, so
-     * the disagreement it exists to catch was invisible to it. The test-side composition asks the two
-     * halves in the same order as production: formatter first ({@code NANOS_RAIL_FORMAT}), template second
-     * ({@link CsvFormatReader#tryParseSpaceSeparatedDatetimeNanos}). What makes the agreement
-     * independently checkable is not here at all: it is
-     * {@code CsvFormatReaderTests}, which infers a column and then actually reads it.
+     * The oracle is {@link #nanosRailDecode} — the template, then {@code dateNanosToLong} — and not
+     * {@link #railRejects}, deliberately. {@code railRejects} is the negation of the screen production
+     * consults, so asserting it here would be true by construction: inference reaches {@code date_nanos}
+     * only when the screen says yes, and the assertion would restate that rather than check it. Asking
+     * what the rail DECODES keeps the two separable, and buys one class of bug the screen cannot see:
+     * the formatter's parse is lexical, so {@code 2023-02-30T10:00:00.123456789Z} passes the screen,
+     * types the column {@code date_nanos}, and then throws at read. No value in today's corpus is in
+     * that class — the generator's days are 1..28 — so this passes; grow the generator past day 28 and
+     * it is this assertion that reports it.
+     * <p>
+     * The earlier version of this test asked only the formatter, which is why it passed while inference
+     * was screening out the space-separated form the reader reads perfectly well: the oracle was
+     * narrower than the rail, so the disagreement it exists to catch was invisible to it.
      * <p>
      * The corpus is randomized per run rather than a fixed list, so drift does not have to land on a
      * shape someone anticipated.
@@ -651,7 +656,7 @@ public class CsvSchemaInferrerTests extends ESTestCase {
             DataType inferred = inferOne(value);
             Long railNanos = nanosRailDecode(value);
             if (inferred == DataType.DATE_NANOS) {
-                assertFalse("inferred date_nanos for a value the nanos rail cannot decode: [" + value + "]", railRejects(value));
+                assertNotNull("inferred date_nanos for a value the reader's rail does not decode: [" + value + "]", railNanos);
             }
             // And the other direction, which catches a screen that drifts too BROAD — suppressing
             // values it should have promoted. Stated over this corpus rather than as a general law:

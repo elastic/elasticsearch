@@ -4405,10 +4405,11 @@ public class EsqlCapabilities {
         TS_KEEP_TEXT_TYPE_WHEN_GROUPED_ON,
 
         /**
-         * A delimited-text column declared {@code date_nanos} accepts the space-separated
-         * {@code YYYY-MM-DD HH:MM:SS[.f..f][Z]} form that pandas and SQL dumps write, at nanosecond precision.
-         * Older nodes read that cell under {@code date} and refused it under {@code date_nanos}. Gates the
-         * csv-spec case asserting both reads, which such nodes still fail.
+         * A delimited-text column reads the space-separated {@code YYYY-MM-DD HH:MM:SS[.f..f][Z]} form that
+         * pandas and SQL dumps write as {@code date_nanos}, at nanosecond precision — whether the type was
+         * declared or inferred. Older nodes read such a cell under {@code date} and refused it under
+         * {@code date_nanos}, and typed a column of them {@code datetime} rather than {@code date_nanos}.
+         * Gates two csv-spec cases, one per half, which such nodes fail for those two different reasons.
          */
         CSV_DATE_NANOS_ACCEPTS_SPACE_SEPARATED_TIMESTAMP,
 

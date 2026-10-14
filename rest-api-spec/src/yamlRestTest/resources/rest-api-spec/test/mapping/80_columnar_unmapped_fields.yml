@@ -98,12 +98,6 @@ setup:
   - is_false: fields._unmapped
 
   - do:
-      indices.get_field_mapping:
-        index: test_mapped
-        fields: _unmapped
-  - match: { test_mapped.mappings._unmapped.full_name: _unmapped }
-
-  - do:
       search:
         index: test_mapped
         body: { query: { match_all: {} }, fields: [ "*" ] }

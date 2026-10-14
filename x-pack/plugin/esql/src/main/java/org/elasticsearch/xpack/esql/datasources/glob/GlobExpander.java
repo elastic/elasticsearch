@@ -1256,6 +1256,7 @@ public final class GlobExpander {
 
         // Set below, once the drain has stopped: true when it stopped at the file-set extent rather than exhausting.
         boolean truncated = false;
+        boolean keyCeilingReached = false;
         int reserved = 0;
         // The literal run the pattern requires after the prefix. `patternPrefix` stops at the last separator
         // because that is the widest thing every provider lists; this is the rest, so a flat-namespace store can
@@ -1264,8 +1265,7 @@ public final class GlobExpander {
         String namePrefix = storagePath.literalNamePrefix();
         try (StorageIterator iterator = provider.listObjects(prefix, namePrefix, recursive)) {
             // Files the glob selected, not keys the store handed over: a selective glob lists its whole parent, so
-            // counting keys made the bound a property of unrelated data sharing the prefix. Keys stay capped by
-            // `maxListedObjects`, which is the setting for that.
+            // counting keys made the extent a property of unrelated data sharing the prefix.
             //
             // Tested before hasNext() because on S3 hasNext() fetches the next page, which reaching the bound would
             // then discard. So the bound marks the listing truncated without establishing more matches exist: a
@@ -1274,7 +1274,17 @@ public final class GlobExpander {
             while (globKeptCount < extents.maxFiles() && iterator.hasNext()) {
                 StorageEntry entry = iterator.next();
                 listed++;
-                checkListedObjectsLimit(listed, maxListedObjects);
+                if (listed > maxListedObjects) {
+                    // A heavily-pruning pattern reads far past one page to fill its sample, so this ceiling is
+                    // reachable. Keep the survivors: a listing that bounded its file set can report a prefix.
+                    // One that bounded nothing promised every survivor, and a quiet prefix would drop files from
+                    // a scan, so it stops hard instead.
+                    if (extents.acceptsPrefix() == false) {
+                        throw new ListedObjectsLimitException(listed, maxListedObjects);
+                    }
+                    keyCeilingReached = true;
+                    break;
+                }
                 String entryPath = entry.path().toString();
                 String relativePath;
                 if (entryPath.startsWith(prefixStr)) {
@@ -1321,7 +1331,7 @@ public final class GlobExpander {
                 }
             }
         }
-        truncated = globKeptCount >= extents.maxFiles();
+        truncated = globKeptCount >= extents.maxFiles() || keyCeilingReached;
 
         return finishListing(
             pattern,

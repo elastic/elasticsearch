@@ -34,6 +34,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
+import org.elasticsearch.xpack.core.ml.datafeed.EsqlDatafeedSourceCheckpoint;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
@@ -98,6 +99,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         overridden.add(Quantiles.TYPE.getPreferredName());
         overridden.add(TimingStats.TYPE.getPreferredName());
         overridden.add(DatafeedTimingStats.TYPE.getPreferredName());
+        overridden.add(EsqlDatafeedSourceCheckpoint.TYPE.getPreferredName());
         // This is a special case so that categorical job results can be paired easily with anomaly results
         // This is acceptable as both mappings are keyword for the results documents and for category definitions
         overridden.add(CategoryDefinition.MLCATEGORY.getPreferredName());

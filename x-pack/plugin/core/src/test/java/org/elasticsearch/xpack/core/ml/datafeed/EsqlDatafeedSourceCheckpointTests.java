@@ -52,6 +52,14 @@ public class EsqlDatafeedSourceCheckpointTests extends AbstractXContentTestCase<
         assertThat(EsqlDatafeedSourceCheckpoint.documentId(JOB_ID), equalTo("job-1_esql_source_checkpoint"));
     }
 
+    public void testComputeFingerprintShouldTreatEquivalentGroupingIntervalsAsEqual() {
+        String oneHour = EsqlDatafeedSourceCheckpoint.computeFingerprint("FROM logs", "@timestamp", "bucket", TimeValue.timeValueHours(1));
+        assertThat(
+            EsqlDatafeedSourceCheckpoint.computeFingerprint("FROM logs", "@timestamp", "bucket", TimeValue.timeValueMinutes(60)),
+            equalTo(oneHour)
+        );
+    }
+
     public void testComputeFingerprintShouldChangeWhenQueryShapeChanges() {
         String base = EsqlDatafeedSourceCheckpoint.computeFingerprint("FROM logs", "@timestamp", "bucket", TimeValue.timeValueHours(1));
         assertThat(

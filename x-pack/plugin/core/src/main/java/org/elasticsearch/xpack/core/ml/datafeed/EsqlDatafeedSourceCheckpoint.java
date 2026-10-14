@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.ml.datafeed;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -19,9 +20,6 @@ import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.HexFormat;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -61,14 +59,8 @@ public class EsqlDatafeedSourceCheckpoint implements ToXContentObject {
     }
 
     public static String computeFingerprint(String esqlQuery, String sourceTimeField, String emittedTimeField, TimeValue groupingInterval) {
-        String material = esqlQuery + '\0' + sourceTimeField + '\0' + emittedTimeField + '\0' + groupingInterval.getStringRep();
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(material.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(hash);
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 digest not available", e);
-        }
+        String material = esqlQuery + '\0' + sourceTimeField + '\0' + emittedTimeField + '\0' + groupingInterval.getMillis();
+        return MessageDigests.toHexString(MessageDigests.sha256().digest(material.getBytes(StandardCharsets.UTF_8)));
     }
 
     public static String computeFingerprint(DatafeedConfig datafeedConfig, String emittedTimeField) {

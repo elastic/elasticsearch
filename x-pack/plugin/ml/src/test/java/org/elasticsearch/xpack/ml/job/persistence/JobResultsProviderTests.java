@@ -65,11 +65,14 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -941,6 +944,13 @@ public class JobResultsProviderTests extends ESTestCase {
             searchRequestHolder[0].source().query().toString().contains(EsqlDatafeedSourceCheckpoint.documentId("foo")),
             equalTo(true)
         );
+        assertThat(searchRequestHolder[0].source().size(), equalTo(1));
+        assertThat(searchRequestHolder[0].allowPartialSearchResults(), equalTo(false));
+        assertThat(searchRequestHolder[0].source().sorts(), hasSize(1));
+        assertThat(
+            searchRequestHolder[0].source().sorts().get(0).toString(),
+            containsString(EsqlDatafeedSourceCheckpoint.SOURCE_END_MS.getPreferredName())
+        );
     }
 
     public void testEsqlDatafeedSourceCheckpointShouldReturnNullWhenNoResultsIndexHoldsCheckpoint() throws IOException {
@@ -953,6 +963,42 @@ public class JobResultsProviderTests extends ESTestCase {
 
         assertThat(holder.get(), nullValue());
         verify(client).search(any(SearchRequest.class), any());
+    }
+
+    public void testEsqlDatafeedSourceCheckpointShouldFailWhenGetFailsWithNonIndexNotFoundException() {
+        Client client = getBasicMockedClient();
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocation.getArguments()[1];
+            listener.onFailure(new RuntimeException("get failed"));
+            return null;
+        }).when(client).get(any(), any());
+        JobResultsProvider provider = createProvider(client);
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        provider.esqlDatafeedSourceCheckpoint("foo", c -> { throw new AssertionError("unexpected success"); }, failure::set);
+
+        assertThat(failure.get(), instanceOf(RuntimeException.class));
+        verify(client, never()).search(any(), any());
+    }
+
+    public void testEsqlDatafeedSourceCheckpointShouldFailWhenFallbackSearchFails() throws IOException {
+        Client client = getBasicMockedClient();
+        mockGet(client, new GetRequest[1], missingGetResponse());
+        String indexName = AnomalyDetectorsIndex.jobResultsAliasedName("foo");
+        when(client.prepareSearch(indexName)).thenReturn(new SearchRequestBuilder(client).setIndices(indexName));
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[1];
+            listener.onFailure(new RuntimeException("search failed"));
+            return null;
+        }).when(client).search(any(), any());
+        JobResultsProvider provider = createProvider(client);
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        provider.esqlDatafeedSourceCheckpoint("foo", c -> { throw new AssertionError("unexpected success"); }, failure::set);
+
+        assertThat(failure.get(), instanceOf(RuntimeException.class));
     }
 
     public void testEsqlDatafeedSourceCheckpointShouldSearchReadAliasWhenWriteAliasIndexIsMissing() throws IOException {
@@ -984,8 +1030,10 @@ public class JobResultsProviderTests extends ESTestCase {
 
     private void mockCheckpointSearch(Client client, SearchRequest[] searchRequestHolder, List<EsqlDatafeedSourceCheckpoint> copies)
         throws IOException {
+        List<EsqlDatafeedSourceCheckpoint> sortedCopies = new ArrayList<>(copies);
+        sortedCopies.sort((a, b) -> Long.compare(b.getSourceEndMs(), a.getSourceEndMs()));
         List<Map<String, Object>> source = new ArrayList<>();
-        for (EsqlDatafeedSourceCheckpoint copy : copies) {
+        for (EsqlDatafeedSourceCheckpoint copy : sortedCopies) {
             Map<String, Object> map = new HashMap<>();
             map.put("job_id", copy.getJobId());
             map.put("datafeed_id", copy.getDatafeedId());

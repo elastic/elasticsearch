@@ -711,10 +711,10 @@ public class JobResultsProvider {
         );
     }
 
-    /** One checkpoint document can remain in each results index that was once the write index. */
-    private static final int MAX_ESQL_CHECKPOINT_COPIES = 100;
-
-    /** Returns the stored checkpoint for {@code jobId}, or null when none is stored. */
+    /**
+     * Loads the stored ES|QL datafeed source checkpoint for {@code jobId}. Delivers the checkpoint to {@code handler}, or {@code null}
+     * when none is stored. Failures are delivered to {@code errorHandler}.
+     */
     public void esqlDatafeedSourceCheckpoint(
         String jobId,
         Consumer<EsqlDatafeedSourceCheckpoint> handler,
@@ -760,25 +760,27 @@ public class JobResultsProvider {
         Consumer<EsqlDatafeedSourceCheckpoint> handler,
         Consumer<Exception> errorHandler
     ) {
-        // source_end_ms is not an explicit mapping in the results index, so it is dynamically mapped as a keyword and
-        // cannot be used as a numeric sort key; pick the newest copy client side instead.
         SearchRequestBuilder search = client.prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName(jobId))
-            .setSize(MAX_ESQL_CHECKPOINT_COPIES)
+            .setSize(1)
+            .setAllowPartialSearchResults(false)
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-            .setQuery(QueryBuilders.idsQuery().addIds(EsqlDatafeedSourceCheckpoint.documentId(jobId)));
+            .setQuery(QueryBuilders.idsQuery().addIds(EsqlDatafeedSourceCheckpoint.documentId(jobId)))
+            .addSort(
+                SortBuilders.fieldSort(EsqlDatafeedSourceCheckpoint.SOURCE_END_MS.getPreferredName())
+                    .order(SortOrder.DESC)
+                    .unmappedType("long")
+            );
         executeAsyncWithOrigin(
             client.threadPool().getThreadContext(),
             ML_ORIGIN,
             search.request(),
             ActionListener.<SearchResponse>wrap(response -> {
-                EsqlDatafeedSourceCheckpoint newest = null;
-                for (SearchHit hit : response.getHits().getHits()) {
-                    EsqlDatafeedSourceCheckpoint candidate = MlParserUtils.parse(hit, EsqlDatafeedSourceCheckpoint.PARSER);
-                    if (newest == null || candidate.getSourceEndMs() > newest.getSourceEndMs()) {
-                        newest = candidate;
-                    }
+                SearchHit[] hits = response.getHits().getHits();
+                if (hits.length == 0) {
+                    handler.accept(null);
+                    return;
                 }
-                handler.accept(newest);
+                handler.accept(MlParserUtils.parse(hits[0], EsqlDatafeedSourceCheckpoint.PARSER));
             }, errorHandler),
             client::search
         );

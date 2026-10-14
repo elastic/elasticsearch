@@ -4375,6 +4375,12 @@ public class EsqlCapabilities {
         FIX_DERIVED_EXTERNAL_GROUPING_MULTIVALUE,
 
         /**
+         * A {@code TS} aggregation grouping on a non-dimension {@code text} field keeps the {@code text} type in the
+         * output. Older nodes returned {@code keyword} (see {@link #TS_PERMIT_TEXT_BECOMING_KEYWORD_WHEN_GROUPED_ON}).
+         */
+        TS_KEEP_TEXT_TYPE_WHEN_GROUPED_ON,
+
+        /**
          * A delimited-text column declared {@code date_nanos} accepts the space-separated
          * {@code YYYY-MM-DD HH:MM:SS[.f..f][Z]} form that pandas and SQL dumps write, at nanosecond precision.
          * Older nodes read that cell under {@code date} and refused it under {@code date_nanos}. Gates the

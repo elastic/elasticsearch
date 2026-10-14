@@ -18,7 +18,7 @@ import java.util.function.IntFunction;
  *
  * <p>Not thread-safe; instances must not be shared across threads.
  */
-public final class BufferScratch implements IntFunction<byte[]> {
+public final class HeapBufferScratch implements IntFunction<byte[]> {
 
     private byte[] bytes;
 

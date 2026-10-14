@@ -34,27 +34,27 @@ import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * End-to-end coverage for <a href="https://github.com/elastic/elasticsearch/issues/159914">#159914</a>: a {@code LOAD_ALL} query must
- * be cancellable while the coordinator is expanding the {@code _unmapped_fields} column into per-field columns, not only before or
- * after that phase.
+ * be cancellable while the coordinator is flattening the {@code _unmapped_fields} column into a single JSON object per row, not only
+ * before or after that phase.
  * <p>
- * A cancellation that arrives during the compute phase already aborts the drivers, so it never reaches expansion. To land a
- * cancellation inside an in-progress expansion deterministically (mirroring the manual async-cancel test that motivated the fix),
- * the test installs {@link ExpandUnmappedFieldsPostProcessor#expansionStartedForTest} to block the coordinator at the start of
- * expansion. It then cancels the query task and releases the block, so the per-row cancellation poll added by the fix observes the
- * cancellation and aborts the expansion, releasing the partially built pages.
+ * A cancellation that arrives during the compute phase already aborts the drivers, so it never reaches flattening. To land a
+ * cancellation inside an in-progress flattening deterministically (mirroring the manual async-cancel test that motivated the fix),
+ * the test installs {@link ExpandUnmappedFieldsPostProcessor#flatteningStartedForTest} to block the coordinator at the start of
+ * flattening. It then cancels the query task and releases the block, so the per-row cancellation poll added by the fix observes the
+ * cancellation and aborts the flattening, releasing the partially built pages.
  */
 public class LoadAllCancellationIT extends AbstractEsqlIntegTestCase {
 
     @After
-    public void clearExpansionHook() {
-        ExpandUnmappedFieldsPostProcessor.expansionStartedForTest = null;
+    public void clearFlatteningHook() {
+        ExpandUnmappedFieldsPostProcessor.flatteningStartedForTest = null;
     }
 
-    public void testCancelDuringUnmappedFieldExpansion() throws Exception {
-        assumeTrue("requires unmapped_fields=\"LOAD_ALL\"", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
+    public void testCancelDuringUnmappedFieldFlattening() throws Exception {
+        assumeTrue("requires unmapped_fields=\"LOAD_ALL\"", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_SINGLE_SOURCE_COLUMN.isEnabled());
 
         // dynamic:false keeps the extra source fields out of the mapping, so LOAD_ALL is the only thing that surfaces them and the
-        // coordinator has real expansion work to do.
+        // coordinator has real flattening work to do.
         assertAcked(client().admin().indices().prepareCreate("load-all-cancel").setSettings(indexSettings(1, 0)).setMapping("""
             { "dynamic": false, "properties": { "mapped": { "type": "long" } } }"""));
         int docs = between(3, 20);
@@ -63,12 +63,12 @@ public class LoadAllCancellationIT extends AbstractEsqlIntegTestCase {
         }
         refresh("load-all-cancel");
 
-        CountDownLatch expansionStarted = new CountDownLatch(1);
-        CountDownLatch proceedWithExpansion = new CountDownLatch(1);
-        ExpandUnmappedFieldsPostProcessor.expansionStartedForTest = () -> {
-            expansionStarted.countDown();
+        CountDownLatch flatteningStarted = new CountDownLatch(1);
+        CountDownLatch proceedWithFlattening = new CountDownLatch(1);
+        ExpandUnmappedFieldsPostProcessor.flatteningStartedForTest = () -> {
+            flatteningStarted.countDown();
             try {
-                assertTrue("expansion hook was never released", proceedWithExpansion.await(30, TimeUnit.SECONDS));
+                assertTrue("flattening hook was never released", proceedWithFlattening.await(30, TimeUnit.SECONDS));
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new AssertionError(e);
@@ -79,8 +79,8 @@ public class LoadAllCancellationIT extends AbstractEsqlIntegTestCase {
         ActionFuture<EsqlQueryResponse> future = client().execute(EsqlQueryAction.INSTANCE, request);
 
         try {
-            // Wait until the coordinator has actually entered the expansion phase (compute is done and the drivers have finished).
-            assertTrue("expansion never started", expansionStarted.await(30, TimeUnit.SECONDS));
+            // Wait until the coordinator has actually entered the flattening phase (compute is done and the drivers have finished).
+            assertTrue("flattening never started", flatteningStarted.await(30, TimeUnit.SECONDS));
 
             List<TaskInfo> tasks = client().admin()
                 .cluster()
@@ -92,8 +92,8 @@ public class LoadAllCancellationIT extends AbstractEsqlIntegTestCase {
             assertThat(tasks, hasSize(1));
             cancelWithoutWaiting(tasks.get(0).taskId());
         } finally {
-            // Let the (now cancelled) expansion resume; its per-row poll should observe the cancellation and throw.
-            proceedWithExpansion.countDown();
+            // Let the (now cancelled) flattening resume; its per-row poll should observe the cancellation and throw.
+            proceedWithFlattening.countDown();
         }
 
         Exception e = expectThrows(Exception.class, () -> future.actionGet(DEFAULT_REQUEST_TIMEOUT).close());
@@ -102,10 +102,10 @@ public class LoadAllCancellationIT extends AbstractEsqlIntegTestCase {
         // The fix must release the partially built pages on the cancellation path: the request breaker returns to zero.
         ensureBlocksReleased();
 
-        // Mirrors T4 of the manual "graceful termination" report: the node is healthy after a cancelled expansion. Clear the hook so
-        // the next expansion runs unimpeded, confirm no ESQL task lingers, then run a fresh LOAD_ALL and check it expands cleanly -
-        // proving a cancelled expansion left behind neither a stuck task nor corrupt breaker/seam state.
-        ExpandUnmappedFieldsPostProcessor.expansionStartedForTest = null;
+        // Mirrors T4 of the manual "graceful termination" report: the node is healthy after a cancelled flattening. Clear the hook so
+        // the next flattening runs unimpeded, confirm no ESQL task lingers, then run a fresh LOAD_ALL and check it flattens cleanly -
+        // proving a cancelled flattening left behind neither a stuck task nor corrupt breaker/seam state.
+        ExpandUnmappedFieldsPostProcessor.flatteningStartedForTest = null;
         assertBusy(
             () -> assertThat(client().admin().cluster().prepareListTasks().setActions(EsqlQueryAction.NAME).get().getTasks(), empty())
         );
@@ -116,13 +116,13 @@ public class LoadAllCancellationIT extends AbstractEsqlIntegTestCase {
             ).actionGet(DEFAULT_REQUEST_TIMEOUT)
         ) {
             List<String> columns = response.columns().stream().map(ColumnInfo::name).toList();
-            assertThat(columns, hasItems("mapped", "unmapped_a", "unmapped_b"));
+            assertThat(columns, hasItems("mapped", "_unmapped_fields"));
         }
     }
 
     private void cancelWithoutWaiting(TaskId taskId) {
-        // wait_for_completion=false so the cancel returns as soon as the task is marked cancelled — the expansion is still parked in the
-        // hook at this point, so a waiting cancel would deadlock against proceedWithExpansion.
+        // wait_for_completion=false so the cancel returns as soon as the task is marked cancelled — the flattening is still parked in the
+        // hook at this point, so a waiting cancel would deadlock against proceedWithFlattening.
         CancelTasksRequest request = new CancelTasksRequest().setTargetTaskId(taskId).setReason("test cancel");
         request.setWaitForCompletion(false);
         client().admin().cluster().execute(TransportCancelTasksAction.TYPE, request).actionGet();

@@ -9,15 +9,9 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
-import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
-import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -25,7 +19,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
-import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -37,7 +30,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Regression tests for the wiring inside {@link FileSourceFactory#operatorFactory()}.
@@ -189,100 +181,8 @@ public class FileSourceFactoryTests extends ESTestCase {
         assertEquals(List.of(maxErrorsWarning), sink);
     }
 
-    /**
-     * Deferred extraction is off exactly when the read can drop a row: {@code skip_row} over files whose values
-     * the scan may have to convert. Both halves are read the same way the two planner rules read them, so the
-     * plan and the factory cannot reach different verdicts for one read.
-     * <p>
-     * The second half used to be "does the dataset declare any column types", which is why a declared read lost
-     * deferred extraction and an inferred read over the same files kept it. The declared
-     * spec is now passed on both axes to show it no longer moves the answer.
-     */
-    public void testDeferredExtractionFollowsWhetherAValueCanFailToConvert() {
-        FileSourceFactory factory = newFileSourceFactory(new ExtractorAwareStubFormatReader("test-parquet", ".parquet"));
-        DeclaredReadSpec declared = DeclaredReadSpec.of(Map.of(), Map.of(), Set.of("x"));
-        DeclaredReadSpec inferred = DeclaredReadSpec.NONE;
-
-        for (DeclaredReadSpec spec : List.of(declared, inferred)) {
-            String who = spec.declaredTypeColumns().isEmpty() ? "an inferred" : "a declared";
-            for (String errorMode : List.of("fail_fast", "null_field", "skip_row")) {
-                assertTrue(
-                    who + " read of files that convert nothing keeps deferred extraction under " + errorMode,
-                    deferredExtraction(factory, errorMode, spec, false)
-                );
-            }
-            assertTrue(who + " read under fail_fast", deferredExtraction(factory, "fail_fast", spec, true));
-            assertTrue(who + " read under null_field", deferredExtraction(factory, "null_field", spec, true));
-            assertFalse(
-                who + " read under skip_row can drop a row, so no deferred extraction",
-                deferredExtraction(factory, "skip_row", spec, true)
-            );
-        }
-    }
-
-    /**
-     * The factory reads an UNSTAMPED plan - one from a coordinator that predates the stamp - CONSERVATIVELY, as
-     * though a value may fail. It does not reproduce what that coordinator decided, which would mean asking which
-     * columns were declared. It shares one helper with the two planner rules, so this also covers their copy;
-     * before they shared it, the factory held the only inline copy and nothing exercised it.
-     */
-    public void testAnUnstampedPlanIsReadConservatively() {
-        FileSourceFactory factory = newFileSourceFactory(new ExtractorAwareStubFormatReader("test-parquet", ".parquet"));
-        DeclaredReadSpec declared = DeclaredReadSpec.of(Map.of(), Map.of(), Set.of("x"));
-
-        // No stamp means a value may fail, so skip_row withholds deferred extraction - and the declared column set
-        // does not enter into it, because answering a read from declaredness is the defect being removed.
-        assertFalse("no stamp, skip_row", deferredExtractionUnstamped(factory, "skip_row", declared));
-        assertFalse("and the declared set changes nothing", deferredExtractionUnstamped(factory, "skip_row", DeclaredReadSpec.NONE));
-        assertTrue("a mode that keeps every row is unaffected", deferredExtractionUnstamped(factory, "null_field", declared));
-    }
-
-    /** The same cell as {@link #deferredExtraction}, but with NO stamp in {@code sourceMetadata} at all. */
-    private static boolean deferredExtractionUnstamped(FileSourceFactory factory, String errorMode, DeclaredReadSpec spec) {
-        SourceOperatorContext context = SourceOperatorContext.builder()
-            .path(StoragePath.of("s3://bucket/data.parquet"))
-            .attributes(List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG)))
-            .executor(EsExecutors.DIRECT_EXECUTOR_SERVICE)
-            .config(Map.of(ErrorPolicy.CONFIG_ERROR_MODE, errorMode))
-            .sourceMetadata(Map.of())
-            .deferredExtraction(true)
-            .declaredReadSpec(spec)
-            .build();
-        AsyncExternalSourceOperatorFactory built = (AsyncExternalSourceOperatorFactory) factory.operatorFactory().create(context);
-        return built.deferredExtractionEnabled();
-    }
-
-    /**
-     * Builds the operator factory for one ({@code error_mode}, read spec, may-narrow) cell and returns its
-     * deferred-extraction decision. The last argument is stamped into {@code sourceMetadata} the way resolution
-     * stamps it.
-     */
-    private static boolean deferredExtraction(
-        FileSourceFactory factory,
-        String errorMode,
-        DeclaredReadSpec declaredReadSpec,
-        boolean conversionMayNarrow
-    ) {
-        SourceOperatorContext context = SourceOperatorContext.builder()
-            .path(StoragePath.of("s3://bucket/data.parquet"))
-            .attributes(List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG)))
-            .executor(EsExecutors.DIRECT_EXECUTOR_SERVICE)
-            .config(Map.of(ErrorPolicy.CONFIG_ERROR_MODE, errorMode))
-            // Stamped explicitly either way: an ABSENT stamp means a coordinator that predates it and is read
-            // conservatively, which testAnUnstampedPlanIsReadConservatively covers.
-            .sourceMetadata(Map.of(SourceStatisticsSerializer.CONVERSION_MAY_NARROW_KEY, conversionMayNarrow))
-            .deferredExtraction(true)
-            .declaredReadSpec(declaredReadSpec)
-            .build();
-        AsyncExternalSourceOperatorFactory built = (AsyncExternalSourceOperatorFactory) factory.operatorFactory().create(context);
-        return built.deferredExtractionEnabled();
-    }
-
     private static FileSourceFactory newFileSourceFactory() {
-        return newFileSourceFactory(new StubFormatReader("test-parquet", ".parquet"));
-    }
-
-    private static FileSourceFactory newFileSourceFactory(FormatReader parquetReader) {
+        FormatReader parquetReader = new StubFormatReader("test-parquet", ".parquet");
         FormatReader csvReader = new StubFormatReader("test-csv", ".csv");
         FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
         formatRegistry.registerLazy("test-parquet", (s, bf) -> parquetReader, Settings.EMPTY, null);
@@ -300,15 +200,8 @@ public class FileSourceFactoryTests extends ESTestCase {
         return new FileSourceFactory(storageRegistry, formatRegistry, new DecompressionCodecRegistry(), Settings.EMPTY);
     }
 
-    /** {@link StubFormatReader} that also claims {@link ColumnExtractorAware}, the first conjunct of the deferred-extraction decision. */
-    private static final class ExtractorAwareStubFormatReader extends StubFormatReader implements ColumnExtractorAware {
-        ExtractorAwareStubFormatReader(String formatName, String extension) {
-            super(formatName, extension);
-        }
-    }
-
     /** Stub reader: no-op {@code read}, claims the given format/extension so the factory registry resolves. */
-    private static class StubFormatReader implements NoConfigFormatReader {
+    private static final class StubFormatReader implements NoConfigFormatReader {
         private final String formatName;
         private final List<String> extensions;
 

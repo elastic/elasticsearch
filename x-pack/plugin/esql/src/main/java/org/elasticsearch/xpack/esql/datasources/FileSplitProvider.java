@@ -772,9 +772,15 @@ public class FileSplitProvider implements SplitProvider {
             );
             List<PartitionFilterHintExtractor.PartitionFilterHint> narrowing = hints.isEmpty() ? null : hints;
             if (extents.boundsFileSet()) {
-                // Never the cache: what comes back is a prefix of the dataset, and the cache's entries are answers
-                // other queries are served whole. This query may read a prefix because its own demand is covered by
-                // one; the next query's demand is not this one's.
+                // Not the cache, though the key would hold it correctly now: the extent joins the listing cache
+                // identity (GlobExpander#listingCacheDiscriminator), so a prefix is addressed as a prefix and two
+                // queries asking one bound are asking one question. What stops it is the synchronous rail's
+                // follower handling, not the key. getOrComputeListing goes through Cache#computeIfAbsent, where a
+                // follower blocks on the leader's future and is handed the leader's exception, so a cancelled
+                // leader fails a query nobody cancelled - and a bounded scan is exactly the key many concurrent
+                // LIMIT queries would share. cachedListingAsync retries a follower past a leader's cancellation;
+                // this rail does not, and sharing here is worth nothing until it does. A read path left listing
+                // privately pays its own walk, which is slower and correct.
                 return listingService.expand(
                     pattern,
                     provider,
@@ -1223,7 +1229,7 @@ public class FileSplitProvider implements SplitProvider {
         SplitDiscoveryContext context,
         Map<String, DataType> reconciledTypes,
         Map<ColumnMapping, ColumnMapping> mappingCache,
-        boolean schemaPinnedFromAnchorFile,
+        boolean anchorPinnedFirstFileWins,
         ExternalSchema fileBackedQuerySchema
     ) {
         int size() {
@@ -1289,7 +1295,11 @@ public class FileSplitProvider implements SplitProvider {
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = context.schemaMap();
         Map<ColumnMapping, ColumnMapping> mappingCache = new ConcurrentHashMap<>();
         ExternalSchema unifiedSchema = context.unifiedSchema();
-        boolean schemaPinnedFromAnchorFile = ExternalSourceResolver.isSchemaPinnedFromAnchorFile(fileList.originalPattern(), config);
+        boolean anchorPinnedFirstFileWins = ExternalSourceResolver.isAnchorPinnedFirstFileWins(
+            fileList.originalPattern(),
+            config,
+            context.declaredReadSpec()
+        );
         Set<String> metadataColumnNames = context.metadataColumnNames();
         Set<String> retainedPartitionKeys = context.retainedPartitionKeys();
         PartitionSpec spec = PartitionSpec.fromConfig(config);
@@ -1405,7 +1415,7 @@ public class FileSplitProvider implements SplitProvider {
             context,
             reconciledTypes,
             mappingCache,
-            schemaPinnedFromAnchorFile,
+            anchorPinnedFirstFileWins,
             fileBackedQuerySchema
         );
     }
@@ -1669,10 +1679,7 @@ public class FileSplitProvider implements SplitProvider {
             }
             readSchema = fileSchemaInfo.fileSchema().attributes();
         }
-        // Two questions, neither about provenance: could the pinned schema fail to describe this file,
-        // and were this file's own types read. A declared schema pinned across many files answers the
-        // first exactly as an inferred one does.
-        boolean unknownNativeTypes = batch.schemaPinnedFromAnchorFile() && ExternalSourceResolver.nativeTypesUnknown(fileSchemaInfo);
+        boolean unknownNativeTypes = ExternalSourceResolver.nativeTypesUnknown(fileSchemaInfo, batch.anchorPinnedFirstFileWins());
         return new ResolvedFile(
             filePath,
             fileLength,
@@ -2314,13 +2321,11 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
-     * Bytes per row used to size {@code ceil(rowLimit * rowBytes / stride)}. A mapping that renames, reformats or
-     * retypes a column keeps {@link ExternalLimitSplits#DEFAULT_ROW_BYTES}, because the sample was measured over the
-     * file's own columns and no longer describes the row the query reads; otherwise the sample width is used when
-     * present. Keyed on what the mapping instructs, not on whether a declaration exists.
+     * Bytes per row used to size {@code ceil(rowLimit * rowBytes / stride)}. Declared mappings keep
+     * {@link ExternalLimitSplits#DEFAULT_ROW_BYTES}; inferred schemas use the sample width when present.
      */
     static long rowBytes(SplitDiscoveryContext context) {
-        if (context.declaredReadSpec() != null && context.declaredReadSpec().declaresNoStatsAffectingInstructions() == false) {
+        if (context.declaredReadSpec() != null && context.declaredReadSpec().isEmpty() == false) {
             return ExternalLimitSplits.DEFAULT_ROW_BYTES;
         }
         SourceMetadata metadata = context.metadata();
@@ -3648,7 +3653,8 @@ public class FileSplitProvider implements SplitProvider {
                 stats,
                 inferredFileTypes,
                 readSchema != null ? attributesToTypeMap(readSchema) : null,
-                implicitNulls
+                implicitNulls,
+                declaredReadSpec.declaredTypeColumns()
             );
             return SourceStatisticsSerializer.alignHarvestWithFold(stats, foldedSourceMetadata);
         }
@@ -3658,7 +3664,7 @@ public class FileSplitProvider implements SplitProvider {
         // retyped this file. A declaration overlays readSchema, so the branch below rekeys and poisons
         // before normalizing with the inferred types.
         Map<String, DataType> statsFileTypes;
-        if (declaredReadSpec.declaresNoStatsAffectingInstructions()) {
+        if (declaredReadSpec.isEmpty()) {
             statsFileTypes = undeclaredStatsFileTypes(readSchema, inferredFileTypes);
         } else {
             // S1 boundary, split edition. Rekey the `path` renames (a pure move changes no value, so rekeyed
@@ -3668,16 +3674,12 @@ public class FileSplitProvider implements SplitProvider {
             Set<String> poison = new HashSet<>(declaredReadSpec.dateFormats().keySet());
             if (inferredFileTypes != null) {
                 Map<String, DataType> overlaidTypes = attributesToTypeMap(readSchema); // logical, declared types
-                // Every read column, not just the declared ones: what makes a footer stat untrustworthy is
-                // that the file's type differs from the type the scan reads it as, which is visible here
-                // without asking who supplied the latter.
-                for (Map.Entry<String, DataType> overlaid : overlaidTypes.entrySet()) {
-                    String logical = overlaid.getKey();
+                for (String logical : declaredReadSpec.declaredTypeColumns()) {
                     String physical = declaredReadSpec.renames().getOrDefault(logical, logical);
                     DataType inferredType = inferredFileTypes.get(physical);
                     // Absent from THIS file (lenient union-by-name overlay skipped it): no footer stat exists
                     // for it here either, so nothing to poison.
-                    if (inferredType != null && inferredType != overlaid.getValue()) {
+                    if (inferredType != null && inferredType != overlaidTypes.get(logical)) {
                         poison.add(logical);
                     }
                 }
@@ -3688,14 +3690,9 @@ public class FileSplitProvider implements SplitProvider {
                     statsFileTypes.put(physicalToLogical.getOrDefault(e.getKey(), e.getKey()), e.getValue());
                 }
             } else {
-                // Nobody recorded this file's own types, so no footer statistic can be shown to describe the
-                // read and the declared-vs-inferred comparison above is impossible. Poison every column the file
-                // backs - the structural answer, and the one unknownNativeTypes already gives - rather than the
-                // set of columns a declaration happened to name, which answered from declaredness and left an
-                // undeclared column's stale footer statistic in place. row_count survives.
-                for (Attribute attr : readSchema) {
-                    poison.add(attr.name());
-                }
+                // Declared read but no captured inference (strict paths skip inference): the declared-vs-inferred
+                // comparison is impossible, so conservatively poison EVERY declared column. row_count survives.
+                poison.addAll(declaredReadSpec.declaredTypeColumns());
                 stats = SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(stats, physicalToLogical, poison);
                 statsFileTypes = attributesToTypeMap(readSchema);
             }
@@ -3711,7 +3708,13 @@ public class FileSplitProvider implements SplitProvider {
         // readSchema and converts afterwards; comparing against reconciledTypes would treat a
         // representable DATETIME→DATE_NANOS widen as unrepresentable and rewrite the harvest
         // to value_count=0.
-        stats = ExternalSourceResolver.alignHarvestWithAnchorTypes(stats, statsFileTypes, attributesToTypeMap(readSchema), implicitNulls);
+        stats = ExternalSourceResolver.alignHarvestWithAnchorTypes(
+            stats,
+            statsFileTypes,
+            attributesToTypeMap(readSchema),
+            implicitNulls,
+            declaredReadSpec.declaredTypeColumns()
+        );
         return SourceStatisticsSerializer.alignHarvestWithFold(stats, foldedSourceMetadata);
     }
 

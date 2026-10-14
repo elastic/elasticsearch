@@ -1618,12 +1618,12 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * An inference anchor is the leftover file kept after partition pruning eliminates all real
-     * candidates. The schema map holds only that one file's types, so files in other partitions are
-     * unexamined and may narrow. The guard in {@code conversionMayNarrow} must return {@code true}
-     * unconditionally when {@link FileList#isInferenceAnchor()} is set. This test fails if that
-     * guard is deleted: the anchor file has lossless types, so without the guard the stamp would
-     * be {@code false}.
+     * An inference anchor listing is replaced with {@code FileList.EMPTY} by
+     * {@code FileSplitProvider.overTheQuerysFileSet}, so no file is read and the result does not
+     * affect correctness. Returning {@code true} is the safe direction. The guard in
+     * {@code conversionMayNarrow} must return {@code true} unconditionally when
+     * {@link FileList#isInferenceAnchor()} is set. This test fails if that guard is deleted:
+     * the anchor file has lossless types, so without the guard the stamp would be {@code false}.
      */
     public void testConversionMayNarrowIsTrueForInferenceAnchor() throws Exception {
         String glob = "s3://bucket/data/year=*/*.parquet";

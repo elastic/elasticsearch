@@ -1777,10 +1777,14 @@ public class ExternalSourceResolver {
             // Nothing was examined, so nothing rules out a value that fails to convert.
             return true;
         }
-        if (source.fileList().isTruncated() || source.fileList().isInferenceAnchor()) {
-            // The schema map does not cover the full dataset — either the listing was truncated or an
-            // inference anchor left the remaining partitions unexamined. Files outside the sample may
-            // narrow a column the map records as lossless, so the stamp must be conservative.
+        if (source.fileList().isTruncated()) {
+            // The listing was truncated: files beyond the prefix never entered schemaMap, so the loop
+            // below could never see them. Safe direction is true.
+            return true;
+        }
+        if (source.fileList().isInferenceAnchor()) {
+            // An inference-anchor listing is replaced with FileList.EMPTY by FileSplitProvider; no file
+            // is read, so the result does not affect correctness. Safe direction is true.
             return true;
         }
         DeclaredReadSpec spec = source.declaredReadSpec() == null ? DeclaredReadSpec.NONE : source.declaredReadSpec();
@@ -1831,10 +1835,12 @@ public class ExternalSourceResolver {
      * That mattered little while three first-file-wins call sites used it and matters generally now that the
      * may-narrow stamp passes every resolve through here.
      * <p>
-     * The base passed here must carry no statistics: {@code ExternalRelation.toPhysicalExec} re-embeds
-     * {@code metadata.statistics()} over {@code sourceMetadata()} via
-     * {@link SourceStatisticsSerializer#embedStatistics}, so a non-empty {@code base.statistics()} would
-     * overwrite the aggregated row count. All current call sites pass a base with empty statistics.
+     * When the base carries statistics, they must describe the same values the replacement's {@code _stats.*}
+     * keys carry: {@code ExternalRelation.toPhysicalExec} re-embeds {@code metadata.statistics()} over
+     * {@code sourceMetadata()} via {@link SourceStatisticsSerializer#embedStatistics}, so a statistics object
+     * that disagrees with the replacement's row-count key would overwrite it at exec time. The stamp call site
+     * passes statistics harvested from the same file, which agree. The first-file-wins aggregation, partition
+     * enrichment, and strict warm call sites all pass a base with empty statistics.
      */
     private static ExternalSourceMetadata replaceSourceMetadata(ExternalSourceMetadata base, Map<String, Object> replacement) {
         return new ExternalSourceMetadata() {

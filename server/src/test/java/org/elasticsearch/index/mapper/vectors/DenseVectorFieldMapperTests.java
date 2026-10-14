@@ -1094,8 +1094,13 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             expected.profile(),
             getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class).autoCalibrationProfile()
         );
-        String expectedSource = to instanceof String ? "\"auto_calibrate\":\"" + to + "\"" : "\"auto_calibrate\":" + to;
-        assertThat(message, mapperService.documentMapper().mappingSource().toString(), containsString(expectedSource));
+        String mappingSource = mapperService.documentMapper().mappingSource().toString();
+        if (to == null) {
+            assertThat(message, mappingSource, not(containsString("auto_calibrate")));
+        } else {
+            String expectedSource = to instanceof String ? "\"auto_calibrate\":\"" + to + "\"" : "\"auto_calibrate\":" + to;
+            assertThat(message, mappingSource, containsString(expectedSource));
+        }
     }
 
     public void testAutoCalibrateProfilesRequireClusterFeature() throws IOException {

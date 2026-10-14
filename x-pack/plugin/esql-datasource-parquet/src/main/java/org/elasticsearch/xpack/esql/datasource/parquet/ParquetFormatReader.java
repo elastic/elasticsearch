@@ -2515,12 +2515,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 fileMetaData = reader.getFileMetaData();
                 parquetSchema = fileMetaData.getSchema();
             }
-            // The framework passes planning-time resolved attributes for this query (AsyncExternalSourceOperatorFactory).
-            // Reuse them to avoid redundant schema conversion work per split. We still read Parquet metadata to drive row groups.
-            List<Attribute> attributes = resolvedAttributes != null && resolvedAttributes.isEmpty() == false
-                ? resolvedAttributes
-                : convertParquetSchemaToAttributes(parquetSchema);
-
+            // Ordered before the schema flatten below, not after it: this path needs no attribute list, and
+            // flattening one would hold a read that materialises nothing to the column cap - so a dataset whose
+            // declared types the strict probe checked against a wide footer resolved and then failed to scan.
             // Count-only fast path: when the planner asks for zero data columns (e.g. a query
             // that only references {@code _file.*} virtual columns or a bare {@code COUNT(*)}
             // atop the source) and no pushdown is active on this file, walk the row group
@@ -2540,6 +2537,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 && FilterCompat.isFilteringRequired(recordFilter) == false) {
                 return new ParquetCountOnlyIterator(reader, batchSize, rowLimit);
             }
+
+            // The framework passes planning-time resolved attributes for this query (AsyncExternalSourceOperatorFactory).
+            // Reuse them to avoid redundant schema conversion work per split. We still read Parquet metadata to drive row groups.
+            List<Attribute> attributes = resolvedAttributes != null && resolvedAttributes.isEmpty() == false
+                ? resolvedAttributes
+                : convertParquetSchemaToAttributes(parquetSchema);
+
             List<Attribute> projectedAttributes = buildProjectedAttributes(projectedColumns, attributes);
 
             MessageType projectedSchema = buildProjectedSchema(parquetSchema, projectedAttributes);

@@ -2367,6 +2367,45 @@ public class ParquetFormatReaderTests extends ESTestCase {
      * was written down rather than by anything about the file. Raising the cap is the way to
      * read a wide file, and it works the same either way.
      */
+    /**
+     * A read that materialises no column is not held to the column cap. The cap bounds the schema a read resolves,
+     * and this read resolves none: a bare {@code COUNT(*)} over the source projects zero data columns and answers
+     * from row-group metadata, so the footer is never flattened into attributes. It used to be flattened anyway,
+     * before the count-only path was reached, which held the file to the cap for a read that touches no column -
+     * and the strict rail checks a declared mapping's types against the anchor's footer with the cap raised to its
+     * ceiling, so a {@code dynamic: false} dataset over a wide file resolved and then failed to scan.
+     */
+    public void testACountOnlyReadIsNotHeldToTheColumnCap() throws Exception {
+        byte[] data = wideOptionalLongFile(6);
+        FormatReader capped = new ParquetFormatReader(blockFactory).withSchemaMaxFields(5);
+        FormatReadContext ctx = FormatReadContext.builder()
+            .readSchema(List.of())
+            .projectedColumns(List.of())
+            .batchSize(100)
+            .build();
+        long rows = 0;
+        try (var it = capped.read(createStorageObject(data), ctx)) {
+            while (it.hasNext()) {
+                Page page = it.next();
+                rows += page.getPositionCount();
+                page.releaseBlocks();
+            }
+        }
+        assertEquals(1, rows); // the fixture writes one row
+
+        // A read that does materialise a column is still bounded, which is what the cap is for.
+        FormatReadContext projecting = FormatReadContext.builder()
+            .readSchema(List.of())
+            .projectedColumns(List.of("col_0"))
+            .batchSize(100)
+            .build();
+        expectThrows(ExternalClientException.class, () -> {
+            try (var ignored = capped.read(createStorageObject(data), projecting)) {
+                // the flatten throws before any page is produced
+            }
+        });
+    }
+
     public void testTheWidthCapBoundsADeclaredReadToo() throws Exception {
         byte[] data = wideOptionalLongFile(6);
         FormatReader declared = new ParquetFormatReader(blockFactory).withSchemaMaxFields(5).withDeclaredProvenanceBinding(true);

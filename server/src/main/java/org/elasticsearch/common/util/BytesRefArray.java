@@ -14,6 +14,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -202,6 +203,27 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
             bytes.append(v2.bytes, v2.offset, v2.length);
             appendOffset(newOffset, length);
         } catch (CircuitBreakingException e) {
+            bytes.truncateTo(lastOffset);
+            throw e;
+        }
+        lastOffset = newOffset;
+        ++size;
+    }
+
+    /**
+     * Appends a potentially fragmented reference as one entry, copying its chunks directly into the array's storage.
+     */
+    public void append(BytesReference value) throws IOException {
+        final int length = value.length();
+        final long newOffset = lastOffset + length;
+        try {
+            var iterator = value.iterator();
+            BytesRef chunk;
+            while ((chunk = iterator.next()) != null) {
+                bytes.append(chunk.bytes, chunk.offset, chunk.length);
+            }
+            appendOffset(newOffset, length);
+        } catch (IOException | CircuitBreakingException e) {
             bytes.truncateTo(lastOffset);
             throw e;
         }

@@ -1,5 +1,9 @@
 ---
 "Test put batch transform on mixed cluster":
+  - skip:
+      cluster_features: ["rolling_upgrade.first_mixed_cluster"]
+      reason: "Creates durable transform state — must run exactly once"
+
   - do:
       cluster.health:
         index: "transform-airline-data"
@@ -106,6 +110,10 @@
 
 ---
 "Test put continuous transform on mixed cluster":
+  - skip:
+      cluster_features: ["rolling_upgrade.first_mixed_cluster"]
+      reason: "Creates durable transform state — must run exactly once"
+
   - do:
       cluster.health:
         index: "transform-airline-data-cont"

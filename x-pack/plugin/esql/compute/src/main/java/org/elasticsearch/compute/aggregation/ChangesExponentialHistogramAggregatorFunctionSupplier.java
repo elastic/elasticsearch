@@ -24,15 +24,22 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.WarningSourceLocation;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.BucketIterator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
-import org.elasticsearch.exponentialhistogram.ZeroBucket;
 
 import java.util.List;
 
 /** {@link AggregatorFunctionSupplier} implementation for PromQL changes over exponential histogram values. */
 public final class ChangesExponentialHistogramAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+    private final WarningSourceLocation source;
+
+    public ChangesExponentialHistogramAggregatorFunctionSupplier(WarningSourceLocation source) {
+        this.source = source;
+    }
+
     @Override
     public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
         throw new UnsupportedOperationException("non-grouping aggregator is not supported");
@@ -50,7 +57,7 @@ public final class ChangesExponentialHistogramAggregatorFunctionSupplier impleme
 
     @Override
     public GroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
-        return new ChangesExponentialHistogramGroupingAggregatorFunction(channels, driverContext);
+        return new ChangesExponentialHistogramGroupingAggregatorFunction(channels, driverContext, driverContext.createWarnings(source));
     }
 
     @Override
@@ -61,6 +68,7 @@ public final class ChangesExponentialHistogramAggregatorFunctionSupplier impleme
     static final class ChangesExponentialHistogramGroupingAggregatorFunction extends AbstractRateGroupingFunction
         implements
             GroupingAggregatorFunction {
+        private static final String MULTIVALUED_SAMPLE_WARNING = "Multivalued samples are not supported by changes and were ignored.";
         private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
             new IntermediateStateDesc("timestamps", ElementType.LONG),
             new IntermediateStateDesc("values", ElementType.EXPONENTIAL_HISTOGRAM),
@@ -71,14 +79,17 @@ public final class ChangesExponentialHistogramAggregatorFunctionSupplier impleme
         private final List<Integer> channels;
         private final DriverContext driverContext;
         private final BigArrays bigArrays;
+        private final Warnings warnings;
         private final ExponentialHistogramRawBuffer rawBuffer;
         private final IncreaseExponentialHistogramGroupingAggregatorFunction.IntervalBuffer intervalBuffer;
         private ObjectArray<ReducedState> reducedStates;
+        private int lastSliceIndex = -1;
 
-        ChangesExponentialHistogramGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
+        ChangesExponentialHistogramGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext, Warnings warnings) {
             this.channels = channels;
             this.driverContext = driverContext;
             this.bigArrays = driverContext.bigArrays();
+            this.warnings = warnings;
             ExponentialHistogramRawBuffer rawBuffer = null;
             IncreaseExponentialHistogramGroupingAggregatorFunction.IntervalBuffer intervalBuffer = null;
             try {
@@ -115,6 +126,13 @@ public final class ChangesExponentialHistogramAggregatorFunctionSupplier impleme
             if (values.areAllValuesNull() || timestamps.areAllValuesNull()) {
                 return null;
             }
+            IntVector sliceIndices = ((IntBlock) page.getBlock(channels.get(2))).asVector();
+            assert sliceIndices != null : "expected slice indices vector in time-series aggregation";
+            int sliceIndex = sliceIndices.getInt(0);
+            if (sliceIndex > lastSliceIndex) {
+                flushRawBuffers();
+                lastSliceIndex = sliceIndex;
+            }
             return new AddInput() {
                 @Override
                 public void add(int positionOffset, IntArrayBlock groups) {
@@ -143,14 +161,20 @@ public final class ChangesExponentialHistogramAggregatorFunctionSupplier impleme
                 if (groups.isNull(p) || values.isNull(valuePosition) || timestamps.isNull(valuePosition)) {
                     continue;
                 }
-                int valueStart = values.getFirstValueIndex(valuePosition);
-                int valueEnd = valueStart + values.getValueCount(valuePosition);
-                int timestampStart = timestamps.getFirstValueIndex(valuePosition);
-                int timestampEnd = timestampStart + timestamps.getValueCount(valuePosition);
+                int valueCount = values.getValueCount(valuePosition);
+                int timestampCount = timestamps.getValueCount(valuePosition);
+                if (valueCount != 1 || timestampCount != 1) {
+                    if (valueCount > 1 || timestampCount > 1) {
+                        warnings.registerWarning(MULTIVALUED_SAMPLE_WARNING);
+                    }
+                    continue;
+                }
+                long timestamp = timestamps.getLong(timestamps.getFirstValueIndex(valuePosition));
+                ExponentialHistogram value = values.getExponentialHistogram(values.getFirstValueIndex(valuePosition), scratch);
                 int groupStart = groups.getFirstValueIndex(p);
                 int groupEnd = groupStart + groups.getValueCount(p);
                 for (int g = groupStart; g < groupEnd; g++) {
-                    appendValues(groups.getInt(g), timestamps, timestampStart, timestampEnd, values, valueStart, valueEnd, scratch);
+                    rawBuffer.append(groups.getInt(g), timestamp, value);
                 }
             }
         }
@@ -162,29 +186,19 @@ public final class ChangesExponentialHistogramAggregatorFunctionSupplier impleme
                 if (values.isNull(valuePosition) || timestamps.isNull(valuePosition)) {
                     continue;
                 }
-                int valueStart = values.getFirstValueIndex(valuePosition);
-                int valueEnd = valueStart + values.getValueCount(valuePosition);
-                int timestampStart = timestamps.getFirstValueIndex(valuePosition);
-                int timestampEnd = timestampStart + timestamps.getValueCount(valuePosition);
-                appendValues(groups.getInt(p), timestamps, timestampStart, timestampEnd, values, valueStart, valueEnd, scratch);
-            }
-        }
-
-        private void appendValues(
-            int groupId,
-            LongBlock timestamps,
-            int timestampStart,
-            int timestampEnd,
-            ExponentialHistogramBlock values,
-            int valueStart,
-            int valueEnd,
-            ExponentialHistogramScratch scratch
-        ) {
-            for (int t = timestampStart; t < timestampEnd; t++) {
-                long timestamp = timestamps.getLong(t);
-                for (int v = valueStart; v < valueEnd; v++) {
-                    rawBuffer.append(groupId, timestamp, values.getExponentialHistogram(v, scratch));
+                int valueCount = values.getValueCount(valuePosition);
+                int timestampCount = timestamps.getValueCount(valuePosition);
+                if (valueCount != 1 || timestampCount != 1) {
+                    if (valueCount > 1 || timestampCount > 1) {
+                        warnings.registerWarning(MULTIVALUED_SAMPLE_WARNING);
+                    }
+                    continue;
                 }
+                rawBuffer.append(
+                    groups.getInt(p),
+                    timestamps.getLong(timestamps.getFirstValueIndex(valuePosition)),
+                    values.getExponentialHistogram(values.getFirstValueIndex(valuePosition), scratch)
+                );
             }
         }
 
@@ -348,7 +362,7 @@ public final class ChangesExponentialHistogramAggregatorFunctionSupplier impleme
             reducedStates = bigArrays.grow(reducedStates, rawBuffer.maxGroupId + 1);
             FlushQueues flushQueues = rawBuffer.prepareForFlush();
             for (int groupId = flushQueues.minGroupId(); groupId <= flushQueues.maxGroupId(); groupId++) {
-                FlushQueue flushQueue = flushQueues.getFlushQueue(groupId, rawBuffer::compareValues);
+                FlushQueue flushQueue = flushQueues.getFlushQueue(groupId);
                 if (flushQueue != null) {
                     flushGroup(getOrInitializeReducedState(groupId), flushQueue);
                 }
@@ -392,29 +406,6 @@ public final class ChangesExponentialHistogramAggregatorFunctionSupplier impleme
             return position;
         }
 
-        private static int compareHistograms(ExponentialHistogram left, ExponentialHistogram right) {
-            if (histogramsEqual(left, right)) {
-                return 0;
-            }
-            int result = Integer.compare(left.scale(), right.scale());
-            if (result == 0) {
-                result = Long.compare(left.valueCount(), right.valueCount());
-            }
-            if (result == 0) {
-                result = compareRawDouble(left.sum(), right.sum());
-            }
-            if (result == 0) {
-                result = compareZeroBuckets(left.zeroBucket(), right.zeroBucket());
-            }
-            if (result == 0) {
-                result = compareBuckets(left.negativeBuckets().iterator(), right.negativeBuckets().iterator());
-            }
-            if (result == 0) {
-                result = compareBuckets(left.positiveBuckets().iterator(), right.positiveBuckets().iterator());
-            }
-            return result;
-        }
-
         private static boolean histogramsEqual(ExponentialHistogram left, ExponentialHistogram right) {
             return left.scale() == right.scale()
                 && left.valueCount() == right.valueCount()
@@ -423,22 +414,6 @@ public final class ChangesExponentialHistogramAggregatorFunctionSupplier impleme
                 && left.zeroBucket().count() == right.zeroBucket().count()
                 && compareBuckets(left.negativeBuckets().iterator(), right.negativeBuckets().iterator()) == 0
                 && compareBuckets(left.positiveBuckets().iterator(), right.positiveBuckets().iterator()) == 0;
-        }
-
-        private static int compareRawDouble(double left, double right) {
-            int result = Double.compare(left, right);
-            if (result == 0) {
-                result = Long.compareUnsigned(Double.doubleToRawLongBits(left), Double.doubleToRawLongBits(right));
-            }
-            return result;
-        }
-
-        private static int compareZeroBuckets(ZeroBucket left, ZeroBucket right) {
-            int result = left.zeroThreshold() == right.zeroThreshold() ? 0 : Double.compare(left.zeroThreshold(), right.zeroThreshold());
-            if (result == 0) {
-                result = Long.compare(left.count(), right.count());
-            }
-            return result;
         }
 
         private static int compareBuckets(BucketIterator left, BucketIterator right) {
@@ -547,8 +522,6 @@ public final class ChangesExponentialHistogramAggregatorFunctionSupplier impleme
 
         private static final class ExponentialHistogramRawBuffer extends RawBuffer {
             private final ExponentialHistogramBuffer values;
-            private final ExponentialHistogramScratch leftScratch = new ExponentialHistogramScratch();
-            private final ExponentialHistogramScratch rightScratch = new ExponentialHistogramScratch();
 
             ExponentialHistogramRawBuffer(org.elasticsearch.compute.data.BlockFactory blockFactory) {
                 super(blockFactory.breaker());
@@ -578,12 +551,6 @@ public final class ChangesExponentialHistogramAggregatorFunctionSupplier impleme
 
             ExponentialHistogram value(int position, ExponentialHistogramScratch scratch) {
                 return values.get(position, scratch);
-            }
-
-            int compareValues(int leftPosition, int rightPosition) {
-                ExponentialHistogram left = value(leftPosition, leftScratch);
-                ExponentialHistogram right = value(rightPosition, rightScratch);
-                return compareHistograms(left, right);
             }
 
             @Override

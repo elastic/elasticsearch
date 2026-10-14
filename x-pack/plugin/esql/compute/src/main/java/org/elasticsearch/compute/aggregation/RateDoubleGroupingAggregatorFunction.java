@@ -609,10 +609,6 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
             return values.get(position);
         }
 
-        int compareValues(int leftPosition, int rightPosition) {
-            return Double.compare(value(leftPosition), value(rightPosition));
-        }
-
         void prepareForAppend(int groupId, int count, long firstTimestamp) {
             prepareSlicesOnly(groupId, firstTimestamp);
             int newSize = timestamps.size() + count;

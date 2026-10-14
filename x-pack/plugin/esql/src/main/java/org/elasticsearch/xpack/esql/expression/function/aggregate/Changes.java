@@ -67,9 +67,7 @@ public class Changes extends TimeSeriesAggregateFunction implements OptionalArgu
         returnType = { "long" },
         briefSummary = "Calculates the number of value changes in a time window.",
         description = "Calculates the number of times the value of a numeric or native histogram metric field changes in a time window.",
-        appliesTo = {
-            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.7.0"),
-            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.8.0") }
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.6.0") }
     )
     public Changes(
         Source source,
@@ -146,10 +144,10 @@ public class Changes extends TimeSeriesAggregateFunction implements OptionalArgu
     @Override
     public AggregatorFunctionSupplier supplier() {
         return switch (field().dataType()) {
-            case LONG, COUNTER_LONG -> new ChangesLongAggregatorFunctionSupplier();
-            case INTEGER, COUNTER_INTEGER -> new ChangesIntAggregatorFunctionSupplier();
-            case DOUBLE, COUNTER_DOUBLE -> new ChangesDoubleAggregatorFunctionSupplier();
-            case EXPONENTIAL_HISTOGRAM -> new ChangesExponentialHistogramAggregatorFunctionSupplier();
+            case LONG, COUNTER_LONG -> new ChangesLongAggregatorFunctionSupplier(source());
+            case INTEGER, COUNTER_INTEGER -> new ChangesIntAggregatorFunctionSupplier(source());
+            case DOUBLE, COUNTER_DOUBLE -> new ChangesDoubleAggregatorFunctionSupplier(source());
+            case EXPONENTIAL_HISTOGRAM -> new ChangesExponentialHistogramAggregatorFunctionSupplier(source());
             default -> throw EsqlIllegalArgumentException.illegalDataType(field().dataType());
         };
     }
@@ -167,5 +165,10 @@ public class Changes extends TimeSeriesAggregateFunction implements OptionalArgu
     @Override
     public Expression timestamp() {
         return timestamp;
+    }
+
+    @Override
+    public boolean requiredTimeSeriesSource() {
+        return true;
     }
 }

@@ -609,10 +609,6 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
             return values.get(position);
         }
 
-        int compareValues(int leftPosition, int rightPosition) {
-            return Long.compare(value(leftPosition), value(rightPosition));
-        }
-
         void prepareForAppend(int groupId, int count, long firstTimestamp) {
             prepareSlicesOnly(groupId, firstTimestamp);
             int newSize = timestamps.size() + count;

@@ -23,7 +23,6 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
 import java.time.Duration;
 import java.util.Arrays;
-import java.util.function.IntBinaryOperator;
 
 import static org.elasticsearch.compute.aggregation.AbstractRateGroupingFunction.BufferedArray.indexInPage;
 import static org.elasticsearch.compute.aggregation.AbstractRateGroupingFunction.BufferedArray.pageIndex;
@@ -190,13 +189,6 @@ class AbstractRateGroupingFunction {
 
     record FlushQueues(RawBuffer buffer, int minGroupId, int maxGroupId, int[] runningOffsets, int[] sliceOffsets) {
         FlushQueue getFlushQueue(int groupId) {
-            return getFlushQueue(groupId, null);
-        }
-
-        /**
-         * Builds a queue for {@code groupId}, using buffer positions to break ties between equal timestamps.
-         */
-        FlushQueue getFlushQueue(int groupId, IntBinaryOperator positionComparator) {
             if (groupId < minGroupId || groupId > maxGroupId) {
                 return null;
             }
@@ -207,7 +199,7 @@ class AbstractRateGroupingFunction {
             if (numSlices == 0) {
                 return null;
             }
-            FlushQueue queue = new FlushQueue(numSlices, positionComparator);
+            FlushQueue queue = new FlushQueue(numSlices);
             for (int i = startIndex; i < endIndex; i++) {
                 int start = sliceOffsets[i * 2];
                 int end = sliceOffsets[i * 2 + 1];
@@ -259,16 +251,10 @@ class AbstractRateGroupingFunction {
     }
 
     static final class FlushQueue extends PriorityQueue<Slice> {
-        private final IntBinaryOperator positionComparator;
         int valueCount;
 
         FlushQueue(int maxSize) {
-            this(maxSize, null);
-        }
-
-        FlushQueue(int maxSize, IntBinaryOperator positionComparator) {
             super(maxSize);
-            this.positionComparator = positionComparator;
         }
 
         /**
@@ -291,7 +277,7 @@ class AbstractRateGroupingFunction {
             if (a.nextTimestamp != b.nextTimestamp) {
                 return a.nextTimestamp > b.nextTimestamp; // want the latest timestamp first
             }
-            return positionComparator != null && positionComparator.applyAsInt(a.start, b.start) < 0;
+            return false;
         }
     }
 

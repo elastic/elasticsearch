@@ -25,6 +25,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.WarningSourceLocation;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 
 import java.util.List;
@@ -35,6 +37,12 @@ import java.util.List;
  * This class is generated. Edit {@code X-ChangesAggregatorFunctionSupplier.java.st} instead.
  */
 public final class ChangesLongAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+    private final WarningSourceLocation source;
+
+    public ChangesLongAggregatorFunctionSupplier(WarningSourceLocation source) {
+        this.source = source;
+    }
+
     @Override
     public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
         throw new UnsupportedOperationException("non-grouping aggregator is not supported");
@@ -52,7 +60,7 @@ public final class ChangesLongAggregatorFunctionSupplier implements AggregatorFu
 
     @Override
     public GroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
-        return new ChangesLongGroupingAggregatorFunction(channels, driverContext);
+        return new ChangesLongGroupingAggregatorFunction(channels, driverContext, driverContext.createWarnings(source));
     }
 
     @Override
@@ -62,6 +70,7 @@ public final class ChangesLongAggregatorFunctionSupplier implements AggregatorFu
 }
 
 final class ChangesLongGroupingAggregatorFunction extends AbstractRateGroupingFunction implements GroupingAggregatorFunction {
+    private static final String MULTIVALUED_SAMPLE_WARNING = "Multivalued samples are not supported by changes and were ignored.";
     private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
         new IntermediateStateDesc("timestamps", ElementType.LONG),
         new IntermediateStateDesc("values", ElementType.LONG),
@@ -72,14 +81,17 @@ final class ChangesLongGroupingAggregatorFunction extends AbstractRateGroupingFu
     private final List<Integer> channels;
     private final DriverContext driverContext;
     private final BigArrays bigArrays;
+    private final Warnings warnings;
     private final RateLongGroupingAggregatorFunction.LongRawBuffer rawBuffer;
     private final RateLongGroupingAggregatorFunction.IntervalBuffer intervalBuffer;
     private ObjectArray<ReducedState> reducedStates;
+    private int lastSliceIndex = -1;
 
-    ChangesLongGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
+    ChangesLongGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext, Warnings warnings) {
         this.channels = channels;
         this.driverContext = driverContext;
         this.bigArrays = driverContext.bigArrays();
+        this.warnings = warnings;
         RateLongGroupingAggregatorFunction.LongRawBuffer rawBuffer = null;
         RateLongGroupingAggregatorFunction.IntervalBuffer intervalBuffer = null;
         try {
@@ -115,6 +127,13 @@ final class ChangesLongGroupingAggregatorFunction extends AbstractRateGroupingFu
         LongBlock timestampsBlock = page.getBlock(channels.get(1));
         if (valuesBlock.areAllValuesNull() || timestampsBlock.areAllValuesNull()) {
             return null;
+        }
+        IntVector sliceIndices = ((IntBlock) page.getBlock(channels.get(2))).asVector();
+        assert sliceIndices != null : "expected slice indices vector in time-series aggregation";
+        int sliceIndex = sliceIndices.getInt(0);
+        if (sliceIndex > lastSliceIndex) {
+            flushRawBuffers();
+            lastSliceIndex = sliceIndex;
         }
         LongVector valuesVector = valuesBlock.asVector();
         LongVector timestampsVector = timestampsBlock.asVector();
@@ -166,20 +185,20 @@ final class ChangesLongGroupingAggregatorFunction extends AbstractRateGroupingFu
             if (groups.isNull(p) || values.isNull(valuePosition) || timestamps.isNull(valuePosition)) {
                 continue;
             }
-            int valueStart = values.getFirstValueIndex(valuePosition);
-            int valueEnd = valueStart + values.getValueCount(valuePosition);
-            int timestampStart = timestamps.getFirstValueIndex(valuePosition);
-            int timestampEnd = timestampStart + timestamps.getValueCount(valuePosition);
+            int valueCount = values.getValueCount(valuePosition);
+            int timestampCount = timestamps.getValueCount(valuePosition);
+            if (valueCount != 1 || timestampCount != 1) {
+                if (valueCount > 1 || timestampCount > 1) {
+                    warnings.registerWarning(MULTIVALUED_SAMPLE_WARNING);
+                }
+                continue;
+            }
+            long value = values.getLong(values.getFirstValueIndex(valuePosition));
+            long timestamp = timestamps.getLong(timestamps.getFirstValueIndex(valuePosition));
             int groupStart = groups.getFirstValueIndex(p);
             int groupEnd = groupStart + groups.getValueCount(p);
             for (int g = groupStart; g < groupEnd; g++) {
-                int groupId = groups.getInt(g);
-                for (int t = timestampStart; t < timestampEnd; t++) {
-                    long timestamp = timestamps.getLong(t);
-                    for (int v = valueStart; v < valueEnd; v++) {
-                        rawBuffer.append(groupId, timestamp, values.getLong(v));
-                    }
-                }
+                rawBuffer.append(groups.getInt(g), timestamp, value);
             }
         }
     }
@@ -190,17 +209,19 @@ final class ChangesLongGroupingAggregatorFunction extends AbstractRateGroupingFu
             if (values.isNull(valuePosition) || timestamps.isNull(valuePosition)) {
                 continue;
             }
-            int groupId = groups.getInt(p);
-            int valueStart = values.getFirstValueIndex(valuePosition);
-            int valueEnd = valueStart + values.getValueCount(valuePosition);
-            int timestampStart = timestamps.getFirstValueIndex(valuePosition);
-            int timestampEnd = timestampStart + timestamps.getValueCount(valuePosition);
-            for (int t = timestampStart; t < timestampEnd; t++) {
-                long timestamp = timestamps.getLong(t);
-                for (int v = valueStart; v < valueEnd; v++) {
-                    rawBuffer.append(groupId, timestamp, values.getLong(v));
+            int valueCount = values.getValueCount(valuePosition);
+            int timestampCount = timestamps.getValueCount(valuePosition);
+            if (valueCount != 1 || timestampCount != 1) {
+                if (valueCount > 1 || timestampCount > 1) {
+                    warnings.registerWarning(MULTIVALUED_SAMPLE_WARNING);
                 }
+                continue;
             }
+            rawBuffer.append(
+                groups.getInt(p),
+                timestamps.getLong(timestamps.getFirstValueIndex(valuePosition)),
+                values.getLong(values.getFirstValueIndex(valuePosition))
+            );
         }
     }
 
@@ -379,7 +400,7 @@ final class ChangesLongGroupingAggregatorFunction extends AbstractRateGroupingFu
         reducedStates = bigArrays.grow(reducedStates, rawBuffer.maxGroupId + 1);
         FlushQueues flushQueues = rawBuffer.prepareForFlush();
         for (int groupId = flushQueues.minGroupId(); groupId <= flushQueues.maxGroupId(); groupId++) {
-            FlushQueue flushQueue = flushQueues.getFlushQueue(groupId, rawBuffer::compareValues);
+            FlushQueue flushQueue = flushQueues.getFlushQueue(groupId);
             if (flushQueue != null) {
                 flushGroup(getOrInitializeReducedState(groupId), flushQueue);
             }

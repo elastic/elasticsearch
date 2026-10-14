@@ -25,6 +25,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.$Type$Block;
 import org.elasticsearch.compute.data.$Type$Vector;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.WarningSourceLocation;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 
 import java.util.List;
@@ -35,6 +37,12 @@ import java.util.List;
  * This class is generated. Edit {@code X-ChangesAggregatorFunctionSupplier.java.st} instead.
  */
 public final class Changes$Type$AggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+    private final WarningSourceLocation source;
+
+    public Changes$Type$AggregatorFunctionSupplier(WarningSourceLocation source) {
+        this.source = source;
+    }
+
     @Override
     public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
         throw new UnsupportedOperationException("non-grouping aggregator is not supported");
@@ -52,7 +60,7 @@ public final class Changes$Type$AggregatorFunctionSupplier implements Aggregator
 
     @Override
     public GroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
-        return new Changes$Type$GroupingAggregatorFunction(channels, driverContext);
+        return new Changes$Type$GroupingAggregatorFunction(channels, driverContext, driverContext.createWarnings(source));
     }
 
     @Override
@@ -62,6 +70,7 @@ public final class Changes$Type$AggregatorFunctionSupplier implements Aggregator
 }
 
 final class Changes$Type$GroupingAggregatorFunction extends AbstractRateGroupingFunction implements GroupingAggregatorFunction {
+    private static final String MULTIVALUED_SAMPLE_WARNING = "Multivalued samples are not supported by changes and were ignored.";
     private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
         new IntermediateStateDesc("timestamps", ElementType.LONG),
         new IntermediateStateDesc("values", ElementType.$TYPE$),
@@ -72,14 +81,17 @@ final class Changes$Type$GroupingAggregatorFunction extends AbstractRateGrouping
     private final List<Integer> channels;
     private final DriverContext driverContext;
     private final BigArrays bigArrays;
+    private final Warnings warnings;
     private final Rate$Type$GroupingAggregatorFunction.$Type$RawBuffer rawBuffer;
     private final Rate$Type$GroupingAggregatorFunction.IntervalBuffer intervalBuffer;
     private ObjectArray<ReducedState> reducedStates;
+    private int lastSliceIndex = -1;
 
-    Changes$Type$GroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
+    Changes$Type$GroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext, Warnings warnings) {
         this.channels = channels;
         this.driverContext = driverContext;
         this.bigArrays = driverContext.bigArrays();
+        this.warnings = warnings;
         Rate$Type$GroupingAggregatorFunction.$Type$RawBuffer rawBuffer = null;
         Rate$Type$GroupingAggregatorFunction.IntervalBuffer intervalBuffer = null;
         try {
@@ -115,6 +127,13 @@ final class Changes$Type$GroupingAggregatorFunction extends AbstractRateGrouping
         LongBlock timestampsBlock = page.getBlock(channels.get(1));
         if (valuesBlock.areAllValuesNull() || timestampsBlock.areAllValuesNull()) {
             return null;
+        }
+        IntVector sliceIndices = ((IntBlock) page.getBlock(channels.get(2))).asVector();
+        assert sliceIndices != null : "expected slice indices vector in time-series aggregation";
+        int sliceIndex = sliceIndices.getInt(0);
+        if (sliceIndex > lastSliceIndex) {
+            flushRawBuffers();
+            lastSliceIndex = sliceIndex;
         }
         $Type$Vector valuesVector = valuesBlock.asVector();
         LongVector timestampsVector = timestampsBlock.asVector();
@@ -166,20 +185,20 @@ final class Changes$Type$GroupingAggregatorFunction extends AbstractRateGrouping
             if (groups.isNull(p) || values.isNull(valuePosition) || timestamps.isNull(valuePosition)) {
                 continue;
             }
-            int valueStart = values.getFirstValueIndex(valuePosition);
-            int valueEnd = valueStart + values.getValueCount(valuePosition);
-            int timestampStart = timestamps.getFirstValueIndex(valuePosition);
-            int timestampEnd = timestampStart + timestamps.getValueCount(valuePosition);
+            int valueCount = values.getValueCount(valuePosition);
+            int timestampCount = timestamps.getValueCount(valuePosition);
+            if (valueCount != 1 || timestampCount != 1) {
+                if (valueCount > 1 || timestampCount > 1) {
+                    warnings.registerWarning(MULTIVALUED_SAMPLE_WARNING);
+                }
+                continue;
+            }
+            $type$ value = values.get$Type$(values.getFirstValueIndex(valuePosition));
+            long timestamp = timestamps.getLong(timestamps.getFirstValueIndex(valuePosition));
             int groupStart = groups.getFirstValueIndex(p);
             int groupEnd = groupStart + groups.getValueCount(p);
             for (int g = groupStart; g < groupEnd; g++) {
-                int groupId = groups.getInt(g);
-                for (int t = timestampStart; t < timestampEnd; t++) {
-                    long timestamp = timestamps.getLong(t);
-                    for (int v = valueStart; v < valueEnd; v++) {
-                        rawBuffer.append(groupId, timestamp, values.get$Type$(v));
-                    }
-                }
+                rawBuffer.append(groups.getInt(g), timestamp, value);
             }
         }
     }
@@ -190,17 +209,19 @@ final class Changes$Type$GroupingAggregatorFunction extends AbstractRateGrouping
             if (values.isNull(valuePosition) || timestamps.isNull(valuePosition)) {
                 continue;
             }
-            int groupId = groups.getInt(p);
-            int valueStart = values.getFirstValueIndex(valuePosition);
-            int valueEnd = valueStart + values.getValueCount(valuePosition);
-            int timestampStart = timestamps.getFirstValueIndex(valuePosition);
-            int timestampEnd = timestampStart + timestamps.getValueCount(valuePosition);
-            for (int t = timestampStart; t < timestampEnd; t++) {
-                long timestamp = timestamps.getLong(t);
-                for (int v = valueStart; v < valueEnd; v++) {
-                    rawBuffer.append(groupId, timestamp, values.get$Type$(v));
+            int valueCount = values.getValueCount(valuePosition);
+            int timestampCount = timestamps.getValueCount(valuePosition);
+            if (valueCount != 1 || timestampCount != 1) {
+                if (valueCount > 1 || timestampCount > 1) {
+                    warnings.registerWarning(MULTIVALUED_SAMPLE_WARNING);
                 }
+                continue;
             }
+            rawBuffer.append(
+                groups.getInt(p),
+                timestamps.getLong(timestamps.getFirstValueIndex(valuePosition)),
+                values.get$Type$(values.getFirstValueIndex(valuePosition))
+            );
         }
     }
 
@@ -383,7 +404,7 @@ $endif$
         reducedStates = bigArrays.grow(reducedStates, rawBuffer.maxGroupId + 1);
         FlushQueues flushQueues = rawBuffer.prepareForFlush();
         for (int groupId = flushQueues.minGroupId(); groupId <= flushQueues.maxGroupId(); groupId++) {
-            FlushQueue flushQueue = flushQueues.getFlushQueue(groupId, rawBuffer::compareValues);
+            FlushQueue flushQueue = flushQueues.getFlushQueue(groupId);
             if (flushQueue != null) {
                 flushGroup(getOrInitializeReducedState(groupId), flushQueue);
             }

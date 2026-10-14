@@ -44,6 +44,9 @@ import java.util.List;
  * instantiate the function and run arity validation that throws. Most arms call a static fold on
  * the function class itself; {@code TO_DATETIME} is folded here instead, because it lives in the
  * {@code convert} package and the literal helpers this fold needs are package-private to this one.
+ * It is also the one conversion with two spellings - the named call and the {@code ::datetime} inline
+ * cast - so it has two entry points: {@link #tryFoldCall} for the unresolved call and
+ * {@link #tryFoldCast} for the node the parser builds.
  * Unary {@code YEAR}/{@code MONTH}/{@code DAY}/{@code HOUR} fold by injecting their chrono and
  * delegating to {@link DateExtract}. Invert dispatches on the resolved {@link DateTrunc} /
  * {@link DateExtract} node after surrogate substitution.
@@ -88,6 +91,30 @@ public final class DateFunctionComparisonRewriter {
         } catch (Exception e) {
             logger.debug("listing-time fold failed for [{}]", call.name(), e);
             return call;
+        }
+    }
+
+    /**
+     * The same fold as {@link #tryFoldCall}, for a {@code TO_DATETIME} that arrives already constructed.
+     * <p>
+     * An inline cast is not a named call: the parser's {@code castToType} builds the conversion function itself, so
+     * {@code "2026-07-13T00:00:00.000Z"::datetime} reaches the listing fold as a {@link ToDatetime} node and never as
+     * an {@link UnresolvedFunction}. Dispatching on the name alone therefore folded only one of the two spellings of
+     * one conversion, and a filter written with the cast emitted no partition hint at all - no error, just the whole
+     * glob listed. The node carries a {@code Configuration} of its own, which the parser fills with a marker, so the
+     * session's is passed in here exactly as on the named path.
+     */
+    public static Expression tryFoldCast(ToDatetime cast, Configuration config) {
+        try {
+            Literal folded = tryFoldToDatetime(cast.source(), cast.children(), config);
+            return folded != null ? folded : cast;
+        } catch (UnresolvedException e) {
+            // Same tripwire as tryFoldCall: swallowing this would hide a regression that skipped partition
+            // hints instead of failing analysis.
+            throw e;
+        } catch (Exception e) {
+            logger.debug("listing-time fold failed for an inline datetime cast", e);
+            return cast;
         }
     }
 

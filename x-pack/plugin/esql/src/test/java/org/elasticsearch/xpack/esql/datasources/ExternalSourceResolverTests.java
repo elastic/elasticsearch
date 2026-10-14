@@ -39,6 +39,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.ExternalPlanningReservation;
+import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -99,11 +100,13 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
@@ -2852,6 +2855,78 @@ public class ExternalSourceResolverTests extends ESTestCase {
     private static LogicalPlan vpcDashboardFilterPlanViaToDatetime(String path) {
         Source src = Source.EMPTY;
         Expression ts = new UnresolvedFunction(src, "TO_DATETIME", List.of(Literal.keyword(src, "2026-07-13T00:00:00.000Z")));
+        Expression condition = new And(
+            src,
+            new And(
+                src,
+                new Equals(
+                    src,
+                    new UnresolvedAttribute(src, "year"),
+                    new UnresolvedFunction(src, "DATE_EXTRACT", List.of(Literal.keyword(src, "YEAR"), ts))
+                ),
+                new Equals(
+                    src,
+                    new UnresolvedAttribute(src, "month"),
+                    new UnresolvedFunction(src, "DATE_EXTRACT", List.of(Literal.keyword(src, "MONTH_OF_YEAR"), ts))
+                )
+            ),
+            new Equals(
+                src,
+                new UnresolvedAttribute(src, "day"),
+                new UnresolvedFunction(src, "DATE_EXTRACT", List.of(Literal.keyword(src, "DAY_OF_MONTH"), ts))
+            )
+        );
+        return new Filter(src, new UnresolvedExternalRelation(src, Literal.keyword(src, path), Map.of()), condition);
+    }
+
+    /**
+     * The third spelling of the same filter: the timestamp is an inline {@code "..."::datetime} cast rather than a
+     * {@code TO_DATETIME(...)} call. The parser does not leave a cast unresolved - it builds the conversion function
+     * itself - so the node reaching the listing fold is a {@link ToDatetime} and never an {@code UnresolvedFunction}.
+     * A fold dispatching only on the name therefore folded the call form and silently skipped the cast form: no hint
+     * was emitted, no error was raised, and the listing ran over the whole glob.
+     * <p>
+     * Asserted against {@link #vpcDashboardFilterPlan}, the pre-folded fixture, so the two spellings are pinned to
+     * prune the same folders rather than merely to produce some hint each.
+     */
+    public void testVpcDashboardHintsFoldThroughInlineDatetimeCast() {
+        String glob = "s3://bucket/data/year=*/month=*/day=*/hour=*/*.parquet";
+        EsqlFunctionRegistry registry = new EsqlFunctionRegistry();
+
+        Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> cast = PartitionFilterHintExtractor.extract(
+            FoldDateFunctionFiltersForListing.fold(vpcDashboardFilterPlanViaInlineCast(glob), TEST_CFG, registry)
+        );
+        List<PartitionFilterHintExtractor.PartitionFilterHint> pathHints = cast.get(glob);
+        assertNotNull("an inline ::datetime cast must fold so the DATE_EXTRACT above it can", pathHints);
+        assertEquals(3, pathHints.size());
+        assertEquals(List.of(2026L), pathHints.get(0).values());
+        assertEquals(List.of(7L), pathHints.get(1).values());
+        assertEquals(List.of(13L), pathHints.get(2).values());
+
+        Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> preFolded = PartitionFilterHintExtractor.extract(
+            FoldDateFunctionFiltersForListing.fold(vpcDashboardFilterPlan(glob), TEST_CFG, registry)
+        );
+        List<PartitionFilterHintExtractor.PartitionFilterHint> expected = preFolded.get(glob);
+        assertNotNull("the pre-folded sibling fixture must still yield hints, or this comparison proves nothing", expected);
+        assertEquals(expected, pathHints);
+    }
+
+    /**
+     * {@link #vpcDashboardFilterPlan} with the timestamp left as the inline cast a query can write.
+     * <p>
+     * Built through the same factory and configuration marker the parser's {@code castToType} uses, rather than by
+     * calling the constructor directly: a test that minted the node itself would keep passing if the parser were
+     * changed to build some other node for {@code ::datetime}, which is the only thing this fixture is here to pin.
+     */
+    private static LogicalPlan vpcDashboardFilterPlanViaInlineCast(String path) {
+        Source src = Source.EMPTY;
+        Expression ts = EsqlDataTypeConverter.converterFunctionFactory(DataType.DATETIME)
+            .apply(src, Literal.keyword(src, "2026-07-13T00:00:00.000Z"), ConfigurationAware.CONFIGURATION_MARKER);
+        assertThat(
+            "the parser builds ::datetime as a ToDatetime; this fixture is void if it stops doing so",
+            ts,
+            instanceOf(ToDatetime.class)
+        );
         Expression condition = new And(
             src,
             new And(

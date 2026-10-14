@@ -445,15 +445,17 @@ public class CsvSchemaInferrer {
      * Taken from {@code EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER} rather than re-declared
      * from its pattern string, so no copy of it is left to drift.
      * <p>
-     * Note it is the DIALECT being asked about, not the range: a value this parses but that falls
-     * outside the representable window is deliberately kept (demoting on it would make a column's type
-     * depend on row order) and fails per-cell at read, exactly as a declared {@code date_nanos} schema
-     * makes it fail.
+     * Note it is the DIALECT being asked about, not the range: a T-form value this parses but that
+     * falls outside the representable nanosecond window is deliberately kept and fails per-cell at
+     * read, exactly as a declared {@code date_nanos} schema makes it fail. The space-separated path
+     * uses {@link CsvFormatReader#tryParseSpaceSeparatedDatetimeNanos}, which returns a miss for
+     * out-of-range instants, so space-separated out-of-window values do not force the column.
      */
     private static final DateFormatter NANOS_RAIL_FORMAT = EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER;
 
     private static boolean nanosRailCanDecode(String value) {
-        return NANOS_RAIL_FORMAT.tryParse(value) != null || CsvFormatReader.matchesSpaceSeparatedDatetimeNanosTemplate(value);
+        return NANOS_RAIL_FORMAT.tryParse(value) != null
+            || CsvFormatReader.tryParseSpaceSeparatedDatetimeNanos(value) != CsvFormatReader.FAST_PATH_MISS;
     }
 
     /**

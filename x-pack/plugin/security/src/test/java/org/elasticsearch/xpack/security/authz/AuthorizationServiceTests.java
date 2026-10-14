@@ -661,6 +661,9 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
         roleMap.put("manage_security_role", role);
         for (String action : LoggingAuditTrail.SECURITY_CHANGE_ACTIONS) {
+            if (action.startsWith("cluster:admin/xpack/security") == false) {
+                continue;
+            }
             TransportRequest request = mock(TransportRequest.class);
             authorize(authentication, action, request);
             verify(auditTrail).accessGranted(

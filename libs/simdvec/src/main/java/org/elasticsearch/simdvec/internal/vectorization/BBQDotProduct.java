@@ -10,9 +10,10 @@ package org.elasticsearch.simdvec.internal.vectorization;
 
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
+import org.elasticsearch.lucene.store.SegmentBufferScratch;
 import org.elasticsearch.simdvec.BBQEncoding;
 import org.elasticsearch.simdvec.ESVectorUtil;
-import org.elasticsearch.simdvec.internal.BufferScratch;
+import org.elasticsearch.simdvec.internal.HeapBufferScratch;
 
 import java.io.IOException;
 
@@ -43,7 +44,10 @@ public class BBQDotProduct {
     /** Byte length of the query vector, {@code queryBits * planeBytes} */
     protected final int queryBytes;
 
-    protected final BufferScratch scratch = new BufferScratch();
+    protected final SegmentBufferScratch scratch = new SegmentBufferScratch();
+
+    /** Heap scratch for the scalar implementations below, which read the data vector in Java. */
+    private final HeapBufferScratch heapScratch = new HeapBufferScratch();
 
     /**
      * Factory method for a scalar dot-product implementation.
@@ -93,7 +97,7 @@ public class BBQDotProduct {
         /*
          * Basic generalized dot-product implementation using AND popcount on byte arrays
          */
-        byte[] data = scratch.apply(docBytes);
+        byte[] data = heapScratch.apply(docBytes);
         in.readBytes(data, 0, docBytes);
 
         long dot = 0;

@@ -6,11 +6,11 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_load_all_v2 ]
+          capabilities: [ optional_fields_load_all_single_source_column, optional_fields_load_all_v2 ]
       reason: >
-        LOAD_ALL renders a discovered value with UnmappedKeywordValues#collect - Object#toString() for a
-        scalar, nothing for an object, element-wise for an array - so the JSON *shape* of a value in _source,
-        not the type it would have been mapped to, decides the output. These shapes cannot be written in a
+        LOAD_ALL returns the discovered leaves as one flattened JSON object, keeping the JSON scalar type of each value and
+        turning an array into a JSON array, so the JSON *shape* of a value in _source, not the type it would have been
+        mapped to, decides the output. These shapes cannot be written in a
         csv-spec data file: CsvTestsDataLoader#toJson quotes any non-numeric cell, so a JSON boolean, an
         exponent-form double or a negative zero is unreachable there.
         Every query here deliberately avoids naming a discovered field. An all-literal KEEP makes
@@ -117,30 +117,32 @@ teardown:
         ignore_unavailable: true
 
 ---
-'JSON scalar shapes render as toString of the parsed value (stored source)':
+'JSON scalar shapes keep their JSON type (stored source)':
   - do:
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_values_stored | LIMIT 5'
-  - length: { columns: 13 }
+  - length: { columns: 2 }
   - match: { columns.0.name: id }
-  - match: { columns.1.name: b_false }
-  - match: { columns.1.type: keyword }
-  - match: { columns.2.name: b_true }
-  - match: { columns.3.name: d_exp }
-  - match: { columns.4.name: d_frac }
-  - match: { columns.5.name: d_neg_zero }
-  - match: { columns.6.name: d_one }
-  - match: { columns.7.name: d_precise }
-  - match: { columns.8.name: i_huge }
-  - match: { columns.9.name: i_long }
-  - match: { columns.10.name: i_small }
-  - match: { columns.11.name: s_bool }
-  - match: { columns.12.name: s_num }
-  - match: { values.0: [ "1", "false", "true", "1000.0", "1.5", "-0.0", "1.0", "1.2345678901234567", "18446744073709551615", "3000000000", "7", "true", "7" ] }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { columns.1.type: _source }
+  - match: { values.0.0: "1" }
+  - match: { values.0.1.b_false: false }
+  - match: { values.0.1.b_true: true }
+  - match: { values.0.1.d_exp: 1000.0 }
+  - match: { values.0.1.d_frac: 1.5 }
+  - match: { values.0.1.d_neg_zero: -0.0 }
+  - match: { values.0.1.d_one: 1.0 }
+  - match: { values.0.1.d_precise: 1.2345678901234567 }
+  - match: { values.0.1.i_huge: 18446744073709551615 }
+  - match: { values.0.1.i_long: 3000000000 }
+  - match: { values.0.1.i_small: 7 }
+  # A JSON string stays a string even when it looks like a number or a boolean.
+  - match: { values.0.1.s_bool: "true" }
+  - match: { values.0.1.s_num: "7" }
 
 ---
-'JSON scalar shapes render identically from synthetic source':
+'JSON scalar shapes are identical from synthetic source':
   # Same document, synthetic source. The values are only reachable because dynamic:false routes them to
   # _ignored_source, which stores the raw XContent - so no mapper normalisation (boolean coercion, date
   # formatting, scaled_float rounding) can get between _source and the output here.
@@ -148,11 +150,23 @@ teardown:
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_values_synth | LIMIT 5'
-  - length: { columns: 13 }
-  - match: { values.0: [ "1", "false", "true", "1000.0", "1.5", "-0.0", "1.0", "1.2345678901234567", "18446744073709551615", "3000000000", "7", "true", "7" ] }
+  - length: { columns: 2 }
+  - match: { values.0.0: "1" }
+  - match: { values.0.1.b_false: false }
+  - match: { values.0.1.b_true: true }
+  - match: { values.0.1.d_exp: 1000.0 }
+  - match: { values.0.1.d_frac: 1.5 }
+  - match: { values.0.1.d_neg_zero: -0.0 }
+  - match: { values.0.1.d_one: 1.0 }
+  - match: { values.0.1.d_precise: 1.2345678901234567 }
+  - match: { values.0.1.i_huge: 18446744073709551615 }
+  - match: { values.0.1.i_long: 3000000000 }
+  - match: { values.0.1.i_small: 7 }
+  - match: { values.0.1.s_bool: "true" }
+  - match: { values.0.1.s_num: "7" }
 
 ---
-'a literal dotted key and the nested form of the same path merge into one discovered column':
+'a literal dotted key and the nested form of the same path merge into one array value':
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -163,10 +177,10 @@ teardown:
   - length: { columns: 2 }
   - length: { values: 1 }
   - match: { columns.0.name: id }
-  - match: { columns.1.name: dot.path }
-  - match: { columns.1.type: keyword }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { columns.1.type: _source }
   - match: { values.0.0: "1" }
-  - length: { values.0.1: 2 }
+  - match: { values.0.1: { dot.path: [ nested, literal ] } }
 
 ---
 'five levels of nesting flatten to one dotted leaf':
@@ -178,12 +192,12 @@ teardown:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_keys | WHERE id == "2" | KEEP id, l1.*'
   - length: { columns: 2 }
-  - match: { columns.1.name: l1.l2.l3.l4.l5 }
-  - match: { columns.1.type: keyword }
-  - match: { values.0: [ "2", "deep" ] }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { columns.1.type: _source }
+  - match: { values.0: [ "2", { l1.l2.l3.l4.l5: deep } ] }
 
 ---
-'an array of one scalar and one object yields both a parent column and a dotted leaf column':
+'an array of one scalar and one object yields the parent and a dotted leaf in the same object':
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -191,15 +205,13 @@ teardown:
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_keys | WHERE id == "3" | KEEP id, mixed*'
-  - length: { columns: 3 }
-  - match: { columns.1.name: mixed }
-  - match: { columns.1.type: keyword }
-  - match: { columns.2.name: mixed.sub }
-  - match: { columns.2.type: keyword }
-  - match: { values.0: [ "3", "scalar", "from_object" ] }
+  - length: { columns: 2 }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { columns.1.type: _source }
+  - match: { values.0: [ "3", { mixed: scalar, mixed.sub: from_object } ] }
 
 ---
-'keys differing only by case become two columns, and a wildcard character in a key is matched literally':
+'keys differing only by case stay distinct, and a wildcard character in a key is matched literally':
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -207,10 +219,7 @@ teardown:
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_keys | WHERE id == "4"'
-  - length: { columns: 5 }
+  - length: { columns: 2 }
   - match: { columns.0.name: id }
-  - match: { columns.1.name: Case }
-  - match: { columns.2.name: case }
-  - match: { columns.3.name: "wild*card" }
-  - match: { columns.4.name: "with space" }
-  - match: { values.0: [ "4", "upper", "lower", "star", "spaced" ] }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { values.0: [ "4", { Case: upper, case: lower, "wild*card": star, "with space": spaced } ] }

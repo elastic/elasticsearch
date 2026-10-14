@@ -10,21 +10,23 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.esql.analysis.UnmappedFieldsOrdering;
+import org.elasticsearch.xcontent.support.AbstractXContentParser;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -32,62 +34,64 @@ import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
-import org.elasticsearch.xpack.esql.planner.UnmappedKeywordValues;
 import org.elasticsearch.xpack.esql.session.Result;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 
-import static org.elasticsearch.xpack.esql.approximation.ApproximationPlan.isApproximationColumn;
-
 /**
  * Coordinator-side post-processor for {@code SET unmapped_fields="LOAD_ALL"}.
  *
- * <p>After all data-node pages are collected, flattens each row's {@code _unmapped_fields} JSON object to its leaves and replaces that
- * column with one {@code keyword} column per unique leaf path: dotted for nested objects, multivalue for arrays, no column of its own for
- * an object (matching the {@code null} an explicit reference to it reads), and {@code null} where a row lacks the leaf. Flattening lets a
- * synthetic-source index, which rebuilds a dotted source key as a nested object, expand to the same columns as a stored-source one.
+ * <p>After all data-node pages are collected, flattens each row's {@code $$unmapped_fields} JSON object to its leaves and re-serialises
+ * them as a single JSON object under a {@code _unmapped_fields} column of type {@link DataType#SOURCE} (like the {@code _source}
+ * column of {@code METADATA _source}, but a flattened view of it rather than a structural subset). Field names are flattened:
+ * {@code {"foo":{"bar":1}}} in {@code _source} becomes {@code {"foo.bar":1}} in {@code _unmapped_fields}. Arrays follow multivalue
+ * semantics: a leaf with several values becomes a JSON array at the same (dotted) name, while a one-element array is
+ * indistinguishable from a scalar and renders as the bare value ({@code {"a":[1]}} becomes {@code {"a":1}}). A row whose object
+ * contributes no surviving leaf gets a {@code null}.
+ *
+ * <p>The column is not expanded into individual columns (see
+ * <a href="https://github.com/elastic/elasticsearch/issues/161717">#161717</a>): a practical {@code _source} can hold a large number
+ * of distinct unmapped fields, which does not compose well as one column per field. Returning a single {@code SOURCE} blob keeps the
+ * response shape bounded and mirrors {@code METADATA _source}.
  *
  * <p>The data node ships whole objects (it can only filter by top-level source key, pruning a subtree solely when a wildcard
  * {@code DROP} covers it), so this post-processor is where the {@link UnmappedFieldsPattern} is applied per flattened <em>leaf</em>
- * name.
+ * name, and where a leaf colliding with a real output column is dropped so a discovered field can never shadow a query column.
  *
- * <p>A discovered field is not a column when {@code KEEP} is resolved, so the plan could not position it then.
- * {@link UnmappedFieldsOrdering} hands the discovered fields back to the plan as if they had been mapped all
- * along and asks it for its output: every {@code KEEP}/{@code DROP}/{@code RENAME} re-resolves itself, and {@code EVAL} columns trail
- * the discovered fields because the discovered fields take the relation slot the synthetic column occupied. Approximation extras
- * ({@code _approximation_*}) are added after analysis, so they are held out of that replay and pinned last.
- * <p>
- * The data node only puts keys into the column that hold a value, so no expanded column comes out null in every row -
- * {@link #assertNoAllNullExpandedColumn} holds that end of the contract down.
- * <p>
- * At most {@link PlannerSettings#LOAD_ALL_MAX_FIELDS} discovered fields become columns, with a warning if there were
- * more.
- * <p>
- * The expansion scans every row of every page twice (once to collect field names, once to rewrite), so it polls for cancellation
- * every {@link #ROWS_PER_CANCELLATION_CHECK} rows and throws {@link TaskCancelledException} to abort promptly. Cancellation is
- * therefore row-granular: a single pathological row (deeply nested {@code _source} with very many leaves) still parses and flattens
- * to completion before the next poll. That is acceptable here because expansion cost scales with row count rather than any one row,
- * and the circuit breaker - not cancellation - is what bounds the memory a wide row can demand.
- * <p>
- * TODO every row's {@code _source} ends up parsed three times: the data node parses it to filter the column, then the
- *  coordinator parses the column once to collect field names and once more to expand them. A columnar shape — one block of
- *  names and one of values — would let us build the union while reading and expand without re-parsing.
+ * <p>The {@code _unmapped_fields} column takes the slot the synthetic column occupied in the executed schema; it is produced after
+ * analysis and is not referable from the query language (the synthetic {@code $$}-prefixed name kept it unreachable during planning).
+ * If the query itself already outputs a column named {@code _unmapped_fields}, that column wins, as with any other colliding leaf:
+ * the discovered fields are dropped and no second column of that name is produced.
+ *
+ * <p>Each row's JSON is streamed with a parser and never materialised as a {@code Map}, so a structure-heavy row (an array of many
+ * tiny objects) costs only the leaves it flattens to, not an object graph many times its byte size.
+ *
+ * <p>The flattening scans every row of every page once, so it polls for cancellation at the start of every page and then every
+ * {@link #ROWS_PER_CANCELLATION_CHECK} rows within one, and throws {@link TaskCancelledException} to abort promptly. Cancellation is
+ * row-granular: a single pathological row (deeply nested {@code _source} with very many leaves) still flattens to completion before
+ * the next poll. That is acceptable because the cost scales with row count rather than any one row, and the circuit breaker - not
+ * cancellation - is what bounds the memory a wide row can demand.
+ *
+ * <p>TODO every row's {@code _source} ends up parsed twice: the data node parses it to filter the column, then the coordinator parses
+ *  the column once more here to flatten it. #161644 moves the per-leaf filtering and the streaming {@code _source} read to the shard
+ *  (the first half of #158479); what remains is flattening on the shard too, so the column ships as-is with no reparse here.
  */
 public final class ExpandUnmappedFieldsPostProcessor {
+    /** The user-visible name of the single flattened unmapped-fields column this post-processor emits. */
+    public static final String UNMAPPED_FIELDS_COLUMN_NAME = "_unmapped_fields";
+
     /**
-     * How often the expansion loops poll {@code isCancelled}. The expansion is a coordinator-side, single-threaded scan over every row
-     * of every page (parsing each row's {@code _source} JSON), so for a wide or high-row {@code LOAD_ALL} result it can run for seconds.
+     * How often the flattening loop polls {@code isCancelled}. The flattening is a coordinator-side, single-threaded scan over every
+     * row of every page (parsing each row's {@code _source} JSON), so for a high-row {@code LOAD_ALL} result it can run for seconds.
      * Polling every {@value} rows keeps cancellation latency to a small fraction of a page while adding no measurable overhead per row.
      * Must stay a power of two for the bit-mask test below.
      */
@@ -98,45 +102,46 @@ public final class ExpandUnmappedFieldsPostProcessor {
     }
 
     /**
-     * Test-only seam invoked once at the start of the expansion phase — after a {@code _unmapped_fields} column has been confirmed
+     * Test-only seam invoked once at the start of the flattening phase — after a {@code $$unmapped_fields} column has been confirmed
      * present but before any page is scanned. Production never installs a hook (the field stays {@code null}), so this adds a single
      * volatile read per {@code LOAD_ALL} response and nothing otherwise. {@code LoadAllCancellationIT} installs a hook that blocks
-     * until it has cancelled the task, which lets it deterministically land a cancellation inside an in-progress expansion (rather than
+     * until it has cancelled the task, which lets it deterministically land a cancellation inside an in-progress flattening (rather than
      * during the compute phase, where the drivers would abort first) and assert that the per-row {@link #ROWS_PER_CANCELLATION_CHECK}
-     * poll then aborts it. Volatile so the coordinator thread running the expansion observes the test's write.
+     * poll then aborts it. Volatile so the coordinator thread running the flattening observes the test's write.
      */
-    static volatile Runnable expansionStartedForTest = null;
+    static volatile Runnable flatteningStartedForTest = null;
 
     /**
-     * Expands the {@code _unmapped_fields} column in {@code result} into per-field columns.
-     * Returns {@code result} unchanged if no {@link UnmappedFieldsAttribute} is present in the schema.
+     * Flattens the {@code $$unmapped_fields} column in {@code result} into a single {@code _unmapped_fields} {@link DataType#SOURCE}
+     * column. Returns {@code result} unchanged if no {@link UnmappedFieldsAttribute} is present in the schema.
      *
-     * @param isCancelled polled every {@link #ROWS_PER_CANCELLATION_CHECK} rows during the (potentially long) expansion; when it reports
-     *                    the task cancelled the expansion throws {@link TaskCancelledException} and releases the input and any partially
-     *                    built pages, so an expensive expansion can be cancelled promptly instead of only after it finishes.
+     * @param isCancelled polled every {@link #ROWS_PER_CANCELLATION_CHECK} rows during the (potentially long) flattening; when it reports
+     *                    the task cancelled the flattening throws {@link TaskCancelledException} and releases the input and any partially
+     *                    built pages, so an expensive flattening can be cancelled promptly instead of only after it finishes.
      */
-    public static Result expand(
-        Result result,
-        @Nullable UnmappedFieldsOrdering ordering,
-        BlockFactory blockFactory,
-        PlannerSettings plannerSettings,
-        BooleanSupplier isCancelled
-    ) {
+    public static Result flatten(Result result, BlockFactory blockFactory, PlannerSettings plannerSettings, BooleanSupplier isCancelled) {
         List<Attribute> schema = result.schema();
 
         int unmappedIdx = unmappedFieldsIndex(schema);
         if (unmappedIdx == -1) {
             return result;
         }
-        // From #160286: the expansion below is a CPU-heavy, coordinator-side scan over every row of every page, so it must run on the
+        // From #160286: the flattening below is a CPU-heavy, coordinator-side scan over every row of every page, so it must run on the
         // esql_worker pool (EsqlSession dispatches it there) rather than a transport/search thread. The guard sits after the no-op early
         // return so the "no unmapped fields" path, which completes inline on the calling thread, is unaffected. assertCurrentThreadPool is
-        // a no-op on test threads, so unit tests that call expand() directly are not impacted.
+        // a no-op on test threads, so unit tests that call flatten() directly are not impacted.
         assert ThreadPool.assertCurrentThreadPool(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME);
         double reservationFactor = plannerSettings.sourceReservationFactor();
-        int maxFields = plannerSettings.loadAllMaxFields();
         UnmappedFieldsAttribute unmappedAttribute = (UnmappedFieldsAttribute) schema.get(unmappedIdx);
         UnmappedFieldsPattern pattern = unmappedAttribute.pattern();
+        Set<String> existingNames = existingColumnNames(schema, unmappedIdx);
+        if (existingNames.contains(UNMAPPED_FIELDS_COLUMN_NAME)) {
+            return withoutUnmappedColumn(result, schema, unmappedIdx);
+        }
+
+        // Replace the synthetic column in place with the user-visible SOURCE column; everything else keeps its slot.
+        List<Attribute> newSchema = new ArrayList<>(schema);
+        newSchema.set(unmappedIdx, new ReferenceAttribute(Source.EMPTY, UNMAPPED_FIELDS_COLUMN_NAME, DataType.SOURCE));
 
         // From here on we own the input pages: on success rewritePage drains them one by one, on any failure we release whatever
         // is left below. Page#releaseBlocks is idempotent, so re-releasing pages rewritePage already drained is a no-op.
@@ -144,37 +149,14 @@ public final class ExpandUnmappedFieldsPostProcessor {
         try {
             // Run the test seam inside the try so a throwing hook releases the input pages through the finally below, exactly like a
             // cancellation or parsing failure would.
-            Runnable expansionStarted = expansionStartedForTest;
-            if (expansionStarted != null) {
-                expansionStarted.run();
+            Runnable flatteningStarted = flatteningStartedForTest;
+            if (flatteningStarted != null) {
+                flatteningStarted.run();
             }
-            Set<String> existingNames = existingColumnNames(schema, unmappedIdx);
-            List<String> expandedFieldNames = collectFieldNames(
-                result,
-                unmappedIdx,
-                pattern,
-                existingNames,
-                maxFields,
-                blockFactory.breaker(),
-                reservationFactor,
-                isCancelled
-            );
-            // TODO account for newSchema's field names against the circuit breaker. The cap bounds how many there are,
-            // but not how long each is, and unlike the pages the response schema has no breaker-tracked lifetime to release it against.
-            ExpandedLayout layout = computeLayout(schema, unmappedIdx, expandedFieldNames, ordering);
-            List<Page> newPages = rewritePages(
-                result,
-                unmappedIdx,
-                expandedFieldNames,
-                layout.schema(),
-                layout.blockOrder(),
-                blockFactory,
-                reservationFactor,
-                isCancelled
-            );
+            List<Page> newPages = rewritePages(result, unmappedIdx, pattern, existingNames, blockFactory, reservationFactor, isCancelled);
 
-            Result expanded = new Result(
-                layout.schema(),
+            Result flattened = new Result(
+                newSchema,
                 newPages,
                 result.attributeMetadata(),
                 result.configuration(),
@@ -183,7 +165,7 @@ public final class ExpandUnmappedFieldsPostProcessor {
                 result.approximationApplied()
             );
             success = true;
-            return expanded;
+            return flattened;
         } finally {
             if (success == false) {
                 Releasables.closeExpectNoException(result.pages());
@@ -191,159 +173,78 @@ public final class ExpandUnmappedFieldsPostProcessor {
         }
     }
 
-    /** Whether {@link #expand} would rewrite a result with this schema, i.e. the synthetic {@code _unmapped_fields} column is present. */
+    /**
+     * Drops the synthetic column when the query already outputs a column named {@link #UNMAPPED_FIELDS_COLUMN_NAME}: the query's column
+     * wins, and a second column of the same name would make the response ambiguous.
+     */
+    private static Result withoutUnmappedColumn(Result result, List<Attribute> schema, int unmappedIdx) {
+        int[] keep = new int[schema.size() - 1];
+        List<Attribute> newSchema = new ArrayList<>(keep.length);
+        for (int c = 0, k = 0; c < schema.size(); c++) {
+            if (c != unmappedIdx) {
+                keep[k++] = c;
+                newSchema.add(schema.get(c));
+            }
+        }
+        List<Page> newPages = new ArrayList<>(result.pages().size());
+        boolean success = false;
+        try {
+            for (Page page : result.pages()) {
+                newPages.add(page.projectBlocks(keep));
+                page.releaseBlocks();
+            }
+            success = true;
+            return new Result(
+                newSchema,
+                newPages,
+                result.attributeMetadata(),
+                result.configuration(),
+                result.completionInfo(),
+                result.executionInfo(),
+                result.approximationApplied()
+            );
+        } finally {
+            if (success == false) {
+                Releasables.closeExpectNoException(newPages);
+                Releasables.closeExpectNoException(result.pages());
+            }
+        }
+    }
+
+    /** Whether {@link #flatten} would rewrite a result with this schema, i.e. the synthetic {@code $$unmapped_fields} column is present. */
     public static boolean hasUnmappedFields(List<Attribute> schema) {
         return unmappedFieldsIndex(schema) != -1;
     }
 
-    /** Index of the synthetic {@code _unmapped_fields} column in {@code schema}, or {@code -1} if none is present. */
+    /** Index of the synthetic {@code $$unmapped_fields} column in {@code schema}, or {@code -1} if none is present. */
     private static int unmappedFieldsIndex(List<Attribute> schema) {
         return CollectionUtils.findIndex(schema, e -> e instanceof UnmappedFieldsAttribute);
     }
 
-    /**
-     * Collect the field names carried by {@code _unmapped_fields} across all pages that become output columns: the alphabetically
-     * first {@code maxFields} that match {@code pattern} and do not collide with {@code existingNames}, sorted. Adds a
-     * warning if that cut off any.
-     * <p>
-     * Every name returned earns an output column, which is why the data node drops the keys that carry no value - see
-     * {@code UnmappedFieldsBlockLoader} and {@link #assertNoAllNullExpandedColumn}.
-     * <p>
-     * A discovered field name that collides with an existing column name is dropped, not an error: with flattening a discovered field
-     * mapped in one index can also appear in another's {@code _source}, and the per-shard UnmappedKeywordBlockLoader already filled
-     * that column, so the value is kept. Such names are dropped before the cap, so they do not take up its slots.
-     * <p>
-     * TODO walk the JSON with a parser instead of materialising a whole {@code Map} only to flatten it to field names. That would
-     *  also make the reservation below unnecessary.
-     */
-    private static List<String> collectFieldNames(
-        Result result,
-        int unmappedIdx,
-        UnmappedFieldsPattern pattern,
-        Set<String> existingNames,
-        int maxFields,
-        CircuitBreaker breaker,
-        double reservationFactor,
-        BooleanSupplier isCancelled
-    ) {
-        FieldNameCollector fieldNames = new FieldNameCollector(maxFields, pattern, existingNames);
-        BytesRef scratch = new BytesRef();
-        for (Page page : result.pages()) {
-            BytesRefBlock unmappedBlock = page.getBlock(unmappedIdx);
-            for (int row = 0; row < unmappedBlock.getPositionCount(); row++) {
-                if ((row & (ROWS_PER_CANCELLATION_CHECK - 1)) == 0) {
-                    throwIfCancelled(isCancelled);
-                }
-                if (unmappedBlock.isNull(row)) {
-                    continue;
-                }
-                BytesRef json = getBytesRef(unmappedBlock, row, scratch);
-                long reservation = reserveForParse(json, breaker, reservationFactor);
-                try {
-                    collectLeaves("", parseJson(json), fieldNames);
-                } finally {
-                    breaker.addWithoutBreaking(-reservation);
-                }
-            }
-        }
-        if (fieldNames.truncated) {
-            HeaderWarning.addWarning(
-                "unmapped_fields=\"LOAD_ALL\" found more than [{}] fields in _source; only the first [{}] in alphabetical order are "
-                    + "returned. Use KEEP or DROP to select the others.",
-                maxFields,
-                maxFields
-            );
-        }
-        return fieldNames.sortedNames();
-    }
-
-    /**
-     * Essentially a max-heap that keeps the alphabetically first {@code maxFields} distinct names it is fed, and never more
-     * than one extra. The same name typically turns up in many rows, so the kept names also live in a hash set: encountering the same
-     * name twice costs one lookup, and deciding if a new name is alphabetically later than any already encountered one costs one
-     * comparison against the head of the heap. Only a new name that makes the cut pays the heap's logarithmic insert.
-     */
-    private static final class FieldNameCollector implements BiConsumer<String, Object> {
-        private final int maxFields;
-        private final UnmappedFieldsPattern pattern;
-        private final Set<String> existingNames;
-        private final Set<String> keptNames = new HashSet<>();
-        /** The same names as {@link #keptNames}, largest first, so the one to evict is always at the head. */
-        private final PriorityQueue<String> largestFirst = new PriorityQueue<>(Comparator.reverseOrder());
-        /** Whether a wanted name was dropped for lack of room, i.e. there were more than {@link #maxFields}. */
-        private boolean truncated = false;
-
-        FieldNameCollector(int maxFields, UnmappedFieldsPattern pattern, Set<String> existingNames) {
-            assert maxFields >= 1 : "a limit of 0 resolves unmapped_fields to LOAD, so there is nothing to expand";
-            this.maxFields = maxFields;
-            this.pattern = pattern;
-            this.existingNames = existingNames;
-        }
-
-        @Override
-        public void accept(String name, Object ignoredValue) {
-            if (keptNames.contains(name)) {
-                return;
-            }
-            if (largestFirst.size() == maxFields && name.compareTo(largestFirst.peek()) > 0) {
-                // Strictly greater than every kept name, so it is a distinct name that does not make the cut. Once one wanted name
-                // has been dropped there is no need to check whether any later one is wanted.
-                if (truncated == false && wanted(name)) {
-                    truncated = true;
-                }
-                return;
-            }
-            if (wanted(name) == false) {
-                return;
-            }
-            keptNames.add(name);
-            largestFirst.add(name);
-            if (largestFirst.size() > maxFields) {
-                keptNames.remove(largestFirst.poll());
-                truncated = true;
-            }
-        }
-
-        private boolean wanted(String name) {
-            return existingNames.contains(name) == false && pattern.matches(name);
-        }
-
-        /**
-         * Drains the heap, largest first, into a list from the back, leaving the names in ascending order. The collector is spent
-         * afterwards: it holds no names anymore.
-         */
-        List<String> sortedNames() {
-            String[] sorted = new String[largestFirst.size()];
-            for (int i = sorted.length - 1; i >= 0; i--) {
-                sorted[i] = largestFirst.poll();
-            }
-            return Arrays.asList(sorted);
-        }
-    }
-
-    /** Throws {@link TaskCancelledException} if {@code isCancelled} reports the query cancelled, so a long expansion aborts promptly. */
+    /** Throws {@link TaskCancelledException} if {@code isCancelled} reports the query cancelled, so a long flattening aborts promptly. */
     private static void throwIfCancelled(BooleanSupplier isCancelled) {
         if (isCancelled.getAsBoolean()) {
-            throw new TaskCancelledException("task cancelled during unmapped fields expansion");
+            throw new TaskCancelledException("task cancelled during unmapped fields flattening");
         }
     }
 
     /**
-     * Reserves memory for one {@link #parseJson} call, which allocates a {@code Map} nothing else accounts for. The multiplier is
-     * {@link PlannerSettings#SOURCE_RESERVATION_FACTOR}, whose javadoc records the measured ~8x blow-up of parsing {@code _source}
-     * into a map - the very same parse this column goes through a second time here.
+     * Reserves memory for flattening one row. The walk holds no parsed {@code Map}, but the row's surviving leaves are buffered and then
+     * re-serialised, which can cost several times the row's own bytes (boxed scalars, a list for a leaf with many values). The multiplier
+     * is {@link PlannerSettings#SOURCE_RESERVATION_FACTOR}, a deliberate overestimate of that buffering that matches what the data node
+     * reserved to produce the row in the first place.
      *
-     * @return the number of reserved bytes, to be handed back with {@link CircuitBreaker#addWithoutBreaking} once the map is gone
+     * @return the number of reserved bytes, to be handed back with {@link CircuitBreaker#addWithoutBreaking} once the leaves are gone
      */
     private static long reserveForParse(BytesRef json, CircuitBreaker breaker, double reservationFactor) {
         long reservation = (long) (json.length * reservationFactor);
-        breaker.addEstimateBytesAndMaybeBreak(reservation, "unmapped fields expansion");
+        breaker.addEstimateBytesAndMaybeBreak(reservation, "unmapped fields flattening");
         return reservation;
     }
 
     /**
-     * The names of every column except {@code _unmapped_fields}. A discovered field colliding with one of them is dropped rather
-     * than expanded, so a discovered field can never shadow a query column.
+     * The names of every column except {@code $$unmapped_fields}. A discovered leaf colliding with one of them is dropped rather
+     * than kept, so a discovered field can never shadow a query column.
      */
     private static Set<String> existingColumnNames(List<Attribute> schema, int unmappedIdx) {
         Set<String> existingNames = new HashSet<>();
@@ -355,127 +256,22 @@ public final class ExpandUnmappedFieldsPostProcessor {
         return existingNames;
     }
 
-    /**
-     * The expanded output layout: the reordered {@code schema} and, per output column, where its block comes from.
-     */
-    private record ExpandedLayout(List<Attribute> schema, int[] blockOrder) {}
-
-    /**
-     * Builds the expanded output layout by asking {@code ordering} where the discovered fields belong: it hands them to the plan as
-     * if they had been mapped all along, so {@code KEEP}/{@code DROP}/{@code RENAME} re-resolve themselves rather than being
-     * re-implemented here. Discovered fields are recognised by {@link NameId} — the attributes handed out below are the very ones
-     * that come back — while real columns match by name, which survives the optimizer minting new ids.
-     */
-    private static ExpandedLayout computeLayout(
-        List<Attribute> schema,
-        int unmappedIdx,
-        List<String> expandedFieldsNames,
-        @Nullable UnmappedFieldsOrdering ordering
-    ) {
-        int originalColumnCount = schema.size();
-        List<Attribute> expandedFieldsAttributes = new ArrayList<>(expandedFieldsNames.size());
-        Map<NameId, Integer> expandedAttributeIdToIdx = new HashMap<>(expandedFieldsNames.size());
-        for (int i = 0; i < expandedFieldsNames.size(); i++) {
-            Attribute attr = new ReferenceAttribute(Source.EMPTY, null, expandedFieldsNames.get(i), DataType.KEYWORD);
-            expandedFieldsAttributes.add(attr);
-            expandedAttributeIdToIdx.put(attr.id(), i);
-        }
-        // Approximation extras (_approximation_*) are appended after analysis, so the replayed plan knows nothing about them. They
-        // are held out of the ordering and pinned last, which is where the response wants them anyway.
-        // TODO: revisit approximation under LOAD_ALL. A top-level STATS makes the pattern NONE, so the synthetic column is never
-        // planned and the two cannot co-occur; INLINE STATS does plan it, so confirm whether approximation can reach this path.
-        Map<String, Integer> nameToSchemaIdx = new HashMap<>();
-        List<Integer> approximationIdx = new ArrayList<>();
-        for (int i = 0; i < originalColumnCount; i++) {
-            if (i == unmappedIdx) {
-                continue;
-            }
-            if (isApproximationColumn(schema.get(i).name())) {
-                approximationIdx.add(i);
-            } else {
-                nameToSchemaIdx.put(schema.get(i).name(), i);
-            }
-        }
-        int dataColumnCount = originalColumnCount - 1 - approximationIdx.size();
-
-        List<Attribute> orderedExpandedAttributes = ordering == null ? null : ordering.order(expandedFieldsAttributes);
-        if (orderedExpandedAttributes == null || orderedExpandedAttributes.size() != dataColumnCount + expandedFieldsAttributes.size()) {
-            // Either nothing was captured, or the replay disagrees with the executed schema because something rewrote the shape
-            // after analysis. Fall back to the natural real-then-discovered order rather than dropping or duplicating a column.
-            assert ordering == null
-                : Strings.format(
-                    "unmapped fields ordering replay diverged from the executed schema: replay=%s executedWithoutUfa=%s discovered=%s",
-                    orderedExpandedAttributes == null ? "null" : orderedExpandedAttributes.stream().map(Attribute::name).toList(),
-                    nameToSchemaIdx.keySet(),
-                    expandedFieldsNames
-                );
-            orderedExpandedAttributes = new ArrayList<>(dataColumnCount + expandedFieldsAttributes.size());
-            for (int i = 0; i < originalColumnCount; i++) {
-                if (i != unmappedIdx && isApproximationColumn(schema.get(i).name()) == false) {
-                    orderedExpandedAttributes.add(schema.get(i));
-                }
-            }
-            orderedExpandedAttributes.addAll(expandedFieldsAttributes);
-        }
-
-        List<Attribute> newSchema = new ArrayList<>(orderedExpandedAttributes.size() + approximationIdx.size());
-        int[] blockOrder = new int[orderedExpandedAttributes.size() + approximationIdx.size()];
-        int pos = 0;
-        for (Attribute attribute : orderedExpandedAttributes) {
-            Integer attributeIdx = expandedAttributeIdToIdx.get(attribute.id());
-            if (attributeIdx != null) {
-                newSchema.add(attribute);
-                blockOrder[pos++] = originalColumnCount + attributeIdx;
-                continue;
-            }
-            Integer schemaIdx = nameToSchemaIdx.get(attribute.name());
-            if (schemaIdx == null) {
-                throw new IllegalStateException(
-                    "orderedExpandedAttributes column [" + attribute.name() + "] is neither a retained column nor a discovered field"
-                );
-            }
-            newSchema.add(schema.get(schemaIdx));
-            blockOrder[pos++] = schemaIdx;
-        }
-        for (int idx : approximationIdx) {
-            newSchema.add(schema.get(idx));
-            blockOrder[pos++] = idx;
-        }
-        return new ExpandedLayout(newSchema, blockOrder);
-    }
-
-    /** Rewrite each page, replacing the {@code _unmapped_fields} block with one block per expanded field name, in {@code blockOrder}. */
+    /** Rewrite each page, replacing the {@code $$unmapped_fields} block with a flattened {@code _unmapped_fields} SOURCE block. */
     private static List<Page> rewritePages(
         Result result,
         int unmappedIdx,
-        List<String> expandedFieldsNames,
-        List<Attribute> newSchema,
-        int[] blockOrder,
+        UnmappedFieldsPattern pattern,
+        Set<String> existingNames,
         BlockFactory factory,
         double reservationFactor,
         BooleanSupplier isCancelled
     ) {
-        int originalColumnCount = result.schema().size();
-        Set<String> keep = Set.copyOf(expandedFieldsNames);
         var newPages = new ArrayList<Page>(result.pages().size());
         var success = false;
         try {
             for (Page p : result.pages()) {
-                newPages.add(
-                    rewritePage(
-                        unmappedIdx,
-                        keep,
-                        expandedFieldsNames,
-                        blockOrder,
-                        originalColumnCount,
-                        factory,
-                        p,
-                        reservationFactor,
-                        isCancelled
-                    )
-                );
+                newPages.add(rewritePage(unmappedIdx, pattern, existingNames, factory, p, reservationFactor, isCancelled));
             }
-            assert assertNoAllNullExpandedColumn(newPages, newSchema, expandedFieldsNames);
             success = true;
             return newPages;
         } finally {
@@ -485,258 +281,215 @@ public final class ExpandUnmappedFieldsPostProcessor {
         }
     }
 
-    /**
-     * Guard rail for what {@code UnmappedFieldsBlockLoader} promises this class: every key it writes into {@code _unmapped_fields}
-     * holds a value, and that value is what {@link #appendRow} writes back, so no expanded column can come out {@code null} in every
-     * row.
-     * <p>
-     * Only the expanded columns are checked: a retained column can legitimately be all null, e.g. {@code KEEP field_absent_everywhere}
-     * resolves to a {@code null} literal. They are found by name in {@code newSchema}, which {@link #computeLayout} keeps in step with
-     * the blocks {@link #rewritePage} lays out - a name is unambiguous because {@code computeLayout} rejects a field name that collides
-     * with a query column.
-     *
-     * @return {@code true}, so this can be called from an {@code assert} and skipped entirely in production
-     */
-    private static boolean assertNoAllNullExpandedColumn(List<Page> pages, List<Attribute> newSchema, List<String> fieldNames) {
-        Set<String> expandedNames = new HashSet<>(fieldNames);
-        for (int column = 0; column < newSchema.size(); column++) {
-            if (expandedNames.contains(newSchema.get(column).name()) == false) {
-                continue;
-            }
-            boolean allNull = true;
-            for (Page page : pages) {
-                if (page.getBlock(column).areAllValuesNull() == false) {
-                    allNull = false;
-                    break;
-                }
-            }
-            if (allNull) {
-                throw new AssertionError(
-                    Strings.format("Expanded unmapped field '%s' into a column that is null in every row", newSchema.get(column).name())
-                );
-            }
-        }
-        return true;
-    }
-
     private static Page rewritePage(
         int unmappedIdx,
-        Set<String> keep,
-        List<String> expandedFieldsNames,
-        int[] blockOrder,
-        int originalColumnCount,
+        UnmappedFieldsPattern pattern,
+        Set<String> existingNames,
         BlockFactory blockFactory,
         Page page,
         double reservationFactor,
         BooleanSupplier isCancelled
     ) {
-        int expandedFieldsCount = expandedFieldsNames.size();
-        Block[] allBlocks = new Block[blockOrder.length];
+        int columnCount = page.getBlockCount();
+        Block[] allBlocks = new Block[columnCount];
 
         var success = false;
-        BytesRefBlock.Builder[] builders = new BytesRefBlock.Builder[expandedFieldsCount];
-        try (var ignored = Releasables.wrap(builders)) {
-            int[] fieldOutputPos = new int[expandedFieldsCount];
-            for (int pos = 0; pos < blockOrder.length; pos++) {
-                int code = blockOrder[pos];
-                if (code < originalColumnCount) {
-                    var block = page.getBlock(code);
-                    block.incRef();
-                    allBlocks[pos] = block;
-                } else {
-                    fieldOutputPos[code - originalColumnCount] = pos;
+        BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(page.getPositionCount());
+        try {
+            BytesRefBlock unmappedBlock = page.getBlock(unmappedIdx);
+            // jsonScratch grows to the largest value seen in this page, so it is per-page rather than per-result. leaves is reused
+            // across rows and is ordered so a leaf that appears twice (a literal dotted key overlapping a nested path) merges in a
+            // deterministic source order rather than an arbitrary HashMap iteration order.
+            var jsonScratch = new BytesRef();
+            Map<String, Object> leaves = new LinkedHashMap<>();
+            BiConsumer<String, Object> leafSink = (name, value) -> {
+                // The data node ships whole objects (filtering only by top-level source key), so the pattern is applied here per
+                // flattened leaf, and a leaf colliding with a real output column is dropped so it can never shadow a query column.
+                if (value != null && existingNames.contains(name) == false && pattern.matches(name)) {
+                    collectLeaf(leaves, name, value);
+                }
+            };
+            CircuitBreaker breaker = blockFactory.breaker();
+            for (int row = 0; row < page.getPositionCount(); row++) {
+                if ((row & (ROWS_PER_CANCELLATION_CHECK - 1)) == 0) {
+                    throwIfCancelled(isCancelled);
+                }
+                if (unmappedBlock.isNull(row)) {
+                    builder.appendNull();
+                    continue;
+                }
+                BytesRef json = getBytesRef(unmappedBlock, row, jsonScratch);
+                long reservation = reserveForParse(json, breaker, reservationFactor);
+                try {
+                    leaves.clear();
+                    walkJson(json, leafSink);
+                    appendFlattened(leaves, builder);
+                } finally {
+                    breaker.addWithoutBreaking(-reservation);
                 }
             }
 
-            // Zero expanded columns means nothing to expand, so just drop the _unmapped_fields column, keep any retained blocks,
-            // and skip the wasted per-row _source re-parse.
-            if (expandedFieldsCount > 0) {
-                BytesRefBlock unmappedBlock = page.getBlock(unmappedIdx);
-                // TODO a column that is null in every row of this page could be a constant null block instead of a builder, which would
-                // save the memory of builders - one per expanded field, each sized for the whole page - that end up holding nothing.
-                Arrays.setAll(builders, i -> blockFactory.newBytesRefBlockBuilder(page.getPositionCount()));
-                // ------ Naming convention ------
-                // "leaf" = JSON string
-                // "discovered field" = a "leaf" outside of the JSON parsing flow; it's already in the analysis/logical plan land
-
-                // valueScratch and fieldNameAndValues are reused across rows: valueScratch holds one leaf's keyword values before they
-                // are appended, fieldNameAndValues holds the current row's flattened leaf-path to value map. jsonScratch grows to the
-                // largest value seen in this page, so it is per-page rather than per-result.
-                var jsonScratch = new BytesRef();
-                List<BytesRef> valueScratch = new ArrayList<>();
-                Map<String, Object> fieldNameAndValues = new HashMap<>();
-                BiConsumer<String, Object> leafSink = (name, value) -> {
-                    if (keep.contains(name)) {
-                        collectLeaf(fieldNameAndValues, name, value);
-                    }
-                };
-                CircuitBreaker breaker = blockFactory.breaker();
-                for (int row = 0; row < page.getPositionCount(); row++) {
-                    if ((row & (ROWS_PER_CANCELLATION_CHECK - 1)) == 0) {
-                        throwIfCancelled(isCancelled);
-                    }
-                    if (unmappedBlock.isNull(row)) {
-                        appendRow(Map.of(), expandedFieldsNames, builders, valueScratch);
-                        continue;
-                    }
-                    BytesRef json = getBytesRef(unmappedBlock, row, jsonScratch);
-                    long reservation = reserveForParse(json, breaker, reservationFactor);
-                    try {
-                        fieldNameAndValues.clear();
-                        collectLeaves("", parseJson(json), leafSink);
-                        appendRow(fieldNameAndValues, expandedFieldsNames, builders, valueScratch);
-                    } finally {
-                        breaker.addWithoutBreaking(-reservation);
-                    }
-                }
-                for (int i = 0; i < builders.length; i++) {
-                    allBlocks[fieldOutputPos[i]] = builders[i].build();
+            for (int c = 0; c < columnCount; c++) {
+                if (c == unmappedIdx) {
+                    allBlocks[c] = builder.build();
+                    builder = null;
+                } else {
+                    Block block = page.getBlock(c);
+                    block.incRef();
+                    allBlocks[c] = block;
                 }
             }
             var result = new Page(page.getPositionCount(), allBlocks);
-            // Release _unmapped_fields block from the circuit breaker; the surviving blocks were protected by incRef above.
+            // Release the $$unmapped_fields block from the circuit breaker; the surviving blocks were protected by incRef above.
             page.releaseBlocks();
             success = true;
             return result;
         } finally {
             if (success == false) {
                 Releasables.closeExpectNoException(allBlocks);
-            }
-        }
-    }
-
-    /**
-     * Appends this row's value for each expanded leaf: {@code null} where the row lacks the leaf or the leaf is an object, a single
-     * keyword for a scalar, and a multivalue for an array (see {@link UnmappedKeywordValues}).
-     * <p>
-     * TODO each scalar is copied twice: {@link UnmappedKeywordValues} renders and UTF-8 encodes it into a fresh {@link BytesRef} and the
-     *  builder copies those bytes again. Values that are already {@code String}s could go straight into the builder's byte array.
-     */
-    private static void appendRow(
-        Map<String, Object> leaves,
-        List<String> leafNames,
-        BytesRefBlock.Builder[] builders,
-        List<BytesRef> valueScratch
-    ) {
-        for (int i = 0; i < builders.length; i++) {
-            valueScratch.clear();
-            UnmappedKeywordValues.collect(leaves.get(leafNames.get(i)), valueScratch);
-            if (valueScratch.isEmpty()) {
-                builders[i].appendNull();
-            } else if (valueScratch.size() == 1) {
-                builders[i].appendBytesRef(valueScratch.get(0));
-            } else {
-                builders[i].beginPositionEntry();
-                for (BytesRef scratched : valueScratch) {
-                    builders[i].appendBytesRef(scratched);
+                if (builder != null) {
+                    Releasables.closeExpectNoException(builder);
                 }
-                builders[i].endPositionEntry();
             }
         }
     }
 
     /**
-     * Guard rail for the other half of what {@code UnmappedFieldsBlockLoader} promises: whatever it wrote under a key is pruned, so it
-     * holds no {@code null} inside an array or object and no empty array or object at any depth. {@link #appendRow} renders the whole
-     * value, so a {@code null} that survived would reach the user as a literal {@code "null"} inside a stringified array - where a
-     * mapped field would have produced a multi-value, and multi-values never contain nulls.
-     *
-     * @return {@code true}, so this can be called from an {@code assert} and skipped entirely in production
+     * Re-serialises this row's surviving flattened leaves as a single JSON object. A scalar renders as its value, an array (a leaf seen
+     * more than once, or a JSON array value) renders as a JSON array. A row with no surviving leaf appends {@code null} rather than an
+     * empty object, which would carry no more information than a null.
      */
-    private static boolean assertPruned(String fieldName, Object value) {
-        if (isPruned(value) == false) {
-            throw new AssertionError(
-                Strings.format("Unmapped field '%s' carries a null or an empty array or object: [%s]", fieldName, value)
-            );
+    private static void appendFlattened(Map<String, Object> leaves, BytesRefBlock.Builder builder) {
+        if (leaves.isEmpty()) {
+            builder.appendNull();
+            return;
         }
-        return true;
-    }
-
-    /** Whether {@code value} is neither {@code null}, nor an empty container, nor a container hiding either of those at any depth. */
-    private static boolean isPruned(Object value) {
-        Collection<?> elements;
-        if (value instanceof List<?> values) {
-            elements = values;
-        } else if (value instanceof Map<?, ?> map) {
-            elements = map.values();
-        } else {
-            return value != null;
-        }
-        if (elements.isEmpty()) {
-            return false;
-        }
-        for (Object element : elements) {
-            if (isPruned(element) == false) {
-                return false;
+        try (XContentBuilder json = XContentFactory.jsonBuilder()) {
+            json.startObject();
+            for (Map.Entry<String, Object> leaf : leaves.entrySet()) {
+                json.field(leaf.getKey(), leaf.getValue() instanceof MultiValue multi ? multi.values : leaf.getValue());
             }
+            json.endObject();
+            builder.appendBytesRef(BytesReference.bytes(json).toBytesRef());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
-        return true;
     }
 
-    /** Walks a parsed source object, invoking {@code sink} once per leaf with its dotted path and value (see {@link #collectValue}). */
-    private static void collectLeaves(String prefix, Map<?, ?> map, BiConsumer<String, Object> sink) {
-        for (Map.Entry<?, ?> entry : map.entrySet()) {
-            String name = prefix.isEmpty() ? String.valueOf(entry.getKey()) : prefix + "." + entry.getKey();
-            // Top level only: the block loader prunes whole _source keys, so that is the granularity its promise is made at. A bare
-            // null is left to assertNoAllNullExpandedColumn, which reports it as the all-null column it actually becomes.
-            assert prefix.isEmpty() == false || entry.getValue() == null || assertPruned(name, entry.getValue());
-            collectValue(name, entry.getValue(), sink);
+    /**
+     * Streams one row's {@code $$unmapped_fields} JSON object, invoking {@code sink} once per leaf with its dotted path and value - the
+     * same leaves a parsed {@code Map} would yield, but without ever materialising that map. Streaming is what bounds the heap a
+     * structure-heavy row can demand: a row whose {@code _source} is, say, an array of a million one-field objects flattens one leaf at
+     * a time instead of building a {@code Map}/{@code List} graph many times its own byte size.
+     */
+    private static void walkJson(BytesRef json, BiConsumer<String, Object> sink) {
+        try (
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                XContentParserConfiguration.EMPTY,
+                new BytesArray(json.bytes, json.offset, json.length),
+                XContentType.JSON
+            )
+        ) {
+            if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+                throw new IllegalStateException("expected $$unmapped_fields to be a JSON object but was [" + parser.currentToken() + "]");
+            }
+            for (String field = parser.nextFieldName(); field != null; field = parser.nextFieldName()) {
+                // The block loader prunes whole _source keys, so a bare top-level null is the one null that can reach here; it is
+                // forwarded so the sink decides, and every deeper value goes through walkValue.
+                if (parser.nextToken() == XContentParser.Token.VALUE_NULL) {
+                    sink.accept(field, null);
+                } else {
+                    walkValue(field, parser, sink);
+                }
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException("failed to parse $$unmapped_fields source", e);
         }
     }
 
     /**
      * Emits the leaves of one {@code _source} value at {@code name}: an object recurses to dotted leaves, an array recurses element-wise
      * (so objects inside it flatten to the same leaves a sibling index mapping those subfields would surface, and scalar elements stay at
-     * {@code name}), and any other value is a leaf as-is.
+     * {@code name}), and any scalar is a leaf as-is - read with {@link AbstractXContentParser#readValue} so it is the same
+     * {@code String}/{@code Number}/{@code Boolean} a parsed map would have held.
+     * <p>
+     * Guard rail for what {@code UnmappedFieldsBlockLoader} promises: whatever it wrote under a key is pruned, so below the top level it
+     * holds no {@code null} and no empty array or object at any depth. The asserts fire only with assertions enabled; in production the
+     * walk still emits whatever it is given.
      */
-    private static void collectValue(String name, Object value, BiConsumer<String, Object> sink) {
-        if (value instanceof Map<?, ?> child) {
-            collectLeaves(name, child, sink);
-        } else if (value instanceof List<?> list) {
-            for (Object element : list) {
-                collectValue(name, element, sink);
+    private static void walkValue(String name, XContentParser parser, BiConsumer<String, Object> sink) throws IOException {
+        switch (parser.currentToken()) {
+            case START_OBJECT -> {
+                String field = parser.nextFieldName();
+                assert field != null : prunedViolation(name);
+                for (; field != null; field = parser.nextFieldName()) {
+                    parser.nextToken();
+                    walkValue(name + "." + field, parser, sink);
+                }
             }
-        } else {
-            sink.accept(name, value);
+            case START_ARRAY -> {
+                XContentParser.Token token = parser.nextToken();
+                assert token != XContentParser.Token.END_ARRAY : prunedViolation(name);
+                for (; token != XContentParser.Token.END_ARRAY; token = parser.nextToken()) {
+                    walkValue(name, parser, sink);
+                }
+            }
+            case VALUE_NULL -> {
+                assert false : prunedViolation(name);
+                sink.accept(name, null);
+            }
+            // Only scalar tokens reach here - objects and arrays recurse through the cases above - so readValue never builds a map; it
+            // just returns the scalar exactly as the map parse did. The map factory is required by the signature but goes unused.
+            case VALUE_STRING, VALUE_NUMBER, VALUE_BOOLEAN, VALUE_EMBEDDED_OBJECT -> sink.accept(
+                name,
+                AbstractXContentParser.readValue(parser, LinkedHashMap::new)
+            );
+            default -> throw new IllegalStateException("unexpected token [" + parser.currentToken() + "] while walking $$unmapped_fields");
         }
     }
 
+    /** Message for the pruning guard rail in {@link #walkValue}: the data node must have pruned nulls and empty containers from _source. */
+    private static String prunedViolation(String name) {
+        return Strings.format("Unmapped field '%s' carries a null or an empty array or object", name);
+    }
+
+    /**
+     * Records one leaf value. The first value under a name is stored as is; a second turns it into a {@link MultiValue}, which later
+     * values are appended to in place. The walk only emits scalars, so a stored {@link MultiValue} is always one built here. Appending
+     * in place matters: a leaf with a very large number of values (an array of many objects flattening to one dotted name) would
+     * otherwise be copied in full on every further value, which is quadratic in the number of values.
+     */
     private static void collectLeaf(Map<String, Object> leaves, String name, Object value) {
-        if (leaves.containsKey(name) == false) {
-            leaves.put(name, value);
+        Object existing = leaves.putIfAbsent(name, value);
+        if (existing == null) {
             return;
         }
-        List<Object> combined = new ArrayList<>();
-        flattenInto(combined, leaves.get(name));
-        flattenInto(combined, value);
-        leaves.put(name, combined);
+        if (existing instanceof MultiValue multi) {
+            multi.values.add(value);
+        } else {
+            MultiValue multi = new MultiValue();
+            multi.values.add(existing);
+            multi.values.add(value);
+            leaves.put(name, multi);
+        }
     }
 
-    private static void flattenInto(List<Object> combined, Object value) {
-        if (value instanceof List<?> list) {
-            combined.addAll(list);
-        } else if (value != null) {
-            combined.add(value);
-        }
+    /** The values of a leaf that appeared more than once in a row, in source order. */
+    private static final class MultiValue {
+        final List<Object> values = new ArrayList<>();
     }
 
     private static BytesRef getBytesRef(BytesRefBlock unmappedBlock, int row, BytesRef scratch) {
         if (unmappedBlock.getValueCount(row) != 1) {
             throw new IllegalStateException(
                 Strings.format(
-                    "Expected exactly one value in _unmapped_fields block at row %d, but got %d",
+                    "Expected exactly one value in $$unmapped_fields block at row %d, but got %d",
                     row,
                     unmappedBlock.getValueCount(row)
                 )
             );
         }
         return unmappedBlock.getBytesRef(unmappedBlock.getFirstValueIndex(row), scratch);
-    }
-
-    private static Map<String, Object> parseJson(BytesRef ref) {
-        // Ordered so a row that produces the same leaf twice (a literal dotted key overlapping a nested path) merges its values in a
-        // deterministic source order rather than an arbitrary HashMap iteration order.
-        return XContentHelper.convertToMap(new BytesArray(ref.bytes, ref.offset, ref.length), true, XContentType.JSON).v2();
     }
 
     private ExpandUnmappedFieldsPostProcessor() {/* static class. */}

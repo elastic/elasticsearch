@@ -16,6 +16,7 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
@@ -24,11 +25,13 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xpack.esql.plugin.TransportEsqlStreamQueryAction;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -36,9 +39,12 @@ import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
 
 /**
  * REST listener for the streaming ES|QL query endpoint. Subscribes to a {@link PageStreamPublisher}
@@ -52,7 +58,7 @@ import java.util.concurrent.atomic.AtomicReference;
  *       {@code include_ccs_metadata: true}, or when a partial result carries cluster failures), optionally
  *       followed by a {@code "profile"} object when {@code profile: true} was set.</li>
  *   <li>Last line (failure after header): {@code {"status":N,"took":N,"is_partial":false,"warnings":[...],
- *       "error":{"type":"...","reason":"..."}}}</li>
+ *       "error":{<standard ES error shape with root_cause, type, reason, caused_by>}}}</li>
  *   <li>On pre-header error: same terminal-record shape with an error HTTP status code on the response line itself.</li>
  * </ul>
  *
@@ -71,6 +77,8 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
     private static final byte[] NEWLINE = "\n".getBytes(StandardCharsets.UTF_8);
 
     private final RestChannel channel;
+    private final ThreadContext threadContext;
+    private final long startNanos = System.nanoTime();
     private final AtomicBoolean terminalEmitted = new AtomicBoolean(false);
     private volatile boolean streamStarted = false;
     private final StreamingSubscriber subscriber = new StreamingSubscriber();
@@ -85,8 +93,29 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
     private volatile ZoneId zoneId;
     private final AtomicReference<Page> inFlightPage = new AtomicReference<>();
 
-    public EsqlStreamResponseListener(RestChannel channel) {
+    private volatile PageStreamPublisher.StreamFooter preHeaderFailureFooter;
+
+    public EsqlStreamResponseListener(RestChannel channel, ThreadContext threadContext) {
         this.channel = channel;
+        this.threadContext = threadContext;
+    }
+
+    void setPreHeaderFailureFooter(PageStreamPublisher.StreamFooter footer) {
+        this.preHeaderFailureFooter = footer;
+    }
+
+    private PageStreamPublisher.StreamFooter fallbackFailureFooter(Exception e) {
+        long elapsedMillis = (System.nanoTime() - startNanos) / 1_000_000L;
+        return new PageStreamPublisher.StreamFooter(
+            ExceptionsHelper.status(e).getStatus(),
+            elapsedMillis,
+            false,
+            TransportEsqlStreamQueryAction.footerWarnings(threadContext, DriverCompletionInfo.EMPTY),
+            null,
+            null,
+            e,
+            null
+        );
     }
 
     public ActionListener<EsqlStreamQueryAction.ResultStream> resultStreamListener() {
@@ -136,18 +165,13 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                 logger.debug("failure response already sent; discarding duplicate onFailure", e);
                 return;
             }
-            RestStatus status = ExceptionsHelper.status(e);
-            PageStreamPublisher.StreamFooter footer = new PageStreamPublisher.StreamFooter(
-                status.getStatus(),
-                0L,
-                false,
-                List.of(),
-                null,
-                null,
-                e,
-                null
-            );
-            channel.sendResponse(RestResponse.chunked(status, new NdjsonFooterBodyPart(footer), this::release));
+            PageStreamPublisher.StreamFooter footer = preHeaderFailureFooter != null ? preHeaderFailureFooter : fallbackFailureFooter(e);
+            RestStatus status = RestStatus.fromCode(footer.status());
+            RestResponse response = RestResponse.chunked(status, new NdjsonFooterBodyPart(footer), this::release);
+            if (e instanceof ElasticsearchException ese) {
+                response.copyHeaders(ese);
+            }
+            channel.sendResponse(response);
         } catch (Exception inner) {
             inner.addSuppressed(e);
             logger.error("failed to send failure response", inner);
@@ -213,16 +237,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                 Exception e = throwable instanceof Exception ex ? ex : new RuntimeException(throwable);
                 PageStreamPublisher.StreamFooter footer = publisher.footer();
                 if (footer == null) {
-                    footer = new PageStreamPublisher.StreamFooter(
-                        ExceptionsHelper.status(e).getStatus(),
-                        0L,
-                        false,
-                        List.of(),
-                        null,
-                        null,
-                        e,
-                        null
-                    );
+                    footer = fallbackFailureFooter(e);
                 }
                 ChunkedRestResponseBodyPart footerPart = new NdjsonFooterBodyPart(footer);
                 ActionListener<ChunkedRestResponseBodyPart> next;
@@ -536,15 +551,12 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                             footer.clusters().toXContent(b, p);
                         }
                         if (footer.error() != null) {
-                            b.startObject("error");
-                            Throwable cause = ExceptionsHelper.unwrapCause(footer.error());
-                            String type = ElasticsearchException.getExceptionName(cause);
-                            String reason = footer.error() instanceof ElasticsearchException ese
-                                ? ese.getDetailedMessage()
-                                : (footer.error().getMessage() != null ? footer.error().getMessage() : type);
-                            b.field("type", type);
-                            b.field("reason", reason);
-                            b.endObject();
+                            ElasticsearchException.generateFailureXContent(
+                                b,
+                                errorParams(footer.status()),
+                                footer.error(),
+                                channel.detailedErrorsEnabled()
+                            );
                         }
                         return b;
                     });
@@ -586,6 +598,14 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
         public String getResponseContentTypeString() {
             return NDJSON_CONTENT_TYPE;
         }
+    }
+
+    private ToXContent.Params errorParams(int statusCode) {
+        ToXContent.Params params = channel.request();
+        if (statusCode != RestStatus.UNAUTHORIZED.getStatus() && params.paramAsBoolean("error_trace", RestController.ERROR_TRACE_DEFAULT)) {
+            params = new ToXContent.DelegatingMapParams(Map.of(REST_EXCEPTION_SKIP_STACK_TRACE, "false"), params);
+        }
+        return params;
     }
 
     @FunctionalInterface

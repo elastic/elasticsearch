@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.RelationClass;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedMetadataAttributeExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedPattern;
@@ -156,6 +157,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ApplyWindowFilter;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateExpressions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesWithout;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.AddPromqlResultOrder;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslatePromqlToEsqlPlan;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslateTimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
@@ -169,6 +171,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
@@ -179,10 +182,12 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
@@ -252,7 +257,6 @@ import static org.elasticsearch.xpack.esql.capabilities.TranslationAware.transla
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.keepExistingUnsupportedAttributes;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferenceAttributesPreservingIds;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
@@ -269,7 +273,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
-import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LIMIT;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.STATS;
@@ -286,10 +289,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         new ReferenceAttribute(Source.EMPTY, null, NO_FIELDS_NAME, NULL, Nullability.TRUE, null, true)
     );
 
-    /**
-     * Built per {@link Analyzer} instance rather than statically so that {@link DetermineUnmappedFieldsToKeep} can hand the
-     * {@link UnmappedFieldsOrdering} it captures back to this analyzer, for the caller to read once analysis has finished.
-     */
     @Override
     protected List<Batch<LogicalPlan>> batches() {
         return List.of(
@@ -302,6 +301,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 new ResolveDatasetShadow(),
                 new StripDatasetShadowRelations(),
                 new ViewCompactionPostIndexResolution(),
+                new ResolveSubqueryRelationColumns(),
+                new UnwrapNamedSubqueries(),
                 new ResolveExternalRelations(),
                 new PruneEmptyUnionAllBranch(),
                 new ResolveEnrich(),
@@ -316,8 +317,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // Must happen before Translating PromQL plan to ESQL plan
                 new ResolveAndVerifyPromqlRefs(),
                 // Populates the TS_COLLAPSE wrapping a PromqlCommand with dimensions and bounds drawn from the
-                // PromqlCommand. The wrapped PromqlCommand is left in place and translated to ESQL nodes by the next rule.
+                // PromqlCommand. The wrapped PromqlCommand is left in place; AddPromqlResultOrder may wrap the
+                // collapse, then TranslatePromqlToEsqlPlan translates the command to ESQL nodes.
                 new TranslateTimeSeriesCollapse(),
+                // Instant result-ordering functions wrap collapse (or a bare command) with OrderBy before translation.
+                new AddPromqlResultOrder(),
                 // translate PromQL plan to ESQL. It should run before TranslateTimeSeriesAggregate and implicit casting
                 new TranslatePromqlToEsqlPlan()
             ),
@@ -341,7 +345,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new Batch<>(
                 "Finish Analysis",
                 Limiter.ONCE,
-                new DetermineUnmappedFieldsToKeep(ordering -> unmappedFieldsOrdering = ordering),
+                new DetermineUnmappedFieldsToKeep(),
                 new ResolveImplicitTimeSeriesIdentityGrouping(),
                 new ResolvedProjects(),
                 new InferKnnSimilarity(),
@@ -369,20 +373,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
     private final Verifier verifier;
 
-    private UnmappedFieldsOrdering unmappedFieldsOrdering;
-
     public Analyzer(AnalyzerContext context, Verifier verifier) {
         super(context);
         this.verifier = verifier;
     }
 
-    @Nullable
-    public UnmappedFieldsOrdering unmappedFieldsOrdering() {
-        return unmappedFieldsOrdering;
-    }
-
     public LogicalPlan analyze(LogicalPlan plan) {
-        unmappedFieldsOrdering = null;
         BitSet partialMetrics = new BitSet(FeatureMetric.values().length);
         LogicalPlan analyzed = execute(plan);
         LogicalPlan verified = verify(analyzed, gatherPreAnalysisMetrics(plan, partialMetrics));
@@ -623,6 +619,86 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     /**
+     * Answers {@code _class} and {@code _name} for every view and subquery branch of a {@code FROM}. It runs while the branch
+     * wrappers still say which is which, before {@link UnwrapNamedSubqueries} removes the view wrappers.
+     */
+    private static class ResolveSubqueryRelationColumns extends ParameterizedAnalyzerRule<UnresolvedMetadata, AnalyzerContext> {
+
+        @Override
+        protected boolean skipResolved() {
+            return false;
+        }
+
+        @Override
+        protected LogicalPlan rule(UnresolvedMetadata unresolvedMetadata, AnalyzerContext context) {
+            LogicalPlan child = unresolvedMetadata.child();
+            if (child instanceof ExternalRelation) {
+                return unresolvedMetadata;
+            }
+
+            List<NamedExpression> metadataFields = ResolveTable.resolveMetadata(unresolvedMetadata.metadataFields(), context);
+            if (metadataFields.stream().anyMatch(f -> f.resolved() == false)) {
+                return unresolvedMetadata; // unknown name or pattern (e.g. METADATA _bogus): left for the Verifier
+            }
+            List<NamedExpression> relationColumns = metadataFields.stream()
+                .filter(f -> MetadataAttribute.isRelationColumn(f.name()))
+                .toList();
+            Source src = unresolvedMetadata.source();
+
+            LogicalPlan answered;
+            if (child instanceof UnionAll unionAll) {
+                List<LogicalPlan> branches = unionAll.children().stream().map(b -> answer(b, relationColumns, src, false)).toList();
+                answered = branches.equals(unionAll.children()) ? child : unionAll.replaceChildren(branches);
+            } else {
+                answered = answer(child, relationColumns, src, true);
+            }
+            return answered.equals(child) ? unresolvedMetadata : new UnresolvedMetadata(src, answered, metadataFields);
+        }
+
+        private static LogicalPlan answer(LogicalPlan branch, List<NamedExpression> relationColumns, Source src, boolean lone) {
+            return switch (branch) {
+                case NamedSubquery view -> withRelationColumns(view, relationColumns, src, RelationClass.VIEW, view.name());
+                case Subquery subquery -> withRelationColumns(
+                    lone ? subquery.child() : subquery,
+                    relationColumns,
+                    src,
+                    RelationClass.SUBQUERY,
+                    null
+                );
+                case LogicalPlan relation -> relation;
+            };
+        }
+
+        private static LogicalPlan withRelationColumns(
+            LogicalPlan base,
+            List<NamedExpression> relationColumns,
+            Source src,
+            RelationClass relationClass,
+            @Nullable String name
+        ) {
+            if (relationColumns.isEmpty()) {
+                return base;
+            }
+            Expression relationName = MetadataAttribute.keywordOrNull(src, name);
+            List<Alias> values = new ArrayList<>(relationColumns.size());
+            for (NamedExpression column : relationColumns) {
+                values.add(
+                    new Alias(src, column.name(), MetadataAttribute.relationColumnValue(column.name(), src, relationClass, relationName))
+                );
+            }
+            return new Eval(src, base, values);
+        }
+    }
+
+    private static class UnwrapNamedSubqueries extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
+
+        @Override
+        public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
+            return plan.transformDown(NamedSubquery.class, UnaryPlan::child);
+        }
+    }
+
+    /**
      * Resolves {@link DatasetShadowRelation} nodes against {@link AnalyzerContext#linkedResolution()}.
      * The dataset analog of {@link ResolveViewShadow}.
      * <p>
@@ -675,7 +751,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * <p>
      * Delegates to {@link UnionAll#pruneEmptyBranches(java.util.function.Predicate)} so a matched shadow
      * (now an {@code EsRelation}) survives alongside the dataset's external relation as separate
-     * {@code UnionAll} branches (Strategy A — no merging into a single combined relation). A single-survivor
+     * {@code UnionAll} branches (no merging into a single combined relation). A single-survivor
      * union collapses to its lone child, so {@code FROM ds} with no remote match returns to exactly the bare
      * {@code UnresolvedExternalRelation} shape the non-CPS path produces.
      */
@@ -1338,6 +1414,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Lookup l -> resolveLookup(l, childrenOutput);
                 case LookupJoin j -> resolveLookupJoin(j, context);
                 case AbstractSubqueryJoin sj -> resolveSubqueryJoin(sj);
+                case FillNull f -> resolveFillNull(f, childrenOutput, context);
                 case Fuse fuse -> resolveFuse(fuse, childrenOutput);
                 case Rerank r -> resolveRerank(r, childrenOutput, context);
                 case Row row -> resolveRow(row);
@@ -2078,7 +2155,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private static Alias nullFillNonLoadable(Source source, FieldAttribute mapped, AnalyzerContext context) {
             DataType type = mapped.dataType();
-            context.subqueryNonLoadableNullFills().put(mapped.name(), type.typeName());
+            context.subqueryNonLoadableNullFills().add(mapped.name());
             return new Alias(source, mapped.name(), new Literal(source, null, type.noCounter()));
         }
 
@@ -2284,6 +2361,40 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
             return resolved;
+        }
+
+        private LogicalPlan resolveFillNull(FillNull fillNull, List<Attribute> childrenOutput, AnalyzerContext context) {
+            FillNull result = fillNull;
+            // A bare `ON *` names nothing and so needs no resolution. Otherwise resolve the explicit names and
+            // KEEP-style wildcard patterns against the child output - including names co-listed with a `*`, so a typo is
+            // still reported - de-duplicating overlapping targets (by NameId, via the LinkedHashSet); a name or pattern
+            // that matches nothing stays unresolved so the Verifier reports it.
+            if (fillNull.targetFields().isEmpty() == false) {
+                LinkedHashSet<NamedExpression> resolved = new LinkedHashSet<>();
+                for (NamedExpression target : fillNull.targetFields()) {
+                    if (target instanceof UnresolvedAttribute ua && ua.customMessage()) {
+                        // A name / pattern that already failed to resolve on an earlier pass carries a custom "no match"
+                        // message. Re-resolving it would return an empty list (see potentialCandidatesIfNoMatchesFound),
+                        // which would silently drop the target and collapse to the all-columns form. Keep it instead so
+                        // the Verifier reports it. This also covers UnresolvedPattern (a subtype of UnresolvedAttribute).
+                        resolved.add(ua);
+                    } else if (target instanceof UnresolvedNamePattern up) {
+                        resolved.addAll(resolveAgainstList(up, childrenOutput));
+                    } else if (target instanceof UnresolvedAttribute ua) {
+                        resolved.addAll(resolveAgainstList(ua, childrenOutput));
+                    } else {
+                        resolved.add(target);
+                    }
+                }
+                result = fillNull.withTargetFields(new ArrayList<>(resolved));
+            }
+            // Supply the query Configuration, which is what derives the fill aliases, in the same post-order ResolveRefs
+            // pass that builds the output so downstream consumers see the filled schema. Every later rebuild re-derives
+            // them from the current child output (see FillNull#rebuildFillNullWithFields), so this happens once.
+            if (result.inputsResolved() && result.expressionsResolved() == false) {
+                result = result.withConfiguration(context.configuration());
+            }
+            return result;
         }
 
         public static FieldAttribute unmappedKeyword(Attribute attribute) {
@@ -2633,7 +2744,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         /** What a wildcard projection that matches nothing in the child output should do. */
         private enum UnmatchedPatterns {
-            /** Drop the wildcard, letting the {@code _unmapped_fields} expansion apply it later. */
+            /** Drop the wildcard, letting the {@code _unmapped_fields} flattening apply it later. */
             IGNORE,
             /** Keep the unresolved attribute so the {@code Verifier} reports "No matches found". */
             FAIL
@@ -2673,7 +2784,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         List<Attribute> matched = resolveAgainstList(up, childOutput);
                         // A wildcard that matches nothing resolves to a single unresolved UnresolvedAttribute. Under
                         // LOAD_ALL it may match only (not-yet-visible) unmapped source fields, so skip it here and let
-                        // the _unmapped_fields expansion apply it later, instead of failing with "No matches found".
+                        // the _unmapped_fields flattening apply it later, instead of failing with "No matches found".
                         if (unmatchedPatterns == UnmatchedPatterns.IGNORE
                             && matched.size() == 1
                             && matched.getFirst() instanceof UnresolvedAttribute) {
@@ -3600,7 +3711,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static boolean supportsStringImplicitCasting(DataType type) {
-            return type == DATETIME || type == DATE_NANOS || type == IP || type == VERSION || type == BOOLEAN;
+            return EsqlDataTypeConverter.isStringImplicitlyCastableTo(type);
         }
 
         private static UnresolvedAttribute unresolvedAttribute(Expression value, String type, Exception e) {
@@ -4072,13 +4183,31 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         return warning;
     }
 
+    /**
+     * Upper bound on the field names listed in {@link #nonLoadablePunksWarning}; any further fields are only counted. Wide index patterns
+     * can have hundreds of such fields, and listing them all makes the {@code Warning} header too large for some clients.
+     */
+    static final int MAX_LISTED_NON_LOADABLE_PUNKS = 20;
+
     // visible for testing
-    static String nonLoadablePunkWarning(String fieldName, String mappedTypeName) {
+    static String nonLoadablePunksWarning(List<String> fieldNames) {
+        assert fieldNames.isEmpty() == false : "no fields to warn about";
+        int listed = Math.min(fieldNames.size(), MAX_LISTED_NON_LOADABLE_PUNKS);
+        StringBuilder fields = new StringBuilder();
+        for (int i = 0; i < listed; i++) {
+            fields.append(i == 0 ? "[" : ", [").append(fieldNames.get(i)).append("]");
+        }
+        if (fieldNames.size() > listed) {
+            fields.append(" and [").append(fieldNames.size() - listed).append("] more");
+        }
+        boolean one = fieldNames.size() == 1;
         return Strings.format(
-            "Field [%s] of type [%s] is unmapped in some indices and has no implicit "
-                + "conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices",
-            fieldName,
-            mappedTypeName
+            "Field%s %s %s unmapped in some indices and %s no implicit conversion from KEYWORD; %s null in those indices",
+            one ? "" : "s",
+            fields,
+            one ? "is" : "are",
+            one ? "has" : "have",
+            one ? "it is" : "they are"
         );
     }
 
@@ -4100,7 +4229,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             if (context.unmappedResolution().loadsUnmappedFields() && cleanPlan.resolved()) {
                 // A single-type PUNK that survives to here has neither an implicit nor an explicit KEYWORD conversion (those turn it into a
-                // UnionTypeEsField earlier), so it falls back to null where unmapped. Warn once for each such field whose value the user
+                // UnionTypeEsField earlier), so it falls back to null where unmapped. Warn once about all such fields whose value the user
                 // can actually observe (it reaches the final output or is consumed by some, non-conversion expression).
                 warnObservedNonLoadablePunks(cleanPlan, context);
             }
@@ -4170,22 +4299,23 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             plan.forEachDown(p -> observed.addAll(p.references()));
             AttributeSet observedFields = observed.build();
 
-            Set<NameId> warned = new HashSet<>();
+            // A single warning listing all affected fields: one warning per field can exceed the clients' maximum header size.
+            Set<String> nonLoadable = new LinkedHashSet<>();
             plan.forEachExpressionDown(FieldAttribute.class, fa -> {
-                if (observedFields.contains(fa) == false || warned.contains(fa.id())) {
-                    return;
-                }
-                if (fa.field() instanceof PotentiallyUnmappedSingleTypeEsField punk) {
-                    warned.add(fa.id());
-                    context.deferredHeaderWarnings().add(nonLoadablePunkWarning(fa.name(), punk.mappedField().getDataType().typeName()));
+                if (observedFields.contains(fa) && fa.field() instanceof PotentiallyUnmappedSingleTypeEsField) {
+                    nonLoadable.add(fa.name());
                 }
             });
 
             Set<String> observedNames = observedFields.stream().map(NamedExpression::name).collect(Collectors.toSet());
-            for (var e : context.subqueryNonLoadableNullFills().entrySet()) {
-                if (observedNames.contains(e.getKey())) {
-                    context.deferredHeaderWarnings().add(nonLoadablePunkWarning(e.getKey(), e.getValue()));
+            for (String name : context.subqueryNonLoadableNullFills()) {
+                if (observedNames.contains(name)) {
+                    nonLoadable.add(name);
                 }
+            }
+
+            if (nonLoadable.isEmpty() == false) {
+                context.deferredHeaderWarnings().add(nonLoadablePunksWarning(List.copyOf(nonLoadable)));
             }
         }
 

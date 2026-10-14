@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleFixtures;
+import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.datastreams.lifecycle.FrozenTransitionInfoProvider;
 import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.index.Index;
@@ -170,6 +171,58 @@ public class TransportExplainDataStreamLifecycleActionTests extends ESTestCase {
                 assertThat(explain.getUnmanagedReason(), nullValue());
             }
         }
+    }
+
+    public void testTailMergeDateReflectsForceMergeCompleteTask() throws Exception {
+        String dataStreamName = "test-data-stream";
+        long now = System.currentTimeMillis();
+        var projectId = randomProjectIdOrDefault();
+
+        IndexMetadata mergedIndex = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .creationDate(now - 3000L)
+            .putRolloverInfo(new RolloverInfo(dataStreamName, List.of(), now - 2000L))
+            .build();
+        IndexMetadata writeIndex = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 3))
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .creationDate(now - 1000L)
+            .build();
+        DataStream dataStream = newInstance(
+            dataStreamName,
+            List.of(mergedIndex.getIndex(), writeIndex.getIndex()),
+            3,
+            Map.of(),
+            false,
+            DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.timeValueDays(30)).build()
+        );
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId)
+            .put(mergedIndex, false)
+            .put(writeIndex, false)
+            .put(dataStream)
+            .build();
+        ClusterState initialState = ClusterState.builder(new ClusterName("_name")).putProjectMetadata(projectMetadata).build();
+
+        // The task only needs the clock from the thread pool, a mock lets us pin the timestamp that gets written.
+        long forceMergeCompletedTimestamp = now - randomLongBetween(0, 1000);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.absoluteTimeInMillis()).thenReturn(forceMergeCompletedTimestamp);
+        ClusterState updatedState = new DataStreamLifecycleService.UpdateForceMergeCompleteTask(
+            ActionListener.noop(),
+            projectId,
+            mergedIndex.getIndex().getName(),
+            threadPool
+        ).execute(initialState);
+
+        ProjectMetadata updatedMetadata = updatedState.projectState(projectId).metadata();
+        assertThat(TransportExplainDataStreamLifecycleAction.tailMergeDate(updatedMetadata.index(writeIndex.getIndex())), nullValue());
+        assertThat(
+            TransportExplainDataStreamLifecycleAction.tailMergeDate(updatedMetadata.index(mergedIndex.getIndex())),
+            equalTo(forceMergeCompletedTimestamp)
+        );
     }
 
     public void testLookupWriteIndexIsSkipped() throws Exception {

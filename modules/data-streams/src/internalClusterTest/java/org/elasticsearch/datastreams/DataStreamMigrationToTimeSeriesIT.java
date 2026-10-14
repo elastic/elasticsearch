@@ -84,7 +84,8 @@ public class DataStreamMigrationToTimeSeriesIT extends ESIntegTestCase {
             assertThat(
                 exception.getMessage(),
                 containsString(
-                    "to [time_series] is not supported, please first change the [index.mode] in the template to [standard], roll over, and try again."
+                    "to [time_series] is not supported, please first change the [index.mode] "
+                        + "in the template to [standard], roll over, and try again."
                 )
             );
         }

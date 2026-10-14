@@ -1,5 +1,6 @@
 area: TSDB
-issues: []
+issues:
+  - 161905
 pr: 161992
-summary: Reject migration to TSDB from non-standard data streams
+summary: Reject rollover migrating a data stream from a non-standard index mode to TSDB
 type: bug

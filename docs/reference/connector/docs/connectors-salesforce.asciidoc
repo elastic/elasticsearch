@@ -389,7 +389,7 @@ See <<es-connectors-content-extraction,content extraction>> for more specifics o
 
 * *DLS feature is "type-level" not "record-level"*
 +
-Salesforce DLS, added in 8.13.0, does not apply record-level access controls. If a user or group has `Read` permission on an object type (`Case`, `Lead`, `Opportunity`, and so on), that user or group appears in the `_allow_access_control` list of *all* synced records of that type. Users can therefore access records in Elasticsearch that Salesforce hides from them. To limit exposure, exclude sensitive object types from the sync. See https://github.com/elastic/connectors/issues/3028 for more details.
+Salesforce DLS, added in 8.13.0, does not apply record-level access controls. If a user has `Read` permission on an object type (`Case`, `Lead`, `Opportunity`, and so on), that user appears in the `_allow_access_control` list of *all* synced records of that type. Users can therefore access records in Elasticsearch that Salesforce hides from them. To limit exposure, exclude sensitive object types from the sync. See https://github.com/elastic/connectors/issues/3028 for more details.
 +
 
 * *Only first 500 nested entities are ingested*
@@ -804,7 +804,7 @@ See <<es-connectors-content-extraction,content extraction>> for more specifics o
 
 * *DLS feature is "type-level" not "record-level"*
 +
-Salesforce DLS, added in 8.13.0, does not apply record-level access controls. If a user or group has `Read` permission on an object type (`Case`, `Lead`, `Opportunity`, and so on), that user or group appears in the `_allow_access_control` list of *all* synced records of that type. Users can therefore access records in Elasticsearch that Salesforce hides from them. To limit exposure, exclude sensitive object types from the sync. See https://github.com/elastic/connectors/issues/3028 for more details.
+Salesforce DLS, added in 8.13.0, does not apply record-level access controls. If a user has `Read` permission on an object type (`Case`, `Lead`, `Opportunity`, and so on), that user appears in the `_allow_access_control` list of *all* synced records of that type. Users can therefore access records in Elasticsearch that Salesforce hides from them. To limit exposure, exclude sensitive object types from the sync. See https://github.com/elastic/connectors/issues/3028 for more details.
 +
 
 * *Only first 500 nested entities are ingested*

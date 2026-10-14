@@ -148,7 +148,6 @@ public class AuditIT extends ESRestTestCase {
             assertThat(toJson(event), not(containsString(accessKey)));
             assertThat(toJson(event), not(containsString(secretKey)));
         });
-        // ensure `security_config_change` event is recorded as well
         assertPutDatasource(
             dataSourceName,
             Map.of(
@@ -200,7 +199,6 @@ public class AuditIT extends ESRestTestCase {
             assertThat(body, containsString("\"data_source\""));
         });
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
-        // ensure `security_config_change` event is recorded as well
         assertPutDataset(
             datasetName,
             Map.of(

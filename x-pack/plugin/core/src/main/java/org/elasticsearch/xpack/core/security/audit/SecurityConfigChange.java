@@ -7,6 +7,12 @@
 
 package org.elasticsearch.xpack.core.security.audit;
 
+/**
+ * Requests may implement this interface to emit {@code security_config_change} audit events (note that they need to be included in
+ * {@code LoggingAuditTrail#SECURITY_CHANGE_ACTIONS} as well).
+ * Any sensitive information included in the request must not be included in the audit log, and these fields should be redacted when
+ * provided through this interface.
+ */
 public interface SecurityConfigChange {
     SecurityConfigChangeData securityConfigChangeData();
 }

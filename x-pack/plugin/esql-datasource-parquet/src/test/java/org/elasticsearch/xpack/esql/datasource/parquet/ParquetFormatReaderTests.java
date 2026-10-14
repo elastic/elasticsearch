@@ -2378,11 +2378,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     public void testACountOnlyReadIsNotHeldToTheColumnCap() throws Exception {
         byte[] data = wideOptionalLongFile(6);
         FormatReader capped = new ParquetFormatReader(blockFactory).withSchemaMaxFields(5);
-        FormatReadContext ctx = FormatReadContext.builder()
-            .readSchema(List.of())
-            .projectedColumns(List.of())
-            .batchSize(100)
-            .build();
+        FormatReadContext ctx = FormatReadContext.builder().readSchema(List.of()).projectedColumns(List.of()).batchSize(100).build();
         long rows = 0;
         try (var it = capped.read(createStorageObject(data), ctx)) {
             while (it.hasNext()) {

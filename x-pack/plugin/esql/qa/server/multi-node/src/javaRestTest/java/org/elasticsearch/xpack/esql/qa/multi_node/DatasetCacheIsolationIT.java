@@ -90,6 +90,22 @@ public class DatasetCacheIsolationIT extends ESRestTestCase {
     private static final String DATA_SOURCE_WRONG = "cache_iso_ds_wrong";
     private static final String DATASET_WRONG = "cache_iso_dataset_wrong";
 
+    // Test 4 — overwrite: the same key is rewritten with a different length while the listing is still cached.
+    private static final String FILE_KEY_4 = WAREHOUSE + "/cache_isolation/overwritten.ndjson";
+    private static final String RESOURCE_4 = "s3://" + BUCKET + "/" + FILE_KEY_4;
+    private static final int ROWS_BEFORE_OVERWRITE = 3;
+    private static final int ROWS_AFTER_OVERWRITE = 7;
+    private static final String DATASET_OVERWRITE = "cache_iso_dataset_overwrite";
+
+    // Test 5 — a shrinking overwrite of a file that is cut into splits. The smallest accepted segment size and a small
+    // split size make a few hundred KB enough to reach the record-boundary probe, which reads at offsets taken from the
+    // listed (old, larger) length.
+    private static final String FILE_KEY_5 = WAREHOUSE + "/cache_isolation/overwritten_split.ndjson";
+    private static final String RESOURCE_5 = "s3://" + BUCKET + "/" + FILE_KEY_5;
+    private static final int ROWS_SPLIT_BEFORE = 40_000;
+    private static final int ROWS_SPLIT_AFTER = 50;
+    private static final String DATASET_OVERWRITE_SPLIT = "cache_iso_dataset_overwrite_split";
+
     static DataSourcesS3HttpFixture fixtureA = new DataSourcesS3HttpFixture();
     static DataSourcesS3HttpFixture fixtureB = new DataSourcesS3HttpFixture();
 
@@ -161,6 +177,15 @@ public class DatasetCacheIsolationIT extends ESRestTestCase {
             Map.of("endpoint", fixtureA.getAddress(), "access_key", "wrong-access-key", "secret_key", "wrong-secret-key")
         );
         DatasetRegistry.ensureDataset(client(), DATASET_WRONG, DATA_SOURCE_WRONG, RESOURCE_3, null);
+
+        DatasetRegistry.ensureDataset(client(), DATASET_OVERWRITE, DATA_SOURCE_A, RESOURCE_4, null);
+        DatasetRegistry.ensureDataset(
+            client(),
+            DATASET_OVERWRITE_SPLIT,
+            DATA_SOURCE_A,
+            RESOURCE_5,
+            "{\"segment_size\":\"64kb\",\"target_split_size\":\"128kb\"}"
+        );
     }
 
     @AfterClass
@@ -265,6 +290,50 @@ public class DatasetCacheIsolationIT extends ESRestTestCase {
         expectThrows(Exception.class, () -> count("FROM " + DATASET_WRONG + " | STATS count = COUNT(*)"));
     }
 
+    /**
+     * An object rewritten with a different length while its listing is cached must not be read with the old length.
+     * The first query after the rewrite fails with the retriable object-changed error, which drops the listing, and a sync
+     * query is run once more on the server, so the client gets the new content. Returning the old content is the bug: the
+     * reader would read only the old byte range and report the old rows without an error.
+     *
+     * <p>The query reads rows ({@code SUM}), so it opens the object under the version the listing reported. A bare
+     * {@code COUNT(*)} can be answered from cached statistics without opening the object, and is then bounded by the
+     * listing TTL, so it is not asserted here.
+     *
+     * <p>The test relies on the listing TTL (five minutes by default) to keep the first listing cached across the two
+     * queries; it does not assert a cache hit. If the listing were fetched again, the new content would be returned with
+     * or without the pin, so a regression there would go unnoticed here, but not in the shrunk-file test below, which
+     * fails when the probe is not pinned.
+     */
+    public void testOverwrittenObjectReadsNewContent() throws IOException {
+        String query = "FROM " + DATASET_OVERWRITE + " | STATS total = SUM(val)";
+        addBlobToFixture(fixtureA.getHandler(), FILE_KEY_4, ndjson(ROWS_BEFORE_OVERWRITE));
+        assertEquals(sumOfFirst(ROWS_BEFORE_OVERWRITE), count(query));
+
+        addBlobToFixture(fixtureA.getHandler(), FILE_KEY_4, ndjson(ROWS_AFTER_OVERWRITE));
+        assertEquals("a read after an overwrite must return the new content", sumOfFirst(ROWS_AFTER_OVERWRITE), count(query));
+    }
+
+    /**
+     * As {@link #testOverwrittenObjectReadsNewContent}, for a file large enough to be cut into splits, overwritten with a
+     * much shorter one. Planning then probes record boundaries at offsets taken from the old length, past the end of the
+     * new object. Unpinned, S3 answers such a probe with a 416 that surfaces as a non-retriable 400 ("Failed to discover
+     * splits: Range request failed for: HTTP 416"); pinned to the listed version it fails as an object change, and the
+     * query is run again and reads the new content.
+     */
+    public void testShrunkOverwriteOfSplitFileReadsNewContent() throws IOException {
+        String query = "FROM " + DATASET_OVERWRITE_SPLIT + " | STATS total = SUM(val)";
+        addBlobToFixture(fixtureA.getHandler(), FILE_KEY_5, ndjson(ROWS_SPLIT_BEFORE));
+        assertEquals(sumOfFirst(ROWS_SPLIT_BEFORE), count(query));
+
+        addBlobToFixture(fixtureA.getHandler(), FILE_KEY_5, ndjson(ROWS_SPLIT_AFTER));
+        assertEquals("a read after a shrinking overwrite must return the new content", sumOfFirst(ROWS_SPLIT_AFTER), count(query));
+    }
+
+    private static long sumOfFirst(int rows) {
+        return (long) rows * (rows + 1) / 2;
+    }
+
     @SuppressWarnings("unchecked")
     private long count(String query) throws IOException {
         // coordinator_only ensures both queries run entirely on the coordinator node, so the warm
@@ -275,8 +344,8 @@ public class DatasetCacheIsolationIT extends ESRestTestCase {
         RestEsqlTestCase.RequestObjectBuilder req = new RestEsqlTestCase.RequestObjectBuilder().query(query).pragmasOk().pragmas(pragmas);
         Map<String, Object> result = RestEsqlTestCase.runEsqlSync(req, new AssertWarnings.NoWarnings(), null);
         List<List<Object>> values = (List<List<Object>>) result.get("values");
-        assertNotNull("Expected values in COUNT(*) result", values);
-        assertEquals("Expected exactly one row from COUNT(*)", 1, values.size());
+        assertNotNull("Expected values in the query result", values);
+        assertEquals("Expected exactly one row from the single-aggregate query", 1, values.size());
         return ((Number) values.get(0).get(0)).longValue();
     }
 

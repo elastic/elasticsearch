@@ -58,6 +58,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -1605,6 +1607,79 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(RestStatus.BAD_REQUEST, e.status());
         assertThat(e.getMessage(), containsString("Failed to discover splits"));
         assertThat(e.getMessage(), containsString("injected split probe failure"));
+    }
+
+    /**
+     * The record-boundary probe reads the file's bytes to place split edges, so it must be conditional on the version the
+     * listing reported: a file rewritten under a cached listing then fails the probe instead of being cut at offsets
+     * found in the new bytes under the old length.
+     */
+    public void testBoundaryProbeOpensObjectUnderListedVersion() throws IOException {
+        RecordSplitter mockSplitter = mockStridedSplitter();
+        when(mockSplitter.findNextRecordBoundary(any())).thenReturn(1L);
+        byte[] payload = new byte[4096];
+        List<String> versionsSeen = new ArrayList<>();
+        FileSplitProvider provider = newlineProbingProvider(
+            "ndjson-versioned-probe",
+            mockSplitter,
+            createPayloadStorageRegistry(payload, versionsSeen)
+        );
+
+        provider.discoverSplits(contextOfListedFile(payload.length, "etag-1"));
+
+        assertFalse("the probe must open the object", versionsSeen.isEmpty());
+        assertEquals(Set.of("etag-1"), new HashSet<>(versionsSeen));
+        verify(mockSplitter, atLeastOnce()).findNextRecordBoundary(any());
+    }
+
+    /**
+     * A file rewritten after its listing was cached fails the record-boundary probe, because the probe is pinned to the
+     * listed version. The failure must reach the caller as an object change, which is the 503 that a sync query retries
+     * after dropping the listing, and not as a client error that would be returned as it is.
+     */
+    public void testBoundaryProbeSurfacesRewrittenObjectAsObjectChanged() {
+        byte[] payload = new byte[4096];
+        FileSplitProvider provider = newlineProbingProvider(
+            "ndjson-rewritten-probe",
+            mockStridedSplitter(),
+            createPayloadStorageRegistry(payload, new ArrayList<>(), "etag-2")
+        );
+        SplitDiscoveryContext context = contextOfListedFile(payload.length, "etag-1");
+
+        Exception e = expectThrows(Exception.class, () -> provider.discoverSplits(context));
+
+        assertTrue(
+            "expected an object-changed failure but got " + e,
+            ExternalException.hasCondition(e, ExternalException.Condition.OBJECT_CHANGED)
+        );
+    }
+
+    /**
+     * The reader and splitter are mocks, as in the sibling probe tests: these tests are about which object the boundary
+     * probe opens, not about parsing, and a real splitter would need the NDJSON module on this test's classpath.
+     */
+    private static RecordSplitter mockStridedSplitter() {
+        RecordSplitter mockSplitter = mock(RecordSplitter.class);
+        when(mockSplitter.supportsStridedProbing()).thenReturn(true);
+        return mockSplitter;
+    }
+
+    private static FileSplitProvider newlineProbingProvider(String registryName, RecordSplitter splitter, StorageProviderRegistry storage) {
+        SegmentableFormatReader mockReader = mock(SegmentableFormatReader.class);
+        when(mockReader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
+        when(mockReader.minimumSegmentSize()).thenReturn(1L);
+        when(mockReader.recordSplitter(anyInt())).thenReturn(splitter);
+        FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
+        formatRegistry.registerLazy(registryName, (s, bf) -> mockReader, Settings.EMPTY, null);
+        formatRegistry.registerExtension(".ndjson", registryName);
+        formatRegistry.byName(registryName);
+        return new FileSplitProvider(1024, new DecompressionCodecRegistry(), storage, formatRegistry, Settings.EMPTY);
+    }
+
+    private static SplitDiscoveryContext contextOfListedFile(long length, String version) {
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/data.ndjson"), length, Instant.EPOCH, version);
+        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.ndjson");
+        return new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of());
     }
 
     private void assertNewlineAlignedMacroSplitsDisjointAndMarked(
@@ -8775,11 +8850,35 @@ public class FileSplitProviderTests extends ESTestCase {
 
     /** S3 mock that serves {@code payload} for range reads (newline boundary scanning during split discovery). */
     private static StorageProviderRegistry createPayloadStorageRegistry(byte[] payload) {
+        return createPayloadStorageRegistry(payload, new ArrayList<>());
+    }
+
+    /** As above, recording the version of every object opened through the versioned overload into {@code versionsSeen}. */
+    private static StorageProviderRegistry createPayloadStorageRegistry(byte[] payload, List<String> versionsSeen) {
+        return createPayloadStorageRegistry(payload, versionsSeen, null);
+    }
+
+    /**
+     * As above, and when {@code currentVersion} is set, an object opened under any other version fails every read with
+     * {@link ExternalObjectChangedException}, as a store that checks the version of each request does. An object opened
+     * without a version is not conditional, so it never fails.
+     */
+    private static StorageProviderRegistry createPayloadStorageRegistry(
+        byte[] payload,
+        List<String> versionsSeen,
+        @Nullable String currentVersion
+    ) {
         StorageProviderRegistry registry = new StorageProviderRegistry(Settings.EMPTY);
         StorageProvider payloadProvider = new StorageProvider() {
             @Override
             public StorageChildren listChildren(StoragePath prefix, int limit) {
                 return null; // directory-aware listing is irrelevant to this test double
+            }
+
+            @Override
+            public StorageObject newObject(StoragePath path, long length, Instant lastModified, String version) {
+                versionsSeen.add(version);
+                return payloadObject(path, length, lastModified, version);
             }
 
             @Override
@@ -8794,8 +8893,18 @@ public class FileSplitProviderTests extends ESTestCase {
 
             @Override
             public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
+                return payloadObject(path, length, lastModified, null);
+            }
+
+            private StorageObject payloadObject(StoragePath path, long length, Instant lastModified, @Nullable String openedUnder) {
                 assertEquals(payload.length, length);
                 return new StorageObject() {
+                    private void failIfRewritten() {
+                        if (openedUnder != null && currentVersion != null && currentVersion.equals(openedUnder) == false) {
+                            throw new ExternalObjectChangedException(path);
+                        }
+                    }
+
                     @Override
                     public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
 
@@ -8811,11 +8920,13 @@ public class FileSplitProviderTests extends ESTestCase {
 
                     @Override
                     public InputStream newStream() {
+                        failIfRewritten();
                         return new ByteArrayInputStream(payload);
                     }
 
                     @Override
                     public InputStream newStream(long position, long len) {
+                        failIfRewritten();
                         int p = Math.toIntExact(position);
                         int l = Math.toIntExact(len);
                         return new ByteArrayInputStream(payload, p, l);

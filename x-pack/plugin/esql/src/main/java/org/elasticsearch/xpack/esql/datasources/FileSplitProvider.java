@@ -3832,7 +3832,7 @@ public class FileSplitProvider implements SplitProvider {
             return null;
         }
         StorageProvider provider = resolveProvider(task.filePath(), task.config(), hoistedProvider);
-        StorageObject object = provider.newObject(task.filePath(), fileLength);
+        StorageObject object = newObject(provider, task.filePath(), fileLength, 0L, fileVersion(task.config()));
         return new DeferredNewlineSplits(task, object, splitter, minSegment, targetStrideBytes, positions);
     }
 

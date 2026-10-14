@@ -87,8 +87,13 @@ public class IndexStorePluginTests extends ESTestCase {
 
     public static class RecoveryFactory implements IndexStorePlugin.RecoveryStateFactory {
         @Override
-        public RecoveryState newRecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, DiscoveryNode sourceNode) {
-            return new RecoveryState(shardRouting, targetNode, sourceNode);
+        public RecoveryState newRecoveryState(
+            ShardRouting shardRouting,
+            DiscoveryNode targetNode,
+            DiscoveryNode sourceNode,
+            int localRetries
+        ) {
+            return new RecoveryState(shardRouting, targetNode, sourceNode, localRetries);
         }
     }
 

@@ -12,8 +12,10 @@ import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.CacheLoader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 
 /**
@@ -24,11 +26,11 @@ import java.util.concurrent.ExecutionException;
  *   <li>Thundering-herd protection via {@link Cache#computeIfAbsent} — concurrent callers for the
  *       same key coalesce into a single load; exactly one thread performs I/O while others wait
  *       for the result</li>
- *   <li>Time-based expiration via {@link CacheBuilder#setExpireAfterAccess} — entries expire after
- *       the configured TTL ({@link ExternalSourceCacheSettings#FOOTER_CACHE_TTL}) of inactivity,
- *       bounding staleness: the key carries no modification time, so a same-length overwrite may
- *       be served until the TTL lapses (see the key-design section below). Within a single query,
- *       concurrent splits keep the entry alive by resetting the access timer on every read.</li>
+ *   <li>Time-based expiration via {@link CacheBuilder#setExpireAfterWrite} — an entry expires the
+ *       configured TTL ({@link ExternalSourceCacheSettings#FOOTER_CACHE_TTL}) after it was stored,
+ *       whatever happens in between, and the key carries no modification time, so a same-length overwrite
+ *       is served until then. Every store here follows a storage read in the same call, so an entry lives at
+ *       most one TTL past that read; {@link ParsedFooterCache} does not share that property.</li>
  * </ul>
  *
  * <h2>Why one instance per root format reader instead of per-query?</h2>
@@ -49,14 +51,14 @@ import java.util.concurrent.ExecutionException;
  * reader ({@code withConfig}, {@code withPushedFilter}, ...) shares the root's instance via its
  * copy constructor, so all concurrent queries on a node coalesce on one cache. When a
  * query-scoped context is introduced into the format reader API, this cache should migrate to an
- * instance held by that context. Until then, the access-based TTL bounds cross-query staleness.
+ * instance held by that context. Until then, the write-based TTL bounds cross-query staleness.
  *
  * <h2>Cache key design</h2>
  * The key is {@code (path, fileLength)}. Adding {@code lastModified} was considered but rejected
  * because range splits are created via {@code StorageProvider.newObject(path, length)} with no
  * pre-populated modification time — calling {@code lastModified()} would trigger an extra HEAD
- * request per split, defeating the purpose of the cache. The access-based TTL provides bounded
- * staleness instead.
+ * request per split, defeating the purpose of the cache. The write-based TTL bounds the staleness
+ * that costs instead.
  *
  * <p>Cached {@code byte[]} entries must be treated as immutable by all callers.
  */
@@ -70,20 +72,32 @@ public class FooterByteCache {
     public static final long DEFAULT_MAX_ENTRY_BYTES = 2L * 1024 * 1024;
 
     /**
-     * Cache key identifying a file by its storage path and total length. Uses {@code (path, length)}
-     * only — not {@code lastModified} — so that all range splits of the same file share one cache
-     * entry regardless of any timing jitter in {@code StorageObject.lastModified()}.
+     * Cache key identifying a file by its storage configuration, path, and total length. Uses
+     * {@code (storageIdentity, path, length)} — the storage identity is set by the storage provider to encode endpoint
+     * and credential identity so that two data sources pointing at different stores never share an
+     * entry for an object at the same path with the same length. {@code lastModified} is excluded
+     * so that all range splits of the same file share one cache entry regardless of any timing
+     * jitter in {@code StorageObject.lastModified()}.
      */
-    public record Key(String path, long fileLength) {
+    public record Key(StorageIdentity storageIdentity, String path, long fileLength) {
+
+        /**
+         * Rejects a null identity: {@link StorageIdentity} is a plugin SPI, and a {@code null} from any
+         * implementation would put all of its objects in one shared scope instead of failing.
+         */
+        public Key {
+            Objects.requireNonNull(storageIdentity, "storageIdentity must not be null");
+        }
 
         /**
          * Creates a key from a {@link org.elasticsearch.xpack.esql.datasources.spi.StorageObject},
-         * using its path string and {@link org.elasticsearch.xpack.esql.datasources.spi.StorageObject#lengthForFooterCacheKey()}.
+         * using its storage identity, path string, and
+         * {@link org.elasticsearch.xpack.esql.datasources.spi.StorageObject#lengthForFooterCacheKey()}.
          * Prefer this over {@link #keyFor(org.elasticsearch.xpack.esql.datasources.spi.StorageObject, long)} so range
          * views ({@code RangeStorageObject}) share one entry per file.
          */
         public static Key keyFor(org.elasticsearch.xpack.esql.datasources.spi.StorageObject storageObject) throws IOException {
-            return new Key(storageObject.path().toString(), storageObject.lengthForFooterCacheKey());
+            return new Key(storageObject.storageIdentity(), storageObject.path().toString(), storageObject.lengthForFooterCacheKey());
         }
 
         /**
@@ -95,13 +109,13 @@ public class FooterByteCache {
          * not a range-view span.
          */
         public static Key keyFor(org.elasticsearch.xpack.esql.datasources.spi.StorageObject storageObject, long length) {
-            return new Key(storageObject.path().toString(), length);
+            return new Key(storageObject.storageIdentity(), storageObject.path().toString(), length);
         }
     }
 
     private final Cache<Key, byte[]> cache;
     private final long maxEntryBytes;
-    private final TimeValue expireAfterAccess;
+    private final TimeValue expireAfterWrite;
 
     /**
      * Creates a cache sized from node settings ({@link ExternalSourceCacheSettings#FOOTER_CACHE_SIZE},
@@ -117,23 +131,23 @@ public class FooterByteCache {
         return new FooterByteCache(maxBytes, maxEntryBytes, ExternalSourceCacheSettings.FOOTER_CACHE_TTL.get(settings));
     }
 
-    FooterByteCache(long maxBytes, long maxEntryBytes, TimeValue expireAfterAccess) {
+    FooterByteCache(long maxBytes, long maxEntryBytes, TimeValue expireAfterWrite) {
         this.maxEntryBytes = maxEntryBytes;
-        this.expireAfterAccess = expireAfterAccess;
+        this.expireAfterWrite = expireAfterWrite;
         this.cache = CacheBuilder.<Key, byte[]>builder()
             .setMaximumWeight(maxBytes)
-            .setExpireAfterAccess(expireAfterAccess)
+            .setExpireAfterWrite(expireAfterWrite)
             .weigher((key, value) -> value.length)
             .build();
     }
 
     /**
-     * The expire-after-access TTL this cache was built with. The paired {@link ParsedFooterCache}
+     * The expire-after-write TTL this cache was built with. The paired {@link ParsedFooterCache}
      * is constructed with the same value so the byte and parsed caches age out together. If the
      * bytes are stale, the parse derived from them is stale too.
      */
-    public TimeValue expireAfterAccess() {
-        return expireAfterAccess;
+    public TimeValue expireAfterWrite() {
+        return expireAfterWrite;
     }
 
     /** Maximum byte size for a single cache entry. */

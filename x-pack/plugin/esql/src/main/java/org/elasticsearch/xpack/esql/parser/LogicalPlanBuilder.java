@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
+import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
@@ -78,7 +79,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
-import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
@@ -106,6 +106,7 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.joni.exception.SyntaxException;
 
 import java.time.Duration;
@@ -416,8 +417,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
             LogicalPlan inner;
             if (mainQueryAndSubqueries.size() == 1) {
-                // if there is only one child, return it directly, no need for UnionAll
-                inner = subqueries.get(0).plan();
+                Subquery only = subqueries.get(0);
+                // if there is only one child without metadata - return it directly, no need for UnionAll
+                inner = metadataFields.isEmpty() ? only.plan() : only;
             } else {
                 // the output of UnionAll is resolved by analyzer
                 inner = new UnionAll(source(ctxs.getFirst(), ctxs.getLast()), mainQueryAndSubqueries, List.of());
@@ -1056,7 +1058,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
             metadataFields.add(new UnresolvedAttribute(source, name));
         }
-        return new UnresolvedExternalRelation(source, tablePath, config, metadataFields);
+        // The config is whatever the user typed. Framework keys are stripped here because the unknown-key check
+        // deliberately ignores them, so nothing else would reject one a user supplied -- and a supplied
+        // _definition_version would otherwise address a registered dataset's cache entries.
+        return new UnresolvedExternalRelation(source, tablePath, ConfigKeyValidator.withoutFrameworkKeys(config), metadataFields);
     }
 
     /**
@@ -1316,8 +1321,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @SuppressWarnings("unchecked")
     public PlanFactory visitForkCommand(EsqlBaseParser.ForkCommandContext ctx) {
         List<PlanFactory> subQueries = visitForkSubQueries(ctx.forkSubQueries());
-        if (subQueries.size() > MergePlan.MAX_BRANCHES) {
-            throw new ParsingException(source(ctx), "Fork supports up to " + MergePlan.MAX_BRANCHES + " branches");
+        // Hard ceiling: the setting maxValue. The configured cluster setting or pragma is enforced later in Fork.checkBranchCount.
+        int maxBranches = QueryPragmas.MAX_BRANCH_COUNT_PER_MERGE_MAX;
+        if (subQueries.size() > maxBranches) {
+            throw new ParsingException(source(ctx), "FORK supports up to " + maxBranches + " branches");
         }
 
         return input -> {
@@ -1512,7 +1519,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         boolean derivedFields = fields.isEmpty() || fields.getFirst() instanceof UnresolvedStar;
         List<Attribute> generatedFields = derivedFields ? List.of() : Highlight.generatedAttributesFor(source, prefix, fields);
         return p -> applyHighlightOptions(
-            new Highlight(source, p, prefix, query, false, derivedFields, fields, null, generatedFields),
+            new Highlight(source, p, prefix, query, false, derivedFields, fields, null, generatedFields, null, Map.of()),
             ctx.commandNamedParameters()
         );
     }

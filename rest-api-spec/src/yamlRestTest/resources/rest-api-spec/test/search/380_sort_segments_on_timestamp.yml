@@ -75,6 +75,14 @@
         body: { "foo": "bar1", "@timestamp": "2021-08-01" }
         refresh: true
 
+  # ensure the segment is created
+  - do:
+      search:
+        index: test_index2
+        body:
+          fields: [{ "field":"@timestamp", "format":"yyyy-MM-dd" }]
+  - match: { hits.hits.0.fields.@timestamp: ["2021-08-01"] }
+
   # 2nd segment
   - do:
       index:

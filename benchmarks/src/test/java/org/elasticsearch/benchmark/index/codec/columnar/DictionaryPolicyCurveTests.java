@@ -70,7 +70,7 @@ public class DictionaryPolicyCurveTests extends ESTestCase {
                         "%-20s %9d %7d %8.1f %9.3f %9.3f %s",
                         data,
                         kb,
-                        terms.size(),
+                        terms.dictionarySize(),
                         terms.dictionaryBytes() / 1024.0,
                         terms.coverage(),
                         share,
@@ -122,7 +122,7 @@ public class DictionaryPolicyCurveTests extends ESTestCase {
                 // NOTE: a column with nothing worth an ordinal still surveys its terms for the merge that reads it
                 // next, so what says these values are not named is an empty dictionary, not an absent vocabulary.
                 assertNotNull(data + " surveyed nothing at " + kb + "KB", terms);
-                assertEquals(data + " named terms at " + kb + "KB", 0, terms.size());
+                assertEquals(data + " named terms at " + kb + "KB", 0, terms.dictionarySize());
             }
         }
     }

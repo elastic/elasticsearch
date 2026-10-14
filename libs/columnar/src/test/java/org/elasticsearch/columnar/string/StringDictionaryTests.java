@@ -377,9 +377,10 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
         // it, which then leaves no room for the other. The cap is larger so the survey holds both.
         final StringColumnOptions options = new StringColumnOptions(
             new DictionaryPolicy(4096, 0.5, 0.01),
-            new SummaryPolicy(200),
+            SummaryPolicy.sized(200),
             ChunkCodec.ZSTD,
-            StringColumnOptions.DEFAULT_SIZES
+            StringColumnOptions.DEFAULT_SIZES,
+            StringColumnOptions.DEFAULT_SINGLE_VALUED
         );
         withColumn(singleValued(docValues), options, (metadata, reader) -> {
             assertEquals("layout", StringColumnLayout.DICTIONARY, metadata.layout());
@@ -463,7 +464,6 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
         });
     }
 
-    /** A column with nothing worth naming records no summary. */
     // NOTE: a column whose values are all distinct names none of them, and still summarises them: whether they
     // repeat is a question about the other segments, which only the merge can answer.
     public void testAllDistinctValuesKeepASummary() throws IOException {
@@ -471,7 +471,28 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
         for (int d = 0; d < docValues.length; d++) {
             docValues[d] = new BytesRef("id-" + d);
         }
-        withDictionary(docValues, (metadata, reader) -> assertTrue("summarised for the merge", reader.hasSummary()));
+        withDictionary(docValues, (metadata, reader) -> {
+            assertTrue("summarised for the merge", reader.hasSummary());
+            assertTrue("with its terms", reader.hasSummaryTerms());
+        });
+    }
+
+    public void testTermsPastTheCapAreStillRecorded() throws IOException {
+        final BytesRef[] docValues = new BytesRef[between(200, 800)];
+        for (int d = 0; d < docValues.length; d++) {
+            docValues[d] = new BytesRef("id-" + d);
+        }
+        withColumn(
+            docValues,
+            randomValidBlockSize(),
+            randomChunkCodec(),
+            randomTargetChunkBytes(),
+            new DictionaryPolicy(64, 0.5, 0.2),
+            (metadata, reader) -> {
+                assertTrue("recorded what a dictionary could reach", reader.hasSummary());
+                assertTrue("and the terms a later merge would read", reader.hasSummaryTerms());
+            }
+        );
     }
 
     /** What a column recorded of its survey survives the round trip through its metadata. */
@@ -786,7 +807,8 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
                 escapeRankBlockSize,
                 StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE,
                 ColumNARDocValuesFormat.MAX_BLOCK_SIZE
-            )
+            ),
+            StringColumnOptions.DEFAULT_SINGLE_VALUED
         );
     }
 
@@ -808,7 +830,14 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
         final long[] counts = new long[terms.size()];
         Arrays.fill(counts, docValues.length / terms.size());
         // What a merge would hand over: every term of the column, covering all of it.
-        final Vocabulary.Terms known = Vocabulary.known(terms, columnBytes(docValues), 1.0, counts);
+        final Vocabulary.Terms known = Vocabulary.known(
+            terms,
+            columnBytes(docValues),
+            1.0,
+            docValues.length,
+            BestCoverage.of(docValues.length, docValues.length, 512 * 1024),
+            counts
+        );
 
         final byte[] segmentId = new byte[16];
         random().nextBytes(segmentId);
@@ -833,7 +862,8 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
                             StringColumnOptions.DEFAULT_ESCAPE_RANK_BLOCK_SIZE,
                             StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE,
                             ColumNARDocValuesFormat.MAX_BLOCK_SIZE
-                        )
+                        ),
+                        StringColumnOptions.DEFAULT_SINGLE_VALUED
                     ),
                     known,
                     dir,

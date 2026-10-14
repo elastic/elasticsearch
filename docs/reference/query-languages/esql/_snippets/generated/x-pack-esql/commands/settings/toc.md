@@ -18,3 +18,6 @@
 :::{include} wildcards_match_datasets.md
 :::
 
+:::{include} wildcards_match_views.md
+:::
+

@@ -47,6 +47,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.time.DateMathParser;
@@ -113,7 +114,6 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
 import static org.elasticsearch.index.mapper.Mapper.IgnoreAbove.getIgnoreAboveDefaultValue;
 
 /**
@@ -246,7 +246,7 @@ public class WildcardFieldMapper extends FieldMapper {
         private Builder(String name, MappingParserContext mappingParserContext) {
             this(
                 name,
-                IGNORE_ABOVE_SETTING.get(mappingParserContext.getSettings()),
+                mappingParserContext.getIndexSettings().getIgnoreAbove(),
                 mappingParserContext.getIndexSettings().getMode(),
                 mappingParserContext.indexVersionCreated(),
                 mappingParserContext.getIndexSettings()
@@ -513,9 +513,13 @@ public class WildcardFieldMapper extends FieldMapper {
             }
 
             // Check for simple "match all expressions e.g. .*
-            RegExp regExp = new RegExp(value, syntaxFlags, matchFlags);
-            Automaton a = regExp.toAutomaton();
-            a = Operations.determinize(a, maxDeterminizedStates);
+            Automaton a = AutomatonQueries.toRegexpAutomaton(
+                new Term(name(), value),
+                syntaxFlags,
+                matchFlags,
+                maxDeterminizedStates,
+                context.getCircuitBreaker()
+            );
             if (Operations.isTotal(a)) { // Will match all
                 return existsQuery(context);
             }

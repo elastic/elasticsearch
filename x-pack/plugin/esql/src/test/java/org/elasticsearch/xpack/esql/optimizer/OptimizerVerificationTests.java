@@ -130,7 +130,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         );
         assertThat(
             error(fullTextAnalyzer().query(HYBRID_FORK + "| KEEP title | WHERE match_phrase(title, \"data\")")),
-            containsString("[MatchPhrase] function cannot search column [title] after FORK")
+            containsString("[MATCH_PHRASE] function cannot search column [title] after FORK")
         );
         assertThat(
             error(fullTextAnalyzer().query(HYBRID_FORK + "| KEEP title | WHERE title : \"data\"")),

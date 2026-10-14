@@ -15,7 +15,7 @@ FROM : 'from'                 -> pushMode(FROM_MODE);
 TS : 'ts' -> pushMode(FROM_MODE);
 
 // EXTERNAL command (internal, deprecated, snapshot-only)
-DEV_EXTERNAL : {EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled()}? 'external' -> pushMode(FROM_MODE);
+DEV_EXTERNAL : 'external' {EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled()}? -> pushMode(FROM_MODE);
 
 mode FROM_MODE;
 FROM_PIPE : PIPE -> type(PIPE), popMode;

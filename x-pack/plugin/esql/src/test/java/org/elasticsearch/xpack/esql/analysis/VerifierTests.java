@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.hamcrest.Matcher;
 
 import java.util.LinkedHashMap;
@@ -48,6 +50,8 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.EMBEDDING_INFERENCE_ID;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.TEXT_EMBEDDING_INFERENCE_ID;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.englishFallbackWarning;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.mappingAnalyzerFallbackWarning;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
@@ -1975,7 +1979,7 @@ public class VerifierTests extends AnalyzerTestCase {
         fullText().query("from test | eval text = substring(title, 1) | where match_phrase(text, \"cat\")");
         fullText().query("from test | eval text=concat(title, body) | where match_phrase(text, \"cat\")");
         fullText().query("row n = null | eval text = n + 5 | where match_phrase(text::keyword, \"cat\")");
-        checkFieldBasedFunctionNotAllowedAfterCommands("MatchPhrase", "function", "match_phrase(title, \"Meditation\")", true);
+        checkFieldBasedFunctionNotAllowedAfterCommands("MATCH_PHRASE", "function", "match_phrase(title, \"Meditation\")", true);
 
         checkFieldBasedFunctionNotAllowedAfterCommands("KNN", "function", "knn(vector, [1, 2, 3])", false);
     }
@@ -2294,7 +2298,7 @@ public class VerifierTests extends AnalyzerTestCase {
         // the same with differing function types, which pins *which* of the two is rejected
         fullText().error(
             "from test | eval t = to_text(concat(title, body)) | limit 10 | where match(t, \"cat\") or match_phrase(title, \"dog\")",
-            containsString("[MatchPhrase] function cannot be used after LIMIT")
+            containsString("[MATCH_PHRASE] function cannot be used after LIMIT")
         );
         fullText().error(
             "from test | eval t = to_text(concat(title, body)) | limit 10 | where match_phrase(t, \"cat\") or title : \"dog\"",
@@ -2443,7 +2447,7 @@ public class VerifierTests extends AnalyzerTestCase {
         checkFullTextFunctionsOnlyAllowedInWhere(":", "title:\"Meditation\"", "operator");
         checkFullTextFunctionsOnlyAllowedInWhere("QSTR", "qstr(\"Meditation\")", "function");
         checkFullTextFunctionsOnlyAllowedInWhere("KQL", "kql(\"Meditation\")", "function");
-        checkFullTextFunctionsOnlyAllowedInWhere("MatchPhrase", "match_phrase(title, \"Meditation\")", "function");
+        checkFullTextFunctionsOnlyAllowedInWhere("MATCH_PHRASE", "match_phrase(title, \"Meditation\")", "function");
         checkFullTextFunctionsOnlyAllowedInWhere("KNN", "knn(vector, [0, 1, 2])", "function");
     }
 
@@ -2533,7 +2537,7 @@ public class VerifierTests extends AnalyzerTestCase {
         checkFullTextFunctionsWithNonBooleanFunctions(":", "title:\"Meditation\"", "operator");
         checkFullTextFunctionsWithNonBooleanFunctions("QSTR", "qstr(\"title: Meditation\")", "function");
         checkFullTextFunctionsWithNonBooleanFunctions("KQL", "kql(\"title: Meditation\")", "function");
-        checkFullTextFunctionsWithNonBooleanFunctions("MatchPhrase", "match_phrase(title, \"Meditation\")", "function");
+        checkFullTextFunctionsWithNonBooleanFunctions("MATCH_PHRASE", "match_phrase(title, \"Meditation\")", "function");
         checkFullTextFunctionsWithNonBooleanFunctions("KNN", "knn(vector, [1, 2, 3])", "function");
     }
 
@@ -4222,6 +4226,39 @@ public class VerifierTests extends AnalyzerTestCase {
             );
     }
 
+    /**
+     * Reproduces <a href="https://github.com/elastic/elasticsearch/issues/160364">#160364</a>.
+     * <p>
+     * The {@code bucket} argument of {@code COUNT(histogram, bucket)} is evaluated <em>after</em> the aggregation (the surrogate
+     * turns it into {@code HISTOGRAM_FRACTION(HISTOGRAM_MERGE(histogram), bucket)} in an {@code EVAL} on top of the {@code STATS}),
+     * so it must either be a constant or reference a grouping key; a {@code BUCKET(...)} passed inline is rejected, even if the
+     * same {@code BUCKET(...)} is also a grouping key. Without this check the query used to slip through analysis and the
+     * optimizer failed with {@code IllegalStateException: ... optimized incorrectly due to missing references [responseTime]}.
+     */
+    public void testHistogramBucketInCountMustBeGroupingKey() {
+        analyzer().addIndex("exp_histo_sample", "exp_histo_sample-mappings.json", IndexMode.TIME_SERIES)
+            .stripErrorPrefix(true)
+            .error(
+                "TS exp_histo_sample | STATS occurrences = COUNT(responseTime, BUCKET(responseTime, 20))",
+                equalTo("1:63: can only use grouping function [BUCKET(responseTime, 20)] as part of the BY clause")
+            );
+        analyzer().addIndex("exp_histo_sample", "exp_histo_sample-mappings.json", IndexMode.TIME_SERIES)
+            .stripErrorPrefix(true)
+            .error(
+                "FROM exp_histo_sample | STATS occurrences = COUNT(responseTime, BUCKET(responseTime, 20))",
+                equalTo("1:65: can only use grouping function [BUCKET(responseTime, 20)] as part of the BY clause")
+            );
+        analyzer().addIndex("exp_histo_sample", "exp_histo_sample-mappings.json", IndexMode.TIME_SERIES)
+            .stripErrorPrefix(true)
+            .error(
+                "TS exp_histo_sample | STATS occurrences = COUNT(responseTime, BUCKET(responseTime, 20)) BY BUCKET(responseTime, 20)",
+                equalTo("1:63: can only use grouping function [BUCKET(responseTime, 20)] as part of the BY clause")
+            );
+        // referencing the grouping key is the supported way
+        analyzer().addIndex("exp_histo_sample", "exp_histo_sample-mappings.json", IndexMode.TIME_SERIES)
+            .query("TS exp_histo_sample | STATS occurrences = COUNT(responseTime, b) BY b = BUCKET(responseTime, 20)");
+    }
+
     public void testNoDimensionsInAggsOnlyInByClause() {
         tsdb().error(
             "TS test | STATS count(bool_field) BY bucket(@timestamp, 1 minute)",
@@ -4593,19 +4630,6 @@ public class VerifierTests extends AnalyzerTestCase {
                     containsString("Column [still_hired] has conflicting data types in subqueries: [boolean, keyword]")
                 )
             );
-    }
-
-    // Fork inside subquery is tested in LogicalPlanOptimizerTests
-    public void testSubqueryInFromWithForkInMainQuery() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        defaultAnalyzer().addDefaultIncompatible().error("""
-            FROM test, (FROM test_mixed_types
-                                 | WHERE languages > 0
-                                 | EVAL emp_no = emp_no::int
-                                 | KEEP emp_no)
-            | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)
-            | KEEP emp_no
-            """, containsString("1:6: FORK after subquery is not supported"));
     }
 
     // LookupJoin on FTF after subquery is not supported, as join is not pushed down into subquery yet
@@ -5084,15 +5108,25 @@ public class VerifierTests extends AnalyzerTestCase {
         );
     }
 
-    public void testHighlightQueryAnalyzerMustMatchValuesOrWith() {
+    /** Query analyzer and values analyzer may differ, exactly like {@code WHERE MATCH}. WITH sets only the values side. */
+    public void testHighlightQueryAndValuesAnalyzersMayDiffer() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
-        supportsHighlightImplicit(fullText()).error(
-            "FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) | HIGHLIGHT",
-            containsString("HIGHLIGHT query analyzer [whitespace] does not match the values analyzer [standard]")
-        );
+        supportsHighlightImplicit(fullText()).query("FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) | HIGHLIGHT");
         supportsHighlightImplicit(fullText()).query(
             "FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) | HIGHLIGHT WITH { \"analyzer\": \"whitespace\" }"
         );
+    }
+
+    /** A mapping analyzer no longer has to match the borrowed query analyzer, and different ON fields may use different analyzers. */
+    public void testHighlightMappingAnalyzerAllowsAnyQueryAnalyzer() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        TestAnalyzer booksEnglish = supportsHighlightImplicit(
+            analyzer().addIndex("books_english", "mapping-books_english.json").stripErrorPrefix(true)
+        );
+        booksEnglish.query("FROM books_english | WHERE MATCH(title, \"ring\") | HIGHLIGHT ON title");
+        booksEnglish.query("FROM books_english | WHERE MATCH(title, \"ring\", {\"analyzer\": \"whitespace\"}) | HIGHLIGHT ON title");
+        booksEnglish.query("FROM books_english | HIGHLIGHT \"ring\" ON title, publisher");
+        assertWarnings(englishFallbackWarning("title"));
     }
 
     public void testHighlightImplicitDerivedQueryFailureIsFramedAsDerived() {
@@ -5130,6 +5164,11 @@ public class VerifierTests extends AnalyzerTestCase {
         assertInvalidHighlightOptionValue("analyzer", "123", containsString("Option [analyzer] must be a string"));
         assertInvalidHighlightOptionValue("pre_tags", "123", containsString("Option [pre_tags] must be a string"));
         assertInvalidHighlightOptionValue("post_tags", "true", containsString("Option [post_tags] must be a string"));
+        assertInvalidHighlightOptionValue(
+            "pre_tags",
+            "\"" + "x".repeat(257) + "\"",
+            containsString("Option [pre_tags] must be at most [256] characters, found [257]")
+        );
         assertInvalidHighlightOptionValue(
             "boundary_scanner_locale",
             "123",
@@ -5194,6 +5233,11 @@ public class VerifierTests extends AnalyzerTestCase {
         supportsHighlight(fullText()).query(
             "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"standard\"}) ON title WITH { \"analyzer\": \"standard\" }"
         );
+        supportsHighlight(fullText()).query("FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) ON title");
+        supportsHighlight(fullText()).query(
+            "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"simple\"}) OR"
+                + " MATCH(body, \"bar\", {\"analyzer\": \"whitespace\"}) ON title, body"
+        );
         // Full-text functions inside a HIGHLIGHT query are used to define highlighting terms, not as Lucene filter predicates.
         // They must be allowed on non-STANDARD (e.g. time-series) indices.
         supportsHighlight(k8s()).query("TS k8s | HIGHLIGHT MATCH(event_log, \"fox\") ON event_log");
@@ -5204,20 +5248,40 @@ public class VerifierTests extends AnalyzerTestCase {
         );
     }
 
-    public void testHighlightOnTimeSeriesStillRejectsWhereClause() {
-        // The HIGHLIGHT exemption is narrow: full-text functions in WHERE remain rejected on non-STANDARD indices.
-        k8s().error(
-            "TS k8s | WHERE MATCH(event_log, \"fox\")",
-            allOf(containsString("[MATCH] function cannot operate on [event_log]"), containsString("non-STANDARD mode"))
-        );
-        k8s().error(
-            "TS k8s | WHERE event_log : \"fox\"",
-            allOf(containsString("cannot operate on [event_log]"), containsString("non-STANDARD mode"))
-        );
-        // A WHERE violation is still reported when a valid HIGHLIGHT on the same field is present.
-        supportsHighlight(k8s()).error(
-            "TS k8s | WHERE MATCH(event_log, \"fox\") | HIGHLIGHT MATCH(event_log, \"fox\") ON event_log",
-            allOf(containsString("[MATCH] function cannot operate on [event_log]"), containsString("non-STANDARD mode"))
+    public void testHighlightOnTimeSeriesWithWhereClause() {
+        supportsHighlight(k8s()).query("TS k8s | WHERE MATCH(event_log, \"fox\") | HIGHLIGHT MATCH(event_log, \"fox\") ON event_log");
+    }
+
+    /**
+     * Kibana turns a filter pill on a TS data view into {@code field : value}, so the match operator must accept
+     * fields of a TS source, dimensions included.
+     */
+    public void testMatchOperatorAcceptedOnTimeSeriesField() {
+        k8s().query("TS k8s | WHERE cluster : \"prod\"");
+        k8s().query("TS k8s | WHERE event_log : \"fox\"");
+        k8s().query("TS k8s | WHERE events_received : 5");
+    }
+
+    public void testMatchFunctionAcceptedOnTimeSeriesField() {
+        k8s().query("TS k8s | WHERE MATCH(cluster, \"prod\")");
+        k8s().query("TS k8s | WHERE MATCH(event_log, \"fox dog\", {\"operator\": \"AND\"})");
+    }
+
+    public void testMatchPhraseAcceptedOnTimeSeriesField() {
+        k8s().query("TS k8s | WHERE MATCH_PHRASE(event_log, \"quick fox\")");
+    }
+
+    public void testKnnAcceptedOnTimeSeriesField() {
+        fullTextTimeSeries().query("TS test | WHERE KNN(vector, [0, 1, 2])");
+    }
+
+    public void testFullTextFunctionRejectedOnLookupField() {
+        analyzerWithLanguagesLookup().error(
+            "FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code"
+                + " | WHERE language_name : \"English\"",
+            containsString(
+                "[:] operator cannot operate on [language_name], supplied by an index [languages_lookup] in non-STANDARD mode [lookup]"
+            )
         );
     }
 
@@ -5239,6 +5303,89 @@ public class VerifierTests extends AnalyzerTestCase {
             "FROM test | HIGHLIGHT \"fox AND\" ON first_name WITH { \"analyzer\": 123 }",
             allOf(containsString("Option [analyzer] must be a string"), containsString("Invalid query [fox AND]"))
         );
+    }
+
+    /** A declared analyzer failure must preserve source locations and other verification errors. */
+    public void testHighlightUnknownDeclaredAnalyzer() {
+        analyzer().minimumTransportVersion(TransportVersion.current())
+            .error(
+                """
+                    ROW t = TO_TEXT("fox", {"analyzer": "not_a_real_analyzer"})
+                    | HIGHLIGHT "fox" ON t WITH {"number_of_fragments": -1}
+                    | LIMIT 10
+                    """,
+                allOf(
+                    containsString("line 1:9: [not_a_real_analyzer] is not a registered analyzer"),
+                    containsString("Option [number_of_fragments] must be >= 0")
+                )
+            );
+    }
+
+    public void testHighlightWithAnalyzerDivergesFromBorrowedLeaf() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlightImplicit(fullText()).query(
+            "FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"})"
+                + " | HIGHLIGHT ON title WITH { \"analyzer\": \"keyword\" }"
+        );
+    }
+
+    /** A resolvable WITH does not clear an unresolvable analyzer on the borrowed query. */
+    public void testHighlightDerivedAnalyzerNotFoundGetsTargetedMessage() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        for (String query : List.of(
+            "FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"my_custom_analyzer\"}) | HIGHLIGHT ON title",
+            "FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"my_custom_analyzer\"}) AND MATCH(body, \"bar\") | HIGHLIGHT ON body",
+            "FROM test | WHERE QSTR(\"title:\\\"return\\\"\", {\"analyzer\": \"standard\", \"quote_analyzer\": \"my_custom_analyzer\"})"
+                + " | HIGHLIGHT ON title",
+            "FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"my_custom_analyzer\"})"
+                + " | HIGHLIGHT ON title WITH { \"analyzer\": \"whitespace\" }"
+        )) {
+            supportsHighlightImplicit(fullText()).error(
+                query,
+                allOf(
+                    containsString("HIGHLIGHT derived its query from a preceding WHERE"),
+                    containsString("refers to analyzer [my_custom_analyzer]"),
+                    containsString("Write the query on HIGHLIGHT without that analyzer option"),
+                    not(containsString("[my_custom_analyzer] is not a registered analyzer"))
+                )
+            );
+        }
+    }
+
+    /** An unresolvable WITH analyzer reports the registry failure, even when the borrowed query names it too. */
+    public void testHighlightWithAnalyzerFailureReportsRawRegistryError() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        for (String borrowed : List.of("whitespace", "my_custom_analyzer")) {
+            supportsHighlightImplicit(fullText()).error(
+                "FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \""
+                    + borrowed
+                    + "\"})"
+                    + " | HIGHLIGHT ON title WITH { \"analyzer\": \"my_custom_analyzer\" }",
+                containsString("[my_custom_analyzer] is not a registered analyzer")
+            );
+        }
+    }
+
+    public void testHighlightReportsUnregisteredLeafAnalyzerEvenWhenWithOverridesIt() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlight(fullText()).error(
+            "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"not_a_real_analyzer\"}) ON title"
+                + " WITH { \"analyzer\": \"whitespace\" }",
+            containsString("[not_a_real_analyzer] is not a registered analyzer")
+        );
+        supportsHighlight(fullText()).error(
+            "FROM test | HIGHLIGHT QSTR(\"title:\\\"fox\\\"\", {\"quote_analyzer\": \"not_a_real_analyzer\"}) ON title"
+                + " WITH { \"analyzer\": \"whitespace\" }",
+            containsString("[not_a_real_analyzer] is not a registered analyzer")
+        );
+    }
+
+    /** A mapping name this node cannot build falls back. Index-local names never reach this path. */
+    public void testHighlightMappingAnalyzerUnknownOnNodeFallsBack() {
+        supportsHighlight(analyzer().addIndex("test", "mapping-text-custom-analyzer.json").stripErrorPrefix(true)).query(
+            "FROM test | HIGHLIGHT \"fox\" ON title"
+        );
+        assertWarnings(mappingAnalyzerFallbackWarning("title", "my_index_analyzer"));
     }
 
     public void testHighlightRejectsInvalidQueries() {
@@ -5266,18 +5413,14 @@ public class VerifierTests extends AnalyzerTestCase {
             "FROM test | HIGHLIGHT category > 5 ON title",
             containsString("HIGHLIGHT query must be a full-text function (MATCH, MATCH_PHRASE, QSTR, KQL) or a boolean combination of them")
         );
+        // KNN is a full-text function with no lexical form to highlight, alone or inside a boolean.
         supportsHighlight(fullText()).error(
-            "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) ON title WITH { \"analyzer\": \"keyword\" }",
-            containsString("HIGHLIGHT WITH analyzer [keyword] does not match analyzer [whitespace] specified by the query")
+            "FROM test | HIGHLIGHT KNN(vector, [1, 2, 3]) ON title",
+            containsString("HIGHLIGHT query must be a full-text function (MATCH, MATCH_PHRASE, QSTR, KQL)")
         );
         supportsHighlight(fullText()).error(
-            "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) ON title",
-            containsString("HIGHLIGHT query analyzer [whitespace] does not match the values analyzer [standard]")
-        );
-        supportsHighlight(fullText()).error(
-            "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"english\"}) OR"
-                + " MATCH(body, \"bar\", {\"analyzer\": \"whitespace\"}) ON title, body",
-            containsString("HIGHLIGHT full-text functions use different analyzers [english, whitespace]")
+            "FROM test | HIGHLIGHT MATCH(title, \"fox\") OR KNN(vector, [1, 2, 3]) ON title",
+            containsString("HIGHLIGHT query must be a full-text function (MATCH, MATCH_PHRASE, QSTR, KQL)")
         );
         supportsHighlight(fullText()).error(
             "FROM test | HIGHLIGHT MATCH(title, \"fox\") ON body",
@@ -5326,6 +5469,15 @@ public class VerifierTests extends AnalyzerTestCase {
             );
     }
 
+    public void testDenseVectorRejectedOnOlderTransportVersion() {
+        defaultAnalyzer().addAnalysisTestsInferenceResolution()
+            .minimumTransportVersion(TransportVersionUtils.randomVersionNotSupporting(DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION))
+            .error(
+                Strings.format("FROM test | DENSE_VECTOR first_name WITH { \"inference_id\": \"%s\" }", TEXT_EMBEDDING_INFERENCE_ID),
+                containsString("DENSE_VECTOR is not supported on every participating node")
+            );
+    }
+
     private void assertInvalidHighlightOption(String optionName, String optionValue) {
         supportsHighlight(defaultAnalyzer()).error(
             "FROM test | HIGHLIGHT \"search\" ON first_name WITH { \"" + optionName + "\": \"" + optionValue + "\" }",
@@ -5365,6 +5517,10 @@ public class VerifierTests extends AnalyzerTestCase {
 
     private TestAnalyzer fullText() {
         return analyzer().addIndex("test", "mapping-full_text_search.json").stripErrorPrefix(true);
+    }
+
+    private TestAnalyzer fullTextTimeSeries() {
+        return analyzer().addIndex("test", "mapping-full_text_search.json", IndexMode.TIME_SERIES).stripErrorPrefix(true);
     }
 
     private TestAnalyzer sampleData() {

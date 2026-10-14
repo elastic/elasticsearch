@@ -1,0 +1,7 @@
+area: ES|QL
+issues: []
+pr: 160949
+summary: Count ES|QL external-source APM storage.bytes_read.total as received bytes
+  published at stream close, and report planning I/O plus request and retry
+  counts on the query profile
+type: enhancement

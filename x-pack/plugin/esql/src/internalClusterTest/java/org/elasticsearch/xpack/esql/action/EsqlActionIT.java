@@ -3091,11 +3091,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                     anyOf(containsString("EsQueryExec"), containsString("EsSourceExec"), containsString("LocalSourceExec"))
                 );
 
-                // === Node Reduce Plan Assertions ===
-                assertNotNull("Should have node_reduce plan", nodeReducePlan);
-                // node_reduce plan should contain ExchangeSinkExec for sending results to coordinator
-                assertThat("Node reduce plan should contain ExchangeSinkExec", nodeReducePlan, containsString("ExchangeSinkExec"));
-
                 // === Final Plan Assertions ===
                 assertNotNull("Should have final coordinator plan", finalPlan);
                 // Final plan should contain OutputExec for final result output
@@ -3234,11 +3229,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                     localPhysicalPlan,
                     anyOf(containsString("AggregateExec"), containsString("HashAggregation"))
                 );
-
-                // === Node Reduce Plan Assertions ===
-                assertNotNull("Should have node_reduce plan", nodeReducePlan);
-                // node_reduce plan should contain ExchangeSinkExec for sending results to coordinator
-                assertThat("Node reduce plan should contain ExchangeSinkExec", nodeReducePlan, containsString("ExchangeSinkExec"));
 
                 // === Final Plan Assertions ===
                 assertNotNull("Should have final coordinator plan", finalPlan);

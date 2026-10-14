@@ -340,6 +340,9 @@ class AzureClientProvider extends AbstractLifecycleComponent {
             if (settings.getReadTimeout().equals(TimeValue.MINUS_ONE) == false) {
                 httpClientBuilder.readTimeout(Duration.ofMillis(settings.getReadTimeout().millis()));
             }
+            if (settings.getWriteTimeout().equals(TimeValue.MINUS_ONE) == false) {
+                httpClientBuilder.writeTimeout(Duration.ofMillis(settings.getWriteTimeout().millis()));
+            }
 
             final String connectionString = settings.getConnectString();
             BlobServiceClientBuilder builder = new BlobServiceClientBuilder().connectionString(connectionString)

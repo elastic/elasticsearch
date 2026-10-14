@@ -9,12 +9,14 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -35,6 +37,8 @@ import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -46,13 +50,17 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.not;
 
 public class EsqlStreamResponseListenerTests extends ESTestCase {
 
@@ -114,6 +122,109 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
 
         Map<String, Object> footer = lines.get(1);
         assertThat(footer, equalTo(Map.of("status", 200, "took", 42, "is_partial", false, "warnings", List.of("warning1", "warning2"))));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testFooterWithProfile() throws IOException {
+        Subscribed s = subscribe(simpleColumns(), null);
+
+        // Build a minimal profile stub: a ChunkedToXContent that renders {"profile":{"k":"v"}}.
+        PageStreamPublisher.StreamFooter footer = new PageStreamPublisher.StreamFooter(
+            200,
+            10L,
+            false,
+            List.of(),
+            null,
+            null,
+            null,
+            params -> List.<ToXContent>of((b, p) -> b.startObject("profile").field("k", "v").endObject()).iterator()
+        );
+
+        // The response is only sent once the footer arrives, so complete the publisher first and then drain.
+        s.producer().finish();
+        s.publisher().completeWithFooter(footer);
+        assertTrue("expected a chunked response", s.response().isChunked());
+        ChunkedRestResponseBodyPart currentPart = s.response().chunkedContent();
+        List<Map<String, Object>> lines = new ArrayList<>();
+        lines.add(decodeLine(currentPart));
+
+        ChunkedRestResponseBodyPart footerPart = nextPart(currentPart, () -> {});
+        assertTrue("footer must be the last part", footerPart.isLastPart());
+        lines.add(decodeLine(footerPart));
+
+        assertThat(lines.size(), equalTo(2));
+        Map<String, Object> footerLine = lines.get(1);
+        assertThat("profile key must be present in footer", footerLine, hasKey("profile"));
+        Map<String, Object> profile = (Map<String, Object>) footerLine.get("profile");
+        assertThat("profile content must be rendered", profile.get("k"), equalTo("v"));
+        // Existing fields must still be present.
+        assertThat(footerLine.get("status"), equalTo(200));
+        assertThat(footerLine.get("took"), equalTo(10));
+        assertThat(footerLine.get("is_partial"), equalTo(false));
+    }
+
+    public void testLargeFooterSplitsAcrossChunks() throws IOException {
+        // Build a profile stub that produces many small chunks.
+        final int chunkCount = 100;
+        PageStreamPublisher.StreamFooter footer = new PageStreamPublisher.StreamFooter(
+            200,
+            0L,
+            false,
+            List.of(),
+            null,
+            null,
+            null,
+            params -> new Iterator<ToXContent>() {
+                private int remaining = chunkCount;
+
+                @Override
+                public boolean hasNext() {
+                    return remaining > 0;
+                }
+
+                @Override
+                public ToXContent next() {
+                    if (remaining-- <= 0) {
+                        throw new java.util.NoSuchElementException();
+                    }
+                    final int idx = chunkCount - remaining;
+                    return (b, p) -> b.field("f" + idx, idx);
+                }
+            }
+        );
+
+        Subscribed s = subscribe(simpleColumns(), null);
+        // The response is only sent once the footer arrives, so complete the publisher first.
+        s.producer().finish();
+        s.publisher().completeWithFooter(footer);
+        assertTrue("expected a chunked response", s.response().isChunked());
+        ChunkedRestResponseBodyPart currentPart = s.response().chunkedContent();
+        // Consume the columns part.
+        encodeBodyPart(currentPart);
+
+        ChunkedRestResponseBodyPart footerPart = nextPart(currentPart, () -> {});
+        assertTrue("footer must be the last part", footerPart.isLastPart());
+
+        // Encode with a tiny sizeHint to force multiple chunks.
+        List<ReleasableBytesReference> refs = new ArrayList<>();
+        int encodedChunks = 0;
+        while (footerPart.isPartComplete() == false) {
+            refs.add(footerPart.encodeChunk(1, BytesRefRecycler.NON_RECYCLING_INSTANCE));
+            encodedChunks++;
+        }
+        assertThat("large footer must encode in more than one chunk", encodedChunks, greaterThan(1));
+
+        // The reassembled bytes must be valid JSON followed by exactly one newline.
+        String raw = CompositeBytesReference.of(refs.toArray(new BytesReference[0])).utf8ToString();
+        assertTrue("footer must end with a newline", raw.endsWith("\n"));
+        Map<String, Object> parsed = parseJson(raw.strip());
+        refs.forEach(ReleasableBytesReference::close);
+
+        // All profile fields must be present.
+        for (int i = 1; i <= chunkCount; i++) {
+            assertThat("field f" + i + " must be present in the reassembled footer", parsed, hasKey("f" + i));
+        }
+        assertThat("status must be present", parsed, hasKey("status"));
     }
 
     public void testFooterIsPartial() throws IOException {
@@ -491,7 +602,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
     public void testFailStreamBeforeFirstPageUsesTransportFooter() throws IOException {
         Subscribed s = subscribe(simpleColumns(), null);
         ElasticsearchStatusException e = new ElasticsearchStatusException("too many", RestStatus.TOO_MANY_REQUESTS);
-        s.publisher().failStream(e, new PageStreamPublisher.StreamFooter(429, 17L, false, List.of("w1"), null, e));
+        s.publisher().failStream(e, new PageStreamPublisher.StreamFooter(429, 17L, false, List.of("w1"), null, null, e, null));
         RestResponse response = s.response();
         assertThat(response.status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
         Map<String, Object> line = decodeLine(response.chunkedContent());
@@ -521,6 +632,49 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         s.producer().addPage(buildSimplePage(1, "first"));
         s.response().close();
         assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testFooterWithClusters() throws IOException {
+        ToXContent clusters = (builder, params) -> {
+            builder.startObject();
+            builder.field("total", 1);
+            builder.endObject();
+            return builder;
+        };
+
+        Subscribed s = subscribe(simpleColumns(), null);
+        s.producer().finish();
+        s.publisher().completeWithFooter(new PageStreamPublisher.StreamFooter(200, 50L, false, List.of(), null, clusters, null, null));
+        ChunkedRestResponseBodyPart columnsPart = s.response().chunkedContent();
+        encodeBodyPart(columnsPart);
+
+        ChunkedRestResponseBodyPart footerPart = nextPart(columnsPart, () -> {});
+        assertTrue("footer must be the last part", footerPart.isLastPart());
+        Map<String, Object> footer = decodeLine(footerPart);
+
+        assertThat(footer, hasKey("_clusters"));
+        Map<String, Object> clustersMap = (Map<String, Object>) footer.get("_clusters");
+        assertThat(clustersMap.get("total"), equalTo(1));
+        assertThat("_clusters must appear before error (error absent here)", footer, not(hasKey("error")));
+    }
+
+    public void testFooterWithoutClusters() throws IOException {
+        Subscribed s = subscribe(simpleColumns(), null);
+        List<Map<String, Object>> lines = drainStream(s, List.of(), 5L, List.of());
+        Map<String, Object> footer = lines.get(lines.size() - 1);
+        assertThat("footer must not contain _clusters when metadata is absent", footer, not(hasKey("_clusters")));
+    }
+
+    public void testFailStreamBeforeFirstPageCopiesHeaders() {
+        Subscribed s = subscribe(simpleColumns(), null);
+        ElasticsearchSecurityException e = new ElasticsearchSecurityException("no", RestStatus.UNAUTHORIZED);
+        e.addBodyHeader("WWW-Authenticate", "Basic realm=\"security\"");
+        s.publisher().failStream(e);
+        RestResponse response = s.response();
+        assertNotNull(response);
+        assertThat(response.status(), equalTo(RestStatus.UNAUTHORIZED));
+        assertThat(response.getHeaders().get("WWW-Authenticate"), equalTo(List.of("Basic realm=\"security\"")));
     }
 
     public void testDatetimeValuesUseTheQueryTimeZone() throws IOException {
@@ -638,6 +792,115 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         lines.add(decodeLine(footerPart));
 
         return lines;
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testOnFailureUsesPreHeaderFooterWhenProvided() throws IOException {
+        FakeRestChannel channel = new FakeRestChannel(new FakeRestRequest(), true);
+        EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel, new ThreadContext(Settings.EMPTY));
+
+        RuntimeException cause = new RuntimeException("injected");
+        PageStreamPublisher.StreamFooter footer = new PageStreamPublisher.StreamFooter(
+            500,
+            12345L,
+            false,
+            List.of("warning from sub-plan"),
+            null,
+            null,
+            cause,
+            null
+        );
+        listener.setPreHeaderFailureFooter(footer);
+        listener.onFailure(new ElasticsearchStatusException("other", RestStatus.BAD_REQUEST));
+
+        RestResponse restResponse = channel.capturedResponse();
+        assertThat(restResponse.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+        Map<String, Object> line = decodeLine(restResponse.chunkedContent());
+        assertThat(
+            "error must come from the supplied footer",
+            ((Map<String, Object>) line.get("error")).get("reason"),
+            equalTo("injected")
+        );
+        assertThat("took must come from the supplied footer", line.get("took"), equalTo(12345));
+        @SuppressWarnings("unchecked")
+        List<String> warnings = (List<String>) line.get("warnings");
+        assertThat("warnings must come from the supplied footer", warnings, equalTo(List.of("warning from sub-plan")));
+        assertFalse("failure footer must not carry stats keys", line.containsKey("documents_found"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testFallbackPreHeaderFooterHasTookAndWarnings() throws IOException {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.addResponseHeader("Warning", HeaderWarning.formatWarning("limit added"));
+
+        FakeRestChannel channel = new FakeRestChannel(new FakeRestRequest(), true);
+        EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel, threadContext);
+        listener.onFailure(new RuntimeException("boom"));
+
+        RestResponse restResponse = channel.capturedResponse();
+        Map<String, Object> line = decodeLine(restResponse.chunkedContent());
+        int took = (int) line.get("took");
+        assertTrue("fallback took must be non-negative", took >= 0);
+        @SuppressWarnings("unchecked")
+        List<String> warnings = (List<String>) line.get("warnings");
+        assertThat("thread-context warning must appear in fallback footer", warnings, equalTo(List.of("limit added")));
+        assertFalse("fallback footer must not carry stats keys", line.containsKey("documents_found"));
+    }
+
+    private static FakeRestRequest requestWithParams(Map<String, String> params) {
+        return new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(new HashMap<>(params)).build();
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testErrorTraceAddsStackTrace() throws IOException {
+        FakeRestChannel channel = new FakeRestChannel(requestWithParams(Map.of("error_trace", "true")), true);
+        new EsqlStreamResponseListener(channel, new ThreadContext(Settings.EMPTY)).onFailure(
+            new ElasticsearchStatusException("bad", RestStatus.BAD_REQUEST)
+        );
+        Map<String, Object> error = (Map<String, Object>) decodeLine(channel.capturedResponse().chunkedContent()).get("error");
+        assertThat(error, hasKey("stack_trace"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testErrorTraceSuppressedFor401AndHeadersCopied() throws IOException {
+        FakeRestChannel channel = new FakeRestChannel(requestWithParams(Map.of("error_trace", "true")), true);
+        ElasticsearchSecurityException e = new ElasticsearchSecurityException("no", RestStatus.UNAUTHORIZED);
+        e.addBodyHeader("WWW-Authenticate", "Basic realm=\"security\"");
+        new EsqlStreamResponseListener(channel, new ThreadContext(Settings.EMPTY)).onFailure(e);
+
+        RestResponse response = channel.capturedResponse();
+        assertThat(response.status(), equalTo(RestStatus.UNAUTHORIZED));
+        assertThat(response.getHeaders().get("WWW-Authenticate"), equalTo(List.of("Basic realm=\"security\"")));
+        Map<String, Object> error = (Map<String, Object>) decodeLine(response.chunkedContent()).get("error");
+        assertThat(error, not(hasKey("stack_trace")));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testNonDetailedErrorsRenderTypeAndReasonOnly() throws IOException {
+        FakeRestChannel channel = new FakeRestChannel(new FakeRestRequest(), false);
+        new EsqlStreamResponseListener(channel, new ThreadContext(Settings.EMPTY)).onFailure(
+            new ElasticsearchException("wrapper", new ElasticsearchException("root"))
+        );
+        Map<String, Object> error = (Map<String, Object>) decodeLine(channel.capturedResponse().chunkedContent()).get("error");
+        assertThat(error.keySet(), equalTo(Set.of("type", "reason")));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testErrorObjectHasRootCauseAndCausedBy() throws IOException {
+        ElasticsearchException root = new ElasticsearchException("root cause message");
+        ElasticsearchException wrapper = new ElasticsearchException("wrapper message", root);
+
+        FakeRestChannel channel = new FakeRestChannel(new FakeRestRequest(), true);
+        EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel, new ThreadContext(Settings.EMPTY));
+        listener.onFailure(wrapper);
+
+        RestResponse restResponse = channel.capturedResponse();
+        Map<String, Object> line = decodeLine(restResponse.chunkedContent());
+        Map<String, Object> error = (Map<String, Object>) line.get("error");
+        assertNotNull("error must be present", error);
+        assertThat("type must match the exception name", error.get("type"), equalTo(ElasticsearchException.getExceptionName(wrapper)));
+        assertNotNull("root_cause must be present", error.get("root_cause"));
+        assertNotNull("caused_by must be present", error.get("caused_by"));
     }
 
     @SuppressWarnings("unchecked")

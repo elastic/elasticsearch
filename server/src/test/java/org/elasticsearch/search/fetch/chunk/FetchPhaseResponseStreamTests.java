@@ -55,7 +55,7 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
     private static final ShardId TEST_SHARD_ID = new ShardId(new Index("test-index", "test-uuid"), 0);
 
     public void testEmptyStream() {
-        FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 0, new NoopCircuitBreaker("test"));
+        FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 0, NoopCircuitBreaker.INSTANCE);
         try {
             FetchSearchResult result = buildFinalResult(stream);
             try {
@@ -69,7 +69,7 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
     }
 
     public void testSingleHit() throws IOException {
-        FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 1, new NoopCircuitBreaker("test"));
+        FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 1, NoopCircuitBreaker.INSTANCE);
 
         try {
             writeChunk(stream, createChunk(0, 1, 0));
@@ -89,7 +89,7 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
     }
 
     public void testChunksArriveInOrder() throws IOException {
-        FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 15, new NoopCircuitBreaker("test"));
+        FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 15, NoopCircuitBreaker.INSTANCE);
 
         try {
             // Send 3 chunks in order: sequence 0-4, 5-9, 10-14
@@ -115,7 +115,7 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
     }
 
     public void testChunksArriveRandomOrder() throws IOException {
-        CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        CircuitBreaker breaker = NoopCircuitBreaker.INSTANCE;
         int numChunks = 10;
         int hitsPerChunk = 5;
         int totalHits = numChunks * hitsPerChunk;
@@ -155,7 +155,7 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
     }
 
     public void testAddHitWithSequence() {
-        FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 5, new NoopCircuitBreaker("test"));
+        FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 5, NoopCircuitBreaker.INSTANCE);
 
         try {
             stream.addHitWithSequence(createHit(3), 3);
@@ -182,7 +182,7 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
     }
 
     public void testMixedChunkAndSingleHitAddition() throws IOException {
-        CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        CircuitBreaker breaker = NoopCircuitBreaker.INSTANCE;
         FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 10, breaker);
 
         try {
@@ -214,7 +214,7 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
     }
 
     public void testNonContiguousSequenceNumbers() throws IOException {
-        CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        CircuitBreaker breaker = NoopCircuitBreaker.INSTANCE;
         FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 6, breaker);
 
         try {
@@ -268,6 +268,32 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
         } finally {
             stream.decRef();
         }
+    }
+
+    public void testBreakerBytesMoveToTheResultThatTakesTheHits() throws IOException {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 5, breaker);
+
+        final FetchSearchResult result;
+        final long charged;
+        try {
+            writeChunk(stream, createChunkWithSourceSize(0, 5, 0, 1024));
+            charged = breaker.getUsed();
+            assertThat(charged, greaterThan(0L));
+
+            result = buildFinalResult(stream);
+            stream.transferBreakerBytesTo(result);
+        } finally {
+            stream.decRef();
+        }
+
+        // Closing the stream gives nothing back, because the result owns the charge now.
+        assertThat(breaker.getUsed(), equalTo(charged));
+        assertThat(result.getSearchHitsSizeBytes(), equalTo(charged));
+        assertTrue(result.isChargedOnCoordinator());
+
+        result.decRef();
+        assertThat("Releasing the result gives the charge back exactly once", breaker.getUsed(), equalTo(0L));
     }
 
     public void testBreakerChargesRetainedFieldGraphNotSerializedSize() throws IOException {
@@ -479,7 +505,7 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
     // ==================== Score Handling Tests ====================
 
     public void testMaxScoreCalculation() throws IOException {
-        CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        CircuitBreaker breaker = NoopCircuitBreaker.INSTANCE;
         FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 5, breaker);
 
         try {
@@ -500,7 +526,7 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
     }
 
     public void testMaxScoreWithNaN() throws IOException {
-        CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        CircuitBreaker breaker = NoopCircuitBreaker.INSTANCE;
         FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 3, breaker);
 
         try {
@@ -525,7 +551,7 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
     }
 
     public void testMaxScoreWithMixedNaNAndValid() throws IOException {
-        CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        CircuitBreaker breaker = NoopCircuitBreaker.INSTANCE;
         FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 4, breaker);
 
         try {
@@ -551,7 +577,7 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
      * Simulates shards
      */
     public void testConcurrentChunkWrites() throws Exception {
-        CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        CircuitBreaker breaker = NoopCircuitBreaker.INSTANCE;
         int numThreads = 10;
         int hitsPerThread = 10;
         int totalHits = numThreads * hitsPerThread;
@@ -602,7 +628,7 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
     }
 
     public void testReleasableClosedOnSuccess() throws IOException {
-        FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 5, new NoopCircuitBreaker("test"));
+        FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 5, NoopCircuitBreaker.INSTANCE);
 
         try {
             AtomicBoolean releasableClosed = new AtomicBoolean(false);

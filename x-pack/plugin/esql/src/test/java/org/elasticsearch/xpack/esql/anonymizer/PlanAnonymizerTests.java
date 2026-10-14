@@ -1022,4 +1022,5 @@ public class PlanAnonymizerTests extends ESTestCase {
         Filter filter = new Filter(Source.EMPTY, relation, new And(Source.EMPTY, emailEq, new And(Source.EMPTY, orderEq, retryEq)));
         return new Limit(Source.EMPTY, new Literal(Source.EMPTY, 100, DataType.INTEGER), filter);
     }
+
 }

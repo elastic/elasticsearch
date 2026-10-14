@@ -68,12 +68,15 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlStreamTestUtils.assertStreamInvariants;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Integration tests for the ES|QL streaming API under network disruption.
@@ -394,6 +397,25 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
 
     public void testExchangeFaultAfterStreamStartYieldsErrorAsLastLine() throws Exception {
         assertPostStreamFaultBecomesErrorLine(ExchangeService.EXCHANGE_ACTION_NAME);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testFailureFooterCarriesCompletedSubPlanWarnings() throws Exception {
+        String query = "FROM "
+            + FAIL_INDEX
+            + " | INLINE STATS m = MAX(TO_INTEGER(CONCAT(\"a\", TO_STRING(x)))) | KEEP fail_me, m | LIMIT 100";
+        StreamOutcome outcome = stream(streamBody(query), null, "batch_size=5", "allow_partial_results=false");
+        assertServerFullyCleanedUp();
+        assertThat(describe(outcome), outcome.terminal(), equalTo(Terminal.ERROR));
+
+        Map<String, Object> footer = outcome.terminalLine();
+        logger.info("--> failure footer: {}", footer);
+        List<String> warnings = (List<String>) footer.get("warnings");
+        assertThat(warnings, hasItem(containsString("evaluation of [TO_INTEGER(")));
+        assertThat(footer, hasKey("took"));
+        Map<String, Object> error = (Map<String, Object>) footer.get("error");
+        assertThat(error, hasKey("root_cause"));
+        assertThat(footer, not(hasKey("documents_found")));
     }
 
     private void assertShardFailureMidStream(boolean allowPartial) throws Exception {

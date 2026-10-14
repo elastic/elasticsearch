@@ -118,7 +118,7 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
      * The pattern of a {@code DROP} command, computed from the removal list it was written with.
      *
      * <p>Only wildcard removals need to be carried: planning cannot know which unmapped source fields a wildcard
-     * will match, so the pattern has to be applied during the {@code _unmapped_fields} expansion. An explicitly
+     * will match, so the pattern has to be applied during the {@code _unmapped_fields} flattening. An explicitly
      * named removal is already excluded downstream, because {@code DetermineUnmappedFieldsToKeep} excludes every
      * {@code EsRelation.output()} name — which covers both mapped columns and the fields
      * {@code ResolveUnmapped} demand-loads for explicit references.
@@ -205,7 +205,7 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
 
     /**
      * Whether a top-level {@code _source} object or array key should ship from the data node so the coordinator can flatten it into dotted
-     * leaf columns. Deliberately a superset of the per-leaf {@link #matches}: an array of scalars flattens to a leaf named exactly
+     * leaves. Deliberately a superset of the per-leaf {@link #matches}: an array of scalars flattens to a leaf named exactly
      * {@code name}, so anything {@code matches} would keep has to ship from here first.
      */
     public boolean objectSubfieldsCouldMatch(String name) {
@@ -243,7 +243,7 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
 
     /**
      * The pattern that keeps a field if {@code this} or {@code other} would keep it. Used when a {@link MergePlan} merges
-     * branches that stamped different patterns: the coordinator expands extras that <em>any</em> sibling shipped, so
+     * branches that stamped different patterns: the coordinator returns extras that <em>any</em> sibling shipped, so
      * the output attribute must not inherit the first branch's restriction.
      * <p>
      * Excludes survive only when both sides would drop the name. An unrestricted include ({@code *}) on either side

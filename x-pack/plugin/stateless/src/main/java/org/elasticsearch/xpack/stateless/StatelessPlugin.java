@@ -867,9 +867,7 @@ public class StatelessPlugin extends Plugin
             cacheService,
             threadPool,
             clusterService.getClusterSettings(),
-            // TODO: wire in this node's effective max concurrent relocation recoveries once its computation is centralized.
-            // Until then, an unbounded cap keeps the pre-DNRT timeout behaviour.
-            () -> Integer.MAX_VALUE
+            JvmInfo.jvmInfo().getMem().getHeapMax()
         );
         components.add(searchRecoveryTimeoutCalculationService);
         var cacheWarmingService = createSharedBlobCacheWarmingService(

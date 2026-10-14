@@ -851,7 +851,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 cacheService,
                 threadPool,
                 clusterService.getClusterSettings(),
-                () -> Integer.MAX_VALUE
+                ByteSizeValue.ZERO
             );
             this.cacheWarmingService = new SharedBlobCacheWarmingService(
                 cacheService,

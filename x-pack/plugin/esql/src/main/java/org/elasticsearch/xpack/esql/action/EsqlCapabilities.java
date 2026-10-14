@@ -370,6 +370,13 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK,
 
         /**
+         * Emit a single, shorter warning for all partially unmapped fields from {@link #OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK},
+         * listing a bounded number of field names, instead of one warning per field.
+         * See https://github.com/elastic/elasticsearch/issues/161968.
+         */
+        OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK_COMBINED,
+
+        /**
          * With {@code unmapped_fields="nullify"} or {@code "load"}, a {@code DROP} wildcard that matches no field is a no-op
          * instead of failing with "No matches found for pattern".
          * See https://github.com/elastic/elasticsearch/issues/143226
@@ -3031,6 +3038,14 @@ public class EsqlCapabilities {
          * first-file-wins tests and callers to select the schema donor deterministically.
          */
         EXTERNAL_SOURCE_FILE_ORDER_OPTIONS,
+
+        /**
+         * A dataset may set {@code partition_sample_size}, and how far a listing was asked to run is part of the
+         * listing cache's identity. A query that asks to list the whole glob is therefore never served the prefix
+         * a sampling query left behind, whatever order the two arrive in. Gates the spec cases that set a sample
+         * small enough to truncate and then read every row of the same dataset.
+         */
+        EXTERNAL_SOURCE_PARTITION_SAMPLE_SIZE,
 
         /**
          * A UNION_BY_NAME query keeps files that contribute rows containing only nulls for the

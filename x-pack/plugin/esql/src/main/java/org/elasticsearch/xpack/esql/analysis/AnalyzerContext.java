@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.esql.session.EsqlSession;
 
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
@@ -49,7 +48,7 @@ public class AnalyzerContext {
     private final ProjectMetadata projectMetadata;
     private final UnmappedResolution unmappedResolution;
     private final Set<String> deferredHeaderWarnings = new LinkedHashSet<>();
-    private final Map<String, String> subqueryNonLoadableNullFills = new LinkedHashMap<>();
+    private final Set<String> subqueryNonLoadableNullFills = new LinkedHashSet<>();
     private final TimestampBounds timestampBounds;
     private final IpLocationResolution ipLocationResolution;
     private final boolean preserveViewBoundaries;
@@ -201,7 +200,7 @@ public class AnalyzerContext {
      * LOAD_ALL subquery fields null-filled because the sibling type has no implicit KEYWORD cast.
      * Warnings are emitted later, and only if the field is observed.
      */
-    public Map<String, String> subqueryNonLoadableNullFills() {
+    public Set<String> subqueryNonLoadableNullFills() {
         return subqueryNonLoadableNullFills;
     }
 

@@ -187,9 +187,10 @@ public final class DatasetListingService {
     }
 
     /**
-     * Async counterpart of {@link #cachedListing}, with the same key-and-compute pairing and the same reservation
-     * rule. Concurrent cold misses for one key share one listing: the first query's listing is the one that runs, and
-     * the others wait on it rather than each starting a fan-out. A query that waited allocated nothing in the walk, so
+     * Async counterpart of {@link #cachedListing}, with the same reservation rule. It keys on the extent it is
+     * given; the synchronous overload always lists unbounded. Concurrent cold misses for one key share one
+     * listing: the first query's listing is the one that runs, and the others wait on it rather than each
+     * starting a fan-out. A query that waited allocated nothing in the walk, so
      * like a cache hit it reserves the listing's size here; a leader that was cancelled fails only itself, and the
      * others list again.
      */
@@ -290,8 +291,9 @@ public final class DatasetListingService {
         }
         // A refusal rather than an assertion: assertions are off in production, and a truncated listing reaching
         // this cache would be served to later queries as though it were the dataset - they would answer from a
-        // prefix with nothing to tell them. The scan path is always unbounded, so a truncated result here means
-        // the configured object-count limit was hit, not a bounded sample.
+        // prefix with nothing to tell them. Nothing reaches it today: this path lists unbounded, so truncation
+        // would need Integer.MAX_VALUE keys, and the object-count cap throws from expand instead. A guard for a
+        // future bounded caller.
         if (listing.isTruncated()) {
             throw new IllegalStateException("a truncated listing must never be served from the shared listing cache: " + path);
         }

@@ -200,11 +200,13 @@ avg_salary:double | total:long
 // partition_sample_size is small enough to truncate this three-file glob, so schema resolution holds a prefix
 // of the dataset while the query reading rows needs all of it. How far a listing was asked to run is part of
 // the listing cache's address, so the prefix is addressed as a prefix and the query that asked for the whole
-// glob cannot be served it. Every one of these reads rows back over a dataset whose schema came from one file.
+// glob cannot be served it.
 //
-// SORT ... LIMIT rather than STATS on purpose: an aggregate makes resolution list the whole glob, so it would
-// never exercise the bounded rail. These stay green with or without the sharing change - they pin the crossover
-// rather than demonstrate it, and they are the cases that would go wrong if the extent left the cache key.
+// Two of the four run the bounded rail: ffwSampleOneSeesEveryFile and ffwSampleTwoSameAnswer, which set
+// first_file_wins and read rows with SORT. The other two reach resolution UNBOUNDED and pin that rail instead -
+// ffwSampleOneCount because an ungrouped COUNT(*) wants dataset-wide statistics, omittedSampleOneSeesEveryFile
+// because omitting schema_resolution hydrates union_by_name, whose file order is not the default. All four stay
+// green either way: they pin the crossover rather than demonstrate it, and break if the extent leaves the key.
 
 ffwSampleOneSeesEveryFile
 required_capability: dataset_in_from_command

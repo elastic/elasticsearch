@@ -508,13 +508,19 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * Pins that the declared rail's listing-cache key is distinctive enough that a warm second resolve does
      * not list again, and that the entries are shared by object identity rather than copied — a copy-per-query
      * holds the listing in memory once per concurrent query, which multiplied a 1 GiB search node into OOM.
+     * <p>
+     * Two details make this the bounded rail rather than the unbounded one, which shared already:
+     * {@code pathsRequiringStats} is {@code Set.of()} and not {@code null}, since {@link ResolutionDemand#of}
+     * reads null as every path wanting stats and the extent is then UNBOUNDED; and the file count is over
+     * {@link PartitionConfig#DEFAULT_PARTITION_SAMPLE_SIZE}, so the bound bites. The truncation assert proves both.
      */
     public void testDeclaredMappingListingIsSharedBetweenResolves() throws Exception {
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("event_ts", new DatasetFieldMapping("long", null));
         List<Attribute> fileSchema = List.of(attr("event_ts", DataType.LONG));
 
-        int fileCount = 10;
+        // Over the sample size, or the listing comes back whole and the bounded rail never runs.
+        int fileCount = PartitionConfig.DEFAULT_PARTITION_SAMPLE_SIZE + 500;
         List<StorageEntry> files = new ArrayList<>(fileCount);
         Map<String, List<Attribute>> schemasByPath = new HashMap<>();
         for (int i = 0; i < fileCount; i++) {
@@ -535,11 +541,13 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 Map.of(DECLARED_GLOB, new HashMap<>()),
                 null,
                 Map.of(DECLARED_GLOB, mapping),
-                null,
+                Set.of(),
                 future1
             );
             ExternalSourceResolution.ResolvedSource first = future1.actionGet().resolvedSource(DECLARED_GLOB);
             assertNotNull(first);
+            // Without this the test passes on the unbounded rail, which shared before this change.
+            assertTrue("resolution must have listed a bounded prefix, or this pins the wrong rail", first.fileList().isTruncated());
             int listsAfterFirst = provider.listCallCount.get();
 
             PlainActionFuture<ExternalSourceResolution> future2 = new PlainActionFuture<>();
@@ -548,7 +556,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 Map.of(DECLARED_GLOB, new HashMap<>()),
                 null,
                 Map.of(DECLARED_GLOB, mapping),
-                null,
+                Set.of(),
                 future2
             );
             ExternalSourceResolution.ResolvedSource second = future2.actionGet().resolvedSource(DECLARED_GLOB);

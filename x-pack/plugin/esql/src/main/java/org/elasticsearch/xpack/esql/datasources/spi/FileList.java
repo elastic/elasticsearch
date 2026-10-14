@@ -170,9 +170,10 @@ public interface FileList {
      * of it. The shared listing cache keeps it by address rather than by abstention — the extent asked for is part
      * of the cache key ({@code GlobExpander#listingCacheDiscriminator}), so a prefix and the whole pattern are two
      * entries and a query can only be served the answer to its own question. What is left for the cache to refuse
-     * is a listing that truncated with no bound asked for, which means the walk stopped for a reason the key does
-     * not describe. A new call site asking for a bound inherits the key discipline but must still decide for itself
-     * whether a prefix answers its question. A correctness invariant, not an optimisation.
+     * is a listing that truncated with no bound asked for. No path produces one: that needs Integer.MAX_VALUE keys,
+     * and the object-count cap throws instead. A guard for a future caller. A new call site asking for a bound
+     * inherits the key discipline but must still decide for itself whether a prefix answers its question.
+     * A correctness invariant, not an optimisation.
      */
     default boolean isTruncated() {
         return false;

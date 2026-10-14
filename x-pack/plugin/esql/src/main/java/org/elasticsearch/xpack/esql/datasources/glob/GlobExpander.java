@@ -1051,9 +1051,9 @@ public final class GlobExpander {
             // soon as the current one is exhausted, so asking it after the bound is reached buys a ListObjectsV2
             // whose result is then discarded. Reaching the bound therefore marks the listing truncated without
             // establishing that more keys exist - a dataset of exactly the file-set extent is marked truncated when it
-            // is not. For unbounded listings, that costs such a dataset its cache entry and an exact file count; for
-            // bounded listings the truncated result does get cached under its bounded key. Either way, it saves every
-            // larger dataset a request.
+            // is not. Only a bounded listing feels it: that dataset loses its exact count and the scan relists it.
+            // Under UNBOUNDED the extent is Integer.MAX_VALUE, so nothing reaches the case. It saves every larger
+            // dataset a request.
             while (listed < extents.maxFiles() && iterator.hasNext()) {
                 StorageEntry entry = iterator.next();
                 listed++;

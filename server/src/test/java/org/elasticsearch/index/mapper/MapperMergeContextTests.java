@@ -23,25 +23,25 @@ public class MapperMergeContextTests extends ESTestCase {
     private static final NodeFeature FEATURE_B = new NodeFeature("test.feature_b");
 
     public void testAddFieldIfPossibleUnderLimit() {
-        MapperMergeContext context = MapperMergeContext.root(false, false, MAPPING_UPDATE, 1);
+        MapperMergeContext context = new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).newFieldsBudget(1).build();
         assertTrue(context.decrementFieldBudgetIfPossible(1));
         assertFalse(context.decrementFieldBudgetIfPossible(1));
     }
 
     public void testAddFieldIfPossibleAtLimit() {
-        MapperMergeContext context = MapperMergeContext.root(false, false, MAPPING_UPDATE, 0);
+        MapperMergeContext context = new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).newFieldsBudget(0).build();
         assertFalse(context.decrementFieldBudgetIfPossible(1));
     }
 
     public void testAddFieldIfPossibleUnlimited() {
-        MapperMergeContext context = MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE);
+        MapperMergeContext context = new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).build();
         assertTrue(context.decrementFieldBudgetIfPossible(Integer.MAX_VALUE));
         assertTrue(context.decrementFieldBudgetIfPossible(Integer.MAX_VALUE));
     }
 
     public void testMergeReasons() {
         MapperService.MergeReason mergeReason = randomFrom(MapperService.MergeReason.values());
-        MapperMergeContext context = MapperMergeContext.root(false, false, mergeReason, Integer.MAX_VALUE);
+        MapperMergeContext context = new TestRootMapperMergeContextBuilder(mergeReason).build();
         assertEquals(mergeReason, context.getMapperBuilderContext().getMergeReason());
     }
 
@@ -69,14 +69,6 @@ public class MapperMergeContextTests extends ESTestCase {
     }
 
     private static MapperMergeContext contextWithFeatures(Set<NodeFeature> supportedFeatures) {
-        return MapperMergeContext.root(
-            false,
-            false,
-            MAPPING_UPDATE,
-            ParseFieldLimits.withBudget(NewFieldsBudget.dropping(Long.MAX_VALUE)),
-            false,
-            false,
-            supportedFeatures::contains
-        );
+        return new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).clusterSupportsFeature(supportedFeatures::contains).build();
     }
 }

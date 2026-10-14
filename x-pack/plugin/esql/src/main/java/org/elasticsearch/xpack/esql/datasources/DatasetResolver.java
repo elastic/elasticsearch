@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xpack.esql.action.EsqlResolveDatasetAction;
+import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
 import org.elasticsearch.xpack.esql.datasources.DatasetRewriter.DatasetResolution;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -163,13 +164,17 @@ public class DatasetResolver {
                 client.execute(
                     EsqlResolveDatasetAction.TYPE,
                     request,
-                    new ThreadedActionListener<>(executor, l.delegateFailureAndWrap((delegate, response) -> {
-                        resolutions.put(
-                            relation,
-                            new DatasetResolution(response.datasets(), response.nonDatasetNames(), response.explicitUnauthorized())
-                        );
-                        delegate.onResponse(null);
-                    }))
+                    // Metered inside the fork, so planning CPU is measured on the SEARCH thread, not the transport thread.
+                    new ThreadedActionListener<>(
+                        executor,
+                        PlanningCpuTracker.inheritMeteredCpu(l.delegateFailureAndWrap((delegate, response) -> {
+                            resolutions.put(
+                                relation,
+                                new DatasetResolution(response.datasets(), response.nonDatasetNames(), response.explicitUnauthorized())
+                            );
+                            delegate.onResponse(null);
+                        }))
+                    )
                 );
             });
         }

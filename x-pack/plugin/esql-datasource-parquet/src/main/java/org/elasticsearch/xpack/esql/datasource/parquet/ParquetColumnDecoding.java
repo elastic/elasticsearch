@@ -491,7 +491,19 @@ final class ParquetColumnDecoding {
             // Mirror the scan path: TIME_MILLIS (physical INT32) stays raw ms; TIME_MICROS/NANOS
             // scale to nanoseconds via timeNanoMultiplier. Signed comparison of these physical
             // values is chronological, so footer min/max ordering is preserved.
-            return type.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT32 ? raw : raw * timeNanoMultiplier(time);
+            //
+            // The micros overflow guard is the same one the TIMESTAMP(MICROS) arm above carries, and it has to be
+            // here for the same reason: the scan NULLS a microsecond value with no nanosecond representation, so a
+            // stat that wrapped instead would publish a bound the scan never produces and serve it to MIN/MAX. Only
+            // a file violating its own annotation reaches it -- a microsecond-of-day cannot exceed 86_400_000_000 --
+            // but nothing enforces that a file obeys its annotation, which is the same standard decodeCanNull is
+            // conservative under. NANOS multiplies by one and cannot overflow.
+            if (type.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT32) {
+                return raw;
+            }
+            return time.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS && microsOverflowsNanos(raw)
+                ? null
+                : raw * timeNanoMultiplier(time);
         }
         return null;
     }
@@ -546,7 +558,12 @@ final class ParquetColumnDecoding {
         STRING_PARSE,
         /** {@code INT32} carrying {@code DATE}: the value is a day count. */
         DATE_DAYS,
-        /** An {@code INT32} rendering ESQL {@code long}: the value is epoch millis. */
+        /**
+         * An {@code INT32} that is not {@code DATE}: the value is epoch millis. Reached by a column rendering ESQL
+         * {@code long} and, since TIME became a temporal type, by an inferred {@code TIME(MILLIS)} rendering
+         * {@code datetime} — whose millisecond-of-day IS the epoch-millis instant on 1970-01-01, so the same
+         * pass-through is right for both.
+         */
         INT32_EPOCH_MILLIS,
         /** An {@code INT64}: the annotation's own unit normalization, then epoch millis. */
         INT64_EPOCH_MILLIS

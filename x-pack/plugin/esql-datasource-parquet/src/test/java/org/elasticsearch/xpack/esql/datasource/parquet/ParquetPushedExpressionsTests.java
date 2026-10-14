@@ -590,6 +590,52 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
     }
 
     /**
+     * The same column under {@code IN}, which is a separate translator and was missed when the comparison arm was
+     * added. Before TIME became temporal this set pushed through {@code translateLongIn}'s {@code INT32} arm, so a
+     * decline here is a pruning regression against main rather than a pre-existing gap.
+     * {@code integralDecodeScalesRelativeToRawStats} returns {@code false} for {@code TIME(MILLIS)}, which is what
+     * let the LONG path push it, and that method is unchanged.
+     */
+    public void testDatetimeInOverInt32TimeMillisColumnPushesUnscaled() {
+        MessageType schema = Types.buildMessage()
+            .required(INT32)
+            .as(timeType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+            .named("t")
+            .named("test");
+        int morning = 37_230_000; // 10:20:30
+        int evening = 73_830_000; // 20:30:30
+
+        Expression in = new In(Source.EMPTY, attr("t", DataType.DATETIME), List.of(datetimeLit(morning), datetimeLit(evening)));
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(in)).toFilterPredicate(schema);
+        assertNotNull("an IN over a millisecond-of-day column must push, as it did before TIME became temporal", fp);
+        assertThat(fp.toString(), containsString(String.valueOf(morning)));
+        assertThat(fp.toString(), containsString(String.valueOf(evening)));
+    }
+
+    /**
+     * A literal outside {@code int} range is dropped from the pushed set rather than declining the whole predicate.
+     * The remaining set is an exact subset, which is what keeps it correct when the {@code IN} is wrapped in
+     * {@code NOT} -- the {@code DATE} arm beside it can only drop whole literals for the same reason.
+     */
+    public void testDatetimeInOverInt32TimeMillisDropsOutOfRangeLiteral() {
+        MessageType schema = Types.buildMessage()
+            .required(INT32)
+            .as(timeType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+            .named("t")
+            .named("test");
+        int morning = 37_230_000;
+
+        Expression in = new In(
+            Source.EMPTY,
+            attr("t", DataType.DATETIME),
+            List.of(datetimeLit(morning), datetimeLit(Integer.MAX_VALUE + 1L))
+        );
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(in)).toFilterPredicate(schema);
+        assertNotNull("the in-range literal still pushes", fp);
+        assertThat(fp.toString(), containsString(String.valueOf(morning)));
+    }
+
+    /**
      * {@code TIME(NANOS)} is the identity: the file's unit is the block's, so the bound pushes unchanged. Pinned
      * beside the {@code MICROS} case so a fix that scales every TIME unit by 1_000 fails here.
      */

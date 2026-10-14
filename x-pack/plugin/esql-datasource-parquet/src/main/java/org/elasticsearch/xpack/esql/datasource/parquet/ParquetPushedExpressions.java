@@ -1279,6 +1279,22 @@ final class ParquetPushedExpressions {
                         }
                         yield days.isEmpty() ? null : inPredicate(FilterApi.intColumn(columnName), days, v -> (Integer) v);
                     }
+                    if (logical instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation) {
+                        // The IN sibling of buildDatetimePredicate's TIME arm, and here for the same reason: this
+                        // column pushed through translateLongIn before it became a temporal one, so declining would
+                        // lose pruning main performs. TIME(MILLIS) stores the millisecond of day, which IS the
+                        // epoch-millis value the literal is in, so each literal narrows unscaled. A literal outside
+                        // int range is dropped rather than declining the whole set — an exact subset, which stays
+                        // correct under NOT, unlike the day arm's floorDiv over-inclusion.
+                        List<Object> narrowed = new ArrayList<>();
+                        for (Object v : rawValues) {
+                            Integer n = narrowLongToPhysicalInt32(((Number) v).longValue(), ptype);
+                            if (n != null) {
+                                narrowed.add(n);
+                            }
+                        }
+                        yield narrowed.isEmpty() ? null : inPredicate(FilterApi.intColumn(columnName), narrowed, v -> (Integer) v);
+                    }
                     yield null;
                 }
                 case INT64 -> temporalInPredicate(columnName, rawValues, ptype, DataType.DATETIME, formats);

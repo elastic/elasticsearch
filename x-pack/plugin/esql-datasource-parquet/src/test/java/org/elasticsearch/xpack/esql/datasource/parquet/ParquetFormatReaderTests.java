@@ -10524,6 +10524,12 @@ public class ParquetFormatReaderTests extends ESTestCase {
             .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
             .named("tu");
         assertEquals(Long.valueOf(midMicros * 1_000L), ParquetColumnDecoding.decodeTemporalStat(midMicros, timeMicros));
+        // A TIME(MICROS) stat beyond the date_nanos range returns null, exactly as the timestamp[us] arm does, so the
+        // caller falls back to a scan. Without this the stat would wrap to a negative long and publish a ~1677
+        // instant as the column's min while the scan nulls that value -- a bound no row can produce. Only a file
+        // violating its own annotation gets here (a microsecond of day is at most 86_400_000_000), which is the same
+        // standard decodeCanNull declines TIME(MICROS) under.
+        assertNull(ParquetColumnDecoding.decodeTemporalStat(20_000_000_000_000_000L, timeMicros));
 
         long midNanos = midMillis * 1_000_000L;
         PrimitiveType timeNanos = Types.required(PrimitiveType.PrimitiveTypeName.INT64)
@@ -11157,6 +11163,43 @@ public class ParquetFormatReaderTests extends ESTestCase {
             ) {
                 LongBlock l = (LongBlock) it.next().getBlock(0);
                 assertTrue("optimized=" + optimized + ": a UUID's hex form is not a timestamp, so the element is refused", l.isNull(0));
+            }
+        }
+    }
+
+    /**
+     * The scalar baseline the list case above is matched against, which nothing pinned: the list arm is only correct
+     * because it agrees with this, and "agrees with the scalar" was asserted by reading rather than by a test. The
+     * identical sixteen bytes under a non-repeated {@code FIXED_LEN_BYTE_ARRAY(16)+UUID} column declared {@code date}
+     * must be refused here too. The fused-pair guard cannot carry this shape -- it asserts a non-null first value, so
+     * a shape refused by contract is inexpressible in it -- which is why it needs its own case.
+     */
+    public void testDeclaredDatetimeOverScalarUuidIsRefused() throws Exception {
+        MessageType schema = new MessageType(
+            "test_schema",
+            Types.optional(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY).length(16).as(LogicalTypeAnnotation.uuidType()).named("ts")
+        );
+        // The same sixteen ASCII bytes the list case uses: a UUID's exact width, spelling a parseable timestamp.
+        byte[] spellsATimestamp = "2024-01-01T00:00".getBytes(StandardCharsets.US_ASCII);
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.append("ts", Binary.fromConstantByteArray(spellsATimestamp));
+            return List.of(g);
+        });
+        StorageObject storageObject = createStorageObject(parquetData);
+        List<Attribute> asDatetime = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
+        for (String decoder : List.of("pageReader", "rowAtATime")) {
+            ParquetFormatReader base = new ParquetFormatReader(blockFactory);
+            ParquetFormatReader r = (ParquetFormatReader) (decoder.equals("rowAtATime") ? base.withBaselinePath() : base)
+                .withDeclaredTypeColumns(Set.of("ts"));
+            try (
+                CloseableIterator<Page> it = r.readRange(
+                    storageObject,
+                    new RangeReadContext(List.of("ts"), 10, 0, parquetData.length, asDatetime, ErrorPolicy.PERMISSIVE)
+                )
+            ) {
+                LongBlock l = (LongBlock) it.next().getBlock(0);
+                assertTrue(decoder + ": a UUID's hex form is not a timestamp, so the scalar value is refused", l.isNull(0));
             }
         }
     }

@@ -250,19 +250,15 @@ public final class ExternalSourceCacheSettings {
     );
 
     /**
-     * Expire-after-write TTL shared by both footer caches. If the bytes are stale, the parse
-     * derived from them is stale too. Counting from the write rather than the last access means this does
-     * NOT keep a footer alive for the duration of one query: a query whose phases span more than this
-     * interval re-fetches and re-parses the footer between resolution, split discovery and execution, and
-     * for a file overwritten in place at the same length those phases can see different footers. Size it
-     * above the span of your longest query if that matters, and above dashboard refresh intervals. The
-     * trade-off: footer cache keys are {@code (path, fileLength)} without mtime (adding it would
-     * cost a HEAD request per range split; see {@link FooterByteCache}), so a file overwritten
-     * in place with identical length can be served stale for up to two of these intervals, because a reparse
-     * from still-cached bytes dates the parsed entry later than the read behind it (see
-     * {@link ParsedFooterCache}). Object-store
-     * analytics layouts treat data files as immutable, and this setting is the operator escape
-     * hatch where they do not.
+     * Expire-after-access TTL shared by both footer caches. It bounds how long an entry nobody is reading is
+     * held: a footer read at least once per interval stays cached, and one that stops being read is released
+     * an interval later. The two caches share the value so a parse is not held past the bytes it came from.
+     * <p>
+     * It does not bound how stale a footer may be. Footer keys are {@code (storageIdentity, path,
+     * fileLength)} and name the object rather than the version of it, so an object overwritten in place at
+     * the same byte length is served the earlier version's footer however this is set — the fix belongs in
+     * the key, not here (see {@link FooterByteCache}). Lowering this setting shortens how long an unread
+     * footer is kept and buys no freshness.
      */
     public static final Setting<TimeValue> FOOTER_CACHE_TTL = Setting.positiveTimeSetting(
         "esql.external.cache.footer.ttl",

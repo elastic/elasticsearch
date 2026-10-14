@@ -1492,8 +1492,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     /**
-     * Where the tail came from. Only bytes this flight read from storage are stored, so a cache-served tail
-     * cannot be given a fresh write time.
+     * Where the tail came from. Only bytes this flight read from storage are stored: a cache-served tail is
+     * already in the cache, and the read that served it has already renewed its entry, so storing it again
+     * would only relink the LRU.
      */
     private enum TailSource {
         STORAGE_READ,
@@ -1508,7 +1509,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * byte budget and force a blocking re-read on the executor thread). Bytes read from storage are
      * additionally offered to the cache best-effort after a successful parse so a later split-discovery
      * pass can reuse them, but correctness never depends on that. Bytes the cache served are not stored
-     * again, so an entry's write time stays the read that produced it. {@code listener} is the
+     * again, because the read that served them has already renewed that entry. {@code listener} is the
      * {@link ParsedFooterCache#getOrLoadAsync} flight listener: {@code release} uncharges the GET
      * (or the heap copy) after parse, success or failure, and always before that listener is
      * notified so waiters run {@link #buildFooterMetadata} / {@link #rangesFromFooter} after the

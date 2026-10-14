@@ -26,11 +26,11 @@ import java.util.concurrent.ExecutionException;
  *   <li>Thundering-herd protection via {@link Cache#computeIfAbsent} — concurrent callers for the
  *       same key coalesce into a single load; exactly one thread performs I/O while others wait
  *       for the result</li>
- *   <li>Time-based expiration via {@link CacheBuilder#setExpireAfterWrite} — an entry expires the
- *       configured TTL ({@link ExternalSourceCacheSettings#FOOTER_CACHE_TTL}) after it was stored,
- *       whatever happens in between, and the key carries no modification time, so a same-length overwrite
- *       is served until then. Every store here follows a storage read in the same call, so an entry lives at
- *       most one TTL past that read; {@link ParsedFooterCache} does not share that property.</li>
+ *   <li>Time-based expiration via {@link CacheBuilder#setExpireAfterAccess} — an entry expires the
+ *       configured TTL ({@link ExternalSourceCacheSettings#FOOTER_CACHE_TTL}) after it was last read, so a
+ *       working set that keeps being read keeps its entries and one stored together no longer expires
+ *       together. The clock releases what nothing is using; which version of an object an entry belongs to
+ *       is the key's question, not the clock's — see {@link Key}.</li>
  * </ul>
  *
  * <h2>Why one instance per root format reader instead of per-query?</h2>
@@ -51,14 +51,22 @@ import java.util.concurrent.ExecutionException;
  * reader ({@code withConfig}, {@code withPushedFilter}, ...) shares the root's instance via its
  * copy constructor, so all concurrent queries on a node coalesce on one cache. When a
  * query-scoped context is introduced into the format reader API, this cache should migrate to an
- * instance held by that context. Until then, the write-based TTL bounds cross-query staleness.
+ * instance held by that context. Until then, cross-query staleness is bounded by the version in the key
+ * rather than by the clock.
  *
  * <h2>Cache key design</h2>
- * The key is {@code (path, fileLength)}. Adding {@code lastModified} was considered but rejected
- * because range splits are created via {@code StorageProvider.newObject(path, length)} with no
- * pre-populated modification time — calling {@code lastModified()} would trigger an extra HEAD
- * request per split, defeating the purpose of the cache. The write-based TTL bounds the staleness
- * that costs instead.
+ * The key is {@code (storageIdentity, path, fileLength)}. It names the object, not the version of it, so
+ * two versions of an object at the same byte length share an entry and the earlier one's footer answers for
+ * the later. That is a property of the key and it is tracked as elastic/esql-planning#2094. The clock above
+ * is not a substitute for fixing it: a timer cannot tell an object that changed from one that did not, so
+ * bounding this with expiry means discarding every cached footer on a timer to catch the few that moved,
+ * which is what the access clock stops doing.
+ * <p>
+ * A version component was once rejected on cost: range splits come from
+ * {@code StorageProvider.newObject(path, length)} with no modification time in hand, and calling
+ * {@code lastModified()} would mean a HEAD request per split. That objection is answered by taking the
+ * version from the listing, or from the probe that already resolves a single file, rather than asking the
+ * store again.
  *
  * <p>Cached {@code byte[]} entries must be treated as immutable by all callers.
  */
@@ -115,7 +123,7 @@ public class FooterByteCache {
 
     private final Cache<Key, byte[]> cache;
     private final long maxEntryBytes;
-    private final TimeValue expireAfterWrite;
+    private final TimeValue expireAfterAccess;
 
     /**
      * Creates a cache sized from node settings ({@link ExternalSourceCacheSettings#FOOTER_CACHE_SIZE},
@@ -131,23 +139,23 @@ public class FooterByteCache {
         return new FooterByteCache(maxBytes, maxEntryBytes, ExternalSourceCacheSettings.FOOTER_CACHE_TTL.get(settings));
     }
 
-    FooterByteCache(long maxBytes, long maxEntryBytes, TimeValue expireAfterWrite) {
+    FooterByteCache(long maxBytes, long maxEntryBytes, TimeValue expireAfterAccess) {
         this.maxEntryBytes = maxEntryBytes;
-        this.expireAfterWrite = expireAfterWrite;
+        this.expireAfterAccess = expireAfterAccess;
         this.cache = CacheBuilder.<Key, byte[]>builder()
             .setMaximumWeight(maxBytes)
-            .setExpireAfterWrite(expireAfterWrite)
+            .setExpireAfterAccess(expireAfterAccess)
             .weigher((key, value) -> value.length)
             .build();
     }
 
     /**
-     * The expire-after-write TTL this cache was built with. The paired {@link ParsedFooterCache}
-     * is constructed with the same value so the byte and parsed caches age out together. If the
-     * bytes are stale, the parse derived from them is stale too.
+     * The expire-after-access TTL this cache was built with. The paired {@link ParsedFooterCache} is
+     * constructed with the same value so the byte and parsed caches age out on the same clock, and a parse
+     * is not held past the bytes it came from.
      */
-    public TimeValue expireAfterWrite() {
-        return expireAfterWrite;
+    public TimeValue expireAfterAccess() {
+        return expireAfterAccess;
     }
 
     /** Maximum byte size for a single cache entry. */

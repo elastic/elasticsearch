@@ -77,11 +77,10 @@ public class ParsedFooterCacheTests extends ESTestCase {
     }
 
     /**
-     * A parsed footer expires one TTL after it was stored, however often it is read in between. This is the
-     * clock the composed bound over a per-file fact rests on: reads cannot push a parsed entry out, so a
-     * reparse from still-cached bytes is the only thing that can carry one past its own interval.
+     * Reading a parsed footer renews it, on the same clock as the bytes it was parsed from. The reads below
+     * span more than twice the TTL, so under a write clock the entry would be gone by the last one.
      */
-    public void testReadingAnEntryDoesNotExtendItsLife() {
+    public void testReadingAnEntryRenewsIt() {
         TimeValue ttl = TimeValue.timeValueMillis(400);
         ParsedFooterCache<String> shortLived = new ParsedFooterCache<>(8 * ENTRY_WEIGHT, ttl, ignored -> ENTRY_WEIGHT);
         FooterByteCache.Key k = key("file.parquet", 1000);
@@ -90,11 +89,25 @@ public class ParsedFooterCacheTests extends ESTestCase {
         assertNotNull("the entry must be stored to begin with, or the assertion below passes vacuously", shortLived.get(k));
         long readUntil = System.nanoTime() + TimeValue.timeValueMillis(1000).nanos();
         while (System.nanoTime() < readUntil) {
-            shortLived.get(k);
+            assertEquals("an entry read at least once per TTL is still served past one TTL", "footer", shortLived.get(k));
             safeSleep(50);
         }
+    }
 
-        assertNull("an entry read continuously still expires one TTL after it was stored", shortLived.get(k));
+    /**
+     * The clock still releases a parsed footer nothing is reading. Without this the test above would pass on
+     * a cache with no clock at all.
+     */
+    public void testAnEntryNobodyReadsExpires() {
+        TimeValue ttl = TimeValue.timeValueMillis(400);
+        ParsedFooterCache<String> shortLived = new ParsedFooterCache<>(8 * ENTRY_WEIGHT, ttl, ignored -> ENTRY_WEIGHT);
+        FooterByteCache.Key k = key("file.parquet", 1000);
+
+        shortLived.put(k, "footer");
+        assertNotNull("the entry must be stored to begin with, or the assertion below passes vacuously", shortLived.get(k));
+        safeSleep(ttl.millis() * 3);
+
+        assertNull("an entry unread for a TTL is released", shortLived.get(k));
     }
 
     public void testPutThenGetReturnsSameInstance() {

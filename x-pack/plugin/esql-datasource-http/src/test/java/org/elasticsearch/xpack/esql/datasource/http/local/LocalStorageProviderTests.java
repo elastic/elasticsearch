@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.not;
  */
 public class LocalStorageProviderTests extends ESTestCase {
 
-    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(NoopCircuitBreaker.INSTANCE);
 
     public void testReadFullFile() throws IOException {
         // Create a temporary file

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 
 import java.io.Closeable;
@@ -55,6 +56,20 @@ public interface StorageProvider extends Closeable {
 
     /** Checks if an object exists at the given path. */
     boolean exists(StoragePath path) throws IOException;
+
+    /**
+     * The object's length and modification time, for a caller that wants those two values and will not read the
+     * object. The default asks for a handle and reads both values from it.
+     * <p>
+     * A provider whose store answers metadata without transferring the object overrides it; S3 does.
+     * <p>
+     * A decorator forwards this to its delegate. The default resolves through {@code this.newObject}, so a
+     * decorator that inherits it takes the delegate's handle path rather than the delegate's override.
+     */
+    default StorageEntry objectMetadata(StoragePath path) throws IOException {
+        StorageObject object = newObject(path);
+        return new StorageEntry(path, object.length(), object.lastModified());
+    }
 
     /** Returns the URI schemes this provider handles (e.g., ["http", "https"]). */
     List<String> supportedSchemes();

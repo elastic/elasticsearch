@@ -124,6 +124,8 @@ public class PromqlFunctionRegistry {
         //
         PromqlBuiltinFunctionDefinitions.LABEL_REPLACE,
         PromqlBuiltinFunctionDefinitions.LABEL_JOIN,
+        PromqlBuiltinFunctionDefinitions.SORT,
+        PromqlBuiltinFunctionDefinitions.SORT_DESC,
         //
         ExtractHistogramComponent.PROMQL_HISTOGRAM_AVG,
         ExtractHistogramComponent.PROMQL_HISTOGRAM_COUNT,
@@ -204,8 +206,6 @@ public class PromqlFunctionRegistry {
         "absent",
         // Prometheus 3.x: joins metric-info labels onto a vector; requires cross-metric label lookup.
         "info",
-        "sort",
-        "sort_desc",
         // Prometheus 3.x: sort series by one or more label values; requires label-aware ordering.
         "sort_by_label",
         "sort_by_label_desc",

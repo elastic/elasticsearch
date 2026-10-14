@@ -9,14 +9,17 @@
 
 package org.elasticsearch.benchmark.script;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.IngestConditionalScript;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.script.field.KeywordDocValuesField;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -33,6 +36,7 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.lang.reflect.Proxy;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -106,6 +110,12 @@ public class PainlessAllocationTrackingBenchmark {
      *       elements; shows the overhead shrinking relative to a growing workload</li>
      *   <li>{@code builder_substring} – the annotated {@code StringBuilder(CharSequence)} plus a
      *       builder {@code substring}: two estimator sites in one script</li>
+     *   <li>{@code keyword_read} – one keyword doc value read through {@code def}, as {@code doc['f'].value} is</li>
+     *   <li>{@code keyword_read_typed} – the same read with the static type known</li>
+     *   <li>{@code keyword_field_read} – the same read through the fields API</li>
+     *   <li>{@code def_map_get} – {@code map.get(key)} through {@code def}; a hot call whose name is shared with the
+     *       charged doc value reads, so its call site carries the script too</li>
+     *   <li>{@code typed_map_get} – control: the same call with the static type known</li>
      * </ul>
      */
     @Param(
@@ -123,7 +133,12 @@ public class PainlessAllocationTrackingBenchmark {
             "string_format",
             "string_join_small",
             "string_join_large",
-            "builder_substring" }
+            "builder_substring",
+            "keyword_read",
+            "keyword_read_typed",
+            "keyword_field_read",
+            "def_map_get",
+            "typed_map_get" }
     )
     private String script;
 
@@ -256,6 +271,22 @@ public class PainlessAllocationTrackingBenchmark {
                     String text = params.text;
                     StringBuilder b = new StringBuilder(text);
                     return b.substring(4, 20).length() > 0""";
+                // A keyword doc value read, the way doc['f'].value reaches it: through def.
+                case "keyword_read" -> """
+                    def field = params.field;
+                    return field.value.length() > 0""";
+                case "keyword_read_typed" -> """
+                    ScriptDocValues.Strings field = (ScriptDocValues.Strings) params.field;
+                    return field.value.length() > 0""";
+                case "keyword_field_read" -> """
+                    def field = params.keyword;
+                    return field.get('').length() > 0""";
+                case "def_map_get" -> """
+                    def m = params.map;
+                    return m.get('k') != null""";
+                case "typed_map_get" -> """
+                    Map m = params.map;
+                    return m.get('k') != null""";
                 default -> throw new IllegalArgumentException("unknown script: " + script);
             };
 
@@ -284,11 +315,44 @@ public class PainlessAllocationTrackingBenchmark {
             params.put("small", List.of("alfa", "bravo", "charlie"));
             params.put("large", IntStream.range(0, 300).mapToObj(Integer::toString).collect(Collectors.toList()));
             params.put("text", "the quick brown fox jumps over the lazy dog");
+            // One document with one short keyword term, already positioned, as a leaf script would see it.
+            KeywordDocValuesField keyword = new KeywordDocValuesField(binaryDocValues(new BytesRef("hello")), "test");
+            try {
+                keyword.setNextDocId(0);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            params.put("keyword", keyword);
+            params.put("map", Map.of("k", "v"));
+            params.put("field", keyword.toScriptDocValues());
             Map<String, Object> context = new HashMap<>();
             context.put("message", "test");
 
             script = benchmark.factory.newInstance(params, context);
         }
+    }
+
+    /** Binary doc values over one document holding {@code values}. */
+    private static SortableBinaryDocValues binaryDocValues(BytesRef... values) {
+        return new SortableBinaryDocValues(null) {
+            private int next;
+
+            @Override
+            public boolean advanceExact(int doc) {
+                next = 0;
+                return doc == 0;
+            }
+
+            @Override
+            public int docValueCount() {
+                return values.length;
+            }
+
+            @Override
+            public BytesRef nextValue() {
+                return values[next++];
+            }
+        };
     }
 
     @Benchmark

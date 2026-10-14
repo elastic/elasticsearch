@@ -187,7 +187,7 @@ public class SearchRecoveryTimeoutCalculationService {
         final double dataVolumeMs = warmingCacheBytes > 0 ? ((double) totalBytesToWarm / warmingCacheBytes) * remaining : 0;
 
         // The current shard is itself one such relocation, floor at 1 in case it is not yet visible on the source's RoutingNode.
-        final int relocationsFromSourceToTarget = Math.max(1, countOngoingRelocationsBetween(state, sourceNodeId, targetNodeId));
+        final int relocationsFromSourceToTarget = Math.max(1, countRelocationsBetween(state, sourceNodeId, targetNodeId));
         final int allRelocationsToTarget = Math.max(1, countRelocationsFromShuttingDownNodesTo(state, targetNodeId));
 
         final int maxConcurrentRelocations = maxConcurrentRelocationRecoveriesSupplier.getAsInt();
@@ -216,9 +216,9 @@ public class SearchRecoveryTimeoutCalculationService {
         return new SearchRecoveryTimeout(TimeValue.timeValueMillis(Math.round(timeoutMs)), context);
     }
 
-    /// Counts ongoing relocations whose source is `sourceNodeId` and whose target is `targetNodeId` (i.e. shards relocating
+    /// Counts relocations whose source is `sourceNodeId` and whose target is `targetNodeId` (i.e. shards relocating
     /// from `sourceNodeId` to `targetNodeId`, as seen from the source's `RoutingNode`).
-    private static int countOngoingRelocationsBetween(ClusterState state, String sourceNodeId, String targetNodeId) {
+    private static int countRelocationsBetween(ClusterState state, String sourceNodeId, String targetNodeId) {
         final var sourceNode = state.getRoutingNodes().node(sourceNodeId);
         if (sourceNode == null) {
             return 0;
@@ -232,13 +232,13 @@ public class SearchRecoveryTimeoutCalculationService {
         return count;
     }
 
-    /// Counts the search shards relocating from nodes marked for removal to `targetNodeId`.
+    /// Counts the shards relocating from nodes marked for removal to `targetNodeId`.
     private static int countRelocationsFromShuttingDownNodesTo(ClusterState state, String targetNodeId) {
         final var nodeShutdowns = state.metadata().nodeShutdowns();
         int count = 0;
         for (String nodeId : nodeShutdowns.getAllNodeIds()) {
             if (nodeShutdowns.isNodeMarkedForRemoval(nodeId)) {
-                count += countOngoingRelocationsBetween(state, nodeId, targetNodeId);
+                count += countRelocationsBetween(state, nodeId, targetNodeId);
             }
         }
         return count;

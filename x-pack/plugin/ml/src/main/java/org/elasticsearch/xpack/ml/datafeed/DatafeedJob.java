@@ -21,7 +21,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
@@ -57,7 +56,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
@@ -421,11 +419,18 @@ class DatafeedJob {
                         );
                     }
                 } catch (Exception e) {
-                    if (dataExtractor.isCancelled()
-                        || isRunning() == false
-                        || isIsolated
-                        || e instanceof CancellationException
-                        || e instanceof TaskCancelledException) {
+                    // stop() and isolate() flip state before cancel(); unrelated task cancellation is an extraction failure.
+                    if (dataExtractor.isCancelled() || isRunning() == false || isIsolated) {
+                        LOGGER.debug(
+                            () -> format(
+                                "[%s] extraction aborted (running=%s, isolated=%s, cancelled=%s)",
+                                jobId,
+                                isRunning(),
+                                isIsolated,
+                                dataExtractor.isCancelled()
+                            ),
+                            e
+                        );
                         return;
                     }
                     LOGGER.warn(() -> "[" + jobId + "] error while extracting data", e);
@@ -558,6 +563,7 @@ class DatafeedJob {
     }
 
     private void cancelActiveExtractor() {
+        // Single read: run()'s finally nulls this field from the datafeed thread while stop()/isolate() call in.
         DataExtractor extractor = activeDataExtractor;
         if (extractor != null) {
             extractor.cancel();

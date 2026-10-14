@@ -15,16 +15,21 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
@@ -95,8 +100,8 @@ public final class ExemplarsRewriter {
     }
 
     /**
-     * Replaces the analyzed metrics query with the relation over all resolved exemplar data streams. {@code settings} is passed as a
-     * whole for the later rewrite stages that will apply its options.
+     * Replaces the analyzed metrics query with the most recent exemplars of all resolved exemplar data streams. Without a configured
+     * {@link ExemplarsSettings#limit() limit}, the analyzer applies the default limit of a regular query.
      */
     public static LogicalPlan exemplarsQuery(
         LogicalPlan analyzedMetricsQuery,
@@ -104,7 +109,19 @@ public final class ExemplarsRewriter {
         ExemplarsSettings settings
     ) {
         // TODO add filters based on the original query, right now this queries just every exemplar from the related data streams
-        return exemplarsRelation(analyzedMetricsQuery, exemplarsResolution);
+        Source source = analyzedMetricsQuery.source();
+        LogicalPlan exemplars = exemplarsRelation(analyzedMetricsQuery, exemplarsResolution);
+        if (exemplars instanceof LocalRelation) {
+            return exemplars;
+        }
+        Order mostRecentFirst = new Order(
+            source,
+            new UnresolvedAttribute(source, MetadataAttribute.TIMESTAMP_FIELD),
+            Order.OrderDirection.DESC,
+            Order.NullsPosition.LAST
+        );
+        exemplars = new OrderBy(source, exemplars, List.of(mostRecentFirst));
+        return settings.limit() == null ? exemplars : new Limit(source, new Literal(source, settings.limit(), DataType.INTEGER), exemplars);
     }
 
     /**

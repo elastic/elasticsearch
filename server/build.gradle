@@ -111,6 +111,11 @@ dependencies {
   clusterModules project(':modules:lang-painless')
 }
 
+tasks.named('heapPressureTest') {
+  // test-pausable-field is a test-* module, which release builds refuse to load
+  it.onlyIf("snapshot build") { buildParams.snapshotBuild }
+}
+
 // log4j-core registers both the PluginProcessor and GraalVmProcessor on the processor path; we only want the former
 tasks.named("compileJava").configure {
   options.compilerArgs.addAll(

@@ -15,7 +15,9 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -33,8 +35,16 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class SecurityIndexRolesMetadataMigrationIT extends AbstractXpackRollingUpgradeWithSecurityTestCase {
 
+    @ClassRule
+    public static final ElasticsearchCluster cluster = buildClusterWithSecurity();
+
     public SecurityIndexRolesMetadataMigrationIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
+    }
+
+    @Override
+    protected ElasticsearchCluster getUpgradeCluster() {
+        return cluster;
     }
 
     public void testRoleMigration() throws Exception {

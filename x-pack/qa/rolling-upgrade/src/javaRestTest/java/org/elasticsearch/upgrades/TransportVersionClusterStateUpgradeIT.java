@@ -7,12 +7,16 @@
 
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.rest.RestTestLegacyFeatures;
+import org.junit.ClassRule;
 
 import java.util.Map;
 
@@ -24,7 +28,19 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.oneOf;
 
-public class TransportVersionClusterStateUpgradeIT extends AbstractUpgradeTestCase {
+public class TransportVersionClusterStateUpgradeIT extends AbstractXpackRollingUpgradeTestCase {
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = buildCluster();
+
+    public TransportVersionClusterStateUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
+
+    @Override
+    protected ElasticsearchCluster getUpgradeCluster() {
+        return cluster;
+    }
 
     public void testReadsInferredTransportVersions() throws Exception {
         // waitUntil because the versions fixup on upgrade happens in the background so may need a retry
@@ -59,48 +75,46 @@ public class TransportVersionClusterStateUpgradeIT extends AbstractUpgradeTestCa
         final var hasNodesVersions = clusterState.evaluate("nodes_versions") != null;
         assertFalse(description, hasNodesVersions && hasTransportVersions);
 
-        switch (CLUSTER_TYPE) {
-            case OLD -> {
-                if (clusterHasFeature(RestTestLegacyFeatures.TRANSPORT_VERSION_SUPPORTED) == false) {
-                    // Before 8.8.0 there was only DiscoveryNode#version
-                    assertFalse(description, hasTransportVersions);
-                    assertFalse(description, hasNodesVersions);
-                } else if (clusterHasFeature(RestTestLegacyFeatures.STATE_REPLACED_TRANSPORT_VERSION_WITH_NODES_VERSION) == false) {
-                    // In [8.8.0, 8.11.0) we exposed just transport_versions
-                    assertTrue(description, hasTransportVersions);
-                    assertFalse(description, hasNodesVersions);
-                } else {
-                    // From 8.11.0 onwards we exposed nodes_versions
-                    assertFalse(description, hasTransportVersions);
-                    assertTrue(description, hasNodesVersions);
-                }
-            }
-            case MIXED -> {
-                if (clusterHasFeature(RestTestLegacyFeatures.TRANSPORT_VERSION_SUPPORTED) == false) {
-                    // Responding node might be <8.8.0 (so no extra versions) or >=8.11.0 (includes nodes_versions)
-                    assertFalse(description, hasTransportVersions);
-                } else if (clusterHasFeature(RestTestLegacyFeatures.STATE_REPLACED_TRANSPORT_VERSION_WITH_NODES_VERSION) == false) {
-                    // Responding node might be in [8.8.0, 8.11.0) (transport_versions) or >=8.11.0 (includes nodes_versions) but not both
-                    assertTrue(description, hasNodesVersions || hasTransportVersions);
-                } else {
-                    // Responding node is ≥8.11.0 so has nodes_versions for sure
-                    assertFalse(description, hasTransportVersions);
-                    assertTrue(description, hasNodesVersions);
-                }
-            }
-            case UPGRADED -> {
-                // All nodes are Version.CURRENT, ≥8.11.0, so we definitely have nodes_versions
+        if (isOldCluster()) {
+            if (clusterHasFeature(RestTestLegacyFeatures.TRANSPORT_VERSION_SUPPORTED) == false) {
+                // Before 8.8.0 there was only DiscoveryNode#version
+                assertFalse(description, hasTransportVersions);
+                assertFalse(description, hasNodesVersions);
+            } else if (clusterHasFeature(RestTestLegacyFeatures.STATE_REPLACED_TRANSPORT_VERSION_WITH_NODES_VERSION) == false) {
+                // In [8.8.0, 8.11.0) we exposed just transport_versions
+                assertTrue(description, hasTransportVersions);
+                assertFalse(description, hasNodesVersions);
+            } else {
+                // From 8.11.0 onwards we exposed nodes_versions
                 assertFalse(description, hasTransportVersions);
                 assertTrue(description, hasNodesVersions);
-                assertThat(description, versionsByNodeId.values(), everyItem(equalTo(Build.current().version())));
             }
+        }
+        if (isMixedCluster()) {
+            if (clusterHasFeature(RestTestLegacyFeatures.TRANSPORT_VERSION_SUPPORTED) == false) {
+                // Responding node might be <8.8.0 (so no extra versions) or >=8.11.0 (includes nodes_versions)
+                assertFalse(description, hasTransportVersions);
+            } else if (clusterHasFeature(RestTestLegacyFeatures.STATE_REPLACED_TRANSPORT_VERSION_WITH_NODES_VERSION) == false) {
+                // Responding node might be in [8.8.0, 8.11.0) (transport_versions) or >=8.11.0 (includes nodes_versions) but not both
+                assertTrue(description, hasNodesVersions || hasTransportVersions);
+            } else {
+                // Responding node is ≥8.11.0 so has nodes_versions for sure
+                assertFalse(description, hasTransportVersions);
+                assertTrue(description, hasNodesVersions);
+            }
+        }
+        if (isUpgradedCluster()) {
+            // All nodes are Version.CURRENT, ≥8.11.0, so we definitely have nodes_versions
+            assertFalse(description, hasTransportVersions);
+            assertTrue(description, hasNodesVersions);
+            assertThat(description, versionsByNodeId.values(), everyItem(equalTo(Build.current().version())));
         }
 
         if (hasTransportVersions) {
             // Upgrading from [8.8.0, 8.11.0) and the responding node is still on the old version
             assertFalse(description, clusterHasFeature(RestTestLegacyFeatures.STATE_REPLACED_TRANSPORT_VERSION_WITH_NODES_VERSION));
             assertTrue(description, clusterHasFeature(RestTestLegacyFeatures.TRANSPORT_VERSION_SUPPORTED));
-            assertNotEquals(description, ClusterType.UPGRADED, CLUSTER_TYPE);
+            assertFalse(description, isUpgradedCluster());
 
             // transport_versions includes the correct version for all nodes, no inference is needed
             assertEquals(description, nodeIds.size(), clusterState.evaluateArraySize("transport_versions"));
@@ -122,8 +136,7 @@ public class TransportVersionClusterStateUpgradeIT extends AbstractUpgradeTestCa
             // Either upgrading from ≥8.11.0 (the responding node might be old or new), or from <8.8.0 (the responding node is new)
             assertFalse(
                 description,
-                clusterHasFeature(RestTestLegacyFeatures.STATE_REPLACED_TRANSPORT_VERSION_WITH_NODES_VERSION) == false
-                    && CLUSTER_TYPE == ClusterType.OLD
+                clusterHasFeature(RestTestLegacyFeatures.STATE_REPLACED_TRANSPORT_VERSION_WITH_NODES_VERSION) == false && isOldCluster()
             );
 
             // nodes_versions includes _a_ version for all nodes; it might be correct, or it might be inferred if we're upgrading from
@@ -146,7 +159,7 @@ public class TransportVersionClusterStateUpgradeIT extends AbstractUpgradeTestCa
                             ? equalTo(TransportVersion.current())
                             : oneOf(TransportVersion.current(), INFERRED_TRANSPORT_VERSION)
                     );
-                    if (CLUSTER_TYPE == ClusterType.UPGRADED && transportVersion.equals(INFERRED_TRANSPORT_VERSION)) {
+                    if (isUpgradedCluster() && transportVersion.equals(INFERRED_TRANSPORT_VERSION)) {
                         // TransportVersionsFixupListener should run soon, retry
                         logger.info("{} - not fixed up yet, retrying", nodeDescription);
                         return false;

@@ -17,12 +17,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.util.resource.Resource;
-import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.function.Predicate;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.notNullValue;
@@ -32,12 +33,16 @@ public abstract class AbstractXpackRollingUpgradeWithSecurityTestCase extends Ab
     protected static final String USER = "test_user";
     protected static final String PASS = "x-pack-test-password";
 
-    @ClassRule
-    public static ElasticsearchCluster cluster = buildClusterWithSecurity();
-
     protected static ElasticsearchCluster buildClusterWithSecurity() {
+        return buildClusterWithSecurity(b -> b);
+    }
+
+    protected static ElasticsearchCluster buildClusterWithSecurity(
+        UnaryOperator<LocalClusterSpecBuilder<ElasticsearchCluster>> customizer
+    ) {
         return buildCluster(
-            b -> b.user(USER, PASS)
+            b -> customizer.apply(b)
+                .user(USER, PASS)
                 .setting("xpack.security.enabled", "true")
                 .setting("xpack.security.autoconfiguration.enabled", () -> "false", spec -> spec.getVersion().onOrAfter("8.0.0"))
                 .setting("xpack.security.transport.ssl.enabled", "true")
@@ -66,11 +71,6 @@ public abstract class AbstractXpackRollingUpgradeWithSecurityTestCase extends Ab
 
     protected AbstractXpackRollingUpgradeWithSecurityTestCase(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
-    }
-
-    @Override
-    protected ElasticsearchCluster getUpgradeCluster() {
-        return cluster;
     }
 
     @Override

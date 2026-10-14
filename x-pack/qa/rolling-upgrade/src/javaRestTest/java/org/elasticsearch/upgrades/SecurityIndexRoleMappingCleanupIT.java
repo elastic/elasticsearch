@@ -6,13 +6,24 @@
  */
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.util.resource.Resource;
+import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.util.List;
@@ -24,16 +35,65 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
-public class SecurityIndexRoleMappingCleanupIT extends AbstractUpgradeTestCase {
-    private static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
+public class SecurityIndexRoleMappingCleanupIT extends AbstractXpackRollingUpgradeWithSecurityTestCase {
 
-    public void testCleanupDuplicateMappings() throws Exception {
-        // see build.gradle where we set operator/settings.json for more details on this skip
-        assumeTrue(
+    private static final String OPERATOR_SETTINGS_JSON = """
+        {
+          "metadata": {
+            "version": "2",
+            "compatibility": "8.4.0"
+          },
+          "state": {
+            "role_mappings": {
+              "operator_role_mapping_1": {
+                "enabled": true,
+                "roles": ["kibana_user"],
+                "metadata": { "from_file": true },
+                "rules": { "field": { "username": "role-mapping-test-user" } }
+              },
+              "operator_role_mapping_2": {
+                "enabled": true,
+                "roles": ["fleet_user"],
+                "metadata": { "from_file": true },
+                "rules": { "field": { "username": "role-mapping-test-user" } }
+              }
+            }
+          }
+        }""";
+
+    // File-based settings processing had a bug around applying role mappings on an unrecovered index, fixed in 8.7.0
+    // (https://github.com/elastic/elasticsearch/pull/92173). To avoid flakiness, only run when upgrading from a version with the fix.
+    private static final RunnableTestRuleAdapter versionLimit = new RunnableTestRuleAdapter(
+        () -> assumeTrue(
             "Cluster requires version higher than since operator/settings.json is only set then: " + Version.V_8_7_0,
             UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_7_0)
-        );
-        if (CLUSTER_TYPE == ClusterType.OLD) {
+        )
+    );
+
+    private static final ElasticsearchCluster cluster = buildClusterWithSecurity(
+        b -> b.configFile("operator/settings.json", Resource.fromString(OPERATOR_SETTINGS_JSON))
+    );
+
+    @ClassRule
+    public static TestRule ruleChain = RuleChain.outerRule(versionLimit).around(cluster);
+
+    public SecurityIndexRoleMappingCleanupIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
+
+    @Override
+    protected ElasticsearchCluster getUpgradeCluster() {
+        return cluster;
+    }
+
+    @Override
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
+        return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
+    }
+
+    public void testCleanupDuplicateMappings() throws Exception {
+        if (isOldCluster()) {
             // If we're in a state where the same operator-defined role mappings can exist both in cluster state and the native store
             // (V_8_15_0 transport added to security.role_mapping_cleanup feature added), create a state
             // where the native store will need to be cleaned up
@@ -48,10 +108,10 @@ public class SecurityIndexRoleMappingCleanupIT extends AbstractUpgradeTestCase {
             // Since the old cluster has role mappings in cluster state, but doesn't check duplicates, create duplicates
             createNativeRoleMapping("operator_role_mapping_1", Map.of("meta", "test"), true);
             createNativeRoleMapping("operator_role_mapping_2", Map.of("meta", "test"), true);
-        } else if (CLUSTER_TYPE == ClusterType.MIXED) {
+        } else if (isMixedCluster()) {
             // Create a native role mapping that doesn't conflict with anything before the migration run
             createNativeRoleMapping("no_name_conflict", Map.of("meta", "test"));
-        } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
+        } else {
             waitForSecurityMigrationCompletion(adminClient(), 2);
             assertAllRoleMappings(
                 client(),

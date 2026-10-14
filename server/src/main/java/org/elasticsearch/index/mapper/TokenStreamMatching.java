@@ -44,6 +44,15 @@ public final class TokenStreamMatching {
     /** Decides whether one value's tokens answer a query. The stream is reset; implementations consume it. */
     public interface Matcher {
         boolean matches(TokenStream stream) throws IOException;
+
+        /**
+         * What a value must spell for this matcher to match it, which a caller reads a value's bytes by before
+         * analyzing it. A matcher that leaves its terms unsaid answers {@link CandidateValues#ANY} and its values
+         * are analyzed as they were.
+         */
+        default CandidateValues candidates() {
+            return CandidateValues.ANY;
+        }
     }
 
     /** Matches a value holding any of its terms, the semantics of a match query. */
@@ -51,6 +60,11 @@ public final class TokenStreamMatching {
         @Override
         public boolean matches(TokenStream stream) throws IOException {
             return containsAnyTerm(stream, queryTerms);
+        }
+
+        @Override
+        public CandidateValues candidates() {
+            return CandidateValues.anyOf(queryTerms);
         }
     }
 
@@ -61,6 +75,12 @@ public final class TokenStreamMatching {
             final PhraseWalker walker = new PhraseWalker(queryTerms.toArray(BytesRef[]::new), false);
             walker.accept(stream);
             return walker.freq() > 0;
+        }
+
+        @Override
+        public CandidateValues candidates() {
+            // A phrase sits inside one value, so every term of it is spelled by the value holding the phrase.
+            return CandidateValues.allOf(queryTerms);
         }
     }
 

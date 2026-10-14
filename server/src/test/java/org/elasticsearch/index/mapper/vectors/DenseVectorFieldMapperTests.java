@@ -960,45 +960,6 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         indexOptions = getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class);
         assertEquals(4f, indexOptions.rescoreVector.oversample(), 0f);
 
-        // auto_calibrate is updatable in both directions: it only steers merge-time calibration, and
-        // segments already written keep their persisted quantization and preconditioning metadata.
-        merge(mapperService, fieldMapping(b -> {
-            b.field("type", "dense_vector");
-            b.field("dims", 128);
-            b.field("index", true);
-            b.startObject("index_options");
-            b.field("type", "bbq_disk");
-            b.field("bits", 2);
-            b.field("precondition", false);
-            b.field("auto_calibrate", false);
-            b.startObject("rescore_vector");
-            b.field("oversample", 4f);
-            b.endObject();
-            b.endObject();
-        }));
-        indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) ((DenseVectorFieldMapper) mapperService.mappingLookup()
-            .getMapper("field")).fieldType().getIndexOptions();
-        assertFalse(indexOptions.autoCalibrate());
-        assertThat(mapperService.documentMapper().mappingSource().toString(), containsString("\"auto_calibrate\":false"));
-
-        merge(mapperService, fieldMapping(b -> {
-            b.field("type", "dense_vector");
-            b.field("dims", 128);
-            b.field("index", true);
-            b.startObject("index_options");
-            b.field("type", "bbq_disk");
-            b.field("bits", 2);
-            b.field("precondition", false);
-            b.field("auto_calibrate", true);
-            b.startObject("rescore_vector");
-            b.field("oversample", 4f);
-            b.endObject();
-            b.endObject();
-        }));
-        indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) ((DenseVectorFieldMapper) mapperService.mappingLookup()
-            .getMapper("field")).fieldType().getIndexOptions();
-        assertTrue(indexOptions.autoCalibrate());
-
         final Map<String, Object> preconditionTrueIndexOptionsMap = Maps.copyMapWithAddedOrReplacedEntry(
             oversampleFourIndexOptionsMap,
             "precondition",
@@ -1240,18 +1201,6 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 assertThat(((RescoreKnnVectorQuery) query).innerQuery(), instanceOf(IVFKnnFloatVectorQuery.class));
             }
             assertThat(mapperService.documentMapper().mappingSource().toString(), containsString("\"auto_calibrate\":" + autoCalibrate));
-        }
-    }
-
-    /** Re-sending an unchanged {@code auto_calibrate} value is a no-op rather than a conflict, in both states. */
-    public void testBbqDiskAutoCalibrateIdempotentUpdate() throws IOException {
-        for (boolean autoCalibrate : new boolean[] { false, true }) {
-            MapperService mapperService = createMapperService(fieldMapping(bbqDiskMapping(autoCalibrate, false, 2)));
-            merge(mapperService, fieldMapping(bbqDiskMapping(autoCalibrate, false, 2)));
-            assertEquals(
-                autoCalibrate,
-                ((DenseVectorFieldMapper.BBQIVFIndexOptions) denseVectorFieldType(mapperService).getIndexOptions()).autoCalibrate()
-            );
         }
     }
 

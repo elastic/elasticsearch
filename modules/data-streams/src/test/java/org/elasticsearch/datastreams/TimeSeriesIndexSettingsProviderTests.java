@@ -37,18 +37,19 @@ import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createFirstBackingIndex;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
+import static org.elasticsearch.common.settings.Settings.EMPTY;
 import static org.elasticsearch.common.settings.Settings.builder;
-import static org.elasticsearch.datastreams.DataStreamIndexSettingsProvider.FORMATTER;
+import static org.elasticsearch.datastreams.TimeSeriesIndexSettingsProvider.FORMATTER;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
-public class DataStreamIndexSettingsProviderTests extends ESTestCase {
+public class TimeSeriesIndexSettingsProviderTests extends ESTestCase {
 
     private static final TimeValue DEFAULT_LOOK_BACK_TIME = TimeValue.timeValueHours(2); // default
     private static final TimeValue DEFAULT_LOOK_AHEAD_TIME = TimeValue.timeValueMinutes(30); // default
 
-    DataStreamIndexSettingsProvider provider;
+    TimeSeriesIndexSettingsProvider provider;
     private boolean indexDimensionsTsidStrategyEnabledSetting;
     private boolean expectedIndexDimensionsTsidOptimizationEnabled;
     private IndexVersion indexVersion;
@@ -56,7 +57,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
 
     @Before
     public void setup() {
-        provider = new DataStreamIndexSettingsProvider(
+        provider = new TimeSeriesIndexSettingsProvider(
             im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName())
         );
         if (randomBoolean()) {
@@ -513,6 +514,37 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         if (expectedDisabledSequenceNumbers) {
             assertThat(IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(result), equalTo(true));
         }
+    }
+
+    // We do not break the index settings provider here, we rely on the rollover to reject this.
+    public void testGetAdditionalIndexSettingsDuringInvalidMigrationToTsdb() {
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        String dataStreamName = "logs-app1";
+        IndexMetadata idx = createFirstBackingIndex(dataStreamName).build();
+        IndexMode unsupportedIndexMode = randomValueOtherThanMany(
+            mode -> mode.equals(IndexMode.TIME_SERIES) || mode.equals(IndexMode.STANDARD),
+            () -> randomFrom(IndexMode.values())
+        );
+        DataStream existingDataStream = newInstance(dataStreamName, List.of(idx.getIndex())).copy()
+            .setIndexMode(unsupportedIndexMode)
+            .build();
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .dataStreams(Map.of(dataStreamName, existingDataStream), Map.of())
+            .build();
+
+        Settings.Builder additionalSettings = builder();
+        provider.provideAdditionalSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 2),
+            dataStreamName,
+            IndexMode.TIME_SERIES,
+            projectMetadata,
+            now,
+            Settings.EMPTY,
+            List.of(),
+            indexVersion,
+            additionalSettings
+        );
+        assertThat(additionalSettings.build(), equalTo(EMPTY));
     }
 
     public void testGetAdditionalIndexSettingsDowngradeFromTsdb() {

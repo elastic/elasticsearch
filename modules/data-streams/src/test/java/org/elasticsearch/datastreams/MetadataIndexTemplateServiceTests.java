@@ -53,7 +53,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Variant of MetadataIndexTemplateServiceTests in server module, but with {@link DataStreamIndexSettingsProvider}.
+ * Variant of MetadataIndexTemplateServiceTests in server module, but with {@link TimeSeriesIndexSettingsProvider}.
  */
 public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 

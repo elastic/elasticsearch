@@ -106,8 +106,10 @@ annotate_failure() {
 
 # Every ES test JVM runs with -XX:+HeapDumpOnOutOfMemoryError and a heapdump path under buildDir
 # (ElasticsearchTestBasePlugin), so a leftover .hprof means a JVM-heap OutOfMemoryError, which exits rc=1
-# via Gradle rather than the rc=137 SIGKILL a kernel OOM-kill gives. Detected from the file rather than
-# the log so we never touch the wrapped command's stdout. analyze.ts turns it into the `oom` infraSubtype.
+# via Gradle rather than the rc=137 SIGKILL a kernel OOM-kill gives, or leaves the test JVM stuck until the
+# `timeout` in run_wrapped_command (write_outcome runs this after `timeout` returns, so both are seen).
+# Detected from the file rather than the log so we never touch the wrapped command's stdout. analyze.ts
+# turns it into the `oom` infraSubtype.
 detect_oom() {
   if [ -n "$(find . -type f -path '*/build/heapdump/*.hprof' -print -quit 2>/dev/null)" ]; then
     echo "oom"

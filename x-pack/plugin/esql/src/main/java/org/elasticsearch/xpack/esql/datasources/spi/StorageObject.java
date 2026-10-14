@@ -465,10 +465,11 @@ public interface StorageObject {
      * Attaches the node telemetry sink and the storage {@code scheme} dimension so that this object's
      * read/retry events are published to {@link ExternalSourceMetrics} (in addition to the profile
      * counters surfaced by {@link #metrics()}). Called once by the operator wiring when it opens the
-     * object. The default is a no-op for objects that don't track I/O; decorator wrappers must forward
-     * to the wrapped object so the metrics attach to the underlying store, not the wrapper layer.
+     * object. Decorator wrappers must forward to the wrapped object so the metrics attach to the underlying
+     * store, not the wrapper layer. Implementations with no I/O counters implement it as an explicit no-op.
+     * There is no default: a silent default let decorators drop the attach without any failure.
      */
-    default void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+    void attachMetrics(ExternalSourceMetrics metrics, String scheme);
 
     /**
      * Binds {@code io} to the query-budget scheduler that will grant this object's GETs.

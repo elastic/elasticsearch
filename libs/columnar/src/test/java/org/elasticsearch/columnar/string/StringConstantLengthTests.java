@@ -100,7 +100,8 @@ public class StringConstantLengthTests extends ColumnarStringTestCase {
                     null,
                     dir,
                     IOContext.DEFAULT,
-                    out.outputs()
+                    out.outputs(),
+                    out.skipIndex()
                 )
             );
             assertTrue(e.getMessage(), e.getMessage().contains("counted at 8"));

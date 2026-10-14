@@ -2424,9 +2424,9 @@ public class NdJsonPageDecoder implements Closeable {
 
         /**
          * The {@code date_nanos} twin of {@link #decodeDatetimeValue}, one rail down. It agrees with
-         * {@code CsvFormatReader.tryParseDateNanos} on how a declared format, a numeric token and a string token are
-         * read, which is the part that has to agree for identical bytes to mean the same thing in both formats. It
-         * does not carry CSV's hand-rolled {@code YYYY-MM-DD HH:MM:SS} template: CSV has that template on both of
+         * {@code CsvFormatReader.tryParseDateNanos} on how a declared format and a numeric token are read —
+         * the part that has to agree for identical bytes to mean the same thing in both formats. It does not
+         * carry CSV's hand-rolled {@code YYYY-MM-DD HH:MM:SS} template: CSV has that template on both of
          * its temporal rails, this decoder has it on neither, so each format is consistent between its own two
          * declared types. A space-separated string in an NDJSON document is therefore a coercion failure under
          * {@code date_nanos} and under {@code datetime} alike. The arms:

@@ -453,8 +453,7 @@ public class CsvSchemaInferrer {
     private static final DateFormatter NANOS_RAIL_FORMAT = EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER;
 
     private static boolean nanosRailCanDecode(String value) {
-        return NANOS_RAIL_FORMAT.tryParse(value) != null
-            || CsvFormatReader.tryParseSpaceSeparatedDatetimeNanos(value) != CsvFormatReader.FAST_PATH_MISS;
+        return NANOS_RAIL_FORMAT.tryParse(value) != null || CsvFormatReader.matchesSpaceSeparatedDatetimeNanosTemplate(value);
     }
 
     /**

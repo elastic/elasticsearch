@@ -441,8 +441,15 @@ public class CsvSchemaInferrerTests extends ESTestCase {
      * came first, which is why the DATE_NANOS rung accepts any timestamp.
      */
     public void testOutOfWindowValueInDateNanosColumnStaysDateNanosBothOrders() {
-        assertEquals(DataType.DATE_NANOS, inferOne("2023-10-23T12:15:03.360103847Z", "2263-01-01T00:00:00.123456789Z"));
-        assertEquals(DataType.DATE_NANOS, inferOne("2263-01-01T00:00:00.123456789Z", "2023-10-23T12:15:03.360103847Z"));
+        String nanos = "2023-10-23T12:15:03.360103847Z";
+        assertEquals(DataType.DATE_NANOS, inferOne(nanos, "2263-01-01T00:00:00.123456789Z"));
+        assertEquals(DataType.DATE_NANOS, inferOne("2263-01-01T00:00:00.123456789Z", nanos));
+        // Space-separated out-of-window cells: format matches, so the column stays date_nanos
+        // and the cell fails per-cell at read — not demoted here (demoting would be row-order-dependent).
+        assertEquals(DataType.DATE_NANOS, inferOne(nanos, "1969-12-31 23:59:59"));
+        assertEquals(DataType.DATE_NANOS, inferOne("1969-12-31 23:59:59", nanos));
+        assertEquals(DataType.DATE_NANOS, inferOne(nanos, "2263-01-01 00:00:00.123456789"));
+        assertEquals(DataType.DATE_NANOS, inferOne("2263-01-01 00:00:00.123456789", nanos));
     }
 
     public void testCustomDatetimeFormatNeverInfersDateNanos() {
@@ -789,10 +796,7 @@ public class CsvSchemaInferrerTests extends ESTestCase {
             "2023-10-23T12:15Z",
             "+12023-10-23T12:15:03Z",
             "-12023-10-23T12:15:03Z",
-            "+12023-10-23 12:15:03",
-            // Pre-1970 has no date_nanos representation, so the template refuses it too and the
-            // column must stay datetime rather than null the cell at read.
-            "1969-12-31 23:59:59"
+            "+12023-10-23 12:15:03"
         )) {
             assertEquals(undecodable + " then nanos", DataType.DATETIME, inferOne(undecodable, nanos));
             assertEquals("nanos then " + undecodable, DataType.DATETIME, inferOne(nanos, undecodable));

@@ -407,6 +407,17 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
+     * Returns {@code true} when {@code raw} matches the space-separated datetime template that
+     * {@link #tryParseSpaceSeparatedDatetimeNanos} reads, without checking whether the instant falls
+     * within the representable nanosecond range. Used by the schema inferrer, which must not demote
+     * on range (demoting on it would make a column's type depend on row order).
+     */
+    static boolean matchesSpaceSeparatedDatetimeNanosTemplate(String raw) {
+        String value = raw.length() > 10 && raw.charAt(10) == ' ' && raw.endsWith("Z") ? raw.substring(0, raw.length() - 1) : raw;
+        return spaceSeparatedNanoOfSecond(value, 9) != FAST_PATH_MISS && spaceSeparatedEpochSecond(value) != FAST_PATH_MISS;
+    }
+
+    /**
      * The nanosecond-of-second a space-separated timestamp carries, scaled from however many fraction digits it
      * has (up to {@code maxFractionDigits}), or {@link #FAST_PATH_MISS} when {@code value} does not match the
      * {@code YYYY-MM-DD HH:MM:SS[.f..f]} template. Only the fraction is read here; the date and time fields are

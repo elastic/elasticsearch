@@ -6002,7 +6002,7 @@ public class CsvFormatReaderTests extends ESTestCase {
      * A calendar-invalid cell stays unreadable under {@code date_nanos}. The JDK's SMART resolver clamps an
      * impossible day-of-month to the month's last day, so a lenient tail would read 2021-02-30 as 2021-02-28 --
      * a different, valid-looking instant, which is worse than a refusal. Both reference engines refuse to produce
-     * Feb 28 here: DuckDB nulls the cast and ClickHouse answers 2021-03-02.
+     * Feb 28 here: neither reference engine produces a valid date for it when reading from CSV.
      */
     public void testCalendarInvalidCellStaysUnreadableAsDateNanos() throws Exception {
         for (String cell : List.of("2021-02-30T10:00:00", "2021-02-30 10:00:00", "2021-04-31 10:00:00.5", "2021-01-01 24:00:00")) {

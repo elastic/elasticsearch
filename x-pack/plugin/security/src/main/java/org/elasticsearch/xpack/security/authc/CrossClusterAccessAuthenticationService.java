@@ -54,12 +54,12 @@ public class CrossClusterAccessAuthenticationService {
 
     public void authenticate(final String action, final TransportRequest request, final ActionListener<Authentication> listener) {
         final ThreadContext threadContext = clusterService.threadPool().getThreadContext();
-        final CrossClusterAccessHeaders crossClusterAccessHeaders;
+        final CrossClusterAccessRequestHeaders requestHeaders;
         final Authenticator.Context authcContext;
         try {
             // parse and add as authentication token as early as possible so that failure events in audit log include API key ID
-            crossClusterAccessHeaders = CrossClusterAccessHeaders.readFromContext(threadContext);
-            final ApiKeyService.ApiKeyCredentials apiKeyCredentials = crossClusterAccessHeaders.credentials();
+            requestHeaders = CrossClusterAccessRequestHeaders.readFromContext(threadContext);
+            final ApiKeyService.ApiKeyCredentials apiKeyCredentials = requestHeaders.credentials();
             assert ApiKey.Type.CROSS_CLUSTER == apiKeyCredentials.getExpectedType();
             // authn must verify only the provided api key and not try to extract any other credential from the thread context
             authcContext = authenticationService.newContext(action, request, apiKeyCredentials);
@@ -107,7 +107,8 @@ public class CrossClusterAccessAuthenticationService {
                     // try-catch so any failure here is wrapped by `withRequestProcessingFailure`, whereas `authenticate` failures are not
                     // we should _not_ wrap `authenticate` failures since this produces duplicate audit events
                     try {
-                        final CrossClusterAccessSubjectInfo subjectInfo = crossClusterAccessHeaders.getCleanAndValidatedSubjectInfo();
+                        // Only decode the subject info after the API key has been successfully authenticated.
+                        final CrossClusterAccessSubjectInfo subjectInfo = requestHeaders.decodeSubjectInfo().cleanAndValidate();
                         writeAuthToContext(authcContext, authentication.toCrossClusterAccess(subjectInfo), listener);
                     } catch (Exception ex) {
                         withRequestProcessingFailure(authcContext, ex, listener);
@@ -166,7 +167,7 @@ public class CrossClusterAccessAuthenticationService {
             if (credentials == null) {
                 throw requiredHeaderMissingException(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY);
             }
-            return CrossClusterAccessHeaders.parseCredentialsHeader(credentials);
+            return CrossClusterAccessRequestHeaders.parseCredentialsHeader(credentials);
         } catch (Exception ex) {
             throw Exceptions.authenticationError("failed to extract credentials from headers", ex);
         }

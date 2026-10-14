@@ -9,12 +9,14 @@ package org.elasticsearch.xpack.security.authc.support;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -23,6 +25,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
+import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 
 import java.util.Map;
@@ -47,6 +50,9 @@ public class SecondaryAuthenticator {
     public static final String SECONDARY_X_CLIENT_AUTH_HEADER_NAME = "es-secondary-x-client-authentication";
 
     private static final String X_CLIENT_AUTHENTICATION = "X-Client-Authentication";
+
+    private static final String AUDIT_REQUEST_ID_TRANSIENT_KEY = "_security_secondary_authc_audit_request_id";
+    private static final String FAILURE_TRANSIENT_KEY = "_security_secondary_authc_failure";
 
     private static final Logger logger = LogManager.getLogger(SecondaryAuthenticator.class);
     private final SecurityContext securityContext;
@@ -87,29 +93,67 @@ public class SecondaryAuthenticator {
     }
 
     /**
+     * Authenticates the secondary credentials in the HTTP pipeline, so that the request is dispatched on the channel's event loop.
+     * The listener never fails: the outcome is attached to the thread context, for {@link #completeAuthentication(RestRequest)}
+     * to act upon after the primary authentication success has been audited.
+     */
+    public void authenticateAndAttachResultToContext(HttpPreRequest request, ActionListener<Void> listener) {
+        final ThreadContext threadContext = securityContext.getThreadContext();
+        authenticateAndAttachToContext(request, listener.<SecondaryAuthentication>map(ignored -> null).delegateResponse((l, e) -> {
+            threadContext.putTransient(FAILURE_TRANSIENT_KEY, e);
+            l.onResponse(null);
+        }));
+    }
+
+    /**
+     * Throws the failure attached by {@link #authenticateAndAttachResultToContext(HttpPreRequest, ActionListener)}, if any,
+     * otherwise audits the secondary authentication success, if any.
+     */
+    public void completeAuthentication(RestRequest request) throws Exception {
+        final ThreadContext threadContext = securityContext.getThreadContext();
+        final Exception failure = threadContext.getTransient(FAILURE_TRANSIENT_KEY);
+        if (failure != null) {
+            throw failure;
+        }
+        final SecondaryAuthentication secondaryAuthentication = SecondaryAuthentication.readFromContext(securityContext);
+        if (secondaryAuthentication == null) {
+            return;
+        }
+        logger.trace("found secondary authentication {} in REST request [{}]", secondaryAuthentication, request.uri());
+        final String auditRequestId = threadContext.getTransient(AUDIT_REQUEST_ID_TRANSIENT_KEY);
+        assert auditRequestId != null : "secondary authentication without an audit request id";
+        secondaryAuthentication.execute(ignore -> {
+            threadContext.putHeader(AuditUtil.AUDIT_REQUEST_ID, auditRequestId);
+            auditTrailService.get().authenticationSuccess(request);
+            return null;
+        });
+    }
+
+    /**
+     * Does not audit authentication success.
+     *
      * @param listener Handler for the {@link SecondaryAuthentication} object.
      *                 If the secondary authentication credentials do not exist the thread context, the
      *                 {@link ActionListener#onResponse(Object)} method is called with a {@code null} authentication value.
      *                 If the secondary authentication credentials are found in the thread context, but fail to be authenticated, then
      *                 the failure is returned through {@link ActionListener#onFailure(Exception)}.
      */
-    public void authenticateAndAttachToContext(RestRequest request, ActionListener<SecondaryAuthentication> listener) {
+    void authenticateAndAttachToContext(HttpPreRequest request, ActionListener<SecondaryAuthentication> listener) {
         final ThreadContext threadContext = securityContext.getThreadContext();
+        final SetOnce<String> auditRequestId = new SetOnce<>();
         // We never want the secondary authentication to fallback to anonymous.
         // Use cases for secondary authentication are far more likely to want to fall back to the primary authentication if no secondary
         // auth is provided, so in that case we do no want to set anything in the context
-        authenticate(
-            authListener -> authenticationService.authenticate(request.getHttpRequest(), false, authListener.map(authentication -> {
-                auditTrailService.get().authenticationSuccess(request);
-                return authentication;
-            })),
-            listener.delegateFailureAndWrap((l, secondaryAuthentication) -> {
-                if (secondaryAuthentication != null) {
-                    secondaryAuthentication.writeToContext(threadContext);
-                }
-                l.onResponse(secondaryAuthentication);
-            })
-        );
+        authenticate(authListener -> authenticationService.authenticate(request, false, authListener.map(authentication -> {
+            auditRequestId.set(AuditUtil.extractRequestId(threadContext));
+            return authentication;
+        })), listener.delegateFailureAndWrap((l, secondaryAuthentication) -> {
+            if (secondaryAuthentication != null) {
+                secondaryAuthentication.writeToContext(threadContext);
+                threadContext.putTransient(AUDIT_REQUEST_ID_TRANSIENT_KEY, auditRequestId.get());
+            }
+            l.onResponse(secondaryAuthentication);
+        }));
     }
 
     private void authenticate(Consumer<ActionListener<Authentication>> authenticate, ActionListener<SecondaryAuthentication> listener) {

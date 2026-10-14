@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.LogType;
@@ -54,6 +55,8 @@ import static org.hamcrest.Matchers.notNullValue;
 public class AuditIT extends ESRestTestCase {
 
     private static final String API_USER = "api_user";
+    private static final String SECONDARY_USER = "secondary_user";
+    private static final String SECONDARY_PASSWORD = "secondary-password";
     private static final DateTimeFormatter TSTAMP_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss,SSSZ");
 
     private static final String ENCRYPTION_PASSWORD_ID = "test";
@@ -80,6 +83,7 @@ public class AuditIT extends ESRestTestCase {
         .keystore("cluster.state.encryption.active_password_id", ENCRYPTION_PASSWORD_ID)
         .user("admin_user", "admin-password")
         .user(API_USER, "api-password", "superuser", false)
+        .user(SECONDARY_USER, SECONDARY_PASSWORD, "superuser", false)
         .build();
 
     @Override
@@ -329,6 +333,120 @@ public class AuditIT extends ESRestTestCase {
                 )
             )
         );
+    }
+
+    public void testAuditSecondaryAuthenticationSuccessForStreamingRequest() throws Exception {
+        final Request request = new Request("POST", "/testindex/_bulk");
+        request.setEntity(new StringEntity("{\"index\":{}}\n{}\n", ContentType.create("application/x-ndjson", StandardCharsets.UTF_8)));
+        final String opaqueId = withSecondaryAuth(request, SECONDARY_PASSWORD);
+        final Instant start = Instant.now();
+        assertThat(executeRequest(request).getStatusLine().getStatusCode(), equalTo(200));
+
+        assertBusy(() -> {
+            final Map<String, Object> primary = findRestEvent(AuditLevel.AUTHENTICATION_SUCCESS, API_USER, request, start);
+            final Map<String, Object> secondary = findRestEvent(AuditLevel.AUTHENTICATION_SUCCESS, SECONDARY_USER, request, start);
+            assertCorrelated(primary, secondary, opaqueId);
+        }, 5, TimeUnit.SECONDS);
+    }
+
+    public void testAuditSecondaryAuthenticationFailure() throws Exception {
+        final Request request = new Request("GET", "/_security/_authenticate");
+        final String opaqueId = withSecondaryAuth(request, "wrong-" + SECONDARY_PASSWORD);
+        request.addParameter("ignore", "401");
+        final Instant start = Instant.now();
+        assertThat(executeRequest(request).getStatusLine().getStatusCode(), equalTo(401));
+
+        assertBusy(() -> {
+            final Map<String, Object> primary = findRestEvent(AuditLevel.AUTHENTICATION_SUCCESS, API_USER, request, start);
+            final Map<String, Object> secondary = findRestEvent(AuditLevel.AUTHENTICATION_FAILED, SECONDARY_USER, request, start);
+            assertCorrelated(primary, secondary, opaqueId);
+        }, 5, TimeUnit.SECONDS);
+    }
+
+    /**
+     * A failed secondary authentication is audited even when no handler matches the request, but must not turn the
+     * routing error into an authentication error.
+     */
+    public void testAuditSecondaryAuthenticationFailureWithoutHandler() throws Exception {
+        final Request request = new Request("DELETE", "/_security/_authenticate");
+        withSecondaryAuth(request, "wrong-" + SECONDARY_PASSWORD);
+        request.addParameter("ignore", "405");
+        final Instant start = Instant.now();
+        assertThat(executeRequest(request).getStatusLine().getStatusCode(), equalTo(405));
+
+        assertBusy(() -> {
+            findRestEvent(AuditLevel.AUTHENTICATION_FAILED, SECONDARY_USER, request, start);
+            assertThat(findRestEvents(AuditLevel.AUTHENTICATION_SUCCESS, API_USER, request, start), hasSize(0));
+        }, 5, TimeUnit.SECONDS);
+    }
+
+    public void testNoSecondaryAuthenticationWhenPrimaryAuthenticationFails() throws Exception {
+        final Request request = new Request("GET", "/_security/_authenticate");
+        withSecondaryAuth(request, "wrong-" + SECONDARY_PASSWORD);
+        request.setOptions(
+            request.getOptions()
+                .toBuilder()
+                .addHeader("Authorization", basicAuthHeaderValue(API_USER, new SecureString("wrong-password".toCharArray())))
+        );
+        request.addParameter("ignore", "401");
+        final Instant start = Instant.now();
+        assertThat(executeRequest(request).getStatusLine().getStatusCode(), equalTo(401));
+
+        assertBusy(() -> {
+            findRestEvent(AuditLevel.AUTHENTICATION_FAILED, API_USER, request, start);
+            assertThat(findRestEvents(AuditLevel.AUTHENTICATION_FAILED, SECONDARY_USER, request, start), hasSize(0));
+        }, 5, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Adds secondary credentials and a random opaque id to the request, returning the opaque id.
+     */
+    private static String withSecondaryAuth(Request request, String secondaryPassword) {
+        final String opaqueId = randomAlphaOfLength(12);
+        request.setOptions(
+            request.getOptions()
+                .toBuilder()
+                .addHeader(
+                    "es-secondary-authorization",
+                    basicAuthHeaderValue(SECONDARY_USER, new SecureString(secondaryPassword.toCharArray()))
+                )
+                .addHeader(Task.X_OPAQUE_ID_HTTP_HEADER, opaqueId)
+        );
+        return opaqueId;
+    }
+
+    /**
+     * Primary and secondary authentication are audited under their own request ids, the opaque id links them.
+     */
+    private static void assertCorrelated(Map<String, Object> primary, Map<String, Object> secondary, String opaqueId) {
+        assertThat(primary, hasEntry(LoggingAuditTrail.OPAQUE_ID_FIELD_NAME, opaqueId));
+        assertThat(secondary, hasEntry(LoggingAuditTrail.OPAQUE_ID_FIELD_NAME, opaqueId));
+        assertThat(secondary.get(LoggingAuditTrail.REQUEST_ID_FIELD_NAME), notNullValue());
+        assertThat(
+            secondary.get(LoggingAuditTrail.REQUEST_ID_FIELD_NAME),
+            not(equalTo(primary.get(LoggingAuditTrail.REQUEST_ID_FIELD_NAME)))
+        );
+    }
+
+    private Map<String, Object> findRestEvent(AuditLevel level, String principal, Request request, Instant start) throws IOException {
+        final List<Map<String, Object>> events = findRestEvents(level, principal, request, start);
+        assertThat("[" + level + "] events for [" + principal + "]", events, hasSize(1));
+        return events.get(0);
+    }
+
+    private List<Map<String, Object>> findRestEvents(AuditLevel level, String principal, Request request, Instant start)
+        throws IOException {
+        try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
+            return findEvents(Streams.readAllLines(auditLog), level, e -> {
+                if (principal.equals(e.get(LoggingAuditTrail.PRINCIPAL_FIELD_NAME)) == false
+                    || request.getEndpoint().equals(e.get(LoggingAuditTrail.URL_PATH_FIELD_NAME)) == false
+                    || request.getMethod().equals(e.get(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME)) == false) {
+                    return false;
+                }
+                Instant tstamp = ZonedDateTime.parse(String.valueOf(e.get(LoggingAuditTrail.TIMESTAMP)), TSTAMP_FORMATTER).toInstant();
+                return tstamp.isBefore(start) == false;
+            });
+        }
     }
 
     public void testFilteringOfCloneApiKeyRequestBody() throws Exception {

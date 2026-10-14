@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -107,6 +108,7 @@ public class ViewResolver {
     private final CrossProjectModeDecider crossProjectModeDecider;
     private volatile int maxViewDepth;
     private final Client client;
+    private final boolean federationAvailable;
     // This setting is registered as OperatorDynamic so it is not exposed to end users yet.
     // To fully expose it later:
     // 1. Change OperatorDynamic to Dynamic (makes it user-settable on self-managed)
@@ -130,6 +132,7 @@ public class ViewResolver {
         this.crossProjectModeDecider = CrossProjectModeDecider.NOOP;
         this.maxViewDepth = 0;
         this.client = null;
+        this.federationAvailable = false;
     }
 
     public ViewResolver(
@@ -144,6 +147,7 @@ public class ViewResolver {
         this.projectResolver = projectResolver;
         this.crossProjectModeDecider = crossProjectModeDecider;
         this.client = client;
+        this.federationAvailable = Federation.isAvailable(clusterService.getSettings());
         clusterService.getClusterSettings().initializeAndWatch(MAX_VIEW_DEPTH_SETTING, v -> this.maxViewDepth = v);
     }
 
@@ -186,6 +190,9 @@ public class ViewResolver {
      * @param plan the logical plan to process
      * @param wildcardsMatchViews when {@code false}, wildcard patterns in {@code FROM} do not match views; a view is reachable only by
      *                            its exact name
+     * @param wildcardsMatchDatasets when {@code true} and federation is available, patterns are also resolved against datasets, so a
+     *                              pattern that matches a dataset is kept for {@code DatasetResolver} instead of being consumed by a
+     *                              view it also matches
      * @param parser function to parse view query strings into logical plans
      * @param preserveViewBoundaries when {@code true}, non-pass-through view subplans (views whose
      *                               body is not a bare {@link UnresolvedRelation}) are wrapped in a
@@ -208,6 +215,7 @@ public class ViewResolver {
         LogicalPlan plan,
         String projectRouting,
         boolean wildcardsMatchViews,
+        boolean wildcardsMatchDatasets,
         BiFunction<String, String, LogicalPlan> parser,
         boolean preserveViewBoundaries,
         ActionListener<ViewResolutionResult> listener
@@ -233,6 +241,7 @@ public class ViewResolver {
             plan,
             projectRouting,
             wildcardsMatchViews,
+            wildcardsMatchDatasets && federationAvailable,
             parser,
             new LinkedHashSet<>(),
             viewQueries,
@@ -249,6 +258,7 @@ public class ViewResolver {
         LogicalPlan plan,
         String projectRouting,
         boolean wildcardsMatchViews,
+        boolean resolveDatasets,
         BiFunction<String, String, LogicalPlan> parser,
         LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
@@ -282,6 +292,7 @@ public class ViewResolver {
                     mergePlan,
                     projectRouting,
                     wildcardsMatchViews,
+                    resolveDatasets,
                     parser,
                     seenInner,
                     viewQueries,
@@ -307,6 +318,7 @@ public class ViewResolver {
                             resolved,
                             projectRouting,
                             wildcardsMatchViews,
+                            resolveDatasets,
                             parser,
                             seenInner,
                             viewQueries,
@@ -333,6 +345,7 @@ public class ViewResolver {
                             resolved,
                             projectRouting,
                             wildcardsMatchViews,
+                            resolveDatasets,
                             parser,
                             seenInner,
                             viewQueries,
@@ -359,6 +372,7 @@ public class ViewResolver {
                             resolved,
                             projectRouting,
                             wildcardsMatchViews,
+                            resolveDatasets,
                             parser,
                             seenInner,
                             viewQueries,
@@ -376,6 +390,7 @@ public class ViewResolver {
                     subqueryJoin,
                     projectRouting,
                     wildcardsMatchViews,
+                    resolveDatasets,
                     parser,
                     seenInner,
                     viewQueries,
@@ -391,6 +406,7 @@ public class ViewResolver {
                     ur,
                     projectRouting,
                     wildcardsMatchViews,
+                    resolveDatasets,
                     parser,
                     seenInner,
                     seenWildcards,
@@ -415,6 +431,7 @@ public class ViewResolver {
         MergePlan mergePlan,
         String projectRouting,
         boolean wildcardsMatchViews,
+        boolean resolveDatasets,
         BiFunction<String, String, LogicalPlan> parser,
         LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
@@ -433,6 +450,7 @@ public class ViewResolver {
                     subplan,
                     projectRouting,
                     wildcardsMatchViews,
+                    resolveDatasets,
                     parser,
                     seenViews,
                     viewQueries,
@@ -466,6 +484,7 @@ public class ViewResolver {
         AbstractSubqueryJoin subqueryJoin,
         String projectRouting,
         boolean wildcardsMatchViews,
+        boolean resolveDatasets,
         BiFunction<String, String, LogicalPlan> parser,
         LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
@@ -481,6 +500,7 @@ public class ViewResolver {
                 origLeft,
                 projectRouting,
                 wildcardsMatchViews,
+                resolveDatasets,
                 parser,
                 seenViews,
                 viewQueries,
@@ -500,6 +520,7 @@ public class ViewResolver {
                 origRight,
                 projectRouting,
                 wildcardsMatchViews,
+                resolveDatasets,
                 parser,
                 seenViews,
                 viewQueries,
@@ -524,6 +545,7 @@ public class ViewResolver {
         UnresolvedRelation unresolvedRelation,
         String projectRouting,
         boolean wildcardsMatchViews,
+        boolean resolveDatasets,
         BiFunction<String, String, LogicalPlan> parser,
         LinkedHashSet<String> seenViews,
         HashSet<String> seenWildcards,
@@ -572,7 +594,7 @@ public class ViewResolver {
         boolean cpsEnabled = crossProjectModeDecider.crossProjectEnabled();
         String[] urPatterns = unresolvedRelation.indexPattern().indexPattern().split(",");
 
-        var req = new EsqlResolveViewAction.Request(REST_MASTER_TIMEOUT_DEFAULT, cpsEnabled);
+        var req = new EsqlResolveViewAction.Request(REST_MASTER_TIMEOUT_DEFAULT, cpsEnabled, resolveDatasets);
         req.setProjectRouting(projectRouting);
         req.indices(viewPatterns);
 
@@ -661,6 +683,7 @@ public class ViewResolver {
                         resolve(view, parser, viewQueries, MetadataAttribute.requestsRelationColumn(unresolvedRelation.metadataFields())),
                         projectRouting,
                         wildcardsMatchViews,
+                        resolveDatasets,
                         parser,
                         branchSeenViews,
                         viewQueries,

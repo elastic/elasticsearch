@@ -23,7 +23,7 @@ Elasticsearch provides a full Query DSL (Domain Specific Language) based on JSON
 
 ## Query clause types
 
-A query consists of two types of clauses:
+Query clauses fall into two types:
 
 Leaf query clauses
 :   Leaf query clauses look for a particular value in a particular field, such as the [`match`](/reference/query-languages/query-dsl/query-dsl-match-query.md), [`term`](/reference/query-languages/query-dsl/query-dsl-term-query.md) or [`range`](/reference/query-languages/query-dsl/query-dsl-range-query.md) queries. These queries can be used by themselves.
@@ -59,7 +59,7 @@ Certain types of queries generally run slowly because of the way they are implem
 * Queries that have a high up-front cost:
     * [`fuzzy` queries](/reference/query-languages/query-dsl/query-dsl-fuzzy-query.md) (except on [`wildcard`](/reference/elasticsearch/mapping-reference/keyword.md#wildcard-field-type) fields)
     * [`regexp` queries](/reference/query-languages/query-dsl/query-dsl-regexp-query.md) (except on [`wildcard`](/reference/elasticsearch/mapping-reference/keyword.md#wildcard-field-type) fields)
-    * [`prefix` queries](/reference/query-languages/query-dsl/query-dsl-prefix-query.md) (except on [`wildcard`](/reference/elasticsearch/mapping-reference/keyword.md#wildcard-field-type) fields, and on [`text`](/reference/elasticsearch/mapping-reference/text.md) fields that have [`index_prefixes`](/reference/elasticsearch/mapping-reference/index-prefixes.md) enabled when the prefix has from `min_chars` minus 1 to `max_chars` characters)
+    * [`prefix` queries](/reference/query-languages/query-dsl/query-dsl-prefix-query.md) (except on [`wildcard`](/reference/elasticsearch/mapping-reference/keyword.md#wildcard-field-type) fields, or on [`text`](/reference/elasticsearch/mapping-reference/text.md) fields with [`index_prefixes`](/reference/elasticsearch/mapping-reference/index-prefixes.md) enabled for supported prefix lengths)
     * [`wildcard` queries](/reference/query-languages/query-dsl/query-dsl-wildcard-query.md) (except on [`wildcard`](/reference/elasticsearch/mapping-reference/keyword.md#wildcard-field-type) fields)
     * [`range` queries](/reference/query-languages/query-dsl/query-dsl-range-query.md) on [`text`](/reference/elasticsearch/mapping-reference/text.md) and [`keyword`](/reference/elasticsearch/mapping-reference/keyword.md) fields
 
@@ -71,8 +71,17 @@ Certain types of queries generally run slowly because of the way they are implem
 
 {{es}} runs these queries by default. Whether you can block them depends on your deployment:
 
-* {applies_to}`serverless: ga` You can't block these queries. The `search.allow_expensive_queries` setting isn't configurable.
-* {applies_to}`stack: ga` To block these queries, set `search.allow_expensive_queries` to `false` with the [cluster update settings API]({{es-apis}}operation/operation-cluster-put-settings). This requires the `manage` [cluster privilege](/reference/elasticsearch/security-privileges.md#privileges-list-cluster). The setting is dynamic, so the change applies without a restart. While it is `false`, a search that includes one of the listed queries returns an error that names the setting, instead of running.
+::::{applies-switch}
+
+:::{applies-item} serverless: ga
+You can't block these queries. The `search.allow_expensive_queries` setting isn't configurable.
+:::
+
+:::{applies-item} stack: ga
+To block these queries, set `search.allow_expensive_queries` to `false` with the [cluster update settings API]({{es-apis}}operation/operation-cluster-put-settings). This requires the `manage` [cluster privilege](/reference/elasticsearch/security-privileges.md#privileges-list-cluster). The setting is dynamic, so the change applies without a restart. While it is `false`, a search that includes one of the listed queries returns an error that names the setting, instead of running.
+:::
+
+::::
 
 ## Next steps
 

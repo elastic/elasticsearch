@@ -451,6 +451,58 @@ public class CsvSchemaInferrerTests extends ESTestCase {
         assertEquals(DataType.DATE_NANOS, inferOne("2263-01-01T00:00:00.123456789Z", nanos));
     }
 
+    /**
+     * What a lone timestamp infers, by fraction width and by where the instant falls. A table rather than
+     * a rule, because the ladder's answer is the product of three separate things -- whether the dialect
+     * parses at all, whether the value carries sub-millisecond information, and whether the instant is
+     * representable -- and a sentence covering all three has been got wrong twice on this branch.
+     * <p>
+     * Sub-millisecond digits are what force the rail, so seconds and millisecond values stay
+     * {@code datetime}. An all-zero fraction carries no such information and stays there too. Ten
+     * fraction digits is past the template AND past the CSV datetime parser, so the cell is not a
+     * timestamp to anything on the ladder and the column settles on the string rung -- the nanos rail
+     * refusing it is not what decides that one.
+     */
+    public void testInferredTypePerFractionAndRange() {
+        assertEquals(DataType.DATETIME, inferOne("2023-10-23 12:15:03"));
+        assertEquals(DataType.DATETIME, inferOne("2023-10-23 12:15:03.360"));
+        assertEquals(DataType.DATE_NANOS, inferOne("2023-10-23 12:15:03.360103"));
+        assertEquals(DataType.DATE_NANOS, inferOne("2023-10-23 12:15:03.360103847"));
+        assertEquals("ten fraction digits is not a timestamp at all", DataType.KEYWORD, inferOne("2023-10-23 12:15:03.3601038477"));
+
+        assertEquals("the nanosecond ceiling itself", DataType.DATE_NANOS, inferOne("2262-04-11 23:47:16.854775807"));
+        assertEquals("one nanosecond past the ceiling", DataType.DATETIME, inferOne("2262-04-11 23:47:16.854775808"));
+        assertEquals("an all-zero fraction needs no nanos", DataType.DATETIME, inferOne("1970-01-01 00:00:00.000000000"));
+        assertEquals("one nanosecond above the floor", DataType.DATE_NANOS, inferOne("1970-01-01 00:00:00.000000001"));
+    }
+
+    /**
+     * For an instant the rail can represent, the separator must not change the answer: that is the whole
+     * of what this PR adds, and the pairing is the cheapest way to state it. Each value below is spelled
+     * space-separated and {@code T}-and-{@code Z}, alone and on either side of a value that has already
+     * forced the column onto the rail.
+     * <p>
+     * Deliberately scoped to representable instants, because the two spellings do NOT agree in general
+     * and claiming otherwise would be false. Three classes of value still diverge, all of them
+     * pre-existing dialect gaps rather than anything this change introduces: an out-of-window instant
+     * (the space template range-checks, the T-form formatter does not), a numeric offset such as
+     * {@code +00:00} (the template refuses it, the formatter accepts it), and a calendar-invalid day such
+     * as {@code 2023-02-30} (the template validates the calendar, the formatter's parse is lexical).
+     * {@link #testEveryUndecodableDialectKeepsAColumnOffTheNanosRail} carries the first of those.
+     */
+    public void testBothSpellingsOfARepresentableInstantInferTheSameType() {
+        String nanos = "2023-10-23T12:15:03.360103847Z";
+        for (String dateTime : List.of("2023-10-23 12:15:03", "1970-01-01 00:00:00", "2262-04-11 23:47:16")) {
+            for (String fraction : List.of("", ".360", ".360103", ".360103847")) {
+                String space = dateTime + fraction;
+                String iso = space.replace(' ', 'T') + "Z";
+                assertEquals("alone: [" + space + "] vs [" + iso + "]", inferOne(iso), inferOne(space));
+                assertEquals("with a nanos sibling: [" + space + "]", inferOne(nanos, iso), inferOne(nanos, space));
+                assertEquals("sibling first: [" + space + "]", inferOne(iso, nanos), inferOne(space, nanos));
+            }
+        }
+    }
+
     public void testCustomDatetimeFormatNeverInfersDateNanos() {
         DateFormatter custom = DateFormatter.forPattern("yyyy-MM-dd'T'HH:mm:ss.SSSSSSSSSXX");
         List<String[]> rows = List.<String[]>of(new String[] { "2023-10-23T12:15:03.360103847Z" });

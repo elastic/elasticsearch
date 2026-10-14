@@ -140,3 +140,25 @@ warningRegex:row \[\d+\], column \[col\]: cannot read \[.*\] as \[integer\]
 count:long | non_null_col:long
 6          | 3
 ;
+
+// The INFERRED half of the space-separated nanosecond read, which nothing else asserts end to end: the
+// declared case in csv-declared-schema.csv-spec gives the type, so it cannot show that inference reaches
+// it. No mappings here -- the only thing that puts these columns on the date_nanos rail is the sample.
+//
+// Row 1 carries sub-millisecond digits, which is what forces the rail; row 2 is a whole second in the same
+// column, which must not pull it back off. The expected values are the ones the declared case already
+// pins for its date_nanos column, so inference and declaration are shown to agree on the same bytes
+// rather than merely both succeeding.
+inferredSpaceSeparatedNanosecondColumnReadsAsDateNanos
+required_capability: dataset_in_from_command
+required_capability: csv_date_nanos_accepts_space_separated_timestamp
+dataset: spaced_ts_inferred: "{{spaced_timestamps}}"
+
+FROM spaced_ts_inferred
+| SORT ts_a
+;
+
+ts_a:date_nanos                | ts_b:date_nanos
+2021-01-01T10:00:00.123456789Z | 2021-01-01T10:00:00.123456789Z
+2021-06-15T23:59:59.000000000Z | 2021-06-15T23:59:59.000000000Z
+;

@@ -257,6 +257,50 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertInferredDateNanosRoundTrips(new CsvFormatReader(blockFactory), csv);
     }
 
+    /**
+     * A column declared {@code date_nanos} holding one representable value and one instant a nanosecond
+     * long cannot carry. The type is given here rather than inferred, so what is pinned is purely what
+     * the three error-policy arms do with a cell the declared type cannot hold -- which is the mechanism
+     * that decides such a cell's fate once a column is on the rail, however it got there.
+     * <p>
+     * The default is {@code fail_fast}, not a lenient arm: an unrepresentable cell terminates the read
+     * unless the user has asked for something else. That is why a column's inferred type is not a free
+     * choice -- putting a column on this rail on inference's own authority spends the user's default.
+     */
+    public void testOutOfRangeCellUnderEachErrorPolicyOnADeclaredDateNanosColumn() throws Exception {
+        StorageObject object = createStorageObject("2023-10-23 12:15:03.360103847\n1969-12-31 23:59:59.999999999\n");
+        List<Attribute> declared = List.of(new ReferenceAttribute(Source.EMPTY, null, "ts", DataType.DATE_NANOS));
+
+        CsvFormatReader failFast = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("header_row", false, "error_mode", "fail_fast")
+        );
+        ExternalClientException failure = expectThrows(ExternalClientException.class, () -> readRowCount(failFast, object, declared, null));
+        assertThat(failure.getMessage(), containsString("1969-12-31 23:59:59.999999999"));
+
+        CsvFormatReader nullField = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("header_row", false, "error_mode", "null_field")
+        );
+        try (
+            CloseableIterator<Page> it = nullField.read(
+                object,
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(declared).build()
+            )
+        ) {
+            Page page = it.next();
+            assertEquals("null_field keeps the row", 2, page.getPositionCount());
+            LongBlock ts = page.getBlock(0);
+            assertFalse("the representable cell is untouched", ts.isNull(0));
+            assertEquals(1698063303360103847L, ts.getLong(ts.getFirstValueIndex(0)));
+            assertTrue("the unrepresentable cell is nulled, not wrapped round", ts.isNull(1));
+            page.releaseBlocks();
+        }
+
+        CsvFormatReader skipRow = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("header_row", false, "error_mode", "skip_row")
+        );
+        assertEquals("skip_row drops that row and keeps the other", 1, readRowCount(skipRow, object, declared, null));
+    }
+
     private void assertInferredDateNanosRoundTrips(CsvFormatReader reader, String text) throws Exception {
         StorageObject object = createStorageObject(text);
         List<Attribute> schema = reader.metadata(object).schema();

@@ -12,8 +12,11 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
@@ -27,6 +30,8 @@ import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.plugin.ComputeService;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.After;
 import org.junit.Before;
 
@@ -103,6 +108,8 @@ public class NdJsonCrossFileScalarObjectConflictIT extends AbstractEsqlIntegTest
         plugins.add(HttpDataSourcePlugin.class);
         plugins.add(NdJsonDataSourcePlugin.class);
         plugins.add(TestDataSourcePlugin.class);
+        plugins.add(MockTransportService.TestPlugin.class);
+        plugins.add(InternalExchangePlugin.class);
         return plugins;
     }
 
@@ -111,6 +118,8 @@ public class NdJsonCrossFileScalarObjectConflictIT extends AbstractEsqlIntegTest
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .putList(ExternalSourceSettings.LOCAL_ALLOWED_PATHS.getKey(), createTempDir().getParent().toString())
+            // Unclaimed exchanges rely on the reaper, whose interval must fit within the teardown wait.
+            .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(3000, 4000)))
             .build();
     }
 
@@ -196,6 +205,32 @@ public class NdJsonCrossFileScalarObjectConflictIT extends AbstractEsqlIntegTest
         String trace = ExceptionsHelper.stackTrace(e);
         assertTrue("must fail on the cross-file shape conflict, got: " + trace, trace.contains("user"));
         assertTrue("error must explain the conflict, got: " + trace, trace.contains("resolved to scalar type"));
+    }
+
+    public void testComputeRequestCancellationReleasesExchange() throws Exception {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        String coordinator = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        MockTransportService transportService = MockTransportService.getInstance(coordinator);
+        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (ComputeService.DATA_ACTION_NAME.equals(action)) {
+                throw new TaskCancelledException("injected external compute cancellation");
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+        try {
+            EsqlQueryRequest request = syncEsqlQueryRequest("FROM strict_ds | STATS total = COUNT(*), with_user = COUNT(user)").pragmas(
+                new QueryPragmas(Settings.builder().put("external_distribution", "round_robin").build())
+            );
+            Exception failure = expectThrows(
+                Exception.class,
+                () -> client(coordinator).execute(EsqlQueryAction.INSTANCE, request).get(30, TimeUnit.SECONDS).close()
+            );
+            String trace = ExceptionsHelper.stackTrace(failure);
+            assertTrue(trace, trace.contains("injected external compute cancellation"));
+        } finally {
+            transportService.clearAllRules();
+        }
     }
 
     /**

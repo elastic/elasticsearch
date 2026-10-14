@@ -1350,12 +1350,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 final var deletedMetaBlobIds = Sets.<String>newHashSetWithExpectedSize(
                     Math.min(indexSnapshotIds.size(), snapshotIds.size())
                 );
-                for (final var snapshotId : indexSnapshotIds) {
-                    final var metaBlobId = originalRepositoryData.indexMetaDataGenerations().indexMetaBlobId(snapshotId, indexId);
-                    if (snapshotIds.contains(snapshotId)) {
+                for (final var indexSnapshotId : indexSnapshotIds) {
+                    final var metaBlobId = originalRepositoryData.indexMetaDataGenerations().indexMetaBlobId(indexSnapshotId, indexId);
+                    if (snapshotIds.contains(indexSnapshotId)) {
                         deletedMetaBlobIds.add(metaBlobId);
                     } else {
-                        survivingSnapshots.add(snapshotId);
+                        survivingSnapshots.add(indexSnapshotId);
                         survivingMetaBlobIds.add(metaBlobId);
                     }
                 }

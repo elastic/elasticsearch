@@ -25,7 +25,6 @@ import org.elasticsearch.sourcebatch.SourceBatchEncoder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -191,7 +190,7 @@ final class BulkBatchEncoders implements Releasable {
         }
         finalized = true;
         if (disabled) {
-            return Collections.emptyMap();
+            return Map.of();
         }
         Map<ShardId, SourceBatch> batchesByShard = new HashMap<>();
         for (IndexState state : indexStates.values()) {

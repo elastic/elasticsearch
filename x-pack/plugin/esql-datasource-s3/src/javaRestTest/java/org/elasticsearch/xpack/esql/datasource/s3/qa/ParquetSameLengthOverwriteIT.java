@@ -40,7 +40,7 @@ import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.addBlobToF
 
 /**
  * A Parquet object overwritten in place with a file of the same byte length must be read as the new file. The footer
- * caches are keyed on {@code (storage identity, path, length)}, so a query after the overwrite must not answer from the
+ * caches are keyed on {@code (storage identity, path, length, version)}, so a query after the overwrite must not answer from the
  * footer of the first file: neither the statistics for {@code COUNT(*)}, {@code MIN} and {@code MAX}, nor the rows of a
  * file small enough for the footer prefetch. See elastic/esql-planning#2094.
  *

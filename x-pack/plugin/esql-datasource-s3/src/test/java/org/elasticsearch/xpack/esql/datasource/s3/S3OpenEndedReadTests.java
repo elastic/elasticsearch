@@ -13,6 +13,8 @@ import software.amazon.awssdk.http.AbortableInputStream;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import org.elasticsearch.ExceptionsHelper;
@@ -138,6 +140,24 @@ public class S3OpenEndedReadTests extends ESTestCase {
 
         assertEquals("\"probe-1\"", obj.version());
         assertEquals("\"probe-1\"", obj.contentGeneration());
+    }
+
+    /**
+     * When the range GET of a probe fails with a server error, the probe falls back to a HEAD. That HEAD's ETag is the version the
+     * probe saw, so the object is still versioned. It does not pin: the pin is set only by a GET or a seed.
+     */
+    public void testHeadFallbackProbeGivesTheObjectItsVersionWithoutPinning() throws IOException {
+        S3Exception serverError = (S3Exception) S3Exception.builder().statusCode(500).message("Internal Error").build();
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(serverError);
+        when(mockS3.headObject(any(HeadObjectRequest.class))).thenReturn(
+            HeadObjectResponse.builder().contentLength(5L).eTag("\"head-1\"").build()
+        );
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+
+        assertTrue(obj.exists());
+
+        assertEquals("\"head-1\"", obj.probedVersion());
+        assertNull(obj.contentGeneration());
     }
 
     /** A weak ETag is not byte-for-byte identifying, so it never becomes a version, from a listing or a seed. */

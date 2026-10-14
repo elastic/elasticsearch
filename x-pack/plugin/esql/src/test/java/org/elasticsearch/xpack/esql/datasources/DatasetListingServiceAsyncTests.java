@@ -58,7 +58,21 @@ public class DatasetListingServiceAsyncTests extends ESTestCase {
         java.util.concurrent.Executor executor,
         PlainActionFuture<FileList> future
     ) {
-        service.cachedListingAsync(GLOB, StoragePath.of(GLOB), provider, "", "", null, Map.of(), memory, () -> false, 4, executor, future);
+        service.cachedListingAsync(
+            GLOB,
+            StoragePath.of(GLOB),
+            provider,
+            "",
+            "",
+            null,
+            Map.of(),
+            memory,
+            () -> false,
+            4,
+            executor,
+            k -> {},
+            future
+        );
     }
 
     /** A listing computed here and the same listing served from the cache cost the query the same. */

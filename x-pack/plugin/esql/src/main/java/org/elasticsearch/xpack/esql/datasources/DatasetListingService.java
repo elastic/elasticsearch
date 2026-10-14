@@ -26,6 +26,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 
 /**
@@ -205,6 +206,7 @@ public final class DatasetListingService {
         BooleanSupplier cancelled,
         int concurrency,
         Executor executor,
+        Consumer<ListingCacheKey> usedListing,
         ActionListener<FileList> listener
     ) {
         ListingCacheKey listingKey = ListingCacheKey.build(
@@ -217,6 +219,7 @@ public final class DatasetListingService {
             // intentional raw config: only reads partition-filter keys, not auth/connection params from _datasource
             GlobExpander.listingCacheDiscriminator(path, hints, config)
         );
+        usedListing.accept(listingKey);
         // Set by whichever thread runs the compute and read by whichever completes the listing.
         AtomicBoolean computedHere = new AtomicBoolean();
         cacheService.getOrComputeListingAsync(listingKey, innerListener -> {

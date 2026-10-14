@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.datasource.http;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.threadpool.Scheduler;
-import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
@@ -95,14 +94,6 @@ public final class HttpStorageProvider implements StorageProvider {
     public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
         validateHttpScheme(path);
         return new HttpStorageObject(storageIdentity, httpClient, path, config, length, lastModified, idleScheduler);
-    }
-
-    /** Length, modification time and the HEAD's ETag, which the listing-equivalent entry reports as the version. */
-    @Override
-    public StorageEntry objectMetadata(StoragePath path) throws IOException {
-        validateHttpScheme(path);
-        HttpStorageObject object = new HttpStorageObject(storageIdentity, httpClient, path, config, idleScheduler);
-        return new StorageEntry(path, object.length(), object.lastModified(), object.headVersion());
     }
 
     @Override

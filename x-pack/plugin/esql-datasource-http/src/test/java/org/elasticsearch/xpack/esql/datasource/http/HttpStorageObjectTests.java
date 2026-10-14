@@ -536,6 +536,27 @@ public class HttpStorageObjectTests extends ESTestCase {
         assertNull(object.version());
     }
 
+    /**
+     * A blank ETag is not a version, from a HEAD or from a listing seed. Seeding it would pin the empty string, and every read would
+     * then send {@code If-Match: ""} and fail as changed.
+     */
+    public void testBlankEtagIsNotAVersion() throws Exception {
+        HttpResponse<Void> head = mock(HttpResponse.class);
+        when(head.statusCode()).thenReturn(HttpStatus.SC_OK);
+        when(head.headers()).thenReturn(HttpHeaders.of(Map.of("Content-Length", List.of("5"), "ETag", List.of(" ")), (a, b) -> true));
+        HttpClient mockClient = mock(HttpClient.class);
+        doReturn(head).when(mockClient).send(any(), any());
+
+        StoragePath path = StoragePath.of("https://example.com/file.txt");
+        HttpStorageObject probed = new HttpStorageObject(mockClient, path, HttpConfiguration.defaults());
+        assertTrue(probed.exists());
+        assertNull(probed.probedVersion());
+
+        HttpStorageObject seeded = new HttpStorageObject(mockClient, path, HttpConfiguration.defaults());
+        seeded.seedVersion(" ");
+        assertNull(seeded.version());
+    }
+
     public void testSecondGetSendsIfMatchOfFirstEtag() throws Exception {
         HttpResponse<InputStream> first = mock(HttpResponse.class);
         when(first.statusCode()).thenReturn(HttpStatus.SC_OK);

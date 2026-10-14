@@ -369,19 +369,13 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
 
     /**
      * The pin. The ETag of a HEAD is not used here: reads are not conditional on it, so an overwrite before the first GET
-     * would pair an old footer with the new bytes. {@link #headVersion()} is what a metadata call reports, and it seeds
+     * would pair an old footer with the new bytes. {@link #probedVersion()} is what a metadata call reports, and it seeds
      * the pin when used.
      */
     @Override
     @Nullable
     public String version() {
         return pinnedEtag.get();
-    }
-
-    /** The strong ETag of the last HEAD, which is the version a metadata call reports; see {@link #version()}. */
-    @Nullable
-    String headVersion() {
-        return headVersion;
     }
 
     /** The strong ETag of the HEAD that existence was probed with. It is not the pin; see {@link #version()}. */
@@ -393,9 +387,16 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
 
     /** Seeds the pin with a version a listing or probe reported, so the first GET is conditional on it. */
     void seedVersion(String version) {
-        if (version != null && version.regionMatches(true, 0, "W/", 0, 2) == false) {
-            pinnedEtag.compareAndSet(null, version);
+        String strong = strongEtag(version);
+        if (strong != null) {
+            pinnedEtag.compareAndSet(null, strong);
         }
+    }
+
+    /** The ETag as a version, or {@code null} when it is absent, blank or weak: a weak ETag is not a byte-for-byte identifier. */
+    @Nullable
+    static String strongEtag(@Nullable String etag) {
+        return etag != null && etag.isBlank() == false && etag.regionMatches(true, 0, "W/", 0, 2) == false ? etag : null;
     }
 
     // === ASYNC API (native implementation using HttpClient.sendAsync) ===
@@ -696,7 +697,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
     /** Weak ETags ({@code W/"..."}) are not byte-for-byte identifiers, so they are never used as a pin. */
     private void observeEtag(String etag) {
         String current = pinnedEtag.get();
-        if (etag == null || etag.isBlank() || etag.regionMatches(true, 0, "W/", 0, 2)) {
+        if (strongEtag(etag) == null) {
             if (current != null) {
                 ExternalObjectChangedException ex = new ExternalObjectChangedException(path);
                 ex.setDetail("generation could not be verified");
@@ -859,7 +860,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                         cachedLength = contentLength.getAsLong();
                     }
                     // The HEAD's representation is the version a listing or probe would report. It is never a pin.
-                    headVersion = observedEtag != null && observedEtag.regionMatches(true, 0, "W/", 0, 2) == false ? observedEtag : null;
+                    headVersion = strongEtag(observedEtag);
 
                     // Extract Last-Modified (optional)
                     java.util.Optional<String> lastModified = response.headers().firstValue(HttpHeaders.LAST_MODIFIED);

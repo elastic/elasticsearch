@@ -250,6 +250,9 @@ public class ExternalSourceResolver {
     private final DatasetListingService listingService;
     /** The schema, file-metadata and dataset-aggregate caches. Listing goes through {@link #listingService}. */
     private final ExternalSourceCacheService cacheService;
+    /** The listings and file-metadata entries this query read from the caches, so a failure can drop exactly those. */
+    private final Set<ListingCacheKey> usedListings = ConcurrentHashMap.newKeySet();
+    private final Set<FileMetadataCacheKey> usedFileMetadata = ConcurrentHashMap.newKeySet();
     /** Node telemetry sink, taken from the module ({@link ExternalSourceMetrics#NOOP} when no module is wired, e.g. tests). */
     private final ExternalSourceMetrics metrics;
     private final int metadataReadConcurrency;
@@ -445,6 +448,18 @@ public class ExternalSourceResolver {
     /** Coordinator-side accessor used by EsqlSession to reconcile data-node-captured source stats post-query. */
     public ExternalSourceCacheService cacheService() {
         return cacheService;
+    }
+
+    /**
+     * Drops the listings and file-metadata entries this query read, so that its retry lists the objects again. Other queries'
+     * entries are left alone: a rewrite of one object must not cost unrelated datasets their listings.
+     */
+    public void invalidateUsedCacheEntries() {
+        if (cacheService == null) {
+            return;
+        }
+        cacheService.invalidateListings(usedListings);
+        cacheService.invalidateFileMetadata(usedFileMetadata);
     }
 
     /** Maximum in-flight per-file metadata reads for a multi-file discovery. Visible for wiring tests. */
@@ -2227,6 +2242,7 @@ public class ExternalSourceResolver {
             listingCancellation(),
             listingConcurrency(),
             metadataReadExecutor,
+            usedListings::add,
             listener
         );
     }
@@ -2251,6 +2267,7 @@ public class ExternalSourceResolver {
     private FileMetadata fileMetadataOf(StoragePath storagePath, StorageProvider provider, String storageIdentity) throws Exception {
         if (isCacheable(provider)) {
             FileMetadataCacheKey metaKey = new FileMetadataCacheKey(storagePath.toString(), storageIdentity);
+            usedFileMetadata.add(metaKey);
             return cacheService.getOrComputeFileMetadata(metaKey, k -> readFileMetadata(storagePath, provider));
         }
         return readFileMetadata(storagePath, provider);

@@ -315,7 +315,17 @@ public class PlanExecutor {
         );
         ActionListener<Versioned<Result>> executeListener = wrap(
             x -> onQuerySuccess(request, releasingListener, x, planTelemetry, services.usageService(), executionInfo, begin, client),
-            ex -> onQueryFailure(request, releasingListener, ex, clientId, planTelemetry, executionInfo, begin, client)
+            ex -> onQueryFailure(
+                request,
+                releasingListener,
+                ex,
+                clientId,
+                planTelemetry,
+                executionInfo,
+                begin,
+                client,
+                externalSourceResolver
+            )
         );
         // Wrap it in a listener so that if we have any exceptions during execution, the listener picks it up
         // and all the metrics are properly updated
@@ -385,7 +395,8 @@ public class PlanExecutor {
         PlanTelemetry planTelemetry,
         EsqlExecutionInfo executionInfo,
         long begin,
-        String client
+        String client,
+        ExternalSourceResolver externalSourceResolver
     ) {
         // The general ES|QL counters (metrics.total / metrics.failed, keyed by QueryMetric) deliberately stay on "rest": changing
         // them would alter dashboards outside the datasource telemetry. The external-source metrics split by client from the
@@ -403,8 +414,9 @@ public class PlanExecutor {
         queryLog.onQueryFailure(request.queryDescription(), ex, System.nanoTime() - begin);
         // Matched by condition, not class: a failure from a remote data node arrives as a wrapper that keeps only the condition.
         if (cacheService != null && ExternalException.hasCondition(ex, ExternalException.Condition.OBJECT_CHANGED)) {
-            // The object was rewritten after its listing was cached. Drop the listing, so the client's retry re-lists.
-            cacheService.invalidateListingsAndFileMetadata();
+            // The object was rewritten after the listing this query used was cached. Drop the entries this query read, so the
+            // client's next attempt lists them again; other queries' entries stay.
+            externalSourceResolver.invalidateUsedCacheEntries();
         }
         listener.onFailure(ex);
     }

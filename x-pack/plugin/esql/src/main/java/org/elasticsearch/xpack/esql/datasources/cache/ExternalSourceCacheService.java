@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 
 import java.io.Closeable;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -1891,14 +1892,32 @@ public class ExternalSourceCacheService implements Closeable {
     }
 
     /**
-     * Drops the cached listings and file metadata, so the next query lists the datasets again. A read that fails with
-     * {@link org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException} has found an object that was
-     * rewritten after its listing was cached; the listed version is then stale, and reusing it would fail every query
-     * until the listing clock ticks. Schema and statistics records are keyed by version and are left alone.
+     * Drops the listings of the datasets a query read, so the next query lists them again. A query whose read failed with the
+     * object-changed condition names the listings it used, and every cached listing of those datasets goes too: a dataset is cached
+     * under one key per filter-hint set, and split discovery builds keys that the query did not record. Other datasets keep their
+     * listings.
      */
-    public void invalidateListingsAndFileMetadata() {
-        listingStore.invalidateAll();
-        fileMetadataCache.invalidateAll();
+    public void invalidateListings(Collection<ListingCacheKey> used) {
+        Set<List<String>> datasets = new HashSet<>();
+        for (ListingCacheKey key : used) {
+            datasets.add(List.of(key.scheme(), key.bucketOrContainer(), key.prefixAndGlob()));
+        }
+        List<ListingCacheKey> matches = new ArrayList<>();
+        for (ListingCacheKey key : listingStore.cache().keys()) {
+            if (datasets.contains(List.of(key.scheme(), key.bucketOrContainer(), key.prefixAndGlob()))) {
+                matches.add(key);
+            }
+        }
+        for (ListingCacheKey key : matches) {
+            listingStore.cache().invalidate(key);
+        }
+    }
+
+    /** Drops the given file-metadata entries; see {@link #invalidateListings}. */
+    public void invalidateFileMetadata(Collection<FileMetadataCacheKey> keys) {
+        for (FileMetadataCacheKey key : keys) {
+            fileMetadataCache.invalidate(key);
+        }
     }
 
     public void clearAll() {

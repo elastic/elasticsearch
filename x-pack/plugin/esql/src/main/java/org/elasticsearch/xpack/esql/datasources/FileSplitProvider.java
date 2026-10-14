@@ -3224,7 +3224,9 @@ public class FileSplitProvider implements SplitProvider {
     /**
      * As {@link #newObject(StorageProvider, StoragePath, Long, long)}, with the object {@code version} when the listing
      * reported one. A versioned object is created through the versioned overload even when its mtime is unknown, so
-     * the version is never dropped.
+     * the version is never dropped. The exception is a split without a length: the SPI creates a version only together
+     * with a length, so that object is unversioned. Its footer is read from storage and not cached, which costs a read
+     * but cannot answer from a footer of another version.
      */
     static StorageObject newObject(
         StorageProvider storageProvider,

@@ -97,6 +97,8 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     private volatile Boolean cachedExists;
     /** First strong ETag returned by a GET; sent as If-Match on later GETs and reported as {@link #contentGeneration()}. */
     private final AtomicReference<String> pinnedEtag = new AtomicReference<>();
+    /** Strong ETag of the HEAD that a probe fell back to. It is the version the probe saw, and it does not pin. */
+    private volatile String probedEtag;
     /** Some S3-compatible stores do not implement If-Match on GET; validate each response ETag instead. */
     private volatile boolean ifMatchUnsupported;
 
@@ -504,6 +506,14 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         return pinnedEtag.get();
     }
 
+    /** The version the existence probe saw: the HEAD's ETag when the probe fell back to a HEAD, otherwise the pin. */
+    @Override
+    @Nullable
+    public String probedVersion() {
+        String etag = probedEtag;
+        return etag != null ? etag : super.probedVersion();
+    }
+
     /**
      * Issues GET, sending If-Match of the first strong ETag on later opens. A store that answers
      * {@code NotImplemented} does not support If-Match on GET: one unconditioned retry is allowed,
@@ -843,6 +853,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             ExternalPlanningIo.addMetadataGet(0);
 
             cachedExists = true;
+            probedEtag = strongEtag(response.eTag());
             // HEAD is not a GET: it reports whatever generation is current, which is not necessarily the
             // one reads are pinned to. It must neither establish the pin nor overwrite the pinned
             // generation's size (already set by the GET that pinned it).

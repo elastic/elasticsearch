@@ -18,8 +18,10 @@ import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class LocalCircuitBreakerTests extends ESTestCase {
 
@@ -99,6 +101,31 @@ public class LocalCircuitBreakerTests extends ESTestCase {
         verifyBreaker(localBreaker, breaker);
         localBreaker.close();
         assertThat(breaker.getUsed(), equalTo(30L));
+    }
+
+    /**
+     * The over-reserve must be returned even when {@code close()} is not on the driver thread.
+     * Assertions are enabled in tests, and a failing thread check used to skip the release.
+     */
+    public void testCloseFromAnotherThreadStillReleasesReserve() throws Exception {
+        TrackingCircuitBreaker breaker = newTestBreaker(10_000);
+        LocalCircuitBreaker localBreaker = new LocalCircuitBreaker(breaker, 200, 200);
+        localBreaker.addEstimateBytesAndMaybeBreak(16, "test");
+        assertThat(breaker.getUsed(), equalTo(216L));
+        assertTrue(localBreaker.assertBeginRunLoop());
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        Thread other = new Thread(() -> {
+            try {
+                localBreaker.close();
+            } catch (Throwable t) {
+                failure.set(t);
+            }
+        });
+        other.start();
+        other.join();
+        assertThat(failure.get(), instanceOf(AssertionError.class));
+        // 16 bytes were a real allocation; only the 200-byte over-reserve is returned by close().
+        assertThat(breaker.getUsed(), equalTo(16L));
     }
 
     public void testServiceBasic() {

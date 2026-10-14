@@ -152,9 +152,15 @@ public final class LocalCircuitBreaker implements CircuitBreaker, Releasable {
 
     @Override
     public void close() {
-        assert assertSingleThread();
-        if (closed.compareAndSet(false, true)) {
-            breaker.addWithoutBreaking(-reservedBytes);
+        // Release the over-reserve even when the thread assertion fails. close() is reached from request
+        // failure paths that are not the driver thread; with assertions enabled that used to throw before
+        // returning reservedBytes, leaving exactly the over-reserve on the parent request breaker.
+        try {
+            assert assertSingleThread();
+        } finally {
+            if (closed.compareAndSet(false, true)) {
+                breaker.addWithoutBreaking(-reservedBytes);
+            }
         }
     }
 

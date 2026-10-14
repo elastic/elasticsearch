@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.View;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
@@ -32,6 +33,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.optimizer.LogicalVerifier;
 import org.elasticsearch.xpack.esql.parser.AbstractStatementParserTests;
+import org.elasticsearch.xpack.esql.parser.LogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelationSerializationTests;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -885,26 +887,42 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         return " | WHERE a > 0".repeat(count);
     }
 
+    private static final String maxDepthViewsError = "ES|QL query exceeded the maximum query depth allowed (500) after expanding views";
+
     public void testMaxQueryDepthAcrossViews() {
         addView("long_view", "FROM emp" + pipes(300));
-        replaceViews(query("FROM long_view" + pipes(200)));
-        Exception e = expectThrows(VerificationException.class, () -> replaceViews(query("FROM long_view" + pipes(201))));
-        assertThat(e.getMessage(), startsWith("ES|QL query exceeded the maximum query depth allowed (500) after expanding views"));
-        assertThat(e.getMessage(), containsString("[501] commands"));
+        // This query is spot on the limit, so it should pass
+        String q = "FROM long_view" + pipes(200);
+        replaceViews(query(q));
+        // If we add an extra pipe, we should fail
+        expectThrows(VerificationException.class, startsWith(maxDepthViewsError), () -> replaceViews(query(q + pipes(1))));
     }
 
     public void testMaxQueryDepthAcrossNestedViews() {
         addView("bottom_view", "FROM emp" + pipes(250));
         addView("middle_view", "FROM bottom_view" + pipes(250));
-        replaceViews(query("FROM middle_view"));
-        expectThrows(VerificationException.class, () -> replaceViews(query("FROM middle_view" + pipes(1))));
+        // This query is spot on the limit, so it should pass
+        String q = "FROM middle_view";
+        replaceViews(query(q));
+        // If we add an extra pipe, we should fail
+        expectThrows(VerificationException.class, startsWith(maxDepthViewsError), () -> replaceViews(query(q + pipes(1))));
     }
 
     public void testMaxQueryDepthAcrossViewInFromSubquery() {
         addView("long_view", "FROM emp" + pipes(300));
+        // This query is spot on the limit, so it should pass
         replaceViews(query("FROM emp1, (FROM long_view" + pipes(100) + ")" + pipes(100)));
-        expectThrows(VerificationException.class, () -> replaceViews(query("FROM emp1, (FROM long_view" + pipes(100) + ")" + pipes(101))));
-        expectThrows(VerificationException.class, () -> replaceViews(query("FROM emp1, (FROM long_view" + pipes(101) + ")" + pipes(100))));
+        // If we add an extra pipe (either in the inner subquery or outside), we should fail
+        expectThrows(
+            VerificationException.class,
+            startsWith(maxDepthViewsError),
+            () -> replaceViews(query("FROM emp1, (FROM long_view" + pipes(100) + ")" + pipes(101)))
+        );
+        expectThrows(
+            VerificationException.class,
+            startsWith(maxDepthViewsError),
+            () -> replaceViews(query("FROM emp1, (FROM long_view" + pipes(101) + ")" + pipes(100)))
+        );
     }
 
     public void testMaxQueryDepthAcrossViewInInSubquery() {
@@ -914,8 +932,169 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         // The pipes after the command holding the IN subquery are above the subquery too.
         expectThrows(
             VerificationException.class,
+            startsWith(maxDepthViewsError),
             () -> replaceViews(query("FROM emp1 | WHERE x IN (FROM long_view" + pipes(100) + ")" + pipes(100)))
         );
+    }
+
+    /**
+     * Two IN subqueries in one condition are planned as {@code Filter -> MarkJoin -> MarkJoin -> source}, with each subquery on the
+     * right of its join. The first subquery has the Filter and both joins above it, the second one the Filter and one join.
+     */
+    public void testMaxQueryDepthAcrossViewInOredInSubqueries() {
+        addView("long_view", "FROM emp" + pipes(300));
+        String first = "FROM emp1 | WHERE x IN (FROM long_view %s) OR y IN (FROM emp2)";
+        replaceViews(query(Strings.format(first, pipes(197))));
+        expectThrows(
+            VerificationException.class,
+            startsWith(maxDepthViewsError),
+            () -> replaceViews(query(Strings.format(first, pipes(198))))
+        );
+
+        String second = "FROM emp1 | WHERE x IN (FROM emp2) OR y IN (FROM long_view %s)";
+        replaceViews(query(Strings.format(second, pipes(198))));
+        expectThrows(
+            VerificationException.class,
+            startsWith(maxDepthViewsError),
+            () -> replaceViews(query(Strings.format(second, pipes(199))))
+        );
+    }
+
+    /**
+     * The IN subquery of a view body is still an expression of the parsed body when its depth is checked, so it is not reached through
+     * the children of the plan. Nothing resolves a view inside it, so no later check sees its pipes.
+     */
+    public void testMaxQueryDepthOfInSubqueryInViewBody() {
+        // The WHERE holding the subquery counts as one command, and the subquery as 300 below it
+        addView("view_with_in_subquery", "FROM emp | WHERE x IN (FROM emp2" + pipes(300) + ")");
+        replaceViews(query("FROM view_with_in_subquery" + pipes(199)));
+        expectThrows(
+            VerificationException.class,
+            startsWith(maxDepthViewsError),
+            () -> replaceViews(query("FROM view_with_in_subquery" + pipes(200)))
+        );
+    }
+
+    public void testMaxQueryDepthAcrossThreeNestedViews() {
+        addView("view_c", "FROM emp" + pipes(100));
+        addView("view_b", "FROM view_c" + pipes(100));
+        addView("view_a", "FROM view_b" + pipes(100));
+        // 100 pipes in each of the three views, and the rest in the query
+        replaceViews(query("FROM view_a" + pipes(200)));
+        expectThrows(VerificationException.class, startsWith(maxDepthViewsError), () -> replaceViews(query("FROM view_a" + pipes(201))));
+    }
+
+    /**
+     * A view used inside a FROM subquery inside another view: the pipes of the query, of the outer view after its FROM, of the subquery
+     * and of the inner view are all on one path.
+     */
+    public void testMaxQueryDepthAcrossViewInSubqueryInView() {
+        addView("inner_view", "FROM emp" + pipes(150));
+        addView("outer_view", "FROM emp1, (FROM inner_view" + pipes(100) + ")" + pipes(50));
+        // 150 + 100 + 50 on the path through the views, and the rest in the query
+        replaceViews(query("FROM outer_view" + pipes(200)));
+        expectThrows(
+            VerificationException.class,
+            startsWith(maxDepthViewsError),
+            () -> replaceViews(query("FROM outer_view" + pipes(201)))
+        );
+    }
+
+    /**
+     * A view used inside an IN subquery inside another view. The IN subquery is planned as a join, which counts as one command above its
+     * subquery.
+     */
+    public void testMaxQueryDepthAcrossViewInInSubqueryInView() {
+        addView("inner_view", "FROM emp" + pipes(150));
+        addView("outer_view", "FROM emp1 | WHERE x IN (FROM inner_view" + pipes(100) + ")" + pipes(50));
+        // 150 + 100 + the join + 50 on the path through the views, and the rest in the query
+        replaceViews(query("FROM outer_view" + pipes(199)));
+        expectThrows(
+            VerificationException.class,
+            startsWith(maxDepthViewsError),
+            () -> replaceViews(query("FROM outer_view" + pipes(200)))
+        );
+    }
+
+    /**
+     * The pipes of sibling views are not added up, only the longest path counts.
+     */
+    public void testMaxQueryDepthOfSiblingViews() {
+        addView("view_a", "FROM emp" + pipes(300));
+        addView("view_b", "FROM emp" + pipes(300));
+        addView("view_c", "FROM emp" + pipes(300));
+        replaceViews(query("FROM view_a, view_b" + pipes(200)));
+        replaceViews(query("FROM view_a, (FROM view_b" + pipes(100) + "), (FROM view_c" + pipes(100) + ")" + pipes(100)));
+        expectThrows(
+            VerificationException.class,
+            startsWith(maxDepthViewsError),
+            () -> replaceViews(query("FROM view_a, view_b" + pipes(201)))
+        );
+        expectThrows(
+            VerificationException.class,
+            startsWith(maxDepthViewsError),
+            () -> replaceViews(query("FROM view_a, (FROM view_b" + pipes(100) + "), (FROM view_c" + pipes(101) + ")" + pipes(100)))
+        );
+    }
+
+    /**
+     * Each {@code WHERE x IN (subquery)} is planned as a join stacked on the previous one, so the first subquery has both joins above
+     * it and the last one has its own. A view of {@code MAX_QUERY_DEPTH} pipes fits only in the last one.
+     */
+    public void testMaxQueryDepthOfBigViewsInSuccessiveInSubqueries() {
+        addView("big_view_1", "FROM emp2" + pipes(498));
+        addView("big_view_2", "FROM emp3" + pipes(499));
+        String query = "FROM emp1 | WHERE x IN (FROM big_view_1) | WHERE y IN (FROM big_view_2)";
+        replaceViews(query(query));
+
+        addView("bigger_view_1", "FROM emp2" + pipes(499));
+        addView("bigger_view_2", "FROM emp3" + pipes(499));
+        replaceViews(query("FROM emp1 | WHERE x IN (FROM emp4) | WHERE y IN (FROM bigger_view_2)"));
+        expectThrows(
+            VerificationException.class,
+            startsWith(maxDepthViewsError),
+            () -> replaceViews(query("FROM emp1 | WHERE x IN (FROM bigger_view_1) | WHERE y IN (FROM emp4)"))
+        );
+        expectThrows(
+            VerificationException.class,
+            startsWith(maxDepthViewsError),
+            () -> replaceViews(query("FROM emp1 | WHERE x IN (FROM bigger_view_1) | WHERE y IN (FROM bigger_view_2)"))
+        );
+    }
+
+    /**
+     * The same subqueries written out in full are only subject to the limit of each subquery and of the outer query, which are not added
+     * up by the parser.
+     */
+    public void testMaxQueryDepthOfBigInlineSubqueriesInSuccessiveInSubqueries() {
+        String query = "FROM emp1 | WHERE x IN (FROM emp2" + pipes(499) + ") | WHERE y IN (FROM emp3" + pipes(499) + ")";
+        replaceViews(query(query));
+    }
+
+    /**
+     * The k-th of {@code n} successive {@code WHERE x IN (FROM view_k)} has the joins of the {@code n - k} later ones and its own above
+     * it, and {@code view_k} has {@code k} pipes, so every path has {@code n + 1} commands: the limit holds for any {@code k}. Views
+     * of 1, 2, 3... pipes make the resolved plan as large as the sum of them, here about 125,000 nodes, which no limit prevents.
+     */
+    public void testMaxQueryDepthOfManyInSubqueriesOfGrowingViews() {
+        int maxDepth = LogicalPlanBuilder.MAX_QUERY_DEPTH;
+        for (int k = 1; k <= maxDepth; k++) {
+            addView("growing_view_" + k, "FROM emp" + pipes(k));
+        }
+        replaceViews(query(inSubqueriesOfGrowingViews(maxDepth - 1)));
+        expectThrows(
+            VerificationException.class,
+            startsWith(maxDepthViewsError),
+            () -> replaceViews(query(inSubqueriesOfGrowingViews(maxDepth)))
+        );
+    }
+
+    private static String inSubqueriesOfGrowingViews(int count) {
+        StringBuilder query = new StringBuilder("FROM emp1");
+        for (int k = 1; k <= count; k++) {
+            query.append(" | WHERE x IN (FROM growing_view_").append(k).append(")");
+        }
+        return query.toString();
     }
 
     public void testMaxQueryDepthAcrossViewInForkBranch() {
@@ -923,7 +1102,11 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         // Above the view lie the pipes, FORK, and in each branch its implicit EVAL and its commands. The longest branch has three.
         String fork = " | FORK (WHERE a > 0 | WHERE a > 1 | WHERE a > 2) (WHERE a > 3)";
         replaceViews(query("FROM long_view" + pipes(195) + fork));
-        expectThrows(VerificationException.class, () -> replaceViews(query("FROM long_view" + pipes(196) + fork)));
+        expectThrows(
+            VerificationException.class,
+            startsWith(maxDepthViewsError),
+            () -> replaceViews(query("FROM long_view" + pipes(196) + fork))
+        );
     }
 
     /**
@@ -936,6 +1119,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         replaceViews(query("FROM long_view | INLINE STATS c = COUNT(*) BY a" + pipes(198)));
         expectThrows(
             VerificationException.class,
+            startsWith(maxDepthViewsError),
             () -> replaceViews(query("FROM long_view | INLINE STATS c = COUNT(*) BY a" + pipes(199)))
         );
     }
@@ -945,7 +1129,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("outer_view", "FROM row_view" + pipes(200));
         addView("too_long_outer_view", "FROM row_view" + pipes(201));
         replaceViews(query("FROM outer_view"));
-        expectThrows(VerificationException.class, () -> replaceViews(query("FROM too_long_outer_view")));
+        expectThrows(VerificationException.class, startsWith(maxDepthViewsError), () -> replaceViews(query("FROM too_long_outer_view")));
     }
 
     public void testCircularViewSelfReference() {

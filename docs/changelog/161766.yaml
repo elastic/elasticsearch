@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 161766
-summary: "ESQL:DS: Decode a declared parquet date from its logical type, not its primitive name"
-type: bug

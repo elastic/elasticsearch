@@ -1,4 +1,4 @@
-pr: 161562
+pr: 161930
 summary: Read an external dataset's column by its type, not by who supplied the type
 area: ES|QL
 type: bug
@@ -27,9 +27,10 @@ breaking:
     Queries over external datasets whose files disagree with the query's column types, or whose
     files drift from the first file under first-file-wins schema resolution, may now fail where
     they returned nulls and a warning. Setting the dataset's error mode to `null_field` keeps the
-    previous null-filling behaviour. A file with more columns than
+    previous null-filling behaviour. A CSV, TSV or NDJSON file with more columns than
     `esql.external.schema_max_fields` allows, reached under `first_file_wins` behind a narrower
-    first file, is now read rather than refused. In the other direction, a dataset that declares its
+    first file, is now read rather than refused; a Parquet file is still held to the limit unless
+    the query materialises no column from it. In the other direction, a dataset that declares its
     columns over a CSV or TSV file with more columns than `esql.external.schema_max_fields` can be
     set to — 100,000 — is now refused, where the header it read was previously unbounded. Affects
     deployments where ES|QL federation is enabled.

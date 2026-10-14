@@ -2601,6 +2601,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 }
 
                 OriginalIndices finalIndices = new OriginalIndices(new String[] { shardId.getIndexName() }, indicesOptions);
+                final IndexMetadata indexMetadata = projectState.metadata().index(shardId.getIndex());
+                // A deleted index has no target nodes, so this iterator is never sent and IRRELEVANT is never serialized.
+                final SplitShardCountSummary splitShardCountSummary = indexMetadata == null
+                    ? SplitShardCountSummary.IRRELEVANT
+                    : SplitShardCountSummary.forSearch(indexMetadata, shardId.id());
                 iterators.add(
                     new SearchShardIterator(
                         localClusterAlias,
@@ -2618,7 +2623,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         // If a searcher is reused, this value won't be used
                         // (it was calculated and used when PIT was created).
                         // If the search is recreated via PIT relocation, the summary is supplied through OpenPITReshardingState.
-                        SplitShardCountSummary.UNSET
+                        splitShardCountSummary
                     )
                 );
             }

@@ -331,6 +331,32 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
         assertThat(labels, equalTo(Map.of("__name__", "go_gc_cleanups_executed_cleanups_total", "job", "prometheus")));
     }
 
+    public void testWithoutProjectionFiltersSharedSource() throws IOException {
+        XContentType type = randomFrom(XContentType.JSON, XContentType.CBOR);
+        BytesReference source = bytes(type, b -> writeTimestampAndDimensions(b, "host-1", "prod", "us-east-1"));
+        BytesRef value = readTimeSeriesValue(
+            randomFrom(TSDB_SYNTHETIC_SETTINGS, TSDB_STORED_SETTINGS),
+            MAPPING,
+            sourceToParse(source, type),
+            Set.of("host", "region"),
+            true
+        );
+        assertThat(parseJsonObject(value), equalTo(Map.of("env", "prod")));
+    }
+
+    public void testWithoutAllDimensionsEmitsEmptyObject() throws IOException {
+        XContentType type = randomFrom(XContentType.JSON, XContentType.CBOR);
+        BytesReference source = bytes(type, b -> writeTimestampAndDimensions(b, "host-1", "prod", "us-east-1"));
+        BytesRef value = readTimeSeriesValue(
+            randomFrom(TSDB_SYNTHETIC_SETTINGS, TSDB_STORED_SETTINGS),
+            MAPPING,
+            sourceToParse(source, type),
+            Set.of("host", "env", "region"),
+            randomBoolean()
+        );
+        assertThat(value.utf8ToString(), equalTo("{}"));
+    }
+
     /**
      * Regression test for OTel passthrough alias exclusion (GitHub issue #151540). PromQL
      * {@code without(cpu)} passes the short alias name {@code "cpu"} in {@code skipFieldNames}. The block
@@ -430,6 +456,16 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
 
     private BytesRef readTimeSeriesValue(Settings settings, String mapping, SourceToParse sourceToParse, Set<String> withoutFields)
         throws IOException {
+        return readTimeSeriesValue(settings, mapping, sourceToParse, withoutFields, false);
+    }
+
+    private BytesRef readTimeSeriesValue(
+        Settings settings,
+        String mapping,
+        SourceToParse sourceToParse,
+        Set<String> withoutFields,
+        boolean sharedSource
+    ) throws IOException {
         MapperService mapperService = createMapperService(settings, mapping);
         BlockLoader loader = mapperService.documentMapper()
             .sourceMapper()
@@ -445,7 +481,7 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
             CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
             try (BlockLoader.RowStrideReader rowReader = loader.rowStrideReader(breaker, ctx)) {
                 StoredFieldsSpec loaderSpec = loader.rowStrideStoredFieldSpec();
-                SourceFilter filter = loaderSpec.requiresSource()
+                SourceFilter filter = loaderSpec.requiresSource() && sharedSource == false
                     ? new SourceFilter(loaderSpec.sourcePaths().toArray(new String[0]), null)
                     : null;
                 SourceLoader sourceLoader = mapperService.mappingLookup().newSourceLoader(filter, SourceFieldMetrics.NOOP, null);

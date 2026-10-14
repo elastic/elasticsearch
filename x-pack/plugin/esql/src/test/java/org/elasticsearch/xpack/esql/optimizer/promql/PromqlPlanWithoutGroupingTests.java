@@ -11,12 +11,12 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -169,15 +170,15 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         );
         PhysicalPlan dataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(physical, EsqlTestUtils.TEST_CFG).v2();
         LogicalPlan fragment = as(as(dataNodePlan, ExchangeSinkExec.class).child(), FragmentExec.class).fragment();
-        var fragmentPackedTimeSeriesValues = fragment.collect(TimeSeriesAggregate.class)
+        var fragmentMetadataValues = fragment.collect(TimeSeriesAggregate.class)
             .stream()
             .flatMap(aggregate -> packedDims(aggregate.aggregates()).stream())
             .filter(Attribute.class::isInstance)
             .map(Attribute.class::cast)
-            .filter(attr -> MetadataAttribute.TIMESERIES.equals(attr.name()))
+            .filter(TimeSeriesMetadataAttribute.class::isInstance)
             .toList();
-        assertThat(fragment.toString(), fragmentPackedTimeSeriesValues, hasSize(1));
-        assertThat(as(fragmentPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).excludedFields(), hasItem("pod"));
+        assertThat(fragment.toString(), fragmentMetadataValues, hasSize(1));
+        assertThat(as(fragmentMetadataValues.getFirst(), TimeSeriesMetadataAttribute.class).excludedFields(), hasItem("pod"));
         PhysicalPlan deserializedDataNodePlan = SerializationTestUtils.serializeDeserialize(
             dataNodePlan,
             StreamOutput::writeNamedWriteable,
@@ -185,42 +186,40 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             EsqlTestUtils.TEST_CFG
         );
         LogicalPlan deserializedFragment = as(as(deserializedDataNodePlan, ExchangeSinkExec.class).child(), FragmentExec.class).fragment();
-        var deserializedPackedTimeSeriesValues = deserializedFragment.collect(TimeSeriesAggregate.class)
+        var deserializedMetadataValues = deserializedFragment.collect(TimeSeriesAggregate.class)
             .stream()
             .flatMap(aggregate -> packedDims(aggregate.aggregates()).stream())
             .filter(Attribute.class::isInstance)
             .map(Attribute.class::cast)
-            .filter(attr -> MetadataAttribute.TIMESERIES.equals(attr.name()))
+            .filter(TimeSeriesMetadataAttribute.class::isInstance)
             .toList();
-        assertThat(deserializedFragment.toString(), deserializedPackedTimeSeriesValues, hasSize(1));
-        assertThat(as(deserializedPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).excludedFields(), hasItem("pod"));
+        assertThat(deserializedFragment.toString(), deserializedMetadataValues, hasSize(1));
+        assertThat(as(deserializedMetadataValues.getFirst(), TimeSeriesMetadataAttribute.class).excludedFields(), hasItem("pod"));
 
         var localLogical = new LocalLogicalPlanOptimizer(
             new LocalLogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), SearchStats.EMPTY)
         );
         LogicalPlan localizedFragment = localLogical.localOptimize(deserializedFragment);
-        var localizedPackedTimeSeriesValues = localizedFragment.collect(TimeSeriesAggregate.class)
+        var localizedMetadataValues = localizedFragment.collect(TimeSeriesAggregate.class)
             .stream()
             .flatMap(aggregate -> packedDims(aggregate.aggregates()).stream())
             .filter(Attribute.class::isInstance)
             .map(Attribute.class::cast)
-            .filter(attr -> MetadataAttribute.TIMESERIES.equals(attr.name()))
+            .filter(TimeSeriesMetadataAttribute.class::isInstance)
             .toList();
-        assertThat(localizedFragment.toString(), localizedPackedTimeSeriesValues, hasSize(1));
-        assertThat(as(localizedPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).excludedFields(), hasItem("pod"));
+        assertThat(localizedFragment.toString(), localizedMetadataValues, hasSize(1));
+        assertThat(as(localizedMetadataValues.getFirst(), TimeSeriesMetadataAttribute.class).excludedFields(), hasItem("pod"));
 
         PhysicalPlan mappedLocalizedFragment = LocalMapper.INSTANCE.map(localizedFragment);
-        var mappedPackedTimeSeriesValues = mappedLocalizedFragment.collect(
-            org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec.class
-        )
+        var mappedMetadataValues = mappedLocalizedFragment.collect(org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec.class)
             .stream()
             .flatMap(aggregate -> packedDims(aggregate.aggregates()).stream())
             .filter(Attribute.class::isInstance)
             .map(Attribute.class::cast)
-            .filter(attr -> MetadataAttribute.TIMESERIES.equals(attr.name()))
+            .filter(TimeSeriesMetadataAttribute.class::isInstance)
             .toList();
-        assertThat(mappedLocalizedFragment.toString(), mappedPackedTimeSeriesValues, hasSize(1));
-        assertThat(as(mappedPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).excludedFields(), hasItem("pod"));
+        assertThat(mappedLocalizedFragment.toString(), mappedMetadataValues, hasSize(1));
+        assertThat(as(mappedMetadataValues.getFirst(), TimeSeriesMetadataAttribute.class).excludedFields(), hasItem("pod"));
 
         var localPhysical = new LocalPhysicalPlanOptimizer(
             new LocalPhysicalOptimizerContext(
@@ -235,7 +234,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
 
         ReadDimsExec readTimeSeries = localizedDataNodePlan.collect(ReadDimsExec.class)
             .stream()
-            .filter(readDims -> Expressions.names(readDims.dims()).contains(MetadataAttribute.TIMESERIES))
+            .filter(readDims -> readDims.dims().stream().anyMatch(TimeSeriesMetadataAttribute.class::isInstance))
             .findFirst()
             .orElse(null);
         assertNotNull(localizedDataNodePlan.toString(), readTimeSeries);
@@ -245,6 +244,32 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         FunctionEsField extractedField = as(extractedTimeSeries.field(), FunctionEsField.class);
         var functionConfig = as(extractedField.functionConfig(), BlockLoaderFunctionConfig.TimeSeriesMetadata.class);
         assertThat(functionConfig.skipFieldNames(), hasItem("pod"));
+    }
+
+    public void testMultipleMetadataProjectionsRequireNewerNodes() {
+        var version = TransportVersionUtils.getPreviousVersion(TranslationContext.PROMQL_MULTIPLE_TIMESERIES_METADATA);
+        for (String expression : List.of(
+            "network.eth0.tx / sum by (cluster) (network.eth0.rx)",
+            "sum by (cluster) (network.eth0.tx) / network.eth0.rx",
+            "network.eth0.tx / on (cluster) group_left sum by (cluster) (network.eth0.rx)"
+        )) {
+            var error = expectThrows(
+                VerificationException.class,
+                () -> tsAnalyzer().minimumTransportVersion(version).query("PROMQL index=k8s step=1h result=(" + expression + ")")
+            );
+            assertThat(error.getMessage(), containsString("Multiple time-series metadata projections require a newer version"));
+        }
+    }
+
+    public void testSingleMetadataProjectionStillSupportsOlderNodes() {
+        var version = TransportVersionUtils.getPreviousVersion(TranslationContext.PROMQL_MULTIPLE_TIMESERIES_METADATA);
+        for (String expression : List.of(
+            "network.eth0.tx",
+            "sum without (pod) (network.eth0.tx)",
+            "sum by (cluster) (network.eth0.tx) / sum by (cluster) (network.eth0.rx)"
+        )) {
+            tsAnalyzer().minimumTransportVersion(version).query("PROMQL index=k8s step=1h result=(" + expression + ")");
+        }
     }
 
     public void testNestedWithoutOverByProducesConcreteOutput() {

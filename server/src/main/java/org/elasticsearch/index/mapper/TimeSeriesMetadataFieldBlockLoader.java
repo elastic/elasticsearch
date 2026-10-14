@@ -19,6 +19,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -44,7 +45,9 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
         assert context.blockLoaderFunctionConfig() instanceof BlockLoaderFunctionConfig.TimeSeriesMetadata;
 
         if (context.indexSettings().getMode().isTsdb() == false) {
-            throw new IllegalStateException("TimeSeriesMetadataFieldBlockLoader requires index mode: [ " + IndexMode.TIME_SERIES + " ]");
+            throw new IllegalStateException(
+                TimeSeriesMetadataFieldBlockLoader.class.getSimpleName() + " requires index mode: [ " + IndexMode.TIME_SERIES + " ]"
+            );
         }
 
         var config = (BlockLoaderFunctionConfig.TimeSeriesMetadata) context.blockLoaderFunctionConfig();
@@ -55,6 +58,8 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
         for (var m : dimensionMappers.values()) {
             result.add(m.fieldType().name());
         }
+
+        assert config != null;
 
         for (var skip : config.skipFieldNames()) {
             // Resolve field name (e.g. `cpu`) to canonical form (e.g. `attributes.cpu`)
@@ -84,7 +89,7 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
 
     @Override
     public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        return new TimeSeriesReader(breaker);
+        return new TimeSeriesReader(breaker, metadataFields);
     }
 
     @Override
@@ -111,8 +116,11 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
     }
 
     private static final class TimeSeriesReader extends BlockStoredFieldsReader {
-        private TimeSeriesReader(CircuitBreaker breaker) {
+        private final SourceFilter filter;
+
+        private TimeSeriesReader(CircuitBreaker breaker, Set<String> metadataFields) {
             super(breaker);
+            filter = metadataFields.isEmpty() ? null : new SourceFilter(metadataFields.toArray(String[]::new), null);
         }
 
         /**
@@ -146,7 +154,11 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
 
         @Override
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            ((BytesRefBuilder) builder).appendBytesReference(toJson(storedFields.source()));
+            // Filter is needed because stored-fields are merged across readers
+            // and shared source may contain dimensions excluded by this node.
+            ((BytesRefBuilder) builder).appendBytesReference(
+                toJson(filter != null ? storedFields.source().filter(filter) : Source.empty(XContentType.JSON))
+            );
         }
 
         @Override

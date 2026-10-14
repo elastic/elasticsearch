@@ -457,20 +457,22 @@ public class PromqlVerifierTests extends ESTestCase {
     }
 
     /**
-     * An unmatched operator computes its two source-backed operands in one shared aggregation, so both must be aggregated alike:
-     * both per series, or both one level across series. Each other pairing is rejected with a message naming its shape.
+     * Fused operators require compatible aggregation levels. Vector matching can instead evaluate a raw vector
+     * and an aggregate independently, while scalar/vector mixing and unsupported nested aggregations remain rejected.
      */
     public void testUnmatchedOperandsMustAggregateAlike() {
         String query = "PROMQL index=test step=5m ";
-        for (String rejected : List.of(
+        for (String expression : List.of(
             "sum(network.bytes_in) / network.connections",
             "network.connections * max by (host) (network.bytes_in)",
-            "stddev(network.bytes_in) + network.connections"
+            "stddev(network.bytes_in) + network.connections",
+            "sum by (host) (network.bytes_in) / topk(2, network.connections)"
         )) {
-            tsdb.error(
-                query + rejected,
-                containsString("binary operations between an aggregated and a raw vector are not supported at this time")
-            );
+            if (EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled()) {
+                tsdb.query(query + expression);
+            } else {
+                tsdb.error(query + expression, containsString("binary operations between vectors with mismatched grouping keys"));
+            }
         }
         for (String rejected : List.of(
             "scalar(sum(network.bytes_in)) * network.connections",
@@ -490,8 +492,7 @@ public class PromqlVerifierTests extends ESTestCase {
             "bottomk(1, network.bytes_in) / bottomk(1, network.connections)",
             "limitk(1, network.bytes_in) / limitk(1, network.connections)",
             "limit_ratio(0.5, network.bytes_in) / network.connections",
-            "topk(2, network.bytes_in) * network.connections",
-            "sum by (host) (network.bytes_in) / topk(2, network.connections)"
+            "topk(2, network.bytes_in) * network.connections"
         )) {
             tsdb.error(
                 query + rejected,

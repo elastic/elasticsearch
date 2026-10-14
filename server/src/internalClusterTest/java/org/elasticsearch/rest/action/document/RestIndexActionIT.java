@@ -521,7 +521,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
         getRestClient().performRequest(closePit);
     }
 
-    public void testSearchUrlSliceRejectedWhenNoSliceEnabledIndices() throws Exception {
+    public void testSearchUrlSliceReturnsNoHitsWhenNoSliceEnabledIndices() throws Exception {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Request create = new Request("PUT", "/slice-search-url-disabled-it");
         create.setJsonEntity("""
@@ -548,9 +548,13 @@ public class RestIndexActionIT extends ESIntegTestCase {
                 "match_all": {}
               }
             }""");
-        ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(searchWithSlice));
-        String response = Streams.copyToString(new InputStreamReader(exception.getResponse().getEntity().getContent(), UTF_8));
-        assertThat(response, containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
+        ObjectPath objectPath = ObjectPath.createFromResponse(getRestClient().performRequest(searchWithSlice));
+        assertThat(objectPath.evaluate("hits.total.value"), equalTo(0));
+        assertThat(objectPath.evaluate("_shards.failed"), equalTo(0));
+
+        Request countWithSlice = new Request("GET", "/slice-search-url-disabled-it/s1/_count");
+        ObjectPath countPath = ObjectPath.createFromResponse(getRestClient().performRequest(countWithSlice));
+        assertThat(countPath.evaluate("count"), equalTo(0));
     }
 
     public void testSearchUrlSliceAcceptedForMixedIndicesAndAppliesGlobalFilter() throws Exception {

@@ -102,23 +102,16 @@ import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
  * View resolution may introduce new nodes that need further processing, so explicit recursive calls are made on newly resolved view
  * plans. The traversal tracks circular references and enforces the maximum view depth ({@link #MAX_VIEW_DEPTH_SETTING}). It also counts
  * the commands on each path of the plan, including those of the views expanded into it, and fails when a path has more than
- * {@link LogicalPlanBuilder#MAX_QUERY_DEPTH} of them, as the parser does for a query written out in full. It adds up the nodes of the
- * query and of every view body that it expands, and fails when there are more than {@link #MAX_PLAN_NODES}.
+ * {@link LogicalPlanBuilder#MAX_QUERY_DEPTH} of them, as the parser does for a query written out in full. For a query that resolves at
+ * least one view, it also adds up the nodes contributed by every view body expanded into it, and fails when there are more than
+ * {@link #MAX_EXPANDED_SIZE} — a query that resolves no view (however many subqueries it has) is not checked against this limit at all.
  * <p>
  * TODO: {@code ViewResolver} needs rename or refactor, as it does two tasks - view resolution and IN subquery resolution. Keep the core
  *  of view resolution in {@code ViewResolver}, and have a {@code ViewAndSubqueryResolver} drive the plan tree traversal, call
  *  {@code ViewResolver} and {@code InSubqueryResolver} to do the view and IN subquery resolution respectively.
  */
 public class ViewResolver {
-
-    /**
-     * The most nodes the plan of a query may have, once the views it references are expanded. This counts the nodes of the expressions
-     * in the plan as well, since they use the heap just the same: the number of commands on a path and of branches are limited, and
-     * the nesting of expressions is too, but their size is only bounded by the length of the query. Views are not bounded either,
-     * because each reference to a view expands its whole body again, so nothing but this limit stops views that reference views from
-     * growing faster than their text.
-     */
-    public static final int MAX_PLAN_NODES = 10_000;
+    public static final int MAX_EXPANDED_SIZE = 50_000;
 
     protected Logger log = LogManager.getLogger(getClass());
     private final Executor executor;
@@ -238,10 +231,15 @@ public class ViewResolver {
         // A Holder (not a plain boolean) because it is written from inside the async resolution callbacks; cross-thread visibility is
         // provided by the ActionListener plumbing, the same way the viewQueries map threaded through these callbacks is.
         Holder<Boolean> hasInSubquery = new Holder<>(false);
-        // Counts the nodes of the plan, and then of every view body expanded into it, so that expansion stops before a query that
-        // references views that reference views grows beyond what the node can hold. Written from the async callbacks, like the holder.
-        AtomicInteger planNodes = new AtomicInteger(countNodes(plan));
-        checkPlanSize(planNodes.get(), List.of());
+        // Counts the nodes contributed by expanding views into the plan, so that expansion stops before a query that references views
+        // that reference views grows beyond what the node can hold. Written from the async callbacks, like the holder.
+        //
+        // This only ever grows inside resolve(), i.e. only once a relation is actually found to reference a view, and only the nodes
+        // of view bodies are added to it — never the query's own, as-written plan. Subqueries (FROM or IN, without a view) are not
+        // counted either: every copy of a subquery is already present in the query's own text, bounded by the length limit, the same
+        // as a query with many EVAL/STATS columns — there is no hidden re-expansion to guard against there. Views are different: each
+        // reference re-parses and re-expands a body that is not in the query's text, which is the growth this limit exists to catch.
+        AtomicInteger planNodes = new AtomicInteger(0);
         boolean noViews = viewsFeatureEnabled() == false || getMetadata().views().isEmpty();
         if (noViews && InSubqueryResolver.hasInSubquery(plan) == false) {
             listener.onResponse(new ViewResolutionResult(plan, viewQueries, false));
@@ -1227,7 +1225,7 @@ public class ViewResolver {
      * path of the query within {@link LogicalPlanBuilder#MAX_QUERY_DEPTH}. The parser limits the commands of a single query, so the
      * commands of the view and of the queries it is expanded into have to be added up here.
      * <p>
-     * It also adds the nodes of the body to {@code planNodes}, and checks them against {@link #MAX_PLAN_NODES}. Every reference to a
+     * It also adds the nodes of the body to {@code planNodes}, and checks them against {@link #MAX_EXPANDED_SIZE}. Every reference to a
      * view parses and expands its body again, so views that reference views several times grow much faster than the text of the query.
      */
     private LogicalPlan resolve(
@@ -1273,19 +1271,19 @@ public class ViewResolver {
     }
 
     /**
-     * Fails a query whose plan has grown beyond {@link #MAX_PLAN_NODES}. The plan, and the views expanded into it, is not tracked by
+     * Fails a query whose plan has grown beyond {@link #MAX_EXPANDED_SIZE}. The plan, and the views expanded into it, is not tracked by
      * any circuit breaker, so this is what keeps it from using the heap of the node.
      *
      * @param nodes the nodes of the plan so far, which is approximate: the node that a view reference is replaced by is counted too
      * @param viewPath the views that were expanded to get here, empty if the query is too large as it was written
      */
     private static void checkPlanSize(int nodes, Collection<String> viewPath) {
-        if (nodes > MAX_PLAN_NODES) {
+        if (nodes > MAX_EXPANDED_SIZE) {
             throw new VerificationException(
-                "ES|QL query exceeded the maximum plan size allowed ({} nodes){}: [{}] nodes. "
+                "ES|QL query exceeded the maximum plan size allowed after expanding views ({} nodes){}: [{}] nodes. "
                     + "Reduce the number of subqueries and views that the query uses, the number of times they reference each other, "
                     + "or the size of its expressions.",
-                MAX_PLAN_NODES,
+                MAX_EXPANDED_SIZE,
                 viewPath.isEmpty() ? "" : " after expanding views [" + String.join(" -> ", viewPath) + "]",
                 nodes
             );

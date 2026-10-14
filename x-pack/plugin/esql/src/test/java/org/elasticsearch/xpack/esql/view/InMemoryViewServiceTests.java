@@ -889,8 +889,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     private static final String maxDepthViewsError = "ES|QL query exceeded the maximum query depth allowed (500) after expanding views";
-    private static final String maxPlanNodesViewsError =
-        "ES|QL query exceeded the maximum plan size allowed (10000 nodes) after expanding views";
+    private static final String maxPlanNodesViewsError = "ES|QL query exceeded the maximum plan size allowed after expanding views";
 
     public void testMaxQueryDepthAcrossViews() {
         addView("long_view", "FROM emp" + pipes(300));
@@ -1116,30 +1115,17 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
      * Subqueries bring nodes without views, since each of them may have as many commands as the limit on a path allows. A command such
      * as {@code WHERE a > 0} is four nodes: the command, the comparison, and its two operands.
      */
-    public void testMaxPlanNodesOfQueryWithoutViews() {
-        String subquery = "(FROM emp2" + pipes(499) + ")";
-        // about 6,000 nodes
-        replaceViews(query("FROM " + String.join(", ", Collections.nCopies(3, subquery))));
-        // about 12,000 nodes
-        Exception e = expectThrows(
-            VerificationException.class,
-            () -> replaceViews(query("FROM " + String.join(", ", Collections.nCopies(6, subquery))))
-        );
-        assertThat(e.getMessage(), startsWith("ES|QL query exceeded the maximum plan size allowed (10000 nodes): ["));
-    }
-
     /**
-     * The nodes of expressions count too, and a single command holds as many as the length of the query allows.
+     * A query that resolves no view is not checked against {@code MAX_PLAN_NODES} at all, however many subqueries it has: every copy
+     * of a subquery is already present in the query's own text, bounded by the length limit, the same as a query with many
+     * {@code EVAL}/{@code STATS} columns or a wide {@code IN} list — none of those are checked against this limit either. See
+     * {@code HeapAttackIT} in the heap-attack test module for real queries this limit must not reject.
      */
-    public void testMaxPlanNodesOfWideExpression() {
-        // about 5,000 nodes
-        replaceViews(query("FROM emp | EVAL y = COALESCE(" + String.join(", ", Collections.nCopies(5_000, "a")) + ")"));
-        // about 10,000 nodes
-        Exception e = expectThrows(
-            VerificationException.class,
-            () -> replaceViews(query("FROM emp | EVAL y = COALESCE(" + String.join(", ", Collections.nCopies(10_000, "a")) + ")"))
-        );
-        assertThat(e.getMessage(), startsWith("ES|QL query exceeded the maximum plan size allowed (10000 nodes): ["));
+    public void testMaxPlanNodesDoesNotApplyWithoutViews() {
+        String subquery = "(FROM emp2" + pipes(499) + ")";
+        // about 42,000 nodes, far over MAX_PLAN_NODES, but no view is involved so nothing is checked
+        replaceViews(query("FROM " + String.join(", ", Collections.nCopies(20, subquery))));
+        replaceViews(query("FROM emp | EVAL y = COALESCE(" + String.join(", ", Collections.nCopies(20_000, "a")) + ")"));
     }
 
     private static String inSubqueriesOfGrowingViews(int count) {

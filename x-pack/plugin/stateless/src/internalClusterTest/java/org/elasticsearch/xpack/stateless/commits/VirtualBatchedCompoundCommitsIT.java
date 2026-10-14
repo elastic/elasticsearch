@@ -610,7 +610,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
         );
 
         // The post-recovery flush on the relocation target creates a commit newer than the recovered one. Search may
-        // fetch that unuploaded commit from this node. Generations up to the recovered one were uploaded before the
+        // fetch that commit while it has not yet been uploaded. Generations up to the recovered one were uploaded before the
         // handoff and must be read from the object store.
         long recoveredGeneration = internalCluster().getInstance(StatelessCommitService.class, indexNodeB).getRecoveredGeneration(shardId);
         final var indexNodeBTransportService = MockTransportService.getInstance(indexNodeB);

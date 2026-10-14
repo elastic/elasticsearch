@@ -165,7 +165,7 @@ public final class ParsedFooterCache<T> {
         this.coalesceAsyncLoads = coalesceAsyncLoads;
         this.cache = CacheBuilder.<FooterByteCache.Key, Weighted<T>>builder()
             .setMaximumWeight(maxWeightBytes)
-            .setExpireAfterWrite(expireAfterWrite)
+            .setExpireAfterAccess(expireAfterWrite)
             .weigher((key, value) -> value.weight())
             .build();
     }

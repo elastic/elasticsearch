@@ -256,6 +256,18 @@ public final class DatasetListingService {
      * An entry with no recorded glob-match count cannot say, so it is declined — which is the conservative
      * direction: it costs a listing, never an answer. It is not a bounded-versus-unbounded distinction; see
      * {@link FileList#UNKNOWN_GLOB_MATCH_COUNT} for when a listing has no count to offer.
+     * <p>
+     * Every entry is a listing of the whole pattern — {@code ExternalSourceCacheService.refuseTruncated} is the
+     * only way in — so what is left to establish is that this query's own listing would have completed too.
+     * Otherwise the entry reports the whole pattern where this query's listing reports a prefix, with partition
+     * types folded over more paths, and the schema a query returns starts depending on what ran before it.
+     * <p>
+     * That is answered by the number of files the glob selected, which the entry carries. Not its file count: the
+     * drain counts a file toward the bound when the glob matches its path, and a partition-value filter, a
+     * closed-range narrowing and a {@code _file.*} hint each drop entries after that, so the count that comes out
+     * is not the count that stopped the drain. Every rule written to detect "nothing narrowed" from the outside was
+     * a proxy that missed two of those three: the guard this replaced tested only the value filter. The comparison
+     * is strictly below the bound, because reaching the bound is what sets the truncation flag.
      */
     private static boolean servesThisBound(@Nullable FileList cached, ListingExtents extents) {
         if (cached == null || cached.globMatchCount() == FileList.UNKNOWN_GLOB_MATCH_COUNT) {
@@ -281,18 +293,8 @@ public final class DatasetListingService {
         BooleanSupplier cancelled
     ) throws Exception {
         ListingCacheKey listingKey = listingCacheKey(path, storagePath, storageIdentity, secretIdentity, hints, config);
-        // Served from the shared cache when the entry can answer this bound's question. Every entry is a listing of
-        // the whole pattern -- refuseTruncated is the only way in -- so what is left to establish is that this
-        // query's own listing would have completed too. Otherwise the entry reports the whole pattern where this
-        // query's listing reports a prefix, with partition types folded over more paths, and the schema a query
-        // returns starts depending on what ran before it.
-        //
-        // That is answered by the number of files the glob selected, which the entry carries. Not its file count:
-        // the drain counts a file toward the bound when the glob matches its path, and a partition-value filter, a
-        // closed-range narrowing and a _file.* hint each drop entries after that, so the count that comes out is
-        // not the count that stopped the drain. Every rule written to detect "nothing narrowed" from the outside
-        // was a proxy that missed two of those three: the guard this replaced tested only the value filter.
-        // The comparison is strictly below the bound, because reaching the bound is what sets the truncation flag.
+        // Served from the shared cache only when the entry answers this bound's question; servesThisBound says
+        // what that takes and why the glob-match count is what answers it.
         FileList cached = cacheService.getListingIfPresent(listingKey);
         if (servesThisBound(cached, extents)) {
             GlobExpander.checkDiscoveredFilesLimit(cached.fileCount(), maxDiscoveredFiles.getAsInt());
@@ -340,18 +342,8 @@ public final class DatasetListingService {
         ActionListener<FileList> listener
     ) {
         ListingCacheKey listingKey = listingCacheKey(path, storagePath, storageIdentity, secretIdentity, hints, config);
-        // Served from the shared cache when the entry can answer this bound's question. Every entry is a listing of
-        // the whole pattern -- refuseTruncated is the only way in -- so what is left to establish is that this
-        // query's own listing would have completed too. Otherwise the entry reports the whole pattern where this
-        // query's listing reports a prefix, with partition types folded over more paths, and the schema a query
-        // returns starts depending on what ran before it.
-        //
-        // That is answered by the number of files the glob selected, which the entry carries. Not its file count:
-        // the drain counts a file toward the bound when the glob matches its path, and a partition-value filter, a
-        // closed-range narrowing and a _file.* hint each drop entries after that, so the count that comes out is
-        // not the count that stopped the drain. Every rule written to detect "nothing narrowed" from the outside
-        // was a proxy that missed two of those three: the guard this replaced tested only the value filter.
-        // The comparison is strictly below the bound, because reaching the bound is what sets the truncation flag.
+        // Served from the shared cache only when the entry answers this bound's question; servesThisBound says
+        // what that takes and why the glob-match count is what answers it.
         FileList cached = cacheService.getListingIfPresent(listingKey);
         if (servesThisBound(cached, extents)) {
             try {

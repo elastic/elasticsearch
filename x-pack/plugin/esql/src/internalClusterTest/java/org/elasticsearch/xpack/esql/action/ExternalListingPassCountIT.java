@@ -305,13 +305,12 @@ public class ExternalListingPassCountIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * A glob that matches nothing must still list once.
+     * A glob that matches nothing must still list once; a mistyped glob used to cost two full listings.
      * <p>
-     * This is the other half of counting matches rather than keys, and the only case in which it changes an
-     * outcome: a drain that exhausted its prefix without reaching the bound saw every key under it, so an empty
-     * result means the dataset is empty rather than the bound having stopped short. A keys-visited bound returned
-     * the same empty list either way and could never tell them apart, so it re-listed the whole prefix unbounded to
-     * find out. A mistyped glob is the everyday way to reach this, and it used to cost two full listings.
+     * One pass suffices because a drain that exhausted its prefix saw every key under it, so an empty result is the
+     * dataset's answer. Here the store narrows to the pattern's literal lead and returns nothing, which exhausts
+     * the prefix under a keys-visited bound too — so this stays green with that bound restored. What discriminates
+     * is {@code GlobExpanderTests.testABoundCountsMatchesSoAFullDrainIsNotTruncated}, whose stub cannot narrow.
      */
     public void testAGlobThatMatchesNothingListsOnce() throws Exception {
         Path dir = writeFixture(PADDING_FOLDERS);

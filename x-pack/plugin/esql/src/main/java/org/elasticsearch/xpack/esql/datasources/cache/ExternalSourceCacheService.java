@@ -627,14 +627,9 @@ public class ExternalSourceCacheService implements Closeable {
      */
     private static FileList refuseTruncated(ListingCacheKey key, FileList listing) {
         if (listing.isTruncated()) {
-            throw truncatedListing(key);
+            throw new IllegalStateException("a truncated listing must never enter the shared listing cache: " + key.prefixAndGlob());
         }
         return listing;
-    }
-
-    /** The refusal {@link #refuseTruncated} throws, as a value, so both store paths raise the same failure. */
-    private static IllegalStateException truncatedListing(ListingCacheKey key) {
-        return new IllegalStateException("a truncated listing must never enter the shared listing cache: " + key.prefixAndGlob());
     }
 
     /**

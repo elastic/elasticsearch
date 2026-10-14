@@ -5196,6 +5196,51 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
+     * Pruning survives a provider that reports a child directory with the separator still on it.
+     * <p>
+     * Every provider in this repo removes it — S3, GCS and Azure each strip the common prefix's trailing separator
+     * before building the path, and the local one builds from a {@code Path} that never carries one — so this
+     * spelling is one the interface permits and none of them currently returns. It is pinned because the
+     * consequence is not a wasted request: the separator becomes a trailing empty segment, no pattern segment
+     * matches it, and every directory is excluded, so the answer would be no files at all.
+     */
+    public void testFanOutPrunesWhenTheProviderKeepsTheDirectorySeparator() throws Exception {
+        List<StorageEntry> entries = new ArrayList<>();
+        // Twenty is enough: the property is that a sibling the pattern excludes keeps no slot, and the 1200-folder
+        // fixture above already pins that the cost does not follow the dataset.
+        for (int d = 0; d < 20; d++) {
+            entries.add(entry(String.format(Locale.ROOT, "s3://bucket/data/date=2023-%06d/part.parquet", d), 100));
+        }
+        for (int d = 1; d <= 9; d++) {
+            entries.add(entry(String.format(Locale.ROOT, "s3://bucket/data/date=2024-01-%02d/part.parquet", d), 100));
+        }
+        TreeStubProvider provider = new TreeStubProvider(entries);
+        provider.trailingSlashDirectories = true;
+
+        @SuppressWarnings("RegexpMultiline")
+        String pattern = "s3://bucket/data/date=2024-01-0*/*.parquet";
+        FileList result = expandSync(
+            pattern,
+            provider,
+            null,
+            HIVE_ON,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            4,
+            () -> false
+        );
+
+        assertEquals("the separator must not cost the listing its files", 9, result.fileCount());
+        Set<String> expected = new LinkedHashSet<>();
+        for (int d = 1; d <= 9; d++) {
+            expected.add(String.format(Locale.ROOT, "s3://bucket/data/date=2024-01-%02d/", d));
+        }
+        assertEquals("and the twenty the pattern excludes keep no slot", expected, Set.copyOf(provider.listedPrefixes));
+    }
+
+    /**
      * A bound is not reached by keys the glob cannot match, and a listing that drained its prefix without reaching
      * it is not truncated.
      * <p>
@@ -6693,6 +6738,12 @@ public class GlobExpanderTests extends ESTestCase {
         final List<String> enumeratedFiles = Collections.synchronizedList(new ArrayList<>());
         final Map<String, Integer> keysPulled = Collections.synchronizedMap(new LinkedHashMap<>());
         boolean childrenUnsupported = false;
+        /**
+         * Renders a child directory with the separator the store's own listing carries. Every provider in this repo
+         * strips it before building the path, so the default is off and matches them; this spelling is what the
+         * interface permits rather than what any of them returns.
+         */
+        boolean trailingSlashDirectories = false;
 
         TreeStubProvider(List<StorageEntry> allEntries) {
             // Sort entries by path so listChildren and listObjects return results in key order,
@@ -6761,7 +6812,8 @@ public class GlobExpanderTests extends ESTestCase {
                     files.add(e);
                     enumeratedFiles.add(path);
                 } else {
-                    dirs.add(p + rest.substring(0, slash));
+                    String dir = p + rest.substring(0, slash);
+                    dirs.add(trailingSlashDirectories ? dir + "/" : dir);
                 }
                 if (files.size() + dirs.size() > limit) {
                     return null;

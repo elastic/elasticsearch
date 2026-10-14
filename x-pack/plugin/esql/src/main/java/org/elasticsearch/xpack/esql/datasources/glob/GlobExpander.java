@@ -1814,8 +1814,10 @@ public final class GlobExpander {
             return true;
         }
         String relative = dirPath.substring(rootPrefixStr.length());
-        // listChildren reports a directory as a prefix, so a trailing separator is part of the key and would
-        // otherwise split into a trailing empty segment that no pattern segment matches.
+        // Every provider here strips the separator a store's own listing puts on a directory before building the
+        // path, so this normalizes a spelling the interface permits rather than one any of them returns. Kept
+        // because its absence does not cost a request: the separator would split into a trailing empty segment
+        // that no pattern segment matches, excluding every directory and returning no files.
         if (relative.endsWith("/")) {
             relative = relative.substring(0, relative.length() - 1);
         }

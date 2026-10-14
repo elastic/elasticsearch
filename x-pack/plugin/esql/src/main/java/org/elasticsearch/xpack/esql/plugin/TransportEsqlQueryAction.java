@@ -470,14 +470,15 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         // EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning (which stops the planning span).
         var ci = result.completionInfo();
         var qp = result.executionInfo().queryProfile();
+        // Read once and shared by the APM/phone-home and billing paths so the two cannot report different CPU values.
+        long executionCpu = ci.cpuNanos();
+        long readCpu = ci.readCpuNanos();
+        long planningCpu = qp.planningCpuNanos();
+        long splitDiscoveryCpu = qp.splitDiscoveryCpuNanos();
         // APM and phone-home CPU recording — independent of the billing listener so that a failure
         // here never silently suppresses the billing call below.
         try {
-            // planning().timeSpan() is non-null by the time we reach the success path:
-            // EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning calls planning().stop() before execution starts.
-            planExecutor.dataSourceModule()
-                .externalSourceMetrics()
-                .recordQueryCpu(ci.cpuNanos(), ci.readCpuNanos(), qp.planning().timeSpan().durationInNanos(), qp.splitDiscoveryCpuNanos());
+            planExecutor.dataSourceModule().externalSourceMetrics().recordQueryCpu(executionCpu, readCpu, planningCpu, splitDiscoveryCpu);
         } catch (Exception ex) {
             logger.warn("failed to record query CPU metrics", ex);
         }
@@ -490,17 +491,17 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                         QueryMetricsListener.PLANNING_NANOS,
                         qp.planning().timeSpan().durationInNanos(),
                         QueryMetricsListener.PLANNING_CPU_NANOS,
-                        qp.planningCpuNanos(),
+                        planningCpu,
                         QueryMetricsListener.CPU_NANOS,
-                        ci.cpuNanos(),
+                        executionCpu,
                         QueryMetricsListener.READ_NANOS,
                         ci.readNanos(),
                         QueryMetricsListener.READ_CPU_NANOS,
-                        ci.readCpuNanos(),
+                        readCpu,
                         QueryMetricsListener.SPLIT_DISCOVERY_NANOS,
                         qp.splitDiscoveryNanos(),
                         QueryMetricsListener.SPLIT_DISCOVERY_CPU_NANOS,
-                        qp.splitDiscoveryCpuNanos(),
+                        splitDiscoveryCpu,
                         QueryMetricsListener.BYTES_READ,
                         ci.bytesRead()
                     )

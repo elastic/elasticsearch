@@ -289,7 +289,8 @@ public final class SliceIndexing {
 
     /**
      * Returns {@code true} when the request matched a path-based slice search endpoint. The supported shapes are
-     * {@code /{index}/{_slice}/_search}, {@code /{index}/{_slice}/_count}, {@code /{index}/{_slice}/_search/template}, and
+     * {@code /{index}/{_slice}/_search}, {@code /{index}/{_slice}/_count}, {@code /{index}/{_slice}/_delete_by_query},
+     * {@code /{index}/{_slice}/_update_by_query}, {@code /{index}/{_slice}/_search/template}, and
      * {@code /{index}/{_slice}/_fleet/_fleet_search}.
      */
     static boolean isPathBasedSliceSearch(RestRequest request) {
@@ -300,7 +301,10 @@ public final class SliceIndexing {
         }
         final String[] parts = Strings.tokenizeToStringArray(rawPath, "/");
         if (parts.length == 3) {
-            return "_search".equals(parts[2]) || "_count".equals(parts[2]);
+            return "_search".equals(parts[2])
+                || "_count".equals(parts[2])
+                || "_delete_by_query".equals(parts[2])
+                || "_update_by_query".equals(parts[2]);
         }
         if (parts.length == 4) {
             return ("_search".equals(parts[2]) && "template".equals(parts[3]))
